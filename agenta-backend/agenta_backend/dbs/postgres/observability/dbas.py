@@ -28,6 +28,15 @@ class StatusDBA(DisplayBase):
     status_message = Column(String, nullable=True)
 
 
+## --- EXCEPTIONS (DBA) --- ##
+
+
+class ExceptionDBA(DisplayBase):
+    __abstract__ = True
+
+    exception = Column(JSON, nullable=True)
+
+
 ## --- ATTRIBUTES (DBA) --- ##
 
 
@@ -102,6 +111,7 @@ class SpanDBA(
     ParentDBA,
     TimeDBA,
     StatusDBA,
+    ExceptionDBA,
     AttributesDBA,
     LinksDBA,
     OTelDBA,

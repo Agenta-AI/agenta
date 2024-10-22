@@ -11,6 +11,7 @@ from agenta_backend.core.observability.dtos import (
     ParentDTO,
     TimeDTO,
     StatusDTO,
+    ExceptionDTO,
     LinkDTO,
     OTelExtraDTO,
 )
@@ -53,6 +54,17 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
         status=StatusDTO(
             code=span.status_code,
             message=span.status_message,
+        ),
+        exception=(
+            ExceptionDTO(
+                timestamp=span.exception["timestamp"],
+                type=span.exception["type"],
+                message=span.exception.get("message"),
+                stacktrace=span.exception.get("stacktrace"),
+                attributes=span.exception.get("attributes"),
+            )
+            if span.exception
+            else None
         ),
         # ATTRIBUTES
         data=span.data,
@@ -103,6 +115,12 @@ def map_span_create_dto_to_dbe(
         # STATUS
         status_code=span_create_dto.status.code,
         status_message=span_create_dto.status.message,
+        # EXCEPTION
+        exception=(
+            span_create_dto.exception.model_dump(exclude_none=True)
+            if span_create_dto.exception
+            else None
+        ),
         # ATTRIBUTES
         data=span_create_dto.data,
         metrics=span_create_dto.metrics,
@@ -145,7 +163,7 @@ def map_span_dto_to_dbe(
         node_type=span_dto.node.type,
         node_name=span_dto.node.name,
         # PARENT
-        parent_id=span_dto.parent.id if span_dto.parent.span_id else None,
+        parent_id=span_dto.parent.id if span_dto.parent else None,
         # TIME
         time_start=span_dto.time.start,
         time_end=span_dto.time.end,
@@ -153,6 +171,12 @@ def map_span_dto_to_dbe(
         # STATUS
         status_code=span_dto.status.code,
         status_message=span_dto.status.message,
+        # EXCEPTION
+        exception=(
+            span_dto.exception.model_dump(exclude_none=True)
+            if span_dto.exception
+            else None
+        ),
         # ATTRIBUTES
         data=span_dto.data,
         metrics=span_dto.metrics,

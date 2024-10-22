@@ -24,13 +24,13 @@ class AgentaNodeDTO(SpanDTO):
 
 
 class AgentaNodesDTO(DisplayBase):
-    nodes: Dict[str, AgentaNodeDTO]
+    nodes: List[AgentaNodeDTO]
 
 
 class AgentaTreeDTO(DisplayBase):
     tree: TreeDTO
 
-    nodes: Dict[str, AgentaNodeDTO]
+    nodes: List[AgentaNodeDTO]
 
 
 class AgentaTreesDTO(DisplayBase):
