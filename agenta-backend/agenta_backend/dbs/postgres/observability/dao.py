@@ -1,6 +1,8 @@
 from typing import Optional, List
 
-from sqlalchemy import and_, or_, not_, distinct, Column
+from sqlalchemy import and_, or_, not_, distinct, Column, cast
+from sqlalchemy import UUID, String, Integer, Float, Boolean
+from sqlalchemy.dialects.postgresql import HSTORE, JSON, JSONB
 from sqlalchemy.future import select
 
 from agenta_backend.dbs.postgres.shared.engine import engine
@@ -272,6 +274,30 @@ def _filters(filtering: FilteringDTO) -> list:
 
         elif isinstance(condition, ConditionDTO):
             column: Column = getattr(InvocationSpanDBE, condition.field)
+
+            # Handle JSON/JSONB/HSTORE key-paths
+            # Assumption: JSON/JSONB/HSTORE columns are stored flat even when nested
+            if condition.key:
+                if isinstance(column.type, (JSON, JSONB, HSTORE)):
+                    if isinstance(column.type, HSTORE):
+                        column = column[condition.key]
+
+                        condition.value = str(condition.value)
+
+                    else:
+                        column = column[condition.key].astext
+
+                        if isinstance(condition.value, UUID):
+                            column = cast(column, UUID)
+                        elif isinstance(condition.value, str):
+                            column = cast(column, String)
+                            condition.value = f'"{condition.value}"'
+                        elif isinstance(condition.value, int):
+                            column = cast(column, Float)  # Yes, Float
+                        elif isinstance(condition.value, float):
+                            column = cast(column, Float)
+                        elif isinstance(condition.value, bool):
+                            column = cast(column, Boolean)
 
             # NUMERIC OPERATORS
             if isinstance(condition.operator, NumericOperator):
