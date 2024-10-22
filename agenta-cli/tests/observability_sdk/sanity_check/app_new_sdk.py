@@ -1,17 +1,21 @@
 import agenta as ag
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from agenta.sdk.assets import supported_llm_models
+from typing import Annotated
 
 ag.init()
 
-ag.config.default(
-    temperature=ag.FloatParam(0.2),
-    model=ag.GroupedMultipleChoiceParam(
-        default="gpt-3.5-turbo", choices=supported_llm_models
-    ),
-    max_tokens=ag.IntParam(-1, -1, 4000),
-    prompt_system=ag.TextParam("MY_SYSTEM_PROMPT"),
-)
+class MyConfig(BaseModel):
+    temperature: float = Field(default=0.2, le=1, ge=0)
+    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
+        default="gpt-3.5-turbo"
+    )
+    max_tokens: int = Field(default=-1, ge=-1, le=4000)
+    prompt_system: str = Field(default="system prompt")
+    multiselect: Annotated[str, ag.MultipleChoice(choices=["a", "b", "c"])] = Field(
+        default="a"
+    )
+
 
 # Pydantic models
 class InputData(BaseModel):
@@ -142,9 +146,10 @@ async def summarizer(topic: str, genre: str, report: dict) -> dict:
 async def exception_func():
     raise Exception("This is an exception")
     return "dummy"
-@ag.entrypoint
+
+@ag.route("/", config_schema=MyConfig)
 @ag.instrument(spankind="WORKFLOW")
-async def rag(topic: str, genre: str, count: int = 5):
+async def newsdk(topic: str, genre: str, count: int = 5):
     result = ignore_some_outputs_embedding("something")
     agent_result = ignore_all_outputs_agent("agent query")
     chain_result1 = chain_function("chain input 1")

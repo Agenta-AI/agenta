@@ -144,7 +144,7 @@ async def exception_func():
     return "dummy"
 @ag.entrypoint
 @ag.instrument(spankind="WORKFLOW")
-async def rag(topic: str, genre: str, count: int = 5):
+async def errors(topic: str, genre: str, count: int = 5):
     result = ignore_some_outputs_embedding("something")
     agent_result = ignore_all_outputs_agent("agent query")
     chain_result1 = chain_function("chain input 1")
@@ -166,7 +166,7 @@ async def rag(topic: str, genre: str, count: int = 5):
     none_output_result = none_output_function()
     nested_result = nested_function(5)
     multiple_calls_results = [multiple_calls_function(i) for i in range(3)]  # Called multiple times
-    # exception_result = await exception_func()
+    exception_result = await exception_func()
     return f"""Results:
 Embedding: {result}
 Agent: {agent_result}
