@@ -4,7 +4,7 @@ import {ArrowRight, Database, PlusCircle, Rocket, Timer} from "@phosphor-icons/r
 import {Button, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
-import {_AgentaRootsResponse} from "@/services/observability/types"
+import {_AgentaRootsResponse, NodeStatusCode} from "@/services/observability/types"
 import dayjs from "dayjs"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {statusMapper} from "../components/AvatarTreeContent"
@@ -211,9 +211,10 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                 <div className="p-4 flex flex-wrap gap-2">
                     <ResultTag
                         style={{
-                            backgroundColor: status.code === "ERROR" ? "#FBE7E7" : bgColor,
-                            border: `1px solid ${status.code === "ERROR" ? "#D61010" : color}`,
-                            color: status.code === "ERROR" ? "#D61010" : color,
+                            backgroundColor:
+                                status.code === NodeStatusCode.ERROR ? "#FBE7E7" : bgColor,
+                            border: `1px solid ${status.code === NodeStatusCode.ERROR ? "#D61010" : color}`,
+                            color: status.code === NodeStatusCode.ERROR ? "#D61010" : color,
                         }}
                         bordered
                         value1={
