@@ -4,18 +4,24 @@ import StatusRenderer from "@/components/pages/observability/components/StatusRe
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import Filters from "@/components/Filters/Filters"
+import Sort from "@/components/Filters/Sort"
+import EditColumns from "@/components/Filters/EditColumns"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
-import {JSSTheme} from "@/lib/Types"
+import {Filter, JSSTheme, SortTypes} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Space, Table, Typography} from "antd"
+import {Button, Radio, RadioChangeEvent, Space, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {Export} from "@phosphor-icons/react"
+import {getAppValues} from "@/contexts/app.context"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -30,7 +36,21 @@ interface Props {}
 const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
+    const [traceTabs, setTraceTabs] = useState("root calls")
+    const [editColumns, setEditColumns] = useState<string[]>([])
+    const [isExportLoading, setIsExportLoading] = useState(false)
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const {traces} = useTraces()
+
+    const filterColumns = [
+        {column: "inputs", mapping: "data.inputs.topic"},
+        {column: "outputs", mapping: "data.outputs"},
+        {column: "status", mapping: "status.code"},
+        {column: "costs", mapping: "metrics.acc.costs.total"},
+        {column: "tokens", mapping: "metrics.acc.tokens.total"},
+        {column: "node_name", mapping: "node.name"},
+        {column: "node_type", mapping: "node.type"},
+    ]
 
     const activeTraceIndex = useMemo(
         () => traces?.findIndex((item) => item.root.id === selectedTraceId),
@@ -49,6 +69,10 @@ const ObservabilityDashboard = ({}: Props) => {
     useEffect(() => {
         setSelected(activeTrace?.key)
     }, [activeTrace])
+
+    const onTraceTabChange = (e: RadioChangeEvent) => {
+        setTraceTabs(e.target.value)
+    }
 
     const columns: ColumnsType<_AgentaRootsResponse> = [
         {
@@ -139,24 +163,122 @@ const ObservabilityDashboard = ({}: Props) => {
         },
     ]
 
+    const onExport = async () => {
+        try {
+            setIsExportLoading(true)
+
+            if (traces.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_observability.csv`
+
+                // Helper function to create a trace object
+                const createTraceObject = (trace: any) => ({
+                    "Trace ID": trace.key,
+                    Timestamp: dayjs(trace.time.start).format("HH:mm:ss DD MMM YYYY"),
+                    Inputs: trace?.data?.inputs?.topic || "N/A",
+                    Outputs: JSON.stringify(trace?.data?.outputs) || "N/A",
+                    Status: trace.status.code,
+                    Latency: formatLatency(trace.time.span / 1000000),
+                    Usage: formatTokenUsage(trace?.metrics?.acc?.tokens?.total || 0),
+                    "Total cost": formatCurrency(trace?.metrics?.acc?.costs?.total || 0),
+                    "Span ID": trace.node.id,
+                    "Span Type": trace.node.type || "N/A",
+                })
+
+                const csvData = convertToCsv(
+                    traces.flatMap((trace) => {
+                        const parentTrace = createTraceObject(trace)
+                        const childrenTraces = trace.children.map(createTraceObject)
+                        return [parentTrace, ...childrenTraces]
+                    }),
+                    [
+                        ...columns.map((col) =>
+                            col.title === "ID" ? "Trace ID" : (col.title as string),
+                        ),
+                        "Span ID",
+                        "Span Type",
+                    ],
+                )
+
+                downloadCsv(csvData, filename)
+            }
+        } catch (error) {
+            console.error("Export error:", error)
+        } finally {
+            setIsExportLoading(false)
+        }
+    }
+
+    const onFilterApply = (filter: Filter[]) => {}
+
+    const onClearFilter = async (filter: Filter[]) => {}
+
+    const onSortApply = (sortData: SortTypes) => {}
+
+    const handleToggleColumnVisibility = (key: string) => {
+        setEditColumns((prev) =>
+            prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
+        )
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
             {traces?.length ? (
-                <Table
-                    columns={columns}
-                    dataSource={traces}
-                    bordered
-                    style={{cursor: "pointer"}}
-                    onRow={(record) => ({
-                        onClick: () => {
-                            setSelectedTraceId(record.root.id)
-                        },
-                    })}
-                    pagination={false}
-                    scroll={{x: "max-content"}}
-                />
+                <section className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                        <Space>
+                            <Filters
+                                columns={filterColumns}
+                                onApplyFilter={onFilterApply}
+                                onClearFilter={onClearFilter}
+                            />
+                            <Sort onSortApply={onSortApply} defaultSortValue="" />
+
+                            <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
+                                <Radio.Button value="root calls">Root calls</Radio.Button>
+                                <Radio.Button value="generations">Generation</Radio.Button>
+                                <Radio.Button value="all runs">All runs</Radio.Button>
+                            </Radio.Group>
+                        </Space>
+                        <Space>
+                            <Button
+                                type="text"
+                                onClick={onExport}
+                                icon={<Export size={14} className="mt-0.5" />}
+                                disabled={traces.length === 0}
+                                loading={isExportLoading}
+                            >
+                                Export as CSV
+                            </Button>
+                            <EditColumns
+                                isOpen={isFilterColsDropdownOpen}
+                                handleOpenChange={setIsFilterColsDropdownOpen}
+                                selectedKeys={editColumns}
+                                columns={columns}
+                                onChange={handleToggleColumnVisibility}
+                            />
+                        </Space>
+                    </div>
+
+                    <Table
+                        columns={columns.map((col) => ({
+                            ...col,
+                            hidden: editColumns.includes(col.key as string),
+                        }))}
+                        dataSource={traces}
+                        bordered
+                        style={{cursor: "pointer"}}
+                        onRow={(record) => ({
+                            onClick: () => {
+                                setSelectedTraceId(record.root.id)
+                            },
+                        })}
+                        pagination={false}
+                        scroll={{x: "max-content"}}
+                    />
+                </section>
             ) : null}
 
             {activeTrace && !!traces?.length && (
