@@ -28,18 +28,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Props = {
-    filterValue: Filter[]
-    setFilterValue: React.Dispatch<React.SetStateAction<Filter[]>>
     columns: {column: string; mapping: string}[]
+    onApplyFilter: (filters: Filter[]) => void
+    onClearFilter: (filters: Filter[]) => void
 }
 
-const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
+const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
     const classes = useStyles()
     const emptyFilter = [{condition: "", column: "", keyword: ""}] as Filter[]
 
-    const [filter, setFilter] = useState<Filter[]>(() =>
-        filterValue.length > 0 ? filterValue : emptyFilter,
-    )
+    const [filter, setFilter] = useState<Filter[]>(emptyFilter)
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     const conditions = [
@@ -80,7 +78,7 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
 
     const clearFilter = () => {
         setFilter(emptyFilter)
-        setFilterValue(emptyFilter)
+        onClearFilter(emptyFilter)
     }
 
     const applyFilter = () => {
@@ -88,7 +86,7 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
             ({column, condition, keyword}) => column && condition && keyword,
         )
 
-        setFilterValue(sanitizedFilters)
+        onApplyFilter(sanitizedFilters)
         setIsFilterOpen(false)
     }
 
@@ -129,12 +127,10 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
                                         onFilterChange({columnName: "column", value, idx})
                                     }
                                     value={item.column}
-                                    options={columns.map((col) => {
-                                        return {
-                                            value: col.mapping,
-                                            label: col.column,
-                                        }
-                                    })}
+                                    options={columns.map((col) => ({
+                                        value: col.mapping,
+                                        label: col.column,
+                                    }))}
                                 />
                                 {item.column && (
                                     <>
@@ -153,9 +149,10 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
                                             }
                                             popupMatchSelectWidth={250}
                                             value={item.condition}
-                                            options={conditions.map((con) => {
-                                                return {value: con, label: con}
-                                            })}
+                                            options={conditions.map((con) => ({
+                                                value: con,
+                                                label: con,
+                                            }))}
                                         />
 
                                         <Input
