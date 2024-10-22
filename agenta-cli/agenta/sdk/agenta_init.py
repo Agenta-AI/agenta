@@ -86,12 +86,12 @@ class AgentaSingleton:
 
         self.project_id = (
             project_id
-            or config.get("project_id")
             or os.environ.get("AGENTA_PROJECT_ID")
+            or config.get("project_id")
         )
 
         self.api_key = (
-            api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
+            api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
         )
 
         self.tracing = Tracing(

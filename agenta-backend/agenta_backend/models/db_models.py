@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy_json import mutable_json_type
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
-from agenta_backend.models.base import Base
+from agenta_backend.dbs.postgres.shared.base import Base
 from agenta_backend.models.shared_models import TemplateType
 
 
