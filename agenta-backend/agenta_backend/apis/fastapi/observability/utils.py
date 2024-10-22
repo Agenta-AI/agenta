@@ -665,31 +665,6 @@ def parse_from_otel_span_dto(
     return span_dto
 
 
-def _parse_to_events(
-    span_dto: SpanDTO,
-) -> List[OTelEventDTO]:
-    events = span_dto.otel.events
-
-    if span_dto.exception:
-        exception = span_dto.exception
-
-        exception_event = OTelEventDTO(
-            name="exception",
-            timestamp=exception.timestamp,
-            attributes={
-                "exception.type": exception.type,
-                "exception.message": exception.message,
-                "exception.stacktrace": exception.stacktrace,
-            },
-        )
-
-        exception_event.attributes.update(exception.attributes)
-
-        events.append(exception_event)
-
-    return events
-
-
 def _parse_to_attributes(
     span_dto: SpanDTO,
 ) -> Attributes:
@@ -770,18 +745,41 @@ def _parse_to_links(
     span_dto: SpanDTO,
     links: List[LinkDTO],
 ) -> None:
-    for link in span_dto.links:
-        links.append(
-            OTelLinkDTO(
-                context=OTelContextDTO(
-                    trace_id="0x" + link.tree_id.hex,
-                    span_id="0x" + link.id.hex[16:],
-                ),
-                attributes={
-                    _encode_key("type", "link"): link.type,
-                },
+    if span_dto.links:
+        for link in span_dto.links:
+            links.append(
+                OTelLinkDTO(
+                    context=OTelContextDTO(
+                        trace_id="0x" + link.tree_id.hex,
+                        span_id="0x" + link.id.hex[16:],
+                    ),
+                    attributes={
+                        _encode_key("type", "link"): link.type,
+                    },
+                )
             )
+
+
+def _parse_to_events(
+    span_dto: SpanDTO,
+    events: List[OTelEventDTO],
+) -> None:
+    if span_dto.exception:
+        exception = span_dto.exception
+
+        exception_event = OTelEventDTO(
+            name="exception",
+            timestamp=exception.timestamp,
+            attributes={
+                "exception.type": exception.type,
+                "exception.message": exception.message,
+                "exception.stacktrace": exception.stacktrace,
+            },
         )
+
+        exception_event.attributes.update(exception.attributes)
+
+        events.append(exception_event)
 
 
 def parse_to_otel_span_dto(
@@ -796,8 +794,6 @@ def parse_to_otel_span_dto(
 
     parent = OTelContextDTO(trace_id=trace_id, span_id=parent_id) if parent_id else None
 
-    events = _parse_to_events(span_dto)
-
     attributes = _parse_to_attributes(span_dto)
 
     _parse_to_types(span_dto, attributes)
@@ -809,6 +805,10 @@ def parse_to_otel_span_dto(
     links = span_dto.otel.links or list()
 
     _parse_to_links(span_dto, links)
+
+    events = span_dto.otel.events or list()
+
+    _parse_to_events(span_dto, events)
 
     links = links if links else None
 
