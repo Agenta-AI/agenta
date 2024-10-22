@@ -32,7 +32,7 @@ class ObservabilityService:
             query_dto=query_dto,
         )
 
-        if query_dto.grouping:
+        if query_dto.grouping and query_dto.grouping.focus.value != "node":
             span_idx = parse_span_dtos_to_span_idx(span_dtos)
 
             span_id_tree = parse_span_idx_to_span_id_tree(span_idx)

@@ -867,11 +867,7 @@ def parse_to_agenta_span_dto(
             link.tree_id = None
 
     if span_dto.nodes:
-        for v in span_dto.nodes.values():
-            if isinstance(v, list):
-                for n in v:
-                    parse_to_agenta_span_dto(n)
-            else:
-                parse_to_agenta_span_dto(v)
+        for node in span_dto.nodes:
+            parse_to_agenta_span_dto(node)
 
     return span_dto
