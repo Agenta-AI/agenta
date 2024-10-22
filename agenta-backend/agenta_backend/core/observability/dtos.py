@@ -8,6 +8,19 @@ from agenta_backend.core.shared.dtos import DisplayBase
 from agenta_backend.core.shared.dtos import ProjectScopeDTO, LifecycleDTO
 
 
+AttributeValueType = Any  #
+"""
+AttributeValueType = Union[
+    str,
+    bool,
+    int,
+    float,
+    Sequence[Union[str, bool, int, float]],
+]
+"""
+Attributes = Dict[str, AttributeValueType]
+
+
 ## --- TIME --- ##
 
 
@@ -29,22 +42,20 @@ class StatusCode(Enum):
 class StatusDTO(DisplayBase):
     code: StatusCode
     message: Optional[str] = None
+
+
+## --- EXCEPTIONS --- ##
+
+
+class ExceptionDTO(DisplayBase):
+    timestamp: str
+    type: str
+    message: Optional[str] = None
     stacktrace: Optional[str] = None
+    attributes: Optional[Attributes] = None
 
 
 ## --- ATTRIBUTES --- ##
-
-AttributeValueType = Any  #
-"""
-AttributeValueType = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[Union[str, bool, int, float]],
-]
-"""
-Attributes = Dict[str, AttributeValueType]
 
 
 class AttributesDTO(DisplayBase):
@@ -175,6 +186,8 @@ class SpanDTO(DisplayBase):  # DBE
     time: TimeDTO
     status: StatusDTO
 
+    exception: Optional[ExceptionDTO] = None
+
     data: Optional[Data] = None
     metrics: Optional[Metrics] = None
     meta: Optional[Metadata] = None
@@ -199,6 +212,8 @@ class SpanCreateDTO(DisplayBase):  # DBE
 
     time: TimeDTO
     status: StatusDTO
+
+    exception: Optional[ExceptionDTO] = None
 
     data: Optional[Data] = None
     metrics: Optional[Metrics] = None

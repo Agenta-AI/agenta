@@ -18,9 +18,11 @@ from agenta_backend.core.observability.dtos import (
     NodeDTO,
     ParentDTO,
     LinkDTO,
-    OTelExtraDTO,
-    OTelSpanDTO,
+    ExceptionDTO,
     Attributes,
+    OTelExtraDTO,
+    OTelEventDTO,
+    OTelSpanDTO,
     OTelContextDTO,
     OTelLinkDTO,
 )
@@ -539,6 +541,36 @@ def _parse_from_attributes(
     return _data, _metrics, _meta, _tags, _refs
 
 
+def _parse_from_events(
+    otel_span_dto: OTelSpanDTO,
+) -> Optional[ExceptionDTO]:
+    exception = None
+
+    _other_events = list()
+
+    if otel_span_dto.events:
+        for event in otel_span_dto.events:
+            if event.name == "exception":
+                exception = ExceptionDTO(
+                    timestamp=event.timestamp,
+                    type=event.attributes.get("exception.type"),
+                    message=event.attributes.get("exception.message"),
+                    stacktrace=event.attributes.get("exception.stacktrace"),
+                    attributes=event.attributes,
+                )
+
+                del exception.attributes["exception.type"]
+                del exception.attributes["exception.message"]
+                del exception.attributes["exception.stacktrace"]
+
+            else:
+                _other_events.append(event)
+
+    otel_span_dto.events = _other_events if _other_events else None
+
+    return exception
+
+
 def parse_from_otel_span_dto(
     project_id: str,
     otel_span_dto: OTelSpanDTO,
@@ -598,10 +630,10 @@ def parse_from_otel_span_dto(
 
     data, metrics, meta, tags, refs = _parse_from_attributes(otel_span_dto)
 
-    root_id = refs.get("scenario.id", "70befa7f3cf24485839673c8a361f900")
-    # root_id = str(tree_id)
-    # if refs is not None:
-    #    root_id = refs.get("scenario.id", root_id)
+    exception = _parse_from_events(otel_span_dto)
+
+    # TODO: TURN DEFAULT VALUE INTO A RND UUID PER TRACE !
+    root_id = refs.get("scenario_id", "70befa7f3cf24485839673c8a361f900")
 
     root = RootDTO(id=UUID(root_id))
 
@@ -620,6 +652,7 @@ def parse_from_otel_span_dto(
         parent=parent,
         time=time,
         status=status,
+        exception=exception,
         data=data,
         metrics=metrics,
         meta=meta,
@@ -630,6 +663,31 @@ def parse_from_otel_span_dto(
     )
 
     return span_dto
+
+
+def _parse_to_events(
+    span_dto: SpanDTO,
+) -> List[OTelEventDTO]:
+    events = span_dto.otel.events
+
+    if span_dto.exception:
+        exception = span_dto.exception
+
+        exception_event = OTelEventDTO(
+            name="exception",
+            timestamp=exception.timestamp,
+            attributes={
+                "exception.type": exception.type,
+                "exception.message": exception.message,
+                "exception.stacktrace": exception.stacktrace,
+            },
+        )
+
+        exception_event.attributes.update(exception.attributes)
+
+        events.append(exception_event)
+
+    return events
 
 
 def _parse_to_attributes(
@@ -738,6 +796,8 @@ def parse_to_otel_span_dto(
 
     parent = OTelContextDTO(trace_id=trace_id, span_id=parent_id) if parent_id else None
 
+    events = _parse_to_events(span_dto)
+
     attributes = _parse_to_attributes(span_dto)
 
     _parse_to_types(span_dto, attributes)
@@ -762,7 +822,7 @@ def parse_to_otel_span_dto(
         status_code="STATUS_CODE_" + span_dto.status.code.value,
         status_message=span_dto.status.message,
         attributes=attributes,
-        events=span_dto.otel.events,
+        events=events,
         links=links,
     )
 
@@ -795,6 +855,12 @@ def parse_to_agenta_span_dto(
     # REFS
     if span_dto.refs:
         span_dto.refs = _unmarshal_attributes(span_dto.refs)
+
+    # EXCEPTION
+    if span_dto.exception:
+        span_dto.exception.attributes = _unmarshal_attributes(
+            span_dto.exception.attributes
+        )
 
     if span_dto.links:
         for link in span_dto.links:
