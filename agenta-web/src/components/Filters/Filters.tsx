@@ -71,7 +71,6 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
     }
 
     const onDeleteFilter = (index: number) => {
-        if (index === 0) return
         setFilter(filter.filter((_, idx) => idx !== index))
     }
 
@@ -173,7 +172,7 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
                                         />
                                     </>
                                 )}
-                                {idx > 0 && (
+                                {filter.length > 1 && (
                                     <Button
                                         type="link"
                                         icon={<Trash size={14} />}
@@ -190,7 +189,7 @@ const Filters: React.FC<Props> = ({filterValue, setFilterValue, columns}) => {
                             onClick={addNestedFilter}
                             className="mt-2"
                         >
-                            Add nested filters
+                            Add conditions
                         </Button>
                     </div>
 
