@@ -45,10 +45,6 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             query = select(InvocationSpanDBE)
             # ----------------
 
-            # WINDOWING
-            windowing_column: Optional[Column] = InvocationSpanDBE.created_at
-            # ---------
-
             # GROUPING
             grouping = query_dto.grouping
             grouping_column: Optional[Column] = None
@@ -60,7 +56,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 query = select(
                     distinct(grouping_column).label("grouping_key"),
-                    windowing_column,
+                    InvocationSpanDBE.created_at,
                 )
             # --------
 
@@ -73,10 +69,12 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             # ---------
             if windowing:
                 if windowing.earliest:
-                    query = query.filter(windowing_column >= windowing.earliest)
+                    query = query.filter(
+                        InvocationSpanDBE.time_start >= windowing.earliest
+                    )
 
                 if windowing.latest:
-                    query = query.filter(windowing_column <= windowing.latest)
+                    query = query.filter(InvocationSpanDBE.time_end <= windowing.latest)
             # ---------
 
             # FILTERING
@@ -92,7 +90,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             # SORTING
             if grouping and grouping_column:
                 query = query.order_by(grouping_column)
-            query = query.order_by(windowing_column.desc())
+            query = query.order_by(InvocationSpanDBE.created_at.desc())
             # -------
 
             # PAGINATION
