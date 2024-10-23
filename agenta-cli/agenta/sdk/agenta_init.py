@@ -37,9 +37,9 @@ class AgentaSingleton:
         #
         app_id: Optional[str] = None,
     ) -> None:
-        log.info(f"\n--------------------------------")
-        log.info(f"Using Agenta Python SDK version: {version('agenta')}")
-        log.info(f"--------------------------------\n")
+        log.info(f"---------------------------")
+        log.info(f"Agenta SDK - using version: {version('agenta')}")
+        log.info(f"---------------------------")
 
         """Main function to initialize the singleton.
 
@@ -126,9 +126,10 @@ class Config:
         self.base_id = base_id
 
         if self.base_id is None:
-            print(
-                "Warning: Your configuration will not be saved permanently since base_id is not provided.\n"
-            )
+            # print(
+            #    "Warning: Your configuration will not be saved permanently since base_id is not provided.\n"
+            # )
+            pass
 
         if base_id is None or host is None:
             self.persist = False

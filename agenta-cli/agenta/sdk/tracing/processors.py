@@ -1,4 +1,5 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Dict
+from traceback import format_exc
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span
@@ -9,6 +10,8 @@ from opentelemetry.sdk.trace.export import (
     _DEFAULT_EXPORT_TIMEOUT_MILLIS,
     _DEFAULT_MAX_QUEUE_SIZE,
 )
+
+from agenta.sdk.utils.logging import log
 
 # LOAD CONTEXT, HERE
 
@@ -28,7 +31,7 @@ class TraceProcessor(BatchSpanProcessor):
             _DEFAULT_MAX_QUEUE_SIZE,
             60 * 60 * 1000,  # 1 hour
             _DEFAULT_MAX_QUEUE_SIZE,
-            _DEFAULT_EXPORT_TIMEOUT_MILLIS,
+            500,  # < 1 second (0.5 seconds)
         )
 
         self._registry = dict()
@@ -53,6 +56,14 @@ class TraceProcessor(BatchSpanProcessor):
 
         if self.is_ready(span.get_span_context().trace_id):
             self.force_flush()
+
+    def force_flush(self, timeout_millis: int = None) -> bool:
+        ret = super().force_flush(timeout_millis)
+
+        if not ret:
+            log.error("--------------------------------------------")
+            log.error("Agenta SDK - skipping export due to timeout.")
+            log.error("--------------------------------------------")
 
     def is_ready(self, trace_id: Optional[int] = None) -> bool:
         is_ready = not len(self._registry.get(trace_id, {}))
