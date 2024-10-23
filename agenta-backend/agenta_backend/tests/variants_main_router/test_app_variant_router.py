@@ -5,9 +5,10 @@ import pytest
 import logging
 from bson import ObjectId
 
+from sqlalchemy.future import select
+
 from agenta_backend.routers import app_router
 from agenta_backend.services import db_manager
-from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
     ProjectDB,
@@ -18,7 +19,7 @@ from agenta_backend.models.db_models import (
     AppVariantDB,
 )
 
-from sqlalchemy.future import select
+from agenta_backend.dbs.postgres.shared.engine import engine
 
 
 # Initialize http client
@@ -67,7 +68,7 @@ async def test_create_app_for_renaming():
 
 @pytest.mark.asyncio
 async def test_update_app():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name="app_test"))
         app = result.scalars().first()
 
@@ -109,7 +110,7 @@ async def test_list_apps():
 async def test_create_app_variant(get_first_user_object):
     user = await get_first_user_object
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -171,7 +172,7 @@ async def test_create_app_variant(get_first_user_object):
 
 @pytest.mark.asyncio
 async def test_list_app_variants():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -185,7 +186,7 @@ async def test_list_app_variants():
 
 @pytest.mark.asyncio
 async def test_list_environments():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )

@@ -1,6 +1,6 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {JSSTheme} from "@/lib/Types"
-import {_AgentaRootsResponse} from "@/services/observability/types"
+import {_AgentaRootsResponse, NodeStatusCode} from "@/services/observability/types"
 import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
 import {Space, Tree, Typography} from "antd"
 import React, {useEffect, useState} from "react"
@@ -25,7 +25,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: "100%",
         padding: "1px 0",
         "& .ant-tree-node-content-wrapper": {
-            width: 240,
+            minWidth: 240,
         },
         "& .ant-tree-node-selected": {
             outline: `1px solid ${theme.colorBorder}`,
@@ -67,24 +67,36 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
-    const {node, time, metrics} = value
+    const {node, time, metrics, status} = value
     const classes = useStyles()
 
     return (
         <div className="py-[14px] px-2 flex items-center gap-2" key={node.id}>
-            <AvatarTreeContent value={value} />
-            <div className="flex flex-col">
-                <Typography.Text className={classes.treeTitle}>{node.name}</Typography.Text>
+            <div className="w-8">
+                <AvatarTreeContent value={value} />
+            </div>
+            <div className="flex flex-col flex-1">
+                <Typography.Text
+                    className={
+                        status.code === NodeStatusCode.ERROR
+                            ? `${classes.treeTitle} text-[#D61010] font-[500]`
+                            : classes.treeTitle
+                    }
+                >
+                    {node.name}
+                </Typography.Text>
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />
                         {formatLatency(time.span / 1000000)}
                     </div>
 
-                    <div>
-                        <Coins />
-                        {formatCurrency(metrics?.acc?.costs?.total)}
-                    </div>
+                    {metrics?.acc?.costs?.total && (
+                        <div>
+                            <Coins />
+                            {formatCurrency(metrics?.acc?.costs?.total)}
+                        </div>
+                    )}
 
                     {!!metrics?.acc?.tokens?.total && (
                         <div>

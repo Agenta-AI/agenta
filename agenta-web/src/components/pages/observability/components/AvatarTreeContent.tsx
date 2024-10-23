@@ -1,16 +1,5 @@
-import {_AgentaRootsResponse, NodeStatusDTO, NodeType} from "@/services/observability/types"
-import {
-    ArrowsCounterClockwise,
-    ArrowsDownUp,
-    Download,
-    GearFine,
-    LineSegments,
-    ListDashes,
-    Sparkle,
-    StarFour,
-    TreeStructure,
-    Wrench,
-} from "@phosphor-icons/react"
+import {_AgentaRootsResponse, NodeType} from "@/services/observability/types"
+import {Download, Gear, LineSegments, Sparkle, TreeStructure} from "@phosphor-icons/react"
 import {Avatar} from "antd"
 import React from "react"
 
@@ -20,75 +9,74 @@ type AvatarTreeContentProps = {
 
 export const nodeTypeStyles = {
     [NodeType.AGENT]: {
-        bgColor: "#F6F6FD",
-        color: "#7D7DDB",
-        icon: TreeStructure,
+        bgColor: "#E6F4FF",
+        color: "#4096FF",
+        icon: Gear,
     },
     [NodeType.WORKFLOW]: {
-        bgColor: "#FFF8F5",
-        color: "#F6875A",
-        icon: LineSegments,
+        bgColor: "#586673",
+        color: "#F5F7FA",
+        icon: TreeStructure,
     },
     [NodeType.CHAIN]: {
-        bgColor: "#F5F1FE",
-        color: "#9D79E8",
-        icon: ListDashes,
+        bgColor: "#E6F4FF",
+        color: "#4096FF",
+        icon: Gear,
     },
     [NodeType.TASK]: {
-        bgColor: "#F0FAF0",
-        color: "#228B22",
-        icon: GearFine,
+        bgColor: "#EAEFF5",
+        color: "#586673",
+        icon: TreeStructure,
     },
     [NodeType.TOOL]: {
-        bgColor: "#FEF5FB",
-        color: "#E175BD",
-        icon: Wrench,
-    },
-    [NodeType.EMBEDDING]: {
-        bgColor: "#F0FDFD",
-        color: "#008080",
-        icon: ArrowsCounterClockwise,
-    },
-    [NodeType.COMPLETION]: {
-        bgColor: "#EDF8FD",
-        color: "#63ADCB",
-        icon: StarFour,
-    },
-    [NodeType.QUERY]: {
-        bgColor: "#FCFAEE",
-        color: "#D6B507",
+        bgColor: "#F9F0FF",
+        color: "#9254DE",
         icon: Download,
     },
+    [NodeType.EMBEDDING]: {
+        bgColor: "#FFFBE6",
+        color: "#D4B106",
+        icon: LineSegments,
+    },
+    [NodeType.COMPLETION]: {
+        bgColor: "#E6FFFB",
+        color: "#13C2C2",
+        icon: Sparkle,
+    },
+    [NodeType.QUERY]: {
+        bgColor: "#FFFBE6",
+        color: "#D4B106",
+        icon: LineSegments,
+    },
     [NodeType.CHAT]: {
-        bgColor: "#EAFDEA",
-        color: "#36D16A",
+        bgColor: "#E6FFFB",
+        color: "#13C2C2",
         icon: Sparkle,
     },
     [NodeType.RERANK]: {
-        bgColor: "#F9F9FC",
-        color: "#8C92A3",
-        icon: ArrowsDownUp,
+        bgColor: "#FFFBE6",
+        color: "#D4B106",
+        icon: LineSegments,
     },
     default: {
-        bgColor: "#F9F9FC",
-        color: "#8C92A3",
+        bgColor: "#586673",
+        color: "#F5F7FA",
         icon: TreeStructure,
     },
 }
 
-export const statusMapper = (node: NodeType | null | undefined, status: NodeStatusDTO) => {
-    const {code} = status
+export const statusMapper = (node: NodeType | null | undefined) => {
     const {bgColor, color, icon: Icon} = nodeTypeStyles[node ?? "default"]
     return {
         bgColor,
         color,
-        icon: <Icon color={code === "ERROR" ? "#D61010" : color} size={16} />,
+        icon: <Icon color={color} size={16} />,
     }
 }
 
 const AvatarTreeContent = ({value, ...props}: AvatarTreeContentProps) => {
-    const {node, status} = value
-    const {icon, bgColor, color} = statusMapper(node.type, status)
+    const {node} = value
+    const {icon, bgColor, color} = statusMapper(node.type)
 
     return (
         <Avatar
@@ -96,9 +84,9 @@ const AvatarTreeContent = ({value, ...props}: AvatarTreeContentProps) => {
             shape="square"
             size={"large"}
             style={{
-                backgroundColor: status.code === "ERROR" ? "#FBE7E7" : bgColor,
+                backgroundColor: bgColor,
                 width: 32,
-                border: `1px solid ${status.code === "ERROR" ? "#D61010" : color}`,
+                border: `1px solid ${color}`,
             }}
             icon={icon}
         />

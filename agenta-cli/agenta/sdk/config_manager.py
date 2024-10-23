@@ -7,7 +7,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from agenta.client.backend.client import AgentaApi
-from agenta.sdk.decorators.llm_entrypoint import route_context
+from agenta.sdk.context.routing import routing_context
 
 from . import AgentaSingleton
 
@@ -47,7 +47,7 @@ class ConfigManager:
             3. 'variant'
             Only one of these should be provided.
         """
-        context = route_context.get()
+        context = routing_context.get()
         if ("config" in context and context["config"]) and (
             ("environment" in context and context["environment"])
             or ("variant" in context and context["variant"])
