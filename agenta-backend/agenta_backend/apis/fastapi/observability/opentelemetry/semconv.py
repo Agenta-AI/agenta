@@ -1,6 +1,7 @@
 VERSION = "0.4.1"
 
 V_0_4_1_ATTRIBUTES_EXACT = [
+    # OPENLLMETRY
     ("gen_ai.system", "ag.meta.system"),
     ("gen_ai.request.base_url", "ag.meta.request.base_url"),
     ("gen_ai.request.endpoint", "ag.meta.request.endpoint"),
@@ -25,10 +26,23 @@ V_0_4_1_ATTRIBUTES_EXACT = [
     ("db.vector.query.top_k", "ag.meta.request.top_k"),
     ("pinecone.query.top_k", "ag.meta.request.top_k"),
     ("traceloop.span.kind", "ag.type.node"),
+    # OPENINFERENCE
+    ("output.value", "ag.data.outputs"),
+    ("input.value", "ag.data.inputs"),
+    ("embedding.model_name", "ag.meta.request.model"),
+    ("llm.invocation_parameters", "ag.meta.request"),
+    ("llm.model_name", "ag.meta.request.model"),
+    ("llm.provider", "ag.meta.provider"),
+    ("llm.system", "ag.meta.system"),
 ]
 V_0_4_1_ATTRIBUTES_PREFIX = [
+    # OPENLLMETRY
     ("gen_ai.prompt", "ag.data.inputs.prompt"),
     ("gen_ai.completion", "ag.data.outputs.completion"),
+    # OPENINFERENCE
+    ("llm.token_count", "ag.metrics.unit.tokens"),
+    ("llm.input_messages", "ag.data.inputs.prompt"),
+    ("llm.output_messages", "ag.data.outputs.completion"),
 ]
 
 V_0_4_1_MAPS = {
