@@ -147,6 +147,9 @@ class instrument:
                             cost = result.get("cost", None)
                             usage = result.get("usage", {})
 
+                        if isinstance(usage, (int, float)):
+                            usage = {"total_tokens": usage}
+
                         span.set_attributes(
                             attributes={"total": cost},
                             namespace="metrics.unit.costs",
@@ -239,6 +242,9 @@ class instrument:
                         if isinstance(result, dict):
                             cost = result.get("cost", None)
                             usage = result.get("usage", {})
+
+                        if isinstance(usage, (int, float)):
+                            usage = {"total_tokens": usage}
 
                         span.set_attributes(
                             attributes={"total": cost},
