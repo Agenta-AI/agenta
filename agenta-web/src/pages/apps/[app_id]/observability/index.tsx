@@ -14,7 +14,7 @@ import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {Filter, JSSTheme, SortTypes} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Button, Radio, RadioChangeEvent, Space, Table, Typography} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useEffect, useMemo, useState} from "react"
@@ -36,6 +36,7 @@ interface Props {}
 const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
+    const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState("root calls")
     const [editColumns, setEditColumns] = useState<string[]>([])
     const [isExportLoading, setIsExportLoading] = useState(false)
@@ -215,6 +216,8 @@ const ObservabilityDashboard = ({}: Props) => {
 
     const onSortApply = (sortData: SortTypes) => {}
 
+    const onSearchQueryAppy = async () => {}
+
     const handleToggleColumnVisibility = (key: string) => {
         setEditColumns((prev) =>
             prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
@@ -227,39 +230,48 @@ const ObservabilityDashboard = ({}: Props) => {
 
             {traces?.length ? (
                 <section className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex justify-between gap-2 flex-col 2xl:flex-row 2xl:items-center">
                         <Space>
+                            <Input.Search
+                                placeholder="Search"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onPressEnter={onSearchQueryAppy}
+                                className="w-[320px]"
+                                allowClear
+                            />
                             <Filters
                                 columns={filterColumns}
                                 onApplyFilter={onFilterApply}
                                 onClearFilter={onClearFilter}
                             />
-                            <Sort onSortApply={onSortApply} defaultSortValue="" />
-
+                            <Sort onSortApply={onSortApply} defaultSortValue="1 month" />
+                        </Space>
+                        <div className="w-full flex items-center justify-between">
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
                                 <Radio.Button value="root calls">Root calls</Radio.Button>
                                 <Radio.Button value="generations">Generation</Radio.Button>
                                 <Radio.Button value="all runs">All runs</Radio.Button>
                             </Radio.Group>
-                        </Space>
-                        <Space>
-                            <Button
-                                type="text"
-                                onClick={onExport}
-                                icon={<Export size={14} className="mt-0.5" />}
-                                disabled={traces.length === 0}
-                                loading={isExportLoading}
-                            >
-                                Export as CSV
-                            </Button>
-                            <EditColumns
-                                isOpen={isFilterColsDropdownOpen}
-                                handleOpenChange={setIsFilterColsDropdownOpen}
-                                selectedKeys={editColumns}
-                                columns={columns}
-                                onChange={handleToggleColumnVisibility}
-                            />
-                        </Space>
+                            <Space>
+                                <Button
+                                    type="text"
+                                    onClick={onExport}
+                                    icon={<Export size={14} className="mt-0.5" />}
+                                    disabled={traces.length === 0}
+                                    loading={isExportLoading}
+                                >
+                                    Export as CSV
+                                </Button>
+                                <EditColumns
+                                    isOpen={isFilterColsDropdownOpen}
+                                    handleOpenChange={setIsFilterColsDropdownOpen}
+                                    selectedKeys={editColumns}
+                                    columns={columns}
+                                    onChange={handleToggleColumnVisibility}
+                                />
+                            </Space>
+                        </div>
                     </div>
 
                     <Table

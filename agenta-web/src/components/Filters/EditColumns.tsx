@@ -1,5 +1,5 @@
-import {Button, Dropdown, Space, Checkbox} from "antd"
 import React, {useState} from "react"
+import {Button, Dropdown, Space, Checkbox} from "antd"
 import {createUseStyles} from "react-jss"
 import {Columns} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"
@@ -30,7 +30,7 @@ const useStyles = createUseStyles((theme) => ({
 interface EditColumnsProps {
     isOpen: boolean
     handleOpenChange: (open: boolean) => void
-    selectedKeys: string[] // Default selected column keys
+    selectedKeys: string[]
     columns: ColumnsType<any>
     onChange: (key: string) => void
     excludes?: string[] // Array of column keys to exclude
@@ -51,7 +51,7 @@ const EditColumns: React.FC<EditColumnsProps> = ({
 
     const handleDropdownChange = (newOpen: boolean) => {
         setOpen(newOpen)
-        if (!newOpen) handleOpenChange(newOpen) // Only trigger close action if dropdown is closing
+        if (!newOpen) handleOpenChange(newOpen)
     }
 
     const generateEditItems = (): MenuProps["items"] => {
@@ -78,7 +78,7 @@ const EditColumns: React.FC<EditColumnsProps> = ({
                             <Space className="ml-4" onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
                                     value={child.key}
-                                    checked={!selectedKeys.includes(child.key as string)} // Default to selected
+                                    checked={!selectedKeys.includes(child.key as string)}
                                     onChange={() => onChange(child.key as string)}
                                 />
                                 {child.title as string}

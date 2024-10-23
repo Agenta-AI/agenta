@@ -1,6 +1,6 @@
 import {v4 as uuidv4} from "uuid"
 import {EvaluationType} from "../enums"
-import {FilterConditions, GenericObject} from "../Types"
+import {GenericObject} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 import dayjs from "dayjs"
