@@ -12,6 +12,7 @@ ag.config.default(
     prompt_system=ag.TextParam("MY_SYSTEM_PROMPT"),
 )
 
+
 @ag.entrypoint
 @ag.instrument(
     spankind="EMBEDDING",

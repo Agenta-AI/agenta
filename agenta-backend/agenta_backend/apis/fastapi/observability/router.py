@@ -1,4 +1,4 @@
-from typing import Dict, List, Union, Optional, Callable
+from typing import Dict, List, Union, Optional, Callable, Literal
 
 from fastapi import (
     APIRouter,
@@ -112,7 +112,7 @@ class ObservabilityRouter:
         self,
         project_id: str,
         query_dto: QueryDTO = Depends(parse_query_dto),
-        format: str = Query("agenta"),
+        format: Literal["opentelemetry", "agenta"] = Query("agenta"),
     ):
         """
         Query traces, with optional grouping, filtering, (sorting,) and pagination.
