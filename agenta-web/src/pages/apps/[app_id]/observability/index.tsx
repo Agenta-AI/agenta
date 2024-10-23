@@ -8,13 +8,23 @@ import Filters from "@/components/Filters/Filters"
 import Sort from "@/components/Filters/Sort"
 import EditColumns from "@/components/Filters/EditColumns"
 import ResultTag from "@/components/ResultTag/ResultTag"
+import {ResizableTitle} from "@/components/ServerTable/components"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {Filter, JSSTheme, SortTypes} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Button, Input, Radio, RadioChangeEvent, Space, Table, Typography} from "antd"
+import {
+    Button,
+    Input,
+    Radio,
+    RadioChangeEvent,
+    Space,
+    Table,
+    TableColumnType,
+    Typography,
+} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useEffect, useMemo, useState} from "react"
@@ -42,44 +52,12 @@ const ObservabilityDashboard = ({}: Props) => {
     const [isExportLoading, setIsExportLoading] = useState(false)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const {traces} = useTraces()
-
-    const filterColumns = [
-        {column: "inputs", mapping: "data.inputs.topic"},
-        {column: "outputs", mapping: "data.outputs"},
-        {column: "status", mapping: "status.code"},
-        {column: "costs", mapping: "metrics.acc.costs.total"},
-        {column: "tokens", mapping: "metrics.acc.tokens.total"},
-        {column: "node_name", mapping: "node.name"},
-        {column: "node_type", mapping: "node.type"},
-    ]
-
-    const activeTraceIndex = useMemo(
-        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
-        [selectedTraceId, traces],
-    )
-
-    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
-
-    const [selected, setSelected] = useState(activeTrace?.key)
-
-    const selectedItem = useMemo(
-        () => (traces?.length ? getNodeById(traces, selected) : null),
-        [selected, traces],
-    )
-
-    useEffect(() => {
-        setSelected(activeTrace?.key)
-    }, [activeTrace])
-
-    const onTraceTabChange = (e: RadioChangeEvent) => {
-        setTraceTabs(e.target.value)
-    }
-
-    const columns: ColumnsType<_AgentaRootsResponse> = [
+    const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
             dataIndex: ["key"],
             key: "key",
+            width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
@@ -103,6 +81,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Timestamp",
             key: "timestamp",
             dataIndex: ["time", "start"],
+            width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
@@ -113,6 +92,7 @@ const ObservabilityDashboard = ({}: Props) => {
         {
             title: "Inputs",
             key: "inputs",
+            width: 350,
             onHeaderCell: () => ({
                 style: {minWidth: 350},
             }),
@@ -120,6 +100,7 @@ const ObservabilityDashboard = ({}: Props) => {
         {
             title: "Outputs",
             key: "outputs",
+            width: 350,
             onHeaderCell: () => ({
                 style: {minWidth: 350},
             }),
@@ -128,15 +109,17 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Status",
             key: "status",
             dataIndex: ["status", "code"],
+            width: 160,
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
-            render: (_, record) => StatusRenderer(record.status),
+            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
         },
         {
             title: "Latency",
             key: "latency",
             dataIndex: ["time", "span"],
+            width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
@@ -146,6 +129,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Usage",
             key: "usage",
             dataIndex: ["metrics", "acc", "tokens", "total"],
+            width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
@@ -157,12 +141,53 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Total cost",
             key: "total_cost",
             dataIndex: ["metrics", "acc", "costs", "total"],
+            width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
             render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
         },
-    ]
+    ])
+
+    const activeTraceIndex = useMemo(
+        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
+        [selectedTraceId, traces],
+    )
+
+    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
+
+    const [selected, setSelected] = useState(activeTrace?.key)
+
+    const selectedItem = useMemo(
+        () => (traces?.length ? getNodeById(traces, selected) : null),
+        [selected, traces],
+    )
+
+    useEffect(() => {
+        setSelected(activeTrace?.key)
+    }, [activeTrace])
+
+    const handleResize =
+        (key: string) =>
+        (_: any, {size}: {size: {width: number}}) => {
+            setColumns((cols) => {
+                return cols.map((col) => ({
+                    ...col,
+                    width: col.key === key ? size.width : col.width,
+                }))
+            })
+        }
+
+    const mergedColumns = useMemo(() => {
+        return columns.map((col) => ({
+            ...col,
+            width: col.width || 200,
+            onHeaderCell: (column: TableColumnType<_AgentaRootsResponse>) => ({
+                width: column.width,
+                onResize: handleResize(column.key?.toString()!),
+            }),
+        }))
+    }, [columns])
 
     const onExport = async () => {
         try {
@@ -210,6 +235,16 @@ const ObservabilityDashboard = ({}: Props) => {
         }
     }
 
+    const filterColumns = [
+        {column: "inputs", mapping: "data.inputs.topic"},
+        {column: "outputs", mapping: "data.outputs"},
+        {column: "status", mapping: "status.code"},
+        {column: "costs", mapping: "metrics.acc.costs.total"},
+        {column: "tokens", mapping: "metrics.acc.tokens.total"},
+        {column: "node_name", mapping: "node.name"},
+        {column: "node_type", mapping: "node.type"},
+    ]
+
     const onFilterApply = (filter: Filter[]) => {}
 
     const onClearFilter = async (filter: Filter[]) => {}
@@ -222,6 +257,10 @@ const ObservabilityDashboard = ({}: Props) => {
         setEditColumns((prev) =>
             prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
         )
+    }
+
+    const onTraceTabChange = (e: RadioChangeEvent) => {
+        setTraceTabs(e.target.value)
     }
 
     return (
@@ -275,10 +314,12 @@ const ObservabilityDashboard = ({}: Props) => {
                     </div>
 
                     <Table
-                        columns={columns.map((col) => ({
-                            ...col,
-                            hidden: editColumns.includes(col.key as string),
-                        }))}
+                        columns={(mergedColumns as TableColumnType<_AgentaRootsResponse>[]).map(
+                            (col) => ({
+                                ...col,
+                                hidden: editColumns.includes(col.key as string),
+                            }),
+                        )}
                         dataSource={traces}
                         bordered
                         style={{cursor: "pointer"}}
@@ -287,6 +328,11 @@ const ObservabilityDashboard = ({}: Props) => {
                                 setSelectedTraceId(record.root.id)
                             },
                         })}
+                        components={{
+                            header: {
+                                cell: ResizableTitle,
+                            },
+                        }}
                         pagination={false}
                         scroll={{x: "max-content"}}
                     />
