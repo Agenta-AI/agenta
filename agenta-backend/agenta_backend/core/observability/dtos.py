@@ -322,19 +322,6 @@ class FilteringDTO(DisplayBase):
         arbitrary_types_allowed = True
 
 
-class DirectionType(Enum):
-    ASCENDING = "ascending"
-    DESCENDING = "descending"
-
-
-class SortingDTO(DisplayBase):
-    field: str
-
-    key: Optional[str] = None
-
-    direction: DirectionType = "descending"
-
-
 class Focus(Enum):
     ROOT = "root"  # SCENARIO
     TREE = "tree"  # TRACE
@@ -346,23 +333,13 @@ class GroupingDTO(DisplayBase):
     # SET TO ROOT ? TO TREE ? TO NODE ?
 
 
-class Standard(Enum):
-    OPENTELEMETRY = "opentelemetry"
-    AGENTA = "agenta"
-
-
 class PaginationDTO(DisplayBase):
     page: int
     size: int
 
 
-class FormattingDTO(DisplayBase):
-    standard: Standard = "agenta"
-
-
 class QueryDTO(DisplayBase):
+    grouping: Optional[GroupingDTO] = None
     windowing: Optional[WindowingDTO] = None
     filtering: Optional[FilteringDTO] = None
-    sorting: Optional[SortingDTO] = None
-    grouping: Optional[GroupingDTO] = None
     pagination: Optional[PaginationDTO] = None

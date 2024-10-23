@@ -190,7 +190,7 @@ def _connect_tree_dfs(
             parent_span.nodes = None
 
 
-PAYING_TYPES = [
+TYPES_WITH_COSTS = [
     "embedding",
     "query",
     "completion",
@@ -201,7 +201,12 @@ PAYING_TYPES = [
 
 def calculate_costs(span_idx: Dict[str, SpanCreateDTO]):
     for span in span_idx.values():
-        if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
+        if (
+            span.node.type
+            and span.node.type.name.lower() in TYPES_WITH_COSTS
+            and span.meta
+            and span.metrics
+        ):
             try:
                 costs = cost_calculator.cost_per_token(
                     model=span.meta.get("response.model"),

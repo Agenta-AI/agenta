@@ -217,8 +217,11 @@ def _parse_pagination(
 
 
 def parse_query_dto(
-    # SCOPING
-    project_id: str,
+    # GROUPING
+    # - Option 1: Single query parameter as JSON
+    grouping: Optional[str] = Query(None),
+    # - Option 2: Flat query parameters
+    focus: Optional[str] = Query(None),
     # WINDOWING
     # - Option 1: Single query parameter as JSON
     windowing: Optional[str] = Query(None),
@@ -235,11 +238,6 @@ def parse_query_dto(
     operator: Optional[str] = Query(None),
     exact_match: Optional[bool] = Query(False),
     case_sensitive: Optional[bool] = Query(False),
-    # GROUPING
-    # - Option 1: Single query parameter as JSON
-    grouping: Optional[str] = Query(None),
-    # - Option 2: Flat query parameters
-    focus: Optional[str] = Query(None),
     # PAGINATION
     # - Option 1: Single query parameter as JSON
     pagination: Optional[str] = Query(None),
@@ -248,8 +246,9 @@ def parse_query_dto(
     size: Optional[int] = Query(None),
 ) -> QueryDTO:
     return QueryDTO(
-        scoping=_parse_scoping(
-            project_id=project_id,
+        grouping=_parse_grouping(
+            grouping=grouping,
+            focus=focus,
         ),
         windowing=_parse_windowing(
             windowing=windowing,
@@ -264,10 +263,6 @@ def parse_query_dto(
             operator=operator,
             exact_match=exact_match,
             case_sensitive=case_sensitive,
-        ),
-        grouping=_parse_grouping(
-            grouping=grouping,
-            focus=focus,
         ),
         pagination=_parse_pagination(
             pagination=pagination,
