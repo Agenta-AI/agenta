@@ -5,13 +5,14 @@ import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
 import ResultTag from "@/components/ResultTag/ResultTag"
+import {ResizableTitle} from "@/components/ServerTable/components"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {Space, Table, Typography} from "antd"
+import {Space, Table, TableColumnType, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useEffect, useMemo, useState} from "react"
@@ -31,30 +32,12 @@ const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const {traces} = useTraces()
-
-    const activeTraceIndex = useMemo(
-        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
-        [selectedTraceId, traces],
-    )
-
-    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
-
-    const [selected, setSelected] = useState(activeTrace?.key)
-
-    const selectedItem = useMemo(
-        () => (traces?.length ? getNodeById(traces, selected) : null),
-        [selected, traces],
-    )
-
-    useEffect(() => {
-        setSelected(activeTrace?.key)
-    }, [activeTrace])
-
-    const columns: ColumnsType<_AgentaRootsResponse> = [
+    const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
             dataIndex: ["key"],
             key: "key",
+            width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
@@ -78,6 +61,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Timestamp",
             key: "timestamp",
             dataIndex: ["time", "start"],
+            width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
@@ -88,6 +72,7 @@ const ObservabilityDashboard = ({}: Props) => {
         {
             title: "Inputs",
             key: "inputs",
+            width: 350,
             onHeaderCell: () => ({
                 style: {minWidth: 350},
             }),
@@ -95,6 +80,7 @@ const ObservabilityDashboard = ({}: Props) => {
         {
             title: "Outputs",
             key: "outputs",
+            width: 350,
             onHeaderCell: () => ({
                 style: {minWidth: 350},
             }),
@@ -103,6 +89,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Status",
             key: "status",
             dataIndex: ["status", "code"],
+            width: 160,
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
@@ -112,6 +99,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Latency",
             key: "latency",
             dataIndex: ["time", "span"],
+            width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
@@ -121,6 +109,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Usage",
             key: "usage",
             dataIndex: ["metrics", "acc", "tokens", "total"],
+            width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
@@ -132,12 +121,53 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Total cost",
             key: "total_cost",
             dataIndex: ["metrics", "acc", "costs", "total"],
+            width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
             render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
         },
-    ]
+    ])
+
+    const activeTraceIndex = useMemo(
+        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
+        [selectedTraceId, traces],
+    )
+
+    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
+
+    const [selected, setSelected] = useState(activeTrace?.key)
+
+    const selectedItem = useMemo(
+        () => (traces?.length ? getNodeById(traces, selected) : null),
+        [selected, traces],
+    )
+
+    useEffect(() => {
+        setSelected(activeTrace?.key)
+    }, [activeTrace])
+
+    const handleResize =
+        (key: string) =>
+        (_: any, {size}: {size: {width: number}}) => {
+            setColumns((cols) => {
+                return cols.map((col) => ({
+                    ...col,
+                    width: col.key === key ? size.width : col.width,
+                }))
+            })
+        }
+
+    const mergedColumns = useMemo(() => {
+        return columns.map((col) => ({
+            ...col,
+            width: col.width || 200,
+            onHeaderCell: (column: TableColumnType<_AgentaRootsResponse>) => ({
+                width: column.width,
+                onResize: handleResize(column.key?.toString()!),
+            }),
+        }))
+    }, [columns])
 
     return (
         <div className="flex flex-col gap-6">
@@ -145,7 +175,7 @@ const ObservabilityDashboard = ({}: Props) => {
 
             {traces?.length ? (
                 <Table
-                    columns={columns}
+                    columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
                     dataSource={traces}
                     bordered
                     style={{cursor: "pointer"}}
@@ -154,6 +184,11 @@ const ObservabilityDashboard = ({}: Props) => {
                             setSelectedTraceId(record.root.id)
                         },
                     })}
+                    components={{
+                        header: {
+                            cell: ResizableTitle,
+                        },
+                    }}
                     pagination={false}
                     scroll={{x: "max-content"}}
                 />
