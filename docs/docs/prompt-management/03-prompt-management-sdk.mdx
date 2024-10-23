@@ -1,0 +1,447 @@
+---
+title: "Manage Prompt with the SDK"
+---
+
+import Image from "@theme/IdealImage";
+
+In this guide we go through all actions done through the SDK (creating a variant, committing changes, deploying changes, fetching configurations). If you would like a more simple introduction, please read the prompt mangement tutorial here [todo add link]
+
+Agenta follows a structure similar to git for prompt versioning. Instead of having one commit history where you commit changes. It follows a multiple branches (called variants) where changes can be committed, and environement where these changes can be deployed (and used in your application) ([todo: add as pop over] you can see why we chose this here).
+
+Below is a short summary of how versioning works in Agenta, you can find more in the [concepts page](/concepts/concepts).
+
+<details id="concepts-prompt-management">
+<summary>**Summary concepts prompt management** </summary>
+   <Image
+     style={{ display: "block", margin: "16px auto" }}
+     img={require("/images/prompt_management/taxonomy-concepts.png")}
+     alt="Taxonomy of concepts in Agenta"
+     loading="lazy"
+   />
+
+Each prompt in agenta is connsidered as an app that is referenced by it's slug.
+Each app has three environments where you can deploy and fetch changes (production, staging, and development).
+
+Each app addtionally has variants (which are similar to branches), changes are committed to these variants.
+
+The workflow of deploying something to production is follows:
+
+1. (optionally) Create a new variant (branch)
+2. Commit a change to that variant
+3. Deploy that commit (variant/version) to an environment
+
+</details>
+
+## Setup
+
+Before using the SDK, you need to initialize it using the `ag.init()` method.
+
+```python
+import agenta as ag
+
+# Initialize the SDK with your API key
+os.environment["AGENTA_API_KEY"] = "xxx" # Only needs setting in oss
+os.environment["AGENTA_HOST"] = "https://cloud.agenta.ai" # default value no need setting explicitly
+ag.init()
+```
+
+## Creating a new prompt
+
+Each prompt in agenta is a unique application. Currently creating a prompt is only available in the web UI. To create a new prompt, just click on create a new prompt and select whether it's a chat or completion propmt in the web UI.
+
+## Deploying a change to production
+
+We describe here how to create a first variant in Agenta, and deploy it to production
+
+### 1. Creating a New Variant
+
+To create a new variant, use the `VariantManager.create_variant` method with explicit parameters.
+
+```python
+
+from agenta import Prompt
+
+# Prompt is a pydantic BaseModel, for additional validation
+my_prompt = Prompt(temperature=0.6,
+       model="gpt-3.5-turbo",
+       max_tokens=150,
+       prompt=[{"role": "system", "content": "You are an assistant that provides concise answers"},
+                {"role": "user", "content": "Explain {topic} in simple terms"}],
+       top_p=1.0,
+       frequency_penalty=0.0,
+       presence_penalty=0.0 )
+
+# Create a new variant
+variant = ag.VariantManager.create_variant(
+    app_slug="my-app",
+    variant_slug="new-variant",
+    config_parameters=my_prompt.dict()
+)
+
+print("Created variant:")
+print(variant)
+```
+
+This command will create a new variant and initialize it with the first commit containing the parameters provided
+
+- **Parameters:**
+  - `app_slug`: The slug of your application.
+  - `variant_slug`: The slug of the new variant.
+  - `config_parameters`: A dictionary containing the initial configuration parameters.
+
+**Note:** If a variant with the same `slug` and `version` already exists, the SDK will raise an exception.
+
+**Sample Output:**
+
+```python
+Created variant:
+{
+    'app_slug': 'my-app',
+    'variant_slug': 'new-variant',
+    'variant_version': 1,
+    'config': {
+        'parameters': {
+            'temperature': 0.7,
+            'model': 'gpt-3.5-turbo',
+            'max_tokens': 150,
+            'prompt_system': 'You are an assistant that provides concise answers.',
+            'prompt_user': 'Explain {topic} in simple terms.',
+            'top_p': 1.0,
+            'frequency_penalty': 0.0,
+            'presence_penalty': 0.0
+        },
+        'metadata': {
+            'created_at': '2023-10-01T12:00:00Z',
+            'created_by': 'user@example.com'
+        }
+    }
+}
+```
+
+## 5. Deploying a Variant to an Environment
+
+To deploy a variant to an environment, use the `DeploymentManager.deploy_variant` method with explicit parameters.
+
+```python
+# Deploy the variant to the staging environment
+deployment = ag.DeploymentManager.deploy_variant(
+    app_slug="my-app",
+    variant_slug="new-variant",
+    variant_version=None,  # Optional: If not provided, deploys the latest version
+    environment_slug="staging",
+    environment_version=None,  # Optional
+)
+
+print("Deployed variant to environment:")
+print(deployment)
+```
+
+- **Parameters:**
+
+  - `environment_slug`: The slug of the environment (`development`, `staging`, or `production`).
+  - Other parameters as before.
+
+- **Notes:**
+  - Deploying a variant without specifying a `variant_version` deploys the latest version.
+  - Only predefined environments are currently supported.
+
+**Sample Output:**
+
+```python
+Deployed variant to environment:
+{
+    'app_slug': 'my-app',
+    'variant_slug': 'new-variant',
+    'variant_version': 2,
+    'environment_slug': 'staging',
+    'deployment_info': {
+        'deployed_at': '2023-10-02T12:30:00Z',
+        'deployed_by': 'user@example.com'
+    }
+}
+```
+
+## Committing a Variant Version
+
+To save changes to a variant (creating a new version), use the `VariantManager.commit_variant` method with explicit parameters.
+
+```python
+# Update the configuration parameters
+updated_parameters = {
+    **initial_parameters,
+    'temperature': 0.9  # Adjust the temperature
+}
+
+# Commit the new version
+variant = ag.VariantManager.commit_variant(
+    app_slug="my-app",
+    variant_slug="new-variant",
+    variant_version=None,  # Optional: Will create a new version
+    config_parameters=updated_parameters
+)
+
+print("Committed new version of variant:")
+print(variant)
+```
+
+- **Immutability:** Each commit creates a new version of the variant. Versions are immutable once created.
+
+**Sample Output:**
+
+```python
+Committed new version of variant:
+{
+    'app_slug': 'my-app',
+    'variant_slug': 'new-variant',
+    'variant_version': 2,
+    'config': {
+        'parameters': {
+            'temperature': 0.9,
+            'model': 'gpt-3.5-turbo',
+            'max_tokens': 150,
+            'prompt_system': 'You are an assistant that provides concise answers.',
+            'prompt_user': 'Explain {topic} in simple terms.',
+            'top_p': 1.0,
+            'frequency_penalty': 0.0,
+            'presence_penalty': 0.0
+        },
+        'metadata': {
+            'created_at': '2023-10-02T12:00:00Z',
+            'created_by': 'user@example.com'
+        }
+    }
+}
+```
+
+## 6. Fetching Configurations
+
+You can fetch configurations by providing explicit parameters.
+
+### a. Fetching by Variant Reference
+
+```python
+# Fetch configuration by variant
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app",
+    variant_slug="new-variant",
+    variant_version=2
+)
+
+print("Fetched configuration:")
+print(config)
+```
+
+**Sample Output:**
+
+```python
+Fetched configuration:
+{
+    'app_slug': 'my-app',
+    'variant_slug': 'new-variant',
+    'variant_version': 2,
+    'config': {
+        'parameters': {
+            'temperature': 0.9,
+            'model': 'gpt-3.5-turbo',
+            'max_tokens': 150,
+            'prompt_system': 'You are an assistant that provides concise answers.',
+            'prompt_user': 'Explain {topic} in simple terms.',
+            'top_p': 1.0,
+            'frequency_penalty': 0.0,
+            'presence_penalty': 0.0
+        },
+        'metadata': {
+            'created_at': '2023-10-02T12:00:00Z',
+            'created_by': 'user@example.com'
+        }
+    }
+}
+```
+
+### b. Fetching by Environment Reference
+
+```python
+# Fetch configuration from the staging environment
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app",
+    environment_slug="staging"
+)
+
+print("Fetched configuration from staging:")
+print(config)
+```
+
+**Sample Output:**
+
+```python
+Fetched configuration from staging:
+{
+    'app_slug': 'my-app',
+    'variant_slug': 'new-variant',
+    'variant_version': 2,
+    'environment_slug': 'staging',
+    'config': {
+        'parameters': {
+            'temperature': 0.9,
+            'model': 'gpt-3.5-turbo',
+            'max_tokens': 150,
+            'prompt_system': 'You are an assistant that provides concise answers.',
+            'prompt_user': 'Explain {topic} in simple terms.',
+            'top_p': 1.0,
+            'frequency_penalty': 0.0,
+            'presence_penalty': 0.0
+        },
+        'metadata': {
+            'deployed_at': '2023-10-02T12:30:00Z',
+            'deployed_by': 'user@example.com'
+        }
+    }
+}
+```
+
+### c. Default Behavior
+
+If you don't provide either `variant` or `environment` identifiers, the SDK fetches the latest configuration deployed to the `production` environment.
+
+```python
+# Fetch configuration from production (default)
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app"
+)
+
+print("Fetched configuration from production:")
+print(config)
+```
+
+### d. Schema Validation with Pydantic
+
+If you have a predefined schema for your configuration, you can use Pydantic to validate it. The configuration parameters will be under `config['parameters']`.
+
+```python
+from pydantic import BaseModel
+
+# Define your configuration schema
+class MyConfigSchema(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+    prompt_system: str
+    prompt_user: str
+    top_p: float
+    frequency_penalty: float
+    presence_penalty: float
+
+# Fetch and validate configuration
+config_dict = ag.ConfigManager.get_from_registry(
+    app_slug="my-app",
+    variant_slug="new-variant",
+    variant_version=2
+)
+
+# Validate the parameters
+config_parameters = config_dict['config']['parameters']
+config = MyConfigSchema(**config_parameters)
+
+print("Validated configuration:")
+print(config)
+```
+
+- **Note:** The `config` object will now be an instance of `MyConfigSchema`.
+
+## 7. Deleting a Variant
+
+To delete a variant, use the `VariantManager.delete_variant` method with explicit parameters.
+
+```python
+# Delete a variant
+ag.VariantManager.delete_variant(
+    app_slug="my-app",
+    variant_slug="obsolete-variant"
+)
+
+print("Variant deleted successfully.")
+```
+
+- **Warning:** Deleting a variant removes all versions of the variant. This action is irreversible.
+
+## 8. Listing All Variants
+
+To list all variants of an application, use the `VariantManager.list_variants` method.
+
+```python
+# List all variants
+variants = ag.VariantManager.list_variants(app_slug="my-app")
+
+print("List of variants:")
+for variant in variants:
+    print(variant)
+```
+
+**Sample Output:**
+
+```python
+List of variants:
+{
+    'variant_slug': 'new-variant',
+    'versions': [1, 2],
+    'latest_version': 2
+}
+{
+    'variant_slug': 'another-variant',
+    'versions': [1],
+    'latest_version': 1
+}
+```
+
+- **Information Provided:** The list includes all variants with their `variant_slug`, available `versions`, and `latest_version`.
+
+## 9. Handling Errors
+
+The SDK raises exceptions for error conditions. It's good practice to handle these exceptions in your code.
+
+```python
+try:
+    # Attempt to create a variant that already exists
+    variant = ag.VariantManager.create_variant(
+        app_slug="my-app",
+        variant_slug="existing-variant",
+        config_parameters=initial_parameters
+    )
+except Exception as e:
+    print(f"An error occurred: {e}")
+```
+
+- **Common Exceptions:**
+  - Providing both variant and environment identifiers when fetching configurations.
+  - Conflicts when adding or committing configurations with existing `variant_slug` and `variant_version`.
+  - Attempting to modify an immutable version.
+
+## 10. Asynchronous Operations
+
+If your application uses asynchronous programming, you can use the async versions of the methods.
+
+```python
+# Asynchronous fetching of configuration
+config = await ag.ConfigManager.async_get_from_registry(
+    app_slug="my-app",
+    variant_slug="new-variant",
+    variant_version=2
+)
+
+print("Fetched configuration asynchronously:")
+print(config)
+```
+
+- **Note:** Ensure that you're running this code within an asynchronous event loop.
+
+## 11. Thread Safety
+
+The SDK is designed to be thread-safe. You can use it in multi-threaded applications without worrying about shared mutable states.
+
+## Next Steps
+
+Now that you've learned how to manage configurations using the SDK with explicit parameters, you can:
+
+- Explore more advanced features of the SDK.
+- Integrate the SDK into your application's deployment pipeline.
+- Use the SDK to automate configuration management tasks.
