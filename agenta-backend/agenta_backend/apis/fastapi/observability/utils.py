@@ -857,12 +857,21 @@ def parse_to_agenta_span_dto(
             span_dto.exception.attributes
         )
 
+    # LINKS
     if span_dto.links:
         for link in span_dto.links:
             link.tree_id = None
 
+    # NODES
     if span_dto.nodes:
-        for node in span_dto.nodes:
-            parse_to_agenta_span_dto(node)
+        for node in span_dto.nodes.values():
+            if isinstance(node, list):
+                for span in node:
+                    parse_to_agenta_span_dto(span)
+            else:
+                parse_to_agenta_span_dto(node)
+
+    # TAGS
+    span_dto.tags = None
 
     return span_dto
