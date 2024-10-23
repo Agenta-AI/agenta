@@ -1,9 +1,4 @@
-import {
-    _AgentaRootsResponse,
-    NodeStatusCode,
-    NodeStatusDTO,
-    NodeType,
-} from "@/services/observability/types"
+import {_AgentaRootsResponse, NodeType} from "@/services/observability/types"
 import {Download, Gear, LineSegments, Sparkle, TreeStructure} from "@phosphor-icons/react"
 import {Avatar} from "antd"
 import React from "react"
@@ -70,19 +65,18 @@ export const nodeTypeStyles = {
     },
 }
 
-export const statusMapper = (node: NodeType | null | undefined, status: NodeStatusDTO) => {
-    const {code} = status
+export const statusMapper = (node: NodeType | null | undefined) => {
     const {bgColor, color, icon: Icon} = nodeTypeStyles[node ?? "default"]
     return {
         bgColor,
         color,
-        icon: <Icon color={code === NodeStatusCode.ERROR ? "#D61010" : color} size={16} />,
+        icon: <Icon color={color} size={16} />,
     }
 }
 
 const AvatarTreeContent = ({value, ...props}: AvatarTreeContentProps) => {
-    const {node, status} = value
-    const {icon, bgColor, color} = statusMapper(node.type, status)
+    const {node} = value
+    const {icon, bgColor, color} = statusMapper(node.type)
 
     return (
         <Avatar
@@ -90,9 +84,9 @@ const AvatarTreeContent = ({value, ...props}: AvatarTreeContentProps) => {
             shape="square"
             size={"large"}
             style={{
-                backgroundColor: status.code === NodeStatusCode.ERROR ? "#FBE7E7" : bgColor,
+                backgroundColor: bgColor,
                 width: 32,
-                border: `1px solid ${status.code === NodeStatusCode.ERROR ? "#D61010" : color}`,
+                border: `1px solid ${color}`,
             }}
             icon={icon}
         />

@@ -4,7 +4,7 @@ import {ArrowRight, Database, PlusCircle, Rocket, Timer} from "@phosphor-icons/r
 import {Button, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
-import {_AgentaRootsResponse, NodeStatusCode} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import dayjs from "dayjs"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {statusMapper} from "../components/AvatarTreeContent"
@@ -75,11 +75,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {node, time, meta, data, status, metrics, parent, key, children, ...filteredTrace} =
-        activeTrace
+    const {data, key, children, ...filteredTrace} = activeTrace
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
-    const {icon, bgColor, color} = statusMapper(node.type, status)
+    const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
 
     const items: TabsProps["items"] = [
         {
@@ -87,26 +86,28 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
             label: "Overview",
             children: (
                 <Space direction="vertical" size={24} className="w-full">
-                    {meta && meta.request && (
+                    {activeTrace.meta && activeTrace.meta.request && (
                         <Space direction="vertical">
                             <Typography.Text className={classes.subTitle}>
                                 Meta Data
                             </Typography.Text>
                             <Space style={{flexWrap: "wrap"}}>
-                                {Object.entries(meta.request).map(([key, value], index) => (
-                                    <ResultTag
-                                        key={index}
-                                        value1={key}
-                                        value2={getStringOrJson(value)}
-                                    />
-                                ))}
+                                {Object.entries(activeTrace.meta.request).map(
+                                    ([key, value], index) => (
+                                        <ResultTag
+                                            key={index}
+                                            value1={key}
+                                            value2={getStringOrJson(value)}
+                                        />
+                                    ),
+                                )}
                             </Space>
                         </Space>
                     )}
 
                     {data && data?.inputs ? (
-                        <Space direction="vertical" className="w-full">
-                            {node.type !== "chat" ? (
+                        <Space direction="vertical" className="w-full" size={24}>
+                            {activeTrace.node.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"inputs"}
                                     value={data.inputs}
@@ -138,8 +139,8 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     ) : null}
 
                     {data && data?.outputs ? (
-                        <Space direction="vertical" className="w-full">
-                            {node.type !== "chat" ? (
+                        <Space direction="vertical" className="w-full" size={24}>
+                            {activeTrace.node.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"outputs"}
                                     value={data.outputs}
@@ -173,14 +174,25 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     ) : null}
 
                     {data && data?.internals && (
-                        <Space direction="vertical" className="w-full">
-                            {node.type !== "chat" && (
+                        <Space direction="vertical" className="w-full" size={24}>
+                            {activeTrace.node.type !== "chat" && (
                                 <AccordionTreePanel
                                     label={"internals"}
                                     value={data.internals}
                                     enableFormatSwitcher
                                 />
                             )}
+                        </Space>
+                    )}
+
+                    {activeTrace.exception && (
+                        <Space direction="vertical" className="w-full" size={24}>
+                            <AccordionTreePanel
+                                label={"Exception"}
+                                value={activeTrace.exception}
+                                enableFormatSwitcher
+                                bgColor="#FBE7E7"
+                            />
                         </Space>
                     )}
                 </Space>
@@ -192,7 +204,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
             children: (
                 <AccordionTreePanel
                     label={"Raw Data"}
-                    value={{node, time, meta, status, metrics, parent, ...filteredTrace}}
+                    value={{...filteredTrace}}
                     enableFormatSwitcher
                     fullEditorHeight
                 />
@@ -205,7 +217,9 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
             <div className="flex-1 flex flex-col">
                 <div>
                     <div className="p-4 flex items-center justify-between">
-                        <Typography.Text className={classes.title}>{node.name}</Typography.Text>
+                        <Typography.Text className={classes.title}>
+                            {activeTrace.node.name}
+                        </Typography.Text>
 
                         <Space>
                             {!parent && (
@@ -225,23 +239,22 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                 <div className="p-4 flex flex-wrap gap-2">
                     <ResultTag
                         style={{
-                            backgroundColor:
-                                status.code === NodeStatusCode.ERROR ? "#FBE7E7" : bgColor,
-                            border: `1px solid ${status.code === NodeStatusCode.ERROR ? "#D61010" : color}`,
-                            color: status.code === NodeStatusCode.ERROR ? "#D61010" : color,
+                            backgroundColor: bgColor,
+                            border: `1px solid ${color}`,
+                            color: color,
                         }}
                         bordered
                         value1={
                             <>
-                                {icon} {node.type}
+                                {icon} {activeTrace.node.type}
                             </>
                         }
                     />
-                    <StatusRenderer status={status} />
+                    <StatusRenderer status={activeTrace.status} />
                     <ResultTag
                         value1={
                             <>
-                                <Timer size={14} /> {formatLatency(time.span / 1000000)}
+                                <Timer size={14} /> {formatLatency(activeTrace.time.span / 1000000)}
                             </>
                         }
                     />
@@ -249,18 +262,24 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         value1={
                             <>
                                 <PlusCircle size={14} />
-                                {formatTokenUsage(metrics?.acc?.tokens?.total)} /{" "}
-                                {formatCurrency(metrics?.acc?.costs?.total)}
+                                {formatTokenUsage(activeTrace.metrics?.acc?.tokens?.total)} /{" "}
+                                {formatCurrency(activeTrace.metrics?.acc?.costs?.total)}
                             </>
                         }
                         popoverContent={
                             <Space direction="vertical">
                                 <Space className={classes.tokenContainer}>
-                                    <div>{formatTokenUsage(metrics?.acc?.tokens?.prompt)}</div>
+                                    <div>
+                                        {formatTokenUsage(activeTrace.metrics?.acc?.tokens?.prompt)}
+                                    </div>
                                     <div>Prompt tokens</div>
                                 </Space>
                                 <Space className={classes.tokenContainer}>
-                                    <div>{formatTokenUsage(metrics?.acc?.tokens?.completion)}</div>
+                                    <div>
+                                        {formatTokenUsage(
+                                            activeTrace.metrics?.acc?.tokens?.completion,
+                                        )}
+                                    </div>
                                     <div>Completion tokens</div>
                                 </Space>
                             </Space>
@@ -269,9 +288,9 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     <ResultTag
                         value1={
                             <>
-                                {dayjs(time.start).format("DD/MM/YYYY, hh:mm:ss A")}
+                                {dayjs(activeTrace.time.start).format("DD/MM/YYYY, hh:mm:ss A")}
                                 <ArrowRight size={14} />{" "}
-                                {dayjs(time.end).format("DD/MM/YYYY, hh:mm:ss A")}
+                                {dayjs(activeTrace.time.end).format("DD/MM/YYYY, hh:mm:ss A")}
                             </>
                         }
                     />

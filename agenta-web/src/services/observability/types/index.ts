@@ -1,4 +1,4 @@
-export interface _AgentaRootsResponse extends Omit<AgentaNodeDTO, "nodes"> {
+export interface _AgentaRootsResponse extends AgentaNodeDTO {
     children: _AgentaRootsResponse[]
     key: string
 }
@@ -19,7 +19,7 @@ interface RootContextDTO {
 
 export interface AgentaTreeDTO {
     tree: TreeContextDTO
-    nodes: Record<string, AgentaNodeDTO>
+    nodes: AgentaNodeDTO[]
 }
 
 interface TreeContextDTO {
@@ -44,6 +44,7 @@ export interface NodeDTO {
     refs?: NodeRefs | null
     links?: NodeLinkDTO[] | null
     nodes?: Record<string, NodeDTO | NodeDTO[]> | null
+    exception?: NodeExceptionDTO | null
 }
 
 type NodeData = Record<string, any>
@@ -55,6 +56,13 @@ type NodeLinkDTO = {
     type: string
     id: string
     tree_id?: string | null
+}
+interface NodeExceptionDTO {
+    timestamp: string
+    type: string
+    message?: string | null
+    stacktrace?: string | null
+    attributes?: Record<string, any> | null
 }
 
 interface ProjectScopeDTO {
@@ -105,5 +113,4 @@ interface NodeTimeDTO {
 export interface NodeStatusDTO {
     code: NodeStatusCode
     message?: string | null
-    stacktrace?: string | null
 }

@@ -1,6 +1,6 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {JSSTheme} from "@/lib/Types"
-import {_AgentaRootsResponse} from "@/services/observability/types"
+import {_AgentaRootsResponse, NodeStatusCode} from "@/services/observability/types"
 import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
 import {Space, Tree, Typography} from "antd"
 import React, {useEffect, useState} from "react"
@@ -67,7 +67,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
-    const {node, time, metrics} = value
+    const {node, time, metrics, status} = value
     const classes = useStyles()
 
     return (
@@ -76,7 +76,15 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                 <AvatarTreeContent value={value} />
             </div>
             <div className="flex flex-col flex-1">
-                <Typography.Text className={classes.treeTitle}>{node.name}</Typography.Text>
+                <Typography.Text
+                    className={
+                        status.code === NodeStatusCode.ERROR
+                            ? `${classes.treeTitle} text-[#D61010] font-[500]`
+                            : classes.treeTitle
+                    }
+                >
+                    {node.name}
+                </Typography.Text>
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />

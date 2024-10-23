@@ -88,6 +88,7 @@ const AccordionTreePanel = ({
     return (
         <Collapse
             {...props}
+            defaultActiveKey={[label]}
             items={[
                 {
                     key: label,
