@@ -186,15 +186,3 @@ class FileInputURL(HttpUrl):
     @classmethod
     def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "file_url", "type": "string"}
-
-
-class Context(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    def to_json(self):
-        return self.model_dump()
-
-    @classmethod
-    def from_json(cls, json_str: str):
-        data = json.loads(json_str)
-        return cls(**data)

@@ -1,9 +1,3 @@
-"""The code for the Agenta SDK"""
-
-from agenta.sdk.utils.debug import debug, DEBUG, SHIFT
-import os
-import sys
-import time
 import json
 import inspect
 import argparse
@@ -13,19 +7,17 @@ import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
-from importlib.metadata import version
-
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 import agenta as ag
-from agenta.sdk.context import save_context
+
+from agenta.sdk.context.routing import routing_context_manager, routing_context
+from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.router import router as router
-from agenta.sdk.tracing.logger import llm_logger as logging
-from agenta.sdk.tracing.tracing_context import tracing_context, TracingContext
-from agenta.sdk.decorators.base import BaseDecorator
+from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
-    Context,
     DictInput,
     FloatParam,
     InFile,
@@ -46,8 +38,8 @@ from typing import Type
 from annotated_types import Ge, Le, Gt, Lt
 
 from pydantic import BaseModel, HttpUrl
-import contextvars
-from contextlib import contextmanager
+
+from traceback import format_exc
 
 
 app = FastAPI()
@@ -67,36 +59,14 @@ app.add_middleware(
 app.include_router(router, prefix="")
 
 
-logging.setLevel("DEBUG")
-
-route_context = contextvars.ContextVar("route_context", default={})
-
-
-@contextmanager
-def route_context_manager(
-    config: Optional[Dict[str, Any]] = None,
-    environment: Optional[str] = None,
-    version: Optional[str] = None,
-    variant: Optional[str] = None,
-):
-    context = {
-        "config": config,
-        "environment": environment,
-        "version": version,
-        "variant": variant,
-    }
-    token = route_context.set(context)
-    try:
-        yield
-    finally:
-        route_context.reset(token)
+log.setLevel("DEBUG")
 
 
 class PathValidator(BaseModel):
     url: HttpUrl
 
 
-class route(BaseDecorator):
+class route:
     # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
     # as independent endpoints. It is designed for backward compatibility with existing code that uses
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
@@ -118,7 +88,7 @@ class route(BaseDecorator):
         return f
 
 
-class entrypoint(BaseDecorator):
+class entrypoint:
     """
     Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
@@ -152,10 +122,11 @@ class entrypoint(BaseDecorator):
     routes = list()
 
     def __init__(
-        self, func: Callable[..., Any], route_path="", config_schema: BaseModel = None
+        self,
+        func: Callable[..., Any],
+        route_path="",
+        config_schema: Optional[BaseModel] = None,
     ):
-        logging.info(f"Using Agenta Python SDK version {version('agenta')}")
-
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -176,8 +147,9 @@ class entrypoint(BaseDecorator):
         config_params = config.dict() if config else ag.config.all()
         ingestible_files = self.extract_ingestible_files(func_signature)
 
+        self.route_path = route_path
+
         ### --- Playground  --- #
-        @debug()
         @functools.wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
@@ -185,11 +157,10 @@ class entrypoint(BaseDecorator):
             if not config_schema:
                 ag.config.set(**api_config_params)
 
-            # Set the configuration and environment of the LLM app parent span at run-time
-            ag.tracing.update_baggage(
-                {"config": config_params, "environment": "playground"}
-            )
-            with route_context_manager(config=api_config_params):
+            with routing_context_manager(
+                config=api_config_params,
+                environment="playground",
+            ):
                 entrypoint_result = await self.execute_function(
                     func,
                     True,  # inline trace: True
@@ -242,7 +213,6 @@ class entrypoint(BaseDecorator):
         ### ---------------------------- #
 
         ### --- Deployed / Published --- #
-        @debug()
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
@@ -256,12 +226,10 @@ class entrypoint(BaseDecorator):
                 else:
                     ag.config.pull(config_name="default")
 
-            # Set the configuration and environment of the LLM app parent span at run-time
-            ag.tracing.update_baggage(
-                {"config": config_params, "environment": kwargs["environment"]}
-            )
-            with route_context_manager(
-                variant=kwargs["config"], environment=kwargs["environment"]
+            with routing_context_manager(
+                config=config_params,
+                variant=kwargs["config"],
+                environment=kwargs["environment"],
             ):
                 entrypoint_result = await self.execute_function(
                     func,
@@ -351,92 +319,124 @@ class entrypoint(BaseDecorator):
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
+    def patch_result(self, result: Any):
+        """
+        Patch the result to only include the message if the result is a FuncResponse-style dictionary with message, cost, and usage keys.
+
+        Example:
+        ```python
+        result = {
+            "message": "Hello, world!",
+            "cost": 0.5,
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 20,
+                "total_tokens": 30
+            }
+        }
+        result = patch_result(result)
+        print(result)
+        # Output: "Hello, world!"
+        ```
+        """
+        data = (
+            result["message"]
+            if isinstance(result, dict)
+            and all(key in result for key in ["message", "cost", "usage"])
+            else result
+        )
+
+        if data is None:
+            data = (
+                "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
+            )
+
+        if not isinstance(result, dict):
+            data = str(data)
+
+        return data
+
     async def execute_function(
-        self, func: Callable[..., Any], inline_trace, *args, **func_params
+        self,
+        func: Callable[..., Any],
+        inline_trace,
+        *args,
+        **func_params,
     ):
-        """Execute the function and handle any exceptions."""
+        log.info(f"---------------------------")
+        log.info(
+            f"Agenta SDK - running route: {repr(self.route_path if self.route_path != '' else '/')}"
+        )
+        log.info(f"---------------------------")
+
+        tracing_context.set(routing_context.get())
+
+        WAIT_FOR_SPANS = True
+        TIMEOUT = 1
+        TIMESTEP = 0.1
+        FINALSTEP = 0.001
+        NOFSTEPS = TIMEOUT / TIMESTEP
+
+        data = None
+        trace = {}
 
         try:
-            """Note: The following block is for backward compatibility.
-            It allows functions to work seamlessly whether they are synchronous or asynchronous.
-            For synchronous functions, it calls them directly, while for asynchronous functions,
-            it awaits their execution.
-            """
-            logging.info(f"Using Agenta Python SDK version {version('agenta')}")
-
-            WAIT_FOR_SPANS = True
-            TIMEOUT = 1
-            TIMESTEP = 0.1
-            NOFSTEPS = TIMEOUT / TIMESTEP
-
-            data = None
-            trace = None
-
-            token = None
-            if tracing_context.get() is None:
-                token = tracing_context.set(TracingContext())
-
-            is_coroutine_function = inspect.iscoroutinefunction(func)
-
-            if is_coroutine_function:
-                result = await func(*args, **func_params["params"])
-            else:
-                result = func(*args, **func_params["params"])
-
-            if token is not None:
-                if WAIT_FOR_SPANS:
-                    remaining_steps = NOFSTEPS
-
-                    while not ag.tracing.is_trace_ready() and remaining_steps > 0:
-                        await asyncio.sleep(TIMESTEP)
-                        remaining_steps -= 1
-
-                trace = ag.tracing.dump_trace()
-
-                if not inline_trace:
-                    trace = {"trace_id": trace["trace_id"]}
-
-                ag.tracing.flush_spans()
-                tracing_context.reset(token)
-
-            if isinstance(result, Context):
-                save_context(result)
-
-            data = result
-
-            # PATCH : if result is not a dict, make it a dict
-            if not isinstance(result, dict):
-                data = str(result)
-            else:
-                # PATCH : if result is a legacy dict, clean it up
-                if (
-                    "message" in result.keys()
-                    and "cost" in result.keys()
-                    and "usage" in result.keys()
-                ):
-                    data = str(result["message"])
-
-            # END OF PATH
-
-            if data is None:
-                data = (
-                    "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
-                )
-
-            response = BaseResponse(data=data, trace=trace)
-
-            # logging.debug(response)
-
-            return response
-
+            result = (
+                await func(*args, **func_params["params"])
+                if inspect.iscoroutinefunction(func)
+                else func(*args, **func_params["params"])
+            )
+            data = self.patch_result(result)
         except Exception as e:
+            log.error("--------------------------------------------------")
+            log.error("Agenta SDK - handling application exception below:")
+            log.error("--------------------------------------------------")
+            log.error(format_exc().strip("\n"))
+            log.error("--------------------------------------------------")
+
             self.handle_exception(e)
+
+        with suppress():
+            root_context: Dict[str, Any] = tracing_context.get().get("root")
+
+            trace_id = root_context.get("trace_id") if root_context else None
+
+            if trace_id is not None:
+                if inline_trace:
+                    if WAIT_FOR_SPANS:
+                        remaining_steps = NOFSTEPS
+
+                        while (
+                            not ag.tracing.is_inline_trace_ready(trace_id)
+                            and remaining_steps > 0
+                        ):
+                            await asyncio.sleep(TIMESTEP)
+
+                            remaining_steps -= 1
+
+                        await asyncio.sleep(FINALSTEP)
+
+                    trace = ag.tracing.get_inline_trace(trace_id)
+                else:
+                    trace = {"trace_id": trace_id}
+
+        response = BaseResponse(data=data, trace=trace)
+
+        log.info(f"----------------------------------")
+        log.info(f"Agenta SDK - exiting successfully: 200")
+        log.info(f"----------------------------------")
+
+        return response
 
     def handle_exception(self, e: Exception):
         status_code = e.status_code if hasattr(e, "status_code") else 500
         message = str(e)
         stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
+
+        log.error(f"----------------------------------------")
+        log.error(f"Agenta SDK - exiting with HTTPException: {status_code}")
+        log.error(f"----------------------------------------")
 
         raise HTTPException(
             status_code=status_code,
@@ -644,28 +644,46 @@ class entrypoint(BaseDecorator):
             }
         )
 
-        # Set the configuration and environment of the LLM app parent span at run-time
-        ag.tracing.update_baggage({"config": args_config_params, "environment": "bash"})
-
         loop = asyncio.get_event_loop()
 
-        result = loop.run_until_complete(
-            self.execute_function(
-                func,
-                True,  # inline trace: True
-                **{"params": args_func_params, "config_params": args_config_params},
+        with routing_context_manager(
+            config=args_config_params,
+            environment="terminal",
+        ):
+            result = loop.run_until_complete(
+                self.execute_function(
+                    func,
+                    True,  # inline trace: True
+                    **{"params": args_func_params, "config_params": args_config_params},
+                )
             )
-        )
 
-        print("\n========== Result ==========\n")
+        SHOW_DETAILS = True
+        SHOW_DATA = False
+        SHOW_TRACE = False
 
-        print("-> data")
-        print(json.dumps(result.data, indent=2))
-        print("-> trace")
-        print(json.dumps(result.trace, indent=2))
+        if result.trace:
+            log.info("\n========= Result =========\n")
 
-        with open("trace.json", "w") as trace_file:
-            json.dump(result.trace, trace_file, indent=4)
+            log.info(f"trace_id: {result.trace['trace_id']}")
+            if SHOW_DETAILS:
+                log.info(f"latency:  {result.trace.get('latency')}")
+                log.info(f"cost:     {result.trace.get('cost')}")
+                log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
+
+            if SHOW_DATA:
+                log.info(" ")
+                log.info(f"data:")
+                log.info(json.dumps(result.data, indent=2))
+
+            if SHOW_TRACE:
+                log.info(" ")
+                log.info(f"trace:")
+                log.info(f"----------------")
+                log.info(json.dumps(result.trace.get("spans", []), indent=2))
+                log.info(f"----------------")
+
+            log.info("\n==========================\n")
 
     def override_config_in_schema(
         self,
