@@ -18,12 +18,12 @@ class suppress(AbstractContextManager):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         if exc_type is None:
-            return
+            return True
         else:
             logger.error("--- SUPPRESSING EXCEPTION ---")
-            logger.error(f"{exc_type.__name__}: {exc_value}\n{format_exc()}")
+            logger.error(format_exc())
             logger.error("-----------------------------")
-            return
+            return True
 
 
 def handle_exceptions():
