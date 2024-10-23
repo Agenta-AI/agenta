@@ -4,21 +4,20 @@ title: "Manage Prompts with SDK"
 
 import Image from "@theme/IdealImage";
 
-In Agenta, the whole prompt management workflows happens seamlessly in the web UI. However sometimes, you would like to do things programatically without having to go throught the UI.
+You can manage prompts easily through Agenta's web UI. But sometimes you might want to do things programmatically instead of using the interface.
 
-In this tutorial we will use the Agenta SDK to create a new prompt, commit changes, deploy them to production then fetch their configuration and use it to call the LLM.
+In this tutorial, we'll use the Agenta SDK to create a new prompt, commit changes, deploy them to production, then fetch their configuration and use it to call the LLM.
 
-## Agenda
+## Tutorial Overview
 
-Before starting, let's quickly review how Agenta version prompts:
+Before we begin, let's quickly review how Agenta versions prompts:
 
-Agenta follows a structure similar to git for prompt versioning. Instead of having one commit history where you commit changes. It follows a multiple branches (called variants) where changes can be committed, and environement where these changes can be deployed (and used in your application) ([todo: add as pop over] you can see why we chose this here).
-
+Agenta follows a structure similar to **git** for prompt versioning. Instead of having one commit history, it uses **multiple branches (called variants)** where changes can be committed, and **environments** where these changes can be deployed (and used in your application). (You can read more about why we chose this approach [here](/concepts/concepts#motivation)).
 You can find more about how prompt versioning works in the [concepts page](/concepts/concepts).
 
-The workflow of deploying a change to production we will follow in this tutorial is the following:
+The workflow for deploying a change to production that we'll follow in this tutorial is:
 
-1. Create a new variant (branch)
+1. Create a new variant
 2. Commit a change to that variant
 3. Deploy that commit (variant/version) to the production environment
 4. Commit a new change to that variant
@@ -26,29 +25,28 @@ The workflow of deploying a change to production we will follow in this tutorial
 
 ## Setup
 
-Before using the SDK, we need to initialize it using the `ag.init()` method which takes the host (default cloud.agenta.ai) and the api key (not required for community editions)
+Before using the SDK, we need to initialize it using the `ag.init()` method, which takes the host (default `cloud.agenta.ai`) and the API key (not required for community editions):
 
 ```python
 import agenta as ag
 
 # Initialize the SDK with your API key
-os.environment["AGENTA_API_KEY"] = "xxx" # Only needs setting in oss
-os.environment["AGENTA_HOST"] = "https://cloud.agenta.ai" # default value no need setting explicitly
+os.environ["AGENTA_API_KEY"] = "xxx" # Only needs setting in OSS
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # Default value, no need to set explicitly
 ag.init()
 ```
 
 ## Creating a new prompt
 
-Each prompt in agenta is a unique application. Currently creating a prompt is only available in the web UI. To create a new prompt, just click on create a new prompt and select whether it's a chat or completion propmt in the web UI. The name of the prompt is the slug that we will use for all the operations below.
+Each prompt in Agenta is a unique application. Currently, creating a prompt is only available in the web UI. To create a new prompt, click on "Create a new prompt" and select whether it's a chat or completion prompt. The name of the prompt is the slug we'll use for all operations below.
 
-Here we are going to create a new completion prompt we will call `topic-explainer`. Here is how our structure would look like after.
+We're going to create a new completion prompt called `topic-explainer`.
 
-[Todo: Image]
+## Creating a new variant
 
-## Creating a New Variant
+[Todo: Image showing before and after. The new elements are added in different colors]
 
-[Todo: Image showing before and after. The new elements are added in a different colors]
-Variants are similar to branches in git. Any change to the prompt has to be first committed into a variant. Here we are going to create a new variant and make our first commit to it. For this we use the `VariantManager.create_variant` method:
+Variants are similar to branches in **git**. Any change to the prompt must first be committed to a variant. Here, we'll create a new variant and make our first commit to it using the `VariantManager.create_variant` method:
 
 ```python
 
@@ -75,11 +73,11 @@ print("Created variant:")
 print(variant)
 ```
 
-This command will create a new variant and initialize it with the first commit containing the parameters provided
+This command will create a new variant and initialize it with the first commit containing the provided parameters.
 
 - **Parameters:**
   - `app_slug`: The unique slug of your application.
-  - `variant_slug`: The unique slug of the new variant .
+  - `variant_slug`: The unique slug of the new variant.
   - `config_parameters`: A dictionary containing the initial configuration parameters.
 
 **Sample Output:**
@@ -101,22 +99,18 @@ Created variant:
             'frequency_penalty': 0.0,
             'presence_penalty': 0.0
         },
-        'metadata': {
-            'created_at': '2023-10-01T12:00:00Z',
-            'created_by': 'user@example.com'
-        }
     }
 }
 ```
 
-## 5. Deploying out changes to the production environment
+## Deploying changes to the production environment
 
 [Todo: Image showing before and after. The new elements are added in a different colors]
 
 To deploy our commit to an environment, use the `DeploymentManager.deploy_variant` method.
 
 ```python
-# Deploy the variant to the staging environment
+# Deploy the variant to the production environment
 deployment = ag.DeploymentManager.deploy_variant(
     app_slug="topic-explainer",
     variant_slug="new-variant",
@@ -141,12 +135,9 @@ Deployed variant to environment:
 {
     'app_slug': 'topic-explainer',
     'variant_slug': 'new-variant',
-    'variant_version': 2,
+    'variant_version': 1
     'environment_slug': 'production',
-    'deployment_info': {
-        'deployed_at': '2023-10-02T12:30:00Z',
-        'deployed_by': 'user@example.com'
-    }
+    'environment_version': 1
 }
 ```
 
@@ -154,7 +145,7 @@ Deployed variant to environment:
 
 [ Image showing changes]
 
-We are now going to commit changes to our variant. Note here that this will not modify the version in deployment!
+We're now going to commit changes to our variant. Note that this will not modify the version in deployment!
 
 To save changes to a variant (creating a new version), we are goin to use the `VariantManager.commit_variant` method with explicit parameters.
 
@@ -180,7 +171,9 @@ print("Committed new version of variant:")
 print(variant)
 ```
 
-- **Immutability:** Each commit creates a new version of the variant. Versions are immutable once created.
+:::info Immutability
+Each commit creates a new version of the variant. Versions are immutable once created.
+:::
 
 **Sample Output:**
 
@@ -200,10 +193,6 @@ Committed new version of variant:
             'top_p': 1.0,
             'frequency_penalty': 0.0,
             'presence_penalty': 0.0
-        },
-        'metadata': {
-            'created_at': '2023-10-02T12:00:00Z',
-            'created_by': 'user@example.com'
         }
     }
 }
@@ -211,7 +200,7 @@ Committed new version of variant:
 
 ## Fetching the prompt in production
 
-Finally we are going to fetch and use the prompt that in production. Note that the production environment is still referencing the first version of our variant. If we want it to reference the change, we need to deploy it again.
+Now we'll fetch and use the prompt that's in production. Keep in mind that the production environment still references the first version of our variant. If we want it to reflect the latest changes, we'll need to deploy it again.
 
 ```python
 # Fetch configuration from the staging environment
@@ -228,6 +217,9 @@ client.completion(
         messages=format_prompt(myprompt.prompt, topic),
         temperature=myprompt.temperature,
         max_tokens=myprompt.max_tokens,
+        top_p=myprompt.top_p,
+        frequency_penalty=myprompt.frequency_penalty,
+        presence_penalty=myprompt.presence_penalty,
     )
 ```
 
@@ -235,6 +227,6 @@ client.completion(
 
 Now that you've learned how to manage configurations using the SDK, you can:
 
-- Read the guide to explore more advanced features of the SDK.
-- Read how to reference prompts in your traces.
-- Read how to manage configuration for your workflows (chain of prompts, RAG..).
+- Read the guide to explore more advanced features of the SDK. [add link]
+- Read how to reference prompts in your traces. [add link]
+- Read how to manage configuration for your workflows (chain of prompts, RAG..). [add link]
