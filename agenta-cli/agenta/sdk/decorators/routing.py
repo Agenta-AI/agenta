@@ -1,8 +1,3 @@
-"""The code for the Agenta SDK"""
-
-import os
-import sys
-import time
 import json
 import inspect
 import argparse
@@ -12,7 +7,6 @@ import functools
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Optional, Tuple, List
-from importlib.metadata import version
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
@@ -44,8 +38,8 @@ from typing import Type
 from annotated_types import Ge, Le, Gt, Lt
 
 from pydantic import BaseModel, HttpUrl
-import contextvars
-from contextlib import contextmanager
+
+from traceback import format_exc
 
 
 app = FastAPI()
@@ -394,9 +388,11 @@ class entrypoint:
             )
             data = self.patch_result(result)
         except Exception as e:
-            log.error(f"Agenta SDK - Routing Exception")
-
-            traceback.print_exc()
+            log.error("Agenta SDK - handling application exception below:")
+            log.error("--------------------------------------------------")
+            log.error(format_exc().strip("\n"))
+            log.error("--------------------------------------------------")
+            log.error("\n")
 
             self.handle_exception(e)
 
@@ -426,6 +422,10 @@ class entrypoint:
 
         response = BaseResponse(data=data, trace=trace)
 
+        log.info(f"Agenta SDK - exiting successfully: 200")
+        log.info(f"----------------------------------")
+        log.info("\n")
+
         return response
 
     def handle_exception(self, e: Exception):
@@ -433,6 +433,10 @@ class entrypoint:
         message = str(e)
         stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
+
+        log.error(f"Agenta SDK - exiting with HTTPException: {status_code}")
+        log.error(f"----------------------------------------")
+        log.error("\n")
 
         raise HTTPException(
             status_code=status_code,
