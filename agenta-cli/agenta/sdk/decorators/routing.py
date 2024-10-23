@@ -662,27 +662,28 @@ class entrypoint:
         SHOW_DATA = False
         SHOW_TRACE = False
 
-        log.info("\n========= Result =========\n")
+        if result.trace:
+            log.info("\n========= Result =========\n")
 
-        log.info(f"trace_id: {result.trace['trace_id']}")
-        if SHOW_DETAILS:
-            log.info(f"latency:  {result.trace.get('latency')}")
-            log.info(f"cost:     {result.trace.get('cost')}")
-            log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
+            log.info(f"trace_id: {result.trace['trace_id']}")
+            if SHOW_DETAILS:
+                log.info(f"latency:  {result.trace.get('latency')}")
+                log.info(f"cost:     {result.trace.get('cost')}")
+                log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
 
-        if SHOW_DATA:
-            log.info(" ")
-            log.info(f"data:")
-            log.info(json.dumps(result.data, indent=2))
+            if SHOW_DATA:
+                log.info(" ")
+                log.info(f"data:")
+                log.info(json.dumps(result.data, indent=2))
 
-        if SHOW_TRACE:
-            log.info(" ")
-            log.info(f"trace:")
-            log.info(f"----------------")
-            log.info(json.dumps(result.trace.get("spans", []), indent=2))
-            log.info(f"----------------")
+            if SHOW_TRACE:
+                log.info(" ")
+                log.info(f"trace:")
+                log.info(f"----------------")
+                log.info(json.dumps(result.trace.get("spans", []), indent=2))
+                log.info(f"----------------")
 
-        log.info("\n==========================\n")
+            log.info("\n==========================\n")
 
     def override_config_in_schema(
         self,
