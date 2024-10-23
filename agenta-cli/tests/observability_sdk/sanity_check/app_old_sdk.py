@@ -13,14 +13,17 @@ ag.config.default(
     prompt_system=ag.TextParam("MY_SYSTEM_PROMPT"),
 )
 
+
 # Pydantic models
 class InputData(BaseModel):
     text: str
     value: int
 
+
 class OutputData(BaseModel):
     result: str
     count: int
+
 
 # Function with ignored outputs
 @ag.instrument(
@@ -35,6 +38,7 @@ def ignore_some_outputs_embedding(description: str):
         "cost": 15,
     }
 
+
 # Function with all outputs ignored
 @ag.instrument(spankind="AGENT", ignore_outputs=True)
 def ignore_all_outputs_agent(query: str):
@@ -44,11 +48,13 @@ def ignore_all_outputs_agent(query: str):
         "confidence": 0.9,
     }
 
+
 # Function with ignored inputs
 @ag.instrument(spankind="IGNORE_INPUTS", ignore_inputs=["secret"])
 def function_with_ignored_inputs(public_data: str, secret: str):
     print("function with ignored inputs")
     return f"Public: {public_data}, Secret: {secret}"
+
 
 # Function with all inputs ignored
 @ag.instrument(spankind="IGNORE_ALL_INPUTS", ignore_inputs=True)
@@ -56,11 +62,13 @@ def function_with_all_ignored_inputs(data: str):
     print("function with all ignored inputs")
     return f"Data: {data}"
 
+
 # Function using dict inputs/outputs
 @ag.instrument(spankind="DICT_IO")
 def dict_function(input_dict: dict) -> dict:
     print("dict function")
     return {"output_data": input_dict.get("key", None)}
+
 
 # Function using Pydantic models
 @ag.instrument(spankind="PYDANTIC")
@@ -68,11 +76,13 @@ def pydantic_function(input_data: InputData) -> OutputData:
     print("pydantic function")
     return OutputData(result=input_data.text.upper(), count=input_data.value + 1)
 
+
 # Function with None output
 @ag.instrument(spankind="NONE_OUTPUT")
 def none_output_function():
     print("none output function")
     return None
+
 
 # Nested function calls
 @ag.instrument(spankind="NESTED")
@@ -81,10 +91,12 @@ def nested_function(value: int):
     inner_result = inner_function(value)
     return f"Nested result: {inner_result}"
 
+
 @ag.instrument(spankind="INNER")
 def inner_function(value: int):
     print("inner function")
     return value * 2
+
 
 # Function called multiple times
 @ag.instrument(spankind="MULTIPLE_CALLS")
@@ -92,56 +104,68 @@ def multiple_calls_function(counter: int):
     print(f"multiple calls function call {counter}")
     return f"Call number: {counter}"
 
+
 # Existing functions
 @ag.instrument(spankind="CHAIN")
 def chain_function(input_data: str):
     print("chain")
     return f"Processed: {input_data}"
 
+
 @ag.instrument(spankind="TASK")
 def task_function(task: str):
     print("task")
     return f"Completed task: {task}"
+
 
 @ag.instrument(spankind="TOOL")
 def tool_function(tool_input: str):
     print("tool")
     return f"Tool output: {tool_input}"
 
+
 @ag.instrument(spankind="QUERY")
 def query_function(query: str):
     print("query")
     return f"Query result: {query}"
+
 
 @ag.instrument(spankind="COMPLETION")
 def completion_function(prompt: str):
     print("completion")
     return f"Completed: {prompt}"
 
+
 @ag.instrument(spankind="CHAT")
 async def chat_function(message: str):
     print("chat")
     return f"Chat response: {message}"
+
 
 @ag.instrument(spankind="RERANK")
 def rerank_function(documents: list):
     print("rerank")
     return sorted(documents, reverse=True)
 
+
 @ag.instrument(spankind="WRONGKIND")
 def wrong_kind_function(input_data: str):
     print("wrong kind")
     return f"Processed with wrong kind: {input_data}"
+
 
 @ag.instrument(spankind="GENERATOR", ignore_inputs=True)
 async def summarizer(topic: str, genre: str, report: dict) -> dict:
     print("summarizer")
     return {"report": "mya"}
 
+
 @ag.instrument(spankind="CHAT")
 async def exception_func():
     raise Exception("This is an exception")
     return "dummy"
+
+
 @ag.entrypoint
 @ag.instrument(spankind="WORKFLOW")
 async def rag(topic: str, genre: str, count: int = 5):
@@ -165,7 +189,9 @@ async def rag(topic: str, genre: str, count: int = 5):
     pydantic_result = pydantic_function(pydantic_input)
     none_output_result = none_output_function()
     nested_result = nested_function(5)
-    multiple_calls_results = [multiple_calls_function(i) for i in range(3)]  # Called multiple times
+    multiple_calls_results = [
+        multiple_calls_function(i) for i in range(3)
+    ]  # Called multiple times
     # exception_result = await exception_func()
     return f"""Results:
 Embedding: {result}
