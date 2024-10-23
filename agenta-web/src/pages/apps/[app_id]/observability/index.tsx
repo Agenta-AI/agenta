@@ -93,7 +93,7 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
-            render: (_, record) => StatusRenderer(record.status),
+            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
         },
         {
             title: "Latency",

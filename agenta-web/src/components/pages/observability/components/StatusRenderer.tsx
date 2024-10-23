@@ -31,7 +31,13 @@ export const statusMapper = (status: NodeStatusCode) => {
     }
 }
 
-const StatusRenderer = (status: NodeStatusDTO) => {
+const StatusRenderer = ({
+    status,
+    showMore = false,
+}: {
+    status: NodeStatusDTO
+    showMore?: boolean
+}) => {
     const {label, color, icon} = statusMapper(status.code)
     const errorMsg = status.code === NodeStatusCode.ERROR ? status.message : null
 
@@ -40,7 +46,7 @@ const StatusRenderer = (status: NodeStatusDTO) => {
             <Tag color={color} icon={icon}>
                 {label}
             </Tag>
-            {errorMsg && (
+            {showMore && errorMsg && (
                 <Tooltip title={errorMsg} placement="bottom">
                     <InfoCircleOutlined />
                 </Tooltip>
