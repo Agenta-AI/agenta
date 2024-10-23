@@ -237,7 +237,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             </>
                         }
                     />
-                    <StatusRenderer {...status} />
+                    <StatusRenderer status={status} />
                     <ResultTag
                         value1={
                             <>
