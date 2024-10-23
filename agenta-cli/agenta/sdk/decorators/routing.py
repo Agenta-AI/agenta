@@ -363,11 +363,11 @@ class entrypoint:
         *args,
         **func_params,
     ):
-        log.info(f"\n--------------------------")
+        log.info(f"---------------------------")
         log.info(
-            f"Running application route: {repr(self.route_path if self.route_path != '' else '/')}"
+            f"Agenta SDK - running route: {repr(self.route_path if self.route_path != '' else '/')}"
         )
-        log.info(f"--------------------------\n")
+        log.info(f"---------------------------")
 
         tracing_context.set(routing_context.get())
 
@@ -388,11 +388,11 @@ class entrypoint:
             )
             data = self.patch_result(result)
         except Exception as e:
+            log.error("--------------------------------------------------")
             log.error("Agenta SDK - handling application exception below:")
             log.error("--------------------------------------------------")
             log.error(format_exc().strip("\n"))
             log.error("--------------------------------------------------")
-            log.error("\n")
 
             self.handle_exception(e)
 
@@ -422,9 +422,9 @@ class entrypoint:
 
         response = BaseResponse(data=data, trace=trace)
 
+        log.info(f"----------------------------------")
         log.info(f"Agenta SDK - exiting successfully: 200")
         log.info(f"----------------------------------")
-        log.info("\n")
 
         return response
 
@@ -434,9 +434,9 @@ class entrypoint:
         stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
 
+        log.error(f"----------------------------------------")
         log.error(f"Agenta SDK - exiting with HTTPException: {status_code}")
         log.error(f"----------------------------------------")
-        log.error("\n")
 
         raise HTTPException(
             status_code=status_code,

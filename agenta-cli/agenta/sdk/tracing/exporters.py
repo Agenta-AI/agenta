@@ -48,6 +48,9 @@ class InlineTraceExporter(SpanExporter):
         return trace
 
 
+OTLPSpanExporter._MAX_RETRY_TIMEOUT = 2
+
+
 ConsoleExporter = ConsoleSpanExporter
 InlineExporter = InlineTraceExporter
 OTLPExporter = OTLPSpanExporter

@@ -14,9 +14,9 @@ class suppress(AbstractContextManager):
         if exc_type is None:
             return True
         else:
+            log.error("-------------------------------------------------")
             log.error("Agenta SDK - suppressing tracing exception below:")
             log.error("-------------------------------------------------")
             log.error(format_exc().strip("\n"))
             log.error("-------------------------------------------------")
-            log.error("\n")
             return True
