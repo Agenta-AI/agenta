@@ -1,8 +1,9 @@
-name: Run Frontend tests
+name: Run E2E tests
 
 on:
   pull_request:
     paths:
+      - 'agenta-backend/**'
       - 'agenta-web/**'
       - 'docker-compose.yml'
       - 'docker-compose.*.yml'
