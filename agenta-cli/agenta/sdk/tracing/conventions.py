@@ -1,25 +1,29 @@
-from typing import Literal
-
 from opentelemetry.trace import SpanKind
 
-Namespace = Literal[
-    "data.inputs",
-    "data.internals",
-    "data.outputs",
-    "metrics.scores",
-    "metrics.unit.costs",
-    "metrics.unit.tokens",
-    "meta.configuration",
-    "meta.version",
-    "tags",
-    "refs",
-]
+from enum import Enum
 
-Code = Literal[
-    "OK",
-    "UNSET",
-    "ERROR",
-]
+from re import fullmatch
+
+_PATTERN = r"[A-Za-z0-9._-]+"
+
+
+def is_valid_attribute_key(string):
+    return bool(fullmatch(_PATTERN, string))
+
+
+class Reference(Enum, str):
+    #
+    VARIANT_ID = "variant.id"
+    VARIANT_SLUG = "variant.slug"
+    VARIANT_VERSION = "variant.version"
+    #
+    ENVIRONMENT_ID = "environment.id"
+    ENVIRONMENT_SLUG = "environment.slug"
+    ENVIRONMENT_VERSION = "environment.version"
+    #
+    APPLICATION_ID = "application.id"
+    APPLICATION_SLUG = "application.slug"
+    #
 
 
 def parse_span_kind(type: str) -> SpanKind:
