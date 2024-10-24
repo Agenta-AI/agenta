@@ -1,13 +1,7 @@
 from typing import Dict, List, Union, Optional, Callable, Literal
+from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Request,
-    Depends,
-    Query,
-    status,
-    HTTPException,
-)
+from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 
 from agenta_backend.core.observability.service import ObservabilityService
 from agenta_backend.core.observability.dtos import QueryDTO
@@ -31,12 +25,9 @@ from agenta_backend.apis.fastapi.observability.models import (
     AgentaNodeDTO,
     AgentaTreeDTO,
     AgentaRootDTO,
-    SpanDTO,
     TreeDTO,
     RootDTO,
 )
-
-VERSION = "1.0.0"
 
 
 class ObservabilityRouter:
@@ -68,7 +59,7 @@ class ObservabilityRouter:
         ### QUERIES
 
         self.router.add_api_route(
-            "/{project_id}/traces",
+            "/traces/search",
             self.query_traces,
             methods=["GET"],
             operation_id="query_traces",
@@ -129,7 +120,7 @@ class ObservabilityRouter:
             )
 
         span_dtos = await self.service.query(
-            project_id=project_id,
+            project_id=UUID(project_id),
             query_dto=query_dto,
         )
 
@@ -163,7 +154,7 @@ class ObservabilityRouter:
 
                     if query_dto.grouping.focus.value == "tree":
                         return AgentaTreesResponse(
-                            version=VERSION,
+                            version=self.VERSION,
                             trees=[
                                 AgentaTreeDTO(
                                     tree=TreeDTO(
@@ -189,7 +180,7 @@ class ObservabilityRouter:
 
                         _nodes_by_root[nodes[0].root.id].append(
                             AgentaTreeDTO(
-                                version=VERSION,
+                                version=self.VERSION,
                                 tree=TreeDTO(
                                     id=tree_id,
                                     type=_types_by_tree[tree_id],
@@ -201,7 +192,7 @@ class ObservabilityRouter:
                         )
 
                     return AgentaRootsResponse(
-                        version=VERSION,
+                        version=self.VERSION,
                         roots=[
                             AgentaRootDTO(
                                 root=RootDTO(id=root_id),
@@ -212,7 +203,7 @@ class ObservabilityRouter:
                     )
 
             return AgentaNodesResponse(
-                version=VERSION,
+                version=self.VERSION,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
 
@@ -243,10 +234,12 @@ class ObservabilityRouter:
         otel_span_dtos = parse_otlp_stream(otlp_stream)
 
         span_dtos = [
-            parse_from_otel_span_dto(project_id or app_id, otel_span_dto)
-            for otel_span_dto in otel_span_dtos
+            parse_from_otel_span_dto(otel_span_dto) for otel_span_dto in otel_span_dtos
         ]
 
-        await self.service.ingest(span_dtos=span_dtos)
+        await self.service.ingest(
+            project_id=UUID(project_id or app_id),
+            span_dtos=span_dtos,
+        )
 
         return CollectStatusResponse(version=self.VERSION, status="processing")

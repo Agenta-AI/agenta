@@ -81,13 +81,6 @@ class DisplayBase(BaseModel):
         return _repr(self)
 
 
-## --- SCOPE --- ##
-
-
-class ProjectScopeDTO(DisplayBase):
-    project_id: UUID
-
-
 ## --- LIFECYCLE --- ##
 
 
