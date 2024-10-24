@@ -2,6 +2,12 @@ import {ConfigProvider, theme} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import antdTokens from "@/styles/tokens/antd-themeConfig.json"
+import {Inter} from "next/font/google"
+
+const inter = Inter({
+    subsets: ["latin"],
+    variable: "--font-inter",
+})
 
 export enum ThemeMode {
     Light = "light",
@@ -68,7 +74,12 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             <ConfigProvider
                 theme={{
                     algorithm: theme.defaultAlgorithm,
-                    ...antdTokens,
+                    token: {
+                        fontFamily: inter.style.fontFamily,
+                        fontFamilyCode: inter.style.fontFamily,
+                        ...antdTokens.token,
+                        ...antdTokens.components,
+                    },
                 }}
             >
                 {children}
