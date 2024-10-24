@@ -11,7 +11,7 @@ def is_valid_attribute_key(string):
     return bool(fullmatch(_PATTERN, string))
 
 
-class Reference(Enum, str):
+class Reference(str, Enum):
     #
     VARIANT_ID = "variant.id"
     VARIANT_SLUG = "variant.slug"
