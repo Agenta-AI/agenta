@@ -22,29 +22,32 @@ export interface AgentaTreeDTO {
     nodes: AgentaNodeDTO[]
 }
 
-interface TreeContextDTO {
-    id: string
+enum NodeTreeType {
+    INVOCATION = "invocation",
 }
 
-export interface AgentaNodeDTO extends NodeDTO {}
-
-export interface NodeDTO {
+interface TreeContextDTO {
+    id: string
+    type?: NodeTreeType | null
+}
+export interface AgentaNodeDTO {
     scope: ProjectScopeDTO
     lifecycle: NodeLifecycleDTO
+    time: NodeTimeDTO
+    status: NodeStatusDTO
+    exception?: NodeExceptionDTO | null
+    data?: NodeData | null
+    metrics?: NodeMetrics | null
+    meta?: NodeMetadata | null
+    refs?: NodeRefs | null
     root: RootContextDTO
     tree: TreeContextDTO
     node: NodeContextDTO
     parent?: ParentContextDTO | null
-    time: NodeTimeDTO
-    status: NodeStatusDTO
-    data?: NodeData | null
-    metrics?: NodeMetrics | null
-    meta?: NodeMetadata | null
-    tags?: NodeTags | null
-    refs?: NodeRefs | null
     links?: NodeLinkDTO[] | null
-    nodes?: Record<string, NodeDTO | NodeDTO[]> | null
-    exception?: NodeExceptionDTO | null
+    otel?: NodeOTelExtraDTO | null
+    tags?: NodeTags | null
+    nodes?: Record<string, AgentaNodeDTO | AgentaNodeDTO[]> | null
 }
 
 type NodeData = Record<string, any>
@@ -55,7 +58,6 @@ type NodeRefs = Record<string, string>
 type NodeLinkDTO = {
     type: string
     id: string
-    tree_id?: string | null
 }
 interface NodeExceptionDTO {
     timestamp: string
@@ -64,7 +66,26 @@ interface NodeExceptionDTO {
     stacktrace?: string | null
     attributes?: Record<string, any> | null
 }
+type NodeOTelExtraDTO = {
+    kind?: string | null
+    attributes?: Record<string, any> | null
+    events?: NodeOTelEventDTO[] | null
+    links?: NodeOTelLinkDTO[] | null
+}
 
+type NodeOTelEventDTO = {
+    name: string
+    timestamp: string
+    attributes?: Record<string, any> | null
+}
+
+type NodeOTelLinkDTO = {
+    context: {
+        trace_id: string
+        span_id: string
+    }
+    attributes?: Record<string, any> | null
+}
 interface ProjectScopeDTO {
     project_id: string
 }
