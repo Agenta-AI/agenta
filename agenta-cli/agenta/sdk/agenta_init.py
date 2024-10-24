@@ -2,10 +2,12 @@ import os
 import logging
 import toml
 from typing import Optional
+from importlib.metadata import version
 
+from agenta.sdk.utils.logging import log
 from agenta.sdk.utils.globals import set_global
 from agenta.client.backend.client import AgentaApi
-from agenta.sdk.tracing.llm_tracing import Tracing
+from agenta.sdk.tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
 
@@ -17,9 +19,8 @@ class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
     _instance = None
-    setup = None
     config = None
-    tracing: Optional[Tracing] = None
+    tracing = None
 
     def __new__(cls):
         if not cls._instance:
@@ -28,11 +29,18 @@ class AgentaSingleton:
 
     def init(
         self,
-        app_id: Optional[str] = None,
+        *,
         host: Optional[str] = None,
+        project_id: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
+        #
+        app_id: Optional[str] = None,
     ) -> None:
+        log.info(f"---------------------------")
+        log.info(f"Agenta SDK - using version: {version('agenta')}")
+        log.info(f"---------------------------")
+
         """Main function to initialize the singleton.
 
         Initializes the singleton with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
@@ -54,20 +62,20 @@ class AgentaSingleton:
         Raises:
             ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
         """
+
         config = {}
         if config_fname:
             config = toml.load(config_fname)
 
-        self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
         self.host = (
             host
+            or os.environ.get("AGENTA_HOST")
             or config.get("backend_host")
-            or os.environ.get("AGENTA_HOST", "https://cloud.agenta.ai")
-        )
-        self.api_key = (
-            api_key or config.get("api_key") or os.environ.get("AGENTA_API_KEY")
+            or config.get("host")
+            or "https://cloud.agenta.ai"
         )
 
+        self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
         if not self.app_id:
             raise ValueError(
                 "App ID must be specified. You can provide it in one of the following ways:\n"
@@ -75,26 +83,61 @@ class AgentaSingleton:
                 "2. In the configuration file specified by config_fname.\n"
                 "3. As an environment variable 'AGENTA_APP_ID'."
             )
-        self.base_id = os.environ.get("AGENTA_BASE_ID")
-        if self.base_id is None:
-            print(
-                "Warning: Your configuration will not be saved permanently since base_id is not provided."
-            )
 
-        self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
+        self.project_id = (
+            project_id
+            or os.environ.get("AGENTA_PROJECT_ID")
+            or config.get("project_id")
+        )
+
+        self.api_key = (
+            api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
+        )
+
+        self.tracing = Tracing(
+            url=f"{self.host}/api/observability/v1/traces",  # type: ignore
+        )
+
+        self.tracing.configure(
+            project_id=self.project_id,
+            api_key=self.api_key,
+            # DEPRECATED
+            app_id=self.app_id,
+        )
+
+        self.base_id = os.environ.get("AGENTA_BASE_ID")
+
+        self.config = Config(
+            host=self.host,
+            base_id=self.base_id,
+            api_key=self.api_key,
+        )
 
 
 class Config:
-    def __init__(self, base_id: str, host: str, api_key: Optional[str] = ""):
-        self.base_id = base_id
+    def __init__(
+        self,
+        host: str,
+        base_id: Optional[str] = None,
+        api_key: Optional[str] = "",
+    ):
         self.host = host
+
+        self.base_id = base_id
+
+        if self.base_id is None:
+            # print(
+            #    "Warning: Your configuration will not be saved permanently since base_id is not provided.\n"
+            # )
+            pass
 
         if base_id is None or host is None:
             self.persist = False
         else:
             self.persist = True
             self.client = AgentaApi(
-                base_url=self.host + "/api", api_key=api_key if api_key else ""
+                base_url=self.host + "/api",
+                api_key=api_key if api_key else "",
             )
 
     def register_default(self, overwrite=False, **kwargs):
@@ -208,11 +251,12 @@ class Config:
 
 
 def init(
-    app_id: Optional[str] = None,
     host: Optional[str] = None,
+    project_id: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
-    max_workers: Optional[int] = None,
+    # DEPRECATED
+    app_id: Optional[str] = None,
 ):
     """Main function to initialize the agenta sdk.
 
@@ -238,12 +282,16 @@ def init(
 
     singleton = AgentaSingleton()
 
-    singleton.init(app_id=app_id, host=host, api_key=api_key, config_fname=config_fname)
-
-    tracing = Tracing(
-        host=singleton.host,  # type: ignore
-        app_id=singleton.app_id,  # type: ignore
-        api_key=singleton.api_key,
-        max_workers=max_workers,
+    singleton.init(
+        host=host,
+        project_id=project_id,
+        api_key=api_key,
+        config_fname=config_fname,
+        # DEPRECATED
+        app_id=app_id,
     )
-    set_global(setup=singleton.setup, config=singleton.config, tracing=tracing)
+
+    set_global(
+        config=singleton.config,
+        tracing=singleton.tracing,
+    )
