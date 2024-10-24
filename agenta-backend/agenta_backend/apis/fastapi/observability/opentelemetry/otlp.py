@@ -56,7 +56,6 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
     for resource_span in proto.resource_spans:
         for scope_span in resource_span.scope_spans:
             for span in scope_span.spans:
-
                 s_trace_id = "0x" + span.trace_id.hex()
                 s_span_id = "0x" + span.span_id.hex()
                 s_context = OTelContextDTO(trace_id=s_trace_id, span_id=s_span_id)

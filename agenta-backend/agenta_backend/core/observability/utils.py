@@ -37,7 +37,6 @@ def cumulate_costs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, SpanDTO],
 ) -> None:
-
     def _get_unit(span: SpanDTO):
         if span.metrics is not None:
             return span.metrics.get("unit.costs.total", 0.0)
@@ -67,7 +66,6 @@ def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, dict],
 ) -> None:
-
     def _get_unit(span: SpanDTO):
         _tokens = {
             "prompt": 0.0,
