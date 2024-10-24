@@ -2,8 +2,7 @@ from uuid import UUID
 
 from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
 
-from agenta_backend.core.shared.dtos import ProjectScopeDTO, LifecycleDTO
-from agenta_backend.core.observability.dtos import SpanDTO, SpanCreateDTO
+from agenta_backend.core.shared.dtos import LifecycleDTO
 from agenta_backend.core.observability.dtos import (
     RootDTO,
     TreeDTO,
@@ -14,6 +13,7 @@ from agenta_backend.core.observability.dtos import (
     ExceptionDTO,
     LinkDTO,
     OTelExtraDTO,
+    SpanDTO,
 )
 
 from json import dumps, loads
@@ -21,9 +21,6 @@ from json import dumps, loads
 
 def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
     return SpanDTO(
-        scope=ProjectScopeDTO(
-            project_id=span.project_id.hex,
-        ),
         lifecycle=LifecycleDTO(
             created_at=span.created_at,
             updated_at=span.updated_at,
@@ -51,16 +48,15 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
         time=TimeDTO(
             start=span.time_start,
             end=span.time_end,
-            span=span.time_span,
         ),
         status=StatusDTO(
-            code=span.status_code,
-            message=span.status_message,
+            code=span.status.get("code"),
+            message=span.status.get("message"),
         ),
         exception=(
             ExceptionDTO(
-                timestamp=span.exception["timestamp"],
-                type=span.exception["type"],
+                timestamp=span.exception.get("timestamp"),
+                type=span.exception.get("type"),
                 message=span.exception.get("message"),
                 stacktrace=span.exception.get("stacktrace"),
                 attributes=span.exception.get("attributes"),
@@ -72,7 +68,6 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
         data=loads(span.data),
         metrics=span.metrics,
         meta=span.meta,
-        tags=span.tags,
         refs=span.refs,
         # ----------
         links=(
@@ -91,70 +86,17 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
     )
 
 
-def map_span_create_dto_to_dbe(
-    span_create_dto: SpanCreateDTO,
-) -> InvocationSpanDBE:
-    span_dbe = InvocationSpanDBE(
-        # SCOPE
-        project_id=span_create_dto.scope.project_id,
-        # LIFECYCLE
-        # ---------
-        # ROOT
-        root_id=span_create_dto.root.id,
-        # TREE
-        tree_id=span_create_dto.tree.id,
-        tree_type=(span_create_dto.tree.type),
-        # NODE
-        node_id=span_create_dto.node.id,
-        node_type=(span_create_dto.node.type),
-        node_name=span_create_dto.node.name,
-        # PARENT
-        parent_id=span_create_dto.parent.id if span_create_dto.parent else None,
-        # TIME
-        time_start=span_create_dto.time.start,
-        time_end=span_create_dto.time.end,
-        time_span=span_create_dto.time.span,
-        # STATUS
-        status_code=span_create_dto.status.code,
-        status_message=span_create_dto.status.message,
-        # EXCEPTION
-        exception=(
-            span_create_dto.exception.model_dump(exclude_none=True)
-            if span_create_dto.exception
-            else None
-        ),
-        # ATTRIBUTES
-        data=dumps(span_create_dto.data),
-        metrics=span_create_dto.metrics,
-        meta=span_create_dto.meta,
-        tags=span_create_dto.tags,
-        refs=span_create_dto.refs,
-        # LINKS
-        links=(
-            {
-                str(link.id): f"{link.type}:{link.tree_id.hex[:16]}"
-                for link in span_create_dto.links
-            }
-            if span_create_dto.links
-            else None
-        ),
-        # OTEL
-        otel=span_create_dto.otel.model_dump(exclude_none=True),
-    )
-
-    return span_dbe
-
-
 def map_span_dto_to_dbe(
+    project_id: str,
     span_dto: SpanDTO,
 ) -> InvocationSpanDBE:
     span_dbe = InvocationSpanDBE(
         # SCOPE
-        project_id=span_dto.scope.project_id,
+        project_id=project_id,
         # LIFECYCLE
-        created_at=span_dto.lifecycle.created_at,
-        updated_at=span_dto.lifecycle.updated_at,
-        updated_by_id=span_dto.lifecycle.updated_by_id,
+        created_at=span_dto.lifecycle.created_at if span_dto.lifecycle else None,
+        updated_at=span_dto.lifecycle.updated_at if span_dto.lifecycle else None,
+        updated_by_id=span_dto.lifecycle.updated_by_id if span_dto.lifecycle else None,
         # ROOT
         root_id=span_dto.root.id,
         # TREE
@@ -169,10 +111,10 @@ def map_span_dto_to_dbe(
         # TIME
         time_start=span_dto.time.start,
         time_end=span_dto.time.end,
-        time_span=span_dto.time.span,
         # STATUS
-        status_code=span_dto.status.code,
-        status_message=span_dto.status.message,
+        status=(
+            span_dto.status.model_dump(exclude_none=True) if span_dto.status else None
+        ),
         # EXCEPTION
         exception=(
             span_dto.exception.model_dump(exclude_none=True)
@@ -183,7 +125,6 @@ def map_span_dto_to_dbe(
         data=dumps(span_dto.data),
         metrics=span_dto.metrics,
         meta=span_dto.meta,
-        tags=span_dto.tags,
         refs=span_dto.refs,
         # LINKS
         links=(
@@ -199,7 +140,3 @@ def map_span_dto_to_dbe(
     )
 
     return span_dbe
-
-
-def map_span_dbe_to_dict(dbe: InvocationSpanDBE) -> dict:
-    return {c.name: getattr(dbe, c.name) for c in dbe.__table__.columns}

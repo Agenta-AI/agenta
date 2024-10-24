@@ -1,4 +1,4 @@
-from typing import Optional, Union, Tuple, Any, List, Dict
+from typing import Optional, Tuple, Any, List, Dict
 from uuid import UUID
 from collections import OrderedDict
 from json import loads, JSONDecodeError, dumps
@@ -8,8 +8,6 @@ from fastapi import Query, HTTPException
 
 from agenta_backend.apis.fastapi.observability.opentelemetry.semconv import CODEX
 
-from agenta_backend.core.shared.dtos import ProjectScopeDTO
-from agenta_backend.core.observability.dtos import SpanCreateDTO, SpanDTO
 from agenta_backend.core.observability.dtos import (
     TimeDTO,
     StatusDTO,
@@ -20,6 +18,7 @@ from agenta_backend.core.observability.dtos import (
     LinkDTO,
     ExceptionDTO,
     Attributes,
+    SpanDTO,
     OTelExtraDTO,
     OTelEventDTO,
     OTelSpanDTO,
@@ -27,61 +26,25 @@ from agenta_backend.core.observability.dtos import (
     OTelLinkDTO,
 )
 from agenta_backend.core.observability.dtos import (
-    ScopingDTO,
+    GroupingDTO,
     WindowingDTO,
     FilteringDTO,
-    ConditionDTO,
-    TextOptionsDTO,
-    GroupingDTO,
     PaginationDTO,
     QueryDTO,
 )
 
-
-def _parse_scoping(
-    *,
-    project_id: str,
-) -> ScopingDTO:
-    return ScopingDTO(
-        project_id=project_id,
-    )
+# --- PARSE QUERY DTO ---
 
 
 def _parse_windowing(
     *,
-    windowing: Optional[str] = None,
-    #
     earliest: Optional[str] = None,
     latest: Optional[str] = None,
 ) -> Optional[WindowingDTO]:
-    # Parse JSON windowing
-    windowing_json_dto = None
-    if windowing:
-        try:
-            windowing_json_data = loads(windowing)
-            windowing_json_dto = WindowingDTO(**windowing_json_data)
-        except JSONDecodeError as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid JSON windowing provided: {str(e)}",
-            )
+    _windowing = None
 
-    # Parse flat windowing
-    windowing_flat_dto = None
     if earliest or latest:
-        windowing_flat_dto = WindowingDTO(
-            earliest=earliest,
-            latest=latest,
-        )
-
-    # Check for windowing conflict
-    if windowing_json_dto and windowing_flat_dto:
-        raise HTTPException(
-            status_code=400,
-            detail="Both flat and JSON windowing data provided",
-        )
-
-    _windowing = windowing_json_dto or windowing_flat_dto
+        _windowing = WindowingDTO(earliest=earliest, latest=latest)
 
     return _windowing
 
@@ -89,187 +52,73 @@ def _parse_windowing(
 def _parse_filtering(
     *,
     filtering: Optional[str] = None,
-    #
-    field: Optional[str] = None,
-    key: Optional[str] = None,
-    value: Optional[Union[str, int, float, bool]] = None,
-    operator: Optional[str] = None,
-    exact_match: Optional[bool] = None,
-    case_sensitive: Optional[bool] = None,
 ) -> Optional[FilteringDTO]:
     # Parse JSON filtering
-    filtering_json_dto = None
+    _filtering = None
+
     if filtering:
         try:
             filtering_json_data = loads(filtering)
-            filtering_json_dto = FilteringDTO(**filtering_json_data)
+            _filtering = FilteringDTO(**filtering_json_data)
         except JSONDecodeError as e:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid JSON filtering provided: {str(e)}",
             )
 
-    # Parse flat filtering
-    filtering_flat_dto = None
-    if field:
-        filtering_flat_dto = FilteringDTO(
-            operator="and",
-            conditions=[
-                ConditionDTO(
-                    field=field,
-                    key=key,
-                    value=value,
-                    operator=operator,
-                    options=TextOptionsDTO(
-                        case_sensitive=case_sensitive,
-                        exact_match=exact_match,
-                    ),
-                )
-            ],
-        )
-
-    # Check for filtering conflict
-    if filtering_json_dto and filtering_flat_dto:
-        raise HTTPException(
-            status_code=400,
-            detail="Both flat and JSON filtering data provided",
-        )
-
-    _filtering = filtering_json_dto or filtering_flat_dto
-
     return _filtering
 
 
 def _parse_grouping(
     *,
-    grouping: Optional[str] = None,
-    #
     focus: Optional[str] = None,
 ) -> Optional[GroupingDTO]:
-    # Parse JSON grouping
-    grouping_json_dto = None
-    if grouping:
-        try:
-            grouping_json_data = loads(grouping)
-            grouping_json_dto = GroupingDTO(**grouping_json_data)
-        except JSONDecodeError as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid JSON grouping provided: {str(e)}",
-            )
+    _grouping = None
 
-    # Parse flat grouping
-    grouping_flat_dto = None
-    if focus:
-        grouping_flat_dto = GroupingDTO(
-            focus=focus,
-        )
-
-    # Check for grouping conflict
-    if grouping_json_dto and grouping_flat_dto:
-        raise HTTPException(
-            status_code=400,
-            detail="Both flat and JSON grouping data provided",
-        )
-
-    _grouping = grouping_json_dto or grouping_flat_dto
+    if focus != "node":
+        _grouping = GroupingDTO(focus=focus or "tree")
 
     return _grouping
 
 
 def _parse_pagination(
     *,
-    pagination: Optional[str] = None,
-    #
     page: Optional[int] = None,
     size: Optional[int] = None,
 ) -> Optional[PaginationDTO]:
-    # Parse JSON pagination
-    pagination_json_dto = None
-    if pagination:
-        try:
-            pagination_json_data = loads(pagination)
-            pagination_json_dto = PaginationDTO(**pagination_json_data)
-        except JSONDecodeError as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid JSON pagination provided: {str(e)}",
-            )
+    _pagination = None
 
-    # Parse flat pagination
-    pagination_flat_dto = None
     if page and size:
-        pagination_flat_dto = PaginationDTO(
-            page=page,
-            size=size,
-        )
-
-    # Check for pagination conflict
-    if pagination_json_dto and pagination_flat_dto:
-        raise HTTPException(
-            status_code=400,
-            detail="Both flat and JSON pagination data provided",
-        )
-
-    _pagination = pagination_json_dto or pagination_flat_dto
+        _pagination = PaginationDTO(page=page, size=size)
 
     return _pagination
 
 
 def parse_query_dto(
     # GROUPING
-    # - Option 1: Single query parameter as JSON
-    grouping: Optional[str] = Query(None),
     # - Option 2: Flat query parameters
     focus: Optional[str] = Query(None),
     # WINDOWING
-    # - Option 1: Single query parameter as JSON
-    windowing: Optional[str] = Query(None),
     # - Option 2: Flat query parameters
     earliest: Optional[str] = Query(None),
     latest: Optional[str] = Query(None),
     # FILTERING
     # - Option 1: Single query parameter as JSON
     filtering: Optional[str] = Query(None),
-    # - Option 2: Flat query parameters (single condition with 'and' operator)
-    field: Optional[str] = Query(None),
-    key: Optional[str] = Query(None),
-    value: Optional[Union[str, int, float, bool]] = Query(None),
-    operator: Optional[str] = Query(None),
-    exact_match: Optional[bool] = Query(False),
-    case_sensitive: Optional[bool] = Query(False),
     # PAGINATION
-    # - Option 1: Single query parameter as JSON
-    pagination: Optional[str] = Query(None),
     # - Option 2: Flat query parameters
     page: Optional[int] = Query(None),
     size: Optional[int] = Query(None),
 ) -> QueryDTO:
     return QueryDTO(
-        grouping=_parse_grouping(
-            grouping=grouping,
-            focus=focus,
-        ),
-        windowing=_parse_windowing(
-            windowing=windowing,
-            earliest=earliest,
-            latest=latest,
-        ),
-        filtering=_parse_filtering(
-            filtering=filtering,
-            field=field,
-            key=key,
-            value=value,
-            operator=operator,
-            exact_match=exact_match,
-            case_sensitive=case_sensitive,
-        ),
-        pagination=_parse_pagination(
-            pagination=pagination,
-            page=page,
-            size=size,
-        ),
+        grouping=_parse_grouping(focus=focus),
+        windowing=_parse_windowing(earliest=earliest, latest=latest),
+        filtering=_parse_filtering(filtering=filtering),
+        pagination=_parse_pagination(page=page, size=size),
     )
+
+
+# --- PARSE SPAN DTO ---
 
 
 def _unmarshal_attributes(
@@ -514,14 +363,6 @@ def _parse_from_attributes(
     # _meta = _unmarshal_attributes(_meta)
     _meta = _meta if _meta else None
 
-    # TAGS
-    _tags = _get_attributes(otel_span_dto.attributes, "tags")
-
-    for key in _tags.keys():
-        del otel_span_dto.attributes[_encode_key("tags", key)]
-
-    _tags = _tags if _tags else None
-
     # REFS
     _refs = _get_attributes(otel_span_dto.attributes, "refs")
 
@@ -533,7 +374,7 @@ def _parse_from_attributes(
     if len(otel_span_dto.attributes.keys()) < 1:
         otel_span_dto.attributes = None
 
-    return _data, _metrics, _meta, _tags, _refs
+    return _data, _metrics, _meta, _refs
 
 
 def _parse_from_events(
@@ -567,11 +408,8 @@ def _parse_from_events(
 
 
 def parse_from_otel_span_dto(
-    project_id: str,
     otel_span_dto: OTelSpanDTO,
-) -> SpanCreateDTO:
-    scope = ProjectScopeDTO(project_id=UUID(project_id))
-
+) -> SpanDTO:
     _parse_from_semconv(otel_span_dto.attributes)
 
     types = _parse_from_types(otel_span_dto)
@@ -608,12 +446,9 @@ def parse_from_otel_span_dto(
         else None
     )
 
-    duration = (otel_span_dto.end_time - otel_span_dto.start_time).total_seconds()
-
     time = TimeDTO(
         start=otel_span_dto.start_time,
         end=otel_span_dto.end_time,
-        span=round(duration * 1_000_000),  # microseconds
     )
 
     status = StatusDTO(
@@ -623,12 +458,18 @@ def parse_from_otel_span_dto(
 
     links = _parse_from_links(otel_span_dto)
 
-    data, metrics, meta, tags, refs = _parse_from_attributes(otel_span_dto)
+    data, metrics, meta, refs = _parse_from_attributes(otel_span_dto)
+
+    duration = (otel_span_dto.end_time - otel_span_dto.start_time).total_seconds()
+
+    if metrics is None:
+        metrics = dict()
+
+    metrics["acc.duration.total"] = round(duration * 1_000, 3)  # milliseconds
 
     exception = _parse_from_events(otel_span_dto)
 
-    # TODO: TURN DEFAULT VALUE INTO A RND UUID PER TRACE !
-    root_id = refs.get("scenario_id", "70befa7f3cf24485839673c8a361f900")
+    root_id = refs.get("scenario_id", tree.id.hex)
 
     root = RootDTO(id=UUID(root_id))
 
@@ -639,8 +480,7 @@ def parse_from_otel_span_dto(
         links=otel_span_dto.links,
     )
 
-    span_dto = SpanCreateDTO(
-        scope=scope,
+    span_dto = SpanDTO(
         root=root,
         tree=tree,
         node=node,
@@ -651,7 +491,6 @@ def parse_from_otel_span_dto(
         data=data,
         metrics=metrics,
         meta=meta,
-        tags=tags,
         refs=refs,
         links=links,
         otel=otel,
@@ -687,11 +526,6 @@ def _parse_to_attributes(
 
         for key, value in _meta.items():
             attributes[_encode_key("meta", key)] = _encode_value(value)
-
-    # TAGS
-    if span_dto.tags:
-        for key, value in span_dto.tags.items():
-            attributes[_encode_key("tags", key)] = _encode_value(value)
 
     # REFS
     if span_dto.refs:
@@ -807,6 +641,10 @@ def parse_to_otel_span_dto(
 
     links = links if links else None
 
+    # MASK LINKS FOR NOW
+    links = None
+    # ------------------
+
     otel_span_dto = OTelSpanDTO(
         context=context,
         parent=parent,
@@ -843,10 +681,6 @@ def parse_to_agenta_span_dto(
     if span_dto.meta:
         span_dto.meta = _unmarshal_attributes(span_dto.meta)
 
-    # TAGS
-    if span_dto.tags:
-        span_dto.tags = _unmarshal_attributes(span_dto.tags)
-
     # REFS
     if span_dto.refs:
         span_dto.refs = _unmarshal_attributes(span_dto.refs)
@@ -871,7 +705,12 @@ def parse_to_agenta_span_dto(
             else:
                 parse_to_agenta_span_dto(node)
 
-    # TAGS
-    span_dto.tags = None
+    # MASK LINKS FOR NOW
+    span_dto.links = None
+    # ------------------
+
+    # MASK LIFECYCLE FOR NOW
+    span_dto.lifecycle = None
+    # ----------------------
 
     return span_dto

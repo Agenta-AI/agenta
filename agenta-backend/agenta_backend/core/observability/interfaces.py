@@ -1,7 +1,7 @@
 from typing import List
+from uuid import UUID
 
-from agenta_backend.core.observability.dtos import QueryDTO
-from agenta_backend.core.observability.dtos import SpanDTO, SpanCreateDTO
+from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
 
 
 class ObservabilityDAOInterface:
@@ -13,7 +13,7 @@ class ObservabilityDAOInterface:
     async def query(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         #
         query_dto: QueryDTO,
     ) -> List[SpanDTO]:
@@ -24,21 +24,21 @@ class ObservabilityDAOInterface:
     async def create_one(
         self,
         *,
-        span_dto: SpanCreateDTO,
+        span_dto: SpanDTO,
     ) -> None:
         raise NotImplementedError
 
     async def create_many(
         self,
         *,
-        span_dtos: List[SpanCreateDTO],
+        span_dtos: List[SpanDTO],
     ) -> None:
         raise NotImplementedError
 
     async def read_one(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         #
         node_id: str,
     ) -> SpanDTO:
@@ -47,7 +47,7 @@ class ObservabilityDAOInterface:
     async def read_many(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         #
         node_ids: List[str],
     ) -> List[SpanDTO]:
@@ -56,7 +56,7 @@ class ObservabilityDAOInterface:
     async def delete_one(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         #
         node_id: str,
     ) -> None:
@@ -65,7 +65,7 @@ class ObservabilityDAOInterface:
     async def delete_many(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         #
         node_ids: List[str],
     ) -> None:
