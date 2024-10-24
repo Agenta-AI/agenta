@@ -107,10 +107,9 @@ async def start_variant(
         )
         if isCloudEE():
             user = await db_manager.get_user(user_uid=user_uid)
-            project = await db_manager_ee.get_project_by_id(project_id=project_id)
             api_key = await api_key_service.create_api_key(
                 str(user.id),
-                workspace_id=str(project.workspace_id),
+                project_id=project_id,
                 expiration_date=None,
                 hidden=True,
             )
