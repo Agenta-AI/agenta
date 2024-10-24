@@ -15,7 +15,8 @@ from .sdk.types import (
 
 from .sdk.utils.logging import log as logging
 from .sdk.tracing import Tracing
-from .sdk.decorators.tracing import instrument, Reference
+from .sdk.decorators.tracing import instrument
+from .sdk.tracing.conventions import Reference
 from .sdk.decorators.routing import entrypoint, app, route
 from .sdk.agenta_init import Config, AgentaSingleton, init
 from .sdk.utils.costs import calculate_token_usage

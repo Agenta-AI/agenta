@@ -1,4 +1,5 @@
 from typing import Optional, Any, Dict
+from enum import Enum
 
 from httpx import get as check
 
@@ -154,7 +155,11 @@ class Tracing(metaclass=Singleton):
             for key in refs.keys():
                 if key in Reference:
                     # ADD REFERENCE TO THIS SPAN
-                    span.set_attribute(key, refs[key], namespace="refs")
+                    span.set_attribute(
+                        key.value if isinstance(key, Enum) else key,
+                        refs[key],
+                        namespace="refs",
+                    )
                     # AND TO ALL SPANS CREATED AFTER THIS ONE
                     self.references[key] = refs[key]
                     # TODO: THIS SHOULD BE REPLACED BY A TRACE CONTEXT !!!
