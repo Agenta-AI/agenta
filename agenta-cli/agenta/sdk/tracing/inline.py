@@ -131,14 +131,6 @@ AttributeValueType = Any
 Attributes = Dict[str, AttributeValueType]
 
 
-class AttributesDTO(DisplayBase):
-    data: Optional[Attributes] = None
-    metrics: Optional[Attributes] = None
-    meta: Optional[Attributes] = None
-    tags: Optional[Attributes] = None
-    semconv: Optional[Attributes] = None
-
-
 class TreeType(Enum):
     # --- VARIANTS --- #
     INVOCATION = "invocation"
@@ -242,7 +234,7 @@ class OTelExtraDTO(DisplayBase):
 class SpanDTO(DisplayBase):
     scope: ProjectScopeDTO
 
-    lifecycle: LifecycleDTO
+    lifecycle: Optional[LifecycleDTO] = None
 
     root: RootDTO
     tree: TreeDTO
@@ -264,29 +256,6 @@ class SpanDTO(DisplayBase):
     otel: Optional[OTelExtraDTO] = None
 
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
-
-
-class SpanCreateDTO(DisplayBase):
-    scope: ProjectScopeDTO
-
-    root: RootDTO
-    tree: TreeDTO
-    node: NodeDTO
-
-    parent: Optional[ParentDTO] = None
-
-    time: TimeDTO
-    status: StatusDTO
-
-    data: Optional[Data] = None
-    metrics: Optional[Metrics] = None
-    meta: Optional[Metadata] = None
-    tags: Optional[Tags] = None
-    refs: Optional[Refs] = None
-
-    links: Optional[List[LinkDTO]] = None
-
-    otel: Optional[OTelExtraDTO] = None
 
 
 class OTelSpanDTO(DisplayBase):
@@ -321,20 +290,20 @@ from typing import List, Dict, OrderedDict
 
 
 def parse_span_dtos_to_span_idx(
-    span_dtos: List[SpanCreateDTO],
-) -> Dict[str, SpanCreateDTO]:
+    span_dtos: List[SpanDTO],
+) -> Dict[str, SpanDTO]:
     span_idx = {span_dto.node.id: span_dto for span_dto in span_dtos}
 
     return span_idx
 
 
 def parse_span_idx_to_span_id_tree(
-    span_idx: Dict[str, SpanCreateDTO],
+    span_idx: Dict[str, SpanDTO],
 ) -> OrderedDict:
     span_id_tree = OrderedDict()
     index = {}
 
-    def push(span_dto: SpanCreateDTO) -> None:
+    def push(span_dto: SpanDTO) -> None:
         if span_dto.parent is None:
             span_id_tree[span_dto.node.id] = OrderedDict()
             index[span_dto.node.id] = span_id_tree[span_dto.node.id]
@@ -350,15 +319,15 @@ def parse_span_idx_to_span_id_tree(
 
 def cumulate_costs(
     spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, SpanCreateDTO],
+    spans_idx: Dict[str, SpanDTO],
 ) -> None:
-    def _get_unit(span: SpanCreateDTO):
+    def _get_unit(span: SpanDTO):
         if span.metrics is not None:
             return span.metrics.get("unit.costs.total", 0.0)
 
         return 0.0
 
-    def _get_acc(span: SpanCreateDTO):
+    def _get_acc(span: SpanDTO):
         if span.metrics is not None:
             return span.metrics.get("acc.costs.total", 0.0)
 
@@ -367,7 +336,7 @@ def cumulate_costs(
     def _acc(a: float, b: float):
         return a + b
 
-    def _set(span: SpanCreateDTO, cost: float):
+    def _set(span: SpanDTO, cost: float):
         if span.metrics is None:
             span.metrics = {}
 
@@ -381,7 +350,7 @@ def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, dict],
 ) -> None:
-    def _get_unit(span: SpanCreateDTO):
+    def _get_unit(span: SpanDTO):
         _tokens = {
             "prompt": 0.0,
             "completion": 0.0,
@@ -397,7 +366,7 @@ def cumulate_tokens(
 
         return _tokens
 
-    def _get_acc(span: SpanCreateDTO):
+    def _get_acc(span: SpanDTO):
         _tokens = {
             "prompt": 0.0,
             "completion": 0.0,
@@ -420,7 +389,7 @@ def cumulate_tokens(
             "total": a.get("total", 0.0) + b.get("total", 0.0),
         }
 
-    def _set(span: SpanCreateDTO, tokens: dict):
+    def _set(span: SpanDTO, tokens: dict):
         if span.metrics is None:
             span.metrics = {}
 
@@ -442,7 +411,7 @@ def cumulate_tokens(
 
 def _cumulate_tree_dfs(
     spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, SpanCreateDTO],
+    spans_idx: Dict[str, SpanDTO],
     get_unit_metric,
     get_acc_metric,
     accumulate_metric,
@@ -1032,7 +1001,7 @@ def parse_inline_trace(
     ###############################################
     ### services.observability.service.ingest() ###
     ### --------------------------------------- ###
-    calculate_cost(span_idx)
+    calculate_costs(span_idx)
     cumulate_costs(span_id_tree, span_idx)
     cumulate_tokens(span_id_tree, span_idx)
     ### --------------------------------------- ###
@@ -1271,7 +1240,7 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
     return legacy_span
 
 
-PAYING_TYPES = [
+TYPES_WITH_COSTS = [
     "embedding",
     "query",
     "completion",
@@ -1280,9 +1249,14 @@ PAYING_TYPES = [
 ]
 
 
-def calculate_cost(span_idx: Dict[str, SpanCreateDTO]):
+def calculate_costs(span_idx: Dict[str, SpanDTO]):
     for span in span_idx.values():
-        if span.node.type.name.lower() in PAYING_TYPES and span.meta and span.metrics:
+        if (
+            span.node.type
+            and span.node.type.name.lower() in TYPES_WITH_COSTS
+            and span.meta
+            and span.metrics
+        ):
             try:
                 costs = cost_calculator.cost_per_token(
                     model=span.meta.get("response.model"),

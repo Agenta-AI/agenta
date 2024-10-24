@@ -6,10 +6,12 @@ from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 
 import agenta as ag
 
-ag.init(project_id="0192813f-60d5-7a65-8a75-6dda36b79267",
-        host="https://cloud.beta.agenta.ai",
-        api_key="NYWy4We0.17ce0e85db4840a39ca9ee7b00e8817b22b60d7e152407a5a4cc98c5284f2e0e",
-        app_id="0192b552-ad65-7c61-a8dc-fedf3608b7a5")
+ag.init(
+    project_id="0192813f-60d5-7a65-8a75-6dda36b79267",
+    host="https://cloud.beta.agenta.ai",
+    api_key="NYWy4We0.17ce0e85db4840a39ca9ee7b00e8817b22b60d7e152407a5a4cc98c5284f2e0e",
+    app_id="0192b552-ad65-7c61-a8dc-fedf3608b7a5",
+)
 
 LangchainInstrumentor().instrument()
 

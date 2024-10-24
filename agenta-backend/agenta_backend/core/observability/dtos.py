@@ -5,74 +5,25 @@ from datetime import datetime, time
 from uuid import UUID
 
 from agenta_backend.core.shared.dtos import DisplayBase
-from agenta_backend.core.shared.dtos import ProjectScopeDTO, LifecycleDTO
+from agenta_backend.core.shared.dtos import LifecycleDTO
 
 
-AttributeValueType = Any  #
-"""
-AttributeValueType = Union[
-    str,
-    bool,
-    int,
-    float,
-    Sequence[Union[str, bool, int, float]],
-]
-"""
-Attributes = Dict[str, AttributeValueType]
+## --- SUB-ENTITIES --- ##
 
 
-## --- TIME --- ##
-
-
-class TimeDTO(DisplayBase):
-    start: datetime
-    end: datetime
-    span: int
-
-
-## --- STATUS --- ##
-
-
-class StatusCode(Enum):
-    UNSET = "UNSET"
-    OK = "OK"
-    ERROR = "ERROR"
-
-
-class StatusDTO(DisplayBase):
-    code: StatusCode
-    message: Optional[str] = None
-
-
-## --- EXCEPTIONS --- ##
-
-
-class ExceptionDTO(DisplayBase):
-    timestamp: str
-    type: str
-    message: Optional[str] = None
-    stacktrace: Optional[str] = None
-    attributes: Optional[Attributes] = None
-
-
-## --- ATTRIBUTES --- ##
-
-
-class AttributesDTO(DisplayBase):
-    data: Optional[Attributes] = None
-    metrics: Optional[Attributes] = None
-    meta: Optional[Attributes] = None
-    tags: Optional[Attributes] = None
-    semconv: Optional[Attributes] = None
-
-
-## --- HIERARCHICAL STRUCTURE --- ##
+class RootDTO(DisplayBase):
+    id: UUID
 
 
 class TreeType(Enum):
     # --- VARIANTS --- #
     INVOCATION = "invocation"
     # --- VARIANTS --- #
+
+
+class TreeDTO(DisplayBase):
+    id: UUID
+    type: Optional[TreeType] = None
 
 
 class NodeType(Enum):
@@ -93,36 +44,62 @@ class NodeType(Enum):
     # --- VARIANTS --- #
 
 
-class RootDTO(DisplayBase):
-    id: UUID
-
-
-class TreeDTO(DisplayBase):
-    id: UUID
-    type: Optional[TreeType] = None
-
-
 class NodeDTO(DisplayBase):
     id: UUID
-    type: Optional[NodeType] = None
     name: str
+    type: Optional[NodeType] = None
+
+
+class ParentDTO(DisplayBase):
+    id: UUID
+
+
+class TimeDTO(DisplayBase):
+    start: datetime
+    end: datetime
+
+
+class StatusCode(Enum):
+    UNSET = "UNSET"
+    OK = "OK"
+    ERROR = "ERROR"
+
+
+class StatusDTO(DisplayBase):
+    code: StatusCode
+    message: Optional[str] = None
+
+    class Config:
+        use_enum_values = True
+
+
+Attributes = Dict[str, Any]
+
+
+class ExceptionDTO(DisplayBase):
+    timestamp: datetime
+    type: str
+    message: Optional[str] = None
+    stacktrace: Optional[str] = None
+    attributes: Optional[Attributes] = None
+
+    class Config:
+        json_encoders = {datetime: lambda dt: dt.isoformat()}
 
 
 Data = Dict[str, Any]
 Metrics = Dict[str, Any]
 Metadata = Dict[str, Any]
-Tags = Dict[str, str]
 Refs = Dict[str, str]
 
 
 class LinkDTO(DisplayBase):
-    type: str
+    type: TreeType  # Yes, this is correct
     id: UUID
     tree_id: Optional[UUID] = None
 
-
-class ParentDTO(DisplayBase):
-    id: UUID
+    class Config:
+        use_enum_values = True
 
 
 class OTelSpanKind(Enum):
@@ -172,10 +149,8 @@ class OTelExtraDTO(DisplayBase):
 ## --- ENTITIES --- ##
 
 
-class SpanDTO(DisplayBase):  # DBE
-    scope: ProjectScopeDTO  # DBA
-
-    lifecycle: LifecycleDTO
+class SpanDTO(DisplayBase):
+    lifecycle: Optional[LifecycleDTO] = None
 
     root: RootDTO
     tree: TreeDTO
@@ -191,7 +166,6 @@ class SpanDTO(DisplayBase):  # DBE
     data: Optional[Data] = None
     metrics: Optional[Metrics] = None
     meta: Optional[Metadata] = None
-    tags: Optional[Tags] = None
     refs: Optional[Refs] = None
 
     links: Optional[List[LinkDTO]] = None
@@ -199,31 +173,6 @@ class SpanDTO(DisplayBase):  # DBE
     otel: Optional[OTelExtraDTO] = None
 
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
-
-
-class SpanCreateDTO(DisplayBase):  # DBE
-    scope: ProjectScopeDTO  # DBA
-
-    root: RootDTO
-    tree: TreeDTO
-    node: NodeDTO
-
-    parent: Optional[ParentDTO] = None
-
-    time: TimeDTO
-    status: StatusDTO
-
-    exception: Optional[ExceptionDTO] = None
-
-    data: Optional[Data] = None
-    metrics: Optional[Metrics] = None
-    meta: Optional[Metadata] = None
-    tags: Optional[Tags] = None
-    refs: Optional[Refs] = None
-
-    links: Optional[List[LinkDTO]] = None
-
-    otel: Optional[OTelExtraDTO] = None
 
 
 class OTelSpanDTO(DisplayBase):
@@ -248,10 +197,6 @@ class OTelSpanDTO(DisplayBase):
 ## --- QUERY --- ##
 
 
-class ScopingDTO(ProjectScopeDTO):
-    pass
-
-
 class WindowingDTO(DisplayBase):
     earliest: Optional[datetime] = None
     latest: Optional[datetime] = None
@@ -263,6 +208,11 @@ class LogicalOperator(Enum):
     NOT = "not"
 
 
+class ComparisonOperator(Enum):
+    IS = "is"
+    IS_NOT = "is_not"
+
+
 class NumericOperator(Enum):
     EQ = "eq"
     NEQ = "neq"
@@ -270,7 +220,7 @@ class NumericOperator(Enum):
     LT = "lt"
     GTE = "gte"
     LTE = "lte"
-    BETWEEN = "between"
+    BETWEEN = "btwn"
 
 
 class StringOperator(Enum):
@@ -296,19 +246,22 @@ class TextOptionsDTO(DisplayBase):
 
 
 class ConditionDTO(DisplayBase):
-    field: str  # column
+    # column/field in a[.b[.c]] format
+    # where a is the column name, and
+    # b[.c] is the optional, and optionally nested, field name
+    key: str
 
-    key: Optional[str] = None
     value: Optional[Union[str, int, float, bool]] = None
 
     operator: Optional[
         Union[
+            ComparisonOperator,
             NumericOperator,
             StringOperator,
             ListOperator,
             ExistenceOperator,
         ]
-    ] = None
+    ] = ComparisonOperator.IS
 
     options: Optional[TextOptionsDTO] = None
 
