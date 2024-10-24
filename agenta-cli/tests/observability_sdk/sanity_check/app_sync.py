@@ -1,11 +1,12 @@
-
 import agenta as ag
 from pydantic import BaseModel, Field
 
 ag.init()
 
+
 class MyConfig(BaseModel):
     prompt: str = Field(default="somevalue")
+
 
 @ag.instrument(
     spankind="EMBEDDING",
@@ -23,7 +24,6 @@ def embed(description: str):
 
 @ag.instrument(spankind="GENERATOR", ignore_inputs=True)
 async def summarizer(topic: str, genre: str, report: dict) -> dict:
-
     return {"report": report}
 
 
@@ -34,8 +34,6 @@ async def rag(topic: str, genre: str, count: int = 5):
 
     result = await embed("something")
 
-
     result = await summarizer("topic", "genre", "report")
-
 
     return result["report"]
