@@ -1,34 +1,31 @@
 from typing import Optional, List
+from datetime import datetime
 
 from sqlalchemy import and_, or_, not_, distinct, Column, cast
-from sqlalchemy import UUID, String, Integer, Float, Boolean
+from sqlalchemy import UUID, String, Float, Boolean, TIMESTAMP, Enum
 from sqlalchemy.dialects.postgresql import HSTORE, JSON, JSONB
 from sqlalchemy.future import select
+from sqlalchemy.dialects import postgresql
 
 from agenta_backend.dbs.postgres.shared.engine import engine
 from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
 from agenta_backend.dbs.postgres.observability.mappings import (
-    map_span_create_dto_to_dbe,
+    map_span_dto_to_dbe,
     map_span_dbe_to_dto,
 )
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
-from agenta_backend.core.observability.dtos import QueryDTO
+from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
 from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     ConditionDTO,
     LogicalOperator,
+    ComparisonOperator,
     NumericOperator,
     StringOperator,
     ListOperator,
     ExistenceOperator,
 )
-from agenta_backend.core.observability.dtos import (
-    SpanDTO,
-    SpanCreateDTO,
-)
-
-from sqlalchemy.dialects import postgresql
 
 
 class ObservabilityDAO(ObservabilityDAOInterface):
@@ -38,7 +35,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def query(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         #
         query_dto: QueryDTO,
     ) -> List[SpanDTO]:
@@ -135,9 +132,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def create_one(
         self,
         *,
-        span_dto: SpanCreateDTO,
+        project_id: UUID,
+        #
+        span_dto: SpanDTO,
     ) -> None:
-        span_dbe = map_span_create_dto_to_dbe(span_dto)
+        span_dbe = map_span_dto_to_dbe(
+            project_id=project_id,
+            span_dto=span_dto,
+        )
 
         async with engine.session() as session:
             session.add(span_dbe)
@@ -146,9 +148,17 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def create_many(
         self,
         *,
-        span_dtos: List[SpanCreateDTO],
+        project_id: UUID,
+        #
+        span_dtos: List[SpanDTO],
     ) -> None:
-        span_dbes = [map_span_create_dto_to_dbe(span_dto) for span_dto in span_dtos]
+        span_dbes = [
+            map_span_dto_to_dbe(
+                project_id=project_id,
+                span_dto=span_dto,
+            )
+            for span_dto in span_dtos
+        ]
 
         async with engine.session() as session:
             for span_dbe in span_dbes:
@@ -159,7 +169,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def read_one(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         node_id: str,
         to_dto: bool = True,
     ) -> Optional[SpanDTO]:
@@ -185,7 +195,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def read_many(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         node_ids: List[str],
         to_dto: bool = True,
     ) -> List[SpanDTO]:
@@ -210,7 +220,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def delete_one(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         node_id: str,
     ) -> None:
         span_dbe = self.read_one(
@@ -227,7 +237,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     async def delete_many(
         self,
         *,
-        project_id: str,
+        project_id: UUID,
         node_ids: List[str],
     ) -> None:
         span_dbes = self.read_many(
@@ -258,6 +268,19 @@ def _combine(
         raise ValueError(f"Unknown operator: {operator}")
 
 
+_FLAT_KEYS = {
+    "time.start": "time_start",
+    "time.end": "time_end",
+    "root.id": "root_id",
+    "tree.id": "tree_id",
+    "tree.type": "tree_type",
+    "node.id": "node_id",
+    "node.type": "node_type",
+    "node.name": "node_name",
+    "parent.id": "parent_id",
+}
+
+
 def _filters(filtering: FilteringDTO) -> list:
     _conditions = []
 
@@ -273,61 +296,83 @@ def _filters(filtering: FilteringDTO) -> list:
             )
 
         elif isinstance(condition, ConditionDTO):
-            column: Column = getattr(InvocationSpanDBE, condition.field)
+            key = condition.key
+            value = condition.value
+
+            # MAP FLAT KEYS
+            if key in _FLAT_KEYS:
+                key = _FLAT_KEYS[key]
+
+            # SPLIT FIELD AND KEY
+            _split = key.split(".", 1)
+            field = _split[0]
+            key = _split[1] if len(_split) > 1 else None
+
+            # GET COLUMN AS ATTRIBUTE
+            attribute: Column = getattr(InvocationSpanDBE, field)
 
             # Handle JSON/JSONB/HSTORE key-paths
             # Assumption: JSON/JSONB/HSTORE columns are stored flat even when nested
-            if condition.key:
-                if isinstance(column.type, (JSON, JSONB, HSTORE)):
-                    if isinstance(column.type, HSTORE):
-                        column = column[condition.key]
-
-                        condition.value = str(condition.value)
-
+            if key:
+                if isinstance(attribute.type, (JSON, JSONB, HSTORE)):
+                    if isinstance(attribute.type, HSTORE):
+                        attribute = attribute[key]
+                        value = str(value)
                     else:
-                        column = column[condition.key].astext
+                        attribute = attribute[key].astext
 
-                        if isinstance(condition.value, UUID):
-                            column = cast(column, UUID)
-                        elif isinstance(condition.value, str):
-                            column = cast(column, String)
-                            condition.value = f'"{condition.value}"'
-                        elif isinstance(condition.value, int):
-                            column = cast(column, Float)  # Yes, Float
-                        elif isinstance(condition.value, float):
-                            column = cast(column, Float)
-                        elif isinstance(condition.value, bool):
-                            column = cast(column, Boolean)
+                        if isinstance(value, UUID):
+                            attribute = cast(attribute, UUID)
+                        elif isinstance(value, str):
+                            attribute = cast(attribute, String)
+                            value = f'"{value}"'
+                        elif isinstance(value, int):
+                            attribute = cast(attribute, Float)  # Yes, Float
+                        elif isinstance(value, float):
+                            attribute = cast(attribute, Float)
+                        elif isinstance(value, bool):
+                            attribute = cast(attribute, Boolean)
+
+            if isinstance(attribute.type, TIMESTAMP):
+                value = datetime.fromisoformat(value)
+
+            if isinstance(attribute.type, Enum):
+                value = str(value).upper()
+
+            # COMPARISON OPERATORS
+            if isinstance(condition.operator, ComparisonOperator):
+                if condition.operator == ComparisonOperator.IS:
+                    _conditions.append(attribute == value)
+                elif condition.operator == ComparisonOperator.IS_NOT:
+                    _conditions.append(attribute != value)
 
             # NUMERIC OPERATORS
-            if isinstance(condition.operator, NumericOperator):
+            elif isinstance(condition.operator, NumericOperator):
                 if condition.operator == NumericOperator.EQ:
-                    _conditions.append(column == condition.value)
+                    _conditions.append(attribute == value)
                 elif condition.operator == NumericOperator.NEQ:
-                    _conditions.append(column != condition.value)
+                    _conditions.append(attribute != value)
                 elif condition.operator == NumericOperator.GT:
-                    _conditions.append(column > condition.value)
+                    _conditions.append(attribute > value)
                 elif condition.operator == NumericOperator.LT:
-                    _conditions.append(column < condition.value)
+                    _conditions.append(attribute < value)
                 elif condition.operator == NumericOperator.GTE:
-                    _conditions.append(column >= condition.value)
+                    _conditions.append(attribute >= value)
                 elif condition.operator == NumericOperator.LTE:
-                    _conditions.append(column <= condition.value)
+                    _conditions.append(attribute <= value)
                 elif condition.operator == NumericOperator.BETWEEN:
-                    _conditions.append(
-                        column.between(condition.value[0], condition.value[1])
-                    )
+                    _conditions.append(attribute.between(value[0], value[1]))
 
             # STRING OPERATORS
             elif isinstance(condition.operator, StringOperator):
                 if condition.operator == StringOperator.STARTSWITH:
-                    _conditions.append(column.startswith(condition.value))
+                    _conditions.append(attribute.startswith(value))
                 elif condition.operator == StringOperator.ENDSWITH:
-                    _conditions.append(column.endswith(condition.value))
+                    _conditions.append(attribute.endswith(value))
                 elif condition.operator == StringOperator.CONTAINS:
-                    _conditions.append(column.contains(condition.value))
+                    _conditions.append(attribute.contains(value))
                 elif condition.operator == StringOperator.LIKE:
-                    _conditions.append(column.like(condition.value))
+                    _conditions.append(attribute.like(value))
                 elif condition.operator == StringOperator.MATCHES:
                     if condition.options:
                         case_sensitive = condition.options.case_sensitive
@@ -338,26 +383,26 @@ def _filters(filtering: FilteringDTO) -> list:
 
                     if exact_match:
                         if case_sensitive:
-                            _conditions.append(column.like(condition.value))
+                            _conditions.append(attribute.like(value))
                         else:
-                            _conditions.append(column.ilike(condition.value))
+                            _conditions.append(attribute.ilike(value))
                     else:
-                        pattern = f"%{condition.value}%"
+                        pattern = f"%{value}%"
                         if case_sensitive:
-                            _conditions.append(column.like(pattern))
+                            _conditions.append(attribute.like(pattern))
                         else:
-                            _conditions.append(column.ilike(pattern))
+                            _conditions.append(attribute.ilike(pattern))
 
             # LIST OPERATORS
             elif isinstance(condition.operator, ListOperator):
                 if condition.operator == ListOperator.IN:
-                    _conditions.append(column.in_(condition.value))
+                    _conditions.append(attribute.in_(value))
 
             # EXISTENCE OPERATORS
             elif isinstance(condition.operator, ExistenceOperator):
                 if condition.operator == ExistenceOperator.EXISTS:
-                    _conditions.append(column.isnot(None))
+                    _conditions.append(attribute.isnot(None))
                 elif condition.operator == ExistenceOperator.NOT_EXISTS:
-                    _conditions.append(column.is_(None))
+                    _conditions.append(attribute.is_(None))
 
     return _conditions

@@ -2,24 +2,24 @@ from typing import List, Dict, OrderedDict
 
 from litellm import cost_calculator
 
-from agenta_backend.core.observability.dtos import SpanCreateDTO, SpanDTO
+from agenta_backend.core.observability.dtos import SpanDTO
 
 
 def parse_span_dtos_to_span_idx(
-    span_dtos: List[SpanCreateDTO],
-) -> Dict[str, SpanCreateDTO]:
+    span_dtos: List[SpanDTO],
+) -> Dict[str, SpanDTO]:
     span_idx = {span_dto.node.id: span_dto for span_dto in span_dtos}
 
     return span_idx
 
 
 def parse_span_idx_to_span_id_tree(
-    span_idx: Dict[str, SpanCreateDTO],
+    span_idx: Dict[str, SpanDTO],
 ) -> OrderedDict:
     span_id_tree = OrderedDict()
     index = {}
 
-    def push(span_dto: SpanCreateDTO) -> None:
+    def push(span_dto: SpanDTO) -> None:
         if span_dto.parent is None:
             span_id_tree[span_dto.node.id] = OrderedDict()
             index[span_dto.node.id] = span_id_tree[span_dto.node.id]
@@ -35,15 +35,16 @@ def parse_span_idx_to_span_id_tree(
 
 def cumulate_costs(
     spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, SpanCreateDTO],
+    spans_idx: Dict[str, SpanDTO],
 ) -> None:
-    def _get_unit(span: SpanCreateDTO):
+
+    def _get_unit(span: SpanDTO):
         if span.metrics is not None:
             return span.metrics.get("unit.costs.total", 0.0)
 
         return 0.0
 
-    def _get_acc(span: SpanCreateDTO):
+    def _get_acc(span: SpanDTO):
         if span.metrics is not None:
             return span.metrics.get("acc.costs.total", 0.0)
 
@@ -52,7 +53,7 @@ def cumulate_costs(
     def _acc(a: float, b: float):
         return a + b
 
-    def _set(span: SpanCreateDTO, cost: float):
+    def _set(span: SpanDTO, cost: float):
         if span.metrics is None:
             span.metrics = {}
 
@@ -66,7 +67,8 @@ def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, dict],
 ) -> None:
-    def _get_unit(span: SpanCreateDTO):
+
+    def _get_unit(span: SpanDTO):
         _tokens = {
             "prompt": 0.0,
             "completion": 0.0,
@@ -82,7 +84,7 @@ def cumulate_tokens(
 
         return _tokens
 
-    def _get_acc(span: SpanCreateDTO):
+    def _get_acc(span: SpanDTO):
         _tokens = {
             "prompt": 0.0,
             "completion": 0.0,
@@ -105,7 +107,7 @@ def cumulate_tokens(
             "total": a.get("total", 0.0) + b.get("total", 0.0),
         }
 
-    def _set(span: SpanCreateDTO, tokens: dict):
+    def _set(span: SpanDTO, tokens: dict):
         if span.metrics is None:
             span.metrics = {}
 
@@ -127,7 +129,7 @@ def cumulate_tokens(
 
 def _cumulate_tree_dfs(
     spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, SpanCreateDTO],
+    spans_idx: Dict[str, SpanDTO],
     get_unit_metric,
     get_acc_metric,
     accumulate_metric,
@@ -199,7 +201,7 @@ TYPES_WITH_COSTS = [
 ]
 
 
-def calculate_costs(span_idx: Dict[str, SpanCreateDTO]):
+def calculate_costs(span_idx: Dict[str, SpanDTO]):
     for span in span_idx.values():
         if (
             span.node.type
@@ -213,7 +215,6 @@ def calculate_costs(span_idx: Dict[str, SpanCreateDTO]):
                     prompt_tokens=span.metrics.get("unit.tokens.prompt", 0.0),
                     completion_tokens=span.metrics.get("unit.tokens.completion", 0.0),
                     call_type=span.node.type.name.lower(),
-                    response_time_ms=span.time.span // 1_000,
                 )
 
                 if not costs:
