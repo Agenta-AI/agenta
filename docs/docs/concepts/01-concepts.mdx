@@ -4,10 +4,24 @@ title: "Core Concepts"
 
 import Image from "@theme/IdealImage";
 
+## Motivation
+
+Building reliable LLM applications goes beyond crafting a single prompt or selecting a model. It's about experimentation—trying various prompts, models, configurations, and AI workflows to determine what works best. Without a robust system, managing these experiments can quickly become chaotic.
+
+Agenta addresses this challenge by structuring experimentation in a manner similar to **git**'s code management. Rather than maintaining a single, linear history of changes, you can create multiple branches—called **variants** in Agenta. Each **variant** represents a distinct approach or solution you're exploring.
+
+Within each **variant**, you can make changes that are saved as immutable **versions**. This means every change is recorded and you can always go back to a previous version if needed.
+
+To move from experimentation to deployment, Agenta uses **environments** like development, staging, and production. You can deploy specific versions of your variants to these environments, controlling what gets tested and what goes live.
+
+In each of your experiments pre-production or in the environment post-production, all the data that you generate is stored and linked to the **variant** and **version** that you used to generate it. This allows you to always go back to the **variant** and **version** that generated a particular data point and see which **variant** and **version** performed best on it.
+
+## Concepts
+
 Below are the description to the main terms and concepts used in Agenta.
 
 <Image
-  style={{ display: "block", margin: "0 auto" }}
+  style={{ display: "block", margin: "10px auto" }}
   img={require("/images/prompt_management/taxonomy-concepts.png")}
   alt="Taxonomy of concepts in Agenta"
   loading="lazy"
