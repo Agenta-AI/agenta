@@ -13,6 +13,7 @@ openai = OpenAI()
 
 OpenAIInstrumentor().instrument()
 
+
 class MyConfig(BaseModel):
     temperature: float = Field(default=0.2, le=1, ge=0)
     model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
@@ -25,7 +26,6 @@ class MyConfig(BaseModel):
     )
 
 
-
 @ag.entrypoint
 @ag.instrument(spankind="WORKFLOW")
 async def rag(topic: str, genre: str):
@@ -33,7 +33,7 @@ async def rag(topic: str, genre: str):
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": f"Write a short {genre} story about {topic}."}
+            {"role": "user", "content": f"Write a short {genre} story about {topic}."},
         ],
     )
 
