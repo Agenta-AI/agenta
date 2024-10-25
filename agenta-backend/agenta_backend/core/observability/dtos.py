@@ -90,7 +90,7 @@ class ExceptionDTO(DisplayBase):
 Data = Dict[str, Any]
 Metrics = Dict[str, Any]
 Metadata = Dict[str, Any]
-Refs = Dict[str, str]
+Refs = Dict[str, Any]
 
 
 class LinkDTO(DisplayBase):
