@@ -54,7 +54,7 @@ class ReferenceDTO(BaseModel):
 # HERE IT IS A PROXY FOR A variant
 class ConfigDTO(BaseModel):
     params: Dict[str, Any]
-    url: str
+    url: Optional[str]
     # ---
     application_ref: Optional[ReferenceDTO]
     service_ref: Optional[ReferenceDTO]
