@@ -33,7 +33,7 @@ Cypress.Commands.add("createVariant", () => {
 
     cy.get('[data-cy^="enter-app-name-input"]').type(appName)
 
-    cy.get('[data-cy="app-template-card"]').contains("Single Prompt OpenAI").click()
+    cy.get('[data-cy="app-template-card"]').contains("Completion Prompt").click()
 
     cy.get('[data-cy="create-app-from-template-button"]').click()
 
