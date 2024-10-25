@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from json import loads
 
 from typing import List, Dict, Any, Union, Optional
 from enum import Enum
@@ -85,6 +86,9 @@ class ExceptionDTO(BaseModel):
 
     class Config:
         json_encoders = {datetime: lambda dt: dt.isoformat()}
+
+    def to_json(self) -> dict:
+        return loads(self.model_dump_json(exclude_none=True))
 
 
 Data = Dict[str, Any]
