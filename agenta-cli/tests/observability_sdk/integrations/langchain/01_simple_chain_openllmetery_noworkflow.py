@@ -2,14 +2,14 @@ from langchain.schema import SystemMessage, HumanMessage
 from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_community.chat_models import ChatOpenAI
 from langchain.chains import LLMChain, SequentialChain, TransformChain
-from openinference.instrumentation.langchain import LangChainInstrumentor
+from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 
 import agenta as ag
 
 ag.init(
 )
 
-LangChainInstrumentor().instrument()
+LangchainInstrumentor().instrument()
 
 
 def langchain_app():

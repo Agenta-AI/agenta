@@ -90,4 +90,8 @@ The tests in the `sanity_check` folder do not use an LLM but test the functional
 
 Minimum app to test the functionalities of the SDK.
 
-####
+#### 02_app_local_old_sdk.py
+
+App testing most of the functionalities above but using the old SDK.
+
+#### 03_app_local_new_sdk.py
