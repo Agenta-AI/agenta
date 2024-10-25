@@ -111,7 +111,9 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                                     <div
                                         key={item.value}
                                         onClick={() => {
-                                            setCustomOptionSelected(false)
+                                            setTimeout(() => {
+                                                setCustomOptionSelected(false)
+                                            }, 500)
                                             setDropdownVisible(false)
                                             setSort(item.value as SortTypes)
                                             onSortApply({sortData: item.value as SortTypes})

@@ -56,7 +56,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const [filters, setFilters] = useState<Filter[]>([])
     const [isExportLoading, setIsExportLoading] = useState(false)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const {traces, setTraces} = useTraces()
+    const {traces} = useTraces()
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -259,51 +259,43 @@ const ObservabilityDashboard = ({}: Props) => {
         sortData: SortTypes
         customSortData?: any
     }) => {
-        let time
-        let query: string
-
-        if (sortData !== "custom" && sortData) {
-            const now = dayjs().utc() // Get the current UTC time
-
-            if (sortData === "all time") {
-                time = "1970-01-01T00:00:00"
-                query = `&earliest=${time}`
-                return
-            }
-
-            // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
-            const [amount, unit] = sortData.split(" ")
-
-            time = now
-                .subtract(parseInt(amount), unit as dayjs.ManipulateType)
-                .toISOString()
-                .split(".")[0]
-            query = `&earliest=${time}`
-        }
-
-        if (customSortData?.startTime && sortData == "custom") {
-            query = `earliest=${customSortData.startTime.toISOString().split(".")[0]}&latest=${customSortData.endTime.toISOString().split(".")[0]}`
-        }
-
-        try {
-            const fetchAllTraces = async () => {
-                const response = await axios.get(
-                    `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
-                )
-                return response.data
-            }
-
-            const data = await fetchAllTraces()
-
-            setTraces(
-                data.trees.flatMap((item: AgentaRootsResponse) =>
-                    // @ts-ignore
-                    observabilityTransformer(item),
-                ) as _AgentaRootsResponse[],
-            )
-        } catch (error) {
-            console.log(error)
-        }
+        // let time
+        // let query: string
+        // if (sortData !== "custom" && sortData) {
+        //     const now = dayjs().utc() // Get the current UTC time
+        //     if (sortData === "all time") {
+        //         time = "1970-01-01T00:00:00"
+        //         query = `&earliest=${time}`
+        //         return
+        //     }
+        //     // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
+        //     const [amount, unit] = sortData.split(" ")
+        //     time = now
+        //         .subtract(parseInt(amount), unit as dayjs.ManipulateType)
+        //         .toISOString()
+        //         .split(".")[0]
+        //     query = `&earliest=${time}`
+        // }
+        // if (customSortData?.startTime && sortData == "custom") {
+        //     query = `earliest=${customSortData.startTime.toISOString().split(".")[0]}&latest=${customSortData.endTime.toISOString().split(".")[0]}`
+        // }
+        // try {
+        //     const fetchAllTraces = async () => {
+        //         const response = await axios.get(
+        //             `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
+        //         )
+        //         return response.data
+        //     }
+        //     const data = await fetchAllTraces()
+        //     setTraces(
+        //         data.trees.flatMap((item: AgentaRootsResponse) =>
+        //             // @ts-ignore
+        //             observabilityTransformer(item),
+        //         ) as _AgentaRootsResponse[],
+        //     )
+        // } catch (error) {
+        //     console.log(error)
+        // }
     }
 
     const handleToggleColumnVisibility = (key: string) => {
