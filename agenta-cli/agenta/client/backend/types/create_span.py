@@ -12,6 +12,7 @@ import pydantic
 class CreateSpan(UniversalBaseModel):
     id: str
     app_id: str
+    project_id: typing.Optional[str] = None
     variant_id: typing.Optional[str] = None
     variant_name: typing.Optional[str] = None
     inputs: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
@@ -34,11 +35,11 @@ class CreateSpan(UniversalBaseModel):
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=False
+            extra="allow", frozen=True
         )  # type: ignore # Pydantic v2
     else:
 
         class Config:
-            frozen = False
+            frozen = True
             smart_union = True
             extra = pydantic.Extra.allow

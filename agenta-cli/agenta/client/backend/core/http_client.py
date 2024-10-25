@@ -158,9 +158,9 @@ class HttpClient:
         self,
         *,
         httpx_client: httpx.Client,
-        base_timeout: typing.Optional[float],
-        base_headers: typing.Dict[str, str],
-        base_url: typing.Optional[str] = None,
+        base_timeout: typing.Callable[[], typing.Optional[float]],
+        base_headers: typing.Callable[[], typing.Dict[str, str]],
+        base_url: typing.Optional[typing.Callable[[], str]] = None,
     ):
         self.base_url = base_url
         self.base_timeout = base_timeout
@@ -168,7 +168,10 @@ class HttpClient:
         self.httpx_client = httpx_client
 
     def get_base_url(self, maybe_base_url: typing.Optional[str]) -> str:
-        base_url = self.base_url if maybe_base_url is None else maybe_base_url
+        base_url = maybe_base_url
+        if self.base_url is not None and base_url is None:
+            base_url = self.base_url()
+
         if base_url is None:
             raise ValueError(
                 "A base_url is required to make this request, please provide one and try again."
@@ -200,7 +203,7 @@ class HttpClient:
             request_options.get("timeout_in_seconds")
             if request_options is not None
             and request_options.get("timeout_in_seconds") is not None
-            else self.base_timeout
+            else self.base_timeout()
         )
 
         json_body, data_body = get_request_body(
@@ -213,7 +216,7 @@ class HttpClient:
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
-                        **self.base_headers,
+                        **self.base_headers(),
                         **(headers if headers is not None else {}),
                         **(
                             request_options.get("additional_headers", {}) or {}
@@ -247,7 +250,7 @@ class HttpClient:
             data=data_body,
             content=content,
             files=convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
-            if files is not None
+            if (files is not None and files is not omit)
             else None,
             timeout=timeout,
         )
@@ -300,7 +303,7 @@ class HttpClient:
             request_options.get("timeout_in_seconds")
             if request_options is not None
             and request_options.get("timeout_in_seconds") is not None
-            else self.base_timeout
+            else self.base_timeout()
         )
 
         json_body, data_body = get_request_body(
@@ -313,7 +316,7 @@ class HttpClient:
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
-                        **self.base_headers,
+                        **self.base_headers(),
                         **(headers if headers is not None else {}),
                         **(
                             request_options.get("additional_headers", {})
@@ -346,7 +349,7 @@ class HttpClient:
             data=data_body,
             content=content,
             files=convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
-            if files is not None
+            if (files is not None and files is not omit)
             else None,
             timeout=timeout,
         ) as stream:
@@ -358,9 +361,9 @@ class AsyncHttpClient:
         self,
         *,
         httpx_client: httpx.AsyncClient,
-        base_timeout: typing.Optional[float],
-        base_headers: typing.Dict[str, str],
-        base_url: typing.Optional[str] = None,
+        base_timeout: typing.Callable[[], typing.Optional[float]],
+        base_headers: typing.Callable[[], typing.Dict[str, str]],
+        base_url: typing.Optional[typing.Callable[[], str]] = None,
     ):
         self.base_url = base_url
         self.base_timeout = base_timeout
@@ -368,7 +371,10 @@ class AsyncHttpClient:
         self.httpx_client = httpx_client
 
     def get_base_url(self, maybe_base_url: typing.Optional[str]) -> str:
-        base_url = self.base_url if maybe_base_url is None else maybe_base_url
+        base_url = maybe_base_url
+        if self.base_url is not None and base_url is None:
+            base_url = self.base_url()
+
         if base_url is None:
             raise ValueError(
                 "A base_url is required to make this request, please provide one and try again."
@@ -400,7 +406,7 @@ class AsyncHttpClient:
             request_options.get("timeout_in_seconds")
             if request_options is not None
             and request_options.get("timeout_in_seconds") is not None
-            else self.base_timeout
+            else self.base_timeout()
         )
 
         json_body, data_body = get_request_body(
@@ -414,7 +420,7 @@ class AsyncHttpClient:
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
-                        **self.base_headers,
+                        **self.base_headers(),
                         **(headers if headers is not None else {}),
                         **(
                             request_options.get("additional_headers", {}) or {}
@@ -500,7 +506,7 @@ class AsyncHttpClient:
             request_options.get("timeout_in_seconds")
             if request_options is not None
             and request_options.get("timeout_in_seconds") is not None
-            else self.base_timeout
+            else self.base_timeout()
         )
 
         json_body, data_body = get_request_body(
@@ -513,7 +519,7 @@ class AsyncHttpClient:
             headers=jsonable_encoder(
                 remove_none_from_dict(
                     {
-                        **self.base_headers,
+                        **self.base_headers(),
                         **(headers if headers is not None else {}),
                         **(
                             request_options.get("additional_headers", {})
