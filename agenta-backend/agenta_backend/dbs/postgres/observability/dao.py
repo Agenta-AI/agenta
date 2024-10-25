@@ -326,7 +326,7 @@ def _filters(filtering: FilteringDTO) -> list:
                             attribute = cast(attribute, UUID)
                         elif isinstance(value, str):
                             attribute = cast(attribute, String)
-                            value = f'"{value}"'
+                            # value = f'"{value}"' # WILL ADD THIS BACK AS SOON AS I FIGURE OUT WHY THE QUOTES WERE ADDED
                         elif isinstance(value, int):
                             attribute = cast(attribute, Float)  # Yes, Float
                         elif isinstance(value, float):
