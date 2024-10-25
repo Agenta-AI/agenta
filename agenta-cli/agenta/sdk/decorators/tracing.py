@@ -40,7 +40,7 @@ class instrument:
                 self._parse_type_and_kind()
 
                 with ag.tracer.start_as_current_span(func.__name__, kind=self.kind):
-                    self._pre_instrument(self, func, *args, **kwargs)
+                    self._pre_instrument(func, *args, **kwargs)
 
                     result = await func(*args, **kwargs)
 
@@ -56,7 +56,7 @@ class instrument:
                 self._parse_type_and_kind()
 
                 with ag.tracer.start_as_current_span(func.__name__, kind=self.kind):
-                    self._pre_instrument(self, func, *args, **kwargs)
+                    self._pre_instrument(func, *args, **kwargs)
 
                     result = func(*args, **kwargs)
 
