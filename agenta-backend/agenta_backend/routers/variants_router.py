@@ -675,7 +675,7 @@ async def configs_commit(
     request: Request,
     config: ConfigRequestModel,
 ):
-    config = await commit_config(
+    config = await commit_config(  # type: ignore
         project_id=request.state.project_id,
         config=config,
         user_id=request.state.user_id,
