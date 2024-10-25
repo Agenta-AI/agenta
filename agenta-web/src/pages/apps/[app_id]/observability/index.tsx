@@ -1,3 +1,4 @@
+import EmptyComponent from "@/components/EmptyComponent"
 import GenericDrawer from "@/components/GenericDrawer"
 import {nodeTypeStyles} from "@/components/pages/observability/components/AvatarTreeContent"
 import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
@@ -9,12 +10,15 @@ import Sort from "@/components/Filters/Sort"
 import EditColumns from "@/components/Filters/EditColumns"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {ResizableTitle} from "@/components/ServerTable/components"
+import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
+import {getStringOrJson} from "@/lib/helpers/utils"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {Filter, FilterConditions, JSSTheme, SortTypes} from "@/lib/Types"
-import {_AgentaRootsResponse, AgentaRootsResponse} from "@/services/observability/types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
+import {SwapOutlined} from "@ant-design/icons"
 import {
     Button,
     Input,
@@ -27,14 +31,12 @@ import {
 } from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
+import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
-import axios from "@/lib/helpers/axiosConfig"
-import {getAgentaApiUrl} from "@/lib/helpers/utils"
-import {observabilityTransformer} from "@/services/observability/core"
 import {useUpdateEffect} from "usehooks-ts"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -48,15 +50,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 interface Props {}
 
 const ObservabilityDashboard = ({}: Props) => {
+    const appId = useAppId()
+    const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
+    const {traces, isLoadingTraces} = useTraces()
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState("all")
+    const [focusTab, setFocusTab] = useState("tree")
     const [editColumns, setEditColumns] = useState<string[]>([])
     const [filters, setFilters] = useState<Filter[]>([])
     const [isExportLoading, setIsExportLoading] = useState(false)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const {traces} = useTraces()
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -83,6 +88,18 @@ const ObservabilityDashboard = ({}: Props) => {
             },
         },
         {
+            title: "Span type",
+            key: "span_type",
+            dataIndex: ["node", "type"],
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
+            render: (_, record) => {
+                return <div>{record.node.type}</div>
+            },
+        },
+        {
             title: "Timestamp",
             key: "timestamp",
             dataIndex: ["time", "start"],
@@ -101,6 +118,9 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 350},
             }),
+            // render: (_, record) => {
+            //     return <ResultTag value1={getStringOrJson(record?.data?.inputs)} />
+            // },
         },
         {
             title: "Outputs",
@@ -109,6 +129,13 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 350},
             }),
+            // render: (_, record) => {
+            //     return (
+            //         <div className="overflow-hidden text-ellipsis whitespace-nowrap">
+            //             <ResultTag value1={getStringOrJson(record?.data?.outputs)} />
+            //         </div>
+            //     )
+            // },
         },
         {
             title: "Status",
@@ -128,7 +155,7 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <div>{formatLatency(record.time.span / 1000000)}</div>,
+            render: (_, record) => <div>{formatLatency(record?.metrics?.acc?.duration.total)}</div>,
         },
         {
             title: "Usage",
@@ -387,11 +414,27 @@ const ObservabilityDashboard = ({}: Props) => {
         }
     }
 
+    const onFocusTabChange = (e: RadioChangeEvent) => {
+        setFocusTab(e.target.value)
+    }
+
     const updateFilter = (key: string, operator: FilterConditions, value: string) => {
         setFilters((prevFilters) => {
             const otherFilters = prevFilters.filter((f) => f.key !== key)
             return value ? [...otherFilters, {key, operator, value}] : otherFilters
         })
+    }
+
+    const onSearchChange = (e: any) => {
+        setSearchQuery(e.target.value)
+
+        if (!e.target.value) {
+            const isSearchFilterExist = filters.some((item) => item.key === "data")
+
+            if (isSearchFilterExist) {
+                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+            }
+        }
     }
 
     const onSearchClear = () => {
@@ -421,83 +464,120 @@ const ObservabilityDashboard = ({}: Props) => {
         setFilters(newFilters)
     }
 
+    // Function to check if custom Radio Button should be displayed
+    const shouldShowCustomButton = filters.some(
+        (item) => item.key === "node.type" && !["llm", "workflows", "all"].includes(item.value),
+    )
+
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
-            {traces?.length ? (
-                <section className="flex flex-col gap-2">
-                    <div className="flex justify-between gap-2 flex-col 2xl:flex-row 2xl:items-center">
-                        <Space>
-                            <Input.Search
-                                placeholder="Search"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onPressEnter={onSearchQueryApply}
-                                onSearch={onSearchClear}
-                                className="w-[320px]"
-                                allowClear
-                            />
-                            <Filters
-                                filterData={filters}
-                                columns={filterColumns}
-                                onApplyFilter={onApplyFilter}
-                                onClearFilter={onClearFilter}
-                            />
-                            <Sort onSortApply={onSortApply} defaultSortValue="1 month" />
-                        </Space>
-                        <div className="w-full flex items-center justify-between">
-                            <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                <Radio.Button value="all">All</Radio.Button>
-                                <Radio.Button value="llm">LLM</Radio.Button>
-                                <Radio.Button value="workflows">Workflows</Radio.Button>
-                            </Radio.Group>
-                            <Space>
-                                <Button
-                                    type="text"
-                                    onClick={onExport}
-                                    icon={<Export size={14} className="mt-0.5" />}
-                                    disabled={traces.length === 0}
-                                    loading={isExportLoading}
-                                >
-                                    Export as CSV
-                                </Button>
-                                <EditColumns
-                                    isOpen={isFilterColsDropdownOpen}
-                                    handleOpenChange={setIsFilterColsDropdownOpen}
-                                    selectedKeys={editColumns}
-                                    columns={columns}
-                                    onChange={handleToggleColumnVisibility}
-                                />
-                            </Space>
-                        </div>
-                    </div>
-
-                    <Table
-                        columns={(mergedColumns as TableColumnType<_AgentaRootsResponse>[]).map(
-                            (col) => ({
-                                ...col,
-                                hidden: editColumns.includes(col.key as string),
-                            }),
-                        )}
-                        dataSource={traces}
-                        bordered
-                        style={{cursor: "pointer"}}
-                        onRow={(record) => ({
-                            onClick: () => {
-                                setSelectedTraceId(record.root.id)
-                            },
-                        })}
-                        components={{
-                            header: {
-                                cell: ResizableTitle,
-                            },
-                        }}
-                        pagination={false}
-                        scroll={{x: "max-content"}}
+            <div className="flex justify-between gap-2 flex-col 2xl:flex-row 2xl:items-center">
+                <Space>
+                    <Input.Search
+                        placeholder="Search"
+                        value={searchQuery}
+                        onChange={onSearchChange}
+                        onPressEnter={onSearchQueryApply}
+                        onSearch={onSearchClear}
+                        className="w-[320px]"
+                        allowClear
                     />
-                </section>
-            ) : null}
+                    <Filters
+                        filterData={filters}
+                        columns={filterColumns}
+                        onApplyFilter={onApplyFilter}
+                        onClearFilter={onClearFilter}
+                    />
+                    <Sort onSortApply={onSortApply} defaultSortValue="1 month" />
+                </Space>
+                <div className="w-full flex items-center justify-between">
+                    <Space>
+                        <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
+                            <Radio.Button value="all">All</Radio.Button>
+                            <Radio.Button value="llm">LLM</Radio.Button>
+                            <Radio.Button value="workflows">Workflows</Radio.Button>
+                            {shouldShowCustomButton && (
+                                <Radio.Button value="custom">Custom</Radio.Button>
+                            )}
+                        </Radio.Group>
+                        <Radio.Group value={focusTab} onChange={onFocusTabChange}>
+                            <Radio.Button value="tree">Tree</Radio.Button>
+                            <Radio.Button value="node">Node</Radio.Button>
+                        </Radio.Group>
+                    </Space>
+
+                    <Space>
+                        <Button
+                            type="text"
+                            onClick={onExport}
+                            icon={<Export size={14} className="mt-0.5" />}
+                            disabled={traces.length === 0}
+                            loading={isExportLoading}
+                        >
+                            Export as CSV
+                        </Button>
+                        <EditColumns
+                            isOpen={isFilterColsDropdownOpen}
+                            handleOpenChange={setIsFilterColsDropdownOpen}
+                            selectedKeys={editColumns}
+                            columns={columns}
+                            onChange={handleToggleColumnVisibility}
+                        />
+                    </Space>
+                </div>
+            </div>
+
+            <Table
+                loading={isLoadingTraces}
+                columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
+                dataSource={traces}
+                bordered
+                style={{cursor: "pointer"}}
+                onRow={(record) => ({
+                    onClick: () => {
+                        setSelectedTraceId(record.root.id)
+                    },
+                })}
+                components={{
+                    header: {
+                        cell: ResizableTitle,
+                    },
+                }}
+                pagination={false}
+                scroll={{x: "max-content"}}
+                locale={{
+                    emptyText: (
+                        <div className="py-16">
+                            <EmptyComponent
+                                image={
+                                    <SwapOutlined
+                                        style={{transform: "rotate(90deg)"}}
+                                        className="text-[32px]"
+                                    />
+                                }
+                                description="Monitor the performance and results of your LLM applications here."
+                                primaryCta={{
+                                    text: "Go to Playground",
+                                    onClick: () => router.push(`/apps/${appId}/playground`),
+                                    tooltip:
+                                        "Run your LLM app in the playground to generate and view insights.",
+                                }}
+                                secondaryCta={{
+                                    text: "Learn More",
+                                    onClick: () =>
+                                        router.push(
+                                            "https://docs.agenta.ai/observability/quickstart",
+                                        ),
+                                    tooltip:
+                                        "Explore more about tracking and analyzing your app's observability data.",
+                                }}
+                            />
+                        </div>
+                    ),
+                }}
+            />
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer
