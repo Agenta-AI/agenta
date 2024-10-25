@@ -13,8 +13,8 @@ import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
-import {Filter, JSSTheme, SortTypes} from "@/lib/Types"
-import {_AgentaRootsResponse} from "@/services/observability/types"
+import {Filter, FilterConditions, JSSTheme, SortTypes} from "@/lib/Types"
+import {_AgentaRootsResponse, AgentaRootsResponse} from "@/services/observability/types"
 import {
     Button,
     Input,
@@ -32,6 +32,10 @@ import {createUseStyles} from "react-jss"
 import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
+import axios from "@/lib/helpers/axiosConfig"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {observabilityTransformer} from "@/services/observability/core"
+import {useUpdateEffect} from "usehooks-ts"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -47,11 +51,12 @@ const ObservabilityDashboard = ({}: Props) => {
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [searchQuery, setSearchQuery] = useState("")
-    const [traceTabs, setTraceTabs] = useState("root calls")
+    const [traceTabs, setTraceTabs] = useState("all")
     const [editColumns, setEditColumns] = useState<string[]>([])
+    const [filters, setFilters] = useState<Filter[]>([])
     const [isExportLoading, setIsExportLoading] = useState(false)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const {traces} = useTraces()
+    const {traces, setTraces} = useTraces()
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -189,6 +194,9 @@ const ObservabilityDashboard = ({}: Props) => {
         }))
     }, [columns])
 
+    // external codes
+    // ----------------------------------------------------------------------
+
     const onExport = async () => {
         try {
             setIsExportLoading(true)
@@ -236,22 +244,67 @@ const ObservabilityDashboard = ({}: Props) => {
     }
 
     const filterColumns = [
-        {column: "inputs", mapping: "data.inputs.topic"},
-        {column: "outputs", mapping: "data.outputs"},
-        {column: "status", mapping: "status.code"},
-        {column: "costs", mapping: "metrics.acc.costs.total"},
-        {column: "tokens", mapping: "metrics.acc.tokens.total"},
-        {column: "node_name", mapping: "node.name"},
-        {column: "node_type", mapping: "node.type"},
+        {value: "data", label: "data"},
+        {value: "status.code", label: "status.code"},
+        {value: "metrics.acc.costs.total", label: "metrics.acc.costs.total"},
+        {value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
+        {value: "node.name", label: "node.name"},
+        {value: "node.type", label: "node.type"},
     ]
 
-    const onFilterApply = (filter: Filter[]) => {}
+    const onSortApply = async ({
+        sortData,
+        customSortData,
+    }: {
+        sortData: SortTypes
+        customSortData?: any
+    }) => {
+        let time
+        let query: string
 
-    const onClearFilter = async (filter: Filter[]) => {}
+        if (sortData !== "custom" && sortData) {
+            const now = dayjs().utc() // Get the current UTC time
 
-    const onSortApply = (sortData: SortTypes) => {}
+            if (sortData === "all time") {
+                time = "1970-01-01T00:00:00"
+                query = `&earliest=${time}`
+                return
+            }
 
-    const onSearchQueryAppy = async () => {}
+            // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
+            const [amount, unit] = sortData.split(" ")
+
+            time = now
+                .subtract(parseInt(amount), unit as dayjs.ManipulateType)
+                .toISOString()
+                .split(".")[0]
+            query = `&earliest=${time}`
+        }
+
+        if (customSortData?.startTime && sortData == "custom") {
+            query = `earliest=${customSortData.startTime.toISOString().split(".")[0]}&latest=${customSortData.endTime.toISOString().split(".")[0]}`
+        }
+
+        try {
+            const fetchAllTraces = async () => {
+                const response = await axios.get(
+                    `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
+                )
+                return response.data
+            }
+
+            const data = await fetchAllTraces()
+
+            setTraces(
+                data.trees.flatMap((item: AgentaRootsResponse) =>
+                    // @ts-ignore
+                    observabilityTransformer(item),
+                ) as _AgentaRootsResponse[],
+            )
+        } catch (error) {
+            console.log(error)
+        }
+    }
 
     const handleToggleColumnVisibility = (key: string) => {
         setEditColumns((prev) =>
@@ -259,8 +312,121 @@ const ObservabilityDashboard = ({}: Props) => {
         )
     }
 
+    // without synchronization code - version 1
+    // ------------------------------------------------------------------------
+
+    // const onFilterApply = (filter: Filter[]) => {
+    //     try {
+    //         const query = `&filtering={"conditions": ${JSON.stringify(filter)}}`
+    //         console.log(query)
+    //     } catch (error) {}
+    // }
+
+    // const onClearFilter = async (filter: Filter[]) => {}
+
+    // const onSearchQueryAppy = async () => {
+    //     if (!searchQuery) return
+    //     try {
+    //         const query = `filtering={"conditions":[{"key":"data","value":"${searchQuery}","operator":"contains"}]}`
+
+    //         const fetchAllTraces = async () => {
+    //             const response = await axios.get(
+    //                 `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
+    //             )
+    //             return response.data
+    //         }
+
+    //         const data = await fetchAllTraces()
+    //         setTraces(
+    //             data.trees.flatMap((item: AgentaRootsResponse) =>
+    //                 // @ts-ignore
+    //                 observabilityTransformer(item),
+    //             ) as _AgentaRootsResponse[],
+    //         )
+    //     } catch (error) {
+    //         console.log(error)
+    //     }
+    // }
+
+    // const onTraceTabChange = async (e: RadioChangeEvent) => {
+    //     setTraceTabs(e.target.value)
+    //     try {
+    //         const tab = e.target.value
+    //         if (!tab) return
+    //         const query =
+    //             tab === "all"
+    //                 ? `&focus=tree`
+    //                 : `&focus=node&node_type=${tab == "llm" ? "CHAT" : "WORKFLOW"}`
+
+    //         const fetchAllTraces = async () => {
+    //             const response = await axios.get(
+    //                 `${getAgentaApiUrl()}/api/observability/v1/0192ba30-1a80-7093-8c99-456a914f829d/traces?focus=tree${query}`,
+    //             )
+    //             return response.data
+    //         }
+
+    //         const data = await fetchAllTraces()
+
+    //         // setTraces(data.nodes)
+    //     } catch (error) {
+    //         console.log(error)
+    //     }
+    // }
+
+    const lol = "dfdf"
+
+    // synchronization code - version 2
+    // -------------------------------------------------------------------------
+
+    // Update search filter based on search input change
+    const onSearchQueryApply = () => {
+        updateFilter("data", "contains", searchQuery)
+    }
+
+    // Update filters based on Radio button change
     const onTraceTabChange = (e: RadioChangeEvent) => {
-        setTraceTabs(e.target.value)
+        const selectedTab = e.target.value
+        setTraceTabs(selectedTab)
+
+        if (selectedTab == "all") {
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
+        } else {
+            updateFilter("node.type", "eq", selectedTab)
+        }
+    }
+
+    const updateFilter = (key: string, operator: FilterConditions, value: string) => {
+        setFilters((prevFilters) => {
+            const otherFilters = prevFilters.filter((f) => f.key !== key)
+            return value ? [...otherFilters, {key, operator, value}] : otherFilters
+        })
+    }
+
+    const onSearchClear = () => {
+        setSearchQuery("") // Clear the search query
+        setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data")) // Remove the filter for 'data'
+    }
+
+    // Sync searchQuery with filters state
+    useUpdateEffect(() => {
+        const dataFilter = filters.find((f) => f.key === "data")
+        setSearchQuery(dataFilter ? dataFilter.value : "")
+    }, [filters])
+
+    // Sync traceTabs with filters state
+    useUpdateEffect(() => {
+        const nodeTypeFilter = filters.find((f) => f.key === "node.type")
+        setTraceTabs(nodeTypeFilter ? nodeTypeFilter.value : "all")
+    }, [filters])
+
+    const onClearFilter = () => {
+        setFilters([])
+        setSearchQuery("")
+        setTraceTabs("all")
+    }
+
+    const onApplyFilter = (newFilters: Filter[]) => {
+        setFilters(newFilters)
     }
 
     return (
@@ -275,22 +441,24 @@ const ObservabilityDashboard = ({}: Props) => {
                                 placeholder="Search"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                onPressEnter={onSearchQueryAppy}
+                                onPressEnter={onSearchQueryApply}
+                                onSearch={onSearchClear}
                                 className="w-[320px]"
                                 allowClear
                             />
                             <Filters
+                                filterData={filters}
                                 columns={filterColumns}
-                                onApplyFilter={onFilterApply}
+                                onApplyFilter={onApplyFilter}
                                 onClearFilter={onClearFilter}
                             />
                             <Sort onSortApply={onSortApply} defaultSortValue="1 month" />
                         </Space>
                         <div className="w-full flex items-center justify-between">
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                <Radio.Button value="root calls">Root calls</Radio.Button>
-                                <Radio.Button value="generations">Generation</Radio.Button>
-                                <Radio.Button value="all runs">All runs</Radio.Button>
+                                <Radio.Button value="all">All</Radio.Button>
+                                <Radio.Button value="llm">LLM</Radio.Button>
+                                <Radio.Button value="workflows">Workflows</Radio.Button>
                             </Radio.Group>
                             <Space>
                                 <Button

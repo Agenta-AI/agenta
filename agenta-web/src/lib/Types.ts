@@ -664,23 +664,27 @@ export interface HumanEvaluationListTableDataType {
 }
 
 export type Filter = {
-    condition: FilterConditions
-    column: string
-    keyword: string
+    key: string
+    operator: FilterConditions
+    value: string
 }
 
 export type FilterConditions =
     | "contains"
-    | "does not contain"
-    | "starts with"
-    | "ends with"
+    | "matches"
+    | "like"
+    | "startswith"
+    | "endswith"
     | "exists"
-    | "does not exist"
-    | "="
-    | ">"
-    | "<"
-    | ">="
-    | "<="
+    | "not_exists"
+    | "eq"
+    | "neq"
+    | "gt"
+    | "lt"
+    | "gte"
+    | "lte"
+    | "between"
+    | "in"
     | ""
 
 export type SortTypes =
@@ -694,4 +698,5 @@ export type SortTypes =
     | "1 month"
     | "3 month"
     | "all time"
+    | "custom"
     | ""
