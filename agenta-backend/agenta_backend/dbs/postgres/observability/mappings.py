@@ -115,11 +115,7 @@ def map_span_dto_to_dbe(
             span_dto.status.model_dump(exclude_none=True) if span_dto.status else None
         ),
         # EXCEPTION
-        exception=(
-            span_dto.exception.model_dump(exclude_none=True)
-            if span_dto.exception
-            else None
-        ),
+        exception=(span_dto.exception.to_json() if span_dto.exception else None),
         # ATTRIBUTES
         data=dumps(span_dto.data),
         metrics=span_dto.metrics,

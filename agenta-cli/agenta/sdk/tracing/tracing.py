@@ -167,7 +167,7 @@ class Tracing(metaclass=Singleton):
                     # TYPE AND FORMAT CHECKING
                     if key.endswith(".id"):
                         try:
-                            refs[key] = UUID(refs[key]).hex
+                            refs[key] = str(UUID(refs[key]))
                         except:
                             refs[key] = None
 
