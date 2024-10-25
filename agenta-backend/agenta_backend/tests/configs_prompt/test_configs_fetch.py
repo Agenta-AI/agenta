@@ -22,8 +22,7 @@ async def test_configs_fetch_by_variant_ref(get_app_variant_revision_by_variant_
     variant_revision = await get_app_variant_revision_by_variant_id
     assert variant_revision is not None, "App variant revision not found."
 
-    response = await test_client.request(
-        method="GET",
+    response = await test_client.post(
         url="/api/variants/configs/fetch",
         json={
             "variant_ref": {
@@ -46,8 +45,7 @@ async def test_configs_fetch_by_environment_and_application_ref(get_app_by_name)
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
-    response = await test_client.request(
-        method="GET",
+    response = await test_client.post(
         url="/api/variants/configs/fetch",
         json={  # type: ignore
             "environment_ref": {"slug": "production", "version": 1, "id": None},
@@ -71,8 +69,7 @@ async def test_configs_fetch_by_environment_ref(
     get_environment_revision_by_environment_id,
 ):
     environment_revision = await get_environment_revision_by_environment_id
-    response = await test_client.request(
-        method="GET",
+    response = await test_client.post(
         url="/api/variants/configs/fetch",
         json={  # type: ignore
             "environment_ref": {
@@ -93,8 +90,7 @@ async def test_configs_fetch_by_environment_ref(
 
 @pytest.mark.asyncio
 async def test_configs_fetch_not_found():
-    response = await test_client.request(
-        method="GET",
+    response = await test_client.post(
         url="/api/variants/configs/fetch",
         params={  # type: ignore
             "variant_ref": {
