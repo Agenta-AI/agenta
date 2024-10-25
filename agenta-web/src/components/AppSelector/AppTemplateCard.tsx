@@ -1,79 +1,127 @@
-import {Button, Card, Tag, Typography} from "antd"
+import React from "react"
 import {createUseStyles} from "react-jss"
+import {JSSTheme} from "@/lib/Types"
+import {Button, Card, Typography} from "antd"
+import {ArrowRight} from "@phosphor-icons/react"
 
-type StylesProp = {
-    tag: string | undefined
-}
-
-const {Text} = Typography
-
-const useStyles = createUseStyles({
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
-        "& .ant-card-body": {
-            padding: "1rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-evenly",
-            flexDirection: "column",
-            position: "relative",
+        width: 392,
+        height: 268,
+        display: "flex",
+        cursor: "pointer",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        transition: "all 0.025s ease-in",
+        boxShadow: theme.boxShadowTertiary,
+        "& > .ant-card-head": {
+            minHeight: 0,
+            padding: theme.paddingSM,
+            "& .ant-card-head-title": {
+                fontSize: theme.fontSizeLG,
+                fontWeight: theme.fontWeightMedium,
+            },
+        },
+        "& > .ant-card-body": {
+            padding: theme.paddingSM,
+            flex: 1,
+        },
+        "& > .ant-card-actions": {
+            padding: "0 12px",
+        },
+        "&:hover": {
+            boxShadow: theme.boxShadow,
         },
     },
-    tag: {
-        position: "absolute",
-        right: 0,
-        top: 8,
-    },
-    text1: ({tag}: StylesProp) => ({
-        marginBottom: -4,
-        marginTop: tag ? 20 : 0,
-        fontSize: 15,
-    }),
-    link: {
-        textAlign: "center",
-    },
-    createBtn: {
+    button: {
         width: "100%",
+        display: "flex",
+        alignItems: "center",
+        "& > .ant-btn-icon": {
+            marginTop: 4,
+        },
     },
-})
+}))
 
 interface Props {
-    title: string
-    onClick: () => void
-    body: string
-    noTemplate: boolean
-    tag?: string
+    onWriteOwnApp: () => void
+    onCreateFromTemplate: () => void
 }
 
-const AppTemplateCard: React.FC<Props> = ({title, tag, onClick, body, noTemplate}) => {
-    const classes = useStyles({tag} as StylesProp)
-    return (
-        <Card className={classes.card} data-cy="app-template-card">
-            {tag && (
-                <Tag color="blue" className={classes.tag}>
-                    {tag}
-                </Tag>
-            )}
-            <Text strong className={classes.text1}>
-                {title}
-            </Text>
+const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate}) => {
+    const classes = useStyles()
 
-            {noTemplate ? (
-                <Text type="secondary" className={classes.link}>
-                    <p>
-                        {body} <a href="https://github.com/Agenta-AI/agenta/issues/new">here</a>.
-                    </p>
-                </Text>
-            ) : (
-                <div>
-                    <Text type="secondary">
-                        <p>{body}</p>
-                    </Text>
-                    <Button shape="round" onClick={onClick} className={classes.createBtn}>
-                        Create App
-                    </Button>
+    const templatePoints = [
+        "Experiment and compare prompts and models",
+        "Evaluate outputs in the web UI",
+        "Deploy and version prompts",
+        "Track all LLM calls",
+    ]
+    const complexLLM = [
+        "Experiment with RAG, or agent architectures in the web UI",
+        "Create custom playgrounds to debug and trace calls",
+        "Easily integrate your LLM app code into the platform",
+        "Evaluate workflows end-to-end in the web UI",
+    ]
+    return (
+        <section className="flex items-center gap-4">
+            <Card
+                title="Create a prompt"
+                className={classes.card}
+                onClick={onCreateFromTemplate}
+                data-cy="create-from-template"
+                actions={[
+                    <Button
+                        type="primary"
+                        key="template"
+                        className={classes.button}
+                        iconPosition="end"
+                        icon={<ArrowRight size={18} />}
+                        size="large"
+                    >
+                        Create a new prompt
+                    </Button>,
+                ]}
+            >
+                <div className="gap-2">
+                    <Typography.Text>Quickly create a prompt and:</Typography.Text>
+                    <ul className="-ml-5">
+                        {templatePoints.map((item) => (
+                            <li key={item}>{item}</li>
+                        ))}
+                    </ul>
                 </div>
-            )}
-        </Card>
+            </Card>
+
+            <Card
+                title="Build custom workflows"
+                className={classes.card}
+                onClick={onWriteOwnApp}
+                actions={[
+                    <Button
+                        type="primary"
+                        key="ownApp"
+                        className={classes.button}
+                        iconPosition="end"
+                        icon={<ArrowRight size={18} />}
+                        size="large"
+                    >
+                        Create your own app
+                    </Button>,
+                ]}
+            >
+                <div className="gap-2">
+                    <Typography.Text>
+                        Create your own complex application using any framework.
+                    </Typography.Text>
+                    <ul className="-ml-5">
+                        {complexLLM.map((item) => (
+                            <li key={item}>{item}</li>
+                        ))}
+                    </ul>
+                </div>
+            </Card>
+        </section>
     )
 }
 
