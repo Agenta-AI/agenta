@@ -1,4 +1,5 @@
 from typing import Optional, Any, Dict
+from enum import Enum
 
 from httpx import get as check
 
@@ -13,14 +14,15 @@ from opentelemetry.sdk.trace import Span, Tracer, TracerProvider
 from opentelemetry.sdk.resources import Resource
 
 from agenta.sdk.utils.singleton import Singleton
-from agenta.sdk.utils.exceptions import suppress  # USE IT !
+from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
 
 from agenta.sdk.tracing.processors import TraceProcessor
 from agenta.sdk.tracing.exporters import ConsoleExporter, InlineExporter, OTLPExporter
 from agenta.sdk.tracing.spans import CustomSpan
-from agenta.sdk.tracing.context import tracing_context
 from agenta.sdk.tracing.inline import parse_inline_trace
+
+from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 
 
 class Tracing(metaclass=Singleton):
@@ -74,7 +76,7 @@ class Tracing(metaclass=Singleton):
         if api_key:
             self.headers.update(**{"Authorization": self.api_key})
         # REFERENCES
-        self.references = {"application_id": app_id}
+        self.references = {"application.id": app_id}
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(
@@ -120,10 +122,13 @@ class Tracing(metaclass=Singleton):
     def get_current_span(
         self,
     ):
-        _span = get_current_span()
+        _span = None
 
-        if _span.is_recording():
-            return CustomSpan(_span)
+        with suppress():
+            _span = get_current_span()
+
+            if _span.is_recording():
+                return CustomSpan(_span)
 
         return _span
 
@@ -132,39 +137,89 @@ class Tracing(metaclass=Singleton):
         attributes: Dict[str, Any],
         span: Optional[Span] = None,
     ):
-        if span is None:
-            span = self.get_current_span()
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
 
-        span.set_attributes(attributes={"internals": attributes}, namespace="data")
+            span.set_attributes(attributes={"internals": attributes}, namespace="data")
+
+    def store_refs(
+        self,
+        refs: Dict[str, str],
+        span: Optional[Span] = None,
+    ):
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            for key in refs.keys():
+                if key in Reference:
+                    # ADD REFERENCE TO THIS SPAN
+                    span.set_attribute(
+                        key.value if isinstance(key, Enum) else key,
+                        refs[key],
+                        namespace="refs",
+                    )
+                    # AND TO ALL SPANS CREATED AFTER THIS ONE
+                    self.references[key] = refs[key]
+                    # TODO: THIS SHOULD BE REPLACED BY A TRACE CONTEXT !!!
+
+    def store_meta(
+        self,
+        meta: Dict[str, Any],
+        span: Optional[Span] = None,
+    ):
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            for key in meta.keys():
+                if is_valid_attribute_key(key):
+                    span.set_attribute(key, meta[key], namespace="meta")
+
+    def store_metrics(
+        self,
+        metrics: Dict[str, Any],
+        span: Optional[Span] = None,
+    ):
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            for key in metrics.keys():
+                if is_valid_attribute_key(key):
+                    span.set_attribute(key, metrics[key], namespace="metrics")
 
     def is_inline_trace_ready(
         self,
-        trace_id: int,
+        trace_id: Optional[int] = None,
     ) -> bool:
-        is_ready = self.inline.is_ready(trace_id)
+        is_ready = True
+
+        with suppress():
+            if trace_id is not None:
+                is_ready = self.inline.is_ready(trace_id)
 
         return is_ready
 
     def get_inline_trace(
         self,
-        trace_id: int,
+        trace_id: Optional[int] = None,
     ) -> Dict[str, Any]:
-        if trace_id is None:
-            return {}
+        _inline_trace = {}
 
-        is_ready = self.inline.is_ready(trace_id)
+        with suppress():
+            is_ready = self.inline.is_ready(trace_id)
 
-        if is_ready is False:
-            return {}
+            if is_ready is True:
+                otel_spans = self.inline.fetch(trace_id)
 
-        otel_spans = self.inline.fetch(trace_id)
+                if otel_spans:
+                    _inline_trace = parse_inline_trace(
+                        self.project_id or self.app_id, otel_spans
+                    )
 
-        if not otel_spans:
-            return {}
-
-        inline_trace = parse_inline_trace(self.project_id or self.app_id, otel_spans)
-
-        return inline_trace
+        return _inline_trace
 
 
 def get_tracer(tracing: Tracing) -> Tracer:
