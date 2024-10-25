@@ -590,7 +590,7 @@ async def configs_add(
     return config
 
 
-@router.get(
+@router.post(
     "/configs/fetch",
     operation_id="configs_fetch",
     response_model=ConfigResponseModel,
