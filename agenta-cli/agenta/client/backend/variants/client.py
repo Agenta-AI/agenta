@@ -16,7 +16,11 @@ from ..core.jsonable_encoder import jsonable_encoder
 from ..types.variant_action import VariantAction
 from ..types.docker_env_vars import DockerEnvVars
 from ..types.uri import Uri
+from ..core.serialization import convert_and_respect_annotation_metadata
 from ..types.app_variant_revision import AppVariantRevision
+from ..types.reference_request_model import ReferenceRequestModel
+from ..types.config_response_model import ConfigResponseModel
+from ..types.reference_dto import ReferenceDto
 from ..core.client_wrapper import AsyncClientWrapper
 
 # this is used as the default value for optional parameters
@@ -237,8 +241,12 @@ class VariantsClient:
             f"variants/{jsonable_encoder(variant_id)}",
             method="PUT",
             json={
-                "action": action,
-                "env_vars": env_vars,
+                "action": convert_and_respect_annotation_metadata(
+                    object_=action, annotation=VariantAction, direction="write"
+                ),
+                "env_vars": convert_and_respect_annotation_metadata(
+                    object_=env_vars, annotation=DockerEnvVars, direction="write"
+                ),
             },
             request_options=request_options,
             omit=OMIT,
@@ -698,6 +706,425 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def configs_add(
+        self,
+        *,
+        variant_ref: ReferenceRequestModel,
+        application_ref: ReferenceRequestModel,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : ReferenceRequestModel
+
+        application_ref : ReferenceRequestModel
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, ReferenceRequestModel
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_add(
+            variant_ref=ReferenceRequestModel(),
+            application_ref=ReferenceRequestModel(),
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/add",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def configs_fetch(
+        self,
+        *,
+        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        environment_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : typing.Optional[ReferenceRequestModel]
+
+        environment_ref : typing.Optional[ReferenceRequestModel]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_fetch()
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/fetch",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def configs_fork(
+        self,
+        *,
+        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        environment_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : typing.Optional[ReferenceRequestModel]
+
+        environment_ref : typing.Optional[ReferenceRequestModel]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_fork()
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/fork",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def configs_commit(
+        self,
+        *,
+        params: typing.Dict[str, typing.Optional[typing.Any]],
+        url: str,
+        application_ref: typing.Optional[ReferenceDto] = OMIT,
+        service_ref: typing.Optional[ReferenceDto] = OMIT,
+        variant_ref: typing.Optional[ReferenceDto] = OMIT,
+        environment_ref: typing.Optional[ReferenceDto] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        params : typing.Dict[str, typing.Optional[typing.Any]]
+
+        url : str
+
+        application_ref : typing.Optional[ReferenceDto]
+
+        service_ref : typing.Optional[ReferenceDto]
+
+        variant_ref : typing.Optional[ReferenceDto]
+
+        environment_ref : typing.Optional[ReferenceDto]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_commit(
+            params={"key": "value"},
+            url="url",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/commit",
+            method="POST",
+            json={
+                "params": params,
+                "url": url,
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref, annotation=ReferenceDto, direction="write"
+                ),
+                "service_ref": convert_and_respect_annotation_metadata(
+                    object_=service_ref, annotation=ReferenceDto, direction="write"
+                ),
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref, annotation=ReferenceDto, direction="write"
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref, annotation=ReferenceDto, direction="write"
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def configs_deploy(
+        self,
+        *,
+        variant_ref: ReferenceRequestModel,
+        environment_ref: ReferenceRequestModel,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : ReferenceRequestModel
+
+        environment_ref : ReferenceRequestModel
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, ReferenceRequestModel
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_deploy(
+            variant_ref=ReferenceRequestModel(),
+            environment_ref=ReferenceRequestModel(),
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/deploy",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
 
 class AsyncVariantsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -937,8 +1364,12 @@ class AsyncVariantsClient:
             f"variants/{jsonable_encoder(variant_id)}",
             method="PUT",
             json={
-                "action": action,
-                "env_vars": env_vars,
+                "action": convert_and_respect_annotation_metadata(
+                    object_=action, annotation=VariantAction, direction="write"
+                ),
+                "env_vars": convert_and_respect_annotation_metadata(
+                    object_=env_vars, annotation=DockerEnvVars, direction="write"
+                ),
             },
             request_options=request_options,
             omit=OMIT,
@@ -1428,6 +1859,465 @@ class AsyncVariantsClient:
                     AppVariantRevision,
                     parse_obj_as(
                         type_=AppVariantRevision,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_add(
+        self,
+        *,
+        variant_ref: ReferenceRequestModel,
+        application_ref: ReferenceRequestModel,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : ReferenceRequestModel
+
+        application_ref : ReferenceRequestModel
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, ReferenceRequestModel
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.configs_add(
+                variant_ref=ReferenceRequestModel(),
+                application_ref=ReferenceRequestModel(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/add",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_fetch(
+        self,
+        *,
+        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        environment_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : typing.Optional[ReferenceRequestModel]
+
+        environment_ref : typing.Optional[ReferenceRequestModel]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.configs_fetch()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/fetch",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_fork(
+        self,
+        *,
+        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        environment_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : typing.Optional[ReferenceRequestModel]
+
+        environment_ref : typing.Optional[ReferenceRequestModel]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.configs_fork()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/fork",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_commit(
+        self,
+        *,
+        params: typing.Dict[str, typing.Optional[typing.Any]],
+        url: str,
+        application_ref: typing.Optional[ReferenceDto] = OMIT,
+        service_ref: typing.Optional[ReferenceDto] = OMIT,
+        variant_ref: typing.Optional[ReferenceDto] = OMIT,
+        environment_ref: typing.Optional[ReferenceDto] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        params : typing.Dict[str, typing.Optional[typing.Any]]
+
+        url : str
+
+        application_ref : typing.Optional[ReferenceDto]
+
+        service_ref : typing.Optional[ReferenceDto]
+
+        variant_ref : typing.Optional[ReferenceDto]
+
+        environment_ref : typing.Optional[ReferenceDto]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.configs_commit(
+                params={"key": "value"},
+                url="url",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/commit",
+            method="POST",
+            json={
+                "params": params,
+                "url": url,
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref, annotation=ReferenceDto, direction="write"
+                ),
+                "service_ref": convert_and_respect_annotation_metadata(
+                    object_=service_ref, annotation=ReferenceDto, direction="write"
+                ),
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref, annotation=ReferenceDto, direction="write"
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref, annotation=ReferenceDto, direction="write"
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_deploy(
+        self,
+        *,
+        variant_ref: ReferenceRequestModel,
+        environment_ref: ReferenceRequestModel,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : ReferenceRequestModel
+
+        environment_ref : ReferenceRequestModel
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, ReferenceRequestModel
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.configs_deploy(
+                variant_ref=ReferenceRequestModel(),
+                environment_ref=ReferenceRequestModel(),
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/deploy",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "environment_ref": convert_and_respect_annotation_metadata(
+                    object_=environment_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
                         object_=_response.json(),
                     ),
                 )

@@ -14,6 +14,7 @@ from ..core.pydantic_utilities import update_forward_refs
 class Span(UniversalBaseModel):
     id: str
     name: str
+    project_id: typing.Optional[str] = None
     parent_span_id: typing.Optional[str] = None
     created_at: dt.datetime
     variant: SpanVariant
