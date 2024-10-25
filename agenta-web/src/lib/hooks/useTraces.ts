@@ -7,15 +7,18 @@ import {
 } from "@/services/observability/types"
 import {useEffect, useState} from "react"
 import {buildNodeTree, observabilityTransformer} from "../helpers/observability_helpers"
+import {useRouter} from "next/router"
 
 export const useTraces = () => {
     const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
     const [isLoadingTraces, setIsLoadingTraces] = useState(true)
+    const router = useRouter()
+    const projectId = router.query.project_id
 
     const fetchTraces = async () => {
         try {
             setIsLoadingTraces(true)
-            const data = await fetchAllTraces()
+            const data = await fetchAllTraces(projectId as string)
 
             const transformedTraces: _AgentaRootsResponse[] = []
 
