@@ -67,7 +67,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
-    const {node, time, metrics, status} = value
+    const {node, metrics, status} = value
     const classes = useStyles()
 
     return (
@@ -88,7 +88,7 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />
-                        {formatLatency(time.span / 1000000)}
+                        {formatLatency(metrics?.acc?.duration.total)}
                     </div>
 
                     {metrics?.acc?.costs?.total && (
