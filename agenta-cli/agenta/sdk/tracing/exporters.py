@@ -1,13 +1,11 @@
 from typing import Sequence, Dict, List
 
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
     SpanExporter,
     SpanExportResult,
     ReadableSpan,
-)
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,
 )
 
 from agenta.sdk.utils.exceptions import suppress
@@ -40,7 +38,10 @@ class InlineTraceExporter(SpanExporter):
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         return True
 
-    def fetch(self, trace_id: int) -> List[ReadableSpan]:
+    def fetch(
+        self,
+        trace_id: int,
+    ) -> List[ReadableSpan]:
         trace = self._registry.get(trace_id, [])
 
         del self._registry[trace_id]
@@ -49,7 +50,6 @@ class InlineTraceExporter(SpanExporter):
 
 
 OTLPSpanExporter._MAX_RETRY_TIMEOUT = 2
-
 
 ConsoleExporter = ConsoleSpanExporter
 InlineExporter = InlineTraceExporter
