@@ -1,5 +1,6 @@
 from typing import Optional, Any, Dict
 from enum import Enum
+from uuid import UUID
 
 from httpx import get as check
 
@@ -76,7 +77,7 @@ class Tracing(metaclass=Singleton):
         if api_key:
             self.headers.update(**{"Authorization": self.api_key})
         # REFERENCES
-        self.references = {"application.id": app_id}
+        self.references = ["application.id"] = app_id
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(
@@ -154,12 +155,22 @@ class Tracing(metaclass=Singleton):
 
             for key in refs.keys():
                 if key in Reference:
+                    # TYPE AND FORMAT CHECKING
+                    if key.endswith(".id"):
+                        try:
+                            refs[key] = UUID(refs[key]).hex
+                        except:
+                            refs[key]  = None
+
+                    refs[key] = str(refs[key])
+
                     # ADD REFERENCE TO THIS SPAN
                     span.set_attribute(
                         key.value if isinstance(key, Enum) else key,
                         refs[key],
                         namespace="refs",
                     )
+                    
                     # AND TO ALL SPANS CREATED AFTER THIS ONE
                     self.references[key] = refs[key]
                     # TODO: THIS SHOULD BE REPLACED BY A TRACE CONTEXT !!!

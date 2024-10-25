@@ -369,6 +369,15 @@ def _parse_from_attributes(
     for key in _refs.keys():
         del otel_span_dto.attributes[_encode_key("refs", key)]
 
+    for key in _refs.keys():
+        if key.endswith(".id"):
+            try:
+                _refs[key] = UUID(_refs[key]).hex
+            except:
+                _refs[key] = None
+
+        _refs[key] = str(_refs[key])
+
     _refs = _refs if _refs else None
 
     if len(otel_span_dto.attributes.keys()) < 1:
