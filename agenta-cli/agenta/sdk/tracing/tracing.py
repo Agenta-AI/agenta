@@ -1,5 +1,8 @@
 from typing import Optional, Any, Dict
 from enum import Enum
+from uuid import UUID
+
+# from traceback import format_exc
 
 from httpx import get as check
 
@@ -16,12 +19,10 @@ from opentelemetry.sdk.resources import Resource
 from agenta.sdk.utils.singleton import Singleton
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
-
 from agenta.sdk.tracing.processors import TraceProcessor
-from agenta.sdk.tracing.exporters import ConsoleExporter, InlineExporter, OTLPExporter
+from agenta.sdk.tracing.exporters import InlineExporter, OTLPExporter
 from agenta.sdk.tracing.spans import CustomSpan
 from agenta.sdk.tracing.inline import parse_inline_trace
-
 from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 
 
@@ -59,7 +60,7 @@ class Tracing(metaclass=Singleton):
         self,
         project_id: Optional[str] = None,
         api_key: Optional[str] = None,
-        #
+        # DEPRECATING
         app_id: Optional[str] = None,
     ):
         # AUTHENTICATION (OTLP)
@@ -75,53 +76,59 @@ class Tracing(metaclass=Singleton):
             self.headers.update(**{"AG-APP-ID": app_id})
         if api_key:
             self.headers.update(**{"Authorization": self.api_key})
+
         # REFERENCES
-        self.references = {"application.id": app_id}
+        self.references["application.id"] = app_id
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(
             resource=Resource(attributes={"service.name": "agenta-sdk"})
         )
-        # TRACE PROCESSORS -- CONSOLE
-        # _console = TraceProcessor(
-        #    ConsoleExporter(),
-        #    references=self.references,
-        # )
-        # self.tracer_provider.add_span_processor(_console)
         # TRACE PROCESSORS -- INLINE
         self.inline = TraceProcessor(
-            InlineExporter(registry=self.inline_spans),
+            InlineExporter(
+                registry=self.inline_spans,
+            ),
             references=self.references,
         )
         self.tracer_provider.add_span_processor(self.inline)
         # TRACE PROCESSORS -- OTLP
         try:
-            log.info(f"Connecting to the remote trace receiver at {self.otlp_url}...")
+            log.info("--------------------------------------------")
+            log.info(f"Agenta SDK - connecting to otlp receiver at: {self.otlp_url}")
+            log.info("--------------------------------------------")
 
-            check(self.otlp_url, headers=self.headers, timeout=1)
-
-            log.info(f"Connection established.")
+            check(
+                self.otlp_url,
+                headers=self.headers,
+                timeout=1,
+            )
 
             _otlp = TraceProcessor(
-                OTLPExporter(endpoint=self.otlp_url, headers=self.headers),
+                OTLPExporter(
+                    endpoint=self.otlp_url,
+                    headers=self.headers,
+                ),
                 references=self.references,
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-        except Exception as e:
-            log.error(e)
-            log.warning(f"Connection failed.")
-            log.warning(
-                f"Warning: Your traces will not be exported since {self.otlp_url} is unreachable."
-            )
+
+            log.info(f"Success: traces will be exported.")
+            log.info("--------------------------------------------")
+
+        except:
+            # log.warning(format_exc().strip("\n"))
+            # log.warning("--------------------------------------------")
+            log.warning(f"Failure: traces will not be exported.")
+            log.warning("--------------------------------------------")
+
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)
         # TRACER
         self.tracer: Tracer = self.tracer_provider.get_tracer("agenta.tracer")
 
-    def get_current_span(
-        self,
-    ):
+    def get_current_span(self):
         _span = None
 
         with suppress():
@@ -141,7 +148,10 @@ class Tracing(metaclass=Singleton):
             if span is None:
                 span = self.get_current_span()
 
-            span.set_attributes(attributes={"internals": attributes}, namespace="data")
+            span.set_attributes(
+                attributes={"internals": attributes},
+                namespace="data",
+            )
 
     def store_refs(
         self,
@@ -154,12 +164,22 @@ class Tracing(metaclass=Singleton):
 
             for key in refs.keys():
                 if key in Reference:
+                    # TYPE AND FORMAT CHECKING
+                    if key.endswith(".id"):
+                        try:
+                            refs[key] = str(UUID(refs[key]))
+                        except:
+                            refs[key] = None
+
+                    refs[key] = str(refs[key])
+
                     # ADD REFERENCE TO THIS SPAN
                     span.set_attribute(
                         key.value if isinstance(key, Enum) else key,
                         refs[key],
                         namespace="refs",
                     )
+
                     # AND TO ALL SPANS CREATED AFTER THIS ONE
                     self.references[key] = refs[key]
                     # TODO: THIS SHOULD BE REPLACED BY A TRACE CONTEXT !!!
@@ -175,7 +195,11 @@ class Tracing(metaclass=Singleton):
 
             for key in meta.keys():
                 if is_valid_attribute_key(key):
-                    span.set_attribute(key, meta[key], namespace="meta")
+                    span.set_attribute(
+                        key,
+                        meta[key],
+                        namespace="meta",
+                    )
 
     def store_metrics(
         self,
@@ -188,7 +212,11 @@ class Tracing(metaclass=Singleton):
 
             for key in metrics.keys():
                 if is_valid_attribute_key(key):
-                    span.set_attribute(key, metrics[key], namespace="metrics")
+                    span.set_attribute(
+                        key,
+                        metrics[key],
+                        namespace="metrics",
+                    )
 
     def is_inline_trace_ready(
         self,

@@ -1,6 +1,7 @@
-from typing import List, Dict
+from typing import List
+from pydantic import BaseModel
 
-from agenta_backend.apis.fastapi.shared.models import DisplayBase, VersionedModel
+from agenta_backend.apis.fastapi.shared.models import VersionedModel
 
 from agenta_backend.core.observability.dtos import (
     OTelSpanDTO,
@@ -23,28 +24,28 @@ class AgentaNodeDTO(SpanDTO):
     pass
 
 
-class AgentaNodesDTO(DisplayBase):
+class AgentaNodesDTO(BaseModel):
     nodes: List[AgentaNodeDTO]
 
 
-class AgentaTreeDTO(DisplayBase):
+class AgentaTreeDTO(BaseModel):
     tree: TreeDTO
 
     nodes: List[AgentaNodeDTO]
 
 
-class AgentaTreesDTO(DisplayBase):
-    trees: List[AgentaTreeDTO]  # -> Dict with tree.name ?
+class AgentaTreesDTO(BaseModel):
+    trees: List[AgentaTreeDTO]
 
 
-class AgentaRootDTO(DisplayBase):
+class AgentaRootDTO(BaseModel):
     root: RootDTO
 
-    trees: List[AgentaTreeDTO]  # -> Dict with tree.name ?
+    trees: List[AgentaTreeDTO]
 
 
-class AgentaRootsDTO(DisplayBase):
-    roots: List[AgentaRootDTO]  # -> Dict with root.name ? root.id ?
+class AgentaRootsDTO(BaseModel):
+    roots: List[AgentaRootDTO]
 
 
 class AgentaNodesResponse(VersionedModel, AgentaNodesDTO):

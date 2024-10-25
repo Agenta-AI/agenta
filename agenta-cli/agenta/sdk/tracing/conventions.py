@@ -1,14 +1,7 @@
-from opentelemetry.trace import SpanKind
-
 from enum import Enum
-
 from re import fullmatch
 
-_PATTERN = r"[A-Za-z0-9._-]+"
-
-
-def is_valid_attribute_key(string):
-    return bool(fullmatch(_PATTERN, string))
+from opentelemetry.trace import SpanKind
 
 
 class Reference(str, Enum):
@@ -24,6 +17,15 @@ class Reference(str, Enum):
     APPLICATION_ID = "application.id"
     APPLICATION_SLUG = "application.slug"
     #
+
+
+_PATTERN = r"[A-Za-z0-9._-]+"
+
+
+def is_valid_attribute_key(
+    string: str,
+):
+    return bool(fullmatch(_PATTERN, string))
 
 
 def parse_span_kind(type: str) -> SpanKind:
