@@ -1,16 +1,17 @@
-import json
-import inspect
-import argparse
-import asyncio
-import traceback
-import functools
+from typing import Type, Any, Callable, Dict, Optional, Tuple, List
+from annotated_types import Ge, Le, Gt, Lt
+from pydantic import BaseModel, HttpUrl, ValidationError
+from json import dumps
+from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
+from argparse import ArgumentParser
+from functools import wraps
+from asyncio import sleep, get_event_loop
+from traceback import format_exc, format_exception
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Optional, Tuple, List
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
-
-import agenta as ag
 
 from agenta.sdk.context.routing import routing_context_manager, routing_context
 from agenta.sdk.context.tracing import tracing_context
@@ -31,16 +32,8 @@ from agenta.sdk.types import (
     BaseResponse,
     BinaryParam,
 )
-import pydantic
 
-from pydantic import BaseModel
-from typing import Type
-from annotated_types import Ge, Le, Gt, Lt
-
-from pydantic import BaseModel, HttpUrl
-
-from traceback import format_exc
-
+import agenta as ag
 
 app = FastAPI()
 
@@ -130,12 +123,12 @@ class entrypoint:
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
-        func_signature = inspect.signature(func)
+        func_signature = signature(func)
         try:
             config = (
                 config_schema() if config_schema else None
             )  # we initialize the config object to be able to use it
-        except pydantic.ValidationError as e:
+        except ValidationError as e:
             raise ValueError(
                 f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
             ) from e
@@ -150,7 +143,7 @@ class entrypoint:
         self.route_path = route_path
 
         ### --- Playground  --- #
-        @functools.wraps(func)
+        @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
             self.ingest_files(func_params, ingestible_files)
@@ -212,8 +205,8 @@ class entrypoint:
         )
         ### ---------------------------- #
 
-        ### --- Deployed / Published --- #
-        @functools.wraps(func)
+        ### --- Deployed --- #
+        @wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
                 k: v for k, v in kwargs.items() if k not in ["config", "environment"]
@@ -252,7 +245,7 @@ class entrypoint:
 
         route_deployed = f"{RUN_PATH}{route_path}"
         app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
-        ### ---------------------------- #
+        ### ---------------- #
 
         ### --- Update OpenAPI --- #
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
@@ -283,8 +276,8 @@ class entrypoint:
 
     def extract_ingestible_files(
         self,
-        func_signature: inspect.Signature,
-    ) -> Dict[str, inspect.Parameter]:
+        func_signature: Signature,
+    ) -> Dict[str, Parameter]:
         """Extract parameters annotated as InFile from function signature."""
 
         return {
@@ -311,13 +304,72 @@ class entrypoint:
     def ingest_files(
         self,
         func_params: Dict[str, Any],
-        ingestible_files: Dict[str, inspect.Parameter],
+        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Ingest files specified in function parameters."""
 
         for name in ingestible_files:
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
+
+    async def execute_function(
+        self,
+        func: Callable[..., Any],
+        inline_trace,
+        *args,
+        **func_params,
+    ):
+        log.info(f"---------------------------")
+        log.info(f"Agenta SDK - running route: {repr(self.route_path or '/')}")
+        log.info(f"---------------------------")
+
+        tracing_context.set(routing_context.get())
+
+        try:
+            result = (
+                await func(*args, **func_params["params"])
+                if iscoroutinefunction(func)
+                else func(*args, **func_params["params"])
+            )
+
+            return await self.handle_success(result, inline_trace)
+
+        except Exception as error:
+            self.handle_failure(error)
+
+    async def handle_success(self, result: Any, inline_trace: bool):
+        data = None
+        trace = dict()
+
+        with suppress():
+            data = self.patch_result(result)
+
+            if inline_trace:
+                trace = await self.fetch_inline_trace(inline_trace)
+
+        log.info(f"----------------------------------")
+        log.info(f"Agenta SDK - exiting with success: 200")
+        log.info(f"----------------------------------")
+
+        return BaseResponse(data=data, trace=trace)
+
+    def handle_failure(self, error: Exception):
+        log.error("--------------------------------------------------")
+        log.error("Agenta SDK - handling application exception below:")
+        log.error("--------------------------------------------------")
+        log.error(format_exc().strip("\n"))
+        log.error("--------------------------------------------------")
+
+        status_code = error.status_code if hasattr(error, "status_code") else 500
+        message = str(error)
+        stacktrace = format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+        detail = {"message": message, "stacktrace": stacktrace}
+
+        log.error(f"----------------------------------")
+        log.error(f"Agenta SDK - exiting with failure: {status_code}")
+        log.error(f"----------------------------------")
+
+        raise HTTPException(status_code=status_code, detail=detail)
 
     def patch_result(self, result: Any):
         """
@@ -356,92 +408,39 @@ class entrypoint:
 
         return data
 
-    async def execute_function(
-        self,
-        func: Callable[..., Any],
-        inline_trace,
-        *args,
-        **func_params,
-    ):
-        log.info(f"---------------------------")
-        log.info(
-            f"Agenta SDK - running route: {repr(self.route_path if self.route_path != '' else '/')}"
-        )
-        log.info(f"---------------------------")
-
-        tracing_context.set(routing_context.get())
-
+    async def fetch_inline_trace(self, inline_trace):
         WAIT_FOR_SPANS = True
         TIMEOUT = 1
         TIMESTEP = 0.1
         FINALSTEP = 0.001
         NOFSTEPS = TIMEOUT / TIMESTEP
 
-        data = None
-        trace = {}
+        trace = None
 
-        try:
-            result = (
-                await func(*args, **func_params["params"])
-                if inspect.iscoroutinefunction(func)
-                else func(*args, **func_params["params"])
-            )
-            data = self.patch_result(result)
-        except Exception as e:
-            log.error("--------------------------------------------------")
-            log.error("Agenta SDK - handling application exception below:")
-            log.error("--------------------------------------------------")
-            log.error(format_exc().strip("\n"))
-            log.error("--------------------------------------------------")
+        root_context: Dict[str, Any] = tracing_context.get().get("root")
 
-            self.handle_exception(e)
+        trace_id = root_context.get("trace_id") if root_context else None
 
-        with suppress():
-            root_context: Dict[str, Any] = tracing_context.get().get("root")
+        if trace_id is not None:
+            if inline_trace:
+                if WAIT_FOR_SPANS:
+                    remaining_steps = NOFSTEPS
 
-            trace_id = root_context.get("trace_id") if root_context else None
+                    while (
+                        not ag.tracing.is_inline_trace_ready(trace_id)
+                        and remaining_steps > 0
+                    ):
+                        await sleep(TIMESTEP)
 
-            if trace_id is not None:
-                if inline_trace:
-                    if WAIT_FOR_SPANS:
-                        remaining_steps = NOFSTEPS
+                        remaining_steps -= 1
 
-                        while (
-                            not ag.tracing.is_inline_trace_ready(trace_id)
-                            and remaining_steps > 0
-                        ):
-                            await asyncio.sleep(TIMESTEP)
+                    await sleep(FINALSTEP)
 
-                            remaining_steps -= 1
+                trace = ag.tracing.get_inline_trace(trace_id)
+            else:
+                trace = {"trace_id": trace_id}
 
-                        await asyncio.sleep(FINALSTEP)
-
-                    trace = ag.tracing.get_inline_trace(trace_id)
-                else:
-                    trace = {"trace_id": trace_id}
-
-        response = BaseResponse(data=data, trace=trace)
-
-        log.info(f"----------------------------------")
-        log.info(f"Agenta SDK - exiting successfully: 200")
-        log.info(f"----------------------------------")
-
-        return response
-
-    def handle_exception(self, e: Exception):
-        status_code = e.status_code if hasattr(e, "status_code") else 500
-        message = str(e)
-        stacktrace = traceback.format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
-        detail = {"message": message, "stacktrace": stacktrace}
-
-        log.error(f"----------------------------------------")
-        log.error(f"Agenta SDK - exiting with HTTPException: {status_code}")
-        log.error(f"----------------------------------------")
-
-        raise HTTPException(
-            status_code=status_code,
-            detail=detail,
-        )
+        return trace
 
     def update_wrapper_signature(
         self, wrapper: Callable[..., Any], updated_params: List
@@ -451,25 +450,25 @@ class entrypoint:
 
         Args:
             wrapper (callable): A callable object, such as a function or a method, that requires a signature update.
-            updated_params (List[inspect.Parameter]): A list of `inspect.Parameter` objects representing the updated parameters
+            updated_params (List[Parameter]): A list of `Parameter` objects representing the updated parameters
                 for the wrapper function.
         """
 
-        wrapper_signature = inspect.signature(wrapper)
+        wrapper_signature = signature(wrapper)
         wrapper_signature = wrapper_signature.replace(parameters=updated_params)
         wrapper.__signature__ = wrapper_signature  # type: ignore
 
     def update_function_signature(
         self,
         wrapper: Callable[..., Any],
-        func_signature: inspect.Signature,
+        func_signature: Signature,
         config_class: Type[BaseModel],  # TODO: change to our type
         config_dict: Dict[str, Any],
-        ingestible_files: Dict[str, inspect.Parameter],
+        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
-        updated_params: List[inspect.Parameter] = []
+        updated_params: List[Parameter] = []
         if config_class:
             self.add_config_params_to_parser(updated_params, config_class)
         else:
@@ -480,21 +479,21 @@ class entrypoint:
     def update_deployed_function_signature(
         self,
         wrapper: Callable[..., Any],
-        func_signature: inspect.Signature,
-        ingestible_files: Dict[str, inspect.Parameter],
+        func_signature: Signature,
+        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
-        updated_params: List[inspect.Parameter] = []
+        updated_params: List[Parameter] = []
         self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
         for param in [
             "config",
             "environment",
         ]:  # we add the config and environment parameters
             updated_params.append(
-                inspect.Parameter(
+                Parameter(
                     name=param,
-                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    kind=Parameter.KEYWORD_ONLY,
                     default=Body(None),
                     annotation=str,
                 )
@@ -508,9 +507,9 @@ class entrypoint:
         for name, field in config_class.__fields__.items():
             assert field.default is not None, f"Field {name} has no default value"
             updated_params.append(
-                inspect.Parameter(
+                Parameter(
                     name=name,
-                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    kind=Parameter.KEYWORD_ONLY,
                     annotation=field.annotation.__name__,
                     default=Body(field.default),
                 )
@@ -525,9 +524,9 @@ class entrypoint:
                 len(param.__class__.__bases__) == 1
             ), f"Inherited standard type of {param.__class__} needs to be one."
             updated_params.append(
-                inspect.Parameter(
+                Parameter(
                     name=name,
-                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    kind=Parameter.KEYWORD_ONLY,
                     default=Body(param),
                     annotation=param.__class__.__bases__[
                         0
@@ -540,23 +539,23 @@ class entrypoint:
     def add_func_params_to_parser(
         self,
         updated_params: list,
-        func_signature: inspect.Signature,
-        ingestible_files: Dict[str, inspect.Parameter],
+        func_signature: Signature,
+        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Add function parameters to function signature."""
         for name, param in func_signature.parameters.items():
             if name in ingestible_files:
                 updated_params.append(
-                    inspect.Parameter(name, param.kind, annotation=UploadFile)
+                    Parameter(name, param.kind, annotation=UploadFile)
                 )
             else:
                 assert (
                     len(param.default.__class__.__bases__) == 1
                 ), f"Inherited standard type of {param.default.__class__} needs to be one."
                 updated_params.append(
-                    inspect.Parameter(
+                    Parameter(
                         name,
-                        inspect.Parameter.KEYWORD_ONLY,
+                        Parameter.KEYWORD_ONLY,
                         default=Body(..., embed=True),
                         annotation=param.default.__class__.__bases__[
                             0
@@ -585,7 +584,7 @@ class entrypoint:
     def handle_terminal_run(
         self,
         func: Callable,
-        func_params: Dict[str, inspect.Parameter],
+        func_params: Dict[str, Parameter],
         config_params: Dict[str, Any],
         ingestible_files: Dict,
     ):
@@ -599,7 +598,7 @@ class entrypoint:
         """
 
         # For required parameters, we add them as arguments
-        parser = argparse.ArgumentParser()
+        parser = ArgumentParser()
         for name, param in func_params.items():
             if name in ingestible_files:
                 parser.add_argument(name, type=str)
@@ -644,7 +643,7 @@ class entrypoint:
             }
         )
 
-        loop = asyncio.get_event_loop()
+        loop = get_event_loop()
 
         with routing_context_manager(
             config=args_config_params,
@@ -674,13 +673,13 @@ class entrypoint:
             if SHOW_DATA:
                 log.info(" ")
                 log.info(f"data:")
-                log.info(json.dumps(result.data, indent=2))
+                log.info(dumps(result.data, indent=2))
 
             if SHOW_TRACE:
                 log.info(" ")
                 log.info(f"trace:")
                 log.info(f"----------------")
-                log.info(json.dumps(result.trace.get("spans", []), indent=2))
+                log.info(dumps(result.trace.get("spans", []), indent=2))
                 log.info(f"----------------")
 
             log.info("\n==========================\n")
@@ -890,10 +889,7 @@ class entrypoint:
                 subschema["maximum"] = param_val.maxval  # type: ignore
                 subschema["default"] = param_val
 
-            elif (
-                isinstance(param_val, inspect.Parameter)
-                and param_val.annotation is DictInput
-            ):
+            elif isinstance(param_val, Parameter) and param_val.annotation is DictInput:
                 subschema = find_in_schema(
                     param_val.annotation.__schema_type_properties__(),
                     schema_to_override,
@@ -912,7 +908,7 @@ class entrypoint:
                 subschema["default"] = param_val
 
             elif (
-                isinstance(param_val, inspect.Parameter)
+                isinstance(param_val, Parameter)
                 and param_val.annotation is MessagesInput
             ):
                 subschema = find_in_schema(
@@ -924,7 +920,7 @@ class entrypoint:
                 subschema["default"] = param_val.default
 
             elif (
-                isinstance(param_val, inspect.Parameter)
+                isinstance(param_val, Parameter)
                 and param_val.annotation is FileInputURL
             ):
                 subschema = find_in_schema(
@@ -948,6 +944,6 @@ class entrypoint:
                     "title": str(param_name).capitalize(),
                     "type": get_type_from_param(param_val),
                 }
-                if param_val.default != inspect._empty:
+                if param_val.default != _empty:
                     subschema["default"] = param_val.default  # type: ignore
                 schema_to_override[param_name] = subschema
