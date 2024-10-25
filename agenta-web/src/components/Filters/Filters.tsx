@@ -3,6 +3,7 @@ import {Filter, JSSTheme} from "@/lib/Types"
 import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
+import {useUpdateEffect} from "usehooks-ts"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
@@ -28,31 +29,53 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Props = {
-    columns: {column: string; mapping: string}[]
+    filterData?: Filter[]
+    setFilterData?: React.Dispatch<React.SetStateAction<Filter[]>>
+    columns: {value: string; label: string}[]
     onApplyFilter: (filters: Filter[]) => void
     onClearFilter: (filters: Filter[]) => void
 }
 
-const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
+const Filters: React.FC<Props> = ({
+    filterData,
+    setFilterData,
+    columns,
+    onApplyFilter,
+    onClearFilter,
+}) => {
     const classes = useStyles()
-    const emptyFilter = [{condition: "", column: "", keyword: ""}] as Filter[]
+    const emptyFilter = [{key: "", operator: "", value: ""}] as Filter[]
 
     const [filter, setFilter] = useState<Filter[]>(emptyFilter)
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
-    const conditions = [
-        "contains",
-        "does not contain",
-        "starts with",
-        "ends with",
-        "exists",
-        "does not exist",
-        "=",
-        ">",
-        "<",
-        ">=",
-        "<=",
+    useUpdateEffect(() => {
+        if (filterData && filterData.length > 0) {
+            setFilter(filterData)
+        } else {
+            setFilter(emptyFilter)
+        }
+    }, [filterData])
+
+    const operators = [
+        {value: "contains", lable: "contains"},
+        {value: "matches", lable: "matches"},
+        {value: "like", lable: "like"},
+        {value: "startswith", lable: "startswith"},
+        {value: "endswith", lable: "endswith"},
+        {value: "exists", lable: "exists"},
+        {value: "not_exists", lable: "not exists"},
+        {value: "eq", lable: "="},
+        {value: "neq", lable: "!="},
+        {value: "gt", lable: ">"},
+        {value: "lt", lable: "<"},
+        {value: "gte", lable: ">="},
+        {value: "lte", lable: "<="},
     ]
+
+    const filteredOptions = columns.filter(
+        (col) => !filter.some((item, i) => item.key === col.value),
+    )
 
     const onFilterChange = ({
         columnName,
@@ -73,7 +96,7 @@ const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
     }
 
     const addNestedFilter = () => {
-        setFilter([...filter, {column: "", condition: "", keyword: ""}])
+        setFilter([...filter, {key: "", operator: "", value: ""}])
     }
 
     const clearFilter = () => {
@@ -82,9 +105,7 @@ const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
     }
 
     const applyFilter = () => {
-        const sanitizedFilters = filter.filter(
-            ({column, condition, keyword}) => column && condition && keyword,
-        )
+        const sanitizedFilters = filter.filter(({key, operator}) => key && operator)
 
         onApplyFilter(sanitizedFilters)
         setIsFilterOpen(false)
@@ -116,52 +137,58 @@ const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
                     <div className={classes.filterContainer}>
                         {filter.map((item, idx) => (
                             <Space key={idx}>
-                                <p className={`!w-[70px] text-end`}>{idx == 0 ? "Where" : "And"}</p>
+                                <p className={`w-[60px] text-end`}>{idx == 0 ? "Where" : "And"}</p>
 
                                 <Select
+                                    showSearch
                                     labelRender={(label) => (!label.value ? "Column" : label.label)}
-                                    style={{width: 88}}
-                                    popupMatchSelectWidth={120}
+                                    style={{width: 100}}
+                                    popupMatchSelectWidth={150}
                                     suffixIcon={<CaretDown size={14} />}
                                     onChange={(value) =>
-                                        onFilterChange({columnName: "column", value, idx})
+                                        onFilterChange({columnName: "key", value, idx})
                                     }
-                                    value={item.column}
-                                    options={columns.map((col) => ({
-                                        value: col.mapping,
-                                        label: col.column,
+                                    filterOption={(input, option) =>
+                                        (option?.label ?? "")
+                                            .toLowerCase()
+                                            .includes(input.toLowerCase())
+                                    }
+                                    value={item.key}
+                                    options={filteredOptions.map((col) => ({
+                                        value: col.value,
+                                        label: col.label,
                                     }))}
                                 />
-                                {item.column && (
+                                {item.key && (
                                     <>
                                         <Select
                                             labelRender={(label) =>
-                                                !label.value ? "Condition" : label.value
+                                                !label.value ? "Condition" : label.label
                                             }
                                             style={{width: 95}}
                                             suffixIcon={<CaretDown size={14} />}
                                             onChange={(value) =>
                                                 onFilterChange({
-                                                    columnName: "condition",
+                                                    columnName: "operator",
                                                     value,
                                                     idx,
                                                 })
                                             }
-                                            popupMatchSelectWidth={250}
-                                            value={item.condition}
-                                            options={conditions.map((con) => ({
-                                                value: con,
-                                                label: con,
+                                            popupMatchSelectWidth={100}
+                                            value={item.operator}
+                                            options={operators.map((operator) => ({
+                                                value: operator.value,
+                                                label: operator.lable,
                                             }))}
                                         />
 
                                         <Input
                                             placeholder="Keyword"
-                                            className="w-[275px]"
-                                            value={item.keyword}
+                                            className="w-[270px]"
+                                            value={item.value}
                                             onChange={(e) =>
                                                 onFilterChange({
-                                                    columnName: "keyword",
+                                                    columnName: "value",
                                                     value: e.target.value,
                                                     idx,
                                                 })
@@ -191,7 +218,7 @@ const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
                     </div>
 
                     <div className="flex items-center justify-end mt-2">
-                        <Button type="primary" disabled={!filter[0]?.keyword} onClick={applyFilter}>
+                        <Button type="primary" disabled={!filter[0]?.value} onClick={applyFilter}>
                             Apply
                         </Button>
                     </div>
@@ -203,7 +230,7 @@ const Filters: React.FC<Props> = ({columns, onApplyFilter, onClearFilter}) => {
                 onClick={() => setIsFilterOpen(true)}
                 className="flex items-center gap-2"
             >
-                Filters {filter[0]?.keyword && <X size={14} />}
+                Filters {filter[0]?.value && <X size={14} />}
             </Button>
         </Popover>
     )
