@@ -8,7 +8,10 @@ from agenta.sdk.tracing.attributes import serialize
 
 
 class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
-    def __init__(self, span: Span) -> None:
+    def __init__(
+        self,
+        span: Span,
+    ) -> None:
         super().__init__(  # INHERITANCE FOR TYPING ONLY
             name=span.name,
             context=span.context,
@@ -38,7 +41,10 @@ class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
     def is_recording(self) -> bool:
         return self._span.is_recording()
 
-    def update_name(self, name: str) -> None:
+    def update_name(
+        self,
+        name: str,
+    ) -> None:
         self._span.update_name(name)
 
     def set_status(
@@ -46,7 +52,10 @@ class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
         status: Union[Status, StatusCode],
         description: Optional[str] = None,
     ) -> None:
-        self._span.set_status(status=status, description=description)
+        self._span.set_status(
+            status=status,
+            description=description,
+        )
 
     def end(self) -> None:
         self._span.end()
@@ -73,7 +82,10 @@ class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
         value: Any,
         namespace: Optional[str] = None,
     ) -> None:
-        self.set_attributes({key: value}, namespace)
+        self.set_attributes(
+            attributes={key: value},
+            namespace=namespace,
+        )
 
     def add_event(
         self,

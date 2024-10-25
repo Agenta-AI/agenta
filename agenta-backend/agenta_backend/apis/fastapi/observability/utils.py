@@ -33,11 +33,11 @@ from agenta_backend.core.observability.dtos import (
     QueryDTO,
 )
 
+
 # --- PARSE QUERY DTO ---
 
 
 def _parse_windowing(
-    *,
     earliest: Optional[str] = None,
     latest: Optional[str] = None,
 ) -> Optional[WindowingDTO]:
@@ -50,7 +50,6 @@ def _parse_windowing(
 
 
 def _parse_filtering(
-    *,
     filtering: Optional[str] = None,
 ) -> Optional[FilteringDTO]:
     # Parse JSON filtering
@@ -70,7 +69,6 @@ def _parse_filtering(
 
 
 def _parse_grouping(
-    *,
     focus: Optional[str] = None,
 ) -> Optional[GroupingDTO]:
     _grouping = None
@@ -82,7 +80,6 @@ def _parse_grouping(
 
 
 def _parse_pagination(
-    *,
     page: Optional[int] = None,
     size: Optional[int] = None,
 ) -> Optional[PaginationDTO]:
@@ -209,7 +206,9 @@ def _decode_key(
     return key.replace(f"ag.{namespace}.", "")
 
 
-def _encode_value(value: Any) -> Optional[Any]:
+def _encode_value(
+    value: Any,
+) -> Optional[Any]:
     if value is None:
         return None
 
@@ -368,6 +367,15 @@ def _parse_from_attributes(
 
     for key in _refs.keys():
         del otel_span_dto.attributes[_encode_key("refs", key)]
+
+    for key in _refs.keys():
+        if key.endswith(".id"):
+            try:
+                _refs[key] = str(UUID(_refs[key]))
+            except:
+                _refs[key] = None
+
+        _refs[key] = str(_refs[key])
 
     _refs = _refs if _refs else None
 

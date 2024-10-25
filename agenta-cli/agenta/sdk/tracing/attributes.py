@@ -93,14 +93,19 @@ def _marshal(
     return marshalled
 
 
-def _encode_key(namespace: Optional[str] = None, key: str = "") -> str:
+def _encode_key(
+    namespace: Optional[str] = None,
+    key: str = "",
+) -> str:
     if namespace is None:
         return key
 
     return f"ag.{namespace}.{key}"
 
 
-def _encode_value(value: Any) -> Optional[Attribute]:
+def _encode_value(
+    value: Any,
+) -> Optional[Attribute]:
     if value is None:
         return None
 

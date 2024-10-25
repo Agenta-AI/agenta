@@ -1,5 +1,4 @@
 from typing import Optional, Dict
-from traceback import format_exc
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span
@@ -7,7 +6,6 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     ReadableSpan,
     BatchSpanProcessor,
-    _DEFAULT_EXPORT_TIMEOUT_MILLIS,
     _DEFAULT_MAX_QUEUE_SIZE,
 )
 
@@ -38,7 +36,11 @@ class TraceProcessor(BatchSpanProcessor):
         self._exporter = span_exporter
         self.references = references or dict()
 
-    def on_start(self, span: Span, parent_context: Optional[Context] = None) -> None:
+    def on_start(
+        self,
+        span: Span,
+        parent_context: Optional[Context] = None,
+    ) -> None:
         # ADD LINKS FROM CONTEXT, HERE
 
         for key in self.references.keys():
@@ -49,7 +51,10 @@ class TraceProcessor(BatchSpanProcessor):
 
         self._registry[span.context.trace_id][span.context.span_id] = True
 
-    def on_end(self, span: ReadableSpan):
+    def on_end(
+        self,
+        span: ReadableSpan,
+    ):
         super().on_end(span)
 
         del self._registry[span.context.trace_id][span.context.span_id]
@@ -57,7 +62,10 @@ class TraceProcessor(BatchSpanProcessor):
         if self.is_ready(span.get_span_context().trace_id):
             self.force_flush()
 
-    def force_flush(self, timeout_millis: int = None) -> bool:
+    def force_flush(
+        self,
+        timeout_millis: int = None,
+    ) -> bool:
         ret = super().force_flush(timeout_millis)
 
         if not ret:
@@ -65,12 +73,18 @@ class TraceProcessor(BatchSpanProcessor):
             log.error("Agenta SDK - skipping export due to timeout.")
             log.error("--------------------------------------------")
 
-    def is_ready(self, trace_id: Optional[int] = None) -> bool:
+    def is_ready(
+        self,
+        trace_id: Optional[int] = None,
+    ) -> bool:
         is_ready = not len(self._registry.get(trace_id, {}))
 
         return is_ready
 
-    def fetch(self, trace_id: Optional[int] = None) -> Dict[str, ReadableSpan]:
+    def fetch(
+        self,
+        trace_id: Optional[int] = None,
+    ) -> Dict[str, ReadableSpan]:
         trace = self._exporter.fetch(trace_id)  # type: ignore
 
         return trace
