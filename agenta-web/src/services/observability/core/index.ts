@@ -1,6 +1,6 @@
-import {delay} from "@/lib/helpers/utils"
-import data from "@/lib/test_trace.json"
-import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "../types"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {_AgentaRootsResponse} from "../types"
+import axios from "@/lib/helpers/axiosConfig"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -9,44 +9,11 @@ import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "../types"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const observabilityTransformer = (
-    item: AgentaTreeDTO | AgentaNodeDTO,
-): _AgentaRootsResponse[] => {
-    const buildData = (node: AgentaNodeDTO) => {
-        const key = node.node.id
-        const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
-
-        return {
-            ...node,
-            key,
-            ...(hasChildren ? {children: observabilityTransformer(node)} : undefined),
-        }
-    }
-
-    if (item.nodes) {
-        return Object.entries(item.nodes)
-            .flatMap(([_, value]) => {
-                if (Array.isArray(value)) {
-                    return value.map((item, index) =>
-                        buildData({
-                            ...item,
-                            node: {...item.node, name: `${item.node.name}[${index}]`},
-                        }),
-                    )
-                } else {
-                    return buildData(value)
-                }
-            })
-            .filter((node): node is _AgentaRootsResponse => node !== null && node !== undefined)
-    }
-
-    return []
-}
+const PROJECT_ID = "019233b0-2967-76c0-bde2-f5b78b3a9a04"
 
 export const fetchAllTraces = async () => {
-    await delay(1000)
-    return data.roots.flatMap((item) =>
-        // @ts-ignore
-        observabilityTransformer(item.trees[0]),
-    ) as _AgentaRootsResponse[]
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=${PROJECT_ID}&focus=node`,
+    )
+    return response.data
 }
