@@ -13,7 +13,7 @@ const PROJECT_ID = "019233b0-2967-76c0-bde2-f5b78b3a9a04"
 
 export const fetchAllTraces = async () => {
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=${PROJECT_ID}&focus=node`,
+        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=${PROJECT_ID}`,
     )
     return response.data
 }
