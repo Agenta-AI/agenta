@@ -31,8 +31,7 @@ interface TreeContextDTO {
     type?: NodeTreeType | null
 }
 export interface AgentaNodeDTO {
-    scope: ProjectScopeDTO
-    lifecycle: NodeLifecycleDTO
+    lifecycle?: NodeLifecycleDTO | null
     time: NodeTimeDTO
     status: NodeStatusDTO
     exception?: NodeExceptionDTO | null
@@ -46,15 +45,13 @@ export interface AgentaNodeDTO {
     parent?: ParentContextDTO | null
     links?: NodeLinkDTO[] | null
     otel?: NodeOTelExtraDTO | null
-    tags?: NodeTags | null
     nodes?: Record<string, AgentaNodeDTO | AgentaNodeDTO[]> | null
 }
 
 type NodeData = Record<string, any>
 type NodeMetrics = Record<string, any>
 type NodeMetadata = Record<string, any>
-type NodeTags = Record<string, string>
-type NodeRefs = Record<string, string>
+type NodeRefs = Record<string, any>
 type NodeLinkDTO = {
     type: string
     id: string
@@ -85,9 +82,6 @@ type NodeOTelLinkDTO = {
         span_id: string
     }
     attributes?: Record<string, any> | null
-}
-interface ProjectScopeDTO {
-    project_id: string
 }
 
 interface NodeLifecycleDTO {
@@ -128,7 +122,6 @@ interface ParentContextDTO {
 interface NodeTimeDTO {
     start: string
     end: string
-    span: number
 }
 
 export interface NodeStatusDTO {

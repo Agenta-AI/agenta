@@ -222,8 +222,11 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Typography.Text>
 
                         <Space>
-                            {!parent && (
-                                <Button className="flex items-center">
+                            {!activeTrace.parent && activeTrace.refs?.application.id && (
+                                <Button
+                                    className="flex items-center"
+                                    href={`/apps/${activeTrace.refs.application.id}/playground`}
+                                >
                                     <Rocket size={14} />
                                     Open in playground
                                 </Button>
@@ -254,7 +257,8 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     <ResultTag
                         value1={
                             <>
-                                <Timer size={14} /> {formatLatency(activeTrace.time.span / 1000000)}
+                                <Timer size={14} />{" "}
+                                {formatLatency(activeTrace?.metrics?.acc?.duration.total)}
                             </>
                         }
                     />
