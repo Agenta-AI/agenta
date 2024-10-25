@@ -300,6 +300,8 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
             .filter_by(id=uuid.UUID(base_uuid))
         )
         base = result.scalars().first()
+        if base is None:
+            raise NoResultFound(f"Base with id {base_id} not found")
         return base
 
 

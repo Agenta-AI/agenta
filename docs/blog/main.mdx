@@ -8,6 +8,25 @@ import Image from "@theme/IdealImage";
 ```
 
 <section class="changelog">
+
+### New Application Management View and Various Improvements
+
+_22 October 2024_
+
+**v0.26.0**
+
+We updated the **Application Management View** to improve the UI. Many users struggled to find their applications when they had a large number, so we've improved the view and added a search bar for quick filtering.
+Additionally, we are moving towards a new project structure for the application. We moved test sets and evaluators outside of the application scope. So now, you can use the same test set and evaluators in multiple applications.
+
+**Bug Fixes**
+
+- Added an export button in the evaluation view to export results from the main view.
+- Eliminated Pydantic warnings in the CLI.
+- Improved error messages when `fetch_config` is called with wrong arguments.
+- Enhanced the custom code evaluation sandbox and removed the limitation that results need to be between 0 and 1
+
+---
+
 ### Evaluator Testing Playground and a New Evaluation View
 
 _22 September 2024_
@@ -34,10 +53,10 @@ _22 August 2024_
 **v0.24.0**
 
 <div>
- <Image 
-   img={require("/images/changelog/new_ui.png")}
-   alt="Button for exporting evaluation results"
-   style={{ width: "80%", maxWidth: "800px" }}
+  <Image
+    img={require("/images/changelog/new_ui.png")}
+    alt="Button for exporting evaluation results"
+    style={{ width: "80%", maxWidth: "800px" }}
   />
 </div>
 
@@ -117,7 +136,7 @@ We're excited to announce two major features this week:
 {" "}
 
 <div>
-  <Image 
+  <Image
     img={require("/images/changelog/rag_faithfulness.png")}
     alt="Button for exporting evaluation results"
     style={{ width: "80%", maxWidth: "800px" }}
@@ -127,11 +146,11 @@ We're excited to announce two major features this week:
 2. You can now **view traces directly in the playground**. This feature enables you to debug your application while configuring it—for example, by examining the prompts sent to the LLM or reviewing intermediate outputs.
 
    <div>
-     <Image 
-       img={require("/images/changelog/trace_in_playground.png")} 
+     <Image
+       img={require("/images/changelog/trace_in_playground.png")}
        alt="Button for exporting evaluation results"
        style={{ width: "80%", maxWidth: "800px" }}
-      />
+     />
    </div>
 
 :::note
@@ -230,7 +249,9 @@ _24 May 2024_
 **v0.14.1-13**
 
 - We've improved the workflow for adding outputs to a dataset in the playground. In the past, you had to select the name of the test set each time. Now, the last used test set is selected by default..
-  <Image img={require("/images/changelog/default-selected-testset_video.gif")} />
+  <Image
+    img={require("/images/changelog/default-selected-testset_video.gif")}
+  />
 - We have significantly improved the debugging experience when creating applications from code. Now, if an application fails, you can view the logs to understand the reason behind the failure.
 - We moved the copy message button in the playground to the output text area.
 - We now hide the cost and usage in the playground when they aren't specified
@@ -265,7 +286,9 @@ You can find additional documentation [here](/prompt-management/integration/how-
 **Improvements**
 
 - Previously, publishing a variant from the playground to an environment was a manual process., from now on we are publishing by default to the production environment.
-  <Image img={require("/images/changelog/publish_to_production_by_default_screenshot.png")} />
+  <Image
+    img={require("/images/changelog/publish_to_production_by_default_screenshot.png")}
+  />
 
 ---
 
@@ -455,8 +478,14 @@ You now have access to a history of prompts deployed to our three environments. 
 
 You can now invite team members and assign them fine-grained roles in agenta.
 
-<Image className="dark:hidden" img={require("/images/changelog/rbac_light.png")} />
-<Image className="hidden dark:block" img={require("/images/changelog/rbac_dark.png")} />
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/rbac_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/rbac_dark.png")}
+/>
 
 **Improvements**
 
