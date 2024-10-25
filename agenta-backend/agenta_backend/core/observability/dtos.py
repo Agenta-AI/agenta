@@ -1,17 +1,17 @@
-from typing import List, Dict, Any, Union, Optional, Sequence
+from pydantic import BaseModel
 
+from typing import List, Dict, Any, Union, Optional
 from enum import Enum
-from datetime import datetime, time
+from datetime import datetime
 from uuid import UUID
 
-from agenta_backend.core.shared.dtos import DisplayBase
 from agenta_backend.core.shared.dtos import LifecycleDTO
 
 
 ## --- SUB-ENTITIES --- ##
 
 
-class RootDTO(DisplayBase):
+class RootDTO(BaseModel):
     id: UUID
 
 
@@ -21,7 +21,7 @@ class TreeType(Enum):
     # --- VARIANTS --- #
 
 
-class TreeDTO(DisplayBase):
+class TreeDTO(BaseModel):
     id: UUID
     type: Optional[TreeType] = None
 
@@ -44,17 +44,17 @@ class NodeType(Enum):
     # --- VARIANTS --- #
 
 
-class NodeDTO(DisplayBase):
+class NodeDTO(BaseModel):
     id: UUID
     name: str
     type: Optional[NodeType] = None
 
 
-class ParentDTO(DisplayBase):
+class ParentDTO(BaseModel):
     id: UUID
 
 
-class TimeDTO(DisplayBase):
+class TimeDTO(BaseModel):
     start: datetime
     end: datetime
 
@@ -65,7 +65,7 @@ class StatusCode(Enum):
     ERROR = "ERROR"
 
 
-class StatusDTO(DisplayBase):
+class StatusDTO(BaseModel):
     code: StatusCode
     message: Optional[str] = None
 
@@ -76,7 +76,7 @@ class StatusDTO(DisplayBase):
 Attributes = Dict[str, Any]
 
 
-class ExceptionDTO(DisplayBase):
+class ExceptionDTO(BaseModel):
     timestamp: datetime
     type: str
     message: Optional[str] = None
@@ -93,7 +93,7 @@ Metadata = Dict[str, Any]
 Refs = Dict[str, Any]
 
 
-class LinkDTO(DisplayBase):
+class LinkDTO(BaseModel):
     type: TreeType  # Yes, this is correct
     id: UUID
     tree_id: Optional[UUID] = None
@@ -120,25 +120,25 @@ class OTelStatusCode(Enum):
     STATUS_CODE_UNSET = "STATUS_CODE_UNSET"
 
 
-class OTelContextDTO(DisplayBase):
+class OTelContextDTO(BaseModel):
     trace_id: str
     span_id: str
 
 
-class OTelEventDTO(DisplayBase):
+class OTelEventDTO(BaseModel):
     name: str
     timestamp: str
 
     attributes: Optional[Attributes] = None
 
 
-class OTelLinkDTO(DisplayBase):
+class OTelLinkDTO(BaseModel):
     context: OTelContextDTO
 
     attributes: Optional[Attributes] = None
 
 
-class OTelExtraDTO(DisplayBase):
+class OTelExtraDTO(BaseModel):
     kind: Optional[str] = None
 
     attributes: Optional[Attributes] = None
@@ -149,7 +149,7 @@ class OTelExtraDTO(DisplayBase):
 ## --- ENTITIES --- ##
 
 
-class SpanDTO(DisplayBase):
+class SpanDTO(BaseModel):
     lifecycle: Optional[LifecycleDTO] = None
 
     root: RootDTO
@@ -175,7 +175,7 @@ class SpanDTO(DisplayBase):
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
 
 
-class OTelSpanDTO(DisplayBase):
+class OTelSpanDTO(BaseModel):
     context: OTelContextDTO
 
     name: str
@@ -197,7 +197,7 @@ class OTelSpanDTO(DisplayBase):
 ## --- QUERY --- ##
 
 
-class WindowingDTO(DisplayBase):
+class WindowingDTO(BaseModel):
     earliest: Optional[datetime] = None
     latest: Optional[datetime] = None
 
@@ -240,12 +240,12 @@ class ExistenceOperator(Enum):
     NOT_EXISTS = "not_exists"
 
 
-class TextOptionsDTO(DisplayBase):
+class TextOptionsDTO(BaseModel):
     case_sensitive: Optional[bool] = False
     exact_match: Optional[bool] = False
 
 
-class ConditionDTO(DisplayBase):
+class ConditionDTO(BaseModel):
     # column/field in a[.b[.c]] format
     # where a is the column name, and
     # b[.c] is the optional, and optionally nested, field name
@@ -266,7 +266,7 @@ class ConditionDTO(DisplayBase):
     options: Optional[TextOptionsDTO] = None
 
 
-class FilteringDTO(DisplayBase):
+class FilteringDTO(BaseModel):
     operator: Optional[LogicalOperator] = LogicalOperator.AND
 
     conditions: List[Union[ConditionDTO, "FilteringDTO"]]
@@ -281,17 +281,16 @@ class Focus(Enum):
     NODE = "node"  # SPAN
 
 
-class GroupingDTO(DisplayBase):
+class GroupingDTO(BaseModel):
     focus: Focus = "node"
-    # SET TO ROOT ? TO TREE ? TO NODE ?
 
 
-class PaginationDTO(DisplayBase):
+class PaginationDTO(BaseModel):
     page: int
     size: int
 
 
-class QueryDTO(DisplayBase):
+class QueryDTO(BaseModel):
     grouping: Optional[GroupingDTO] = None
     windowing: Optional[WindowingDTO] = None
     filtering: Optional[FilteringDTO] = None
