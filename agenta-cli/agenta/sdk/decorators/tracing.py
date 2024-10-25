@@ -15,15 +15,16 @@ class instrument:
 
     def __init__(
         self,
-        kind: str = "task",
+        type: str = "task",
         config: Optional[Dict[str, Any]] = None,
         ignore_inputs: Optional[bool] = None,
         ignore_outputs: Optional[bool] = None,
         max_depth: Optional[int] = 2,
         # DEPRECATING
+        kind: str = "task",
         spankind: Optional[str] = "TASK",
     ) -> None:
-        self.type = spankind if spankind is not None else kind
+        self.type = spankind or kind or type
         self.kind = None
         self.config = config
         self.ignore_inputs = ignore_inputs
@@ -43,7 +44,7 @@ class instrument:
 
                     result = await func(*args, **kwargs)
 
-                    self._post_instrument(self, result)
+                    self._post_instrument(result)
 
                     return result
 
@@ -59,7 +60,7 @@ class instrument:
 
                     result = func(*args, **kwargs)
 
-                    self._post_instrument(self, result)
+                    self._post_instrument(result)
 
                     return result
 
@@ -83,7 +84,7 @@ class instrument:
 
         with suppress():
             span.set_attributes(
-                attributes={"node": self.kind},
+                attributes={"node": self.type},
                 namespace="type",
             )
 

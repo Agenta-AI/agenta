@@ -362,7 +362,7 @@ class entrypoint:
 
         status_code = error.status_code if hasattr(error, "status_code") else 500
         message = str(error)
-        stacktrace = format_exception(e, value=e, tb=e.__traceback__)  # type: ignore
+        stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
 
         log.error(f"----------------------------------")

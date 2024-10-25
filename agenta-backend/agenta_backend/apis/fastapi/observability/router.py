@@ -62,6 +62,22 @@ class ObservabilityRouter:
             "/traces/search",
             self.query_traces,
             methods=["GET"],
+            operation_id="query_traces_deprecated",
+            summary="Query traces, with optional grouping, filtering, (sorting,) and pagination.",
+            status_code=status.HTTP_200_OK,
+            response_model=Union[
+                OTelSpansResponse,
+                AgentaNodesResponse,
+                AgentaTreesResponse,
+                AgentaRootsResponse,
+            ],
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/traces/query",
+            self.query_traces,
+            methods=["POST"],
             operation_id="query_traces",
             summary="Query traces, with optional grouping, filtering, (sorting,) and pagination.",
             status_code=status.HTTP_200_OK,
@@ -126,6 +142,7 @@ class ObservabilityRouter:
 
         spans = []
 
+        # format = opentelemetry -> focus = node
         if format == "opentelemetry":
             spans = [parse_to_otel_span_dto(span_dto) for span_dto in span_dtos]
 
@@ -134,42 +151,45 @@ class ObservabilityRouter:
                 spans=spans,
             )
 
+        # format = agenta
         elif format == "agenta":
             spans = [parse_to_agenta_span_dto(span_dto) for span_dto in span_dtos]
 
-            if query_dto.grouping:
-                if query_dto.grouping.focus.value in ["tree", "root"]:
-                    _nodes_by_tree: Dict[str, List[AgentaNodeDTO]] = dict()
-                    _types_by_tree: Dict[str, str] = dict()
+            # focus = tree | root
+            if query_dto.grouping and query_dto.grouping.focus.value != "node":
+                _nodes_by_tree: Dict[str, List[AgentaNodeDTO]] = dict()
+                _types_by_tree: Dict[str, str] = dict()
 
-                    for span in spans:
-                        if span.tree.id not in _nodes_by_tree:
-                            _nodes_by_tree[span.tree.id] = list()
-                            _types_by_tree[span.tree.id] = None
+                for span in spans:
+                    if span.tree.id not in _nodes_by_tree:
+                        _nodes_by_tree[span.tree.id] = list()
+                        _types_by_tree[span.tree.id] = None
 
-                        _nodes_by_tree[span.tree.id].append(
-                            AgentaNodeDTO(**span.model_dump())
-                        )
-                        _types_by_tree[span.tree.id] = span.tree.type
+                    _nodes_by_tree[span.tree.id].append(
+                        AgentaNodeDTO(**span.model_dump())
+                    )
+                    _types_by_tree[span.tree.id] = span.tree.type
 
-                    if query_dto.grouping.focus.value == "tree":
-                        return AgentaTreesResponse(
-                            version=self.VERSION,
-                            trees=[
-                                AgentaTreeDTO(
-                                    tree=TreeDTO(
-                                        id=tree_id,
-                                        type=_types_by_tree[tree_id],
-                                    ),
-                                    nodes=[
-                                        AgentaNodeDTO(**span.model_dump())
-                                        for span in nodes
-                                    ],
-                                )
-                                for tree_id, nodes in _nodes_by_tree.items()
-                            ],
-                        )
+                # focus = tree
+                if query_dto.grouping.focus.value == "tree":
+                    return AgentaTreesResponse(
+                        version=self.VERSION,
+                        trees=[
+                            AgentaTreeDTO(
+                                tree=TreeDTO(
+                                    id=tree_id,
+                                    type=_types_by_tree[tree_id],
+                                ),
+                                nodes=[
+                                    AgentaNodeDTO(**span.model_dump()) for span in nodes
+                                ],
+                            )
+                            for tree_id, nodes in _nodes_by_tree.items()
+                        ],
+                    )
 
+                # focus = root
+                else:
                     _nodes_by_root: Dict[str, List[AgentaTreeDTO]] = dict()
                     _types_by_root: Dict[str, str] = dict()
 
@@ -202,6 +222,7 @@ class ObservabilityRouter:
                         ],
                     )
 
+            # focus = node
             return AgentaNodesResponse(
                 version=self.VERSION,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
@@ -220,10 +241,19 @@ class ObservabilityRouter:
 
         otlp_stream = await request.body()
 
+        # TODO: GET project_id FROM request.state
         project_id = request.headers.get("AG-PROJECT-ID") or request.state.project_id
+
+        # TODO: DROP app_id ONCE LEGACY IS DROPPED
         app_id = request.headers.get("AG-APP-ID")
 
         ### LEGACY ###
+        # TODO: DROP LEGACY
+        project_id = project_id or app_id
+        ### LEGACY ###
+
+        ### LEGACY ###
+        # TODO: DROP LEGACY
         if self.legacy_receiver:
             await self.legacy_receiver(
                 project_id=project_id,
@@ -238,7 +268,7 @@ class ObservabilityRouter:
         ]
 
         await self.service.ingest(
-            project_id=UUID(project_id or app_id),
+            project_id=UUID(project_id),
             span_dtos=span_dtos,
         )
 

@@ -1,6 +1,5 @@
 from uuid import UUID
-
-from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
+from json import dumps, loads
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
 from agenta_backend.core.observability.dtos import (
@@ -16,7 +15,7 @@ from agenta_backend.core.observability.dtos import (
     SpanDTO,
 )
 
-from json import dumps, loads
+from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
 
 
 def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
