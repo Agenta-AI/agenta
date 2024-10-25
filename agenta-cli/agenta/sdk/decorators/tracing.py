@@ -2,7 +2,7 @@ import inspect
 import traceback
 from functools import wraps
 from itertools import chain
-from typing import Callable, Optional, Any, Dict, List
+from typing import Callable, Optional, Any, Dict, List, Union
 
 import agenta as ag
 
@@ -47,7 +47,7 @@ class instrument:
             return inputs
 
         def redact(
-            io: Dict[str, Any], ignore: List[str] | bool = False
+            io: Dict[str, Any], ignore: Union[List[str], bool] = False
         ) -> Dict[str, Any]:
             """
             Redact user-defined sensitive information from inputs and outputs as defined by the ignore list or boolean flag.
