@@ -131,7 +131,7 @@ services:
         command: >
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
             - REDIS_URL=redis://redis:6379/0
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - ENVIRONMENT=${ENVIRONMENT}
