@@ -5,6 +5,7 @@ from typing import Annotated
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from openai import OpenAI
 import asyncio
+
 ag.init()
 
 
@@ -25,6 +26,7 @@ class MyConfig(BaseModel):
         default="a"
     )
 
+
 @ag.instrument(spankind="WORKFLOW")
 async def openai_workflow(topic: str, genre: str):
     functions = [
@@ -36,15 +38,15 @@ async def openai_workflow(topic: str, genre: str):
                 "properties": {
                     "topic": {
                         "type": "string",
-                        "description": "The topic of the story"
+                        "description": "The topic of the story",
                     },
                     "genre": {
                         "type": "string",
-                        "description": "The genre of the story"
-                    }
+                        "description": "The genre of the story",
+                    },
                 },
-                "required": ["topic", "genre"]
-            }
+                "required": ["topic", "genre"],
+            },
         }
     ]
 
@@ -54,10 +56,11 @@ async def openai_workflow(topic: str, genre: str):
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": f"Write a short {genre} story about {topic}."},
         ],
-        functions=functions
+        functions=functions,
     )
 
     return response.choices[0].message.content
+
 
 if __name__ == "__main__":
     asyncio.run(openai_workflow(topic="df", genre="d"))

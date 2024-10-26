@@ -4,6 +4,7 @@ import instructor
 from pydantic import BaseModel
 
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+
 ag.init()
 OpenAIInstrumentor().instrument()
 
@@ -12,6 +13,7 @@ OpenAIInstrumentor().instrument()
 class UserInfo(BaseModel):
     name: str
     age: int
+
 
 @ag.instrument(spankind="WORKFLOW")
 def instructor_workflow():
@@ -25,5 +27,6 @@ def instructor_workflow():
         messages=[{"role": "user", "content": "John Doe is 30 years old."}],
     )
     return user_info
+
 
 user_info = instructor_workflow()
