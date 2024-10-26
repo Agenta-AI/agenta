@@ -6,8 +6,7 @@ from openinference.instrumentation.langchain import LangChainInstrumentor
 
 import agenta as ag
 
-ag.init(
-)
+ag.init()
 
 LangChainInstrumentor().instrument()
 

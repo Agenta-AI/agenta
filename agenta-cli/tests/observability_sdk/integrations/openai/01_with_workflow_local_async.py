@@ -5,6 +5,7 @@ from typing import Annotated
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 from openai import OpenAI
 import asyncio
+
 ag.init()
 
 
@@ -37,6 +38,7 @@ async def openai_workflow(topic: str, genre: str):
     )
 
     return response.choices[0].message.content
+
 
 if __name__ == "__main__":
     asyncio.run(openai_workflow(topic="df", genre="d"))

@@ -6,8 +6,7 @@ from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 
 import agenta as ag
 
-ag.init(
-)
+ag.init()
 
 LangchainInstrumentor().instrument()
 

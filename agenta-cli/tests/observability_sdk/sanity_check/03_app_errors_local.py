@@ -14,7 +14,6 @@ ag.config.default(
 )
 
 
-
 # Pydantic models
 class InputData(BaseModel):
     text: str
@@ -167,8 +166,6 @@ async def exception_func():
     return "dummy"
 
 
-
-
 @ag.instrument(spankind="WORKFLOW")
 async def errors(topic: str, genre: str, count: int = 5):
     result = ignore_some_outputs_embedding("something")
@@ -213,8 +210,6 @@ None Output Function: {none_output_result}
 Nested Function: {nested_result}
 Multiple Calls Function: {multiple_calls_results}
 app_errors_local"""
-
-
 
 
 if __name__ == "__main__":
