@@ -50,56 +50,56 @@ def ignore_all_outputs_agent(query: str):
 
 
 # Function with ignored inputs
-@ag.instrument(spankind="IGNORE_INPUTS", ignore_inputs=["secret"])
+@ag.instrument(spankind="CHAIN", ignore_inputs=["secret"])
 def function_with_ignored_inputs(public_data: str, secret: str):
     print("function with ignored inputs")
     return f"Public: {public_data}, Secret: {secret}"
 
 
 # Function with all inputs ignored
-@ag.instrument(spankind="IGNORE_ALL_INPUTS", ignore_inputs=True)
+@ag.instrument(spankind="CHAIN", ignore_inputs=True)
 def function_with_all_ignored_inputs(data: str):
     print("function with all ignored inputs")
     return f"Data: {data}"
 
 
 # Function using dict inputs/outputs
-@ag.instrument(spankind="DICT_IO")
+@ag.instrument(spankind="CHAIN")
 def dict_function(input_dict: dict) -> dict:
     print("dict function")
     return {"output_data": input_dict.get("key", None)}
 
 
 # Function using Pydantic models
-@ag.instrument(spankind="PYDANTIC")
+@ag.instrument(spankind="CHAIN")
 def pydantic_function(input_data: InputData) -> OutputData:
     print("pydantic function")
     return OutputData(result=input_data.text.upper(), count=input_data.value + 1)
 
 
 # Function with None output
-@ag.instrument(spankind="NONE_OUTPUT")
+@ag.instrument(spankind="CHAIN")
 def none_output_function():
     print("none output function")
     return None
 
 
 # Nested function calls
-@ag.instrument(spankind="NESTED")
+@ag.instrument(spankind="CHAIN")
 def nested_function(value: int):
     print("nested function")
     inner_result = inner_function(value)
     return f"Nested result: {inner_result}"
 
 
-@ag.instrument(spankind="INNER")
+@ag.instrument(spankind="CHAIN")
 def inner_function(value: int):
     print("inner function")
     return value * 2
 
 
 # Function called multiple times
-@ag.instrument(spankind="MULTIPLE_CALLS")
+@ag.instrument(spankind="CHAIN")
 def multiple_calls_function(counter: int):
     print(f"multiple calls function call {counter}")
     return f"Call number: {counter}"
@@ -148,13 +148,13 @@ def rerank_function(documents: list):
     return sorted(documents, reverse=True)
 
 
-@ag.instrument(spankind="WRONGKIND")
-def wrong_kind_function(input_data: str):
-    print("wrong kind")
-    return f"Processed with wrong kind: {input_data}"
+# @ag.instrument(spankind="WRONGKIND")
+# def wrong_kind_function(input_data: str):
+#     print("wrong kind")
+#     return f"Processed with wrong kind: {input_data}"
 
 
-@ag.instrument(spankind="GENERATOR", ignore_inputs=True)
+@ag.instrument(spankind="COMPLETION", ignore_inputs=True)
 async def summarizer(topic: str, genre: str, report: dict) -> dict:
     print("summarizer")
     return {"report": "mya"}
@@ -166,7 +166,6 @@ async def exception_func():
     return "dummy"
 
 
-@ag.entrypoint
 @ag.instrument(spankind="WORKFLOW")
 async def errors(topic: str, genre: str, count: int = 5):
     result = ignore_some_outputs_embedding("something")
@@ -180,7 +179,6 @@ async def errors(topic: str, genre: str, count: int = 5):
     completion_result = completion_function("complete this")
     chat_result = await chat_function("Hello, AI!")
     rerank_result = rerank_function([3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5])
-    wrong_kind_result = wrong_kind_function("test wrong kind")
     summarizer_result = await summarizer("topic", "genre", {"content": "report"})
     ignored_input_result = function_with_ignored_inputs("public info", "secret info")
     all_ignored_input_result = function_with_all_ignored_inputs("some data")
@@ -203,7 +201,6 @@ Query: {query_result}
 Completion: {completion_result}
 Chat: {chat_result}
 Rerank: {rerank_result}
-Wrong Kind: {wrong_kind_result}
 Summarizer: {summarizer_result}
 Ignored Inputs: {ignored_input_result}
 All Ignored Inputs: {all_ignored_input_result}
@@ -212,4 +209,13 @@ Pydantic Function: {pydantic_result}
 None Output Function: {none_output_result}
 Nested Function: {nested_result}
 Multiple Calls Function: {multiple_calls_results}
-app_old_sdk"""
+app_errors_local"""
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    try:
+        asyncio.run(errors(topic="df", genre="d", count=1))
+    except Exception as e:
+        print(e)

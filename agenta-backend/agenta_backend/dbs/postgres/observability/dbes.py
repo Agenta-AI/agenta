@@ -12,20 +12,20 @@ class InvocationSpanDBE(Base, SpanDBA):
         PrimaryKeyConstraint(
             "project_id",
             "node_id",
-        ),
+        ),  # focus = node
         Index(
             "index_project_id_tree_id",
             "project_id",
             "tree_id",
-        ),
+        ),  # focus = tree
         Index(
             "index_project_id_root_id",
             "project_id",
             "root_id",
-        ),
+        ),  # focus = root
         Index(
             "index_project_id_node_id",
             "project_id",
             "created_at",
-        ),
+        ),  # sorting and pagination
     )

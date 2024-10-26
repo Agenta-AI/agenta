@@ -13,10 +13,6 @@ from agenta_backend.core.observability.dtos import (
 )
 
 
-RESOURCE_ID_SIZE = 16  # 64-bit int
-TRACE_ID_SIZE = 32  # 128-bit int
-SPAN_ID_SIZE = 16  # 64-bit int
-
 SPAN_KINDS = [
     "SPAN_KIND_UNSPECIFIED",
     "SPAN_KIND_INTERNAL",
@@ -56,10 +52,12 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
     for resource_span in proto.resource_spans:
         for scope_span in resource_span.scope_spans:
             for span in scope_span.spans:
+                # SPAN CONTEXT
                 s_trace_id = "0x" + span.trace_id.hex()
                 s_span_id = "0x" + span.span_id.hex()
                 s_context = OTelContextDTO(trace_id=s_trace_id, span_id=s_span_id)
 
+                # SPAN PARENT CONTEXT
                 s_parent_id = span.parent_span_id.hex()
                 s_parent_id = "0x" + s_parent_id if s_parent_id else None
                 p_context = (
@@ -68,13 +66,17 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
                     else None
                 )
 
+                # SPAN NAME
                 s_name = span.name
 
+                # SPAN KIND
                 s_kind = SPAN_KINDS[span.kind]
 
+                # SPAN TIME
                 s_start_time = _parse_timestamp(span.start_time_unix_nano)
                 s_end_time = _parse_timestamp(span.end_time_unix_nano)
 
+                # SPAN STATUS
                 s_status_code = SPAN_STATUS_CODES[
                     span.status.code if span.status.code else 0
                 ]
@@ -82,6 +84,7 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
                     span.status.message if span.status.message != "" else None
                 )
 
+                # SPAN ATTRIBUTES
                 s_attributes = {
                     k: v
                     for k, v in [
@@ -89,6 +92,7 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
                     ]
                 }
 
+                # SPAN EVENTS
                 s_events = [
                     OTelEventDTO(
                         name=event.name,
@@ -105,6 +109,7 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
                 ]
                 s_events = s_events if len(s_events) > 0 else None
 
+                # SPAN LINKS
                 s_links = [
                     OTelLinkDTO(
                         context=OTelContextDTO(
@@ -123,6 +128,7 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
                 ]
                 s_links = s_links if len(s_links) > 0 else None
 
+                # PUTTING IT ALL TOGETHER
                 otel_span_dto = OTelSpanDTO(
                     context=s_context,
                     name=s_name,

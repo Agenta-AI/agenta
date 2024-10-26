@@ -3,24 +3,24 @@ from sqlalchemy.dialects.postgresql import HSTORE, JSONB
 
 from agenta_backend.core.observability.dtos import TreeType, NodeType
 
-from agenta_backend.dbs.postgres.shared.dbas import DisplayBase
+from agenta_backend.dbs.postgres.shared.base import Base
 from agenta_backend.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
 
 
-class RootDBA(DisplayBase):
+class RootDBA:
     __abstract__ = True
 
     root_id = Column(UUID(as_uuid=True), nullable=False)
 
 
-class TreeDBA(DisplayBase):
+class TreeDBA:
     __abstract__ = True
 
     tree_id = Column(UUID(as_uuid=True), nullable=False)
     tree_type = Column(SQLEnum(TreeType), nullable=True)
 
 
-class NodeDBA(DisplayBase):
+class NodeDBA:
     __abstract__ = True
 
     node_id = Column(UUID(as_uuid=True), nullable=False)
@@ -28,32 +28,32 @@ class NodeDBA(DisplayBase):
     node_type = Column(SQLEnum(NodeType), nullable=True)
 
 
-class ParentDBA(DisplayBase):
+class ParentDBA:
     __abstract__ = True
 
     parent_id = Column(UUID(as_uuid=True), nullable=True)
 
 
-class TimeDBA(DisplayBase):
+class TimeDBA:
     __abstract__ = True
 
     time_start = Column(TIMESTAMP, nullable=False)
     time_end = Column(TIMESTAMP, nullable=False)
 
 
-class StatusDBA(DisplayBase):
+class StatusDBA:
     __abstract__ = True
 
     status = Column(JSONB, nullable=True)
 
 
-class ExceptionDBA(DisplayBase):
+class ExceptionDBA:
     __abstract__ = True
 
     exception = Column(JSONB, nullable=True)
 
 
-class AttributesDBA(DisplayBase):
+class AttributesDBA:
     __abstract__ = True
 
     data = Column(String, nullable=True)  # STRING for full-text search
@@ -63,7 +63,7 @@ class AttributesDBA(DisplayBase):
     links = Column(HSTORE, nullable=True)  # HSTORE for fast querying
 
 
-class OTelDBA(DisplayBase):
+class OTelDBA:
     __abstract__ = True
 
     otel = Column(JSONB, nullable=False)

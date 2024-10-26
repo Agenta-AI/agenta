@@ -15,7 +15,10 @@ def tracing_context_manager():
     try:
         yield
     except Exception as e:
-        log.error(f"Error with tracing context: {_tracing_context}")
-        log.error(f"Exception: {format_exc()}")
+        log.error("----------------------------------------------")
+        log.error("Agenta SDK - handling tracing exception below:")
+        log.error("----------------------------------------------")
+        log.error(format_exc().strip("\n"))
+        log.error("----------------------------------------------")
     finally:
         tracing_context.reset(token)
