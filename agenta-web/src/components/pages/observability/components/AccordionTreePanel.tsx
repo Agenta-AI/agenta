@@ -57,6 +57,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .monaco-editor .margin": {
             backgroundColor: bgColor,
         },
+        "& .monaco-editor .scrollbar.vertical .slider": {
+            borderRadius: 6,
+        },
+        "& .monaco-editor .scrollbar.vertical": {
+            backgroundColor: theme.colorBgContainerDisabled,
+        },
     }),
 }))
 
