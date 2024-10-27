@@ -16,7 +16,7 @@ import {useTraces} from "@/lib/hooks/useTraces"
 import {JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import {SwapOutlined} from "@ant-design/icons"
-import {Space, Table, TableColumnType, Typography} from "antd"
+import {Space, Table, TableColumnType, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
@@ -92,27 +92,31 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Inputs",
             key: "inputs",
             width: 350,
-            onHeaderCell: () => ({
-                style: {minWidth: 350},
-            }),
-            // render: (_, record) => {
-            //     return <ResultTag value1={getStringOrJson(record?.data?.inputs)} />
-            // },
+            render: (_, record) => {
+                return (
+                    <Tag
+                        title={getStringOrJson(record?.data?.inputs)}
+                        className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                    >
+                        {getStringOrJson(record?.data?.inputs)}
+                    </Tag>
+                )
+            },
         },
         {
             title: "Outputs",
             key: "outputs",
             width: 350,
-            onHeaderCell: () => ({
-                style: {minWidth: 350},
-            }),
-            // render: (_, record) => {
-            //     return (
-            //         <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-            //             <ResultTag value1={getStringOrJson(record?.data?.outputs)} />
-            //         </div>
-            //     )
-            // },
+            render: (_, record) => {
+                return (
+                    <Tag
+                        title={getStringOrJson(record?.data?.outputs)}
+                        className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                    >
+                        {getStringOrJson(record?.data?.outputs)}
+                    </Tag>
+                )
+            },
         },
         {
             title: "Status",
