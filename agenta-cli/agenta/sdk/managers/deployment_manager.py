@@ -4,15 +4,16 @@ from agenta.sdk.managers.shared import SharedManager
 
 
 class DeploymentManager(SharedManager):
+    @classmethod
     def deploy_variant(
-        self,
+        cls,
         *,
         app_slug: str,
         variant_slug: str,
         environment_slug: str,
         variant_version: Optional[int]
     ):
-        deployment = self.deploy(
+        deployment = cls.deploy(
             app_slug=app_slug,
             variant_slug=variant_slug,
             environment_slug=environment_slug,
@@ -20,15 +21,16 @@ class DeploymentManager(SharedManager):
         )
         return deployment
 
+    @classmethod
     async def adeploy_variant(
-        self,
+        cls,
         *,
         app_slug: str,
         variant_slug: str,
         environment_slug: str,
         variant_version: Optional[int]
     ):
-        deployment = await self.adeploy(
+        deployment = await cls.adeploy(
             app_slug=app_slug,
             variant_slug=variant_slug,
             environment_slug=environment_slug,
