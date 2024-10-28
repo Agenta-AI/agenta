@@ -3,7 +3,7 @@ import {_AgentaRootsResponse} from "@/services/observability/types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import React, {useCallback, useState} from "react"
+import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeleteTraceModal from "../components/DeleteTraceModal"
 
@@ -12,6 +12,8 @@ interface TraceHeaderProps {
     traces: _AgentaRootsResponse[]
     setSelectedTraceId: (val: string) => void
     activeTraceIndex: number
+    handleNextTrace: () => void
+    handlePrevTrace: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -27,21 +29,11 @@ const TraceHeader = ({
     traces,
     setSelectedTraceId,
     activeTraceIndex,
+    handleNextTrace,
+    handlePrevTrace,
 }: TraceHeaderProps) => {
     const classes = useStyles()
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-
-    const handleNextTrace = useCallback(() => {
-        if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
-            setSelectedTraceId(traces[activeTraceIndex + 1].root.id)
-        }
-    }, [activeTraceIndex, traces, setSelectedTraceId])
-
-    const handlePrevTrace = useCallback(() => {
-        if (activeTraceIndex !== undefined && activeTraceIndex > 0) {
-            setSelectedTraceId(traces[activeTraceIndex - 1].root.id)
-        }
-    }, [activeTraceIndex, traces, setSelectedTraceId])
 
     return (
         <>

@@ -20,7 +20,7 @@ import {Space, Table, TableColumnType, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -169,16 +169,34 @@ const ObservabilityDashboard = ({}: Props) => {
 
     const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
 
-    const [selected, setSelected] = useState(activeTrace?.key)
+    const [selected, setSelected] = useState("")
+
+    useEffect(() => {
+        if (!selected) {
+            setSelected(activeTrace.node.id)
+        }
+    }, [activeTrace, selected])
 
     const selectedItem = useMemo(
         () => (traces?.length ? getNodeById(traces, selected) : null),
         [selected, traces],
     )
 
-    useEffect(() => {
-        setSelected(activeTrace?.key)
-    }, [activeTrace])
+    const handleNextTrace = useCallback(() => {
+        if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
+            const nextTrace = traces[activeTraceIndex + 1]
+            setSelectedTraceId(nextTrace.root.id)
+            setSelected(nextTrace.node.id)
+        }
+    }, [activeTraceIndex, traces, setSelectedTraceId])
+
+    const handlePrevTrace = useCallback(() => {
+        if (activeTraceIndex !== undefined && activeTraceIndex > 0) {
+            const prevTrace = traces[activeTraceIndex - 1]
+            setSelectedTraceId(prevTrace.root.id)
+            setSelected(prevTrace.node.id)
+        }
+    }, [activeTraceIndex, traces, setSelectedTraceId])
 
     const handleResize =
         (key: string) =>
@@ -214,6 +232,7 @@ const ObservabilityDashboard = ({}: Props) => {
                 style={{cursor: "pointer"}}
                 onRow={(record) => ({
                     onClick: () => {
+                        setSelected(record.node.id)
                         setSelectedTraceId(record.root.id)
                     },
                 })}
@@ -267,6 +286,8 @@ const ObservabilityDashboard = ({}: Props) => {
                             traces={traces}
                             setSelectedTraceId={setSelectedTraceId}
                             activeTraceIndex={activeTraceIndex}
+                            handleNextTrace={handleNextTrace}
+                            handlePrevTrace={handlePrevTrace}
                         />
                     }
                     mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
