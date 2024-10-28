@@ -29,5 +29,5 @@ jobs:
 
       - name: Run pytest
         run: |
-          cd agenta-cli
+          cd agenta-cli/agenta
           poetry run pytest tests
