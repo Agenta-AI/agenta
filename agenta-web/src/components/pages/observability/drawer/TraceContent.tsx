@@ -222,10 +222,10 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Typography.Text>
 
                         <Space>
-                            {!activeTrace.parent && activeTrace.refs?.application.id && (
+                            {!activeTrace.parent && activeTrace.refs?.application_id && (
                                 <Button
                                     className="flex items-center"
-                                    href={`/apps/${activeTrace.refs.application.id}/playground`}
+                                    href={`/apps/${activeTrace.refs.application_id}/playground`}
                                 >
                                     <Rocket size={14} />
                                     Open in playground
