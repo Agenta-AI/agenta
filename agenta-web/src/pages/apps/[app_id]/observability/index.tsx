@@ -6,7 +6,7 @@ import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
 import Filters from "@/components/Filters/Filters"
-import Sort from "@/components/Filters/Sort"
+import Sort, {SortResult} from "@/components/Filters/Sort"
 import EditColumns from "@/components/Filters/EditColumns"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {ResizableTitle} from "@/components/ServerTable/components"
@@ -341,30 +341,13 @@ const ObservabilityDashboard = ({}: Props) => {
         {value: "otel.kind", label: "otel.kind"},
     ]
 
-    const onSortApply = async ({
-        sortData,
-        customSortData,
-    }: {
-        sortData: SortTypes
-        customSortData?: any
-    }) => {
-        let time
+    const onSortApply = async ({type, sorted, customRange}: SortResult) => {
         let query: string
-        if (sortData !== "custom" && sortData && sortData !== "all time") {
-            const now = dayjs().utc() // Get the current UTC time
 
-            // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
-            const [amount, unit] = sortData.split(" ")
-            time = now
-                .subtract(parseInt(amount), unit as dayjs.ManipulateType)
-                .toISOString()
-                .split(".")[0]
-            query = `&earliest=${time}`
-        } else if (customSortData?.startTime && sortData == "custom") {
-            query = `earliest=${customSortData.startTime.toISOString().split(".")[0]}&latest=${customSortData.endTime.toISOString().split(".")[0]}`
-        } else if (sortData === "all time") {
-            time = "1970-01-01T00:00:00"
-            query = `&earliest=${time}`
+        if (type === "standerd") {
+            query = `&earliest=${sorted}`
+        } else if (type == "custom" && customRange?.startTime) {
+            query = `earliest=${customRange.startTime}&latest=${customRange.endTime}`
         }
 
         try {
@@ -442,7 +425,9 @@ const ObservabilityDashboard = ({}: Props) => {
     // Sync traceTabs with filters state
     useUpdateEffect(() => {
         const nodeTypeFilter = filters.find((f) => f.key === "node.type")
-        setTraceTabs(nodeTypeFilter?.value ? (nodeTypeFilter.value as TraceTabTypes) : "tree")
+        setTraceTabs((prev) =>
+            nodeTypeFilter?.value ? (nodeTypeFilter.value as TraceTabTypes) : prev,
+        )
     }, [filters])
 
     const updateFilter = ({
@@ -523,6 +508,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const onClearFilter = async () => {
         setFilters([])
         setSearchQuery("")
+
         if (traceTabs === "chat") {
             setTraceTabs("tree")
         }

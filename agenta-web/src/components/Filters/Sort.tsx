@@ -2,7 +2,7 @@ import React, {useState} from "react"
 import {CaretRight, Clock, Calendar} from "@phosphor-icons/react"
 import {DatePicker, Button, Typography, Divider, Popover} from "antd"
 import {JSSTheme, SortTypes} from "@/lib/Types"
-import {Dayjs} from "dayjs"
+import dayjs, {Dayjs} from "dayjs"
 import type {SelectProps} from "antd"
 import {createUseStyles} from "react-jss"
 
@@ -42,13 +42,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+export type SortResult = {
+    type: "custom" | "standerd"
+    sorted: string
+    customRange?: {startTime: string; endTime: string}
+}
+
 type Props = {
     onSortApply: ({
-        sortData,
-        customSortData,
+        type,
+        sorted,
+        customRange,
     }: {
-        sortData: SortTypes
-        customSortData?: CustomTimeRange
+        type: "custom" | "standerd"
+        sorted: string
+        customRange?: {startTime: string; endTime: string}
     }) => void
     defaultSortValue: SortTypes
 }
@@ -67,11 +75,60 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
         customTime.startTime == null ? false : true,
     )
 
+    const apply = ({
+        sortData,
+        customRange,
+    }: {
+        sortData: SortTypes
+        customRange?: CustomTimeRange
+    }) => {
+        let sortedTime
+        let customRangeTime
+
+        if (sortData && sortData !== "custom" && sortData !== "all time") {
+            const now = dayjs().utc()
+
+            // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
+            const [amount, unit] = (sortData as SortTypes).split(" ")
+            sortedTime = now
+                .subtract(parseInt(amount), unit as dayjs.ManipulateType)
+                .toISOString()
+                .split(".")[0]
+        } else if (customRange?.startTime && sortData == "custom") {
+            customRangeTime = {
+                startTime: customRange.startTime.toISOString().split(".")[0],
+                endTime: customRange.endTime?.toISOString().split(".")[0] as string,
+            }
+        } else if (sortData === "all time") {
+            sortedTime = "1970-01-01T00:00:00"
+        }
+
+        onSortApply({
+            type: sortData == "custom" ? "custom" : "standerd",
+            sorted: sortedTime as string,
+            customRange: customRangeTime,
+        })
+    }
+
     const handleApplyCustomRange = () => {
         if (customTime.startTime && customTime.endTime) {
-            onSortApply({sortData: sort, customSortData: customTime})
+            apply({sortData: "custom", customRange: customTime})
             setDropdownVisible(false)
         }
+    }
+
+    const onSelectItem = (item: any) => {
+        setTimeout(() => {
+            setCustomOptionSelected(false)
+        }, 500)
+
+        if (customTime.startTime) {
+            setCustomTime({startTime: null, endTime: null})
+        }
+
+        setDropdownVisible(false)
+        setSort(item.value as SortTypes)
+        apply({sortData: item.value as SortTypes})
     }
 
     const options: SelectProps["options"] = [
@@ -110,14 +167,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                                 {options.map((item) => (
                                     <div
                                         key={item.value}
-                                        onClick={() => {
-                                            setTimeout(() => {
-                                                setCustomOptionSelected(false)
-                                            }, 500)
-                                            setDropdownVisible(false)
-                                            setSort(item.value as SortTypes)
-                                            onSortApply({sortData: item.value as SortTypes})
-                                        }}
+                                        onClick={() => onSelectItem(item)}
                                         className={`${classes.popupItems} ${sort === item.value && classes.popupSelectedItem}`}
                                     >
                                         {item.label}
