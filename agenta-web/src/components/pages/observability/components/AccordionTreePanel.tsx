@@ -118,6 +118,10 @@ const AccordionTreePanel = ({
                                 readOnly: true,
                                 lineNumbers: "off",
                                 lineDecorationsWidth: 0,
+                                scrollbar: {
+                                    verticalScrollbarSize: 8,
+                                    horizontalScrollbarSize: 8,
+                                },
                             }}
                         />
                     ),
