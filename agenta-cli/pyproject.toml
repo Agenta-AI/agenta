@@ -15,6 +15,10 @@ repository = "https://github.com/agenta-ai/agenta"
 documentation = "https://docs.agenta.ai"
 keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 
+exclude = [
+    "agenta/tests/*"
+]
+
 [tool.poetry.dependencies]
 python = "^3.9"
 docker = ">=6.1.1,<8.0.0"
