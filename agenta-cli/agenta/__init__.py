@@ -23,7 +23,9 @@ from .sdk.agenta_init import Config, AgentaSingleton, init
 from .sdk.utils.helper.openai_cost import calculate_token_usage
 from .sdk.client import Agenta
 from .sdk.tracing import callbacks
-from .sdk.config_manager import ConfigManager
+from .sdk.managers.config_manager import ConfigManager
+from .sdk.managers.variant_manager import VariantManager
+from .sdk.managers.deployment_manager import DeploymentManager
 from .sdk import assets as assets
 
 config = PreInitObject("agenta.config", Config)
