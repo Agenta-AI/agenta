@@ -25,6 +25,7 @@ import {SwapOutlined} from "@ant-design/icons"
 import {
     Button,
     Input,
+    Pagination,
     Radio,
     RadioChangeEvent,
     Space,
@@ -51,6 +52,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontWeight: theme.fontWeightMedium,
         lineHeight: theme.lineHeightHeading4,
     },
+    pagination: {
+        "& > .ant-pagination-options": {
+            order: -1,
+            marginRight: 8,
+        },
+    },
 }))
 
 interface Props {}
@@ -68,6 +75,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
     const [filters, setFilters] = useState<Filter[]>([])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [pagination, setPagination] = useState({current: 1, page: 10})
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -520,6 +528,10 @@ const ObservabilityDashboard = ({}: Props) => {
         }
     }
 
+    const onPaginationChange = (current: number, pageSize: number) => {
+        setPagination({current, page: pageSize})
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
@@ -572,56 +584,66 @@ const ObservabilityDashboard = ({}: Props) => {
                 </div>
             </div>
 
-            <Table
-                loading={isLoadingTraces}
-                columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
-                dataSource={traces}
-                bordered
-                style={{cursor: "pointer"}}
-                onRow={(record) => ({
-                    onClick: () => {
-                        setSelected(record.node.id)
-                        setSelectedTraceId(record.root.id)
-                    },
-                })}
-                components={{
-                    header: {
-                        cell: ResizableTitle,
-                    },
-                }}
-                pagination={false}
-                scroll={{x: "max-content"}}
-                locale={{
-                    emptyText: (
-                        <div className="py-16">
-                            <EmptyComponent
-                                image={
-                                    <SwapOutlined
-                                        style={{transform: "rotate(90deg)"}}
-                                        className="text-[32px]"
-                                    />
-                                }
-                                description="Monitor the performance and results of your LLM applications here."
-                                primaryCta={{
-                                    text: "Go to Playground",
-                                    onClick: () => router.push(`/apps/${appId}/playground`),
-                                    tooltip:
-                                        "Run your LLM app in the playground to generate and view insights.",
-                                }}
-                                secondaryCta={{
-                                    text: "Learn More",
-                                    onClick: () =>
-                                        router.push(
-                                            "https://docs.agenta.ai/observability/quickstart",
-                                        ),
-                                    tooltip:
-                                        "Explore more about tracking and analyzing your app's observability data.",
-                                }}
-                            />
-                        </div>
-                    ),
-                }}
-            />
+            <div className="flex flex-col gap-2">
+                <Table
+                    loading={isLoadingTraces}
+                    columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
+                    dataSource={traces}
+                    bordered
+                    style={{cursor: "pointer"}}
+                    onRow={(record) => ({
+                        onClick: () => {
+                            setSelected(record.node.id)
+                            setSelectedTraceId(record.root.id)
+                        },
+                    })}
+                    components={{
+                        header: {
+                            cell: ResizableTitle,
+                        },
+                    }}
+                    pagination={false}
+                    scroll={{x: "max-content"}}
+                    locale={{
+                        emptyText: (
+                            <div className="py-16">
+                                <EmptyComponent
+                                    image={
+                                        <SwapOutlined
+                                            style={{transform: "rotate(90deg)"}}
+                                            className="text-[32px]"
+                                        />
+                                    }
+                                    description="Monitor the performance and results of your LLM applications here."
+                                    primaryCta={{
+                                        text: "Go to Playground",
+                                        onClick: () => router.push(`/apps/${appId}/playground`),
+                                        tooltip:
+                                            "Run your LLM app in the playground to generate and view insights.",
+                                    }}
+                                    secondaryCta={{
+                                        text: "Learn More",
+                                        onClick: () =>
+                                            router.push(
+                                                "https://docs.agenta.ai/observability/quickstart",
+                                            ),
+                                        tooltip:
+                                            "Explore more about tracking and analyzing your app's observability data.",
+                                    }}
+                                />
+                            </div>
+                        ),
+                    }}
+                />
+                <Pagination
+                    total={100}
+                    align="end"
+                    className={classes.pagination}
+                    current={pagination.current}
+                    pageSize={pagination.page}
+                    onChange={onPaginationChange}
+                />
+            </div>
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer
