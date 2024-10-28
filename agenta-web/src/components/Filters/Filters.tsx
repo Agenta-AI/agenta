@@ -30,19 +30,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     filterData?: Filter[]
-    setFilterData?: React.Dispatch<React.SetStateAction<Filter[]>>
     columns: {value: string; label: string}[]
     onApplyFilter: (filters: Filter[]) => void
     onClearFilter: (filters: Filter[]) => void
 }
 
-const Filters: React.FC<Props> = ({
-    filterData,
-    setFilterData,
-    columns,
-    onApplyFilter,
-    onClearFilter,
-}) => {
+const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFilter}) => {
     const classes = useStyles()
     const emptyFilter = [{key: "", operator: "", value: ""}] as Filter[]
 
