@@ -3,10 +3,7 @@ from pydantic import BaseModel
 from agenta.sdk.assets import supported_llm_models
 
 
-
-
-ag.init(
-)
+ag.init()
 
 ag.config.default(
     temperature=ag.FloatParam(0.2),
@@ -17,6 +14,7 @@ ag.config.default(
     prompt_system=ag.TextParam("MY_SYSTEM_PROMPT"),
 )
 
+
 @ag.instrument(spankind="WORKFLOW")
 async def main2(topic: str, genre: str, count: int = 5):
     return "test"
@@ -24,4 +22,5 @@ async def main2(topic: str, genre: str, count: int = 5):
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(main2(topic="df", genre="d", count=1))
