@@ -1,9 +1,8 @@
 import json
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from dataclasses import dataclass
-from typing import Union
 
 
 @dataclass
@@ -198,3 +197,24 @@ class Context(BaseModel):
     def from_json(cls, json_str: str):
         data = json.loads(json_str)
         return cls(**data)
+
+
+class SharedSDKResponse(BaseModel):
+    app_slug: str
+    variant_slug: Optional[str] = None
+    variant_version: Optional[int] = None
+    environment_slug: Optional[str] = None
+
+
+class ConfigurationResponse(SharedSDKResponse):
+    config: Dict[str, Any]
+
+    def __repr__(self):
+        return self.model_dump_json(indent=4, exclude_none=True)
+
+
+class DeploymentResponse(SharedSDKResponse):
+    deployment_info: Dict[str, Any]
+
+    def __repr__(self):
+        return self.model_dump_json(indent=4, exclude_none=True)
