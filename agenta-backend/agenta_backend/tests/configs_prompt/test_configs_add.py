@@ -47,6 +47,30 @@ async def test_configs_add_success(get_app_by_name):
 
 
 @pytest.mark.asyncio
+async def test_configs_add_success_for_deletion(get_app_by_name):
+    app = await get_app_by_name
+    assert app is not None, "App with name :test_prompt_client not found."
+
+    response = await test_client.post(
+        "/api/variants/configs/add",
+        json={
+            "variant_ref": {
+                "slug": "from_pytest_for_deletion",
+                "version": None,
+                "id": None,
+            },
+            "application_ref": {
+                "slug": None,
+                "version": None,
+                "id": str(app.id),
+            },
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    assert "params" and "url" in response.json()
+
+
+@pytest.mark.asyncio
 async def test_configs_add_already_exists(get_app_by_name):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
