@@ -1,4 +1,5 @@
-from typing import List, Any, Dict, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict, Optional, Tuple
 from pydantic import BaseModel
 from uuid import UUID, uuid4
 
@@ -50,6 +51,11 @@ class ReferenceDTO(BaseModel):
     id: Optional[UUID]  # unique per version
 
 
+class LifecycleDTO(BaseModel):
+    deployed_at: datetime
+    deployed_by: str
+
+
 # DIFFERENT FROM A configuration IN THE SENSE OF Application sStructure
 # HERE IT IS A PROXY FOR A variant
 class ConfigDTO(BaseModel):
@@ -60,6 +66,8 @@ class ConfigDTO(BaseModel):
     service_ref: Optional[ReferenceDTO]
     variant_ref: Optional[ReferenceDTO]
     environment_ref: Optional[ReferenceDTO]
+    # ----
+    lifecycle: Optional[LifecycleDTO]
 
 
 # - HERLPERS
