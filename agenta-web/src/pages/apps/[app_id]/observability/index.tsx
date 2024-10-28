@@ -55,7 +55,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
-type TraceTabTypes = "tree" | "node" | "llm"
+type TraceTabTypes = "tree" | "node" | "chat"
 
 const ObservabilityDashboard = ({}: Props) => {
     const appId = useAppId()
@@ -67,7 +67,6 @@ const ObservabilityDashboard = ({}: Props) => {
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
     const [filters, setFilters] = useState<Filter[]>([])
-    const [isExportLoading, setIsExportLoading] = useState(false)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
@@ -253,18 +252,20 @@ const ObservabilityDashboard = ({}: Props) => {
 
     const onExport = async () => {
         try {
-            setIsExportLoading(true)
-
             if (traces.length) {
                 const {currentApp} = getAppValues()
                 const filename = `${currentApp?.app_name}_observability.csv`
+
+                const convertToStringOrJson = (value: any) => {
+                    return typeof value === "string" ? value : JSON.stringify(value)
+                }
 
                 // Helper function to create a trace object
                 const createTraceObject = (trace: any) => ({
                     "Trace ID": trace.key,
                     Timestamp: dayjs(trace.time.start).format("HH:mm:ss DD MMM YYYY"),
                     Inputs: trace?.data?.inputs?.topic || "N/A",
-                    Outputs: JSON.stringify(trace?.data?.outputs) || "N/A",
+                    Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
                     Status: trace.status.code,
                     Latency: formatLatency(trace.time.span / 1000000),
                     Usage: formatTokenUsage(trace?.metrics?.acc?.tokens?.total || 0),
@@ -292,8 +293,6 @@ const ObservabilityDashboard = ({}: Props) => {
             }
         } catch (error) {
             console.error("Export error:", error)
-        } finally {
-            setIsExportLoading(false)
         }
     }
 
@@ -419,24 +418,24 @@ const ObservabilityDashboard = ({}: Props) => {
     // -------------------- group buttons filter ---------------------
     const onTraceTabChange = async (e: RadioChangeEvent) => {
         const selectedTab = e.target.value
-
         setTraceTabs(selectedTab)
-        if (selectedTab == "llm") {
-            console.log(`focus=${selectedTab}&node_type=llm`)
-        } else {
-            console.log(`focus=${selectedTab}`)
-        }
 
-        // updateFilter({key: "node.type", operator: "eq", value: selectedTab})
+        if (selectedTab === "chat") {
+            updateFilter({key: "node.type", operator: "eq", value: selectedTab})
+        } else {
+            const isNodeTypeFilterExist = filters.some((item) => item.key === "node.type")
+
+            if (isNodeTypeFilterExist) {
+                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
+            }
+        }
     }
 
     // Sync traceTabs with filters state
-    // useUpdateEffect(() => {
-    //     const nodeTypeFilter = filters.find((f) => f.key === "node.type")
-    //     setTraceTabs(nodeTypeFilter ? (nodeTypeFilter.value as TraceTabTypes) : "tree")
-    // }, [filters])
-
-    // -------------------- utility functions ---------------------
+    useUpdateEffect(() => {
+        const nodeTypeFilter = filters.find((f) => f.key === "node.type")
+        setTraceTabs(nodeTypeFilter?.value ? (nodeTypeFilter.value as TraceTabTypes) : "tree")
+    }, [filters])
 
     const updateFilter = ({
         key,
@@ -459,9 +458,8 @@ const ObservabilityDashboard = ({}: Props) => {
             try {
                 setIsLoadingTraces(true)
 
-                let data: any
-                const focusPoint =
-                    traceTabs == "llm" ? `focus=node&node_type=${traceTabs}` : `focus=${traceTabs}`
+                let data
+                const focusPoint = traceTabs !== "chat" ? `focus=${traceTabs}` : ""
 
                 const fetchAllFilteredTraces = async () => {
                     const response = await axios.get(
@@ -517,6 +515,9 @@ const ObservabilityDashboard = ({}: Props) => {
     const onClearFilter = async () => {
         setFilters([])
         setSearchQuery("")
+        if (traceTabs === "chat") {
+            setTraceTabs("tree")
+        }
     }
 
     return (
@@ -546,7 +547,7 @@ const ObservabilityDashboard = ({}: Props) => {
                     <Space>
                         <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
                             <Radio.Button value="tree">Root</Radio.Button>
-                            <Radio.Button value="llm">LLM</Radio.Button>
+                            <Radio.Button value="chat">LLM</Radio.Button>
                             <Radio.Button value="node">All</Radio.Button>
                         </Radio.Group>
                     </Space>
@@ -557,7 +558,6 @@ const ObservabilityDashboard = ({}: Props) => {
                             onClick={onExport}
                             icon={<Export size={14} className="mt-0.5" />}
                             disabled={traces.length === 0}
-                            loading={isExportLoading}
                         >
                             Export as CSV
                         </Button>
