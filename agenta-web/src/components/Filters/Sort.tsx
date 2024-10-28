@@ -118,6 +118,10 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
     }
 
     const onSelectItem = (item: any) => {
+        setDropdownVisible(false)
+        setSort(item.value as SortTypes)
+        apply({sortData: item.value as SortTypes})
+
         setTimeout(() => {
             setCustomOptionSelected(false)
         }, 500)
@@ -125,10 +129,6 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
         if (customTime.startTime) {
             setCustomTime({startTime: null, endTime: null})
         }
-
-        setDropdownVisible(false)
-        setSort(item.value as SortTypes)
-        apply({sortData: item.value as SortTypes})
     }
 
     const options: SelectProps["options"] = [

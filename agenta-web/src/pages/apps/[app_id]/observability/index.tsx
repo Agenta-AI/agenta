@@ -74,6 +74,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
     const [filters, setFilters] = useState<Filter[]>([])
+    const [sort, setSort] = useState<SortResult>({} as SortResult)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [pagination, setPagination] = useState({current: 1, page: 10})
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
@@ -342,28 +343,7 @@ const ObservabilityDashboard = ({}: Props) => {
     ]
 
     const onSortApply = async ({type, sorted, customRange}: SortResult) => {
-        let query: string
-
-        if (type === "standerd") {
-            query = `&earliest=${sorted}`
-        } else if (type == "custom" && customRange?.startTime) {
-            query = `earliest=${customRange.startTime}&latest=${customRange.endTime}`
-        }
-
-        try {
-            const fetchAllTraces = async () => {
-                const response = await axios.get(
-                    `${getAgentaApiUrl()}/api/observability/v1/traces/search?${query}`,
-                )
-                return response.data
-            }
-
-            const data = await fetchAllTraces()
-
-            setTraces(data.trees.flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)))
-        } catch (error) {
-            console.log(error)
-        }
+        setSort({type, sorted, customRange})
     }
 
     const handleToggleColumnVisibility = (key: string) => {
@@ -446,33 +426,38 @@ const ObservabilityDashboard = ({}: Props) => {
         })
     }
 
+    const fetchFilterdTrace = async () => {
+        const focusPoint = traceTabs !== "chat" ? `focus=${traceTabs}` : ""
+        const filterQuery = filters[0]?.operator
+            ? `&filtering={"conditions":${JSON.stringify(filters)}}`
+            : ""
+        const paginationQuery = `&size=${pagination.page}&page=${pagination.current}`
+        let sortQuery
+
+        if (sort && sort.type === "standerd") {
+            sortQuery = `&earliest=${sort.sorted}`
+        } else if (sort && sort.type == "custom" && sort.customRange?.startTime) {
+            sortQuery = `&earliest=${sort.customRange.startTime}&latest=${sort.customRange.endTime}`
+        } else {
+            sortQuery = ""
+        }
+
+        try {
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`,
+            )
+            return response.data
+        } catch (error) {
+            console.log(error)
+        }
+    }
+
     useUpdateEffect(() => {
         const filterTraceData = async () => {
             try {
                 setIsLoadingTraces(true)
 
-                let data
-                const focusPoint = traceTabs !== "chat" ? `focus=${traceTabs}` : ""
-
-                const fetchAllFilteredTraces = async () => {
-                    const response = await axios.get(
-                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}&filtering={"conditions":${JSON.stringify(filters)}}`,
-                    )
-                    return response.data
-                }
-                const fetchAllTraces = async () => {
-                    const response = await axios.get(
-                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}`,
-                    )
-                    return response.data
-                }
-
-                if (filters.length > 0 && filters[0].value) {
-                    data = await fetchAllFilteredTraces()
-                } else {
-                    data = await fetchAllTraces()
-                }
-
+                const data = await fetchFilterdTrace()
                 const transformedTraces: _AgentaRootsResponse[] = []
 
                 if (data?.trees) {
@@ -499,7 +484,7 @@ const ObservabilityDashboard = ({}: Props) => {
             }
         }
         filterTraceData()
-    }, [filters, traceTabs])
+    }, [filters, traceTabs, sort, pagination])
 
     const onApplyFilter = async (newFilters: Filter[]) => {
         setFilters(newFilters)
