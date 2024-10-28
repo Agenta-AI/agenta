@@ -64,6 +64,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             backgroundColor: theme.colorBgContainerDisabled,
         },
     }),
+    segmentedBtn: {
+        border: `1px solid ${theme.colorBorder}`,
+        padding: 0,
+        "& .ant-segmented-item": {
+            padding: 2,
+        },
+        "& .ant-segmented-item-selected": {
+            outline: `1px solid ${theme.colorPrimary}`,
+        },
+    },
 }))
 
 const AccordionTreePanel = ({
@@ -135,6 +145,7 @@ const AccordionTreePanel = ({
                                         setSegmentedValue(optValue)
                                     }}
                                     onClick={(e) => e.stopPropagation()}
+                                    className={classes.segmentedBtn}
                                 />
                             )}
                             <CopyButton
