@@ -60,26 +60,11 @@ class ObservabilityRouter:
 
         self.router.add_api_route(
             "/traces/search",
+            # "/traces/query",
             self.query_traces,
-            methods=["GET"],
-            operation_id="query_traces_deprecated",
-            summary="Query traces, with optional grouping, filtering, (sorting,) and pagination.",
-            status_code=status.HTTP_200_OK,
-            response_model=Union[
-                OTelSpansResponse,
-                AgentaNodesResponse,
-                AgentaTreesResponse,
-                AgentaRootsResponse,
-            ],
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/traces/query",
-            self.query_traces,
-            methods=["POST"],
+            methods=["GET", "POST"],
             operation_id="query_traces",
-            summary="Query traces, with optional grouping, filtering, (sorting,) and pagination.",
+            summary="Query traces, with optional grouping, windowing, filtering, and pagination.",
             status_code=status.HTTP_200_OK,
             response_model=Union[
                 OTelSpansResponse,
@@ -117,12 +102,15 @@ class ObservabilityRouter:
     @handle_exceptions()
     async def query_traces(
         self,
-        project_id: str,
+        request: Request,
         query_dto: QueryDTO = Depends(parse_query_dto),
-        format: Literal["opentelemetry", "agenta"] = Query("agenta"),
+        format: Literal[  # pylint: disable=W0622
+            "opentelemetry",
+            "agenta",
+        ] = Query("agenta"),
     ):
         """
-        Query traces, with optional grouping, filtering, (sorting,) and pagination.
+        Query traces, with optional grouping, windowing, filtering, and pagination.
         """
 
         if (
@@ -136,7 +124,7 @@ class ObservabilityRouter:
             )
 
         span_dtos = await self.service.query(
-            project_id=UUID(project_id),
+            project_id=UUID(request.state.project_id),
             query_dto=query_dto,
         )
 
@@ -241,22 +229,10 @@ class ObservabilityRouter:
 
         otlp_stream = await request.body()
 
-        # TODO: GET project_id FROM request.state
-        project_id = request.headers.get("AG-PROJECT-ID") or request.state.project_id
-
-        # TODO: DROP app_id ONCE LEGACY IS DROPPED
-        app_id = request.headers.get("AG-APP-ID")
-
         ### LEGACY ###
-        # TODO: DROP LEGACY
-        project_id = project_id or app_id
-        ### LEGACY ###
-
-        ### LEGACY ###
-        # TODO: DROP LEGACY
         if self.legacy_receiver:
             await self.legacy_receiver(
-                project_id=project_id,
+                project_id=request.state.project_id,
                 otlp_stream=otlp_stream,
             )
         ### LEGACY ###
@@ -268,7 +244,7 @@ class ObservabilityRouter:
         ]
 
         await self.service.ingest(
-            project_id=UUID(project_id),
+            project_id=UUID(request.state.project_id),
             span_dtos=span_dtos,
         )
 
