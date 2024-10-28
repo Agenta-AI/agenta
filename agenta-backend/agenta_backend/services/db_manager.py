@@ -726,6 +726,56 @@ async def list_app_variants_for_app_id(app_id: str, project_id: str):
         return app_variants
 
 
+async def list_app_variants_by_app_slug(app_slug: str, project_id: str):
+    """List all the app variants for the specified app_slug
+
+    Args:
+        app_slug (str): The slug of the app
+        project_id (str): The ID of the project.
+
+    Returns:
+        List[AppVariant]: List of AppVariant objects
+    """
+
+    assert app_slug is not None, "app_slug cannot be None"
+    app_db = await fetch_app_by_name_and_parameters(
+        app_name=app_slug, project_id=project_id
+    )
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB)
+            .filter_by(app_id=app_db.id)
+            .options(
+                load_only(
+                    AppVariantDB.id, AppVariantDB.config_name, AppVariantDB.revision  # type: ignore
+                )
+            )
+        )
+        variants = result.scalars().all()
+        return variants
+
+
+async def fetch_app_variant_by_slug(variant_slug: str, app_id: str) -> AppVariantDB:
+    """Fetch an app variant by it's slug name and app id.
+
+    Args:
+        variant_name (str): The name of the variant
+        app_id (str): The ID of the variant app
+
+    Returns:
+        AppVariantDB: the instance of the app variant
+    """
+
+    async with db_engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB).filter_by(
+                config_name=variant_slug, app_id=uuid.UUID(app_id)
+            )
+        )
+        app_variant = result.scalars().first()
+        return app_variant
+
+
 async def list_bases_for_app_id(app_id: str, base_name: Optional[str] = None):
     """List all the bases for the specified app_id
 
@@ -2628,19 +2678,21 @@ async def fetch_app_by_name_and_parameters(
         AppDB: the instance of the app
     """
 
-    if isCloudEE() and workspace_id is not None:
-        project = await db_manager_ee.get_project_by_workspace(
-            workspace_id=workspace_id
-        )
-        query = select(AppDB).filter_by(app_name=app_name, project_id=project.id)
-    else:
+    if not project_id and (isCloudEE() and workspace_id is not None):
+        project = await db_manager_ee.get_project_by_workspace(workspace_id)
+        project_id = str(project.id) if project else None
+
+    if project_id is None:
+        raise ValueError("Either workspace_id or project_id must be provided.")
+
+    async with db_engine.get_session() as session:
         query = select(AppDB).filter_by(
             app_name=app_name, project_id=uuid.UUID(project_id)
         )
-
-    async with db_engine.get_session() as session:
         result = await session.execute(query)
         app_db = result.unique().scalars().first()
+        if app_db is None:
+            raise NoResultFound(f"App with name {app_name} not found.")
         return app_db
 
 
