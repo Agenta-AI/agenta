@@ -536,6 +536,7 @@ from agenta_backend.services.variants_manager import (
     fork_config_by_environment_ref,
     commit_config,
     deploy_config,
+    list_configs,
 )
 
 
@@ -718,20 +719,29 @@ async def configs_deploy(
     return config
 
 
-@router.delete("/configs/delete", operation_id="configs_delete", response_model=str)
-async def configs_delete(
-    request: Request,
-    variant_ref: ReferenceRequestModel,
-):
-    assert variant_ref.id is not None, "Variant ID is required to delete variant. "
-    app_variant = await db_manager.get_app_variant_instance_by_id(
-        variant_id=str(variant_ref.id), project_id=request.state.project_id
-    )
-    if not app_variant:
-        raise HTTPException(
-            status_code=404,
-            detail="Variant does not exist.",
+@router.get(
+    "/configs/list",
+    operation_id="configs_list",
+    response_model=List[Dict[str, Any]],
+)
+async def configs_list(request: Request, app_slug: str):
+    try:
+        configs = await list_configs(
+            app_slug=app_slug, project_id=request.state.project_id
         )
+        return configs
+    except Exception as e:
+        import traceback
 
-    await delete_config(project_id=request.state.project_id, variant_db=app_variant)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/configs/delete", operation_id="configs_delete", response_model=str)
+async def configs_delete(request: Request, app_slug: str, variant_slug: str):
+    await delete_config(
+        project_id=request.state.project_id,
+        app_slug=app_slug,
+        variant_slug=variant_slug,
+    )
     return "Variant deleted successfully."

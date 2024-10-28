@@ -1,11 +1,14 @@
-from datetime import datetime
-from typing import Any, Dict, Optional, Tuple
-from agenta_backend.services import db_manager
-from pydantic import BaseModel
 from uuid import UUID, uuid4
+from datetime import datetime
+from logging import getLogger, INFO
+from typing import Any, Dict, Optional, Tuple, List
 
+from pydantic import BaseModel
+from fastapi import HTTPException
+
+from agenta_backend.models import converters
+from agenta_backend.services import db_manager
 from agenta_backend.utils.exceptions import suppress
-from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.services.db_manager import (
     AppDB,
     DeploymentDB,
@@ -35,7 +38,6 @@ from agenta_backend.services.db_manager import (
     deploy_to_environment,
 )
 
-from logging import getLogger, INFO
 
 logger = getLogger(__name__)
 logger.setLevel(INFO)
@@ -61,14 +63,14 @@ class LifecycleDTO(BaseModel):
 # HERE IT IS A PROXY FOR A variant
 class ConfigDTO(BaseModel):
     params: Dict[str, Any]
-    url: Optional[str]
+    url: Optional[str] = None
     # ---
     application_ref: Optional[ReferenceDTO]
     service_ref: Optional[ReferenceDTO]
     variant_ref: Optional[ReferenceDTO]
     environment_ref: Optional[ReferenceDTO]
     # ----
-    lifecycle: Optional[LifecycleDTO]
+    lifecycle: Optional[LifecycleDTO] = None
 
 
 # - HERLPERS
@@ -697,10 +699,32 @@ async def deploy_config(
     return config
 
 
+# LIST
+
+
+async def list_configs(app_slug: str, project_id: str) -> List[Dict[str, Any]]:
+    variants = await db_manager.list_app_variants_by_app_slug(
+        app_slug=app_slug, project_id=project_id
+    )
+    return converters.configs_variants_to_output(variants=variants)
+
+
 # DELETE
 
 
-async def delete_config(project_id: str, variant_db: AppVariantDB) -> None:
+async def delete_config(project_id: str, app_slug: str, variant_slug: str):
+    app_db = await db_manager.fetch_app_by_name_and_parameters(
+        app_name=app_slug, project_id=project_id
+    )
+    variant = await db_manager.fetch_app_variant_by_slug(
+        variant_slug=variant_slug, app_id=str(app_db.id)
+    )
+    if not variant:
+        raise HTTPException(
+            status_code=404,
+            detail="Variant does not exist.",
+        )
+
     await db_manager.remove_app_variant_from_db(
-        app_variant_db=variant_db, project_id=project_id
+        app_variant_db=variant, project_id=project_id
     )
