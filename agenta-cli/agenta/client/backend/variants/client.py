@@ -1125,6 +1125,74 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def configs_delete(
+        self,
+        *,
+        variant_ref: ReferenceRequestModel,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : ReferenceRequestModel
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, ReferenceRequestModel
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_delete(
+            variant_ref=ReferenceRequestModel(),
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/delete",
+            method="DELETE",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
 
 class AsyncVariantsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
@@ -2305,6 +2373,74 @@ class AsyncVariantsClient:
                 ),
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    ConfigResponseModel,
+                    parse_obj_as(
+                        type_=ConfigResponseModel,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_delete(
+        self,
+        *,
+        variant_ref: ReferenceRequestModel,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> ConfigResponseModel:
+        """
+        Parameters
+        ----------
+        variant_ref : ReferenceRequestModel
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        ConfigResponseModel
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi, ReferenceRequestModel
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_delete(
+            variant_ref=ReferenceRequestModel(),
+        )
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/delete",
+            method="DELETE",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
                     annotation=ReferenceRequestModel,
                     direction="write",
                 ),

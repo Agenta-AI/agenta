@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, Body
 
 from agenta_backend.models import converters
-
 from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.services import app_manager, db_manager
 
@@ -530,6 +529,7 @@ from agenta_backend.services.variants_manager import (
 
 from agenta_backend.services.variants_manager import (
     add_config,
+    delete_config,
     fetch_config_by_variant_ref,
     fetch_config_by_environment_ref,
     fork_config_by_variant_ref,
@@ -716,3 +716,22 @@ async def configs_deploy(
         )
 
     return config
+
+
+@router.delete("/configs/delete", operation_id="configs_delete", response_model=str)
+async def configs_delete(
+    request: Request,
+    variant_ref: ReferenceRequestModel,
+):
+    assert variant_ref.id is not None, "Variant ID is required to delete variant. "
+    app_variant = await db_manager.get_app_variant_instance_by_id(
+        variant_id=str(variant_ref.id), project_id=request.state.project_id
+    )
+    if not app_variant:
+        raise HTTPException(
+            status_code=404,
+            detail="Variant does not exist.",
+        )
+
+    await delete_config(project_id=request.state.project_id, variant_db=app_variant)
+    return "Variant deleted successfully."

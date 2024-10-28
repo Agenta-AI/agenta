@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
+from agenta_backend.services import db_manager
 from pydantic import BaseModel
 from uuid import UUID, uuid4
 
@@ -694,3 +695,12 @@ async def deploy_config(
         return None
 
     return config
+
+
+# DELETE
+
+
+async def delete_config(project_id: str, variant_db: AppVariantDB) -> None:
+    await db_manager.remove_app_variant_from_db(
+        app_variant_db=variant_db, project_id=project_id
+    )
