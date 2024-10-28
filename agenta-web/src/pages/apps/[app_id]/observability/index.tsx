@@ -370,7 +370,7 @@ const ObservabilityDashboard = ({}: Props) => {
         try {
             const fetchAllTraces = async () => {
                 const response = await axios.get(
-                    `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
+                    `${getAgentaApiUrl()}/api/observability/v1/traces/search?${query}`,
                 )
                 return response.data
             }
@@ -471,13 +471,13 @@ const ObservabilityDashboard = ({}: Props) => {
 
                 const fetchAllFilteredTraces = async () => {
                     const response = await axios.get(
-                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${focusPoint}&filtering={"conditions":${JSON.stringify(filters)}}`,
+                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}&filtering={"conditions":${JSON.stringify(filters)}}`,
                     )
                     return response.data
                 }
                 const fetchAllTraces = async () => {
                     const response = await axios.get(
-                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${focusPoint}`,
+                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}`,
                     )
                     return response.data
                 }
