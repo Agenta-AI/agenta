@@ -124,10 +124,6 @@ const Filters: React.FC<Props> = ({
                 <section>
                     <div className="h-[44px] flex items-center justify-between">
                         <Typography.Text className={classes.filterHeading}>Filter</Typography.Text>
-
-                        <Button icon={<ArrowCounterClockwise size={14} />} onClick={clearFilter}>
-                            Clear
-                        </Button>
                     </div>
 
                     <div className="-ml-4 -mr-2">
@@ -143,10 +139,15 @@ const Filters: React.FC<Props> = ({
                                     showSearch
                                     labelRender={(label) => (!label.value ? "Column" : label.label)}
                                     style={{width: 100}}
-                                    popupMatchSelectWidth={150}
+                                    popupMatchSelectWidth={220}
                                     suffixIcon={<CaretDown size={14} />}
                                     onChange={(value) =>
                                         onFilterChange({columnName: "key", value, idx})
+                                    }
+                                    filterSort={(a, b) =>
+                                        (a?.label ?? "")
+                                            .toLowerCase()
+                                            .localeCompare((b?.label ?? "").toLowerCase())
                                     }
                                     filterOption={(input, option) =>
                                         (option?.label ?? "")
@@ -217,11 +218,22 @@ const Filters: React.FC<Props> = ({
                         </Button>
                     </div>
 
-                    <div className="flex items-center justify-end mt-2">
-                        <Button type="primary" disabled={!filter[0]?.value} onClick={applyFilter}>
+                    <Space className="flex items-center justify-end mt-2">
+                        <Button type="link">Cancel</Button>
+                        <Button
+                            icon={<ArrowCounterClockwise size={14} className="mt-0.5" />}
+                            onClick={clearFilter}
+                        >
+                            Clear
+                        </Button>
+                        <Button
+                            type="primary"
+                            disabled={!filter[0]?.operator}
+                            onClick={applyFilter}
+                        >
                             Apply
                         </Button>
-                    </div>
+                    </Space>
                 </section>
             }
         >
@@ -230,7 +242,7 @@ const Filters: React.FC<Props> = ({
                 onClick={() => setIsFilterOpen(true)}
                 className="flex items-center gap-2"
             >
-                Filters {filter[0]?.value && <X size={14} />}
+                Filters {filter[0]?.operator && <X size={14} />}
             </Button>
         </Popover>
     )
