@@ -1,9 +1,12 @@
 import logging
-from typing import Optional
+from typing import Optional, Union
+
 
 from agenta import AgentaSingleton
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.client.backend.types.reference_dto import ReferenceDto
+from agenta.sdk.types import ConfigurationResponse, DeploymentResponse
+from agenta.client.backend.types.config_response_model import ConfigResponseModel
 from agenta.client.backend.types.reference_request_model import ReferenceRequestModel
 
 
@@ -47,6 +50,31 @@ class SharedManager:
         )
 
     @classmethod
+    def _convert_config_response_model_to_readable_format(
+        cls, response: ConfigResponseModel, response_type: str
+    ) -> Union[ConfigurationResponse, DeploymentResponse]:
+        common_kwargs = {
+            "app_slug": response.application_ref.slug,  # type: ignore
+            "variant_slug": response.variant_ref.slug,  # type: ignore
+            "variant_version": response.variant_ref.version,  # type: ignore
+            "environment_slug": response.environment_ref.slug,  # type: ignore
+        }
+
+        if response_type == "configuration":
+            return ConfigurationResponse(**common_kwargs, config=response.params)  # type: ignore
+        elif response_type == "deployment":
+            return DeploymentResponse(
+                **common_kwargs,  # type: ignore
+                deployment_info=(
+                    response.lifecycle.model_dump()
+                    if hasattr(response, "lifecycle") and response.lifecycle is not None
+                    else {}
+                ),
+            )
+        else:
+            raise ValueError(f"Invalid response type: {response_type}")
+
+    @classmethod
     def add(
         cls,
         *,
@@ -58,7 +86,13 @@ class SharedManager:
             variant_ref=ReferenceRequestModel(slug=variant_slug),
             application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
         )
-        return config_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     async def aadd(
@@ -72,7 +106,13 @@ class SharedManager:
             variant_ref=ReferenceRequestModel(slug=variant_slug),
             application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
         )
-        return config_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     def fetch(
@@ -90,7 +130,13 @@ class SharedManager:
             environment_ref=ReferenceRequestModel(slug=environment_slug),
             application_ref=ReferenceRequestModel(slug=app_slug),
         )
-        return config_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     async def afetch(
@@ -108,7 +154,13 @@ class SharedManager:
             environment_ref=ReferenceRequestModel(slug=environment_slug),
             application_ref=ReferenceRequestModel(slug=app_slug),
         )
-        return config_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     def fork(
@@ -120,14 +172,20 @@ class SharedManager:
         variant_version: Optional[int] = None,
         environment_slug: Optional[str] = None,
     ):
-        configs_response = cls.client.variants.configs_fork(  # type: ignore
+        config_response = cls.client.variants.configs_fork(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=variant_slug, version=variant_version
             ),
             environment_ref=ReferenceRequestModel(slug=environment_slug),
             application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
         )
-        return configs_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     async def afork(
@@ -139,34 +197,52 @@ class SharedManager:
         variant_version: Optional[int] = None,
         environment_slug: Optional[str] = None,
     ):
-        configs_response = await cls.aclient.variants.configs_fork(  # type: ignore
+        config_response = await cls.aclient.variants.configs_fork(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=variant_slug, version=variant_version
             ),
             environment_ref=ReferenceRequestModel(slug=environment_slug),
             application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
         )
-        return configs_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     def commit(cls, *, app_slug: str, variant_slug: str, config_parameters: dict):
-        configs_response = cls.client.variants.configs_commit(  # type: ignore
+        config_response = cls.client.variants.configs_commit(  # type: ignore
             params=config_parameters,
             variant_ref=ReferenceDto(slug=variant_slug),
             application_ref=ReferenceDto(slug=app_slug),
         )
-        return configs_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     async def acommit(
         cls, *, app_slug: str, variant_slug: str, config_parameters: dict
     ):
-        configs_response = await cls.aclient.variants.configs_commit(  # type: ignore
+        config_response = await cls.aclient.variants.configs_commit(  # type: ignore
             params=config_parameters,
             variant_ref=ReferenceDto(slug=variant_slug),
             application_ref=ReferenceDto(slug=app_slug),
         )
-        return configs_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="configuration",
+        )
+
+        assert type(response) == ConfigurationResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     def deploy(
@@ -177,14 +253,20 @@ class SharedManager:
         environment_slug: str,
         variant_version: Optional[int],
     ):
-        configs_response = cls.client.variants.configs_deploy(  # type: ignore
+        config_response = cls.client.variants.configs_deploy(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=variant_slug, version=variant_version
             ),
             environment_ref=ReferenceRequestModel(slug=environment_slug),
             application_ref=ReferenceRequestModel(slug=app_slug),
         )
-        return configs_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="deployment",
+        )
+
+        assert type(response) == DeploymentResponse, "Invalid configuration response"
+        return response
 
     @classmethod
     async def adeploy(
@@ -195,11 +277,17 @@ class SharedManager:
         environment_slug: str,
         variant_version: Optional[int],
     ):
-        configs_response = await cls.aclient.variants.configs_deploy(  # type: ignore
+        config_response = await cls.aclient.variants.configs_deploy(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=variant_slug, version=variant_version
             ),
             environment_ref=ReferenceRequestModel(slug=environment_slug),
             application_ref=ReferenceRequestModel(slug=app_slug),
         )
-        return configs_response
+        response = cls._convert_config_response_model_to_readable_format(
+            config_response,
+            response_type="deployment",
+        )
+
+        assert type(response) == DeploymentResponse, "Invalid configuration response"
+        return response
