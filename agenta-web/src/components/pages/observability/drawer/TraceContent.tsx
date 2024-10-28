@@ -162,7 +162,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                                   <AccordionTreePanel
                                                       key={index}
                                                       label={"assistant"}
-                                                      value={param.content}
+                                                      value={param}
                                                       enableFormatSwitcher
                                                   />
                                               ),

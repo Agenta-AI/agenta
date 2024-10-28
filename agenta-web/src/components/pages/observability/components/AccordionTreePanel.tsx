@@ -57,7 +57,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .monaco-editor .margin": {
             backgroundColor: bgColor,
         },
+        "& .monaco-editor .scrollbar.vertical .slider": {
+            borderRadius: 6,
+        },
+        "& .monaco-editor .scrollbar.vertical": {
+            backgroundColor: theme.colorBgContainerDisabled,
+        },
     }),
+    segmentedBtn: {
+        border: `1px solid ${theme.colorBorder}`,
+        padding: 0,
+        "& .ant-segmented-item": {
+            padding: 2,
+        },
+        "& .ant-segmented-item-selected": {
+            outline: `1px solid ${theme.colorPrimary}`,
+        },
+    },
 }))
 
 const AccordionTreePanel = ({
@@ -112,6 +128,10 @@ const AccordionTreePanel = ({
                                 readOnly: true,
                                 lineNumbers: "off",
                                 lineDecorationsWidth: 0,
+                                scrollbar: {
+                                    verticalScrollbarSize: 8,
+                                    horizontalScrollbarSize: 8,
+                                },
                             }}
                         />
                     ),
@@ -125,6 +145,7 @@ const AccordionTreePanel = ({
                                         setSegmentedValue(optValue)
                                     }}
                                     onClick={(e) => e.stopPropagation()}
+                                    className={classes.segmentedBtn}
                                 />
                             )}
                             <CopyButton

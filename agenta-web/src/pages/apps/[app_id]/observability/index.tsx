@@ -30,18 +30,19 @@ import {
     Space,
     Table,
     TableColumnType,
+    Tag,
     Typography,
 } from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useCallback, useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
-import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {getAgentaApiUrl, getStringOrJson} from "@/lib/helpers/utils"
 import axios from "axios"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -121,27 +122,31 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Inputs",
             key: "inputs",
             width: 350,
-            onHeaderCell: () => ({
-                style: {minWidth: 350},
-            }),
-            // render: (_, record) => {
-            //     return <ResultTag value1={getStringOrJson(record?.data?.inputs)} />
-            // },
+            render: (_, record) => {
+                return (
+                    <Tag
+                        title={getStringOrJson(record?.data?.inputs)}
+                        className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                    >
+                        {getStringOrJson(record?.data?.inputs)}
+                    </Tag>
+                )
+            },
         },
         {
             title: "Outputs",
             key: "outputs",
             width: 350,
-            onHeaderCell: () => ({
-                style: {minWidth: 350},
-            }),
-            // render: (_, record) => {
-            //     return (
-            //         <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-            //             <ResultTag value1={getStringOrJson(record?.data?.outputs)} />
-            //         </div>
-            //     )
-            // },
+            render: (_, record) => {
+                return (
+                    <Tag
+                        title={getStringOrJson(record?.data?.outputs)}
+                        className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                    >
+                        {getStringOrJson(record?.data?.outputs)}
+                    </Tag>
+                )
+            },
         },
         {
             title: "Status",
@@ -194,16 +199,34 @@ const ObservabilityDashboard = ({}: Props) => {
 
     const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
 
-    const [selected, setSelected] = useState(activeTrace?.key)
+    const [selected, setSelected] = useState("")
+
+    useEffect(() => {
+        if (!selected) {
+            setSelected(activeTrace?.node.id)
+        }
+    }, [activeTrace, selected])
 
     const selectedItem = useMemo(
         () => (traces?.length ? getNodeById(traces, selected) : null),
         [selected, traces],
     )
 
-    useEffect(() => {
-        setSelected(activeTrace?.key)
-    }, [activeTrace])
+    const handleNextTrace = useCallback(() => {
+        if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
+            const nextTrace = traces[activeTraceIndex + 1]
+            setSelectedTraceId(nextTrace.root.id)
+            setSelected(nextTrace.node.id)
+        }
+    }, [activeTraceIndex, traces, setSelectedTraceId])
+
+    const handlePrevTrace = useCallback(() => {
+        if (activeTraceIndex !== undefined && activeTraceIndex > 0) {
+            const prevTrace = traces[activeTraceIndex - 1]
+            setSelectedTraceId(prevTrace.root.id)
+            setSelected(prevTrace.node.id)
+        }
+    }, [activeTraceIndex, traces, setSelectedTraceId])
 
     const handleResize =
         (key: string) =>
@@ -455,10 +478,8 @@ const ObservabilityDashboard = ({}: Props) => {
 
                 if (filters.length > 0 && filters[0].value) {
                     data = await fetchAllFilteredTraces()
-                    console.log("filtred")
                 } else {
                     data = await fetchAllTraces()
-                    console.log("clear")
                 }
 
                 const transformedTraces: _AgentaRootsResponse[] = []
@@ -559,6 +580,7 @@ const ObservabilityDashboard = ({}: Props) => {
                 style={{cursor: "pointer"}}
                 onRow={(record) => ({
                     onClick: () => {
+                        setSelected(record.node.id)
                         setSelectedTraceId(record.root.id)
                     },
                 })}
@@ -612,6 +634,8 @@ const ObservabilityDashboard = ({}: Props) => {
                             traces={traces}
                             setSelectedTraceId={setSelectedTraceId}
                             activeTraceIndex={activeTraceIndex}
+                            handleNextTrace={handleNextTrace}
+                            handlePrevTrace={handlePrevTrace}
                         />
                     }
                     mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
