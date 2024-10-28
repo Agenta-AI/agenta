@@ -39,6 +39,7 @@ V_0_4_1_ATTRIBUTES_PREFIX = [
     # OPENLLMETRY
     ("gen_ai.prompt", "ag.data.inputs.prompt"),
     ("gen_ai.completion", "ag.data.outputs.completion"),
+    ("llm.request.functions", "ag.data.inputs.functions"),
     # OPENINFERENCE
     ("llm.token_count", "ag.metrics.unit.tokens"),
     ("llm.input_messages", "ag.data.inputs.prompt"),
