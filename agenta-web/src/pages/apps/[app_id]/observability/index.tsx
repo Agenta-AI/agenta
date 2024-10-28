@@ -173,7 +173,7 @@ const ObservabilityDashboard = ({}: Props) => {
 
     useEffect(() => {
         if (!selected) {
-            setSelected(activeTrace.node.id)
+            setSelected(activeTrace?.node.id)
         }
     }, [activeTrace, selected])
 
