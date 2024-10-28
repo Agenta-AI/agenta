@@ -13,11 +13,14 @@ import {ResizableTitle} from "@/components/ServerTable/components"
 import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {getNodeById} from "@/lib/helpers/observability_helpers"
-import {getStringOrJson} from "@/lib/helpers/utils"
+import {
+    buildNodeTree,
+    getNodeById,
+    observabilityTransformer,
+} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
 import {Filter, FilterConditions, JSSTheme, SortTypes} from "@/lib/Types"
-import {_AgentaRootsResponse} from "@/services/observability/types"
+import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "@/services/observability/types"
 import {SwapOutlined} from "@ant-design/icons"
 import {
     Button,
@@ -38,6 +41,8 @@ import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import axios from "axios"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -49,16 +54,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
+type TraceTabTypes = "tree" | "node" | "llm"
+
 const ObservabilityDashboard = ({}: Props) => {
     const appId = useAppId()
     const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const {traces, isLoadingTraces} = useTraces()
+    const {traces, isLoadingTraces, setIsLoadingTraces, setTraces} = useTraces()
     const [searchQuery, setSearchQuery] = useState("")
-    const [traceTabs, setTraceTabs] = useState("all")
-    const [focusTab, setFocusTab] = useState("tree")
-    const [editColumns, setEditColumns] = useState<string[]>([])
+    const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
+    const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
     const [filters, setFilters] = useState<Filter[]>([])
     const [isExportLoading, setIsExportLoading] = useState(false)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
@@ -214,15 +220,13 @@ const ObservabilityDashboard = ({}: Props) => {
         return columns.map((col) => ({
             ...col,
             width: col.width || 200,
+            hidden: editColumns.includes(col.key as string),
             onHeaderCell: (column: TableColumnType<_AgentaRootsResponse>) => ({
                 width: column.width,
                 onResize: handleResize(column.key?.toString()!),
             }),
         }))
-    }, [columns])
-
-    // external codes
-    // ----------------------------------------------------------------------
+    }, [columns, editColumns])
 
     const onExport = async () => {
         try {
@@ -271,12 +275,40 @@ const ObservabilityDashboard = ({}: Props) => {
     }
 
     const filterColumns = [
-        {value: "data", label: "data"},
-        {value: "status.code", label: "status.code"},
-        {value: "metrics.acc.costs.total", label: "metrics.acc.costs.total"},
-        {value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
-        {value: "node.name", label: "node.name"},
+        {value: "root.id", label: "root.id"},
+        {value: "tree.id", label: "tree.id"},
+        {value: "tree.type", label: "tree.type"},
+        {value: "node.id", label: "node.id"},
         {value: "node.type", label: "node.type"},
+        {value: "node.name", label: "node.name"},
+        {value: "parent.id", label: "parent.id"},
+        {value: "status.code", label: "status.code"},
+        {value: "status.message", label: "status.message"},
+        {value: "exception.timestamp", label: "exception.timestamp"},
+        {value: "exception.type", label: "exception.type"},
+        {value: "exception.message", label: "exception.message"},
+        {value: "exception.stacktrace", label: "exception.stacktrace"},
+        {value: "data", label: "data"},
+        {value: "metrics.acc.duration.total", label: "metrics.acc.duration.total"},
+        {value: "metrics.acc.cost.total", label: "metrics.acc.cost.total"},
+        {value: "metrics.unit.cost.total", label: "metrics.unit.cost.total"},
+        {value: "metrics.acc.tokens.prompt", label: "metrics.acc.tokens.prompt"},
+        {value: "metrics.acc.tokens.completion", label: "metrics.acc.tokens.completion"},
+        {value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
+        {value: "metrics.unit.tokens.prompt", label: "metrics.unit.tokens.prompt"},
+        {value: "metrics.unit.tokens.completion", label: "metrics.unit.tokens.completion"},
+        {value: "metrics.unit.tokens.total", label: "metrics.unit.tokens.total"},
+        {value: "refs.variant.id", label: "refs.variant.id"},
+        {value: "refs.variant.slug", label: "refs.variant.slug"},
+        {value: "refs.variant.version", label: "refs.variant.version"},
+        {value: "refs.environment.id", label: "refs.environment.id"},
+        {value: "refs.environment.slug", label: "refs.environment.slug"},
+        {value: "refs.environment.version", label: "refs.environment.version"},
+        {value: "refs.application.id", label: "refs.application.id"},
+        {value: "refs.application.slug", label: "refs.application.slug"},
+        {value: "link.type", label: "link.type"},
+        {value: "link.node.id", label: "link.node.id"},
+        {value: "otel.kind", label: "otel.kind"},
     ]
 
     const onSortApply = async ({
@@ -286,43 +318,39 @@ const ObservabilityDashboard = ({}: Props) => {
         sortData: SortTypes
         customSortData?: any
     }) => {
-        // let time
-        // let query: string
-        // if (sortData !== "custom" && sortData) {
-        //     const now = dayjs().utc() // Get the current UTC time
-        //     if (sortData === "all time") {
-        //         time = "1970-01-01T00:00:00"
-        //         query = `&earliest=${time}`
-        //         return
-        //     }
-        //     // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
-        //     const [amount, unit] = sortData.split(" ")
-        //     time = now
-        //         .subtract(parseInt(amount), unit as dayjs.ManipulateType)
-        //         .toISOString()
-        //         .split(".")[0]
-        //     query = `&earliest=${time}`
-        // }
-        // if (customSortData?.startTime && sortData == "custom") {
-        //     query = `earliest=${customSortData.startTime.toISOString().split(".")[0]}&latest=${customSortData.endTime.toISOString().split(".")[0]}`
-        // }
-        // try {
-        //     const fetchAllTraces = async () => {
-        //         const response = await axios.get(
-        //             `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
-        //         )
-        //         return response.data
-        //     }
-        //     const data = await fetchAllTraces()
-        //     setTraces(
-        //         data.trees.flatMap((item: AgentaRootsResponse) =>
-        //             // @ts-ignore
-        //             observabilityTransformer(item),
-        //         ) as _AgentaRootsResponse[],
-        //     )
-        // } catch (error) {
-        //     console.log(error)
-        // }
+        let time
+        let query: string
+        if (sortData !== "custom" && sortData && sortData !== "all time") {
+            const now = dayjs().utc() // Get the current UTC time
+
+            // Split the value into number and unit (e.g., "30 minutes" becomes ["30", "minutes"])
+            const [amount, unit] = sortData.split(" ")
+            time = now
+                .subtract(parseInt(amount), unit as dayjs.ManipulateType)
+                .toISOString()
+                .split(".")[0]
+            query = `&earliest=${time}`
+        } else if (customSortData?.startTime && sortData == "custom") {
+            query = `earliest=${customSortData.startTime.toISOString().split(".")[0]}&latest=${customSortData.endTime.toISOString().split(".")[0]}`
+        } else if (sortData === "all time") {
+            time = "1970-01-01T00:00:00"
+            query = `&earliest=${time}`
+        }
+
+        try {
+            const fetchAllTraces = async () => {
+                const response = await axios.get(
+                    `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
+                )
+                return response.data
+            }
+
+            const data = await fetchAllTraces()
+
+            setTraces(data.trees.flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)))
+        } catch (error) {
+            console.log(error)
+        }
     }
 
     const handleToggleColumnVisibility = (key: string) => {
@@ -331,103 +359,11 @@ const ObservabilityDashboard = ({}: Props) => {
         )
     }
 
-    // without synchronization code - version 1
-    // ------------------------------------------------------------------------
-
-    // const onFilterApply = (filter: Filter[]) => {
-    //     try {
-    //         const query = `&filtering={"conditions": ${JSON.stringify(filter)}}`
-    //         console.log(query)
-    //     } catch (error) {}
-    // }
-
-    // const onClearFilter = async (filter: Filter[]) => {}
-
-    // const onSearchQueryAppy = async () => {
-    //     if (!searchQuery) return
-    //     try {
-    //         const query = `filtering={"conditions":[{"key":"data","value":"${searchQuery}","operator":"contains"}]}`
-
-    //         const fetchAllTraces = async () => {
-    //             const response = await axios.get(
-    //                 `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${query}`,
-    //             )
-    //             return response.data
-    //         }
-
-    //         const data = await fetchAllTraces()
-    //         setTraces(
-    //             data.trees.flatMap((item: AgentaRootsResponse) =>
-    //                 // @ts-ignore
-    //                 observabilityTransformer(item),
-    //             ) as _AgentaRootsResponse[],
-    //         )
-    //     } catch (error) {
-    //         console.log(error)
-    //     }
-    // }
-
-    // const onTraceTabChange = async (e: RadioChangeEvent) => {
-    //     setTraceTabs(e.target.value)
-    //     try {
-    //         const tab = e.target.value
-    //         if (!tab) return
-    //         const query =
-    //             tab === "all"
-    //                 ? `&focus=tree`
-    //                 : `&focus=node&node_type=${tab == "llm" ? "CHAT" : "WORKFLOW"}`
-
-    //         const fetchAllTraces = async () => {
-    //             const response = await axios.get(
-    //                 `${getAgentaApiUrl()}/api/observability/v1/0192ba30-1a80-7093-8c99-456a914f829d/traces?focus=tree${query}`,
-    //             )
-    //             return response.data
-    //         }
-
-    //         const data = await fetchAllTraces()
-
-    //         // setTraces(data.nodes)
-    //     } catch (error) {
-    //         console.log(error)
-    //     }
-    // }
-
-    const lol = "dfdf"
-
-    // synchronization code - version 2
-    // -------------------------------------------------------------------------
-
-    // Update search filter based on search input change
-    const onSearchQueryApply = () => {
-        updateFilter("data", "contains", searchQuery)
-    }
-
-    // Update filters based on Radio button change
-    const onTraceTabChange = (e: RadioChangeEvent) => {
-        const selectedTab = e.target.value
-        setTraceTabs(selectedTab)
-
-        if (selectedTab == "all") {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
-        } else {
-            updateFilter("node.type", "eq", selectedTab)
-        }
-    }
-
-    const onFocusTabChange = (e: RadioChangeEvent) => {
-        setFocusTab(e.target.value)
-    }
-
-    const updateFilter = (key: string, operator: FilterConditions, value: string) => {
-        setFilters((prevFilters) => {
-            const otherFilters = prevFilters.filter((f) => f.key !== key)
-            return value ? [...otherFilters, {key, operator, value}] : otherFilters
-        })
-    }
-
-    const onSearchChange = (e: any) => {
+    // ------------------ search filter ------------------
+    const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchQuery(e.target.value)
 
+        // if the data filter is exist in filter then remove it when the input value get empty
         if (!e.target.value) {
             const isSearchFilterExist = filters.some((item) => item.key === "data")
 
@@ -437,9 +373,18 @@ const ObservabilityDashboard = ({}: Props) => {
         }
     }
 
+    const onSearchQueryApply = () => {
+        if (searchQuery) {
+            updateFilter({key: "data", operator: "contains", value: searchQuery})
+        }
+    }
+
     const onSearchClear = () => {
-        setSearchQuery("") // Clear the search query
-        setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data")) // Remove the filter for 'data'
+        const isSearchFilterExist = filters.some((item) => item.key === "data")
+
+        if (isSearchFilterExist) {
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+        }
     }
 
     // Sync searchQuery with filters state
@@ -448,26 +393,110 @@ const ObservabilityDashboard = ({}: Props) => {
         setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
 
-    // Sync traceTabs with filters state
-    useUpdateEffect(() => {
-        const nodeTypeFilter = filters.find((f) => f.key === "node.type")
-        setTraceTabs(nodeTypeFilter ? nodeTypeFilter.value : "all")
-    }, [filters])
+    // -------------------- group buttons filter ---------------------
+    const onTraceTabChange = async (e: RadioChangeEvent) => {
+        const selectedTab = e.target.value
 
-    const onClearFilter = () => {
-        setFilters([])
-        setSearchQuery("")
-        setTraceTabs("all")
+        setTraceTabs(selectedTab)
+        if (selectedTab == "llm") {
+            console.log(`focus=${selectedTab}&node_type=llm`)
+        } else {
+            console.log(`focus=${selectedTab}`)
+        }
+
+        // updateFilter({key: "node.type", operator: "eq", value: selectedTab})
     }
 
-    const onApplyFilter = (newFilters: Filter[]) => {
+    // Sync traceTabs with filters state
+    // useUpdateEffect(() => {
+    //     const nodeTypeFilter = filters.find((f) => f.key === "node.type")
+    //     setTraceTabs(nodeTypeFilter ? (nodeTypeFilter.value as TraceTabTypes) : "tree")
+    // }, [filters])
+
+    // -------------------- utility functions ---------------------
+
+    const updateFilter = ({
+        key,
+        operator,
+        value,
+    }: {
+        key: string
+        operator: FilterConditions
+        value: string
+    }) => {
+        setFilters((prevFilters) => {
+            const otherFilters = prevFilters.filter((f) => f.key !== key)
+
+            return value ? [...otherFilters, {key, operator, value}] : otherFilters
+        })
+    }
+
+    useUpdateEffect(() => {
+        const filterTraceData = async () => {
+            try {
+                setIsLoadingTraces(true)
+
+                let data: any
+                const focusPoint =
+                    traceTabs == "llm" ? `focus=node&node_type=${traceTabs}` : `focus=${traceTabs}`
+
+                const fetchAllFilteredTraces = async () => {
+                    const response = await axios.get(
+                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${focusPoint}&filtering={"conditions":${JSON.stringify(filters)}}`,
+                    )
+                    return response.data
+                }
+                const fetchAllTraces = async () => {
+                    const response = await axios.get(
+                        `${getAgentaApiUrl()}/api/observability/v1/traces/search?project_id=0192c229-3760-759d-a637-959921135050&${focusPoint}`,
+                    )
+                    return response.data
+                }
+
+                if (filters.length > 0 && filters[0].value) {
+                    data = await fetchAllFilteredTraces()
+                    console.log("filtred")
+                } else {
+                    data = await fetchAllTraces()
+                    console.log("clear")
+                }
+
+                const transformedTraces: _AgentaRootsResponse[] = []
+
+                if (data?.trees) {
+                    transformedTraces.push(
+                        ...data.trees.flatMap((item: AgentaTreeDTO) =>
+                            observabilityTransformer(item),
+                        ),
+                    )
+                }
+
+                if (data?.nodes) {
+                    transformedTraces.push(
+                        ...data.nodes
+                            .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
+                            .flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
+                    )
+                }
+
+                setTraces(transformedTraces)
+            } catch (error) {
+                console.log(error)
+            } finally {
+                setIsLoadingTraces(false)
+            }
+        }
+        filterTraceData()
+    }, [filters, traceTabs])
+
+    const onApplyFilter = async (newFilters: Filter[]) => {
         setFilters(newFilters)
     }
 
-    // Function to check if custom Radio Button should be displayed
-    const shouldShowCustomButton = filters.some(
-        (item) => item.key === "node.type" && !["llm", "workflows", "all"].includes(item.value),
-    )
+    const onClearFilter = async () => {
+        setFilters([])
+        setSearchQuery("")
+    }
 
     return (
         <div className="flex flex-col gap-6">
@@ -495,16 +524,9 @@ const ObservabilityDashboard = ({}: Props) => {
                 <div className="w-full flex items-center justify-between">
                     <Space>
                         <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                            <Radio.Button value="all">All</Radio.Button>
+                            <Radio.Button value="tree">Root</Radio.Button>
                             <Radio.Button value="llm">LLM</Radio.Button>
-                            <Radio.Button value="workflows">Workflows</Radio.Button>
-                            {shouldShowCustomButton && (
-                                <Radio.Button value="custom">Custom</Radio.Button>
-                            )}
-                        </Radio.Group>
-                        <Radio.Group value={focusTab} onChange={onFocusTabChange}>
-                            <Radio.Button value="tree">Tree</Radio.Button>
-                            <Radio.Button value="node">Node</Radio.Button>
+                            <Radio.Button value="node">All</Radio.Button>
                         </Radio.Group>
                     </Space>
 

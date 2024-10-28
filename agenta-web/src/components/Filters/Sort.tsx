@@ -1,5 +1,5 @@
 import React, {useState} from "react"
-import {CaretRight, Clock, Hourglass} from "@phosphor-icons/react"
+import {CaretRight, Clock, Calendar} from "@phosphor-icons/react"
 import {DatePicker, Button, Typography, Divider, Popover} from "antd"
 import {JSSTheme, SortTypes} from "@/lib/Types"
 import {Dayjs} from "dayjs"
@@ -210,7 +210,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                 }
             >
                 <Button
-                    icon={<Hourglass size={14} />}
+                    icon={<Calendar size={14} className="mt-0.5" />}
                     onClick={() => setDropdownVisible(true)}
                     className="flex items-center gap-2"
                 >

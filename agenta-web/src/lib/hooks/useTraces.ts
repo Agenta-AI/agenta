@@ -57,5 +57,5 @@ export const useTraces = () => {
         fetchTraces()
     }, [])
 
-    return {traces, isLoadingTraces}
+    return {traces, isLoadingTraces, setIsLoadingTraces, setTraces}
 }
