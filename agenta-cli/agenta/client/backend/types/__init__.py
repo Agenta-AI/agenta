@@ -40,6 +40,7 @@ from .human_evaluation_scenario_update import HumanEvaluationScenarioUpdate
 from .human_evaluation_update import HumanEvaluationUpdate
 from .image import Image
 from .invite_request import InviteRequest
+from .lifecycle_dto import LifecycleDto
 from .list_api_keys_response import ListApiKeysResponse
 from .llm_run_rate_limit import LlmRunRateLimit
 from .llm_tokens import LlmTokens
@@ -118,6 +119,7 @@ __all__ = [
     "HumanEvaluationUpdate",
     "Image",
     "InviteRequest",
+    "LifecycleDto",
     "ListApiKeysResponse",
     "LlmRunRateLimit",
     "LlmTokens",
