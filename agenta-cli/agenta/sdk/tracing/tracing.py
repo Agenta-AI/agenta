@@ -163,7 +163,7 @@ class Tracing(metaclass=Singleton):
                 span = self.get_current_span()
 
             for key in refs.keys():
-                if key in Reference:
+                if key in [_.value for _ in Reference.__members__.values()]:
                     # TYPE AND FORMAT CHECKING
                     if key.endswith(".id"):
                         try:
