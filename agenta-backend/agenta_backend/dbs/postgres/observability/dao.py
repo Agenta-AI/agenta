@@ -76,7 +76,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                     if windowing.latest:
                         query = query.filter(
-                            InvocationSpanDBE.created_at <= windowing.latest
+                            InvocationSpanDBE.created_at < windowing.latest
                         )
                 # ---------
 
@@ -96,20 +96,67 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 query = query.order_by(InvocationSpanDBE.created_at.desc())
                 # -------
 
+                # WHERE                           created_at <= stop
+                # WHERE next     < created_at AND created_at <= stop
+
                 # PAGINATION
                 pagination = query_dto.pagination
                 count = None
                 # ----------
                 if pagination:
+                    print("-----------------")
+                    print(pagination)
+
                     count_query = select(
                         func.count()  # pylint: disable=E1102:not-callable
                     ).select_from(query.subquery())
                     count = (await session.execute(count_query)).scalar()
 
-                    limit = pagination.size
-                    offset = (pagination.page - 1) * pagination.size
+                    # 1. LIMIT size OFFSET (page - 1) * size
+                    # -> unstable if windowing.latest is not set
+                    if pagination.page and pagination.size:
+                        limit = pagination.size
+                        offset = (pagination.page - 1) * pagination.size
 
-                    query = query.limit(limit).offset(offset)
+                        query = query.limit(limit).offset(offset)
+
+                    # 2. WHERE next > created_at LIMIT size
+                    # -> unstable if created_at is not unique
+                    elif pagination.next and pagination.size:
+                        query = query.filter(
+                            InvocationSpanDBE.created_at < pagination.next
+                        )
+                        query = query.limit(pagination.size)
+
+                    # 3. WHERE next > created_at AND created_at >= stop
+                    # -> stable thanks to the </<= combination
+                    elif pagination.next and pagination.stop:
+
+                        query = query.filter(
+                            InvocationSpanDBE.created_at < pagination.next
+                        )
+                        query = query.filter(
+                            InvocationSpanDBE.created_at >= pagination.stop
+                        )
+
+                    # 4. WHERE LIMIT size
+                    # -> useful as a starter query
+                    elif pagination.size:
+                        query = query.limit(pagination.size)
+
+                    # 5. WHERE created_at >= stop
+                    # -> useful as a starter query
+                    elif pagination.stop:
+                        query = query.filter(
+                            InvocationSpanDBE.created_at >= pagination.stop
+                        )
+
+                    # 6. WHERE next > created_at
+                    # -> rather useless
+                    elif pagination.next:
+                        query = query.filter(
+                            InvocationSpanDBE.created_at < pagination.next
+                        )
                 # ----------
 
                 # GROUPING

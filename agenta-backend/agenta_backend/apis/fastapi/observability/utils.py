@@ -63,7 +63,7 @@ def _parse_filtering(
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid JSON filtering provided: {str(e)}",
-            )
+            ) from e
 
     return _filtering
 
@@ -82,11 +82,38 @@ def _parse_grouping(
 def _parse_pagination(
     page: Optional[int] = None,
     size: Optional[int] = None,
+    next: Optional[str] = None,  # pylint: disable=W0622:redefined-builtin
+    stop: Optional[str] = None,
 ) -> Optional[PaginationDTO]:
     _pagination = None
 
-    if page and size:
-        _pagination = PaginationDTO(page=page, size=size)
+    print("---------------------------------")
+    print(page, size, next, stop)
+
+    if page and next:
+        raise HTTPException(
+            status_code=400,
+            detail="Both 'page' and 'next' cannot be provided at the same time",
+        )
+
+    if size and stop:
+        raise HTTPException(
+            status_code=400,
+            detail="Both 'size' and 'stop' cannot be provided at the same time",
+        )
+
+    if page and not size:
+        raise HTTPException(
+            status_code=400,
+            detail="'size' is required when 'page' is provided",
+        )
+
+    _pagination = PaginationDTO(
+        page=page,
+        size=size,
+        next=next,
+        stop=stop,
+    )
 
     return _pagination
 
@@ -106,12 +133,14 @@ def parse_query_dto(
     # - Option 2: Flat query parameters
     page: Optional[int] = Query(None),
     size: Optional[int] = Query(None),
+    next: Optional[str] = Query(None),  # pylint: disable=W0622:redefined-builtin
+    stop: Optional[str] = Query(None),
 ) -> QueryDTO:
     return QueryDTO(
         grouping=_parse_grouping(focus=focus),
         windowing=_parse_windowing(earliest=earliest, latest=latest),
         filtering=_parse_filtering(filtering=filtering),
-        pagination=_parse_pagination(page=page, size=size),
+        pagination=_parse_pagination(page=page, size=size, next=next, stop=stop),
     )
 
 
@@ -372,7 +401,7 @@ def _parse_from_attributes(
         if key.endswith(".id"):
             try:
                 _refs[key] = str(UUID(_refs[key]))
-            except:
+            except:  # pylint: disable=W0702:bare-except
                 _refs[key] = None
 
         _refs[key] = str(_refs[key])
@@ -403,9 +432,9 @@ def _parse_from_events(
                     attributes=event.attributes,
                 )
 
-                del exception.attributes["exception.type"]
-                del exception.attributes["exception.message"]
-                del exception.attributes["exception.stacktrace"]
+                del event.attributes["exception.type"]
+                del event.attributes["exception.message"]
+                del event.attributes["exception.stacktrace"]
 
             else:
                 _other_events.append(event)
@@ -511,8 +540,6 @@ def _parse_to_attributes(
     span_dto: SpanDTO,
 ) -> Attributes:
     attributes = dict()
-
-    MAX_DEPTH = 4
 
     # DATA
     if span_dto.data:
@@ -718,7 +745,10 @@ def parse_to_agenta_span_dto(
     # ------------------
 
     # MASK LIFECYCLE FOR NOW
-    span_dto.lifecycle = None
+    # span_dto.lifecycle = None
+    if span_dto.lifecycle:
+        span_dto.lifecycle.updated_at = None
+        span_dto.lifecycle.updated_by_id = None
     # ----------------------
 
     return span_dto

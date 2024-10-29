@@ -290,8 +290,11 @@ class GroupingDTO(BaseModel):
 
 
 class PaginationDTO(BaseModel):
-    page: int
-    size: int
+    page: Optional[int] = None
+    size: Optional[int] = None
+
+    next: Optional[datetime] = None
+    stop: Optional[datetime] = None
 
 
 class QueryDTO(BaseModel):
