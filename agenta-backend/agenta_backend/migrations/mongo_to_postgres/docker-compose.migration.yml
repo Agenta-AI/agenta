@@ -24,7 +24,6 @@ services:
             - DOMAIN_NAME=http://localhost
             - FEATURE_FLAG=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
-            - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - REGISTRY_REPO_NAME=agentaai
@@ -83,8 +82,6 @@ services:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-        environment:
-            - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         restart: always
 
     mongo:
