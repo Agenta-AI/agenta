@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  pytest:
+  sdk_tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +22,10 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
-      - name: Install dependencies and agenta SDK
+      - name: Activate shell, install dependencies and agenta SDK
         run: |
           cd agenta-cli
+          poetry shell
           poetry install
 
       - name: Run pytest
