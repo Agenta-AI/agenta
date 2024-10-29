@@ -2,7 +2,7 @@ import json
 from typing import Annotated
 from unittest.mock import patch
 
-import yaml # type: ignore
+import yaml  # type: ignore
 import pytest
 from pydantic import BaseModel, Field
 

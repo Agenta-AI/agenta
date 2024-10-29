@@ -17,4 +17,5 @@ def handle_exceptions():
                 raise e
 
         return wrapper
+
     return decorator
