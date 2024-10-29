@@ -1,16 +1,18 @@
 import logging
 from typing import Optional, Union
 
-
-from agenta import AgentaSingleton
+from agenta.sdk.utils.exceptions import handle_exceptions
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.client.backend.types.reference_dto import ReferenceDto
-from agenta.sdk.types import ConfigurationResponse, DeploymentResponse
+from agenta.sdk.types import (
+    ConfigurationResponse,
+    DeploymentResponse,
+    VariantConfigurationsResponse,
+)
 from agenta.client.backend.types.config_response_model import ConfigResponseModel
 from agenta.client.backend.types.reference_request_model import ReferenceRequestModel
 
 
-singleton = AgentaSingleton()
 logger = logging.getLogger(__name__)
 
 
@@ -38,15 +40,23 @@ class SharedManager:
             logger.error("Failed to initialize Agenta client with error: %s", str(ex))
             raise
 
+        try:
+            from agenta import DEFAULT_AGENTA_SINGLETON_INSTANCE
+
+            cls.singleton = DEFAULT_AGENTA_SINGLETON_INSTANCE
+        except Exception as ex:
+            logger.error("Failed to initialize singleton with error: %s", str(ex))
+            raise
+
     @classmethod
     def _initialize_clients(cls):
         cls.client = AgentaApi(
-            base_url=singleton.host + "/api",
-            api_key=singleton.api_key if singleton.api_key else "",
+            base_url=cls.singleton.host + "/api",
+            api_key=cls.singleton.api_key if cls.singleton.api_key else "",
         )
         cls.aclient = AsyncAgentaApi(
-            base_url=singleton.host + "/api",
-            api_key=singleton.api_key if singleton.api_key else "",
+            base_url=cls.singleton.host + "/api",
+            api_key=cls.singleton.api_key if cls.singleton.api_key else "",
         )
 
     @classmethod
@@ -75,6 +85,7 @@ class SharedManager:
             raise ValueError(f"Invalid response type: {response_type}")
 
     @classmethod
+    @handle_exceptions()
     def add(
         cls,
         *,
@@ -95,6 +106,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     async def aadd(
         cls,
         *,
@@ -115,6 +127,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     def fetch(
         cls,
         *,
@@ -139,6 +152,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     async def afetch(
         cls,
         *,
@@ -163,6 +177,25 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
+    def list(cls, *, app_slug: str):
+        configs_response = cls.client.variants.configs_list(app_slug=app_slug)  # type: ignore
+        return [
+            VariantConfigurationsResponse(**config_response)  # type: ignore
+            for config_response in configs_response
+        ]
+
+    @classmethod
+    @handle_exceptions()
+    async def alist(cls, *, app_slug: str):
+        configs_response = await cls.aclient.variants.configs_list(app_slug=app_slug)  # type: ignore
+        return [
+            VariantConfigurationsResponse(**config_response)  # type: ignore
+            for config_response in configs_response
+        ]
+
+    @classmethod
+    @handle_exceptions()
     def fork(
         cls,
         *,
@@ -188,6 +221,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     async def afork(
         cls,
         *,
@@ -213,6 +247,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     def commit(cls, *, app_slug: str, variant_slug: str, config_parameters: dict):
         config_response = cls.client.variants.configs_commit(  # type: ignore
             params=config_parameters,
@@ -228,6 +263,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     async def acommit(
         cls, *, app_slug: str, variant_slug: str, config_parameters: dict
     ):
@@ -245,6 +281,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     def deploy(
         cls,
         *,
@@ -269,6 +306,7 @@ class SharedManager:
         return response
 
     @classmethod
+    @handle_exceptions()
     async def adeploy(
         cls,
         *,
@@ -291,3 +329,15 @@ class SharedManager:
 
         assert type(response) == DeploymentResponse, "Invalid configuration response"
         return response
+
+    @classmethod
+    @handle_exceptions()
+    def delete(cls, *, app_slug: str, variant_slug: str):
+        config_response = cls.client.variants.configs_delete(app_slug=app_slug, variant_slug=variant_slug)  # type: ignore
+        return config_response
+
+    @classmethod
+    @handle_exceptions()
+    async def adelete(cls, *, app_slug: str, variant_slug: str):
+        config_response = await cls.aclient.variants.configs_delete(app_slug=app_slug, variant_slug=variant_slug)  # type: ignore
+        return config_response
