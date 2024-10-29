@@ -35,18 +35,19 @@ class SharedManager:
 
     def __new__(cls, *args, **kwargs):
         try:
-            cls._initialize_clients()
-        except Exception as ex:
-            logger.error("Failed to initialize Agenta client with error: %s", str(ex))
-            raise
-
-        try:
             from agenta import DEFAULT_AGENTA_SINGLETON_INSTANCE
 
             cls.singleton = DEFAULT_AGENTA_SINGLETON_INSTANCE
         except Exception as ex:
             logger.error("Failed to initialize singleton with error: %s", str(ex))
             raise
+
+        try:
+            cls._initialize_clients()
+        except Exception as ex:
+            logger.error("Failed to initialize Agenta client with error: %s", str(ex))
+            raise
+        return super(SharedManager, cls).__new__(cls)
 
     @classmethod
     def _initialize_clients(cls):
@@ -67,7 +68,7 @@ class SharedManager:
             "app_slug": response.application_ref.slug,  # type: ignore
             "variant_slug": response.variant_ref.slug,  # type: ignore
             "variant_version": response.variant_ref.version,  # type: ignore
-            "environment_slug": response.environment_ref.slug,  # type: ignore
+            "environment_slug": response.environment_ref.slug if response.environment_ref is not None else None,  # type: ignore
         }
 
         if response_type == "configuration":
@@ -94,8 +95,10 @@ class SharedManager:
         app_slug: Optional[str] = None,
     ):
         config_response = cls.client.variants.configs_add(  # type: ignore
-            variant_ref=ReferenceRequestModel(slug=variant_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
+            variant_ref=ReferenceRequestModel(slug=variant_slug, version=None, id=None),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug, version=None, id=app_id
+            ),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -115,8 +118,10 @@ class SharedManager:
         app_slug: Optional[str] = None,
     ):
         config_response = await cls.aclient.variants.configs_add(  # type: ignore
-            variant_ref=ReferenceRequestModel(slug=variant_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
+            variant_ref=ReferenceRequestModel(slug=variant_slug, version=None, id=None),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug, version=None, id=app_id
+            ),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -138,10 +143,12 @@ class SharedManager:
     ):
         config_response = cls.client.variants.configs_fetch(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version
+                slug=variant_slug, version=variant_version, id=None
             ),
-            environment_ref=ReferenceRequestModel(slug=environment_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug),
+            environment_ref=ReferenceRequestModel(
+                slug=environment_slug, version=None, id=None
+            ),
+            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -163,10 +170,12 @@ class SharedManager:
     ):
         config_response = await cls.aclient.variants.configs_fetch(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version
+                slug=variant_slug, version=variant_version, id=None
             ),
-            environment_ref=ReferenceRequestModel(slug=environment_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug),
+            environment_ref=ReferenceRequestModel(
+                slug=environment_slug, version=None, id=None
+            ),
+            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -207,10 +216,14 @@ class SharedManager:
     ):
         config_response = cls.client.variants.configs_fork(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version
+                slug=variant_slug, version=variant_version, id=None
             ),
-            environment_ref=ReferenceRequestModel(slug=environment_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
+            environment_ref=ReferenceRequestModel(
+                slug=environment_slug, version=None, id=None
+            ),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug, version=None, id=app_id
+            ),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -233,10 +246,14 @@ class SharedManager:
     ):
         config_response = await cls.aclient.variants.configs_fork(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version
+                slug=variant_slug, version=variant_version, id=None
             ),
-            environment_ref=ReferenceRequestModel(slug=environment_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug, id=app_id),
+            environment_ref=ReferenceRequestModel(
+                slug=environment_slug, version=None, id=None
+            ),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug, version=None, id=app_id
+            ),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -251,8 +268,8 @@ class SharedManager:
     def commit(cls, *, app_slug: str, variant_slug: str, config_parameters: dict):
         config_response = cls.client.variants.configs_commit(  # type: ignore
             params=config_parameters,
-            variant_ref=ReferenceDto(slug=variant_slug),
-            application_ref=ReferenceDto(slug=app_slug),
+            variant_ref=ReferenceDto(slug=variant_slug, version=None, id=None),
+            application_ref=ReferenceDto(slug=app_slug, version=None, id=None),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -269,8 +286,8 @@ class SharedManager:
     ):
         config_response = await cls.aclient.variants.configs_commit(  # type: ignore
             params=config_parameters,
-            variant_ref=ReferenceDto(slug=variant_slug),
-            application_ref=ReferenceDto(slug=app_slug),
+            variant_ref=ReferenceDto(slug=variant_slug, version=None, id=None),
+            application_ref=ReferenceDto(slug=app_slug, version=None, id=None),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -292,10 +309,12 @@ class SharedManager:
     ):
         config_response = cls.client.variants.configs_deploy(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version
+                slug=variant_slug, version=variant_version, id=None
             ),
-            environment_ref=ReferenceRequestModel(slug=environment_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug),
+            environment_ref=ReferenceRequestModel(
+                slug=environment_slug, version=None, id=None
+            ),
+            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,
@@ -317,10 +336,12 @@ class SharedManager:
     ):
         config_response = await cls.aclient.variants.configs_deploy(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version
+                slug=variant_slug, version=variant_version, id=None
             ),
-            environment_ref=ReferenceRequestModel(slug=environment_slug),
-            application_ref=ReferenceRequestModel(slug=app_slug),
+            environment_ref=ReferenceRequestModel(
+                slug=environment_slug, version=None, id=None
+            ),
+            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
         )
         response = cls._convert_config_response_model_to_readable_format(
             config_response,

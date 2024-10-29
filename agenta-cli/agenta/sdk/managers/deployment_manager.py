@@ -3,7 +3,7 @@ from typing import Optional
 from agenta.sdk.managers.shared import SharedManager
 
 
-class DeploymentManager(SharedManager):
+class DeploymentManager:
     @classmethod
     def deploy_variant(
         cls,
@@ -13,7 +13,7 @@ class DeploymentManager(SharedManager):
         environment_slug: str,
         variant_version: Optional[int]
     ):
-        deployment = cls.deploy(
+        deployment = SharedManager().deploy(
             app_slug=app_slug,
             variant_slug=variant_slug,
             environment_slug=environment_slug,
@@ -30,7 +30,7 @@ class DeploymentManager(SharedManager):
         environment_slug: str,
         variant_version: Optional[int]
     ):
-        deployment = await cls.adeploy(
+        deployment = await SharedManager().adeploy(
             app_slug=app_slug,
             variant_slug=variant_slug,
             environment_slug=environment_slug,
