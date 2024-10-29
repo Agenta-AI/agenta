@@ -1,7 +1,7 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from datetime import datetime
 
-from sqlalchemy import and_, or_, not_, distinct, Column, cast
+from sqlalchemy import and_, or_, not_, distinct, Column, cast, func
 from sqlalchemy import UUID, String, Float, Boolean, TIMESTAMP, Enum
 from sqlalchemy.dialects.postgresql import HSTORE, JSON, JSONB
 from sqlalchemy.future import select
@@ -39,7 +39,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         #
         query_dto: QueryDTO,
-    ) -> List[SpanDTO]:
+    ) -> Tuple[List[SpanDTO], Optional[int]]:
         try:
             async with engine.session() as session:
                 # BASE (SUB-)QUERY
@@ -71,12 +71,12 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 if windowing:
                     if windowing.earliest:
                         query = query.filter(
-                            InvocationSpanDBE.time_start >= windowing.earliest
+                            InvocationSpanDBE.created_at >= windowing.earliest
                         )
 
                     if windowing.latest:
                         query = query.filter(
-                            InvocationSpanDBE.time_end <= windowing.latest
+                            InvocationSpanDBE.created_at <= windowing.latest
                         )
                 # ---------
 
@@ -98,8 +98,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 # PAGINATION
                 pagination = query_dto.pagination
+                count = None
                 # ----------
                 if pagination:
+                    count_query = select(
+                        func.count()  # pylint: disable=E1102:not-callable
+                    ).select_from(query.subquery())
+                    count = (await session.execute(count_query)).scalar()
+
                     limit = pagination.size
                     offset = (pagination.page - 1) * pagination.size
 
@@ -132,7 +138,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 spans = (await session.execute(query)).scalars().all()
                 # ---------------
 
-            return [map_span_dbe_to_dto(span) for span in spans]
+            return [map_span_dbe_to_dto(span) for span in spans], count
         except AttributeError as e:
             raise FilteringException(
                 "Failed to run query due to non-existent key(s)."
