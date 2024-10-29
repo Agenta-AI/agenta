@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple, Optional
 from uuid import UUID
 
 from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
@@ -14,9 +14,8 @@ class ObservabilityDAOInterface:
         self,
         *,
         project_id: UUID,
-        #
         query_dto: QueryDTO,
-    ) -> List[SpanDTO]:
+    ) -> Tuple[List[SpanDTO], Optional[int]]:
         raise NotImplementedError
 
     # TRANSACTIONS
@@ -24,6 +23,7 @@ class ObservabilityDAOInterface:
     async def create_one(
         self,
         *,
+        project_id: UUID,
         span_dto: SpanDTO,
     ) -> None:
         raise NotImplementedError
@@ -31,6 +31,7 @@ class ObservabilityDAOInterface:
     async def create_many(
         self,
         *,
+        project_id: UUID,
         span_dtos: List[SpanDTO],
     ) -> None:
         raise NotImplementedError
@@ -39,7 +40,6 @@ class ObservabilityDAOInterface:
         self,
         *,
         project_id: UUID,
-        #
         node_id: str,
     ) -> SpanDTO:
         raise NotImplementedError
