@@ -205,22 +205,22 @@ class SharedSDKResponse(BaseModel):
     variant_version: Optional[int] = None
     environment_slug: Optional[str] = None
 
+    def __str__(self):
+        return str(self.model_dump(exclude_none=True))
+
 
 class ConfigurationResponse(SharedSDKResponse):
     config: Dict[str, Any]
 
-    def __repr__(self):
-        return self.model_dump_json(indent=4, exclude_none=True)
-
 
 class DeploymentResponse(SharedSDKResponse):
     deployment_info: Dict[str, Any]
-
-    def __repr__(self):
-        return self.model_dump_json(indent=4, exclude_none=True)
 
 
 class VariantConfigurationsResponse(BaseModel):
     variant_slug: str
     versions: List[int]
     latest_version: int
+
+    def __repr__(self):
+        return self.model_dump_json(indent=4, exclude_none=True)
