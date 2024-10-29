@@ -662,3 +662,41 @@ export interface HumanEvaluationListTableDataType {
     variant_revision_ids: string[]
     variantNames: string[]
 }
+
+export type Filter = {
+    key: string
+    operator: FilterConditions
+    value: string
+}
+
+export type FilterConditions =
+    | "contains"
+    | "matches"
+    | "like"
+    | "startswith"
+    | "endswith"
+    | "exists"
+    | "not_exists"
+    | "eq"
+    | "neq"
+    | "gt"
+    | "lt"
+    | "gte"
+    | "lte"
+    | "between"
+    | "in"
+    | ""
+
+export type SortTypes =
+    | "30 mins"
+    | "1 hour"
+    | "6 hour"
+    | "24 hour"
+    | "3 days"
+    | "7 days"
+    | "14 days"
+    | "1 month"
+    | "3 month"
+    | "all time"
+    | "custom"
+    | ""
