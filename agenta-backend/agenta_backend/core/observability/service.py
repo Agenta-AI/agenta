@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
@@ -10,6 +10,7 @@ from agenta_backend.core.observability.utils import (
     cumulate_costs,
     cumulate_tokens,
     connect_children,
+    parse_filtering,
 )
 
 
@@ -24,10 +25,13 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         query_dto: QueryDTO,
-    ) -> List[SpanDTO]:
-        span_dtos = await self.observability_dao.query(
+    ) -> Tuple[List[SpanDTO], Optional[int]]:
+
+        if query_dto.filtering:
+            parse_filtering(query_dto.filtering)
+
+        span_dtos, count = await self.observability_dao.query(
             project_id=project_id,
             query_dto=query_dto,
         )
@@ -39,19 +43,16 @@ class ObservabilityService:
 
             connect_children(span_id_tree, span_idx)
 
-            root_span_dtos = [
+            span_dtos = [
                 span_dto for span_dto in span_idx.values() if span_dto.parent is None
             ]
 
-            return root_span_dtos
-
-        return span_dtos
+        return span_dtos, count
 
     async def ingest(
         self,
         *,
         project_id: UUID,
-        #
         span_dtos: List[SpanDTO],
     ) -> None:
         span_idx = parse_span_dtos_to_span_idx(span_dtos)
@@ -73,7 +74,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         span_dto: Optional[SpanDTO] = None,
         span_dtos: Optional[List[SpanDTO]] = None,
     ) -> SpanDTO:
@@ -93,7 +93,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         node_id: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
     ) -> SpanDTO:
@@ -113,7 +112,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         node_id: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
     ):

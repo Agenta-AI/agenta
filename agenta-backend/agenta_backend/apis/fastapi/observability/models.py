@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 from agenta_backend.apis.fastapi.shared.models import VersionedModel
@@ -13,10 +13,10 @@ from agenta_backend.core.observability.dtos import (
 
 class CollectStatusResponse(VersionedModel):
     status: str
-    pass
 
 
 class OTelSpansResponse(VersionedModel):
+    count: Optional[int] = None
     spans: List[OTelSpanDTO]
 
 
@@ -49,12 +49,12 @@ class AgentaRootsDTO(BaseModel):
 
 
 class AgentaNodesResponse(VersionedModel, AgentaNodesDTO):
-    pass
+    count: Optional[int] = None
 
 
 class AgentaTreesResponse(VersionedModel, AgentaTreesDTO):
-    pass
+    count: Optional[int] = None
 
 
 class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
-    pass
+    count: Optional[int] = None

@@ -1,8 +1,163 @@
-from typing import List, Dict, OrderedDict
-
+from typing import List, Dict, OrderedDict, Callable
+from enum import Enum
+from uuid import UUID
+from datetime import datetime
 from litellm import cost_calculator
 
-from agenta_backend.core.observability.dtos import SpanDTO
+from agenta_backend.core.observability.dtos import (
+    SpanDTO,
+    FilteringDTO,
+    ConditionDTO,
+    ComparisonOperator,
+    NumericOperator,
+    StringOperator,
+    ListOperator,
+    ExistenceOperator,
+)
+
+_C_OPS = list(ComparisonOperator)
+_N_OPS = list(NumericOperator)
+_S_OPS = list(StringOperator)
+_L_OPS = list(ListOperator)
+_E_OPS = list(ExistenceOperator)
+
+_UUID_OPERATORS = _C_OPS + _L_OPS + _E_OPS
+_LITERAL_OPERATORS = _C_OPS + _L_OPS + _E_OPS
+_INTEGER_OPERATORS = _C_OPS + _N_OPS + _L_OPS + _E_OPS
+_FLOAT_OPERATORS = _N_OPS + _E_OPS
+_DATETIME_OPERATORS = _C_OPS + _N_OPS + _S_OPS + _L_OPS + _E_OPS
+_STRING_OPERATORS = _S_OPS + _E_OPS
+
+
+class FilteringException(Exception):
+    pass
+
+
+def _is_uuid_key(key: str) -> bool:
+    return key.endswith((".id"))
+
+
+def _is_literal_key(key: str) -> bool:
+    return key.endswith((".type", ".code", ".kind", ".name", ".slug"))
+
+
+def _is_integer_key(key: str) -> bool:
+    return key.endswith((".version"))
+
+
+def _is_float_key(key: str) -> bool:
+    return key.startswith(("metrics.unit.", "metrics.acc."))
+
+
+def _is_datetime_key(key: str) -> bool:
+    return key.startswith(("time.", "time.")) or key.endswith((".timestamp"))
+
+
+def _is_string_key(key: str) -> bool:
+    return key in ["data"]
+
+
+def parse_operator(
+    condition: ConditionDTO,
+    allowed_operators: List[Enum],
+    key_type: str,
+):
+    if condition.operator not in allowed_operators:
+        operators = [e.value for e in allowed_operators]
+
+        raise FilteringException(
+            f"Unexpected operator '{condition.operator.value}' "
+            f"for {key_type} key '{condition.key}', "
+            f"please use one of {operators}"
+        )
+
+
+def _is_uuid_value(value: str) -> bool:
+    try:
+        UUID(value)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_integer_value(value: str) -> bool:
+    try:
+        int(value)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_float_value(value: str) -> bool:
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
+def _is_datetime_value(value: str) -> bool:
+    try:
+        print(value)
+        datetime.fromisoformat(value)
+        print(datetime.fromisoformat(value))
+        return True
+    except ValueError:
+        return False
+
+
+def parse_value(
+    condition: ConditionDTO,
+    check_type: Callable[[str], bool],
+    key_type: str,
+) -> None:
+    if not check_type(condition.value):
+        raise FilteringException(
+            f"Unexpected value '{condition.value}' "
+            f"for {key_type} key '{condition.key}', "
+            f"please use a valid {key_type}"
+        )
+
+
+def parse_condition(condition: ConditionDTO) -> None:
+    if _is_uuid_key(condition.key):
+        parse_value(condition, _is_uuid_value, "uuid")
+        parse_operator(condition, _UUID_OPERATORS, "uuid")
+
+    if _is_literal_key(condition.key):
+        condition.value = str(condition.value)
+        parse_operator(condition, _LITERAL_OPERATORS, "literal")
+
+    elif _is_integer_key(condition.key):
+        parse_value(condition, _is_integer_value, "integer")
+        parse_operator(condition, _INTEGER_OPERATORS, "integer")
+
+    elif _is_float_key(condition.key):
+        parse_value(condition, _is_float_value, "float")
+        parse_operator(condition, _FLOAT_OPERATORS, "float")
+
+    elif _is_datetime_key(condition.key):
+        parse_value(condition, _is_datetime_value, "datetime")
+        parse_operator(condition, _DATETIME_OPERATORS, "datetime")
+
+    elif _is_string_key(condition.key):
+        condition.value = str(condition.value)
+        parse_operator(condition, _STRING_OPERATORS, "string")
+
+    else:  # All other keys support any operators (conditionally)
+        pass
+
+
+def parse_filtering(
+    filtering: FilteringDTO,
+) -> None:
+    for condition in filtering.conditions:
+        if isinstance(condition, FilteringDTO):
+            parse_filtering(condition)
+        elif isinstance(condition, ConditionDTO):
+            parse_condition(condition)
+        else:
+            raise ValueError("Invalid filtering request: unexpected JSON format")
 
 
 def parse_span_dtos_to_span_idx(
@@ -225,5 +380,5 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.completion"] = completion_cost
                 span.metrics["unit.costs.total"] = total_cost
 
-            except:
+            except:  # pylint: disable=W0702:bare-except
                 pass
