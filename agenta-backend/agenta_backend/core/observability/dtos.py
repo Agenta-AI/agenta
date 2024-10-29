@@ -1,10 +1,10 @@
-from pydantic import BaseModel
-from json import loads
-
 from typing import List, Dict, Any, Union, Optional
 from enum import Enum
 from datetime import datetime
 from uuid import UUID
+from json import loads
+
+from pydantic import BaseModel
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
 
