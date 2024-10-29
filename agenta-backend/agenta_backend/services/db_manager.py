@@ -2691,8 +2691,6 @@ async def fetch_app_by_name_and_parameters(
         )
         result = await session.execute(query)
         app_db = result.unique().scalars().first()
-        if app_db is None:
-            raise NoResultFound(f"App with name {app_name} not found.")
         return app_db
 
 
