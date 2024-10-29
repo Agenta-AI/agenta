@@ -125,7 +125,7 @@ class ObservabilityRouter:
             )
 
         try:
-            span_dtos = await self.service.query(
+            span_dtos, count = await self.service.query(
                 project_id=UUID(request.state.project_id),
                 query_dto=query_dto,
             )
@@ -143,6 +143,7 @@ class ObservabilityRouter:
 
             return OTelSpansResponse(
                 version=self.VERSION,
+                count=count,
                 spans=spans,
             )
 
@@ -169,6 +170,7 @@ class ObservabilityRouter:
                 if query_dto.grouping.focus.value == "tree":
                     return AgentaTreesResponse(
                         version=self.VERSION,
+                        count=count,
                         trees=[
                             AgentaTreeDTO(
                                 tree=TreeDTO(
@@ -208,6 +210,7 @@ class ObservabilityRouter:
 
                     return AgentaRootsResponse(
                         version=self.VERSION,
+                        count=count,
                         roots=[
                             AgentaRootDTO(
                                 root=RootDTO(id=root_id),
@@ -220,6 +223,7 @@ class ObservabilityRouter:
             # focus = node
             return AgentaNodesResponse(
                 version=self.VERSION,
+                count=count,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
 

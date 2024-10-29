@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
@@ -26,12 +26,12 @@ class ObservabilityService:
         *,
         project_id: UUID,
         query_dto: QueryDTO,
-    ) -> List[SpanDTO]:
+    ) -> Tuple[List[SpanDTO], Optional[int]]:
 
         if query_dto.filtering:
             parse_filtering(query_dto.filtering)
 
-        span_dtos = await self.observability_dao.query(
+        span_dtos, count = await self.observability_dao.query(
             project_id=project_id,
             query_dto=query_dto,
         )
@@ -43,13 +43,11 @@ class ObservabilityService:
 
             connect_children(span_id_tree, span_idx)
 
-            root_span_dtos = [
+            span_dtos = [
                 span_dto for span_dto in span_idx.values() if span_dto.parent is None
             ]
 
-            return root_span_dtos
-
-        return span_dtos
+        return span_dtos, count
 
     async def ingest(
         self,
