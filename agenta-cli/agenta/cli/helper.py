@@ -15,6 +15,9 @@ import toml
 from agenta.client.backend.client import AgentaApi
 
 BACKEND_URL_SUFFIX = os.environ.get("BACKEND_URL_SUFFIX", "api")
+POSTHOG_KEY = os.environ.get(
+    "POSTHOG_KEY", "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+)
 
 
 def get_global_config(var_name: str) -> Optional[Any]:
@@ -111,7 +114,8 @@ def init_telemetry_config() -> None:
     ):
         set_global_config("telemetry_tracking_enabled", True)
         set_global_config(
-            "telemetry_api_key", "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+            "telemetry_api_key",
+            POSTHOG_KEY,
         )
 
 
