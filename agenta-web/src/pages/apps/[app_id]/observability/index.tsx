@@ -5,23 +5,46 @@ import StatusRenderer from "@/components/pages/observability/components/StatusRe
 import TraceContent from "@/components/pages/observability/drawer/TraceContent"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import Filters from "@/components/Filters/Filters"
+import Sort, {SortResult} from "@/components/Filters/Sort"
+import EditColumns from "@/components/Filters/EditColumns"
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {ResizableTitle} from "@/components/ServerTable/components"
 import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {getNodeById} from "@/lib/helpers/observability_helpers"
-import {getStringOrJson} from "@/lib/helpers/utils"
+import {
+    buildNodeTree,
+    getNodeById,
+    observabilityTransformer,
+} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
-import {JSSTheme} from "@/lib/Types"
-import {_AgentaRootsResponse} from "@/services/observability/types"
+import {Filter, FilterConditions, JSSTheme, SortTypes} from "@/lib/Types"
+import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "@/services/observability/types"
 import {SwapOutlined} from "@ant-design/icons"
-import {Space, Table, TableColumnType, Tag, Typography} from "antd"
+import {
+    Button,
+    Input,
+    Pagination,
+    Radio,
+    RadioChangeEvent,
+    Space,
+    Table,
+    TableColumnType,
+    Tag,
+    Typography,
+} from "antd"
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
 import React, {useCallback, useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {Export} from "@phosphor-icons/react"
+import {getAppValues} from "@/contexts/app.context"
+import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
+import {useUpdateEffect} from "usehooks-ts"
+import {getAgentaApiUrl, getStringOrJson} from "@/lib/helpers/utils"
+import axios from "axios"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -29,16 +52,31 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontWeight: theme.fontWeightMedium,
         lineHeight: theme.lineHeightHeading4,
     },
+    pagination: {
+        "& > .ant-pagination-options": {
+            order: -1,
+            marginRight: 8,
+        },
+    },
 }))
 
 interface Props {}
+
+type TraceTabTypes = "tree" | "node" | "chat"
 
 const ObservabilityDashboard = ({}: Props) => {
     const appId = useAppId()
     const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const {traces, isLoadingTraces} = useTraces()
+    const {traces, isLoadingTraces, setIsLoadingTraces, setTraces} = useTraces()
+    const [searchQuery, setSearchQuery] = useState("")
+    const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
+    const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
+    const [filters, setFilters] = useState<Filter[]>([])
+    const [sort, setSort] = useState<SortResult>({} as SortResult)
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [pagination, setPagination] = useState({current: 1, page: 10})
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -213,67 +251,370 @@ const ObservabilityDashboard = ({}: Props) => {
         return columns.map((col) => ({
             ...col,
             width: col.width || 200,
+            hidden: editColumns.includes(col.key as string),
             onHeaderCell: (column: TableColumnType<_AgentaRootsResponse>) => ({
                 width: column.width,
                 onResize: handleResize(column.key?.toString()!),
             }),
         }))
-    }, [columns])
+    }, [columns, editColumns])
+
+    const onExport = async () => {
+        try {
+            if (traces.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_observability.csv`
+
+                const convertToStringOrJson = (value: any) => {
+                    return typeof value === "string" ? value : JSON.stringify(value)
+                }
+
+                // Helper function to create a trace object
+                const createTraceObject = (trace: any) => ({
+                    "Trace ID": trace.key,
+                    Timestamp: dayjs(trace.time.start).format("HH:mm:ss DD MMM YYYY"),
+                    Inputs: trace?.data?.inputs?.topic || "N/A",
+                    Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
+                    Status: trace.status.code,
+                    Latency: formatLatency(trace.time.span / 1000000),
+                    Usage: formatTokenUsage(trace?.metrics?.acc?.tokens?.total || 0),
+                    "Total cost": formatCurrency(trace?.metrics?.acc?.costs?.total || 0),
+                    "Span ID": trace.node.id,
+                    "Span Type": trace.node.type || "N/A",
+                })
+
+                const csvData = convertToCsv(
+                    traces.flatMap((trace) => {
+                        const parentTrace = createTraceObject(trace)
+                        const childrenTraces = trace.children.map(createTraceObject)
+                        return [parentTrace, ...childrenTraces]
+                    }),
+                    [
+                        ...columns.map((col) =>
+                            col.title === "ID" ? "Trace ID" : (col.title as string),
+                        ),
+                        "Span ID",
+                        "Span Type",
+                    ],
+                )
+
+                downloadCsv(csvData, filename)
+            }
+        } catch (error) {
+            console.error("Export error:", error)
+        }
+    }
+
+    const filterColumns = [
+        {value: "root.id", label: "root.id"},
+        {value: "tree.id", label: "tree.id"},
+        {value: "tree.type", label: "tree.type"},
+        {value: "node.id", label: "node.id"},
+        {value: "node.type", label: "node.type"},
+        {value: "node.name", label: "node.name"},
+        {value: "parent.id", label: "parent.id"},
+        {value: "status.code", label: "status.code"},
+        {value: "status.message", label: "status.message"},
+        {value: "exception.timestamp", label: "exception.timestamp"},
+        {value: "exception.type", label: "exception.type"},
+        {value: "exception.message", label: "exception.message"},
+        {value: "exception.stacktrace", label: "exception.stacktrace"},
+        {value: "data", label: "data"},
+        {value: "metrics.acc.duration.total", label: "metrics.acc.duration.total"},
+        {value: "metrics.acc.cost.total", label: "metrics.acc.cost.total"},
+        {value: "metrics.unit.cost.total", label: "metrics.unit.cost.total"},
+        {value: "metrics.acc.tokens.prompt", label: "metrics.acc.tokens.prompt"},
+        {value: "metrics.acc.tokens.completion", label: "metrics.acc.tokens.completion"},
+        {value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
+        {value: "metrics.unit.tokens.prompt", label: "metrics.unit.tokens.prompt"},
+        {value: "metrics.unit.tokens.completion", label: "metrics.unit.tokens.completion"},
+        {value: "metrics.unit.tokens.total", label: "metrics.unit.tokens.total"},
+        {value: "refs.variant.id", label: "refs.variant.id"},
+        {value: "refs.variant.slug", label: "refs.variant.slug"},
+        {value: "refs.variant.version", label: "refs.variant.version"},
+        {value: "refs.environment.id", label: "refs.environment.id"},
+        {value: "refs.environment.slug", label: "refs.environment.slug"},
+        {value: "refs.environment.version", label: "refs.environment.version"},
+        {value: "refs.application.id", label: "refs.application.id"},
+        {value: "refs.application.slug", label: "refs.application.slug"},
+        {value: "link.type", label: "link.type"},
+        {value: "link.node.id", label: "link.node.id"},
+        {value: "otel.kind", label: "otel.kind"},
+    ]
+
+    const onSortApply = async ({type, sorted, customRange}: SortResult) => {
+        setSort({type, sorted, customRange})
+    }
+
+    const handleToggleColumnVisibility = (key: string) => {
+        setEditColumns((prev) =>
+            prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
+        )
+    }
+
+    // ------------------ search filter ------------------
+    const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchQuery(e.target.value)
+
+        // if the data filter is exist in filter then remove it when the input value get empty
+        if (!e.target.value) {
+            const isSearchFilterExist = filters.some((item) => item.key === "data")
+
+            if (isSearchFilterExist) {
+                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+            }
+        }
+    }
+
+    const onSearchQueryApply = () => {
+        if (searchQuery) {
+            updateFilter({key: "data", operator: "contains", value: searchQuery})
+        }
+    }
+
+    const onSearchClear = () => {
+        const isSearchFilterExist = filters.some((item) => item.key === "data")
+
+        if (isSearchFilterExist) {
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+        }
+    }
+
+    // Sync searchQuery with filters state
+    useUpdateEffect(() => {
+        const dataFilter = filters.find((f) => f.key === "data")
+        setSearchQuery(dataFilter ? dataFilter.value : "")
+    }, [filters])
+
+    // -------------------- group buttons filter ---------------------
+    const onTraceTabChange = async (e: RadioChangeEvent) => {
+        const selectedTab = e.target.value
+        setTraceTabs(selectedTab)
+
+        if (selectedTab === "chat") {
+            updateFilter({key: "node.type", operator: "eq", value: selectedTab})
+        } else {
+            const isNodeTypeFilterExist = filters.some((item) => item.key === "node.type")
+
+            if (isNodeTypeFilterExist) {
+                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
+            }
+        }
+    }
+
+    // Sync traceTabs with filters state
+    useUpdateEffect(() => {
+        const nodeTypeFilter = filters.find((f) => f.key === "node.type")
+        setTraceTabs((prev) =>
+            nodeTypeFilter?.value ? (nodeTypeFilter.value as TraceTabTypes) : prev,
+        )
+    }, [filters])
+
+    const updateFilter = ({
+        key,
+        operator,
+        value,
+    }: {
+        key: string
+        operator: FilterConditions
+        value: string
+    }) => {
+        setFilters((prevFilters) => {
+            const otherFilters = prevFilters.filter((f) => f.key !== key)
+
+            return value ? [...otherFilters, {key, operator, value}] : otherFilters
+        })
+    }
+
+    const fetchFilterdTrace = async () => {
+        const focusPoint = traceTabs !== "chat" ? `focus=${traceTabs}` : ""
+        const filterQuery = filters[0]?.operator
+            ? `&filtering={"conditions":${JSON.stringify(filters)}}`
+            : ""
+        const paginationQuery = `&size=${pagination.page}&page=${pagination.current}`
+        let sortQuery
+
+        if (sort && sort.type === "standerd") {
+            sortQuery = `&earliest=${sort.sorted}`
+        } else if (sort && sort.type == "custom" && sort.customRange?.startTime) {
+            sortQuery = `&earliest=${sort.customRange.startTime}&latest=${sort.customRange.endTime}`
+        } else {
+            sortQuery = ""
+        }
+
+        try {
+            const response = await axios.get(
+                `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`,
+            )
+            return response.data
+        } catch (error) {
+            console.log(error)
+        }
+    }
+
+    useUpdateEffect(() => {
+        const filterTraceData = async () => {
+            try {
+                setIsLoadingTraces(true)
+
+                const data = await fetchFilterdTrace()
+                const transformedTraces: _AgentaRootsResponse[] = []
+
+                if (data?.trees) {
+                    transformedTraces.push(
+                        ...data.trees.flatMap((item: AgentaTreeDTO) =>
+                            observabilityTransformer(item),
+                        ),
+                    )
+                }
+
+                if (data?.nodes) {
+                    transformedTraces.push(
+                        ...data.nodes
+                            .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
+                            .flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
+                    )
+                }
+
+                setTraces(transformedTraces)
+            } catch (error) {
+                console.log(error)
+            } finally {
+                setIsLoadingTraces(false)
+            }
+        }
+        filterTraceData()
+    }, [filters, traceTabs, sort, pagination])
+
+    const onApplyFilter = async (newFilters: Filter[]) => {
+        setFilters(newFilters)
+    }
+
+    const onClearFilter = async () => {
+        setFilters([])
+        setSearchQuery("")
+
+        if (traceTabs === "chat") {
+            setTraceTabs("tree")
+        }
+    }
+
+    const onPaginationChange = (current: number, pageSize: number) => {
+        setPagination({current, page: pageSize})
+    }
 
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
-            <Table
-                loading={isLoadingTraces}
-                columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
-                dataSource={traces}
-                bordered
-                style={{cursor: "pointer"}}
-                onRow={(record) => ({
-                    onClick: () => {
-                        setSelected(record.node.id)
-                        setSelectedTraceId(record.root.id)
-                    },
-                })}
-                components={{
-                    header: {
-                        cell: ResizableTitle,
-                    },
-                }}
-                pagination={false}
-                scroll={{x: "max-content"}}
-                locale={{
-                    emptyText: (
-                        <div className="py-16">
-                            <EmptyComponent
-                                image={
-                                    <SwapOutlined
-                                        style={{transform: "rotate(90deg)"}}
-                                        className="text-[32px]"
-                                    />
-                                }
-                                description="Monitor the performance and results of your LLM applications here."
-                                primaryCta={{
-                                    text: "Go to Playground",
-                                    onClick: () => router.push(`/apps/${appId}/playground`),
-                                    tooltip:
-                                        "Run your LLM app in the playground to generate and view insights.",
-                                }}
-                                secondaryCta={{
-                                    text: "Learn More",
-                                    onClick: () =>
-                                        router.push(
-                                            "https://docs.agenta.ai/observability/quickstart",
-                                        ),
-                                    tooltip:
-                                        "Explore more about tracking and analyzing your app's observability data.",
-                                }}
-                            />
-                        </div>
-                    ),
-                }}
-            />
+            <div className="flex justify-between gap-2 flex-col 2xl:flex-row 2xl:items-center">
+                <Space>
+                    <Input.Search
+                        placeholder="Search"
+                        value={searchQuery}
+                        onChange={onSearchChange}
+                        onPressEnter={onSearchQueryApply}
+                        onSearch={onSearchClear}
+                        className="w-[320px]"
+                        allowClear
+                    />
+                    <Filters
+                        filterData={filters}
+                        columns={filterColumns}
+                        onApplyFilter={onApplyFilter}
+                        onClearFilter={onClearFilter}
+                    />
+                    <Sort onSortApply={onSortApply} defaultSortValue="1 month" />
+                </Space>
+                <div className="w-full flex items-center justify-between">
+                    <Space>
+                        <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
+                            <Radio.Button value="tree">Root</Radio.Button>
+                            <Radio.Button value="chat">LLM</Radio.Button>
+                            <Radio.Button value="node">All</Radio.Button>
+                        </Radio.Group>
+                    </Space>
+
+                    <Space>
+                        <Button
+                            type="text"
+                            onClick={onExport}
+                            icon={<Export size={14} className="mt-0.5" />}
+                            disabled={traces.length === 0}
+                        >
+                            Export as CSV
+                        </Button>
+                        <EditColumns
+                            isOpen={isFilterColsDropdownOpen}
+                            handleOpenChange={setIsFilterColsDropdownOpen}
+                            selectedKeys={editColumns}
+                            columns={columns}
+                            onChange={handleToggleColumnVisibility}
+                        />
+                    </Space>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <Table
+                    loading={isLoadingTraces}
+                    columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
+                    dataSource={traces}
+                    bordered
+                    style={{cursor: "pointer"}}
+                    onRow={(record) => ({
+                        onClick: () => {
+                            setSelected(record.node.id)
+                            setSelectedTraceId(record.root.id)
+                        },
+                    })}
+                    components={{
+                        header: {
+                            cell: ResizableTitle,
+                        },
+                    }}
+                    pagination={false}
+                    scroll={{x: "max-content"}}
+                    locale={{
+                        emptyText: (
+                            <div className="py-16">
+                                <EmptyComponent
+                                    image={
+                                        <SwapOutlined
+                                            style={{transform: "rotate(90deg)"}}
+                                            className="text-[32px]"
+                                        />
+                                    }
+                                    description="Monitor the performance and results of your LLM applications here."
+                                    primaryCta={{
+                                        text: "Go to Playground",
+                                        onClick: () => router.push(`/apps/${appId}/playground`),
+                                        tooltip:
+                                            "Run your LLM app in the playground to generate and view insights.",
+                                    }}
+                                    secondaryCta={{
+                                        text: "Learn More",
+                                        onClick: () =>
+                                            router.push(
+                                                "https://docs.agenta.ai/observability/quickstart",
+                                            ),
+                                        tooltip:
+                                            "Explore more about tracking and analyzing your app's observability data.",
+                                    }}
+                                />
+                            </div>
+                        ),
+                    }}
+                />
+                <Pagination
+                    total={100}
+                    align="end"
+                    className={classes.pagination}
+                    current={pagination.current}
+                    pageSize={pagination.page}
+                    onChange={onPaginationChange}
+                />
+            </div>
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer
