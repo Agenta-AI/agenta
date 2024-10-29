@@ -61,13 +61,25 @@ class VariantManager(SharedManager):
         return variant
 
     @classmethod
-    def delete_variant(cls): ...
+    def delete_variant(cls, app_slug: str, variant_slug: str):
+        message = cls.delete(
+            app_slug=app_slug, variant_slug=variant_slug
+        )
+        return message
 
     @classmethod
-    def adelete_variant(cls): ...
+    async def adelete_variant(cls, app_slug: str, variant_slug: str):
+        message = await cls.adelete(
+            app_slug=app_slug, variant_slug=variant_slug
+        )
+        return message
 
     @classmethod
-    def list_variants(cls): ...
+    def list_variants(cls, app_slug: str):
+        variants = cls.list(app_slug=app_slug)
+        return variants
 
     @classmethod
-    def alist_variants(cls): ...
+    async def alist_variants(cls, app_slug: str):
+        variants = await cls.alist(app_slug=app_slug)
+        return variants

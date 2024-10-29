@@ -218,3 +218,9 @@ class DeploymentResponse(SharedSDKResponse):
 
     def __repr__(self):
         return self.model_dump_json(indent=4, exclude_none=True)
+
+
+class VariantConfigurationsResponse(BaseModel):
+    variant_slug: str
+    versions: List[int]
+    latest_version: int
