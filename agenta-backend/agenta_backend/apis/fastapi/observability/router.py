@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 
 from agenta_backend.core.observability.service import ObservabilityService
 from agenta_backend.core.observability.dtos import QueryDTO
+from agenta_backend.core.observability.utils import FilteringException
 
 from agenta_backend.apis.fastapi.shared.utils import handle_exceptions
 from agenta_backend.apis.fastapi.observability.opentelemetry.otlp import (
@@ -123,10 +124,16 @@ class ObservabilityRouter:
                 detail="Grouping is not supported in OpenTelemetry format.",
             )
 
-        span_dtos = await self.service.query(
-            project_id=UUID(request.state.project_id),
-            query_dto=query_dto,
-        )
+        try:
+            span_dtos = await self.service.query(
+                project_id=UUID(request.state.project_id),
+                query_dto=query_dto,
+            )
+        except FilteringException as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            ) from e
 
         spans = []
 

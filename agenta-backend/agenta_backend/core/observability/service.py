@@ -10,6 +10,7 @@ from agenta_backend.core.observability.utils import (
     cumulate_costs,
     cumulate_tokens,
     connect_children,
+    parse_filtering,
 )
 
 
@@ -24,9 +25,12 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         query_dto: QueryDTO,
     ) -> List[SpanDTO]:
+
+        if query_dto.filtering:
+            parse_filtering(query_dto.filtering)
+
         span_dtos = await self.observability_dao.query(
             project_id=project_id,
             query_dto=query_dto,
@@ -51,7 +55,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         span_dtos: List[SpanDTO],
     ) -> None:
         span_idx = parse_span_dtos_to_span_idx(span_dtos)
@@ -73,7 +76,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         span_dto: Optional[SpanDTO] = None,
         span_dtos: Optional[List[SpanDTO]] = None,
     ) -> SpanDTO:
@@ -93,7 +95,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         node_id: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
     ) -> SpanDTO:
@@ -113,7 +114,6 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        #
         node_id: Optional[str] = None,
         node_ids: Optional[List[str]] = None,
     ):

@@ -16,6 +16,7 @@ from agenta_backend.dbs.postgres.observability.mappings import (
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
 from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
+from agenta_backend.core.observability.utils import FilteringException
 from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     ConditionDTO,
@@ -39,102 +40,108 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         #
         query_dto: QueryDTO,
     ) -> List[SpanDTO]:
-        async with engine.session() as session:
-            # BASE (SUB-)QUERY
-            query = select(InvocationSpanDBE)
-            # ----------------
-
-            # GROUPING
-            grouping = query_dto.grouping
-            grouping_column: Optional[Column] = None
-            # --------
-            if grouping and grouping.focus.value != "node":
-                grouping_column = getattr(
-                    InvocationSpanDBE, grouping.focus.value + "_id"
-                )
-
-                query = select(
-                    distinct(grouping_column).label("grouping_key"),
-                    InvocationSpanDBE.created_at,
-                )
-            # --------
-
-            # SCOPING
-            query = query.filter_by(project_id=project_id)
-            # -------
-
-            # WINDOWING
-            windowing = query_dto.windowing
-            # ---------
-            if windowing:
-                if windowing.earliest:
-                    query = query.filter(
-                        InvocationSpanDBE.time_start >= windowing.earliest
-                    )
-
-                if windowing.latest:
-                    query = query.filter(InvocationSpanDBE.time_end <= windowing.latest)
-            # ---------
-
-            # FILTERING
-            filtering = query_dto.filtering
-            # ---------
-            if filtering:
-                operator = filtering.operator
-                conditions = filtering.conditions
-
-                query = query.filter(_combine(operator, _filters(conditions)))
-            # ---------
-
-            # SORTING
-            if grouping and grouping_column:
-                query = query.order_by(grouping_column)
-            query = query.order_by(InvocationSpanDBE.created_at.desc())
-            # -------
-
-            # PAGINATION
-            pagination = query_dto.pagination
-            # ----------
-            if pagination:
-                limit = pagination.size
-                offset = (pagination.page - 1) * pagination.size
-
-                query = query.limit(limit).offset(offset)
-            # ----------
-
-            # GROUPING
-            if grouping and grouping_column:
-                subquery = query.subquery()
-
+        try:
+            async with engine.session() as session:
+                # BASE (SUB-)QUERY
                 query = select(InvocationSpanDBE)
-                query = query.filter(
-                    grouping_column.in_(select(subquery.c["grouping_key"]))
-                )
-            # --------
+                # ----------------
 
-            # DEBUGGING
-            # TODO: HIDE THIS BEFORE RELEASING
-            print(
-                str(
-                    query.compile(
-                        dialect=postgresql.dialect(),
-                        compile_kwargs={"literal_binds": True},
+                # GROUPING
+                grouping = query_dto.grouping
+                grouping_column: Optional[Column] = None
+                # --------
+                if grouping and grouping.focus.value != "node":
+                    grouping_column = getattr(
+                        InvocationSpanDBE, grouping.focus.value + "_id"
+                    )
+
+                    query = select(
+                        distinct(grouping_column).label("grouping_key"),
+                        InvocationSpanDBE.created_at,
+                    )
+                # --------
+
+                # SCOPING
+                query = query.filter_by(project_id=project_id)
+                # -------
+
+                # WINDOWING
+                windowing = query_dto.windowing
+                # ---------
+                if windowing:
+                    if windowing.earliest:
+                        query = query.filter(
+                            InvocationSpanDBE.time_start >= windowing.earliest
+                        )
+
+                    if windowing.latest:
+                        query = query.filter(
+                            InvocationSpanDBE.time_end <= windowing.latest
+                        )
+                # ---------
+
+                # FILTERING
+                filtering = query_dto.filtering
+                # ---------
+                if filtering:
+                    operator = filtering.operator
+                    conditions = filtering.conditions
+
+                    query = query.filter(_combine(operator, _filters(conditions)))
+                # ---------
+
+                # SORTING
+                if grouping and grouping_column:
+                    query = query.order_by(grouping_column)
+                query = query.order_by(InvocationSpanDBE.created_at.desc())
+                # -------
+
+                # PAGINATION
+                pagination = query_dto.pagination
+                # ----------
+                if pagination:
+                    limit = pagination.size
+                    offset = (pagination.page - 1) * pagination.size
+
+                    query = query.limit(limit).offset(offset)
+                # ----------
+
+                # GROUPING
+                if grouping and grouping_column:
+                    subquery = query.subquery()
+
+                    query = select(InvocationSpanDBE)
+                    query = query.filter(
+                        grouping_column.in_(select(subquery.c["grouping_key"]))
+                    )
+                # --------
+
+                # DEBUGGING
+                # TODO: HIDE THIS BEFORE RELEASING
+                print(
+                    str(
+                        query.compile(
+                            dialect=postgresql.dialect(),
+                            compile_kwargs={"literal_binds": True},
+                        )
                     )
                 )
-            )
-            # ---------
+                # ---------
 
-            # QUERY EXECUTION
-            spans = (await session.execute(query)).scalars().all()
-            # ---------------
+                # QUERY EXECUTION
+                spans = (await session.execute(query)).scalars().all()
+                # ---------------
 
-        return [map_span_dbe_to_dto(span) for span in spans]
+            return [map_span_dbe_to_dto(span) for span in spans]
+        except AttributeError as e:
+            raise FilteringException(
+                "Failed to run query due to non-existent key(s)."
+            ) from e
 
     async def create_one(
         self,
         *,
         project_id: UUID,
-        #
         span_dto: SpanDTO,
     ) -> None:
         span_dbe = map_span_dto_to_dbe(
@@ -150,7 +157,6 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         self,
         *,
         project_id: UUID,
-        #
         span_dtos: List[SpanDTO],
     ) -> None:
         span_dbes = [
@@ -326,7 +332,9 @@ def _filters(filtering: FilteringDTO) -> list:
                             attribute = cast(attribute, UUID)
                         elif isinstance(value, str):
                             attribute = cast(attribute, String)
-                            # value = f'"{value}"' # WILL ADD THIS BACK AS SOON AS I FIGURE OUT WHY THE QUOTES WERE ADDED
+                            # value = f'"{value}"'
+                            # # WILL ADD THIS BACK
+                            # AS SOON AS I FIGURE OUT WHY THE QUOTES WERE ADDED
                         elif isinstance(value, int):
                             attribute = cast(attribute, Float)  # Yes, Float
                         elif isinstance(value, float):
