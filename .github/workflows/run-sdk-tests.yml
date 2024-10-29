@@ -25,8 +25,10 @@ jobs:
       - name: Activate shell, install dependencies and agenta SDK
         run: |
           cd agenta-cli
-          poetry shell
           poetry install
+      
+      - name: Check which Agenta is installed
+        run: which agenta
 
       - name: Run pytest
         run: |
