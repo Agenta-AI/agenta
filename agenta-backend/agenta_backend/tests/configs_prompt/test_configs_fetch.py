@@ -18,9 +18,14 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 
 @pytest.mark.asyncio
-async def test_configs_fetch_by_variant_ref(get_app_variant_revision_by_variant_id):
+async def test_configs_fetch_by_variant_ref(
+    get_app_variant_revision_by_variant_id, get_user_from_db
+):
     variant_revision = await get_app_variant_revision_by_variant_id
     assert variant_revision is not None, "App variant revision not found."
+
+    user = await get_user_from_db
+    assert user is not None, "User not found."
 
     response = await test_client.post(
         url="/api/variants/configs/fetch",
@@ -38,12 +43,19 @@ async def test_configs_fetch_by_variant_ref(get_app_variant_revision_by_variant_
     assert "variant_ref" in response.json()
     assert "service_ref" in response.json()
     assert "environment_ref" in response.json()
+    assert "lifecycle" in response.json()
+    assert response.json()["lifecycle"]["commited_by"] == user.email
 
 
 @pytest.mark.asyncio
-async def test_configs_fetch_by_environment_and_application_ref(get_app_by_name):
+async def test_configs_fetch_by_environment_and_application_ref(
+    get_app_by_name, get_user_from_db
+):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
+
+    user = await get_user_from_db
+    assert user is not None, "User not found."
 
     response = await test_client.post(
         url="/api/variants/configs/fetch",
@@ -62,13 +74,19 @@ async def test_configs_fetch_by_environment_and_application_ref(get_app_by_name)
     assert "variant_ref" in response.json()
     assert "service_ref" in response.json()
     assert "environment_ref" in response.json()
+    assert "lifecycle" in response.json()
+    assert response.json()["lifecycle"]["commited_by"] == user.email
 
 
 @pytest.mark.asyncio
 async def test_configs_fetch_by_environment_ref(
-    get_environment_revision_by_environment_id,
+    get_environment_revision_by_environment_id, get_user_from_db
 ):
     environment_revision = await get_environment_revision_by_environment_id
+
+    user = await get_user_from_db
+    assert user is not None, "User not found."
+
     response = await test_client.post(
         url="/api/variants/configs/fetch",
         json={  # type: ignore
@@ -86,6 +104,8 @@ async def test_configs_fetch_by_environment_ref(
     assert "variant_ref" in response.json()
     assert "service_ref" in response.json()
     assert "environment_ref" in response.json()
+    assert "lifecycle" in response.json()
+    assert response.json()["lifecycle"]["commited_by"] == user.email
 
 
 @pytest.mark.asyncio

@@ -19,14 +19,16 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 @pytest.mark.asyncio
 async def test_configs_deploy_success(
-    get_app_variant_revision_by_variant_id,
-    get_app_by_name,
+    get_app_variant_revision_by_variant_id, get_app_by_name, get_user_from_db
 ):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
     variant_revision = await get_app_variant_revision_by_variant_id
     assert variant_revision is not None, "App variant revision not found."
+
+    user = await get_user_from_db
+    assert user is not None, "User not found."
 
     response = await test_client.post(
         "/api/variants/configs/deploy",
@@ -46,6 +48,8 @@ async def test_configs_deploy_success(
     )
     assert response.status_code == status.HTTP_200_OK
     assert "params" and "url" in response.json()
+    assert "lifecycle" in response.json()
+    assert response.json()["lifecycle"]["deployed_by"] == user.email
 
 
 @pytest.mark.asyncio

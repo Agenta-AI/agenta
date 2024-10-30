@@ -18,13 +18,16 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 @pytest.mark.asyncio
 async def test_configs_fork_by_variant_ref(
-    get_app_variant_revision_by_variant_id, get_app_by_name
+    get_app_variant_revision_by_variant_id, get_app_by_name, get_user_from_db
 ):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
     variant_revision = await get_app_variant_revision_by_variant_id
     assert variant_revision is not None, "App variant revision not found."
+
+    user = await get_user_from_db
+    assert user is not None, "User not found."
 
     response = await test_client.post(
         "/api/variants/configs/fork",
@@ -45,6 +48,8 @@ async def test_configs_fork_by_variant_ref(
     assert "application_ref" in response.json()
     assert isinstance(response.json(), dict)
     assert isinstance(response.json()["application_ref"], dict)
+    assert "lifecycle" in response.json()
+    assert response.json()["lifecycle"]["commited_by"] == user.email
 
 
 @pytest.mark.asyncio
