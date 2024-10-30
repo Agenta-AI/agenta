@@ -88,6 +88,16 @@ class ObservabilityRouter:
             response_model=CollectStatusResponse,
         )
 
+        self.router.add_api_route(
+            "/traces",
+            self.delete_traces,
+            methods=["DELETE"],
+            operation_id="delete_traces",
+            summary="Delete traces",
+            status_code=status.HTTP_200_OK,
+            response_model=CollectStatusResponse,
+        )
+
     ### STATUS
 
     @handle_exceptions()
@@ -260,3 +270,22 @@ class ObservabilityRouter:
         )
 
         return CollectStatusResponse(version=self.VERSION, status="processing")
+
+    @handle_exceptions()
+    async def delete_traces(
+        self,
+        request: Request,
+        node_id: UUID = Query(None),
+        node_ids: List[UUID] = Query(None),
+    ):
+        """
+        Delete trace.
+        """
+
+        await self.service.delete(
+            project_id=UUID(request.state.project_id),
+            node_id=node_id,
+            node_ids=node_ids,
+        )
+
+        return CollectStatusResponse(version=self.VERSION, status="deleted")
