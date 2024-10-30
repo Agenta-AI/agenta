@@ -196,8 +196,13 @@ const ObservabilityDashboard = ({}: Props) => {
     ])
 
     const activeTraceIndex = useMemo(
-        () => traces?.findIndex((item) => item.root.id === selectedTraceId),
-        [selectedTraceId, traces],
+        () =>
+            traces?.findIndex((item) =>
+                traceTabs === "node"
+                    ? item.node.id === selectedTraceId
+                    : item.root.id === selectedTraceId,
+            ),
+        [selectedTraceId, traces, traceTabs],
     )
 
     const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
@@ -218,18 +223,26 @@ const ObservabilityDashboard = ({}: Props) => {
     const handleNextTrace = useCallback(() => {
         if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
             const nextTrace = traces[activeTraceIndex + 1]
-            setSelectedTraceId(nextTrace.root.id)
+            if (traceTabs === "node") {
+                setSelectedTraceId(nextTrace.node.id)
+            } else {
+                setSelectedTraceId(nextTrace.root.id)
+            }
             setSelected(nextTrace.node.id)
         }
-    }, [activeTraceIndex, traces, setSelectedTraceId])
+    }, [activeTraceIndex, traces, traceTabs, setSelectedTraceId])
 
     const handlePrevTrace = useCallback(() => {
         if (activeTraceIndex !== undefined && activeTraceIndex > 0) {
             const prevTrace = traces[activeTraceIndex - 1]
-            setSelectedTraceId(prevTrace.root.id)
+            if (traceTabs === "node") {
+                setSelectedTraceId(prevTrace.node.id)
+            } else {
+                setSelectedTraceId(prevTrace.root.id)
+            }
             setSelected(prevTrace.node.id)
         }
-    }, [activeTraceIndex, traces, setSelectedTraceId])
+    }, [activeTraceIndex, traces, traceTabs, setSelectedTraceId])
 
     const handleResize =
         (key: string) =>
@@ -526,7 +539,11 @@ const ObservabilityDashboard = ({}: Props) => {
                     onRow={(record) => ({
                         onClick: () => {
                             setSelected(record.node.id)
-                            setSelectedTraceId(record.root.id)
+                            if (traceTabs === "node") {
+                                setSelectedTraceId(record.node.id)
+                            } else {
+                                setSelectedTraceId(record.root.id)
+                            }
                         },
                     })}
                     components={{
