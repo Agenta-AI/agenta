@@ -1,3 +1,4 @@
+import ResultTag from "@/components/ResultTag/ResultTag"
 import {useAppId} from "@/hooks/useAppId"
 import {filterVariantParameters, formatVariantIdWithHash} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
@@ -33,24 +34,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontSize: theme.fontSize,
         lineHeight: theme.lineHeight,
         fontWeight: theme.fontWeightMedium,
-    },
-    resultTag: {
-        minWidth: 150,
-        display: "flex",
-        borderRadius: theme.borderRadiusSM,
-        border: `1px solid ${theme.colorBorder}`,
-        textAlign: "center",
-        "& > div:nth-child(1)": {
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
-            lineHeight: theme.lineHeight,
-            flex: 1,
-            minWidth: 50,
-            borderRight: `1px solid ${theme.colorBorder}`,
-            padding: "0 7px",
-        },
-        "& > div:nth-child(2)": {
-            padding: "0 7px",
-        },
     },
     promptTextField: {
         padding: theme.paddingXS,
@@ -187,15 +170,11 @@ const VariantDrawer = ({
                                                                     include: false,
                                                                 }),
                                                             ).map(([key, value], index) => (
-                                                                <div
-                                                                    className={classes.resultTag}
+                                                                <ResultTag
                                                                     key={index}
-                                                                >
-                                                                    <div>{key}</div>
-                                                                    <div>
-                                                                        {JSON.stringify(value)}
-                                                                    </div>
-                                                                </div>
+                                                                    value1={key}
+                                                                    value2={value}
+                                                                />
                                                             ))}
                                                     </div>
                                                 </div>
