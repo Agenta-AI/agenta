@@ -27,7 +27,6 @@ class ObservabilityService:
         project_id: UUID,
         query_dto: QueryDTO,
     ) -> Tuple[List[SpanDTO], Optional[int]]:
-
         if query_dto.filtering:
             parse_filtering(query_dto.filtering)
 
