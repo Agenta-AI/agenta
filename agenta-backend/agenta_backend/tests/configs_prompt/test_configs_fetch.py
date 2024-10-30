@@ -44,7 +44,7 @@ async def test_configs_fetch_by_variant_ref(
     assert "service_ref" in response.json()
     assert "environment_ref" in response.json()
     assert "lifecycle" in response.json()
-    assert response.json()["lifecycle"]["commited_by"] == user.email
+    assert response.json()["lifecycle"]["committed_by"] == user.email
 
 
 @pytest.mark.asyncio
@@ -75,7 +75,7 @@ async def test_configs_fetch_by_environment_and_application_ref(
     assert "service_ref" in response.json()
     assert "environment_ref" in response.json()
     assert "lifecycle" in response.json()
-    assert response.json()["lifecycle"]["commited_by"] == user.email
+    assert response.json()["lifecycle"]["committed_by"] == user.email
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,7 @@ async def test_configs_fetch_by_environment_ref(
     assert "service_ref" in response.json()
     assert "environment_ref" in response.json()
     assert "lifecycle" in response.json()
-    assert response.json()["lifecycle"]["commited_by"] == user.email
+    assert response.json()["lifecycle"]["committed_by"] == user.email
 
 
 @pytest.mark.asyncio
