@@ -7,6 +7,7 @@ import {
     AgentaTreeDTO,
 } from "@/services/observability/types"
 import React, {createContext, PropsWithChildren, useContext, useEffect, useState} from "react"
+import {useRouter} from "next/router"
 
 type ObservabilityContextType = {
     traces: _AgentaRootsResponse[]
@@ -31,6 +32,8 @@ const observabilityContextValues = {...initialValues}
 export const getObservabilityValues = () => observabilityContextValues
 
 const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) => {
+    const router = useRouter()
+    const appId = router.query.app_id as string
     const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
     const [traceCount, setTraceCount] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
@@ -38,7 +41,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     const fetchTraces = async (queries?: string) => {
         try {
             setIsLoading(true)
-            const data = await fetchAllTraces(queries || "")
+            const data = await fetchAllTraces({appId, queries: queries || ""})
 
             const transformedTraces: _AgentaRootsResponse[] = []
 
@@ -75,8 +78,10 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
 
     useEffect(() => {
-        fetchTraces("?focus=tree&size=10&page=1")
-    }, [])
+        if (appId) {
+            fetchTraces("&focus=tree&size=10&page=1")
+        }
+    }, [appId])
 
     observabilityContextValues.traces = traces
     observabilityContextValues.isLoading = isLoading

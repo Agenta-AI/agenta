@@ -9,9 +9,11 @@ import axios from "@/lib/helpers/axiosConfig"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllTraces = async (queries?: string) => {
+export const fetchAllTraces = async ({appId, queries}: {appId: string; queries?: string}) => {
+    const filterByAppId = `filtering={"conditions":[{"key":"refs.application_id","operator":"is","value":"${appId}"}]}`
+
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/observability/v1/traces/search${queries}`,
+        `${getAgentaApiUrl()}/api/observability/v1/traces/search?${filterByAppId}${queries}`,
     )
     return response.data
 }

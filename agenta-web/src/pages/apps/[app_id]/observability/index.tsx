@@ -304,7 +304,7 @@ const ObservabilityDashboard = ({}: Props) => {
         {type: "exists", value: "refs.environment.id", label: "refs.environment.id"},
         {type: "exists", value: "refs.environment.slug", label: "refs.environment.slug"},
         {type: "exists", value: "refs.environment.version", label: "refs.environment.version"},
-        {type: "exists", value: "refs.application.id", label: "refs.application.id"},
+        {type: "exists", value: "refs.application_id", label: "refs.application_id"},
         {type: "exists", value: "refs.application.slug", label: "refs.application.slug"},
         {type: "exists", value: "link.type", label: "link.type"},
         {type: "exists", value: "link.node.id", label: "link.node.id"},
@@ -438,6 +438,9 @@ const ObservabilityDashboard = ({}: Props) => {
                 setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
             }
         }
+        if (pagination.current > 1) {
+            setPagination({...pagination, current: 1})
+        }
     }
     // Sync traceTabs with filters state
     useUpdateEffect(() => {
@@ -468,7 +471,7 @@ const ObservabilityDashboard = ({}: Props) => {
                       : ""
         }
 
-        const data = await fetchTraces(`?${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
+        const data = await fetchTraces(`&${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
 
         return data
     }
