@@ -131,7 +131,6 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     # 3. WHERE next > created_at AND created_at >= stop
                     # -> stable thanks to the </<= combination
                     elif pagination.next and pagination.stop:
-
                         query = query.filter(
                             InvocationSpanDBE.created_at < pagination.next
                         )
