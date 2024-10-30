@@ -67,7 +67,9 @@ class VariantManager(SharedManager):
 
     @classmethod
     async def adelete_variant(cls, app_slug: str, variant_slug: str):
-        message = await SharedManager().adelete(app_slug=app_slug, variant_slug=variant_slug)
+        message = await SharedManager().adelete(
+            app_slug=app_slug, variant_slug=variant_slug
+        )
         return message
 
     @classmethod

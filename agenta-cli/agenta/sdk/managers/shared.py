@@ -1,5 +1,6 @@
 import logging
-from typing import Optional, Union
+import warnings
+from typing import Optional, Dict, Any
 
 from agenta.sdk.utils.exceptions import handle_exceptions
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
@@ -61,29 +62,123 @@ class SharedManager:
         )
 
     @classmethod
-    def _convert_config_response_model_to_readable_format(
-        cls, response: ConfigResponseModel, response_type: str
-    ) -> Union[ConfigurationResponse, DeploymentResponse]:
-        common_kwargs = {
-            "app_slug": response.application_ref.slug,  # type: ignore
-            "variant_slug": response.variant_ref.slug,  # type: ignore
-            "variant_version": response.variant_ref.version,  # type: ignore
-            "environment_slug": response.environment_ref.slug if response.environment_ref is not None else None,  # type: ignore
+    def _validate_and_return_fetch_signatures(
+        cls,
+        application_id: Optional[str] = None,
+        application_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
+        environment_slug: Optional[str] = None,
+        environment_version: Optional[int] = None,
+        # DEPRECATING
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ):
+        # Warnings for deprecated parameters
+        if app_id:
+            warnings.warn(
+                "The `app_id` parameter is deprecated. Use `application_id` instead.",
+                DeprecationWarning,
+            )
+            application_id = (
+                application_id or app_id
+            )  # Use app_id if application_id not provided
+
+        if app_slug:
+            warnings.warn(
+                "The `app_slug` parameter is deprecated. Use `application_slug` instead.",
+                DeprecationWarning,
+            )
+            application_slug = (
+                application_slug or app_slug
+            )  # Use app_slug if application_slug not provided
+
+        # Validation logic
+        if not (application_id or application_slug):
+            raise ValueError(
+                "Either `application_id` or `application_slug` must be provided."
+            )
+
+        if variant_id:
+            if not (application_id or application_slug):
+                raise ValueError(
+                    "`variant_id` requires either `application_id` or `application_slug`."
+                )
+        elif variant_slug:
+            if not (application_id or application_slug):
+                raise ValueError(
+                    "`variant_slug` requires either `application_id` or `application_slug`."
+                )
+            if variant_version and not variant_slug:
+                raise ValueError(
+                    "`variant_version` requires `variant_slug` to be specified."
+                )
+
+        if environment_id:
+            if not (application_id or application_slug):
+                raise ValueError(
+                    "`environment_id` requires either `application_id` or `application_slug`."
+                )
+        elif environment_slug:
+            if not (application_id or application_slug):
+                raise ValueError(
+                    "`environment_slug` requires either `application_id` or `application_slug`."
+                )
+            if environment_version and not environment_slug:
+                raise ValueError(
+                    "`environment_version` requires `environment_slug` to be specified."
+                )
+
+        return {
+            "application_id": application_id,
+            "application_slug": application_slug,
+            "variant_id": variant_id,
+            "variant_slug": variant_slug,
+            "variant_version": variant_version,
+            "environment_id": environment_id,
+            "environment_slug": environment_slug,
+            "environment_version": environment_version,
         }
 
-        if response_type == "configuration":
-            return ConfigurationResponse(**common_kwargs, config=response.params)  # type: ignore
-        elif response_type == "deployment":
-            return DeploymentResponse(
-                **common_kwargs,  # type: ignore
-                deployment_info=(
-                    response.lifecycle.model_dump()
-                    if hasattr(response, "lifecycle") and response.lifecycle is not None
-                    else {}
-                ),
-            )
-        else:
-            raise ValueError(f"Invalid response type: {response_type}")
+    @classmethod
+    def _flatten_config_response(
+        cls, model: ConfigResponseModel, include_params: bool = True
+    ) -> Dict[str, Any]:
+        flattened: Dict[str, Any] = {}
+
+        # Process application_ref
+        if model.application_ref:
+            flattened["app_id"] = model.application_ref.id
+            flattened["app_slug"] = model.application_ref.slug
+
+        # Process variant_ref
+        if model.variant_ref:
+            flattened["variant_id"] = model.variant_ref.id
+            flattened["variant_slug"] = model.variant_ref.slug
+            flattened["variant_version"] = model.variant_ref.version
+
+        # Process environment_ref
+        if model.environment_ref:
+            flattened["environment_id"] = model.environment_ref.id
+            flattened["environment_slug"] = model.environment_ref.slug
+            flattened["environment_version"] = model.environment_ref.version
+
+        # Process lifecycle
+        if model.lifecycle:
+            if model.lifecycle.committed_at:
+                flattened["committed_at"] = model.lifecycle.committed_at
+                flattened["committed_by"] = model.lifecycle.committed_by
+            elif model.lifecycle.deployed_at:
+                flattened["deployed_at"] = model.lifecycle.deployed_at
+                flattened["deployed_by"] = model.lifecycle.deployed_by
+
+        # Add parameters if required
+        if include_params and model.params:
+            flattened["parameters"] = model.params
+
+        return flattened
 
     @classmethod
     @handle_exceptions()
@@ -100,13 +195,11 @@ class SharedManager:
                 slug=app_slug, version=None, id=app_id
             ),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -123,67 +216,115 @@ class SharedManager:
                 slug=app_slug, version=None, id=app_id
             ),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
     def fetch(
         cls,
         *,
-        app_slug: Optional[str] = None,
+        application_id: Optional[str] = None,
+        application_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
-    ):
+        environment_version: Optional[int] = None,
+        # DEPRECATING
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ) -> ConfigurationResponse:
+        fetch_signatures = cls._validate_and_return_fetch_signatures(
+            application_id=application_id,
+            application_slug=application_slug,
+            variant_id=variant_id,
+            variant_slug=variant_slug,
+            variant_version=variant_version,
+            environment_id=environment_id,
+            environment_slug=environment_slug,
+            environment_version=environment_version,
+            app_id=app_id,
+            app_slug=app_slug,
+        )
         config_response = cls.client.variants.configs_fetch(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version, id=None
+                slug=fetch_signatures["variant_slug"],
+                version=fetch_signatures["variant_version"],
+                id=fetch_signatures["variant_id"],
             ),
             environment_ref=ReferenceRequestModel(
-                slug=environment_slug, version=None, id=None
+                slug=fetch_signatures["environment_slug"],
+                version=fetch_signatures["environment_version"],
+                id=fetch_signatures["environment_id"],
             ),
-            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
+            application_ref=ReferenceRequestModel(
+                slug=fetch_signatures["application_slug"],
+                version=None,
+                id=fetch_signatures["application_id"],
+            ),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
     async def afetch(
         cls,
         *,
-        app_slug: Optional[str] = None,
+        application_id: Optional[str] = None,
+        application_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
+        environment_version: Optional[int] = None,
+        # DEPRECATING
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
+        fetch_signatures = cls._validate_and_return_fetch_signatures(
+            application_id=application_id,
+            application_slug=application_slug,
+            variant_id=variant_id,
+            variant_slug=variant_slug,
+            variant_version=variant_version,
+            environment_id=environment_id,
+            environment_slug=environment_slug,
+            environment_version=environment_version,
+            app_id=app_id,
+            app_slug=app_slug,
+        )
         config_response = await cls.aclient.variants.configs_fetch(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version, id=None
+                slug=fetch_signatures["variant_slug"],
+                version=fetch_signatures["variant_version"],
+                id=fetch_signatures["variant_id"],
             ),
             environment_ref=ReferenceRequestModel(
-                slug=environment_slug, version=None, id=None
+                slug=fetch_signatures["environment_slug"],
+                version=fetch_signatures["environment_version"],
+                id=fetch_signatures["environment_id"],
             ),
-            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
+            application_ref=ReferenceRequestModel(
+                slug=fetch_signatures["application_slug"],
+                version=None,
+                id=fetch_signatures["application_id"],
+            ),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -225,13 +366,11 @@ class SharedManager:
                 slug=app_slug, version=None, id=app_id
             ),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -255,13 +394,11 @@ class SharedManager:
                 slug=app_slug, version=None, id=app_id
             ),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -271,13 +408,11 @@ class SharedManager:
             variant_ref=ReferenceDto(slug=variant_slug, version=None, id=None),
             application_ref=ReferenceDto(slug=app_slug, version=None, id=None),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -289,13 +424,11 @@ class SharedManager:
             variant_ref=ReferenceDto(slug=variant_slug, version=None, id=None),
             application_ref=ReferenceDto(slug=app_slug, version=None, id=None),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="configuration",
+            include_params=True,
         )
-
-        assert type(response) == ConfigurationResponse, "Invalid configuration response"
-        return response
+        return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -316,13 +449,11 @@ class SharedManager:
             ),
             application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="deployment",
+            include_params=False,
         )
-
-        assert type(response) == DeploymentResponse, "Invalid configuration response"
-        return response
+        return DeploymentResponse(**response)
 
     @classmethod
     @handle_exceptions()
@@ -343,13 +474,11 @@ class SharedManager:
             ),
             application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
         )
-        response = cls._convert_config_response_model_to_readable_format(
+        response = cls._flatten_config_response(
             config_response,
-            response_type="deployment",
+            include_params=False,
         )
-
-        assert type(response) == DeploymentResponse, "Invalid configuration response"
-        return response
+        return DeploymentResponse(**response)
 
     @classmethod
     @handle_exceptions()

@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 def handle_exceptions():
     def decorator(func):
-
         is_coroutine_function = inspect.iscoroutinefunction(func)
 
         @wraps(func)
