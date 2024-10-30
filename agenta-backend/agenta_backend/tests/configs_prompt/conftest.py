@@ -99,6 +99,14 @@ async def get_production_environment_by_name():
 
 
 @pytest.fixture()
+async def get_user_from_db():
+    async with db_engine.get_session() as session:
+        result = await session.execute(select(UserDB).filter_by(uid="0"))
+        user = result.scalars().first()
+        return user
+
+
+@pytest.fixture()
 async def get_app_variant_revision_by_variant_id(get_app_variant_by_slug):
     variant = await get_app_variant_by_slug
     assert isinstance(
