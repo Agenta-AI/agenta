@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Type, TypeVar
+from typing import Optional, Type, TypeVar, Dict, Any, Union
 
 import yaml
 from pydantic import BaseModel, ValidationError
@@ -18,7 +18,9 @@ AVAILABLE_ENVIRONMENTS = ["development", "production", "staging"]
 
 class ConfigManager:
     @staticmethod
-    def get_from_route(schema: Type[T]) -> T:
+    def get_from_route(
+        schema: Optional[Type[T]] = None,
+    ) -> Union[Dict[str, Any], T]:
         """
         Retrieves the configuration from the route context and returns a config object.
 
@@ -42,33 +44,75 @@ class ConfigManager:
             3. 'variant'
             Only one of these should be provided.
         """
-        # context = route_context.get()
-        # if ("config" in context and context["config"]) and (
-        #     ("environment" in context and context["environment"])
-        #     or ("variant" in context and context["variant"])
-        # ):
-        #     raise ValueError(
-        #         "Either config, environment or variant must be provided. Not both."
-        #     )
-        # if "config" in context and context["config"]:
-        #     return schema(**context["config"])
-        # elif "environment" in context and context["environment"]:
-        #     return ConfigManager.get_from_registry(
-        #         schema, environment=context["environment"]
-        #     )
-        # elif "variant" in context and context["variant"]:
-        #     return ConfigManager.get_from_registry(schema, variant=context["variant"])
-        # else:
-        #     raise ValueError("Either config, environment or variant must be provided")
-        return T
+
+        context = route_context.get()
+
+        parameters = None
+
+        if "config" in context and context["config"]:
+            parameters = context["config"]
+
+        else:
+            application_id: Optional[str] = None
+            application_slug: Optional[str] = None
+            variant_id: Optional[str] = None
+            variant_slug: Optional[str] = None
+            variant_version: Optional[int] = None
+            environment_id: Optional[str] = None
+            environment_slug: Optional[str] = None
+            environment_version: Optional[int] = None
+
+            if "application" in context:
+                application_id = context["application"].get("id")
+                application_slug = context["application"].get("slug")
+
+            if "variant" in context:
+                variant_id = context["variant"].get("id")
+                variant_slug = context["variant"].get("slug")
+                variant_version = context["variant"].get("version")
+
+            if "environment" in context:
+                environment_id = context["environment"].get("id")
+                environment_slug = context["environment"].get("slug")
+                environment_version = context["environment"].get("version")
+
+            parameters = ConfigManager.get_from_registry(
+                application_id=application_id,
+                application_slug=application_slug,
+                variant_id=variant_id,
+                variant_slug=variant_slug,
+                variant_version=variant_version,
+                environment_id=environment_id,
+                environment_slug=environment_slug,
+                environment_version=environment_version,
+            )
+
+        if not parameters:
+            # ERROR CHECKING
+            pass
+            # ERROR CHECKING
+
+        if schema:
+            return schema(**parameters)
+
+        return parameters
 
     @staticmethod
     def get_from_registry(
-        app_slug: str,
+        schema: Optional[Type[T]] = None,
+        #
+        application_id: Optional[str] = None,
+        application_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
-    ):
+        environment_version: Optional[int] = None,
+        # DEPRECATING
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ) -> Union[Dict[str, Any], T]:
         """
         Pulls the parameters for the app variant from the server and returns a config object.
 
@@ -88,20 +132,31 @@ class ConfigManager:
         """
 
         try:
-            configuration = SharedManager().fetch(
-                app_slug=app_slug,
+            config = SharedManager().fetch(
+                application_id=application_id,
+                application_slug=application_slug,
+                variant_id=variant_id,
                 variant_slug=variant_slug,
                 variant_version=variant_version,
+                environment_id=environment_id,
                 environment_slug=environment_slug,
+                environment_version=environment_version,
+                # DEPRECATING
+                app_id=app_id,
+                app_slug=app_slug,
             )
+
+            if schema:
+                return schema(**config.parameters)
+
+            return config.parameters
+
         except Exception as ex:
             logger.error(
-                "Failed to pull the configuration from the server with error: %s",
+                "Failed to pull the config from the server with error: %s",
                 str(ex),
             )
             raise ex
-
-        return configuration
 
     @staticmethod
     async def async_get_from_registry(
