@@ -43,7 +43,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 export type SortResult = {
-    type: "custom" | "standerd"
+    type: "custom" | "standard"
     sorted: string
     customRange?: {startTime: string; endTime: string}
 }
@@ -108,7 +108,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
         }
 
         onSortApply({
-            type: sortData == "custom" ? "custom" : "standerd",
+            type: sortData == "custom" ? "custom" : "standard",
             sorted: sortedTime as string,
             customRange: customRangeTime,
         })

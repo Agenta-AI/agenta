@@ -69,14 +69,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 windowing = query_dto.windowing
                 # ---------
                 if windowing:
-                    if windowing.earliest:
+                    if windowing.oldest:
                         query = query.filter(
-                            InvocationSpanDBE.created_at >= windowing.earliest
+                            InvocationSpanDBE.created_at >= windowing.oldest
                         )
 
-                    if windowing.latest:
+                    if windowing.newest:
                         query = query.filter(
-                            InvocationSpanDBE.created_at < windowing.latest
+                            InvocationSpanDBE.created_at < windowing.newest
                         )
                 # ---------
 
@@ -91,71 +91,24 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
 
                 # SORTING
-                if grouping and grouping_column:
-                    query = query.order_by(grouping_column)
                 query = query.order_by(InvocationSpanDBE.created_at.desc())
                 # -------
 
                 # WHERE                           created_at <= stop
                 # WHERE next     < created_at AND created_at <= stop
 
+                # COUNTING // dangerous with large datasets
+                count_query = select(
+                    func.count()  # pylint: disable=E1102:not-callable
+                ).select_from(query.subquery())
+                count = (await session.execute(count_query)).scalar()
+                # --------
+
                 # PAGINATION
                 pagination = query_dto.pagination
-                count = None
                 # ----------
                 if pagination:
-                    print("-----------------")
-                    print(pagination)
-
-                    count_query = select(
-                        func.count()  # pylint: disable=E1102:not-callable
-                    ).select_from(query.subquery())
-                    count = (await session.execute(count_query)).scalar()
-
-                    # 1. LIMIT size OFFSET (page - 1) * size
-                    # -> unstable if windowing.latest is not set
-                    if pagination.page and pagination.size:
-                        limit = pagination.size
-                        offset = (pagination.page - 1) * pagination.size
-
-                        query = query.limit(limit).offset(offset)
-
-                    # 2. WHERE next > created_at LIMIT size
-                    # -> unstable if created_at is not unique
-                    elif pagination.next and pagination.size:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at < pagination.next
-                        )
-                        query = query.limit(pagination.size)
-
-                    # 3. WHERE next > created_at AND created_at >= stop
-                    # -> stable thanks to the </<= combination
-                    elif pagination.next and pagination.stop:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at < pagination.next
-                        )
-                        query = query.filter(
-                            InvocationSpanDBE.created_at >= pagination.stop
-                        )
-
-                    # 4. WHERE LIMIT size
-                    # -> useful as a starter query
-                    elif pagination.size:
-                        query = query.limit(pagination.size)
-
-                    # 5. WHERE created_at >= stop
-                    # -> useful as a starter query
-                    elif pagination.stop:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at >= pagination.stop
-                        )
-
-                    # 6. WHERE next > created_at
-                    # -> rather useless
-                    elif pagination.next:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at < pagination.next
-                        )
+                    query = _chunk(query, **pagination.model_dump())
                 # ----------
 
                 # GROUPING
@@ -167,6 +120,13 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                         grouping_column.in_(select(subquery.c["grouping_key"]))
                     )
                 # --------
+
+                # SORTING
+                query = query.order_by(
+                    InvocationSpanDBE.created_at.desc(),
+                    InvocationSpanDBE.time_start.asc(),
+                )
+                # -------
 
                 # DEBUGGING
                 # TODO: HIDE THIS BEFORE RELEASING
@@ -311,6 +271,51 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     session.delete(span)
 
                 await session.commit()
+
+
+def _chunk(
+    query: select,
+    page: Optional[int] = None,
+    size: Optional[int] = None,
+    next: Optional[datetime] = None,  # pylint: disable=W0621:redefined-builtin
+    stop: Optional[datetime] = None,
+) -> select:
+    # 1. LIMIT size OFFSET (page - 1) * size
+    # -> unstable if windowing.newest is not set
+    if page and size:
+        limit = size
+        offset = (page - 1) * size
+
+        query = query.limit(limit).offset(offset)
+
+    # 2. WHERE next > created_at LIMIT size
+    # -> unstable if created_at is not unique
+    elif next and size:
+        query = query.filter(InvocationSpanDBE.created_at < next)
+        query = query.limit(size)
+
+    # 3. WHERE next > created_at AND created_at >= stop
+    # -> stable thanks to the </<= combination
+    elif next and stop:
+        query = query.filter(InvocationSpanDBE.created_at < next)
+        query = query.filter(InvocationSpanDBE.created_at >= stop)
+
+    # 4. WHERE LIMIT size
+    # -> useful as a starter query
+    elif size:
+        query = query.limit(size)
+
+    # 5. WHERE created_at >= stop
+    # -> useful as a starter query
+    elif stop:
+        query = query.filter(InvocationSpanDBE.created_at >= stop)
+
+    # 6. WHERE next > created_at
+    # -> rather useless
+    elif next:
+        query = query.filter(InvocationSpanDBE.created_at < next)
+
+    return query
 
 
 def _combine(
