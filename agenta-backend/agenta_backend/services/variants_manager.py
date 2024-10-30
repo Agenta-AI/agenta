@@ -58,8 +58,8 @@ class ReferenceDTO(BaseModel):
 class LifecycleDTO(BaseModel):
     deployed_at: Optional[datetime] = None
     deployed_by: Optional[str] = None
-    commited_by: Optional[str] = None
-    commited_at: Optional[datetime] = None
+    committed_by: Optional[str] = None
+    committed_at: Optional[datetime] = None
 
 
 # DIFFERENT FROM A configuration IN THE SENSE OF Application sStructure
@@ -466,7 +466,7 @@ async def fetch_config_by_variant_ref(
         ),
         environment_ref=None,
         lifecycle=LifecycleDTO(
-            commited_at=app_variant.updated_at, commited_by=user.email
+            committed_at=app_variant.updated_at, committed_by=user.email
         ),
     )
     return config
@@ -515,7 +515,7 @@ async def fetch_config_by_environment_ref(
     user = await get_user_with_uid(user_uid=user_id)
 
     config.lifecycle = LifecycleDTO(
-        commited_at=app_environment_revision.created_at, commited_by=user.email
+        committed_at=app_environment_revision.created_at, committed_by=user.email
     )
     return config
 
@@ -667,7 +667,7 @@ async def commit_config(
 
     # Include variant lifecycle to the config
     config.lifecycle = LifecycleDTO(
-        commited_by=user.email, commited_at=variant_updated_at
+        committed_by=user.email, committed_at=variant_updated_at
     )
     return config
 
