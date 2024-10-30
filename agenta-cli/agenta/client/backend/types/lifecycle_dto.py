@@ -8,8 +8,10 @@ import pydantic
 
 
 class LifecycleDto(UniversalBaseModel):
-    deployed_at: dt.datetime
-    deployed_by: str
+    deployed_at: typing.Optional[dt.datetime] = None
+    deployed_by: typing.Optional[str] = None
+    committed_by: typing.Optional[str] = None
+    committed_at: typing.Optional[dt.datetime] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
