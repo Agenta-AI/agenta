@@ -741,6 +741,9 @@ async def list_app_variants_by_app_slug(app_slug: str, project_id: str):
     app_db = await fetch_app_by_name_and_parameters(
         app_name=app_slug, project_id=project_id
     )
+    if app_db is None:
+        raise NoResultFound(f"App with name {app_slug} not found.")
+
     async with db_engine.get_session() as session:
         result = await session.execute(
             select(AppVariantDB)
@@ -858,6 +861,21 @@ async def get_user(user_uid: str) -> UserDB:
             return user_db
 
         return user
+
+
+async def get_user_with_uid(user_uid: str):
+    """Get the user with the specified uid from the database.
+
+    Arguments:
+        user_uid (str): The user unique identifier
+
+    Returns:
+        UserDB: instance of user
+    """
+
+    # TODO: deprecate use of get_user function and use get_user_with_uid instead.
+    user_db = await get_user(user_uid=user_uid)
+    return user_db
 
 
 async def get_user_with_id(user_id: str):
