@@ -209,12 +209,19 @@ class SharedSDKResponse(BaseModel):
         return str(self.model_dump(exclude_none=True))
 
 
-class ConfigurationResponse(SharedSDKResponse):
-    config: Dict[str, Any]
+class LifeCycleResponse(SharedSDKResponse):
+    committed_at: Optional[str] = None
+    committed_by: Optional[str] = None
+    deployed_at: Optional[str] = None
+    deployed_by: Optional[str] = None
 
 
-class DeploymentResponse(SharedSDKResponse):
-    deployment_info: Dict[str, Any]
+class ConfigurationResponse(LifeCycleResponse):
+    parameters: Dict[str, Any]
+
+
+class DeploymentResponse(LifeCycleResponse):
+    pass
 
 
 class VariantConfigurationsResponse(BaseModel):

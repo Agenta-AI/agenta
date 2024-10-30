@@ -74,16 +74,17 @@ route_context = contextvars.ContextVar("route_context", default={})
 
 @contextmanager
 def route_context_manager(
+    *,
     config: Optional[Dict[str, Any]] = None,
-    environment: Optional[str] = None,
-    version: Optional[str] = None,
-    variant: Optional[str] = None,
+    application: Optional[Dict[str, Any]] = None,
+    variant: Optional[Dict[str, Any]] = None,
+    environment: Optional[Dict[str, Any]] = None,
 ):
     context = {
         "config": config,
-        "environment": environment,
-        "version": version,
+        "application": application,
         "variant": variant,
+        "environment": environment,
     }
     token = route_context.set(context)
     try:
@@ -189,7 +190,9 @@ class entrypoint(BaseDecorator):
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": "playground"}
             )
-            with route_context_manager(config=api_config_params):
+            with route_context_manager(
+                config=api_config_params,
+            ):
                 entrypoint_result = await self.execute_function(
                     func,
                     True,  # inline trace: True
@@ -246,7 +249,9 @@ class entrypoint(BaseDecorator):
         @functools.wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
-                k: v for k, v in kwargs.items() if k not in ["config", "environment"]
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["config", "environment", "app"]
             }
             if not config_schema:
                 if "environment" in kwargs and kwargs["environment"] is not None:
@@ -260,8 +265,22 @@ class entrypoint(BaseDecorator):
             ag.tracing.update_baggage(
                 {"config": config_params, "environment": kwargs["environment"]}
             )
+
+            app_id = os.environ.get("AGENTA_APP_ID")
+
             with route_context_manager(
-                variant=kwargs["config"], environment=kwargs["environment"]
+                application={
+                    "id": app_id,
+                    "slug": kwargs["app"],
+                },
+                variant={
+                    "slug": kwargs.get("config"),
+                    "version": kwargs.get("version"),
+                },
+                environment={
+                    "slug": kwargs.get("environment"),
+                    "version": kwargs.get("version"),
+                },
             ):
                 entrypoint_result = await self.execute_function(
                     func,
