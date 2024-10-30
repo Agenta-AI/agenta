@@ -80,6 +80,32 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
     const [tab, setTab] = useState("overview")
     const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
 
+    const transformDataInputs = (data: any) => {
+        return Object.keys(data).reduce((acc, curr) => {
+            if (curr === "prompt") {
+                acc[curr] = data[curr]
+            }
+
+            if (!acc.tools) {
+                acc.tools = []
+            }
+
+            if (curr === "functions") {
+                const functions = data[curr].map((item: any) => ({
+                    type: "function",
+                    function: item,
+                }))
+                acc.tools.push(...functions)
+            }
+
+            if (curr === "tools") {
+                acc.tools.push(...data[curr])
+            }
+
+            return acc
+        }, {} as any)
+    }
+
     const items: TabsProps["items"] = [
         {
             key: "overview",
@@ -114,25 +140,32 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.values(data.inputs).map((item) =>
-                                    Array.isArray(item)
-                                        ? item.map((param, index) =>
-                                              param.role !== "tool" ? (
-                                                  <AccordionTreePanel
-                                                      key={index}
-                                                      label={param.role}
-                                                      value={param.content}
-                                                  />
-                                              ) : (
-                                                  <AccordionTreePanel
-                                                      key={index}
-                                                      label={param.role}
-                                                      value={param.content}
-                                                      enableFormatSwitcher
-                                                  />
-                                              ),
-                                          )
-                                        : null,
+                                Object.entries(transformDataInputs(data.inputs)).map(
+                                    ([key, values]) => {
+                                        if (key === "prompt") {
+                                            return Array.isArray(values)
+                                                ? values.map((param, index) => (
+                                                      <AccordionTreePanel
+                                                          key={index}
+                                                          label={param.role}
+                                                          value={param.content}
+                                                          enableFormatSwitcher={
+                                                              param.role === "tool"
+                                                          }
+                                                      />
+                                                  ))
+                                                : null
+                                        } else {
+                                            return (
+                                                <AccordionTreePanel
+                                                    key={key}
+                                                    label="tools"
+                                                    value={values as any[]}
+                                                    enableFormatSwitcher
+                                                />
+                                            )
+                                        }
+                                    },
                                 )
                             )}
                         </Space>

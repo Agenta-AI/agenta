@@ -39,7 +39,9 @@ import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
-import {getStringOrJson} from "@/lib/helpers/utils"
+import {getAgentaApiUrl, getStringOrJson} from "@/lib/helpers/utils"
+import axios from "axios"
+import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -60,11 +62,11 @@ interface Props {}
 type TraceTabTypes = "tree" | "node" | "chat"
 
 const ObservabilityDashboard = ({}: Props) => {
+    const {traces, isLoading, count, fetchTraces} = useObservabilityData()
     const appId = useAppId()
     const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const {traces, isLoadingTraces, count, fetchTraces} = useTraces()
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
@@ -514,7 +516,7 @@ const ObservabilityDashboard = ({}: Props) => {
 
             <div className="flex flex-col gap-2">
                 <Table
-                    loading={isLoadingTraces}
+                    loading={isLoading}
                     columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
                     dataSource={traces}
                     bordered
@@ -602,4 +604,8 @@ const ObservabilityDashboard = ({}: Props) => {
     )
 }
 
-export default ObservabilityDashboard
+export default () => (
+    <ObservabilityContextProvider>
+        <ObservabilityDashboard />
+    </ObservabilityContextProvider>
+)
