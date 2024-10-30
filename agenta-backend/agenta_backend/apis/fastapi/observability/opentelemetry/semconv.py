@@ -26,6 +26,9 @@ V_0_4_1_ATTRIBUTES_EXACT = [
     ("db.vector.query.top_k", "ag.meta.request.top_k"),
     ("pinecone.query.top_k", "ag.meta.request.top_k"),
     ("traceloop.span.kind", "ag.type.node"),
+    ("traceloop.entity.name", "ag.node.name"),
+    ("traceloop.entity.input", "ag.data.inputs"),
+    ("traceloop.entity.output", "ag.data.outputs"),
     # OPENINFERENCE
     ("output.value", "ag.data.outputs"),
     ("input.value", "ag.data.inputs"),
