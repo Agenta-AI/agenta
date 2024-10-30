@@ -202,8 +202,8 @@ class OTelSpanDTO(BaseModel):
 
 
 class WindowingDTO(BaseModel):
-    earliest: Optional[datetime] = None
-    latest: Optional[datetime] = None
+    oldest: Optional[datetime] = None
+    newest: Optional[datetime] = None
 
 
 class LogicalOperator(Enum):

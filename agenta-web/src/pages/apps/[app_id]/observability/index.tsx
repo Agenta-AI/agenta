@@ -464,10 +464,10 @@ const ObservabilityDashboard = ({}: Props) => {
         let sortQuery = ""
         if (sort) {
             sortQuery =
-                sort.type === "standerd"
-                    ? `&earliest=${sort.sorted}`
+                sort.type === "standard"
+                    ? `&oldest=${sort.sorted}`
                     : sort.type === "custom" && sort.customRange?.startTime
-                      ? `&earliest=${sort.customRange.startTime}&latest=${sort.customRange.endTime}`
+                      ? `&oldest=${sort.customRange.startTime}&newest=${sort.customRange.endTime}`
                       : ""
         }
 

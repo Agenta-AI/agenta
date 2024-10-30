@@ -38,13 +38,13 @@ from agenta_backend.core.observability.dtos import (
 
 
 def _parse_windowing(
-    earliest: Optional[str] = None,
-    latest: Optional[str] = None,
+    oldest: Optional[str] = None,
+    newest: Optional[str] = None,
 ) -> Optional[WindowingDTO]:
     _windowing = None
 
-    if earliest or latest:
-        _windowing = WindowingDTO(earliest=earliest, latest=latest)
+    if oldest or newest:
+        _windowing = WindowingDTO(oldest=oldest, newest=newest)
 
     return _windowing
 
@@ -124,8 +124,8 @@ def parse_query_dto(
     focus: Optional[str] = Query(None),
     # WINDOWING
     # - Option 2: Flat query parameters
-    earliest: Optional[str] = Query(None),
-    latest: Optional[str] = Query(None),
+    oldest: Optional[str] = Query(None),
+    newest: Optional[str] = Query(None),
     # FILTERING
     # - Option 1: Single query parameter as JSON
     filtering: Optional[str] = Query(None),
@@ -138,7 +138,7 @@ def parse_query_dto(
 ) -> QueryDTO:
     return QueryDTO(
         grouping=_parse_grouping(focus=focus),
-        windowing=_parse_windowing(earliest=earliest, latest=latest),
+        windowing=_parse_windowing(oldest=oldest, newest=newest),
         filtering=_parse_filtering(filtering=filtering),
         pagination=_parse_pagination(page=page, size=size, next=next, stop=stop),
     )
