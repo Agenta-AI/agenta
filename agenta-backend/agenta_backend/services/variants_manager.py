@@ -20,6 +20,7 @@ from agenta_backend.services.db_manager import (
 from agenta_backend.services.db_manager import (
     get_user,  # It is very wrong that I have to use this,
     get_user_with_id,  # instead of this.
+    get_user_with_uid,
     get_deployment_by_id,
     fetch_base_by_id,
     fetch_app_by_id,
@@ -55,8 +56,10 @@ class ReferenceDTO(BaseModel):
 
 
 class LifecycleDTO(BaseModel):
-    deployed_at: datetime
-    deployed_by: str
+    deployed_at: Optional[datetime] = None
+    deployed_by: Optional[str] = None
+    commited_by: Optional[str] = None
+    commited_at: Optional[datetime] = None
 
 
 # DIFFERENT FROM A configuration IN THE SENSE OF Application sStructure
@@ -310,7 +313,7 @@ async def _update_variant(
     user_id: str,
     variant_id: UUID,
     params: Dict[str, Any],
-) -> Tuple[Optional[str], Optional[int]]:
+) -> Tuple[Optional[str], Optional[int], Optional[datetime]]:
     logger.warning("[HELPERS] Updating: app_variant")
     app_variant = None
 
@@ -323,9 +326,9 @@ async def _update_variant(
         )
 
     if not app_variant:
-        return None, None
+        return None, None, None
 
-    return app_variant.config_name, app_variant.revision  # type: ignore
+    return app_variant.config_name, app_variant.revision, app_variant.updated_at  # type: ignore
 
 
 async def _update_environment(
@@ -440,6 +443,9 @@ async def fetch_config_by_variant_ref(
     if not app:
         return None
 
+    assert user_id is not None, "User ID is required."
+    user = await get_user_with_uid(user_uid=user_id)
+
     config = ConfigDTO(
         params=app_variant_revision.config_parameters,
         url=deployment.uri,
@@ -459,6 +465,9 @@ async def fetch_config_by_variant_ref(
             id=app_variant_revision.id,
         ),
         environment_ref=None,
+        lifecycle=LifecycleDTO(
+            commited_at=app_variant.updated_at, commited_by=user.email
+        ),
     )
     return config
 
@@ -501,6 +510,13 @@ async def fetch_config_by_environment_ref(
         return None
 
     config.environment_ref = environment_ref
+
+    assert user_id is not None, "User ID is required."
+    user = await get_user_with_uid(user_uid=user_id)
+
+    config.lifecycle = LifecycleDTO(
+        commited_at=app_environment_revision.created_at, commited_by=user.email
+    )
     return config
 
 
@@ -621,7 +637,7 @@ async def commit_config(
         return None
 
     logger.warning("[COMMIT] Updating: variant")
-    variant_slug, variant_version = await _update_variant(
+    variant_slug, variant_version, variant_updated_at = await _update_variant(
         project_id=project_id,
         user_id=user_id,
         variant_id=app_variant.id,
@@ -644,6 +660,14 @@ async def commit_config(
         variant_ref=variant_ref,
         application_ref=application_ref,
         user_id=user_id,
+    )
+
+    assert user_id is not None, "User ID is required."
+    user = await get_user_with_uid(user_uid=user_id)
+
+    # Include variant lifecycle to the config
+    config.lifecycle = LifecycleDTO(
+        commited_by=user.email, commited_at=variant_updated_at
     )
     return config
 
@@ -681,7 +705,7 @@ async def deploy_config(
     logger.warning("[DEPLOY]  Updating: environment")
     await _update_environment(
         project_id=project_id,
-        user_id=user_id,
+        user_id=user_id,  # type: ignore
         environment_name=app_environment.name,
         variant_id=app_variant.id,
     )
@@ -696,6 +720,12 @@ async def deploy_config(
     if not config:
         return None
 
+    assert user_id is not None, "User ID is required."
+    user = await get_user_with_uid(user_uid=user_id)
+
+    config.lifecycle = LifecycleDTO(
+        deployed_at=app_environment_revision.created_at, deployed_by=user.email
+    )
     return config
 
 
