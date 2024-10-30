@@ -10,12 +10,14 @@ import React, {createContext, PropsWithChildren, useContext, useEffect, useState
 
 type ObservabilityContextType = {
     traces: _AgentaRootsResponse[]
+    count: number
     isLoading: boolean
-    fetchTraces: () => void
+    fetchTraces: (queries?: string) => void
 }
 
 const initialValues: ObservabilityContextType = {
     traces: [],
+    count: 0,
     isLoading: false,
     fetchTraces: () => {},
 }
@@ -30,12 +32,13 @@ export const getObservabilityValues = () => observabilityContextValues
 
 const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
+    const [traceCount, setTraceCount] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
 
-    const fetchTraces = async () => {
+    const fetchTraces = async (queries?: string) => {
         try {
             setIsLoading(true)
-            const data = await fetchAllTraces()
+            const data = await fetchAllTraces(queries || "")
 
             const transformedTraces: _AgentaRootsResponse[] = []
 
@@ -62,6 +65,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
             }
 
             setTraces(transformedTraces)
+            setTraceCount(data?.count)
         } catch (error) {
             console.error(error)
             console.error("Failed to fetch traces:", error)
@@ -71,12 +75,13 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
 
     useEffect(() => {
-        fetchTraces()
+        fetchTraces("?focus=tree&size=10&page=1")
     }, [])
 
     observabilityContextValues.traces = traces
     observabilityContextValues.isLoading = isLoading
     observabilityContextValues.fetchTraces = fetchTraces
+    observabilityContextValues.count = traceCount
 
     return (
         <ObservabilityContext.Provider
@@ -84,6 +89,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
                 traces,
                 isLoading,
                 fetchTraces,
+                count: traceCount || 0,
             }}
         >
             {children}
