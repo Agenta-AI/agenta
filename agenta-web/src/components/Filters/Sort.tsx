@@ -1,7 +1,7 @@
 import React, {useState} from "react"
 import {CaretRight, Clock, Calendar} from "@phosphor-icons/react"
 import {DatePicker, Button, Typography, Divider, Popover} from "antd"
-import {JSSTheme, SortTypes} from "@/lib/Types"
+import {JSSTheme} from "@/lib/Types"
 import dayjs, {Dayjs} from "dayjs"
 import type {SelectProps} from "antd"
 import {createUseStyles} from "react-jss"
@@ -47,22 +47,26 @@ export type SortResult = {
     sorted: string
     customRange?: {startTime: string; endTime: string}
 }
-
-type Props = {
-    onSortApply: ({
-        type,
-        sorted,
-        customRange,
-    }: {
-        type: "custom" | "standerd"
-        sorted: string
-        customRange?: {startTime: string; endTime: string}
-    }) => void
-    defaultSortValue: SortTypes
-}
-export type CustomTimeRange = {
+type SortTypes =
+    | "30 mins"
+    | "1 hour"
+    | "6 hour"
+    | "24 hour"
+    | "3 days"
+    | "7 days"
+    | "14 days"
+    | "1 month"
+    | "3 month"
+    | "all time"
+    | "custom"
+    | ""
+type CustomTimeRange = {
     startTime: Dayjs | null
     endTime: Dayjs | null
+}
+type Props = {
+    onSortApply: ({type, sorted, customRange}: SortResult) => void
+    defaultSortValue: SortTypes
 }
 
 const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
