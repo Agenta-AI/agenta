@@ -14,7 +14,6 @@ import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
-import {useTraces} from "@/lib/hooks/useTraces"
 import {Filter, FilterConditions, JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import {SwapOutlined} from "@ant-design/icons"
@@ -39,8 +38,7 @@ import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
-import {getAgentaApiUrl, getStringOrJson} from "@/lib/helpers/utils"
-import axios from "axios"
+import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -417,9 +415,11 @@ const ObservabilityDashboard = ({}: Props) => {
         setTraceTabs(selectedTab)
 
         if (selectedTab === "chat") {
-            updateFilter({key: "node.type", operator: "exists", value: selectedTab})
+            updateFilter({key: "node.type", operator: "is", value: selectedTab})
         } else {
-            const isNodeTypeFilterExist = filters.some((item) => item.key === "node.type")
+            const isNodeTypeFilterExist = filters.some(
+                (item) => item.key === "node.type" && item.value === "chat",
+            )
 
             if (isNodeTypeFilterExist) {
                 setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
@@ -428,8 +428,10 @@ const ObservabilityDashboard = ({}: Props) => {
     }
     // Sync traceTabs with filters state
     useUpdateEffect(() => {
-        const nodeTypeFilter = filters.find((f) => f.key === "node.type")
-        setTraceTabs((prev) => (nodeTypeFilter?.value as TraceTabTypes) || prev)
+        const nodeTypeFilter = filters.find((f) => f.key === "node.type")?.value
+        setTraceTabs((prev) =>
+            nodeTypeFilter === "chat" ? "chat" : prev == "chat" ? "tree" : prev,
+        )
     }, [filters])
 
     const onSortApply = useCallback(({type, sorted, customRange}: SortResult) => {

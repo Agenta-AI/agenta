@@ -685,4 +685,7 @@ export type FilterConditions =
     | "lte"
     | "between"
     | "in"
+    | "is"
+    | "is_not"
+    | "btwn"
     | ""
