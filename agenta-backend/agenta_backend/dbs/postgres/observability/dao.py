@@ -62,7 +62,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # --------
 
                 # SCOPING
-                query = query.filter_by(project_id=project_id)
+                query = query.filter_by(
+                    project_id=project_id,
+                )
                 # -------
 
                 # WINDOWING
@@ -87,20 +89,25 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     operator = filtering.operator
                     conditions = filtering.conditions
 
-                    query = query.filter(_combine(operator, _filters(conditions)))
+                    query = query.filter(
+                        _combine(
+                            operator,
+                            _filters(conditions),
+                        )
+                    )
                 # ---------
 
                 # SORTING
-                query = query.order_by(InvocationSpanDBE.created_at.desc())
+                query = query.order_by(
+                    InvocationSpanDBE.created_at.desc(),
+                )
                 # -------
-
-                # WHERE                           created_at <= stop
-                # WHERE next     < created_at AND created_at <= stop
 
                 # COUNTING // dangerous with large datasets
                 count_query = select(
                     func.count()  # pylint: disable=E1102:not-callable
                 ).select_from(query.subquery())
+
                 count = (await session.execute(count_query)).scalar()
                 # --------
 
@@ -108,7 +115,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 pagination = query_dto.pagination
                 # ----------
                 if pagination:
-                    query = _chunk(query, **pagination.model_dump())
+                    query = _chunk(
+                        query,
+                        **pagination.model_dump(),
+                    )
                 # ----------
 
                 # GROUPING
@@ -119,14 +129,20 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     query = query.filter(
                         grouping_column.in_(select(subquery.c["grouping_key"]))
                     )
-                # --------
 
-                # SORTING
-                query = query.order_by(
-                    InvocationSpanDBE.created_at.desc(),
-                    InvocationSpanDBE.time_start.asc(),
-                )
-                # -------
+                    # SORTING
+                    query = query.order_by(
+                        InvocationSpanDBE.created_at.desc(),
+                        InvocationSpanDBE.time_start.asc(),
+                    )
+                    # -------
+                else:
+                    # SORTING
+                    query = query.order_by(
+                        InvocationSpanDBE.time_start.desc(),
+                    )
+                    # -------
+                # --------
 
                 # DEBUGGING
                 # TODO: HIDE THIS BEFORE RELEASING
