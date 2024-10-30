@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import React, {useMemo, useState} from "react"
 import {Filter, JSSTheme} from "@/lib/Types"
 import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
@@ -8,7 +8,7 @@ import {useUpdateEffect} from "usehooks-ts"
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
         "& .ant-popover-inner": {
-            width: "600px !important",
+            width: "650px !important",
             padding: `0px ${theme.paddingXS}px ${theme.paddingXS}px ${theme.padding}px`,
         },
     },
@@ -30,7 +30,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     filterData?: Filter[]
-    columns: {value: string; label: string}[]
+    columns: {value: string; label: string; type?: string}[]
     onApplyFilter: (filters: Filter[]) => void
     onClearFilter: (filters: Filter[]) => void
 }
@@ -51,23 +51,28 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     }, [filterData])
 
     const operators = [
-        {value: "contains", lable: "contains"},
-        {value: "matches", lable: "matches"},
-        {value: "like", lable: "like"},
-        {value: "startswith", lable: "startswith"},
-        {value: "endswith", lable: "endswith"},
-        {value: "exists", lable: "exists"},
-        {value: "not_exists", lable: "not exists"},
-        {value: "eq", lable: "="},
-        {value: "neq", lable: "!="},
-        {value: "gt", lable: ">"},
-        {value: "lt", lable: "<"},
-        {value: "gte", lable: ">="},
-        {value: "lte", lable: "<="},
+        {type: "string", value: "contains", label: "contains"},
+        {type: "string", value: "matches", label: "matches"},
+        {type: "string", value: "like", label: "like"},
+        {type: "string", value: "startswith", label: "startswith"},
+        {type: "string", value: "endswith", label: "endswith"},
+        {type: "exists", value: "exists", label: "exists"},
+        {type: "exists", value: "not_exists", label: "not exists"},
+        {type: "exists", value: "in", label: "in"},
+        {type: "exists", value: "is", label: "is"},
+        {type: "exists", value: "is_not", label: "is not"},
+        {type: "number", value: "eq", label: "="},
+        {type: "number", value: "neq", label: "!="},
+        {type: "number", value: "gt", label: ">"},
+        {type: "number", value: "lt", label: "<"},
+        {type: "number", value: "gte", label: ">="},
+        {type: "number", value: "lte", label: "<="},
+        {type: "number", value: "btwn", label: "between"},
     ]
 
-    const filteredOptions = columns.filter(
-        (col) => !filter.some((item, i) => item.key === col.value),
+    const filteredColumns = useMemo(
+        () => columns.filter((col) => !filter.some((item) => item.key === col.value)),
+        [columns, filter],
     )
 
     const onFilterChange = ({
@@ -80,7 +85,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
         idx: number
     }) => {
         const newFilters = [...filter]
-        newFilters[idx][columnName as keyof Filter] = value
+        newFilters[idx][columnName] = value
         setFilter(newFilters)
     }
 
@@ -99,7 +104,6 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
 
     const applyFilter = () => {
         const sanitizedFilters = filter.filter(({key, operator}) => key && operator)
-
         onApplyFilter(sanitizedFilters)
         setIsFilterOpen(false)
     }
@@ -124,81 +128,77 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                     </div>
 
                     <div className={classes.filterContainer}>
-                        {filter.map((item, idx) => (
-                            <Space key={idx}>
-                                <p className={`w-[60px] text-end`}>{idx == 0 ? "Where" : "And"}</p>
+                        {filter.map((item, idx) => {
+                            const selectedColumn = columns.find((col) => col.value === item.key)
+                            const filteredOperators = operators.filter(
+                                (operator) => operator.type === selectedColumn?.type,
+                            )
 
-                                <Select
-                                    showSearch
-                                    labelRender={(label) => (!label.value ? "Column" : label.label)}
-                                    style={{width: 100}}
-                                    popupMatchSelectWidth={220}
-                                    suffixIcon={<CaretDown size={14} />}
-                                    onChange={(value) =>
-                                        onFilterChange({columnName: "key", value, idx})
-                                    }
-                                    filterSort={(a, b) =>
-                                        (a?.label ?? "")
-                                            .toLowerCase()
-                                            .localeCompare((b?.label ?? "").toLowerCase())
-                                    }
-                                    filterOption={(input, option) =>
-                                        (option?.label ?? "")
-                                            .toLowerCase()
-                                            .includes(input.toLowerCase())
-                                    }
-                                    value={item.key}
-                                    options={filteredOptions.map((col) => ({
-                                        value: col.value,
-                                        label: col.label,
-                                    }))}
-                                />
-                                {item.key && (
-                                    <>
-                                        <Select
-                                            labelRender={(label) =>
-                                                !label.value ? "Condition" : label.label
-                                            }
-                                            style={{width: 95}}
-                                            suffixIcon={<CaretDown size={14} />}
-                                            onChange={(value) =>
-                                                onFilterChange({
-                                                    columnName: "operator",
-                                                    value,
-                                                    idx,
-                                                })
-                                            }
-                                            popupMatchSelectWidth={100}
-                                            value={item.operator}
-                                            options={operators.map((operator) => ({
-                                                value: operator.value,
-                                                label: operator.lable,
-                                            }))}
-                                        />
+                            return (
+                                <Space key={idx}>
+                                    <p className={`w-[60px] text-end`}>
+                                        {idx === 0 ? "Where" : "And"}
+                                    </p>
 
-                                        <Input
-                                            placeholder="Keyword"
-                                            className="w-[270px]"
-                                            value={item.value}
-                                            onChange={(e) =>
-                                                onFilterChange({
-                                                    columnName: "value",
-                                                    value: e.target.value,
-                                                    idx,
-                                                })
-                                            }
-                                        />
-                                    </>
-                                )}
-                                {filter.length > 1 && (
-                                    <Button
-                                        type="link"
-                                        icon={<Trash size={14} />}
-                                        onClick={() => onDeleteFilter(idx)}
+                                    <Select
+                                        showSearch
+                                        labelRender={(label) =>
+                                            !label.value ? "Column" : label.label
+                                        }
+                                        style={{width: 200}}
+                                        popupMatchSelectWidth={220}
+                                        suffixIcon={<CaretDown size={14} />}
+                                        onChange={(value) =>
+                                            onFilterChange({columnName: "key", value, idx})
+                                        }
+                                        value={item.key}
+                                        options={filteredColumns}
                                     />
-                                )}
-                            </Space>
-                        ))}
+
+                                    {item.key && (
+                                        <>
+                                            <Select
+                                                labelRender={(label) =>
+                                                    !label.value ? "Condition" : label.label
+                                                }
+                                                style={{width: 95}}
+                                                suffixIcon={<CaretDown size={14} />}
+                                                onChange={(value) =>
+                                                    onFilterChange({
+                                                        columnName: "operator",
+                                                        value,
+                                                        idx,
+                                                    })
+                                                }
+                                                popupMatchSelectWidth={100}
+                                                value={item.operator}
+                                                options={filteredOperators}
+                                            />
+
+                                            <Input
+                                                placeholder="Keyword"
+                                                className="w-[220px]"
+                                                value={item.value}
+                                                onChange={(e) =>
+                                                    onFilterChange({
+                                                        columnName: "value",
+                                                        value: e.target.value,
+                                                        idx,
+                                                    })
+                                                }
+                                            />
+                                        </>
+                                    )}
+                                    {filter.length > 1 && (
+                                        <Button
+                                            type="link"
+                                            icon={<Trash size={14} />}
+                                            onClick={() => onDeleteFilter(idx)}
+                                        />
+                                    )}
+                                </Space>
+                            )
+                        })}
 
                         <Button
                             type="link"
@@ -212,7 +212,9 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                     </div>
 
                     <Space className="flex items-center justify-end mt-2">
-                        <Button type="link">Cancel</Button>
+                        <Button type="link" onClick={() => setIsFilterOpen(false)}>
+                            Cancel
+                        </Button>
                         <Button
                             icon={<ArrowCounterClockwise size={14} className="mt-0.5" />}
                             onClick={clearFilter}

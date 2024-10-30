@@ -10,12 +10,13 @@ import {buildNodeTree, observabilityTransformer} from "../helpers/observability_
 
 export const useTraces = () => {
     const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
+    const [traceCount, setTraceCount] = useState(0)
     const [isLoadingTraces, setIsLoadingTraces] = useState(true)
 
-    const fetchTraces = async () => {
+    const fetchTraces = async (queries?: string) => {
         try {
             setIsLoadingTraces(true)
-            const data = await fetchAllTraces()
+            const data = await fetchAllTraces(queries || "")
 
             const transformedTraces: _AgentaRootsResponse[] = []
 
@@ -42,6 +43,7 @@ export const useTraces = () => {
             }
 
             setTraces(transformedTraces)
+            setTraceCount(data?.count)
         } catch (error) {
             console.error(error)
             console.error("Failed to fetch traces:", error)
@@ -51,8 +53,8 @@ export const useTraces = () => {
     }
 
     useEffect(() => {
-        fetchTraces()
+        fetchTraces("?focus=tree&size=10&page=1")
     }, [])
 
-    return {traces, isLoadingTraces, setIsLoadingTraces, setTraces}
+    return {traces, isLoadingTraces, count: traceCount || 0, fetchTraces}
 }

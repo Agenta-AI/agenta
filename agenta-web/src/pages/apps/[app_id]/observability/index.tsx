@@ -13,14 +13,10 @@ import {ResizableTitle} from "@/components/ServerTable/components"
 import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {
-    buildNodeTree,
-    getNodeById,
-    observabilityTransformer,
-} from "@/lib/helpers/observability_helpers"
+import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {useTraces} from "@/lib/hooks/useTraces"
-import {Filter, FilterConditions, JSSTheme, SortTypes} from "@/lib/Types"
-import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "@/services/observability/types"
+import {Filter, FilterConditions, JSSTheme} from "@/lib/Types"
+import {_AgentaRootsResponse} from "@/services/observability/types"
 import {SwapOutlined} from "@ant-design/icons"
 import {
     Button,
@@ -43,8 +39,7 @@ import {Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
-import {getAgentaApiUrl, getStringOrJson} from "@/lib/helpers/utils"
-import axios from "axios"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -69,7 +64,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const {traces, isLoadingTraces, setIsLoadingTraces, setTraces} = useTraces()
+    const {traces, isLoadingTraces, count, fetchTraces} = useTraces()
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
@@ -259,6 +254,50 @@ const ObservabilityDashboard = ({}: Props) => {
         }))
     }, [columns, editColumns])
 
+    const filterColumns = [
+        {type: "exists", value: "root.id", label: "root.id"},
+        {type: "exists", value: "tree.id", label: "tree.id"},
+        {type: "exists", value: "tree.type", label: "tree.type"},
+        {type: "exists", value: "node.id", label: "node.id"},
+        {type: "exists", value: "node.type", label: "node.type"},
+        {type: "exists", value: "node.name", label: "node.name"},
+        {type: "exists", value: "parent.id", label: "parent.id"},
+        {type: "exists", value: "status.code", label: "status.code"},
+        {type: "exists", value: "status.message", label: "status.message"},
+        {type: "exists", value: "exception.type", label: "exception.type"},
+        {type: "exists", value: "exception.message", label: "exception.message"},
+        {type: "exists", value: "exception.stacktrace", label: "exception.stacktrace"},
+        {type: "string", value: "data", label: "data"},
+        {type: "number", value: "metrics.acc.duration.total", label: "metrics.acc.duration.total"},
+        {type: "number", value: "metrics.acc.costs.total", label: "metrics.acc.costs.total"},
+        {type: "number", value: "metrics.unit.costs.total", label: "metrics.unit.costs.total"},
+        {type: "number", value: "metrics.acc.tokens.prompt", label: "metrics.acc.tokens.prompt"},
+        {
+            type: "number",
+            value: "metrics.acc.tokens.completion",
+            label: "metrics.acc.tokens.completion",
+        },
+        {type: "number", value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
+        {type: "number", value: "metrics.unit.tokens.prompt", label: "metrics.unit.tokens.prompt"},
+        {
+            type: "number",
+            value: "metrics.unit.tokens.completion",
+            label: "metrics.unit.tokens.completion",
+        },
+        {type: "number", value: "metrics.unit.tokens.total", label: "metrics.unit.tokens.total"},
+        {type: "exists", value: "refs.variant.id", label: "refs.variant.id"},
+        {type: "exists", value: "refs.variant.slug", label: "refs.variant.slug"},
+        {type: "exists", value: "refs.variant.version", label: "refs.variant.version"},
+        {type: "exists", value: "refs.environment.id", label: "refs.environment.id"},
+        {type: "exists", value: "refs.environment.slug", label: "refs.environment.slug"},
+        {type: "exists", value: "refs.environment.version", label: "refs.environment.version"},
+        {type: "exists", value: "refs.application.id", label: "refs.application.id"},
+        {type: "exists", value: "refs.application.slug", label: "refs.application.slug"},
+        {type: "exists", value: "link.type", label: "link.type"},
+        {type: "exists", value: "link.node.id", label: "link.node.id"},
+        {type: "exists", value: "otel.kind", label: "otel.kind"},
+    ]
+
     const onExport = async () => {
         try {
             if (traces.length) {
@@ -276,18 +315,19 @@ const ObservabilityDashboard = ({}: Props) => {
                     Inputs: trace?.data?.inputs?.topic || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
                     Status: trace.status.code,
-                    Latency: formatLatency(trace.time.span / 1000000),
-                    Usage: formatTokenUsage(trace?.metrics?.acc?.tokens?.total || 0),
-                    "Total cost": formatCurrency(trace?.metrics?.acc?.costs?.total || 0),
-                    "Span ID": trace.node.id,
+                    Latency: formatLatency(trace.metrics?.acc?.duration.total),
+                    Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total || 0),
+                    "Total Cost": formatCurrency(trace.metrics?.acc?.costs?.total || 0),
                     "Span Type": trace.node.type || "N/A",
+                    "Span ID": trace.node.id,
                 })
 
                 const csvData = convertToCsv(
                     traces.flatMap((trace) => {
                         const parentTrace = createTraceObject(trace)
-                        const childrenTraces = trace.children.map(createTraceObject)
-                        return [parentTrace, ...childrenTraces]
+                        return trace.children && Array.isArray(trace.children)
+                            ? [parentTrace, ...trace.children.map(createTraceObject)]
+                            : [parentTrace]
                     }),
                     [
                         ...columns.map((col) =>
@@ -305,64 +345,37 @@ const ObservabilityDashboard = ({}: Props) => {
         }
     }
 
-    const filterColumns = [
-        {value: "root.id", label: "root.id"},
-        {value: "tree.id", label: "tree.id"},
-        {value: "tree.type", label: "tree.type"},
-        {value: "node.id", label: "node.id"},
-        {value: "node.type", label: "node.type"},
-        {value: "node.name", label: "node.name"},
-        {value: "parent.id", label: "parent.id"},
-        {value: "status.code", label: "status.code"},
-        {value: "status.message", label: "status.message"},
-        {value: "exception.timestamp", label: "exception.timestamp"},
-        {value: "exception.type", label: "exception.type"},
-        {value: "exception.message", label: "exception.message"},
-        {value: "exception.stacktrace", label: "exception.stacktrace"},
-        {value: "data", label: "data"},
-        {value: "metrics.acc.duration.total", label: "metrics.acc.duration.total"},
-        {value: "metrics.acc.cost.total", label: "metrics.acc.cost.total"},
-        {value: "metrics.unit.cost.total", label: "metrics.unit.cost.total"},
-        {value: "metrics.acc.tokens.prompt", label: "metrics.acc.tokens.prompt"},
-        {value: "metrics.acc.tokens.completion", label: "metrics.acc.tokens.completion"},
-        {value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
-        {value: "metrics.unit.tokens.prompt", label: "metrics.unit.tokens.prompt"},
-        {value: "metrics.unit.tokens.completion", label: "metrics.unit.tokens.completion"},
-        {value: "metrics.unit.tokens.total", label: "metrics.unit.tokens.total"},
-        {value: "refs.variant.id", label: "refs.variant.id"},
-        {value: "refs.variant.slug", label: "refs.variant.slug"},
-        {value: "refs.variant.version", label: "refs.variant.version"},
-        {value: "refs.environment.id", label: "refs.environment.id"},
-        {value: "refs.environment.slug", label: "refs.environment.slug"},
-        {value: "refs.environment.version", label: "refs.environment.version"},
-        {value: "refs.application.id", label: "refs.application.id"},
-        {value: "refs.application.slug", label: "refs.application.slug"},
-        {value: "link.type", label: "link.type"},
-        {value: "link.node.id", label: "link.node.id"},
-        {value: "otel.kind", label: "otel.kind"},
-    ]
-
-    const onSortApply = async ({type, sorted, customRange}: SortResult) => {
-        setSort({type, sorted, customRange})
-    }
-
-    const handleToggleColumnVisibility = (key: string) => {
+    const handleToggleColumnVisibility = useCallback((key: string) => {
         setEditColumns((prev) =>
             prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
         )
+    }, [])
+
+    const updateFilter = ({
+        key,
+        operator,
+        value,
+    }: {
+        key: string
+        operator: FilterConditions
+        value: string
+    }) => {
+        setFilters((prevFilters) => {
+            const otherFilters = prevFilters.filter((f) => f.key !== key)
+            return value ? [...otherFilters, {key, operator, value}] : otherFilters
+        })
     }
 
-    // ------------------ search filter ------------------
+    const onPaginationChange = (current: number, pageSize: number) => {
+        setPagination({current, page: pageSize})
+    }
+
     const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setSearchQuery(e.target.value)
+        const query = e.target.value
+        setSearchQuery(query)
 
-        // if the data filter is exist in filter then remove it when the input value get empty
-        if (!e.target.value) {
-            const isSearchFilterExist = filters.some((item) => item.key === "data")
-
-            if (isSearchFilterExist) {
-                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
-            }
+        if (!query) {
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
         }
     }
 
@@ -379,20 +392,30 @@ const ObservabilityDashboard = ({}: Props) => {
             setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
         }
     }
-
     // Sync searchQuery with filters state
     useUpdateEffect(() => {
         const dataFilter = filters.find((f) => f.key === "data")
         setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
 
-    // -------------------- group buttons filter ---------------------
+    const onApplyFilter = useCallback((newFilters: Filter[]) => {
+        setFilters(newFilters)
+    }, [])
+
+    const onClearFilter = useCallback(() => {
+        setFilters([])
+        setSearchQuery("")
+        if (traceTabs === "chat") {
+            setTraceTabs("tree")
+        }
+    }, [])
+
     const onTraceTabChange = async (e: RadioChangeEvent) => {
         const selectedTab = e.target.value
         setTraceTabs(selectedTab)
 
         if (selectedTab === "chat") {
-            updateFilter({key: "node.type", operator: "eq", value: selectedTab})
+            updateFilter({key: "node.type", operator: "exists", value: selectedTab})
         } else {
             const isNodeTypeFilterExist = filters.some((item) => item.key === "node.type")
 
@@ -401,107 +424,41 @@ const ObservabilityDashboard = ({}: Props) => {
             }
         }
     }
-
     // Sync traceTabs with filters state
     useUpdateEffect(() => {
         const nodeTypeFilter = filters.find((f) => f.key === "node.type")
-        setTraceTabs((prev) =>
-            nodeTypeFilter?.value ? (nodeTypeFilter.value as TraceTabTypes) : prev,
-        )
+        setTraceTabs((prev) => (nodeTypeFilter?.value as TraceTabTypes) || prev)
     }, [filters])
 
-    const updateFilter = ({
-        key,
-        operator,
-        value,
-    }: {
-        key: string
-        operator: FilterConditions
-        value: string
-    }) => {
-        setFilters((prevFilters) => {
-            const otherFilters = prevFilters.filter((f) => f.key !== key)
-
-            return value ? [...otherFilters, {key, operator, value}] : otherFilters
-        })
-    }
+    const onSortApply = useCallback(({type, sorted, customRange}: SortResult) => {
+        setSort({type, sorted, customRange})
+    }, [])
 
     const fetchFilterdTrace = async () => {
-        const focusPoint = traceTabs !== "chat" ? `focus=${traceTabs}` : ""
+        const focusPoint = traceTabs == "tree" || traceTabs == "node" ? `focus=${traceTabs}` : ""
         const filterQuery = filters[0]?.operator
             ? `&filtering={"conditions":${JSON.stringify(filters)}}`
             : ""
         const paginationQuery = `&size=${pagination.page}&page=${pagination.current}`
-        let sortQuery
 
-        if (sort && sort.type === "standerd") {
-            sortQuery = `&earliest=${sort.sorted}`
-        } else if (sort && sort.type == "custom" && sort.customRange?.startTime) {
-            sortQuery = `&earliest=${sort.customRange.startTime}&latest=${sort.customRange.endTime}`
-        } else {
-            sortQuery = ""
+        let sortQuery = ""
+        if (sort) {
+            sortQuery =
+                sort.type === "standerd"
+                    ? `&earliest=${sort.sorted}`
+                    : sort.type === "custom" && sort.customRange?.startTime
+                      ? `&earliest=${sort.customRange.startTime}&latest=${sort.customRange.endTime}`
+                      : ""
         }
 
-        try {
-            const response = await axios.get(
-                `${getAgentaApiUrl()}/api/observability/v1/traces/search?${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`,
-            )
-            return response.data
-        } catch (error) {
-            console.log(error)
-        }
+        const data = await fetchTraces(`?${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
+
+        return data
     }
 
     useUpdateEffect(() => {
-        const filterTraceData = async () => {
-            try {
-                setIsLoadingTraces(true)
-
-                const data = await fetchFilterdTrace()
-                const transformedTraces: _AgentaRootsResponse[] = []
-
-                if (data?.trees) {
-                    transformedTraces.push(
-                        ...data.trees.flatMap((item: AgentaTreeDTO) =>
-                            observabilityTransformer(item),
-                        ),
-                    )
-                }
-
-                if (data?.nodes) {
-                    transformedTraces.push(
-                        ...data.nodes
-                            .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
-                            .flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
-                    )
-                }
-
-                setTraces(transformedTraces)
-            } catch (error) {
-                console.log(error)
-            } finally {
-                setIsLoadingTraces(false)
-            }
-        }
-        filterTraceData()
+        fetchFilterdTrace()
     }, [filters, traceTabs, sort, pagination])
-
-    const onApplyFilter = async (newFilters: Filter[]) => {
-        setFilters(newFilters)
-    }
-
-    const onClearFilter = async () => {
-        setFilters([])
-        setSearchQuery("")
-
-        if (traceTabs === "chat") {
-            setTraceTabs("tree")
-        }
-    }
-
-    const onPaginationChange = (current: number, pageSize: number) => {
-        setPagination({current, page: pageSize})
-    }
 
     return (
         <div className="flex flex-col gap-6">
@@ -607,7 +564,7 @@ const ObservabilityDashboard = ({}: Props) => {
                     }}
                 />
                 <Pagination
-                    total={100}
+                    total={count}
                     align="end"
                     className={classes.pagination}
                     current={pagination.current}

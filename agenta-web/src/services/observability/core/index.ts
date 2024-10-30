@@ -9,7 +9,9 @@ import axios from "@/lib/helpers/axiosConfig"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllTraces = async () => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/observability/v1/traces/search`)
+export const fetchAllTraces = async (queries?: string) => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/observability/v1/traces/search${queries}`,
+    )
     return response.data
 }
