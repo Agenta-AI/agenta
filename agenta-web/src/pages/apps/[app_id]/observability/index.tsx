@@ -618,7 +618,6 @@ const ObservabilityDashboard = ({}: Props) => {
                             activeTrace={activeTrace}
                             selected={selected}
                             setSelected={setSelected}
-                            traceTabs={traceTabs}
                         />
                     }
                 />
