@@ -2,8 +2,6 @@ from typing import Optional, Any, Dict
 from enum import Enum
 from uuid import UUID
 
-# from traceback import format_exc
-
 from httpx import get as check
 
 from opentelemetry.trace import (
@@ -38,9 +36,7 @@ class Tracing(metaclass=Singleton):
     ) -> None:
         # ENDPOINT (OTLP)
         self.otlp_url = url
-        # AUTHENTICATION (OTLP)
-        self.project_id: Optional[str] = None
-        # AUTHORIZATION (OTLP)
+        # AITH (OTLP)
         self.api_key: Optional[str] = None
         # HEADERS (OTLP)
         self.headers: Dict[str, str] = dict()
@@ -49,6 +45,8 @@ class Tracing(metaclass=Singleton):
 
         # TRACER PROVIDER
         self.tracer_provider: Optional[TracerProvider] = None
+        # TRACE PROCESSORS -- INLINE
+        self.inline: Optional[TraceProcessor] = None
         # TRACER
         self.tracer: Optional[Tracer] = None
         # INLINE SPANS for INLINE TRACES (INLINE PROCESSOR)
@@ -58,25 +56,18 @@ class Tracing(metaclass=Singleton):
 
     def configure(
         self,
-        project_id: Optional[str] = None,
         api_key: Optional[str] = None,
         # DEPRECATING
         app_id: Optional[str] = None,
     ):
-        # AUTHENTICATION (OTLP)
-        self.project_id = project_id  # "f7943e42-ec69-498e-bf58-8db034b9286e"
-        self.app_id = app_id
-        # AUTHORIZATION (OTLP)
+        # AUTH (OTLP)
         self.api_key = api_key
         # HEADERS (OTLP)
         self.headers = {}
-        if project_id:
-            self.headers.update(**{"AG-PROJECT-ID": project_id})
         if app_id:
             self.headers.update(**{"AG-APP-ID": app_id})
         if api_key:
             self.headers.update(**{"Authorization": self.api_key})
-
         # REFERENCES
         self.references["application.id"] = app_id
 
@@ -95,7 +86,10 @@ class Tracing(metaclass=Singleton):
         # TRACE PROCESSORS -- OTLP
         try:
             log.info("--------------------------------------------")
-            log.info(f"Agenta SDK - connecting to otlp receiver at: {self.otlp_url}")
+            log.info(
+                "Agenta SDK - connecting to otlp receiver at: %s",
+                self.otlp_url,
+            )
             log.info("--------------------------------------------")
 
             check(
@@ -114,13 +108,11 @@ class Tracing(metaclass=Singleton):
 
             self.tracer_provider.add_span_processor(_otlp)
 
-            log.info(f"Success: traces will be exported.")
+            log.info("Success: traces will be exported.")
             log.info("--------------------------------------------")
 
-        except:
-            # log.warning(format_exc().strip("\n"))
-            # log.warning("--------------------------------------------")
-            log.warning(f"Failure: traces will not be exported.")
+        except:  # pylint: disable=bare-except
+            log.warning("Failure: traces will not be exported.")
             log.warning("--------------------------------------------")
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
@@ -168,7 +160,7 @@ class Tracing(metaclass=Singleton):
                     if key.endswith(".id"):
                         try:
                             refs[key] = str(UUID(refs[key]))
-                        except:
+                        except:  # pylint: disable=bare-except
                             refs[key] = None
 
                     refs[key] = str(refs[key])
@@ -243,14 +235,14 @@ class Tracing(metaclass=Singleton):
                 otel_spans = self.inline.fetch(trace_id)
 
                 if otel_spans:
-                    _inline_trace = parse_inline_trace(
-                        self.project_id or self.app_id, otel_spans
-                    )
+                    _inline_trace = parse_inline_trace(otel_spans)
 
         return _inline_trace
 
 
-def get_tracer(tracing: Tracing) -> Tracer:
+def get_tracer(
+    tracing: Tracing,
+) -> Tracer:
     if tracing is None or tracing.tracer is None or tracing.tracer_provider is None:
         return get_tracer_provider().get_tracer("default.tracer")
 

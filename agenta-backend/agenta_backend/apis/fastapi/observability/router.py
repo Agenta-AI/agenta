@@ -45,10 +45,10 @@ class ObservabilityRouter:
 
         self.router = APIRouter()
 
-        ### STATUS
+        ### OTLP
 
         self.router.add_api_route(
-            "/traces",
+            "/otlp/traces",
             self.otlp_status,
             methods=["GET"],
             operation_id="otlp_status",
@@ -57,13 +57,22 @@ class ObservabilityRouter:
             response_model=CollectStatusResponse,
         )
 
+        self.router.add_api_route(
+            "/otlp/traces",
+            self.otlp_receiver,
+            methods=["POST"],
+            operation_id="otlp_receiver",
+            summary="Receive traces via OTLP",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=CollectStatusResponse,
+        )
+
         ### QUERIES
 
         self.router.add_api_route(
-            "/traces/search",
-            # "/traces/query",
+            "/traces",
             self.query_traces,
-            methods=["GET", "POST"],
+            methods=["GET"],
             operation_id="query_traces",
             summary="Query traces, with optional grouping, windowing, filtering, and pagination.",
             status_code=status.HTTP_200_OK,
@@ -80,16 +89,6 @@ class ObservabilityRouter:
 
         self.router.add_api_route(
             "/traces",
-            self.otlp_collect_traces,
-            methods=["POST"],
-            operation_id="otlp_collect_traces",
-            summary="Collect traces via OTLP",
-            status_code=status.HTTP_202_ACCEPTED,
-            response_model=CollectStatusResponse,
-        )
-
-        self.router.add_api_route(
-            "/traces",
             self.delete_traces,
             methods=["DELETE"],
             operation_id="delete_traces",
@@ -98,7 +97,7 @@ class ObservabilityRouter:
             response_model=CollectStatusResponse,
         )
 
-    ### STATUS
+    ### OTLP
 
     @handle_exceptions()
     async def otlp_status(self):
@@ -107,6 +106,38 @@ class ObservabilityRouter:
         """
 
         return CollectStatusResponse(version=self.VERSION, status="ready")
+
+    @handle_exceptions()
+    async def otlp_receiver(
+        self,
+        request: Request,
+    ):
+        """
+        Receive traces via OTLP.
+        """
+
+        otlp_stream = await request.body()
+
+        ### LEGACY ###
+        if self.legacy_receiver:
+            await self.legacy_receiver(
+                project_id=request.state.project_id,
+                otlp_stream=otlp_stream,
+            )
+        ### LEGACY ###
+
+        otel_span_dtos = parse_otlp_stream(otlp_stream)
+
+        span_dtos = [
+            parse_from_otel_span_dto(otel_span_dto) for otel_span_dto in otel_span_dtos
+        ]
+
+        await self.service.ingest(
+            project_id=UUID(request.state.project_id),
+            span_dtos=span_dtos,
+        )
+
+        return CollectStatusResponse(version=self.VERSION, status="processing")
 
     ### QUERIES
 
@@ -238,38 +269,6 @@ class ObservabilityRouter:
             )
 
     ### MUTATIONS
-
-    @handle_exceptions()
-    async def otlp_collect_traces(
-        self,
-        request: Request,
-    ):
-        """
-        Collect traces via OTLP.
-        """
-
-        otlp_stream = await request.body()
-
-        ### LEGACY ###
-        if self.legacy_receiver:
-            await self.legacy_receiver(
-                project_id=request.state.project_id,
-                otlp_stream=otlp_stream,
-            )
-        ### LEGACY ###
-
-        otel_span_dtos = parse_otlp_stream(otlp_stream)
-
-        span_dtos = [
-            parse_from_otel_span_dto(otel_span_dto) for otel_span_dto in otel_span_dtos
-        ]
-
-        await self.service.ingest(
-            project_id=UUID(request.state.project_id),
-            span_dtos=span_dtos,
-        )
-
-        return CollectStatusResponse(version=self.VERSION, status="processing")
 
     @handle_exceptions()
     async def delete_traces(
