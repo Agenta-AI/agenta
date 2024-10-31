@@ -6,11 +6,13 @@ import {Space, Tree, Typography} from "antd"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AvatarTreeContent from "../components/AvatarTreeContent"
+import {TraceTabTypes} from "@/pages/apps/[app_id]/observability"
 
 interface TraceTreeProps {
     activeTrace: _AgentaRootsResponse
     selected: string
     setSelected: React.Dispatch<React.SetStateAction<string>>
+    traceTabs: TraceTabTypes
 }
 
 interface NodeTreeChildren {
@@ -118,7 +120,7 @@ const buildTreeData = (spans: _AgentaRootsResponse[]): NodeTreeChildren[] => {
     }))
 }
 
-const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
+const TraceTree = ({activeTrace, selected, setSelected, traceTabs}: TraceTreeProps) => {
     const classes = useStyles()
     const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
 
@@ -138,7 +140,7 @@ const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
 
     return (
         <Tree
-            showLine
+            showLine={traceTabs === "node" ? false : true}
             selectedKeys={[selected]}
             expandedKeys={expandedKeys}
             onExpand={onExpand}
