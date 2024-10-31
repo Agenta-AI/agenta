@@ -11,11 +11,11 @@ import axios from "@/lib/helpers/axiosConfig"
 
 export const fetchAllTraces = async ({appId, queries}: {appId: string; queries?: string}) => {
     const filterByAppId = appId
-        ? `&filtering={"conditions":[{"key":"refs.application.id","operator":"is","value":"${appId}"}]}`
+        ? `filtering={"conditions":[{"key":"refs.application_id","operator":"is","value":"${appId}"}]}&`
         : ""
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/observability/v1/traces/search${queries}${filterByAppId}`,
+        `${getAgentaApiUrl()}/api/observability/v1/traces?${filterByAppId}${queries}`,
     )
     return response.data
 }
