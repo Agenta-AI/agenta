@@ -90,9 +90,9 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Name",
             dataIndex: ["node", "name"],
             key: "name",
-            width: 180,
+            width: 200,
             onHeaderCell: () => ({
-                style: {minWidth: 180},
+                style: {minWidth: 200},
             }),
             fixed: "left",
             render: (_, record) => {
