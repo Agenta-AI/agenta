@@ -26,7 +26,6 @@ services:
             - OPENAI_API_KEY=${OPENAI_API_KEY}
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
-            - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
@@ -99,8 +98,6 @@ services:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-        environment:
-            - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         restart: always
 
     redis:
