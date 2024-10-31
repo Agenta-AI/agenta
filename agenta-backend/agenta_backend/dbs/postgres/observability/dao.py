@@ -258,7 +258,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         node_id: str,
     ) -> None:
-        span_dbe = self.read_one(
+        span_dbe = await self.read_one(
             project_id=project_id,
             node_id=node_id,
             to_dto=False,
@@ -266,7 +266,8 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         if span_dbe:
             async with engine.session() as session:
-                session.delete(span_dbe)
+                await session.delete(span_dbe)
+
                 await session.commit()
 
     async def delete_many(
@@ -275,7 +276,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         node_ids: List[str],
     ) -> None:
-        span_dbes = self.read_many(
+        span_dbes = await self.read_many(
             project_id=project_id,
             node_ids=node_ids,
             to_dto=False,
@@ -284,7 +285,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         if span_dbes:
             async with engine.session() as session:
                 for span in span_dbes:
-                    session.delete(span)
+                    await session.delete(span)
 
                 await session.commit()
 
