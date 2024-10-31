@@ -57,7 +57,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
-type TraceTabTypes = "tree" | "node" | "chat"
+export type TraceTabTypes = "tree" | "node" | "chat"
 
 const ObservabilityDashboard = ({}: Props) => {
     const {traces, isLoading, count, fetchTraces} = useObservabilityData()
@@ -618,6 +618,7 @@ const ObservabilityDashboard = ({}: Props) => {
                             activeTrace={activeTrace}
                             selected={selected}
                             setSelected={setSelected}
+                            traceTabs={traceTabs}
                         />
                     }
                 />
