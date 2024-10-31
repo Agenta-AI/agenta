@@ -75,7 +75,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
-            dataIndex: ["key"],
+            dataIndex: ["node", "id"],
             key: "key",
             width: 200,
             onHeaderCell: () => ({
@@ -83,18 +83,7 @@ const ObservabilityDashboard = ({}: Props) => {
             }),
             fixed: "left",
             render: (_, record) => {
-                const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
-
-                return !record.parent ? (
-                    <ResultTag value1={`# ${record.key.split("-")[0]}`} />
-                ) : (
-                    <Space align="center" size={4}>
-                        <div className="grid place-items-center">
-                            <Icon size={16} />
-                        </div>
-                        <Typography>{record.node.name}</Typography>
-                    </Space>
-                )
+                return <ResultTag value1={`# ${record.node.id.split("-")[0]}`} />
             },
         },
         {
@@ -109,9 +98,7 @@ const ObservabilityDashboard = ({}: Props) => {
             render: (_, record) => {
                 const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
 
-                return !record.parent ? (
-                    <ResultTag value1={`# ${record.node.name}`} />
-                ) : (
+                return (
                     <Space align="center" size={4}>
                         <div className="grid place-items-center">
                             <Icon size={16} />
