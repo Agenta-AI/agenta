@@ -64,7 +64,7 @@ const TraceHeader = ({
             <DeleteTraceModal
                 open={isDeleteModalOpen}
                 onCancel={() => setIsDeleteModalOpen(false)}
-                onOk={() => setSelectedTraceId("")}
+                activeTraceNodeId={activeTrace.node.id}
                 setSelectedTraceId={setSelectedTraceId}
             />
         </>
