@@ -78,9 +78,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
 
     useEffect(() => {
-        if (appId) {
-            fetchTraces("&focus=tree&size=10&page=1")
-        }
+        fetchTraces("?focus=tree&size=10&page=1")
     }, [appId])
 
     observabilityContextValues.traces = traces

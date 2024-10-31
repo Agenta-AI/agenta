@@ -471,7 +471,7 @@ const ObservabilityDashboard = ({}: Props) => {
                       : ""
         }
 
-        const data = await fetchTraces(`&${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
+        const data = await fetchTraces(`?${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
 
         return data
     }
@@ -568,8 +568,11 @@ const ObservabilityDashboard = ({}: Props) => {
                                     }
                                     description="Monitor the performance and results of your LLM applications here."
                                     primaryCta={{
-                                        text: "Go to Playground",
-                                        onClick: () => router.push(`/apps/${appId}/playground`),
+                                        text: appId ? "Go to Playground" : "Create an Application",
+                                        onClick: () =>
+                                            router.push(
+                                                appId ? `/apps/${appId}/playground` : "/apps",
+                                            ),
                                         tooltip:
                                             "Run your LLM app in the playground to generate and view insights.",
                                     }}

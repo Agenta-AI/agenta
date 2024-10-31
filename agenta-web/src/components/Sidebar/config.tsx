@@ -67,6 +67,13 @@ export const useSidebarConfig = () => {
             tooltip: "Create and manage testsets for evaluation purposes.",
             link: `/apps/testsets`,
             icon: <DatabaseOutlined />,
+            isHidden: apps.length === 0,
+        },
+        {
+            key: "global-observability-link",
+            title: "Global Observability",
+            link: `/apps/observability`,
+            icon: <ChartLineUp />,
             divider: true,
             isHidden: apps.length === 0,
         },
