@@ -72,7 +72,7 @@ export const useSidebarConfig = () => {
         {
             key: "global-observability-link",
             title: "Global Observability",
-            link: `/apps/observability`,
+            link: `/observability`,
             icon: <ChartLineUp />,
             divider: true,
             isHidden: apps.length === 0,
