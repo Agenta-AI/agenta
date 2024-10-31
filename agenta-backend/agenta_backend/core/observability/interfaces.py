@@ -40,7 +40,7 @@ class ObservabilityDAOInterface:
         self,
         *,
         project_id: UUID,
-        node_id: str,
+        node_id: UUID,
     ) -> SpanDTO:
         raise NotImplementedError
 
@@ -49,7 +49,7 @@ class ObservabilityDAOInterface:
         *,
         project_id: UUID,
         #
-        node_ids: List[str],
+        node_ids: List[UUID],
     ) -> List[SpanDTO]:
         raise NotImplementedError
 
@@ -58,7 +58,7 @@ class ObservabilityDAOInterface:
         *,
         project_id: UUID,
         #
-        node_id: str,
+        node_id: UUID,
     ) -> None:
         raise NotImplementedError
 
@@ -67,6 +67,6 @@ class ObservabilityDAOInterface:
         *,
         project_id: UUID,
         #
-        node_ids: List[str],
+        node_ids: List[UUID],
     ) -> None:
         raise NotImplementedError
