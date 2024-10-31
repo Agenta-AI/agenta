@@ -31,7 +31,6 @@ class AgentaSingleton:
         self,
         *,
         host: Optional[str] = None,
-        project_id: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
         #
@@ -84,24 +83,17 @@ class AgentaSingleton:
                 "3. As an environment variable 'AGENTA_APP_ID'."
             )
 
-        self.project_id = (
-            project_id
-            or os.environ.get("AGENTA_PROJECT_ID")
-            or config.get("project_id")
-        )
-
         self.api_key = (
             api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
         )
 
         self.tracing = Tracing(
-            url=f"{self.host}/api/observability/v1/traces",  # type: ignore
+            url=f"{self.host}/api/observability/v1/oltp/traces",  # type: ignore
         )
 
         self.tracing.configure(
-            project_id=self.project_id,
             api_key=self.api_key,
-            # DEPRECATED
+            # DEPRECATING
             app_id=self.app_id,
         )
 
@@ -252,7 +244,6 @@ class Config:
 
 def init(
     host: Optional[str] = None,
-    project_id: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
     # DEPRECATED
@@ -284,7 +275,6 @@ def init(
 
     singleton.init(
         host=host,
-        project_id=project_id,
         api_key=api_key,
         config_fname=config_fname,
         # DEPRECATED
