@@ -460,7 +460,7 @@ const ObservabilityDashboard = ({}: Props) => {
     }, [])
 
     const fetchFilterdTrace = async () => {
-        const focusPoint = traceTabs == "tree" || traceTabs == "node" ? `focus=${traceTabs}` : ""
+        const focusPoint = traceTabs == "chat" ? "focus=node" : `focus=${traceTabs}`
         const filterQuery = filters[0]?.operator
             ? `&filtering={"conditions":${JSON.stringify(filters)}}`
             : ""
