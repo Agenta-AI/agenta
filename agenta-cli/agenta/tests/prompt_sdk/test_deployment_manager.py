@@ -15,10 +15,8 @@ def test_deploy_variant(mock_deploy_variant):
             "variant_slug": "new-variant",
             "variant_version": 2,
             "environment_slug": "staging",
-            "deployment_info": {
-                "deployed_at": "2023-10-02T12:30:00Z",
-                "deployed_by": "user@example.com",
-            },
+            "deployed_at": "2023-10-02T12:30:00Z",
+            "deployed_by": "user@example.com",
         }
     )
 
@@ -30,7 +28,7 @@ def test_deploy_variant(mock_deploy_variant):
     )
 
     assert deployment.environment_slug == "staging"
-    assert deployment.deployment_info["deployed_by"] == "user@example.com"
+    assert deployment.deployed_by == "user@example.com"
 
 
 @pytest.mark.asyncio
@@ -43,10 +41,8 @@ async def test_adeploy_variant(mock_adeploy_variant):
             "variant_slug": "new-variant",
             "variant_version": 8,
             "environment_slug": "production",
-            "deployment_info": {
-                "deployed_at": "2024-10-02T12:30:00Z",
-                "deployed_by": "abc@example.com",
-            },
+            "deployed_at": "2023-10-02T12:30:00Z",
+            "deployed_by": "abc@example.com",
         }
     )
 
@@ -58,7 +54,7 @@ async def test_adeploy_variant(mock_adeploy_variant):
     )
 
     assert deployment.environment_slug == "production"
-    assert deployment.deployment_info["deployed_by"] == "abc@example.com"
+    assert deployment.deployed_by == "abc@example.com"
 
 
 @patch("agenta.DeploymentManager.deploy_variant")

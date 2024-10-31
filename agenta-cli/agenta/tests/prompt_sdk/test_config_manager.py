@@ -7,7 +7,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 import agenta as ag
-from agenta.sdk.managers.shared import ConfigurationResponse
+from agenta.tests.prompt_sdk.conftest import Parameters
 from agenta.sdk.managers.config_manager import ConfigManager
 
 
@@ -100,43 +100,83 @@ def test_get_from_json_file_not_found():
 
 
 @patch("agenta.ConfigManager.get_from_registry")
-def test_fetch_configuration(mock_get_config):
+def test_fetch_configuration_and_return_dict(mock_get_config):
     # Mock the API response for fetching configuration
-    mock_get_config.return_value = ConfigurationResponse(
-        **{
-            "app_slug": "my-app",
-            "variant_slug": "new-variant",
-            "variant_version": 2,
-            "config": {"parameters": {"temperature": 0.9, "model": "gpt-3.5-turbo"}},
-        }
-    )
+
+    mock_get_config.return_value = {
+        "temperature": 0.9,
+        "model": "gpt-3.5-turbo",
+        "max_tokens": 100,
+    }
 
     config = ConfigManager.get_from_registry(
         app_slug="my-app", variant_slug="new-variant", variant_version=2
     )
 
-    assert config.variant_version == 2
-    assert type(config.config) == dict
-    assert config.config["parameters"]["temperature"] == 0.9
+    assert isinstance(config, dict)
+    assert config["temperature"] == 0.9
+    assert config["model"] == "gpt-3.5-turbo"
+    assert config["max_tokens"] == 100
+
+
+@patch("agenta.ConfigManager.get_from_registry")
+def test_fetch_configuration_and_return_schema(mock_get_config):
+    # Mock the API response for fetching configuration
+
+    mock_get_config.return_value = Parameters(
+        temperature=0.9, model="gpt-3.5-turbo", max_tokens=100
+    )
+
+    config_as_schema = ConfigManager.get_from_registry(
+        schema=Parameters,
+        app_slug="my-app",
+        variant_slug="new-variant",
+        variant_version=2,
+    )
+
+    assert isinstance(config_as_schema, Parameters)
+    assert config_as_schema.temperature == 0.9
+    assert config_as_schema.model == "gpt-3.5-turbo"
+    assert config_as_schema.max_tokens == 100
 
 
 @pytest.mark.asyncio
 @patch("agenta.ConfigManager.async_get_from_registry")
-async def test_afetch_configuration(mock_aget_config):
+async def test_afetch_configuration_and_return_dict(mock_aget_config):
     # Mock the API response for fetching configuration
-    mock_aget_config.return_value = ConfigurationResponse(
-        **{
-            "app_slug": "my-app",
-            "variant_slug": "new-variant",
-            "variant_version": 2,
-            "config": {"parameters": {"temperature": 0.9, "model": "gpt-3.5-turbo"}},
-        }
-    )
+
+    mock_aget_config.return_value = {
+        "temperature": 0.9,
+        "model": "gpt-3.5-turbo",
+        "max_tokens": 100,
+    }
 
     config = await ConfigManager.async_get_from_registry(
         app_slug="my-app", variant_slug="new-variant", variant_version=2
     )
 
-    assert config.variant_version == 2
-    assert type(config.config) == dict
-    assert config.config["parameters"]["temperature"] == 0.9
+    assert config["temperature"] == 0.9
+    assert config["model"] == "gpt-3.5-turbo"
+    assert config["max_tokens"] == 100
+
+
+@pytest.mark.asyncio
+@patch("agenta.ConfigManager.async_get_from_registry")
+async def test_afetch_configuration_and_return_schema(mock_aget_config):
+    # Mock the API response for fetching configuration
+
+    mock_aget_config.return_value = Parameters(
+        temperature=0.9, model="gpt-3.5-turbo", max_tokens=100
+    )
+
+    config_as_schema = await ConfigManager.async_get_from_registry(
+        schema=Parameters,
+        app_slug="my-app",
+        variant_slug="new-variant",
+        variant_version=2,
+    )
+
+    assert isinstance(config_as_schema, Parameters)
+    assert config_as_schema.temperature == 0.9
+    assert config_as_schema.model == "gpt-3.5-turbo"
+    assert config_as_schema.max_tokens == 100
