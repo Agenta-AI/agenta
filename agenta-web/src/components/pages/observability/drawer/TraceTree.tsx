@@ -88,7 +88,7 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />
-                        {formatLatency(metrics?.acc?.duration.total)}
+                        {formatLatency(metrics?.acc?.duration.total / 1000000)}
                     </div>
 
                     {metrics?.acc?.costs?.total && (
