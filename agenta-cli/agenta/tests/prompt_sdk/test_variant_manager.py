@@ -17,7 +17,7 @@ def test_create_variant_successful(mock_create_variant, prompt):
             "app_slug": "my-app",
             "variant_slug": "new-variant",
             "variant_version": 1,
-            "config": {"parameters": prompt.model_dump()},
+            "parameters": prompt.model_dump(),
         }
     )
 
@@ -41,7 +41,7 @@ async def test_create_avariant_successful(mock_acreate_variant, prompt):
             "app_slug": "qa-assistant",
             "variant_slug": "school-assistant",
             "variant_version": 1,
-            "config": {"parameters": prompt.model_dump()},
+            "parameters": prompt.model_dump(),
         }
     )
 
@@ -64,7 +64,7 @@ def test_commit_variant(mock_commit_variant, prompt):
             "app_slug": "my-new-app",
             "variant_slug": "new-new-variant",
             "variant_version": 2,
-            "config": {"parameters": prompt.model_dump()},
+            "parameters": prompt.model_dump(),
         }
     )
 
@@ -75,9 +75,8 @@ def test_commit_variant(mock_commit_variant, prompt):
     )
 
     assert variant.variant_version == 2
-    assert type(variant.config) == dict
-    assert type(variant.config["parameters"]) == dict
-    assert variant.config["parameters"]["temperature"] == 0.6
+    assert type(variant.parameters) == dict
+    assert variant.parameters["temperature"] == 0.6
 
 
 @pytest.mark.asyncio
@@ -89,7 +88,7 @@ async def test_acommit_variant(mock_acommit_variant, prompt):
             "app_slug": "my-new-app",
             "variant_slug": "new-variant",
             "variant_version": 4,
-            "config": {"parameters": {**prompt.model_dump(), "temperature": 1.0}},
+            "parameters": {**prompt.model_dump(), "temperature": 1.0},
         }
     )
 
@@ -100,9 +99,8 @@ async def test_acommit_variant(mock_acommit_variant, prompt):
     )
 
     assert variant.variant_version == 4
-    assert type(variant.config) == dict
-    assert type(variant.config["parameters"]) == dict
-    assert variant.config["parameters"]["temperature"] == 1.0
+    assert type(variant.parameters) == dict
+    assert variant.parameters["temperature"] == 1.0
 
 
 @patch("agenta.VariantManager.delete_variant")

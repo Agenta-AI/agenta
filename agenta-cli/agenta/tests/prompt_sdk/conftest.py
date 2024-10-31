@@ -14,6 +14,12 @@ class Prompt(BaseModel):
     presence_penalty: float
 
 
+class Parameters(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+
+
 @pytest.fixture
 def prompt():
     # Sample Prompt object to use in tests
