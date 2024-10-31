@@ -160,11 +160,20 @@ class ConfigManager:
 
     @staticmethod
     async def async_get_from_registry(
-        app_slug: str,
+        schema: Optional[Type[T]] = None,
+        #
+        application_id: Optional[str] = None,
+        application_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
-    ):
+        environment_version: Optional[int] = None,
+        # DEPRECATING
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ) -> Union[Dict[str, Any], T]:
         """
         Pulls the parameters for the app variant from the server and returns a config object.
 
@@ -184,20 +193,31 @@ class ConfigManager:
         """
 
         try:
-            configuration = await SharedManager().afetch(
-                app_slug=app_slug,
+            config = await SharedManager().afetch(
+                application_id=application_id,
+                application_slug=application_slug,
+                variant_id=variant_id,
                 variant_slug=variant_slug,
                 variant_version=variant_version,
+                environment_id=environment_id,
                 environment_slug=environment_slug,
+                environment_version=environment_version,
+                # DEPRECATING
+                app_id=app_id,
+                app_slug=app_slug,
             )
+
+            if schema:
+                return schema(**config.parameters)
+
+            return config.parameters
+
         except Exception as ex:
             logger.error(
                 "Failed to pull the configuration from the server with error: %s",
                 str(ex),
             )
             raise ex
-
-        return configuration
 
     @staticmethod
     def get_from_yaml(filename: str, schema: Type[T]) -> T:
