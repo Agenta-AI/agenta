@@ -67,7 +67,7 @@ const ObservabilityDashboard = ({}: Props) => {
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
-    const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
+    const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage"])
     const [filters, setFilters] = useState<Filter[]>([])
     const [sort, setSort] = useState<SortResult>({} as SortResult)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
@@ -98,6 +98,30 @@ const ObservabilityDashboard = ({}: Props) => {
             },
         },
         {
+            title: "Name",
+            dataIndex: ["node", "name"],
+            key: "name",
+            width: 180,
+            onHeaderCell: () => ({
+                style: {minWidth: 180},
+            }),
+            fixed: "left",
+            render: (_, record) => {
+                const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
+
+                return !record.parent ? (
+                    <ResultTag value1={`# ${record.node.name}`} />
+                ) : (
+                    <Space align="center" size={4}>
+                        <div className="grid place-items-center">
+                            <Icon size={16} />
+                        </div>
+                        <Typography>{record.node.name}</Typography>
+                    </Space>
+                )
+            },
+        },
+        {
             title: "Span type",
             key: "span_type",
             dataIndex: ["node", "type"],
@@ -107,18 +131,6 @@ const ObservabilityDashboard = ({}: Props) => {
             }),
             render: (_, record) => {
                 return <div>{record.node.type}</div>
-            },
-        },
-        {
-            title: "Timestamp",
-            key: "timestamp",
-            dataIndex: ["time", "start"],
-            width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
-            render: (_, record) => {
-                return <div>{dayjs(record.time.start).format("HH:mm:ss DD MMM YYYY")}</div>
             },
         },
         {
@@ -152,16 +164,6 @@ const ObservabilityDashboard = ({}: Props) => {
             },
         },
         {
-            title: "Status",
-            key: "status",
-            dataIndex: ["status", "code"],
-            width: 160,
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
-        },
-        {
             title: "Latency",
             key: "latency",
             dataIndex: ["time", "span"],
@@ -170,6 +172,16 @@ const ObservabilityDashboard = ({}: Props) => {
                 style: {minWidth: 80},
             }),
             render: (_, record) => <div>{formatLatency(record?.metrics?.acc?.duration.total)}</div>,
+        },
+        {
+            title: "Cost",
+            key: "cost",
+            dataIndex: ["metrics", "acc", "costs", "total"],
+            width: 80,
+            onHeaderCell: () => ({
+                style: {minWidth: 80},
+            }),
+            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
         },
         {
             title: "Usage",
@@ -184,17 +196,28 @@ const ObservabilityDashboard = ({}: Props) => {
             ),
         },
         {
-            title: "Total cost",
-            key: "total_cost",
-            dataIndex: ["metrics", "acc", "costs", "total"],
-            width: 80,
+            title: "Start time",
+            key: "start_time",
+            dataIndex: ["time", "start"],
+            width: 200,
             onHeaderCell: () => ({
-                style: {minWidth: 80},
+                style: {minWidth: 200},
             }),
-            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
+            render: (_, record) => {
+                return <div>{dayjs(record.time.start).format("HH:mm:ss DD MMM YYYY")}</div>
+            },
+        },
+        {
+            title: "Status",
+            key: "status",
+            dataIndex: ["status", "code"],
+            width: 160,
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
         },
     ])
-
     const activeTraceIndex = useMemo(
         () =>
             traces?.findIndex((item) =>
@@ -324,6 +347,7 @@ const ObservabilityDashboard = ({}: Props) => {
                 // Helper function to create a trace object
                 const createTraceObject = (trace: any) => ({
                     "Trace ID": trace.key,
+                    Name: trace.node.name,
                     Timestamp: dayjs(trace.time.start).format("HH:mm:ss DD MMM YYYY"),
                     Inputs: trace?.data?.inputs?.topic || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
