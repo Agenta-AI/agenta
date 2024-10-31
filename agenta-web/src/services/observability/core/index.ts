@@ -13,7 +13,7 @@ export const fetchAllTraces = async ({appId, queries}: {appId: string; queries?:
     const filterByAppId = `filtering={"conditions":[{"key":"refs.application.id","operator":"is","value":"${appId}"}]}`
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/observability/v1/traces/search?${filterByAppId}${queries}`,
+        `${getAgentaApiUrl()}/api/observability/v1/traces?${filterByAppId}${queries}`,
     )
     return response.data
 }

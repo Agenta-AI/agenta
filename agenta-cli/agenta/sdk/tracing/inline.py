@@ -161,7 +161,7 @@ class OTelExtraDTO(BaseModel):
 
 
 class SpanDTO(BaseModel):
-    scope: ProjectScopeDTO
+    scope: Optional[ProjectScopeDTO] = None
 
     lifecycle: Optional[LifecycleDTO] = None
 
@@ -755,11 +755,8 @@ def _parse_from_attributes(
 
 
 def parse_from_otel_span_dto(
-    project_id: str,
     otel_span_dto: OTelSpanDTO,
 ) -> SpanDTO:
-    scope = ProjectScopeDTO(project_id=UUID(project_id))
-
     lifecyle = LifecycleDTO(
         created_at=datetime.now(),
     )
@@ -831,7 +828,6 @@ def parse_from_otel_span_dto(
     )
 
     span_dto = SpanDTO(
-        scope=scope,
         lifecycle=lifecyle,
         root=root,
         tree=tree,
@@ -902,7 +898,6 @@ from opentelemetry.sdk.trace import ReadableSpan
 
 
 def parse_inline_trace(
-    project_id: str,
     spans: Dict[str, ReadableSpan],
 ):
     otel_span_dtos = _parse_readable_spans(spans)
@@ -911,8 +906,7 @@ def parse_inline_trace(
     ### apis.fastapi.observability.api.otlp_collect_traces() ###
     ### ---------------------------------------------------- ###
     span_dtos = [
-        parse_from_otel_span_dto(project_id, otel_span_dto)
-        for otel_span_dto in otel_span_dtos
+        parse_from_otel_span_dto(otel_span_dto) for otel_span_dto in otel_span_dtos
     ]
     ### ---------------------------------------------------- ###
     ### apis.fastapi.observability.api.otlp_collect_traces() ###
