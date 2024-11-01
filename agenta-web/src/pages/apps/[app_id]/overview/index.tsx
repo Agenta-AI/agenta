@@ -141,7 +141,7 @@ export default function Overview() {
                             ],
                         }}
                     >
-                        <Button type="text" icon={<MoreOutlined />} size="small" />
+                        <Button type="text" icon={<MoreOutlined />} />
                     </Dropdown>
                 </Space>
 
