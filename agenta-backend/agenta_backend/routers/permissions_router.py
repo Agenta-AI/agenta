@@ -16,7 +16,7 @@ class Allow(JSONResponse):
     def __init__(self) -> None:
         super().__init__(
             status_code=200,
-            content={"status": "allow"},
+            content={"effect": "allow"},
         )
 
 
