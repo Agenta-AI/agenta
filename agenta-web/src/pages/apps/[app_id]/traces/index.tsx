@@ -1,7 +1,7 @@
 import ObservabilityDashboard from "@/components/pages/observability/ObservabilityDashboard"
 
-const Observability = () => {
+const Traces = () => {
     return <ObservabilityDashboard />
 }
 
-export default Observability
+export default Traces

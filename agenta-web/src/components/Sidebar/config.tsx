@@ -16,6 +16,7 @@ import {
     SlackLogo,
     Gear,
     Dot,
+    TreeView,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
 
@@ -70,8 +71,8 @@ export const useSidebarConfig = () => {
             isHidden: apps.length === 0,
         },
         {
-            key: "global-observability-link",
-            title: "Global Observability",
+            key: "app-observability-link",
+            title: "Observability",
             link: `/observability`,
             icon: <ChartLineUp />,
             divider: true,
@@ -107,12 +108,11 @@ export const useSidebarConfig = () => {
             icon: <ChartDonut size={16} />,
         },
         {
-            key: "app-observability-link",
-            title: "Observability",
-            icon: <ChartLineUp size={16} />,
+            key: "app-traces-link",
+            title: "Traces",
+            icon: <TreeView size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            link: `/apps/${appId || recentlyVisitedAppId}/observability`,
-            cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
+            link: `/apps/${appId || recentlyVisitedAppId}/traces`,
         },
         {
             key: "invite-teammate-link",
