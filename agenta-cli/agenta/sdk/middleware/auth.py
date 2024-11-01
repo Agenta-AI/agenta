@@ -1,17 +1,22 @@
 from typing import Callable, Optional
 from uuid import UUID
+from json import dumps
 from traceback import format_exc
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi import FastAPI, Request, HTTPException
 
 from agenta.sdk.utils.logging import log
+from agenta.sdk.middleware.cache import TTLLRUCache
 
 
 class Deny(HTTPException):
     def __init__(self) -> None:
         super().__init__(status_code=401, detail="Unauthorized")
+
+
+cache = TTLLRUCache(capacity=512, ttl=15 * 60)  # 15 minutes
 
 
 class AuthorizationMiddleware(BaseHTTPMiddleware):
@@ -41,23 +46,40 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 or None
             )
 
+            headers = {"Authorization": auth_header} if auth_header else None
+
+            cookies = {
+                "sAccessToken": request.cookies.get("sAccessToken"),
+            }
+
+            params = {
+                "action": "run_service",
+                "resource_type": self.resource_type,
+                "resource_id": self.resource_id,
+            }
+
+            if project_id:
+                params["project_id"] = project_id
+
+            hash = dumps(
+                {
+                    "headers": headers,
+                    "cookies": cookies,
+                    "params": params,
+                },
+                sort_keys=True,
+            )
+
+            cached_policy = cache.get(hash)
+
+            if cached_policy:
+                if cached_policy.get("effect") == "allow":
+                    return await call_next(request)
+                else:
+                    raise Deny()
+
             # TODO: ADD TTL-LRU CACHE
             async with httpx.AsyncClient() as client:
-                headers = {"Authorization": auth_header} if auth_header else None
-
-                cookies = {
-                    "sAccessToken": request.cookies.get("sAccessToken"),
-                }
-
-                params = {
-                    "action": "run_service",
-                    "resource_type": self.resource_type,
-                    "resource_id": self.resource_id,
-                }
-
-                if project_id:
-                    params["project_id"] = project_id
-
                 response = await client.get(
                     f"{self.host}/api/permissions/verify",
                     headers=headers,
@@ -66,12 +88,16 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 )
 
                 if response.status_code != 200:
+                    cache.put(hash, {"effect": "deny"})
                     raise Deny()
 
                 auth_result = response.json()
 
-                if auth_result.get("status") != "allow":
+                if auth_result.get("effect") != "allow":
+                    cache.put(hash, {"effect": "deny"})
                     raise Deny()
+
+            cache.put(hash, {"effect": "allow"})
 
             return await call_next(request)
 
