@@ -9,9 +9,6 @@ from fastapi import FastAPI, Request, Query, HTTPException
 from agenta.sdk.utils.logging import log
 
 
-_PUBLIC_ENDPOINTS = ("/openapi.json",)
-
-
 class Deny(HTTPException):
     def __init__(self) -> None:
         super().__init__(status_code=401, detail="Unauthorized")
@@ -35,7 +32,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
         call_next: Callable,
-        project_id: Optional[UUID] = Query(None),
+        project_id: Optional[UUID] = None,
     ):
         try:
             auth_header = (
@@ -44,12 +41,13 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 or None
             )
 
-            if request.url and str(request.url).endswith(_PUBLIC_ENDPOINTS):
-                return await call_next(request)
-
             # TODO: ADD TTL-LRU CACHE
             async with httpx.AsyncClient() as client:
                 headers = {"Authorization": auth_header} if auth_header else None
+
+                cookies = {
+                    "sAccessToken": request.cookies.get("sAccessToken"),
+                }
 
                 params = {
                     "action": "run_service",
@@ -63,7 +61,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 response = await client.get(
                     f"{self.host}/api/permissions/verify",
                     headers=headers,
-                    cookies=request.cookies,
+                    cookies=cookies,
                     params=params,
                 )
 
