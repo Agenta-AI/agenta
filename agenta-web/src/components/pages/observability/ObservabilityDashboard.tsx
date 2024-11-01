@@ -474,7 +474,7 @@ const ObservabilityDashboard = () => {
                       : ""
         }
 
-        const data = await fetchTraces(`&${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
+        const data = await fetchTraces(`${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
 
         return data
     }
