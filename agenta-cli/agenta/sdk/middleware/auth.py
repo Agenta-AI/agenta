@@ -38,17 +38,17 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         project_id: Optional[UUID] = Query(None),
     ):
         try:
-            auth_header = request.headers.get("Authorization")
-
-            print("---------", request.url)
-
-            print(auth_header)
-            print(request.cookies.get("sAccessToken"))
+            auth_header = (
+                request.headers.get("Authorization")
+                or request.headers.get("authorization")
+                or None
+            )
 
             if request.url and str(request.url).endswith(_PUBLIC_ENDPOINTS):
                 return await call_next(request)
 
-            async with httpx.AsyncClient(cookies=request.cookies) as client:
+            # TODO: ADD TTL-LRU CACHE
+            async with httpx.AsyncClient() as client:
                 headers = {"Authorization": auth_header} if auth_header else None
 
                 params = {
@@ -63,6 +63,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 response = await client.get(
                     f"{self.host}/api/permissions/verify",
                     headers=headers,
+                    cookies=request.cookies,
                     params=params,
                 )
 
