@@ -104,7 +104,15 @@ const ObservabilityDashboard = ({}: Props) => {
                         <div className="grid place-items-center">
                             <Icon size={16} />
                         </div>
-                        <Typography>{record.node.name}</Typography>
+                        <Typography>
+                            {record.node.name.length >= 12 ? (
+                                <Tooltip title={record.node.name} placement="bottom">
+                                    {record.node.name.slice(1, 12)}...
+                                </Tooltip>
+                            ) : (
+                                record.node.name
+                            )}
+                        </Typography>
                     </Space>
                 )
             },
