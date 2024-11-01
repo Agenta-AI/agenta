@@ -119,10 +119,14 @@ async def invoke_app(
 
     headers = None
 
+    print("isCloudEE", isCloudEE())
+
     if isCloudEE():
         secret_token = await sign_secret_token(user_id, project_id, None)
 
         headers = {"Authorization": f"Bearer {secret_token}"}
+
+    print("headers", headers)
 
     async with aiohttp.ClientSession() as client:
         app_response = {}
