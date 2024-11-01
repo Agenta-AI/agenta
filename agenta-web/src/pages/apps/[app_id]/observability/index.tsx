@@ -58,21 +58,28 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
-type TraceTabTypes = "tree" | "node" | "chat"
-
 const ObservabilityDashboard = ({}: Props) => {
-    const {traces, isLoading, count, fetchTraces} = useObservabilityData()
+    const {
+        traces,
+        isLoading,
+        count,
+        searchQuery,
+        setSearchQuery,
+        traceTabs,
+        setTraceTabs,
+        filters,
+        setFilters,
+        sort,
+        setSort,
+        pagination,
+        setPagination,
+    } = useObservabilityData()
     const appId = useAppId()
     const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const [searchQuery, setSearchQuery] = useState("")
-    const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
-    const [filters, setFilters] = useState<Filter[]>([])
-    const [sort, setSort] = useState<SortResult>({} as SortResult)
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const [pagination, setPagination] = useState({current: 1, page: 10})
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -385,8 +392,14 @@ const ObservabilityDashboard = ({}: Props) => {
     }
 
     const onPaginationChange = (current: number, pageSize: number) => {
-        setPagination({current, page: pageSize})
+        setPagination({size: pageSize, page: current})
     }
+    // reset pagination to page 1 whenever quearies get updated
+    useUpdateEffect(() => {
+        if (pagination.page > 1) {
+            setPagination({...pagination, page: 1})
+        }
+    }, [filters, sort, traceTabs])
 
     const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const query = e.target.value
@@ -443,9 +456,6 @@ const ObservabilityDashboard = ({}: Props) => {
                 setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
             }
         }
-        if (pagination.current > 1) {
-            setPagination({...pagination, current: 1})
-        }
     }
     // Sync traceTabs with filters state
     useUpdateEffect(() => {
@@ -458,32 +468,6 @@ const ObservabilityDashboard = ({}: Props) => {
     const onSortApply = useCallback(({type, sorted, customRange}: SortResult) => {
         setSort({type, sorted, customRange})
     }, [])
-
-    const fetchFilterdTrace = async () => {
-        const focusPoint = traceTabs == "chat" ? "focus=node" : `focus=${traceTabs}`
-        const filterQuery = filters[0]?.operator
-            ? `&filtering={"conditions":${JSON.stringify(filters)}}`
-            : ""
-        const paginationQuery = `&size=${pagination.page}&page=${pagination.current}`
-
-        let sortQuery = ""
-        if (sort) {
-            sortQuery =
-                sort.type === "standard"
-                    ? `&oldest=${sort.sorted}`
-                    : sort.type === "custom" && sort.customRange?.startTime
-                      ? `&oldest=${sort.customRange.startTime}&newest=${sort.customRange.endTime}`
-                      : ""
-        }
-
-        const data = await fetchTraces(`&${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
-
-        return data
-    }
-
-    useUpdateEffect(() => {
-        fetchFilterdTrace()
-    }, [filters, traceTabs, sort, pagination])
 
     return (
         <div className="flex flex-col gap-6">
@@ -596,8 +580,8 @@ const ObservabilityDashboard = ({}: Props) => {
                     total={count}
                     align="end"
                     className={classes.pagination}
-                    current={pagination.current}
-                    pageSize={pagination.page}
+                    current={pagination.page}
+                    pageSize={pagination.size}
                     onChange={onPaginationChange}
                 />
             </div>
