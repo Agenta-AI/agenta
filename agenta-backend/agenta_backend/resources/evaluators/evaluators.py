@@ -206,6 +206,14 @@ evaluators = [
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
+            "model": {
+                "label": "Model",
+                "default": "gpt-3.5-turbo",
+                "type": "string",
+                "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
+                "description": "The LLM model to use for the evaluation",
+            },
+
         },
         "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
         "oss": True,
