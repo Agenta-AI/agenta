@@ -91,6 +91,7 @@ const ObservabilityDashboard = ({}: Props) => {
             title: "Name",
             dataIndex: ["node", "name"],
             key: "name",
+            ellipsis: true,
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
@@ -105,9 +106,9 @@ const ObservabilityDashboard = ({}: Props) => {
                             <Icon size={16} />
                         </div>
                         <Typography>
-                            {record.node.name.length >= 12 ? (
+                            {record.node.name.length >= 15 ? (
                                 <Tooltip title={record.node.name} placement="bottom">
-                                    {record.node.name.slice(0, 12)}...
+                                    {record.node.name.slice(0, 15)}...
                                 </Tooltip>
                             ) : (
                                 record.node.name
