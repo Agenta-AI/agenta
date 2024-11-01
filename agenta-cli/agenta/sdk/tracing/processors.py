@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span
@@ -7,6 +7,7 @@ from opentelemetry.sdk.trace.export import (
     ReadableSpan,
     BatchSpanProcessor,
     _DEFAULT_MAX_QUEUE_SIZE,
+    _DEFAULT_MAX_EXPORT_BATCH_SIZE,
 )
 
 from agenta.sdk.utils.logging import log
@@ -27,14 +28,15 @@ class TraceProcessor(BatchSpanProcessor):
         super().__init__(
             span_exporter,
             _DEFAULT_MAX_QUEUE_SIZE,
-            60 * 60 * 1000,  # 1 hour
-            _DEFAULT_MAX_QUEUE_SIZE,
+            12 * 60 * 60 * 1000,  # 12 hours
+            _DEFAULT_MAX_EXPORT_BATCH_SIZE,
             500,  # < 1 second (0.5 seconds)
         )
 
         self._registry = dict()
         self._exporter = span_exporter
         self.references = references or dict()
+        self.spans: Dict[int, List[ReadableSpan]] = dict()
 
     def on_start(
         self,
@@ -48,6 +50,7 @@ class TraceProcessor(BatchSpanProcessor):
 
         if span.context.trace_id not in self._registry:
             self._registry[span.context.trace_id] = dict()
+            self.spans[span.context.trace_id] = list()
 
         self._registry[span.context.trace_id][span.context.span_id] = True
 
@@ -57,10 +60,27 @@ class TraceProcessor(BatchSpanProcessor):
     ):
         super().on_end(span)
 
+        self.spans[span.context.trace_id].append(span)
         del self._registry[span.context.trace_id][span.context.span_id]
 
         if self.is_ready(span.get_span_context().trace_id):
-            self.force_flush()
+            self.export(span.context.trace_id)
+
+            # self.force_flush()
+
+    def export(
+        self,
+        trace_id: int,
+    ):
+        spans = self.spans[trace_id]
+
+        for span in spans:
+            self.queue.appendleft(span)
+
+        with self.condition:
+            self.condition.notify()
+
+        del self.spans[trace_id]
 
     def force_flush(
         self,
@@ -77,7 +97,7 @@ class TraceProcessor(BatchSpanProcessor):
         self,
         trace_id: Optional[int] = None,
     ) -> bool:
-        is_ready = not len(self._registry.get(trace_id, {}))
+        is_ready = len(self._registry.get(trace_id, {})) != 0
 
         return is_ready
 

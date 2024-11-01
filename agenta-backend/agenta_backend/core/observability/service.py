@@ -92,8 +92,8 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        node_id: Optional[str] = None,
-        node_ids: Optional[List[str]] = None,
+        node_id: Optional[UUID] = None,
+        node_ids: Optional[List[UUID]] = None,
     ) -> SpanDTO:
         if node_id:
             return await self.observability_dao.read_one(
@@ -111,8 +111,8 @@ class ObservabilityService:
         self,
         *,
         project_id: UUID,
-        node_id: Optional[str] = None,
-        node_ids: Optional[List[str]] = None,
+        node_id: Optional[UUID] = None,
+        node_ids: Optional[List[UUID]] = None,
     ):
         if node_id:
             return await self.observability_dao.delete_one(

@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 from datetime import datetime
 
 from sqlalchemy import and_, or_, not_, distinct, Column, cast, func
@@ -205,9 +205,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         self,
         *,
         project_id: UUID,
-        node_id: str,
+        node_id: UUID,
         to_dto: bool = True,
-    ) -> Optional[SpanDTO]:
+    ) -> Union[Optional[SpanDTO], Optional[InvocationSpanDBE]]:
         span_dbe = None
         async with engine.session() as session:
             query = select(InvocationSpanDBE)
@@ -231,9 +231,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         self,
         *,
         project_id: UUID,
-        node_ids: List[str],
+        node_ids: List[UUID],
         to_dto: bool = True,
-    ) -> List[SpanDTO]:
+    ) -> Union[List[SpanDTO], List[InvocationSpanDBE]]:
         span_dbes = []
         async with engine.session() as session:
             query = select(InvocationSpanDBE)
@@ -252,41 +252,95 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         return span_dbes
 
+    async def read_children(
+        self,
+        *,
+        project_id: UUID,
+        parent_id: UUID,
+        to_dto: bool = True,
+    ) -> Union[List[SpanDTO], List[InvocationSpanDBE]]:
+        span_dbes = []
+        async with engine.session() as session:
+            query = select(InvocationSpanDBE)
+
+            query = query.filter_by(project_id=project_id)
+
+            query = query.filter_by(parent_id=parent_id)
+
+            span_dbes = (await session.execute(query)).scalars().all()
+
+        span_dtos = []
+        if span_dbes and to_dto:
+            span_dtos = [map_span_dbe_to_dto(span_dbe) for span_dbe in span_dbes]
+
+            return span_dtos
+
+        return span_dbes
+
     async def delete_one(
         self,
         *,
         project_id: UUID,
-        node_id: str,
+        node_id: UUID,
     ) -> None:
-        span_dbe = self.read_one(
+        span_dbe = await self.read_one(
             project_id=project_id,
             node_id=node_id,
             to_dto=False,
         )
 
         if span_dbe:
+
+            # COULD BE REPLACED WITH A CASCADE
+            children_dbes = await self.read_children(
+                project_id=project_id,
+                parent_id=node_id,
+                to_dto=False,
+            )
+
+            if children_dbes:
+                await self.delete_many(
+                    project_id=project_id,
+                    node_ids=[child_dbe.node_id for child_dbe in children_dbes],
+                )
+            # --------------------------------
+
             async with engine.session() as session:
-                session.delete(span_dbe)
+                await session.delete(span_dbe)
                 await session.commit()
 
     async def delete_many(
         self,
         *,
         project_id: UUID,
-        node_ids: List[str],
+        node_ids: List[UUID],
     ) -> None:
-        span_dbes = self.read_many(
+        span_dbes = await self.read_many(
             project_id=project_id,
             node_ids=node_ids,
             to_dto=False,
         )
 
         if span_dbes:
-            async with engine.session() as session:
-                for span in span_dbes:
-                    session.delete(span)
+            for span_dbe in span_dbes:
 
-                await session.commit()
+                # COULD BE REPLACED WITH A CASCADE
+                children_dbes = await self.read_children(
+                    project_id=project_id,
+                    parent_id=span_dbe.node_id,
+                    to_dto=False,
+                )
+
+                if children_dbes:
+                    await self.delete_many(
+                        project_id=project_id,
+                        node_ids=[child_dbe.node_id for child_dbe in children_dbes],
+                    )
+                # --------------------------------
+
+                async with engine.session() as session:
+                    await session.delete(span_dbe)
+                    await session.commit()
 
 
 def _chunk(
