@@ -117,11 +117,23 @@ async def invoke_app(
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
+    logger.error("-.........")
+    logger.error(user_id)
+    logger.error(project_id)
+
     headers = None
+
+    logger.error(isCloudEE())
+
     if isCloudEE():
-        secret_token = sign_secret_token(user_id, project_id, None)
+        logger.error("isCloudEE")
+        secret_token = await sign_secret_token(user_id, project_id, None)
+
+        logger.error(secret_token)
 
         headers = {"Authorization": f"Bearer {secret_token}"}
+
+    logger.error(headers)
 
     async with aiohttp.ClientSession() as client:
         app_response = {}
