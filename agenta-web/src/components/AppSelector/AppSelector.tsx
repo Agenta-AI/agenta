@@ -1,31 +1,31 @@
-import { useState, useEffect, useMemo } from "react"
-import { PlusOutlined } from "@ant-design/icons"
-import { Modal, ConfigProvider, theme, Button, notification, Typography, Input, Divider } from "antd"
+import {useState, useEffect, useMemo} from "react"
+import {PlusOutlined} from "@ant-design/icons"
+import {Modal, ConfigProvider, theme, Button, notification, Typography, Input, Divider} from "antd"
 import AppCard from "./AppCard"
-import { Template, GenericObject, StyleProps, JSSTheme } from "@/lib/Types"
-import { useAppTheme } from "../Layout/ThemeContextProvider"
+import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
 import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
-import { isAppNameInputValid, isDemo, redirectIfNoLLMKeys } from "@/lib/helpers/utils"
-import { createAndStartTemplate, fetchAllTemplates, deleteApp } from "@/services/app-selector/api"
-import { waitForAppToStart } from "@/services/api"
+import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
+import {createAndStartTemplate, fetchAllTemplates, deleteApp} from "@/services/app-selector/api"
+import {waitForAppToStart} from "@/services/api"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
-import { createUseStyles } from "react-jss"
-import { useAppsData } from "@/contexts/app.context"
-import { useProfileData } from "@/contexts/profile.context"
+import {createUseStyles} from "react-jss"
+import {useAppsData} from "@/contexts/app.context"
+import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
-import { usePostHogAg } from "@/hooks/usePostHogAg"
-import { LlmProvider, getAllProviderLlmKeys } from "@/lib/helpers/llmProviders"
+import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
-import { dynamicContext } from "@/lib/helpers/dynamic"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 import AppTemplateCard from "./AppTemplateCard"
 import dayjs from "dayjs"
 import NoResultsFound from "../NoResultsFound/NoResultsFound"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: ({ themeMode }: StyleProps) => ({
+    container: ({themeMode}: StyleProps) => ({
         marginTop: "24px",
         width: "100%",
         color: themeMode === "dark" ? "#fff" : "#000",
@@ -78,12 +78,12 @@ const timeout = isDemo() ? 60000 : 30000
 
 const AppSelector: React.FC = () => {
     const posthog = usePostHogAg()
-    const { appTheme } = useAppTheme()
-    const classes = useStyles({ themeMode: appTheme } as StyleProps)
+    const {appTheme} = useAppTheme()
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
-    const { user } = useProfileData()
+    const {user} = useProfileData()
     const [noTemplateMessage, setNoTemplateMessage] = useState("")
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
@@ -91,19 +91,19 @@ const AppSelector: React.FC = () => {
     const [newApp, setNewApp] = useState("")
     const [current, setCurrent] = useState(0)
     const [searchTerm, setSearchTerm] = useState("")
-    const { apps, error, isLoading, mutate } = useAppsData()
-    const [statusData, setStatusData] = useState<{ status: string; details?: any; appId?: string }>({
+    const {apps, error, isLoading, mutate} = useAppsData()
+    const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
         details: undefined,
         appId: undefined,
     })
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
-    const { selectedOrg } = useOrgData()
+    const {selectedOrg} = useOrgData()
 
     const hasAvailableApps = Array.isArray(apps) && apps.length > 0
 
     useEffect(() => {
-        dynamicContext("org.context", { useOrgData }).then((context) => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
             setUseOrgData(() => context.useOrgData)
         })
     }, [])
@@ -159,7 +159,7 @@ const AppSelector: React.FC = () => {
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             timeout,
             onStatusChange: async (status, details, appId) => {
-                setStatusData((prev) => ({ status, details, appId: appId || prev.appId }))
+                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
                 if (status === "success") {
@@ -178,7 +178,7 @@ const AppSelector: React.FC = () => {
 
     const onErrorRetry = async () => {
         if (statusData.appId) {
-            setStatusData((prev) => ({ ...prev, status: "cleanup", details: undefined }))
+            setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
             await deleteApp(statusData.appId).catch(console.error)
             mutate()
         }
@@ -187,17 +187,17 @@ const AppSelector: React.FC = () => {
 
     const onTimeoutRetry = async () => {
         if (!statusData.appId) return
-        setStatusData((prev) => ({ ...prev, status: "starting_app", details: undefined }))
+        setStatusData((prev) => ({...prev, status: "starting_app", details: undefined}))
         try {
-            await waitForAppToStart({ appId: statusData.appId, timeout })
+            await waitForAppToStart({appId: statusData.appId, timeout})
         } catch (error: any) {
             if (error.message === "timeout") {
-                setStatusData((prev) => ({ ...prev, status: "timeout", details: undefined }))
+                setStatusData((prev) => ({...prev, status: "timeout", details: undefined}))
             } else {
-                setStatusData((prev) => ({ ...prev, status: "error", details: error }))
+                setStatusData((prev) => ({...prev, status: "error", details: error}))
             }
         }
-        setStatusData((prev) => ({ ...prev, status: "success", details: undefined }))
+        setStatusData((prev) => ({...prev, status: "success", details: undefined}))
         mutate()
     }
 
