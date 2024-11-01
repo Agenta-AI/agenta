@@ -107,7 +107,7 @@ const ObservabilityDashboard = ({}: Props) => {
                         <Typography>
                             {record.node.name.length >= 12 ? (
                                 <Tooltip title={record.node.name} placement="bottom">
-                                    {record.node.name.slice(1, 12)}...
+                                    {record.node.name.slice(0, 12)}...
                                 </Tooltip>
                             ) : (
                                 record.node.name
