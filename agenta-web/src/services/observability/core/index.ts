@@ -19,3 +19,7 @@ export const fetchAllTraces = async ({appId, queries}: {appId: string; queries?:
     )
     return response.data
 }
+
+export const deleteTrace = async (nodeId: string) => {
+    return axios.delete(`${getAgentaApiUrl()}/api/observability/v1/traces?node_id=${nodeId}`)
+}
