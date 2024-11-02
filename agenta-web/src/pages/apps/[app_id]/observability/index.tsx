@@ -175,7 +175,7 @@ const ObservabilityDashboard = ({}: Props) => {
                 style: {minWidth: 80},
             }),
             render: (_, record) => (
-                <div>{formatLatency(record?.metrics?.acc?.duration.total / 1000000)}</div>
+                <div>{formatLatency(record?.metrics?.acc?.duration.total / 1000)}</div>
             ),
         },
         {

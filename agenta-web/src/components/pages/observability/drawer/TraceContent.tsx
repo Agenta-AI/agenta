@@ -291,7 +291,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         value1={
                             <>
                                 <Timer size={14} />{" "}
-                                {formatLatency(activeTrace?.metrics?.acc?.duration.total / 1000000)}
+                                {formatLatency(activeTrace?.metrics?.acc?.duration.total / 1000)}
                             </>
                         }
                     />
