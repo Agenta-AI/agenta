@@ -138,7 +138,7 @@ const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
 
     return (
         <Tree
-            showLine
+            showLine={activeTrace?.children ? true : false}
             selectedKeys={[selected]}
             expandedKeys={expandedKeys}
             onExpand={onExpand}
