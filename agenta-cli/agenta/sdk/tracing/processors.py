@@ -50,7 +50,6 @@ class TraceProcessor(BatchSpanProcessor):
 
         if span.context.trace_id not in self._registry:
             self._registry[span.context.trace_id] = dict()
-            self.spans[span.context.trace_id] = list()
 
         self._registry[span.context.trace_id][span.context.span_id] = True
 
@@ -60,7 +59,11 @@ class TraceProcessor(BatchSpanProcessor):
     ):
         super().on_end(span)
 
+        if span.context.trace_id not in self.spans:
+            self.spans[span.context.trace_id] = list()
+
         self.spans[span.context.trace_id].append(span)
+        
         del self._registry[span.context.trace_id][span.context.span_id]
 
         if self.is_ready(span.get_span_context().trace_id):
