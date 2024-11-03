@@ -27,6 +27,7 @@ import {
     Table,
     TableColumnType,
     Tag,
+    Tooltip,
     Typography,
 } from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -124,30 +125,34 @@ const ObservabilityDashboard = ({}: Props) => {
         {
             title: "Inputs",
             key: "inputs",
-            width: 350,
+            width: 400,
             render: (_, record) => {
                 return (
-                    <Tag
+                    <Tooltip
                         title={getStringOrJson(record?.data?.inputs)}
+                        overlayInnerStyle={{width: 400}}
                         className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                        placement="bottom"
                     >
-                        {getStringOrJson(record?.data?.inputs)}
-                    </Tag>
+                        <Tag>{getStringOrJson(record?.data?.inputs)}</Tag>
+                    </Tooltip>
                 )
             },
         },
         {
             title: "Outputs",
             key: "outputs",
-            width: 350,
+            width: 400,
             render: (_, record) => {
                 return (
-                    <Tag
+                    <Tooltip
                         title={getStringOrJson(record?.data?.outputs)}
+                        overlayInnerStyle={{width: 400}}
                         className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                        placement="bottom"
                     >
-                        {getStringOrJson(record?.data?.outputs)}
-                    </Tag>
+                        <Tag>{getStringOrJson(record?.data?.outputs)}</Tag>
+                    </Tooltip>
                 )
             },
         },
@@ -455,7 +460,7 @@ const ObservabilityDashboard = ({}: Props) => {
     }, [])
 
     const fetchFilterdTrace = async () => {
-        const focusPoint = traceTabs == "tree" || traceTabs == "node" ? `focus=${traceTabs}` : ""
+        const focusPoint = traceTabs == "chat" ? "focus=node" : `focus=${traceTabs}`
         const filterQuery = filters[0]?.operator
             ? `&filtering={"conditions":${JSON.stringify(filters)}}`
             : ""
