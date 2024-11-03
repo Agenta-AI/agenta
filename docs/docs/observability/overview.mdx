@@ -1,0 +1,54 @@
+---
+title: Overview
+---
+
+# Observability Overview
+
+Building applications with Large Language Models (LLMs) can be challenging. To ensure your app runs smoothly and efficiently, you need visibility into its inner workings. That's where observability comes in.
+
+## Why Observability Matters
+
+Observability lets you monitor all inputs, outputs, and metadata of your application, whether it's in development or production. By instrumenting your app—logging detailed data—you can:
+
+- **Debug Effectively**: See the exact prompts sent and contexts retrieved. When issues arise, especially with multiple calls, you can identify the root cause quickly.
+- **Optimize Performance**: Spot where latency spikes or costs increase. Understand performance bottlenecks to make your app faster and more cost-effective.
+- **Enhance Test Sets**: Use real-world inputs and outputs to enrich your test cases, making them more robust and reflective of actual user interactions.
+- **Track Costs and Latency Over Time**: Monitor how your app's expenses and response times change, helping you plan and budget effectively.
+- **Compare App Versions**: Evaluate different versions of your application to see which performs better, aiding in decision-making for updates.
+
+## How Agenta Helps with Observability
+
+Agenta makes it easy to instrument your LLM application. Here's what it offers:
+
+- **Data Capture**: Collect all inputs, outputs, and relevant metadata from your app.
+- **Performance Dashboards**: Access dashboards that display key metrics like request counts, average latency, and costs over time.
+- **Flexible Environment**: Run your application in your own environment and still send data to Agenta—you don't need to host it within Agenta.
+
+### OpenTelemetry Compatibility
+
+Agenta's observability features are built on OpenTelemetry (OTel), an open-source standard for application observability. This provides several advantages:
+
+- **Wide Library Support**: Leverage many supported libraries right out of the box. [See the full list here](https://opentelemetry.io/docs/instrumentation/supported-libraries/).
+- **Vendor Neutrality**: Send your traces to other platforms like New Relic or Datadog without changing your code. Switch vendors whenever you like.
+- **Proven Reliability**: Use a mature and actively maintained SDK that's trusted in the industry.
+- **Ease of Integration**: If you're familiar with OTel, you already know how to instrument your app with Agenta.
+- **Simplicity**: No new concepts or syntax to learn—Agenta uses familiar OTel concepts like traces and spans.
+- **Automatic Instrumentation**: All calls from the Agenta playground are automatically instrumented for you.
+
+## Next Steps
+
+Ready to enhance your application's observability with Agenta? Here's how to get started:
+
+1. **Quick Start Guide**: Learn how to instrument your application in just a few minutes.
+2. **Instrument Your Workflows**: Discover how to use decorators and instrument your functions for detailed tracing.
+3. **Use the SDK for Tracing**: Explore how to utilize Agenta's SDK for advanced observability features.
+4. **Custom Workflow Instrumentation**: Find out how to instrument custom workflows tailored to your application's needs.
+5. **Explore Integrations with Auto-Instrumentation**:
+   - OpenAI
+   - LiteLLM
+   - Anthropic
+   - Bedrock
+   - LangChain
+   - LLamaIndex
+   - Instructor
+   - Vercel AI
