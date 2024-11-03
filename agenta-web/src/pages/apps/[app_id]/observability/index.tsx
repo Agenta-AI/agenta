@@ -181,7 +181,9 @@ const ObservabilityDashboard = ({}: Props) => {
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <div>{formatLatency(record?.metrics?.acc?.duration.total)}</div>,
+            render: (_, record) => (
+                <div>{formatLatency(record?.metrics?.acc?.duration.total / 1000)}</div>
+            ),
         },
         {
             title: "Usage",
