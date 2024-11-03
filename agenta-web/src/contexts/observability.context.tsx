@@ -76,7 +76,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
 
             const queries = generateTraceQueryString()
 
-            const data = await fetchAllTraces(queries || "")
+            const data = await fetchAllTraces(queries)
 
             const transformedTraces: _AgentaRootsResponse[] = []
 
@@ -113,35 +113,32 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
 
     const generateTraceQueryString = () => {
-        const queryParts: string[] = []
-
-        if (appId) {
-            queryParts.push(
-                `filtering={"conditions":[{"key":"refs.application.id","operator":"is","value":"${appId}"}]}`,
-            )
+        const params: Record<string, any> = {
+            size: pagination.size,
+            page: pagination.page,
+            focus: traceTabs === "chat" ? "node" : traceTabs,
         }
 
-        const focusPoint = traceTabs === "chat" ? "focus=node" : `focus=${traceTabs}`
-        queryParts.push(focusPoint)
+        if (appId) {
+            params.filtering = JSON.stringify({
+                conditions: [{key: "refs.application.id", operator: "is", value: appId}],
+            })
+        }
 
-        queryParts.push(`size=${pagination.size}`, `page=${pagination.page}`)
-
-        if (filters[0]?.operator) {
-            queryParts.push(`filtering={"conditions":${JSON.stringify(filters)}}`)
+        if (filters.length > 0) {
+            params.filtering = JSON.stringify({conditions: filters})
         }
 
         if (sort) {
             if (sort.type === "standard") {
-                queryParts.push(`oldest=${sort.sorted}`)
+                params.oldest = sort.sorted
             } else if (sort.type === "custom" && sort.customRange?.startTime) {
-                queryParts.push(
-                    `oldest=${sort.customRange.startTime}`,
-                    `newest=${sort.customRange.endTime}`,
-                )
+                params.oldest = sort.customRange.startTime
+                params.newest = sort.customRange.endTime
             }
         }
 
-        return `?${queryParts.join("&")}`
+        return params
     }
 
     const clearQueryStates = () => {
