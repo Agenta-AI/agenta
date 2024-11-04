@@ -1,9 +1,10 @@
-import React from "react"
+import React, {useState, useEffect} from "react"
 import {Button, Input, Select, Space, Row, Col} from "antd"
 import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Form} from "antd"
 import Editor from "@monaco-editor/react"
 import {createUseStyles} from "react-jss"
+import {isEqual} from "lodash"
 
 const {TextArea} = Input
 
@@ -33,17 +34,23 @@ const roleOptions = [
 ]
 
 export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
-    const handleChange = (messages: Message[]) => {
-        onChange?.(messages)
-    }
-
     const classes = useStyles()
+    const form = Form.useFormInstance()
+    const messages = Form.useWatch("messages", form)
+    const initialValue = typeof value === "string" ? [{role: "system", content: value}] : value
+    useEffect(() => {
+        const currentMessages = form.getFieldValue("messages")
+        if (!isEqual(currentMessages, value)) {
+            if (typeof value === "string") {
+                form.setFieldsValue({messages: [{role: "system", content: value}]})
+            } else {
+                form.setFieldsValue({messages: value})
+            }
+        }
+    }, [value])
 
     return (
-        <Form.List
-            name="messages"
-            initialValue={value.length ? value : [{role: "system", content: ""}]}
-        >
+        <Form.List name="messages" initialValue={value}>
             {(fields, {add, remove}) => (
                 <>
                     {fields.map(({key, name, ...restField}, index) => (
@@ -63,9 +70,14 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                         options={roleOptions}
                                         style={{width: 100}}
                                         onChange={(role) => {
-                                            const newMessages = [...value]
-                                            newMessages[index] = {...newMessages[index], role}
-                                            handleChange(newMessages)
+                                            const currentMessages =
+                                                form.getFieldValue("messages") || []
+                                            currentMessages[index] = {
+                                                ...currentMessages[index],
+                                                role,
+                                            }
+                                            form.setFieldsValue({messages: currentMessages})
+                                            onChange && onChange(currentMessages)
                                         }}
                                     />
                                 </Form.Item>
@@ -97,12 +109,14 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                             folding: false,
                                         }}
                                         onChange={(newValue) => {
-                                            const newMessages = [...value]
-                                            newMessages[index] = {
-                                                ...newMessages[index],
+                                            const currentMessages =
+                                                form.getFieldValue("messages") || []
+                                            currentMessages[index] = {
+                                                ...currentMessages[index],
                                                 content: newValue || "",
                                             }
-                                            handleChange(newMessages)
+                                            form.setFieldsValue({messages: currentMessages})
+                                            onChange && onChange(currentMessages)
                                         }}
                                         beforeMount={(monaco) => {
                                             // Add custom token provider for highlighting text between curly braces
@@ -131,8 +145,9 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                         style={{fontSize: 12, lineHeight: "32px"}}
                                         onClick={() => {
                                             remove(name)
-                                            const newMessages = value.filter((_, i) => i !== index)
-                                            handleChange(newMessages)
+                                            const currentMessages =
+                                                form.getFieldValue("messages") || []
+                                            onChange && onChange(currentMessages)
                                         }}
                                     />
                                 </Col>
@@ -144,7 +159,8 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                             type="dashed"
                             onClick={() => {
                                 add({role: "user", content: ""})
-                                handleChange([...value, {role: "user", content: ""}])
+                                const currentMessages = form.getFieldValue("messages") || []
+                                onChange && onChange(currentMessages)
                             }}
                             block
                             icon={<PlusOutlined />}
