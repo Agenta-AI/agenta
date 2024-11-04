@@ -193,10 +193,17 @@ evaluators = [
         "settings_template": {
             "prompt_template": {
                 "label": "Prompt Template",
-                "type": "text",
-                "default": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nExpected Answer Column:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
+                "type": "messages",
                 "description": "Template for AI critique prompts",
                 "required": True,
+                "default": [{
+                    "role": "system",
+                    "content": "You are an evaluator grading an LLM App.\n You will be given INPUTS, the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.\n Here is the grade criteria to follow:\n:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER\n\nSCORE:\n-The score should be between 0 and 10\n-A score of 10 means that the answer is perfect. This is the highest (best) score. \nA score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.\n\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER"
+                },
+                {
+                    "role": "user",
+                    "content": "INPUTS:\n country: {country}\nCORRECT ANSWER:{correct_answer}\nLLM APP OUTPUT: {app_output}."
+                }]
             },
             "correct_answer_key": {
                 "label": "Expected Answer Column",
@@ -209,13 +216,21 @@ evaluators = [
             "model": {
                 "label": "Model",
                 "default": "gpt-3.5-turbo",
-                "type": "string",
+                "type": "multiple_choice",
+                "options": ["gpt-3.5-turbo", "gpt-4o"],
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "description": "The LLM model to use for the evaluation",
             },
+            "version": {
+                "label": "Version",
+                "type": "hidden",
+                "default": "2",
+                "description": "The version of the evaluator",  # ignore by the FE
+                "advanced": False,  # ignore by the FE
+            },
 
         },
-        "description": "AI Critique evaluator sends the generated answer and the correct_answer to an LLM model and uses it to evaluate the correctness of the answer. You need to provide the evaluation prompt (or use the default prompt).",
+        "description": "LLM-as-a-judge uses a configurable prompt template that takes the output—and optionally inputs or data from the test case such as correct answer—to evaluate the generated output.",
         "oss": True,
         "tags": ["ai_llm", "functional"],
     },
@@ -246,7 +261,7 @@ evaluators = [
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
-            },
+            }
         },
         "description": "Code Evaluation allows you to write your own evaluator in Python. You need to provide the Python code for the evaluator.",
         "oss": True,
