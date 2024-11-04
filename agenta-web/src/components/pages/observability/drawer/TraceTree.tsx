@@ -88,7 +88,7 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                 <Space className={classes.treeContent}>
                     <div>
                         <Timer />
-                        {formatLatency(metrics?.acc?.duration.total)}
+                        {formatLatency(metrics?.acc?.duration.total / 1000)}
                     </div>
 
                     {metrics?.acc?.costs?.total && (
@@ -138,7 +138,7 @@ const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
 
     return (
         <Tree
-            showLine
+            showLine={activeTrace?.children ? true : false}
             selectedKeys={[selected]}
             expandedKeys={expandedKeys}
             onExpand={onExpand}

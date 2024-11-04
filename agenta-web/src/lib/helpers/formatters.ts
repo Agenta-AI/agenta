@@ -33,7 +33,7 @@ export const formatLatency = (value: number | undefined | null) => {
         const MS_LIMIT = 1000
         const S_LIMIT = MS_LIMIT * 1000
         const S_TO_US = S_LIMIT
-        const DECIMAL_DIGITS = 1000 // 3 digits
+        const DECIMAL_DIGITS = 100 // 2 decimal places
 
         let value = v * S_TO_US
         let unit = "us"
