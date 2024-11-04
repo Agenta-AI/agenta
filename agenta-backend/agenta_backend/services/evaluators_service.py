@@ -366,14 +366,12 @@ async def auto_ai_critique(
             "prompt_user": app_params.get("prompt_user", "").format(**data_point),
             "prediction": output,
             "ground_truth": correct_answer,
-            "data_point": data_point,
+            **data_point,
         }
         settings = {
             "prompt_template": settings_values.get("prompt_template", ""),
             "version": settings_values.get("version", "1"),
             "model": settings_values.get("model", ""),
-            "system_prompt_template": settings_values.get("system_prompt_template", ""),
-            "human_prompt_template": settings_values.get("human_prompt_template", ""),
         }
         response = await ai_critique(
             input=EvaluatorInputInterface(
@@ -401,24 +399,33 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
     litellm.openai_key = openai_api_key
     litellm.anthropic_api_key = anthropic_api_key
+    print(anthropic_api_key)
     if not openai_api_key:
         raise Exception(
             "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
-    if input.settings.get("version", "1") == "2":
+    if (
+        input.settings.get("version", "1") == "2"
+    ) and (  # this check is used when running in the background (celery)
+        type(input.settings.get("prompt_template", "")) is not str
+    ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
         try:
             prompt_template = input.settings.get("prompt_template", "")
 
-            # Swap variables
+            formatted_prompt_template = []
             for message in prompt_template:
-                message["content"] = message["content"].format(**input.inputs)
+                formatted_prompt_template.append(
+                    {
+                        "role": message["role"],
+                        "content": message["content"].format(**input.inputs),
+                    }
+                )
             app_output = input.inputs.get("prediction")
             if app_output is None:
                 raise ValueError("Prediction is required in inputs")
-
             response = await litellm.acompletion(
                 model=input.settings.get("model", "gpt-3.5-turbo"),
-                messages=prompt_template,
+                messages=formatted_prompt_template,
                 temperature=0.01,
             )
             evaluation_output = response.choices[0].message.content.strip()
@@ -426,7 +433,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             raise RuntimeError(f"Evaluation failed: {str(e)}")
     else:
         chain_run_args = {
-            "llm_app_prompt_template": input.inputs.get("prompt_user", ""),
+            "llm_app_prompt_template": input.inputs.get("prompt_template", ""),
             "variant_output": input.inputs["prediction"],
             "correct_answer": input.inputs["ground_truth"],
         }
