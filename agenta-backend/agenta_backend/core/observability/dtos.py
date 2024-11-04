@@ -39,7 +39,7 @@ class NodeType(Enum):
     TOOL = "tool"
     EMBEDDING = "embedding"
     QUERY = "query"
-    COMPLETION = "completion"
+    COMPLETION = "completion"  # LEGACY
     CHAT = "chat"
     RERANK = "rerank"
     # --- VARIANTS --- #
@@ -99,7 +99,7 @@ Refs = Dict[str, Any]
 
 class LinkDTO(BaseModel):
     type: TreeType  # Yes, this is correct
-    id: UUID
+    id: UUID  # node_id, this is correct
     tree_id: Optional[UUID] = None
 
     class Config:
@@ -177,6 +177,31 @@ class SpanDTO(BaseModel):
     otel: Optional[OTelExtraDTO] = None
 
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
+
+    class Config:
+        json_encoders = {
+            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
+            datetime: lambda dt: dt.isoformat(),
+        }
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        return self.encode(
+            super().model_dump(
+                *args,
+                **kwargs,
+                exclude_none=True,
+            )
+        )
 
 
 class OTelSpanDTO(BaseModel):

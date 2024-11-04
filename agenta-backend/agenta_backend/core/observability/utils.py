@@ -1,8 +1,11 @@
-from typing import List, Dict, OrderedDict, Callable
+from typing import List, Dict, OrderedDict, Callable, Any
 from enum import Enum
 from uuid import UUID
 from datetime import datetime
+from traceback import print_exc
+
 from litellm import cost_calculator
+
 
 from agenta_backend.core.observability.dtos import (
     SpanDTO,
@@ -34,15 +37,27 @@ class FilteringException(Exception):
 
 
 def _is_uuid_key(key: str) -> bool:
-    return key.endswith((".id"))
+    return (key.startswith("refs.") and key.endswith(".id")) or key in (
+        "root.id",
+        "tree.id",
+        "node.id",
+        "parend.id",
+    )
 
 
 def _is_literal_key(key: str) -> bool:
-    return key.endswith((".type", ".code", ".kind", ".name", ".slug"))
+    return (key.startswith("refs.") and key.endswith(".slug")) or key in (
+        "tree.type",
+        "node.type",
+        "node.name",
+        "status.code",
+        "exception.type",
+        "otel.kind",
+    )
 
 
 def _is_integer_key(key: str) -> bool:
-    return key.endswith((".version"))
+    return key.startswith("refs.") and key.endswith(".version")
 
 
 def _is_float_key(key: str) -> bool:
@@ -50,14 +65,29 @@ def _is_float_key(key: str) -> bool:
 
 
 def _is_datetime_key(key: str) -> bool:
-    return key.startswith(("time.", "time.")) or key.endswith((".timestamp"))
+    return key in ("time.start", "time.end", "exception.timestamp")
 
 
 def _is_string_key(key: str) -> bool:
-    return key in ["data"]
+    return key in ("content")
 
 
-def parse_operator(
+def parse_filtering_value(
+    condition: ConditionDTO,
+    to_type: Callable[[str], Any],
+    key_type: str,
+) -> None:
+    try:
+        condition.value = to_type(condition.value)
+    except ValueError as exc:
+        raise FilteringException(
+            f"Unexpected value '{condition.value}' "
+            f"for {key_type} key '{condition.key}', "
+            f"please use a valid {key_type}"
+        ) from exc
+
+
+def parse_filtering_operator(
     condition: ConditionDTO,
     allowed_operators: List[Enum],
     key_type: str,
@@ -72,77 +102,30 @@ def parse_operator(
         )
 
 
-def _is_uuid_value(value: str) -> bool:
-    try:
-        UUID(value)
-        return True
-    except ValueError:
-        return False
-
-
-def _is_integer_value(value: str) -> bool:
-    try:
-        int(value)
-        return True
-    except ValueError:
-        return False
-
-
-def _is_float_value(value: str) -> bool:
-    try:
-        float(value)
-        return True
-    except ValueError:
-        return False
-
-
-def _is_datetime_value(value: str) -> bool:
-    try:
-        print(value)
-        datetime.fromisoformat(value)
-        print(datetime.fromisoformat(value))
-        return True
-    except ValueError:
-        return False
-
-
-def parse_value(
-    condition: ConditionDTO,
-    check_type: Callable[[str], bool],
-    key_type: str,
-) -> None:
-    if not check_type(condition.value):
-        raise FilteringException(
-            f"Unexpected value '{condition.value}' "
-            f"for {key_type} key '{condition.key}', "
-            f"please use a valid {key_type}"
-        )
-
-
 def parse_condition(condition: ConditionDTO) -> None:
     if _is_uuid_key(condition.key):
-        parse_value(condition, _is_uuid_value, "uuid")
-        parse_operator(condition, _UUID_OPERATORS, "uuid")
+        parse_filtering_value(condition, UUID, "uuid")
+        parse_filtering_operator(condition, _UUID_OPERATORS, "uuid")
 
     if _is_literal_key(condition.key):
-        condition.value = str(condition.value)
-        parse_operator(condition, _LITERAL_OPERATORS, "literal")
+        parse_filtering_value(condition, str, "literal")
+        parse_filtering_operator(condition, _LITERAL_OPERATORS, "literal")
 
     elif _is_integer_key(condition.key):
-        parse_value(condition, _is_integer_value, "integer")
-        parse_operator(condition, _INTEGER_OPERATORS, "integer")
+        parse_filtering_value(condition, int, "integer")
+        parse_filtering_operator(condition, _INTEGER_OPERATORS, "integer")
 
     elif _is_float_key(condition.key):
-        parse_value(condition, _is_float_value, "float")
-        parse_operator(condition, _FLOAT_OPERATORS, "float")
+        parse_filtering_value(condition, float, "float")
+        parse_filtering_operator(condition, _FLOAT_OPERATORS, "float")
 
     elif _is_datetime_key(condition.key):
-        parse_value(condition, _is_datetime_value, "datetime")
-        parse_operator(condition, _DATETIME_OPERATORS, "datetime")
+        parse_filtering_value(condition, datetime.fromisoformat, "datetime")
+        parse_filtering_operator(condition, _DATETIME_OPERATORS, "datetime")
 
     elif _is_string_key(condition.key):
-        condition.value = str(condition.value)
-        parse_operator(condition, _STRING_OPERATORS, "string")
+        parse_filtering_value(condition, str, "string")
+        parse_filtering_operator(condition, _STRING_OPERATORS, "string")
 
     else:  # All other keys support any operators (conditionally)
         pass
@@ -158,6 +141,48 @@ def parse_filtering(
             parse_condition(condition)
         else:
             raise ValueError("Invalid filtering request: unexpected JSON format")
+
+
+def parse_ingest_value(
+    attributes: Dict[str, Any],
+    to_type: Callable[[str], Any],
+    key: str,
+) -> None:
+    try:
+        attributes[key] = to_type(attributes[key])
+    except ValueError:
+        print_exc()
+
+        del attributes[key]
+
+
+def parse_ingest(
+    span_dtos: List[SpanDTO],
+) -> None:
+    for span_dto in span_dtos:
+        typecheck = {
+            "meta": span_dto.meta,
+            "metrics": span_dto.metrics,
+            "refs": span_dto.refs,
+        }
+        for field, attributes in typecheck.items():
+            if attributes is not None:
+                for key in attributes.keys():
+                    scoped_key = f"{field}.{key}"
+                    if _is_uuid_key(scoped_key):
+                        parse_ingest_value(attributes, UUID, key)
+                    elif _is_literal_key(scoped_key):
+                        parse_ingest_value(attributes, str, key)
+                    elif _is_integer_key(scoped_key):
+                        parse_ingest_value(attributes, int, key)
+                    elif _is_float_key(scoped_key):
+                        parse_ingest_value(attributes, float, key)
+                    elif _is_datetime_key(scoped_key):
+                        parse_ingest_value(attributes, datetime.fromisoformat, key)
+                    elif _is_string_key(scoped_key):
+                        parse_ingest_value(attributes, str, key)
+                    else:  # All other keys are supported as is
+                        pass
 
 
 def parse_span_dtos_to_span_idx(
