@@ -115,6 +115,19 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
         setIsFilterOpen(false)
     }
 
+    const mapColumnLabel = useMemo(
+        () =>
+            columns.reduce(
+                (acc, col) => {
+                    acc[col.value] = col.label
+                    return acc
+                },
+                {} as Record<string, string>,
+            ),
+        [columns],
+    )
+    const getColumnLabelFromValue = (key: string) => mapColumnLabel[key] || key
+
     return (
         <Popover
             title={null}
@@ -152,13 +165,17 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                         labelRender={(label) =>
                                             !label.value ? "Column" : label.label
                                         }
-                                        style={{width: 200}}
                                         popupMatchSelectWidth={220}
+                                        popupClassName="capitalize"
+                                        className="capitalize w-[200px]"
                                         suffixIcon={<CaretDown size={14} />}
                                         onChange={(value) =>
                                             onFilterChange({columnName: "key", value, idx})
                                         }
-                                        value={item.key}
+                                        value={{
+                                            value: item.key,
+                                            label: getColumnLabelFromValue(item.key),
+                                        }}
                                         options={filteredColumns}
                                         disabled={item.isPermanent}
                                     />

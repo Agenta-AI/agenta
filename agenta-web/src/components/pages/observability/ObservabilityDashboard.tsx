@@ -170,8 +170,8 @@ const ObservabilityDashboard = () => {
             },
         },
         {
-            title: "Latency",
-            key: "latency",
+            title: "Duration",
+            key: "duration",
             dataIndex: ["time", "span"],
             width: 80,
             onHeaderCell: () => ({
