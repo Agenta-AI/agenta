@@ -91,6 +91,7 @@
     "devDependencies": {
         "@swc/cli": "^0.3.12",
         "@swc/core": "^1.4.15",
+        "@types/js-yaml": "^4.0.9",
         "@types/node": "^20.8.10",
         "cypress": "^13.15.0",
         "node-mocks-http": "^1.12.2",
