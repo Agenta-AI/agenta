@@ -1,10 +1,10 @@
 import EmptyComponent from "@/components/EmptyComponent"
 import GenericDrawer from "@/components/GenericDrawer"
-import {nodeTypeStyles} from "@/components/pages/observability/components/AvatarTreeContent"
-import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
-import TraceContent from "@/components/pages/observability/drawer/TraceContent"
-import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
-import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import {nodeTypeStyles} from "./components/AvatarTreeContent"
+import StatusRenderer from "./components/StatusRenderer"
+import TraceContent from "./drawer/TraceContent"
+import TraceHeader from "./drawer/TraceHeader"
+import TraceTree from "./drawer/TraceTree"
 import Filters from "@/components/Filters/Filters"
 import Sort, {SortResult} from "@/components/Filters/Sort"
 import EditColumns from "@/components/Filters/EditColumns"
@@ -56,9 +56,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface Props {}
-
-const ObservabilityDashboard = ({}: Props) => {
+const ObservabilityDashboard = () => {
     const {
         traces,
         isLoading,
@@ -445,8 +443,8 @@ const ObservabilityDashboard = ({}: Props) => {
         setFilters(newFilters)
     }, [])
 
-    const onClearFilter = useCallback(() => {
-        setFilters([])
+    const onClearFilter = useCallback((filter: Filter[]) => {
+        setFilters(filter)
         setSearchQuery("")
         if (traceTabs === "chat") {
             setTraceTabs("tree")
@@ -569,8 +567,11 @@ const ObservabilityDashboard = ({}: Props) => {
                                     }
                                     description="Monitor the performance and results of your LLM applications here."
                                     primaryCta={{
-                                        text: "Go to Playground",
-                                        onClick: () => router.push(`/apps/${appId}/playground`),
+                                        text: appId ? "Go to Playground" : "Create an Application",
+                                        onClick: () =>
+                                            router.push(
+                                                appId ? `/apps/${appId}/playground` : "/apps",
+                                            ),
                                         tooltip:
                                             "Run your LLM app in the playground to generate and view insights.",
                                     }}
