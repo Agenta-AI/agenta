@@ -1,7 +1,7 @@
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
-import {Collapse, Segmented, Space} from "antd"
+import {Collapse, Radio, Space} from "antd"
 import React, {useState, useMemo} from "react"
 import {createUseStyles} from "react-jss"
 import yaml from "js-yaml"
@@ -64,16 +64,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             backgroundColor: theme.colorBgContainerDisabled,
         },
     }),
-    segmentedBtn: {
-        border: `1px solid ${theme.colorBorder}`,
-        padding: 0,
-        "& .ant-segmented-item": {
-            padding: 2,
-        },
-        "& .ant-segmented-item-selected": {
-            outline: `1px solid ${theme.colorPrimary}`,
-        },
-    },
 }))
 
 const AccordionTreePanel = ({
@@ -138,15 +128,13 @@ const AccordionTreePanel = ({
                     extra: (
                         <Space size={12}>
                             {enableFormatSwitcher && typeof value !== "string" && (
-                                <Segmented
-                                    options={["JSON", "YAML"]}
+                                <Radio.Group
                                     value={segmentedValue}
-                                    onChange={(optValue) => {
-                                        setSegmentedValue(optValue)
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className={classes.segmentedBtn}
-                                />
+                                    onChange={(e) => setSegmentedValue(e.target.value)}
+                                >
+                                    <Radio.Button value="JSON">JSON</Radio.Button>
+                                    <Radio.Button value="YAML">YAML</Radio.Button>
+                                </Radio.Group>
                             )}
                             <CopyButton
                                 text={
