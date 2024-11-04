@@ -1,9 +1,8 @@
 from sqlalchemy import Column, UUID, TIMESTAMP, Enum as SQLEnum, String
-from sqlalchemy.dialects.postgresql import HSTORE, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 
 from agenta_backend.core.observability.dtos import TreeType, NodeType
 
-from agenta_backend.dbs.postgres.shared.base import Base
 from agenta_backend.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
 
 
@@ -47,20 +46,31 @@ class StatusDBA:
     status = Column(JSONB, nullable=True)
 
 
-class ExceptionDBA:
+class AttributesDBA:
+    __abstract__ = True
+
+    data = Column(JSONB, nullable=True)
+    metrics = Column(JSONB, nullable=True)
+    meta = Column(JSONB, nullable=True)
+    refs = Column(JSONB, nullable=True)
+
+
+class EventsDBA:
     __abstract__ = True
 
     exception = Column(JSONB, nullable=True)
 
 
-class AttributesDBA:
+class LinksDBA:
     __abstract__ = True
 
-    data = Column(String, nullable=True)  # STRING for full-text search
-    metrics = Column(JSONB, nullable=True)
-    meta = Column(JSONB, nullable=True)
-    refs = Column(HSTORE, nullable=True)  # HSTORE for fast querying
-    links = Column(HSTORE, nullable=True)  # HSTORE for fast querying
+    links = Column(JSONB, nullable=True)
+
+
+class FullTextSearchDBA:
+    __abstract__ = True
+
+    content = Column(String, nullable=True)
 
 
 class OTelDBA:
@@ -78,8 +88,10 @@ class SpanDBA(
     ParentDBA,
     TimeDBA,
     StatusDBA,
-    ExceptionDBA,
     AttributesDBA,
+    EventsDBA,
+    LinksDBA,
+    FullTextSearchDBA,
     OTelDBA,
 ):
     __abstract__ = True

@@ -1,6 +1,5 @@
 from typing import Optional, Any, Dict
 from enum import Enum
-from uuid import UUID
 
 from httpx import get as check
 
@@ -156,15 +155,6 @@ class Tracing(metaclass=Singleton):
 
             for key in refs.keys():
                 if key in [_.value for _ in Reference.__members__.values()]:
-                    # TYPE AND FORMAT CHECKING
-                    if key.endswith(".id"):
-                        try:
-                            refs[key] = str(UUID(refs[key]))
-                        except:  # pylint: disable=bare-except
-                            refs[key] = None
-
-                    refs[key] = str(refs[key])
-
                     # ADD REFERENCE TO THIS SPAN
                     span.set_attribute(
                         key.value if isinstance(key, Enum) else key,

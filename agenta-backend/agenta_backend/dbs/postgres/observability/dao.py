@@ -1,9 +1,10 @@
 from typing import Optional, List, Tuple, Union
 from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import and_, or_, not_, distinct, Column, cast, func
-from sqlalchemy import UUID, String, Float, Boolean, TIMESTAMP, Enum
-from sqlalchemy.dialects.postgresql import HSTORE, JSON, JSONB
+from sqlalchemy import and_, or_, not_, distinct, Column, func, cast
+from sqlalchemy import TIMESTAMP, Enum, UUID as SQLUUID, Integer, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.future import select
 from sqlalchemy.dialects import postgresql
 
@@ -16,7 +17,6 @@ from agenta_backend.dbs.postgres.observability.mappings import (
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
 from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
-from agenta_backend.core.observability.utils import FilteringException
 from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     ConditionDTO,
@@ -26,6 +26,15 @@ from agenta_backend.core.observability.dtos import (
     StringOperator,
     ListOperator,
     ExistenceOperator,
+)
+from agenta_backend.core.observability.utils import FilteringException
+from agenta_backend.core.observability.utils import (
+    _is_uuid_key,
+    _is_literal_key,
+    _is_integer_key,
+    _is_float_key,
+    _is_datetime_key,
+    _is_string_key,
 )
 
 
@@ -414,6 +423,8 @@ _FLAT_KEYS = {
     "parent.id": "parent_id",
 }
 
+_NESTED_FIELDS = ("data",)
+
 
 def _filters(filtering: FilteringDTO) -> list:
     _conditions = []
@@ -430,44 +441,45 @@ def _filters(filtering: FilteringDTO) -> list:
             )
 
         elif isinstance(condition, ConditionDTO):
-            key = condition.key
+            _key = condition.key
             value = condition.value
 
             # MAP FLAT KEYS
-            if key in _FLAT_KEYS:
-                key = _FLAT_KEYS[key]
+            if _key in _FLAT_KEYS:
+                _key = _FLAT_KEYS[_key]
 
             # SPLIT FIELD AND KEY
-            _split = key.split(".", 1)
+            _split = _key.split(".", 1)
             field = _split[0]
             key = _split[1] if len(_split) > 1 else None
 
             # GET COLUMN AS ATTRIBUTE
             attribute: Column = getattr(InvocationSpanDBE, field)
 
-            # Handle JSON/JSONB/HSTORE key-paths
-            # Assumption: JSON/JSONB/HSTORE columns are stored flat even when nested
-            if key:
-                if isinstance(attribute.type, (JSON, JSONB, HSTORE)):
-                    if isinstance(attribute.type, HSTORE):
-                        attribute = attribute[key]
-                        value = str(value)
-                    else:
-                        attribute = attribute[key].astext
+            if isinstance(attribute.type, JSONB) and key:
+                if field in _NESTED_FIELDS:
+                    key = key.split(".")
 
-                        if isinstance(value, UUID):
-                            attribute = cast(attribute, UUID)
-                        elif isinstance(value, str):
-                            attribute = cast(attribute, String)
-                            # value = f'"{value}"'
-                            # # WILL ADD THIS BACK
-                            # AS SOON AS I FIGURE OUT WHY THE QUOTES WERE ADDED
-                        elif isinstance(value, int):
-                            attribute = cast(attribute, Float)  # Yes, Float
-                        elif isinstance(value, float):
-                            attribute = cast(attribute, Float)
-                        elif isinstance(value, bool):
-                            attribute = cast(attribute, Boolean)
+                    for k in key[-1]:
+                        attribute = attribute[k]
+
+                attribute = attribute[key].astext
+
+                # CASTING
+                if _is_uuid_key(_key):
+                    attribute = cast(attribute, SQLUUID)
+                elif _is_literal_key(_key):
+                    pass
+                elif _is_integer_key(_key):
+                    attribute = cast(attribute, Integer)
+                elif _is_float_key(_key):
+                    attribute = cast(attribute, Numeric)
+                elif _is_datetime_key(_key):
+                    pass
+                elif _is_string_key(_key):
+                    pass
+                else:
+                    pass
 
             if isinstance(attribute.type, TIMESTAMP):
                 value = datetime.fromisoformat(value)

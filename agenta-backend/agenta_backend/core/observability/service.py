@@ -11,6 +11,7 @@ from agenta_backend.core.observability.utils import (
     cumulate_tokens,
     connect_children,
     parse_filtering,
+    parse_ingest,
 )
 
 
@@ -54,6 +55,8 @@ class ObservabilityService:
         project_id: UUID,
         span_dtos: List[SpanDTO],
     ) -> None:
+        parse_ingest(span_dtos)
+
         span_idx = parse_span_dtos_to_span_idx(span_dtos)
 
         span_id_tree = parse_span_idx_to_span_id_tree(span_idx)

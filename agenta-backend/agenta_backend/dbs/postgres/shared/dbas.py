@@ -14,12 +14,12 @@ class LifecycleDBA:
     __abstract__ = True
 
     created_at = Column(
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
         server_default=func.current_timestamp(),
         nullable=False,
     )
     updated_at = Column(
-        TIMESTAMP,
+        TIMESTAMP(timezone=True),
         server_onupdate=func.current_timestamp(),
         nullable=True,
     )
