@@ -667,6 +667,7 @@ export type Filter = {
     key: string
     operator: FilterConditions
     value: string
+    isPermanent?: boolean
 }
 
 export type FilterConditions =

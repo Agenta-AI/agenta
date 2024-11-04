@@ -66,7 +66,9 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     // query states
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
-    const [filters, setFilters] = useState<Filter[]>([])
+    const [filters, setFilters] = useState<Filter[]>(
+        appId ? [{key: "refs.application.id", operator: "is", value: appId, isPermanent: true}] : [],
+    )
     const [sort, setSort] = useState<SortResult>({} as SortResult)
     const [pagination, setPagination] = useState({page: 1, size: 10})
 
@@ -119,14 +121,10 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
             focus: traceTabs === "chat" ? "node" : traceTabs,
         }
 
-        if (appId) {
-            params.filtering = JSON.stringify({
-                conditions: [{key: "refs.application.id", operator: "is", value: appId}],
-            })
-        }
-
         if (filters.length > 0) {
-            params.filtering = JSON.stringify({conditions: filters})
+            const sanitizedFilters = filters.map(({isPermanent, ...rest}) => rest)
+
+            params.filtering = JSON.stringify({conditions: sanitizedFilters})
         }
 
         if (sort) {
@@ -150,9 +148,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
 
     useEffect(() => {
-        if (appId) {
-            fetchTraces()
-        }
+        fetchTraces()
     }, [appId, filters, traceTabs, sort, pagination])
 
     observabilityContextValues.traces = traces

@@ -56,9 +56,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface Props {}
-
-const ObservabilityDashboard = ({}: Props) => {
+const ObservabilityDashboard = () => {
     const {
         traces,
         isLoading,
@@ -445,8 +443,8 @@ const ObservabilityDashboard = ({}: Props) => {
         setFilters(newFilters)
     }, [])
 
-    const onClearFilter = useCallback(() => {
-        setFilters([])
+    const onClearFilter = useCallback((filter: Filter[]) => {
+        setFilters(filter)
         setSearchQuery("")
         if (traceTabs === "chat") {
             setTraceTabs("tree")

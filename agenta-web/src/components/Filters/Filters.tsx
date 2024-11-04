@@ -37,9 +37,9 @@ type Props = {
 
 const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFilter}) => {
     const classes = useStyles()
-    const emptyFilter = [{key: "", operator: "", value: ""}] as Filter[]
+    const emptyFilter = [{key: "", operator: "", value: "", isPermanent: false}] as Filter[]
 
-    const [filter, setFilter] = useState<Filter[]>(emptyFilter)
+    const [filter, setFilter] = useState<Filter[]>(filterData || emptyFilter)
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     useUpdateEffect(() => {
@@ -80,7 +80,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
         value,
         idx,
     }: {
-        columnName: keyof Filter
+        columnName: Exclude<keyof Filter, "isPermanent">
         value: any
         idx: number
     }) => {
@@ -94,17 +94,24 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     }
 
     const addNestedFilter = () => {
-        setFilter([...filter, {key: "", operator: "", value: ""}])
+        setFilter([...filter, {key: "", operator: "", value: "", isPermanent: false}])
     }
 
     const clearFilter = () => {
-        setFilter(emptyFilter)
-        onClearFilter(emptyFilter)
+        const clearedFilters = filter.filter((f) => f.isPermanent)
+
+        if (JSON.stringify(clearedFilters) !== JSON.stringify(filter)) {
+            setFilter(clearedFilters)
+            onClearFilter(clearedFilters)
+        }
     }
 
     const applyFilter = () => {
         const sanitizedFilters = filter.filter(({key, operator}) => key && operator)
-        onApplyFilter(sanitizedFilters)
+
+        if (JSON.stringify(sanitizedFilters) !== JSON.stringify(filterData)) {
+            onApplyFilter(sanitizedFilters)
+        }
         setIsFilterOpen(false)
     }
 
@@ -153,6 +160,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                         }
                                         value={item.key}
                                         options={filteredColumns}
+                                        disabled={item.isPermanent}
                                     />
 
                                     {item.key && (
@@ -173,12 +181,14 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                                 popupMatchSelectWidth={100}
                                                 value={item.operator}
                                                 options={filteredOperators}
+                                                disabled={item.isPermanent}
                                             />
 
                                             <Input
                                                 placeholder="Keyword"
                                                 className="w-[220px]"
                                                 value={item.value}
+                                                disabled={item.isPermanent}
                                                 onChange={(e) =>
                                                     onFilterChange({
                                                         columnName: "value",
@@ -193,6 +203,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                         <Button
                                             type="link"
                                             icon={<Trash size={14} />}
+                                            disabled={item.isPermanent}
                                             onClick={() => onDeleteFilter(idx)}
                                         />
                                     )}
