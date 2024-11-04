@@ -67,7 +67,9 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
     const [filters, setFilters] = useState<Filter[]>(
-        appId ? [{key: "refs.application.id", operator: "is", value: appId, isPermanent: true}] : [],
+        appId
+            ? [{key: "refs.application.id", operator: "is", value: appId, isPermanent: true}]
+            : [],
     )
     const [sort, setSort] = useState<SortResult>({} as SortResult)
     const [pagination, setPagination] = useState({page: 1, size: 10})
