@@ -16,6 +16,7 @@ from agenta.sdk.utils.logging import log
 
 
 class TraceProcessor(BatchSpanProcessor):
+
     def __init__(
         self,
         span_exporter: SpanExporter,
@@ -57,19 +58,18 @@ class TraceProcessor(BatchSpanProcessor):
         self,
         span: ReadableSpan,
     ):
-        super().on_end(span)
+        if self.done:
+            return
 
         if span.context.trace_id not in self.spans:
             self.spans[span.context.trace_id] = list()
 
         self.spans[span.context.trace_id].append(span)
-        
+
         del self._registry[span.context.trace_id][span.context.span_id]
 
-        if self.is_ready(span.get_span_context().trace_id):
+        if len(self._registry[span.context.trace_id]) == 0:
             self.export(span.context.trace_id)
-
-            # self.force_flush()
 
     def export(
         self,
@@ -100,7 +100,12 @@ class TraceProcessor(BatchSpanProcessor):
         self,
         trace_id: Optional[int] = None,
     ) -> bool:
-        is_ready = len(self._registry.get(trace_id, {})) != 0
+        is_ready = True
+
+        try:
+            is_ready = self._exporter.is_ready(trace_id)
+        except:  # pylint: disable=bare-except
+            pass
 
         return is_ready
 
