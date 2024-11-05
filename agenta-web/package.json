@@ -40,7 +40,7 @@
         "@types/js-beautify": "^1.14.0",
         "@types/js-yaml": "^4.0.9",
         "@types/lodash": "^4.14.201",
-        "@types/mdx": "^2.0.6",
+        "@types/mdx": "^2.0.13",
         "@types/papaparse": "^5.3.14",
         "@types/promise-retry": "^1.1.6",
         "@types/react": "^18.3.3",
