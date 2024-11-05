@@ -49,7 +49,7 @@ class InlineTraceExporter(SpanExporter):
         return trace
 
 
-OTLPSpanExporter._MAX_RETRY_TIMEOUT = 2
+OTLPSpanExporter._MAX_RETRY_TIMEOUT = 2  # pylint: disable=protected-access
 
 ConsoleExporter = ConsoleSpanExporter
 InlineExporter = InlineTraceExporter
