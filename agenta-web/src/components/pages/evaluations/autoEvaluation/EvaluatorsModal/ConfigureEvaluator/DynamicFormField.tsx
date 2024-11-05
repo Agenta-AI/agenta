@@ -6,6 +6,7 @@ import {InfoCircleOutlined} from "@ant-design/icons"
 import {Editor} from "@monaco-editor/react"
 import {theme, Form, Tooltip, InputNumber, Switch, Input, AutoComplete} from "antd"
 import {Rule} from "antd/es/form"
+import {Messages} from "./Messages"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
@@ -99,6 +100,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     }
                     initialValue={defaultVal}
                     rules={rules}
+                    hidden={type === "hidden"}
                 >
                     {name[1] === "question_key" ||
                     name[1] === "answer_key" ||
@@ -111,6 +113,10 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                         />
                     ) : type === "string" || type === "regex" ? (
                         <Input />
+                    ) : type === "hidden" ? (
+                        <Input type="hidden" />
+                    ) : type === "messages" ? (
+                        <Messages />
                     ) : type === "number" ? (
                         <InputNumber min={min} max={max} step={0.1} />
                     ) : type === "boolean" || type === "bool" ? (
