@@ -308,7 +308,7 @@ const ObservabilityDashboard = () => {
         {type: "exists", value: "exception.type", label: "exception type"},
         {type: "exists", value: "exception.message", label: "exception message"},
         {type: "exists", value: "exception.stacktrace", label: "exception stacktrace"},
-        {type: "string", value: "data", label: "data"},
+        {type: "string", value: "content", label: "content"},
         {type: "number", value: "metrics.acc.duration.total", label: "duration"},
         {type: "number", value: "metrics.acc.costs.total", label: "total cost (accumulated)"},
         {type: "number", value: "metrics.unit.costs.total", label: "total cost"},
@@ -416,26 +416,26 @@ const ObservabilityDashboard = () => {
         setSearchQuery(query)
 
         if (!query) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
         }
     }
 
     const onSearchQueryApply = () => {
         if (searchQuery) {
-            updateFilter({key: "data", operator: "contains", value: searchQuery})
+            updateFilter({key: "content", operator: "contains", value: searchQuery})
         }
     }
 
     const onSearchClear = () => {
-        const isSearchFilterExist = filters.some((item) => item.key === "data")
+        const isSearchFilterExist = filters.some((item) => item.key === "content")
 
         if (isSearchFilterExist) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
         }
     }
     // Sync searchQuery with filters state
     useUpdateEffect(() => {
-        const dataFilter = filters.find((f) => f.key === "data")
+        const dataFilter = filters.find((f) => f.key === "content")
         setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
 
