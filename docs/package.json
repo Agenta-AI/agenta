@@ -27,7 +27,7 @@
     "@mdx-js/react": "^3.0.0",
     "clsx": "^2.0.0",
     "docusaurus-plugin-image-zoom": "^2.0.0",
-    "docusaurus-plugin-openapi-docs": "3.0.1",
+    "docusaurus-plugin-openapi-docs": "4.2.0",
     "docusaurus-theme-openapi-docs": "3.0.1",
     "dotenv": "^16.4.5",
     "posthog-docusaurus": "^2.0.1",
