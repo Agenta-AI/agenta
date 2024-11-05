@@ -10,12 +10,12 @@ from agenta.sdk.tracing.conventions import parse_span_kind
 import agenta as ag
 
 
-class instrument:
+class instrument:  # pylint: disable=invalid-name
     DEFAULT_KEY = "__default__"
 
     def __init__(
         self,
-        type: str = "task",
+        type: str = "task",  # pylint: disable=redefined-builtin
         config: Optional[Dict[str, Any]] = None,
         ignore_inputs: Optional[bool] = None,
         ignore_outputs: Optional[bool] = None,
@@ -196,12 +196,16 @@ class instrument:
         ignore: Union[List[str], bool] = False,
     ) -> Dict[str, Any]:
         """
-        Redact user-defined sensitive information from inputs and outputs as defined by the ignore list or boolean flag.
+        Redact user-defined sensitive information
+        from inputs and outputs as defined by the ignore list or boolean flag.
 
         Example:
-        - ignore = ["password"] -> {"username": "admin", "password": "********"} -> {"username": "admin"}
-        - ignore = True -> {"username": "admin", "password": "********"} -> {}
-        - ignore = False -> {"username": "admin", "password": "********"} -> {"username": "admin", "password": "********"}
+        - ignore = ["password"] -> {"username": "admin", "password": "********"}
+            -> {"username": "admin"}
+        - ignore = True -> {"username": "admin", "password": "********"}
+            -> {}
+        - ignore = False -> {"username": "admin", "password": "********"}
+            -> {"username": "admin", "password": "********"}
         """
         io = {
             key: value
@@ -210,9 +214,7 @@ class instrument:
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys()
-                if ignore is True
-                else []
+                else io.keys() if ignore is True else []
             )
         }
 
@@ -226,9 +228,12 @@ class instrument:
         Patch the result to ensure that it is a dictionary, with a default key when necessary.
 
         Example:
-        - result = "Hello, World!" -> {"__default__": "Hello, World!"}
-        - result = {"message": "Hello, World!", "cost": 0.0, "usage": {}} -> {"__default__": "Hello, World!"}
-        - result = {"message": "Hello, World!"} -> {"message": "Hello, World!"}
+        - result = "Hello, World!"
+            -> {"__default__": "Hello, World!"}
+        - result = {"message": "Hello, World!", "cost": 0.0, "usage": {}}
+            -> {"__default__": "Hello, World!"}
+        - result = {"message": "Hello, World!"}
+            -> {"message": "Hello, World!"}
         """
         outputs = (
             {instrument.DEFAULT_KEY: result}
