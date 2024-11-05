@@ -1,4 +1,4 @@
-agenta==0.27.0a5
+agenta==0.27.0a9
 # opentelemetry.instrumentation.openai==0.31.2
 openai
 opentelemetry-instrumentation-langchain
