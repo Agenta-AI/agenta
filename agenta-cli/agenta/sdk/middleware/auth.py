@@ -1,4 +1,5 @@
 from typing import Callable, Optional
+from os import environ
 from uuid import UUID
 from json import dumps
 from traceback import format_exc
@@ -10,13 +11,26 @@ from fastapi import FastAPI, Request, HTTPException
 from agenta.sdk.utils.logging import log
 from agenta.sdk.middleware.cache import TTLLRUCache
 
+AGENTA_SDK_AUTH_CACHE_CAPACITY = environ.get(
+    "AGENTA_SDK_AUTH_CACHE_CAPACITY",
+    512,
+)
+
+AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
+    "AGENTA_SDK_AUTH_CACHE_TTL",
+    15 * 60,  # 15 minutes
+)
+
 
 class Deny(HTTPException):
     def __init__(self) -> None:
         super().__init__(status_code=401, detail="Unauthorized")
 
 
-cache = TTLLRUCache(capacity=512, ttl=15 * 60)  # 15 minutes
+cache = TTLLRUCache(
+    capacity=AGENTA_SDK_AUTH_CACHE_CAPACITY,
+    ttl=AGENTA_SDK_AUTH_CACHE_TTL,
+)
 
 
 class AuthorizationMiddleware(BaseHTTPMiddleware):
@@ -78,7 +92,6 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 else:
                     raise Deny()
 
-            # TODO: ADD TTL-LRU CACHE
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.host}/api/permissions/verify",
