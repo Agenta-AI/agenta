@@ -220,11 +220,8 @@ async def create_app(
                     Permission.CREATE_APPLICATION,
                 )
 
-            workspace_id_from_apikey = await db_manager_ee.get_workspace_id_from_apikey(
-                api_key_from_headers, request.state.user_id
-            )
             if payload.workspace_id is None:
-                payload.workspace_id = workspace_id_from_apikey
+                payload.workspace_id = request.state.workspace_id
 
             try:
                 user_org_workspace_data = await get_user_org_and_workspace_id(
