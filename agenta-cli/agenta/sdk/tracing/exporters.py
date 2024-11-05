@@ -50,7 +50,6 @@ class InlineTraceExporter(SpanExporter):
         self,
         trace_id: int,
     ) -> List[ReadableSpan]:
-
         trace = self._registry.get(trace_id, [])
 
         if trace_id in self._registry:
