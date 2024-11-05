@@ -30,7 +30,7 @@
         "@mdx-js/loader": "^2.3.0",
         "@mdx-js/react": "^3.1.0",
         "@monaco-editor/react": "^4.5.2",
-        "@next/mdx": "^13.4.13",
+        "@next/mdx": "^15.0.2",
         "@phosphor-icons/react": "^2.1.7",
         "@remixicon/react": "^4.1.1",
         "@sentry/nextjs": "^8.18.0",
