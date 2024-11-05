@@ -40,7 +40,9 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     const classes = useStyles()
     const emptyFilter = [{key: "", operator: "", value: "", isPermanent: false}] as Filter[]
 
-    const [filter, setFilter] = useState<Filter[]>(filterData || emptyFilter)
+    const [filter, setFilter] = useState<Filter[]>(() =>
+        !filterData?.length ? emptyFilter : filterData,
+    )
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     useUpdateEffect(() => {
@@ -106,7 +108,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
         if (!isEqual(clearedFilters, filterData)) {
             onClearFilter(clearedFilters)
         }
-        setFilter(clearedFilters)
+        setFilter(!clearedFilters.length ? emptyFilter : clearedFilters)
     }
 
     const applyFilter = () => {
