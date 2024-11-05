@@ -3,6 +3,10 @@ from pydantic import BaseModel
 
 from agenta_backend.apis.fastapi.shared.models import VersionedModel
 
+from agenta_backend.apis.fastapi.observability.utils import (
+    LegacyDataPoint,
+    LegacySummary,
+)
 from agenta_backend.core.observability.dtos import (
     OTelSpanDTO,
     SpanDTO,
@@ -64,3 +68,7 @@ class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
 class AnalyticsResponse(VersionedModel):
     count: Optional[int] = None
     buckets: List[BucketDTO]
+
+
+class LegacyAnalyticsResponse(LegacySummary):
+    data: List[LegacyDataPoint]

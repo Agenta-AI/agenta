@@ -4,7 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 
 from agenta_backend.core.observability.service import ObservabilityService
-from agenta_backend.core.observability.dtos import QueryDTO, AnalyticsDTO
+from agenta_backend.core.observability.dtos import (
+    QueryDTO,
+    AnalyticsDTO,
+    TreeDTO,
+    RootDTO,
+)
 from agenta_backend.core.observability.utils import FilteringException
 
 from agenta_backend.apis.fastapi.shared.utils import handle_exceptions
@@ -17,6 +22,7 @@ from agenta_backend.apis.fastapi.observability.utils import (
     parse_from_otel_span_dto,
     parse_to_otel_span_dto,
     parse_to_agenta_span_dto,
+    parse_legacy_analytics,
 )
 from agenta_backend.apis.fastapi.observability.models import (
     CollectStatusResponse,
@@ -28,8 +34,8 @@ from agenta_backend.apis.fastapi.observability.models import (
     AgentaNodeDTO,
     AgentaTreeDTO,
     AgentaRootDTO,
-    TreeDTO,
-    RootDTO,
+    LegacyAnalyticsResponse,
+    AnalyticsResponse,
 )
 
 
@@ -94,7 +100,10 @@ class ObservabilityRouter:
             operation_id="query_analytics",
             summary="Query analytics, with optional grouping, windowing, filtering.",
             status_code=status.HTTP_200_OK,
-            response_model=AnalyticsResponse,
+            response_model=Union[
+                LegacyAnalyticsResponse,
+                AnalyticsResponse,
+            ],
             response_model_exclude_none=True,
         )
 
@@ -286,23 +295,36 @@ class ObservabilityRouter:
         self,
         request: Request,
         analytics_dto: AnalyticsDTO = Depends(parse_analytics_dto),
+        format: Literal[  # pylint: disable=W0622
+            "legacy",
+            "agenta",
+        ] = Query("agenta"),
     ):
         try:
             bucket_dtos, count = await self.service.analytics(
                 project_id=UUID(request.state.project_id),
                 analytics_dto=analytics_dto,
             )
+
+            if format == "legacy":
+                data, summary = parse_legacy_analytics(bucket_dtos)
+
+                return LegacyAnalyticsResponse(
+                    data=data,
+                    **summary.model_dump(),
+                )
+
+            return AnalyticsResponse(
+                version=self.VERSION,
+                count=count,
+                buckets=bucket_dtos,
+            )
+
         except FilteringException as e:
             raise HTTPException(
                 status_code=400,
                 detail=str(e),
             ) from e
-
-        return AnalyticsResponse(
-            version=self.VERSION,
-            count=count,
-            buckets=bucket_dtos,
-        )
 
     ### MUTATIONS
 
