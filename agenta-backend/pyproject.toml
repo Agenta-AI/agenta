@@ -9,7 +9,7 @@ packages = [{include = "agenta_backend"}]
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
 fastapi = "^0.109.1"
-pydantic = "^2.7.4"
+pydantic = "^2.9.2"
 docker = "7.1.0"
 toml = "^0.10.2"
 uvicorn = "^0.22.0"
