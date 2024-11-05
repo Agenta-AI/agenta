@@ -70,7 +70,7 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
         # LINKS
         links=span.links,
         # OTEL
-        otel=OTelExtraDTO(**span.otel),
+        otel=OTelExtraDTO(**span.otel) if span.otel else None,
     )
 
 
@@ -109,7 +109,7 @@ def map_span_dto_to_dbe(
         meta=span_dto.encode(span_dto.meta),
         refs=span_dto.encode(span_dto.refs),
         # EVENTS
-        exception=(span_dto.exception.to_json() if span_dto.exception else None),
+        exception=span_dto.encode(span_dto.exception) if span_dto.exception else None,
         # LINKS
         links=span_dto.encode(span_dto.links),
         # FULL TEXT SEARCH
