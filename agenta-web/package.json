@@ -52,7 +52,7 @@
         "ag-grid-react": "^31.2.0",
         "antd": "^5.20.6",
         "autoprefixer": "10.4.14",
-        "axios": "^1.4.0",
+        "axios": "^1.7.7",
         "classnames": "^2.3.2",
         "dayjs": "^1.11.10",
         "diff": "^5.2.0",
