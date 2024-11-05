@@ -399,7 +399,6 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
     litellm.openai_key = openai_api_key
     litellm.anthropic_api_key = anthropic_api_key
-    print(anthropic_api_key)
     if not openai_api_key:
         raise Exception(
             "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
@@ -1201,9 +1200,6 @@ async def similarity_match(input: EvaluatorInputInterface) -> EvaluatorOutputInt
     set2 = set(input.inputs["ground_truth"].split())
     intersect = set1.intersection(set2)
     union = set1.union(set2)
-    print(set1)
-    print(set2)
-    print(union)
 
     similarity = len(intersect) / len(union)
     is_similar = True if similarity > input.settings["similarity_threshold"] else False
