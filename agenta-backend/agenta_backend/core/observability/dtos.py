@@ -229,6 +229,7 @@ class OTelSpanDTO(BaseModel):
 class WindowingDTO(BaseModel):
     oldest: Optional[datetime] = None
     newest: Optional[datetime] = None
+    bucket: Optional[int] = None
 
 
 class LogicalOperator(Enum):
@@ -327,3 +328,24 @@ class QueryDTO(BaseModel):
     windowing: Optional[WindowingDTO] = None
     filtering: Optional[FilteringDTO] = None
     pagination: Optional[PaginationDTO] = None
+
+
+class AnalyticsDTO(BaseModel):
+    grouping: Optional[GroupingDTO] = None
+    windowing: Optional[WindowingDTO] = None
+    filtering: Optional[FilteringDTO] = None
+
+
+class MetricsDTO(BaseModel):
+    count: int
+    duration: float
+    cost: float
+    tokens: int
+
+
+class BucketDTO(BaseModel):
+    timestamp: datetime
+    timespan: int
+    total: MetricsDTO
+    error: MetricsDTO
+    success: MetricsDTO

@@ -8,6 +8,7 @@ from agenta_backend.core.observability.dtos import (
     SpanDTO,
     TreeDTO,
     RootDTO,
+    BucketDTO,
 )
 
 
@@ -58,3 +59,8 @@ class AgentaTreesResponse(VersionedModel, AgentaTreesDTO):
 
 class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
     count: Optional[int] = None
+
+
+class AnalyticsResponse(VersionedModel):
+    width: int
+    buckets: List[BucketDTO]

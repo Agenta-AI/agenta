@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 
 from agenta_backend.core.observability.service import ObservabilityService
-from agenta_backend.core.observability.dtos import QueryDTO
+from agenta_backend.core.observability.dtos import QueryDTO, AnalyticsDTO
 from agenta_backend.core.observability.utils import FilteringException
 
 from agenta_backend.apis.fastapi.shared.utils import handle_exceptions
@@ -13,6 +13,7 @@ from agenta_backend.apis.fastapi.observability.opentelemetry.otlp import (
 )
 from agenta_backend.apis.fastapi.observability.utils import (
     parse_query_dto,
+    parse_analytics_dto,
     parse_from_otel_span_dto,
     parse_to_otel_span_dto,
     parse_to_agenta_span_dto,
@@ -23,6 +24,7 @@ from agenta_backend.apis.fastapi.observability.models import (
     AgentaNodesResponse,
     AgentaTreesResponse,
     AgentaRootsResponse,
+    AnalyticsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
     AgentaRootDTO,
@@ -82,6 +84,17 @@ class ObservabilityRouter:
                 AgentaTreesResponse,
                 AgentaRootsResponse,
             ],
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/analytics",
+            self.query_analytics,
+            methods=["GET"],
+            operation_id="query_analytics",
+            summary="Query analytics, with optional grouping, windowing, filtering.",
+            status_code=status.HTTP_200_OK,
+            response_model=AnalyticsResponse,
             response_model_exclude_none=True,
         )
 
@@ -267,6 +280,29 @@ class ObservabilityRouter:
                 count=count,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
+
+    @handle_exceptions()
+    async def query_analytics(
+        self,
+        request: Request,
+        analytics_dto: AnalyticsDTO = Depends(parse_analytics_dto),
+    ):
+        try:
+            bucket_dtos, width = await self.service.analytics(
+                project_id=UUID(request.state.project_id),
+                analytics_dto=analytics_dto,
+            )
+        except FilteringException as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            ) from e
+
+        return AnalyticsResponse(
+            version=self.VERSION,
+            width=width,
+            buckets=bucket_dtos,
+        )
 
     ### MUTATIONS
 

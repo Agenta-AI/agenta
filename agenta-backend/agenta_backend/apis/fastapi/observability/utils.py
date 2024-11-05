@@ -31,6 +31,7 @@ from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     PaginationDTO,
     QueryDTO,
+    AnalyticsDTO,
 )
 
 
@@ -40,11 +41,12 @@ from agenta_backend.core.observability.dtos import (
 def _parse_windowing(
     oldest: Optional[str] = None,
     newest: Optional[str] = None,
+    bucket: Optional[int] = None,
 ) -> Optional[WindowingDTO]:
     _windowing = None
 
     if oldest or newest:
-        _windowing = WindowingDTO(oldest=oldest, newest=newest)
+        _windowing = WindowingDTO(oldest=oldest, newest=newest, bucket=bucket)
 
     return _windowing
 
@@ -86,9 +88,6 @@ def _parse_pagination(
     stop: Optional[str] = None,
 ) -> Optional[PaginationDTO]:
     _pagination = None
-
-    print("---------------------------------")
-    print(page, size, next, stop)
 
     if page and next:
         raise HTTPException(
@@ -141,6 +140,26 @@ def parse_query_dto(
         windowing=_parse_windowing(oldest=oldest, newest=newest),
         filtering=_parse_filtering(filtering=filtering),
         pagination=_parse_pagination(page=page, size=size, next=next, stop=stop),
+    )
+
+
+def parse_analytics_dto(
+    # GROUPING
+    # - Option 2: Flat query parameters
+    focus: Optional[str] = Query(None),
+    # WINDOWING
+    # - Option 2: Flat query parameters
+    oldest: Optional[str] = Query(None),
+    newest: Optional[str] = Query(None),
+    bucket: Optional[int] = Query(None),
+    # FILTERING
+    # - Option 1: Single query parameter as JSON
+    filtering: Optional[str] = Query(None),
+) -> AnalyticsDTO:
+    return AnalyticsDTO(
+        grouping=_parse_grouping(focus=focus),
+        windowing=_parse_windowing(oldest=oldest, newest=newest, bucket=bucket),
+        filtering=_parse_filtering(filtering=filtering),
     )
 
 

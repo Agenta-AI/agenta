@@ -1,8 +1,8 @@
 from typing import Optional, List, Tuple, Union
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, or_, not_, distinct, Column, func, cast
+from sqlalchemy import and_, or_, not_, distinct, Column, func, cast, text
 from sqlalchemy import TIMESTAMP, Enum, UUID as SQLUUID, Integer, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.future import select
@@ -16,7 +16,12 @@ from agenta_backend.dbs.postgres.observability.mappings import (
 )
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
-from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
+from agenta_backend.core.observability.dtos import (
+    QueryDTO,
+    SpanDTO,
+    AnalyticsDTO,
+    BucketDTO,
+)
 from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     ConditionDTO,
@@ -36,6 +41,19 @@ from agenta_backend.core.observability.utils import (
     _is_datetime_key,
     _is_string_key,
 )
+
+_DEFAULT_TIME_DELTA = timedelta(days=30)
+_DEFAULT_BUCKET = "1 hour"
+_MAX_ALLOWED_BUCKETS = 1024
+_SUGGESTED_BUCKET_LIST = [
+    (1, "1 minute"),
+    (5, "5 minutes"),
+    (15, "15 minutes"),
+    (30, "30 minutes"),
+    (60, "1 hour"),
+    (720, "12 hours"),
+    (1440, "1 day"),
+]
 
 
 class ObservabilityDAO(ObservabilityDAOInterface):
@@ -173,6 +191,238 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         except AttributeError as e:
             raise FilteringException(
                 "Failed to run query due to non-existent key(s)."
+            ) from e
+
+    async def analytics(
+        self,
+        *,
+        project_id: UUID,
+        analytics_dto: AnalyticsDTO,
+    ) -> Tuple[List[BucketDTO], Optional[int]]:
+        try:
+            async with engine.session() as session:
+                # WINDOWING
+                today = datetime.now(timezone.utc)
+                oldest = None
+                newest = None
+                bucket = None
+                # ---------
+                if analytics_dto.windowing:
+                    if analytics_dto.windowing.newest:
+                        newest = analytics_dto.windowing.newest
+                    else:
+                        newest = today
+
+                    if analytics_dto.windowing.oldest:
+                        if analytics_dto.windowing.oldest > newest:
+                            oldest = newest - _DEFAULT_TIME_DELTA
+                        else:
+                            oldest = analytics_dto.windowing.oldest
+                    else:
+                        oldest = newest - _DEFAULT_TIME_DELTA
+
+                    if analytics_dto.windowing.bucket:
+                        _desired_bucket = analytics_dto.windowing.bucket
+                    else:
+                        _desired_bucket = 1
+
+                    _window_minutes = (newest - oldest).total_seconds() // 60
+
+                    _desired_buckets = _window_minutes // _desired_bucket
+
+                    bucket = None
+
+                    if _desired_buckets > _MAX_ALLOWED_BUCKETS:
+                        for (
+                            _suggested_minutes,
+                            _suggest_bucket,
+                        ) in _SUGGESTED_BUCKET_LIST:
+                            _suggested_buckets = _window_minutes // _suggested_minutes
+
+                            if _suggested_buckets <= _MAX_ALLOWED_BUCKETS:
+                                bucket = _suggest_bucket
+                                break
+
+                        if not bucket:
+                            bucket = _SUGGESTED_BUCKET_LIST[-1][1]
+
+                    else:
+                        bucket = f"{_desired_bucket} minute{'s' if _desired_bucket > 1 else ''}"
+
+                else:
+                    newest = today
+                    oldest = newest - _DEFAULT_TIME_DELTA
+                    bucket = _DEFAULT_BUCKET
+
+                # ---------
+
+                # BASE QUERY
+                _count = func.count().label("count")  # pylint: disable=not-callable
+                _duration = func.sum(
+                    cast(
+                        InvocationSpanDBE.metrics["acc.duration.total"],
+                        Numeric,
+                    )
+                ).label("duration")
+                _cost = func.sum(
+                    cast(
+                        InvocationSpanDBE.metrics["acc.costs.total"],
+                        Numeric,
+                    )
+                ).label("cost")
+                _tokens = func.sum(
+                    cast(
+                        InvocationSpanDBE.metrics["acc.tokens.total"],
+                        Integer,
+                    )
+                ).label("tokens")
+                _bucket = func.date_bin(
+                    text(f"'{bucket}'"),
+                    InvocationSpanDBE.created_at,
+                    oldest,
+                ).label("bucket")
+                # ----------
+                no_error_query = select(
+                    _count,
+                    _duration,
+                    _cost,
+                    _tokens,
+                    _bucket,
+                ).select_from(InvocationSpanDBE)
+                error_query = select(
+                    _count,
+                    _duration,
+                    _cost,
+                    _tokens,
+                    _bucket,
+                ).select_from(InvocationSpanDBE)
+                # ----------
+
+                # WINDOWING
+                no_error_query = no_error_query.filter(
+                    InvocationSpanDBE.created_at >= oldest,
+                    InvocationSpanDBE.created_at < newest,
+                )
+                error_query = error_query.filter(
+                    InvocationSpanDBE.created_at >= oldest,
+                    InvocationSpanDBE.created_at < newest,
+                )
+                # ---------
+
+                # SCOPING
+                no_error_query = no_error_query.filter_by(
+                    project_id=project_id,
+                )
+                error_query = error_query.filter_by(
+                    project_id=project_id,
+                )
+                # -------
+
+                # SUCESS / FAILURE
+                no_error_query = no_error_query.filter(
+                    InvocationSpanDBE.exception.is_(None),
+                )
+                error_query = error_query.filter(
+                    InvocationSpanDBE.exception.isnot(None),
+                )
+                # ----------------
+
+                # GROUPING
+                grouping = analytics_dto.grouping
+                grouping_column: Optional[Column] = None
+                # --------
+                if grouping and grouping.focus.value != "node":
+                    grouping_column = getattr(
+                        InvocationSpanDBE, grouping.focus.value + "_id"
+                    )
+
+                    query = select(
+                        distinct(grouping_column).label("grouping_key"),
+                        InvocationSpanDBE.created_at,
+                    )
+                # --------
+
+                # FILTERING
+                filtering = analytics_dto.filtering
+                # ---------
+                if filtering:
+                    operator = filtering.operator
+                    conditions = filtering.conditions
+
+                    query = query.filter(
+                        _combine(
+                            operator,
+                            _filters(conditions),
+                        )
+                    )
+                # ---------
+
+                # SORTING
+                no_error_query = no_error_query.order_by("bucket").group_by("bucket")
+                error_query = error_query.order_by("bucket").group_by("bucket")
+                # -------
+
+                # DEBUGGING
+                # TODO: HIDE THIS BEFORE RELEASING
+                print(
+                    str(
+                        no_error_query.compile(
+                            dialect=postgresql.dialect(),
+                            compile_kwargs={"literal_binds": True},
+                        )
+                    )
+                )
+                print("...")
+                print(
+                    str(
+                        error_query.compile(
+                            dialect=postgresql.dialect(),
+                            compile_kwargs={"literal_binds": True},
+                        )
+                    )
+                )
+                # ---------
+
+                # QUERY EXECUTION
+                no_error_buckets = (
+                    (await session.execute(no_error_query)).scalars().all()
+                )
+                error_buckets = (await session.execute(error_query)).scalars().all()
+                # ---------------
+
+                print("---")
+                print(no_error_buckets)
+                print(error_buckets)
+
+                no_error_buckets = [
+                    BucketDTO(
+                        bucket=bucket.bucket,
+                        count=bucket.count,
+                        duration=bucket.duration,
+                        cost=bucket.cost,
+                        tokens=bucket.tokens,
+                    )
+                    for bucket in no_error_buckets
+                ]
+
+                error_buckets = [
+                    BucketDTO(
+                        bucket=bucket.bucket,
+                        count=bucket.count,
+                        duration=bucket.duration,
+                        cost=bucket.cost,
+                        tokens=bucket.tokens,
+                    )
+                    for bucket in error_buckets
+                ]
+
+                print(no_error_buckets)
+                print(error_buckets)
+
+            return None  # [map_span_dbe_to_dto(span) for span in spans], count
+        except AttributeError as e:
+            raise FilteringException(
+                "Failed to run analytics due to non-existent key(s)."
             ) from e
 
     async def create_one(
