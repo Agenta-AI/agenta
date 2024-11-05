@@ -575,7 +575,6 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         )
 
         if span_dbe:
-
             # COULD BE REPLACED WITH A CASCADE
             children_dbes = await self.read_children(
                 project_id=project_id,
@@ -608,7 +607,6 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         if span_dbes:
             for span_dbe in span_dbes:
-
                 # COULD BE REPLACED WITH A CASCADE
                 children_dbes = await self.read_children(
                     project_id=project_id,
