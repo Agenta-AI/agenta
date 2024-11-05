@@ -340,6 +340,18 @@ def _parse_from_semconv(
 
                     del attributes[old_key]
 
+            for dynamic_key in CODEX["keys"]["attributes"]["dynamic"]["from"]:
+                if old_key == dynamic_key:
+                    try:
+                        new_key, new_value = CODEX["maps"]["attributes"]["dynamic"][
+                            "from"
+                        ][dynamic_key](value)
+
+                        attributes[new_key] = new_value
+
+                    except:  # pylint: disable=bare-except
+                        pass
+
 
 def _parse_from_links(
     otel_span_dto: OTelSpanDTO,
@@ -516,7 +528,7 @@ def parse_from_otel_span_dto(
 
     exception = _parse_from_events(otel_span_dto)
 
-    root_id = refs.get("scenario.id", str(tree.id))
+    root_id = refs.get("scenario.id", str(tree.id)) if refs else str(tree.id)
 
     root = RootDTO(id=UUID(root_id))
 

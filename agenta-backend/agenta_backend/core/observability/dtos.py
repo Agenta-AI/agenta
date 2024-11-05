@@ -2,7 +2,6 @@ from typing import List, Dict, Any, Union, Optional
 from enum import Enum
 from datetime import datetime
 from uuid import UUID
-from json import loads
 
 from pydantic import BaseModel
 
@@ -83,12 +82,6 @@ class ExceptionDTO(BaseModel):
     message: Optional[str] = None
     stacktrace: Optional[str] = None
     attributes: Optional[Attributes] = None
-
-    class Config:
-        json_encoders = {datetime: lambda dt: dt.isoformat()}
-
-    def to_json(self) -> dict:
-        return loads(self.model_dump_json(exclude_none=True))
 
 
 Data = Dict[str, Any]

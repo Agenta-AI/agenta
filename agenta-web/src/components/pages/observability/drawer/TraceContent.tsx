@@ -156,14 +156,14 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                                   ))
                                                 : null
                                         } else {
-                                            return (
+                                            return Array.isArray(values) && values.length > 0 ? (
                                                 <AccordionTreePanel
                                                     key={key}
                                                     label="tools"
                                                     value={values as any[]}
                                                     enableFormatSwitcher
                                                 />
-                                            )
+                                            ) : null
                                         }
                                     },
                                 )
@@ -254,7 +254,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             {activeTrace.node.name}
                         </Typography.Text>
 
-                        <Space>
+                        {/* <Space>
                             {!activeTrace.parent && activeTrace.refs?.application?.id && (
                                 <Button
                                     className="flex items-center"
@@ -268,7 +268,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                 <Database size={14} />
                                 Add to testset
                             </Button>
-                        </Space>
+                        </Space> */}
                     </div>
                     <Divider className="m-0" />
                 </div>

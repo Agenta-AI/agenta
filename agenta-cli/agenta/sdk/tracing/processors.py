@@ -16,7 +16,6 @@ from agenta.sdk.utils.logging import log
 
 
 class TraceProcessor(BatchSpanProcessor):
-
     def __init__(
         self,
         span_exporter: SpanExporter,

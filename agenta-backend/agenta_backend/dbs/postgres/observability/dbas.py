@@ -43,28 +43,28 @@ class TimeDBA:
 class StatusDBA:
     __abstract__ = True
 
-    status = Column(JSONB, nullable=True)
+    status = Column(JSONB(none_as_null=True), nullable=True)
 
 
 class AttributesDBA:
     __abstract__ = True
 
-    data = Column(JSONB, nullable=True)
-    metrics = Column(JSONB, nullable=True)
-    meta = Column(JSONB, nullable=True)
-    refs = Column(JSONB, nullable=True)
+    data = Column(JSONB(none_as_null=True), nullable=True)
+    metrics = Column(JSONB(none_as_null=True), nullable=True)
+    meta = Column(JSONB(none_as_null=True), nullable=True)
+    refs = Column(JSONB(none_as_null=True), nullable=True)
 
 
 class EventsDBA:
     __abstract__ = True
 
-    exception = Column(JSONB, nullable=True)
+    exception = Column(JSONB(none_as_null=True), nullable=True)
 
 
 class LinksDBA:
     __abstract__ = True
 
-    links = Column(JSONB, nullable=True)
+    links = Column(JSONB(none_as_null=True), nullable=True)
 
 
 class FullTextSearchDBA:
@@ -76,7 +76,7 @@ class FullTextSearchDBA:
 class OTelDBA:
     __abstract__ = True
 
-    otel = Column(JSONB, nullable=False)
+    otel = Column(JSONB(none_as_null=True), nullable=True)
 
 
 class SpanDBA(
