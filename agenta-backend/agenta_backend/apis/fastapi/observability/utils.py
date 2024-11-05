@@ -3,6 +3,9 @@ from uuid import UUID
 from collections import OrderedDict
 from json import loads, JSONDecodeError, dumps
 from copy import copy
+from datetime import datetime
+
+from pydantic import BaseModel
 
 from fastapi import Query, HTTPException
 
@@ -24,6 +27,8 @@ from agenta_backend.core.observability.dtos import (
     OTelSpanDTO,
     OTelContextDTO,
     OTelLinkDTO,
+    BucketDTO,
+    MetricsDTO,
 )
 from agenta_backend.core.observability.dtos import (
     GroupingDTO,
@@ -35,7 +40,7 @@ from agenta_backend.core.observability.dtos import (
 )
 
 
-# --- PARSE QUERY DTO ---
+# --- PARSE QUERY / ANALYTICS DTO ---
 
 
 def _parse_windowing(
@@ -340,18 +345,6 @@ def _parse_from_semconv(
 
                     del attributes[old_key]
 
-            for dynamic_key in CODEX["keys"]["attributes"]["dynamic"]["from"]:
-                if old_key == dynamic_key:
-                    try:
-                        new_key, new_value = CODEX["maps"]["attributes"]["dynamic"][
-                            "from"
-                        ][dynamic_key](value)
-
-                        attributes[new_key] = new_value
-
-                    except:  # pylint: disable=bare-except
-                        pass
-
 
 def _parse_from_links(
     otel_span_dto: OTelSpanDTO,
@@ -528,7 +521,7 @@ def parse_from_otel_span_dto(
 
     exception = _parse_from_events(otel_span_dto)
 
-    root_id = refs.get("scenario.id", str(tree.id)) if refs else str(tree.id)
+    root_id = refs.get("scenario.id", str(tree.id))
 
     root = RootDTO(id=UUID(root_id))
 
@@ -774,3 +767,74 @@ def parse_to_agenta_span_dto(
     # ----------------------
 
     return span_dto
+
+
+# --- PARSE BUCKET DTO ---
+
+
+class LegacySummary(BaseModel):
+    total_count: int
+    failure_rate: float
+    total_cost: float
+    avg_cost: float
+    avg_latency: float
+    total_tokens: int
+    avg_tokens: float
+
+
+class LegacyDataPoint(BaseModel):
+    timestamp: datetime
+    success_count: int
+    failure_count: int
+    cost: float
+    latency: float
+    total_tokens: int
+
+
+def parse_legacy_analytics(
+    bucket_dtos: List[BucketDTO],
+) -> Tuple[List[LegacyDataPoint], LegacySummary]:
+
+    data_points = list()
+
+    failure_count = 0
+    total_latency = 0.0
+
+    summary = LegacySummary(
+        total_count=0,
+        failure_rate=0.0,
+        total_cost=0.0,
+        avg_cost=0.0,
+        avg_latency=0.0,
+        total_tokens=0,
+        avg_tokens=0.0,
+    )
+
+    for bucket_dto in bucket_dtos:
+        data_point = LegacyDataPoint(
+            timestamp=bucket_dto.timestamp,
+            success_count=bucket_dto.total.count - bucket_dto.error.count,
+            failure_count=bucket_dto.error.count,
+            cost=bucket_dto.total.cost,
+            latency=bucket_dto.total.duration,
+            total_tokens=bucket_dto.total.tokens,
+        )
+
+        data_points.append(data_point)
+
+        summary.total_count += bucket_dto.total.count
+        summary.total_cost += bucket_dto.total.cost
+        summary.total_tokens += bucket_dto.total.tokens
+
+        failure_count += bucket_dto.error.count
+        total_latency += bucket_dto.total.duration
+
+    summary.failure_rate = (
+        failure_count / summary.total_count if summary.total_count else 0.0
+    )
+
+    summary.avg_cost = summary.total_cost / summary.total_count
+    summary.avg_latency = (total_latency / summary.total_count) / 1_000
+    summary.avg_tokens = summary.total_tokens / summary.total_count
+
+    return data_points, summary
