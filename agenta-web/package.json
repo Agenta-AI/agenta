@@ -48,7 +48,7 @@
         "@types/react-resizable": "^3.0.7",
         "@types/react-syntax-highlighter": "^15.5.7",
         "@types/uuid": "^9.0.7",
-        "ag-grid-community": "^31.2.0",
+        "ag-grid-community": "^32.3.2",
         "ag-grid-react": "^31.2.0",
         "antd": "^5.20.6",
         "autoprefixer": "10.4.14",
