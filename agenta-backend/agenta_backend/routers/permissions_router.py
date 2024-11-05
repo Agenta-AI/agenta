@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import Request, Query, HTTPException
 from fastapi.responses import JSONResponse
 
-from agenta_backend.utils.common import isCloudEE, APIRouter
+from agenta_backend.utils.common import isCloudEE, isOss, APIRouter
 from agenta_backend.services import db_manager
 
 if isCloudEE():
@@ -42,7 +42,7 @@ async def verify_permissions(
     resource_id: Optional[UUID] = Query(None),
 ):
     try:
-        if not isCloudEE():
+        if isOss():
             return Allow()
 
         if not action or not resource_type or not resource_id:
