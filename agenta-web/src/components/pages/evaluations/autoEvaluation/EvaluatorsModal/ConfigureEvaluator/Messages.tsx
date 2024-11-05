@@ -13,7 +13,10 @@ const useStyles = createUseStyles((theme: any) => ({
         border: `1px solid ${theme.colorBorder}`,
         borderRadius: theme.borderRadius,
         overflow: "hidden",
-        width: "100%",
+        width: "98% !important",
+    },
+    messageContainer: {
+        overflowX: "hidden",
     },
 }))
 
@@ -58,6 +61,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                             key={key}
                             gutter={8}
                             style={{marginBottom: 16, width: "100%", flexWrap: "nowrap"}}
+                            className={classes.messageContainer}
                         >
                             <Col style={{width: 110}}>
                                 <Form.Item
