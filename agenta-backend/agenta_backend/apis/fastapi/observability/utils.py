@@ -516,7 +516,7 @@ def parse_from_otel_span_dto(
 
     exception = _parse_from_events(otel_span_dto)
 
-    root_id = refs.get("scenario.id", str(tree.id))
+    root_id = refs.get("scenario.id", str(tree.id)) if refs else str(tree.id)
 
     root = RootDTO(id=UUID(root_id))
 
