@@ -63,12 +63,12 @@ class ObservabilityService:
         if analytics_dto.filtering:
             parse_filtering(analytics_dto.filtering)
 
-        bucket_dtos, width = await self.observability_dao.analytics(
+        bucket_dtos, count = await self.observability_dao.analytics(
             project_id=project_id,
             analytics_dto=analytics_dto,
         )
 
-        return bucket_dtos, width
+        return bucket_dtos, count
 
     async def ingest(
         self,

@@ -288,7 +288,7 @@ class ObservabilityRouter:
         analytics_dto: AnalyticsDTO = Depends(parse_analytics_dto),
     ):
         try:
-            bucket_dtos, width = await self.service.analytics(
+            bucket_dtos, count = await self.service.analytics(
                 project_id=UUID(request.state.project_id),
                 analytics_dto=analytics_dto,
             )
@@ -300,7 +300,7 @@ class ObservabilityRouter:
 
         return AnalyticsResponse(
             version=self.VERSION,
-            width=width,
+            count=count,
             buckets=bucket_dtos,
         )
 

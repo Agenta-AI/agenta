@@ -62,5 +62,5 @@ class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
 
 
 class AnalyticsResponse(VersionedModel):
-    width: int
+    count: Optional[int] = None
     buckets: List[BucketDTO]

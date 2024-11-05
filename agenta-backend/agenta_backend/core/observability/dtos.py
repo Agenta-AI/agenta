@@ -229,7 +229,7 @@ class OTelSpanDTO(BaseModel):
 class WindowingDTO(BaseModel):
     oldest: Optional[datetime] = None
     newest: Optional[datetime] = None
-    bucket: Optional[int] = None
+    window: Optional[int] = None
 
 
 class LogicalOperator(Enum):
@@ -337,15 +337,22 @@ class AnalyticsDTO(BaseModel):
 
 
 class MetricsDTO(BaseModel):
-    count: int
-    duration: float
-    cost: float
-    tokens: int
+    count: Optional[int] = 0
+    duration: Optional[float] = 0.0
+    cost: Optional[float] = 0.0
+    tokens: Optional[int] = 0
+
+    def plus(self, other: "MetricsDTO") -> "MetricsDTO":
+        self.count += other.count
+        self.duration += other.duration
+        self.cost += other.cost
+        self.tokens += other.tokens
+
+        return self
 
 
 class BucketDTO(BaseModel):
     timestamp: datetime
-    timespan: int
+    window: int
     total: MetricsDTO
     error: MetricsDTO
-    success: MetricsDTO
