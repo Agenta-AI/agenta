@@ -1,3 +1,4 @@
+from typing import List, Tuple
 from json import dumps
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
@@ -11,6 +12,8 @@ from agenta_backend.core.observability.dtos import (
     ExceptionDTO,
     OTelExtraDTO,
     SpanDTO,
+    MetricsDTO,
+    BucketDTO,
 )
 
 from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
@@ -119,3 +122,48 @@ def map_span_dto_to_dbe(
     )
 
     return span_dbe
+
+
+def map_bucket_dbes_to_dtos(
+    total_bucket_dbes: List[InvocationSpanDBE],
+    error_bucket_dbes: List[InvocationSpanDBE],
+    window: int,
+) -> Tuple[List[BucketDTO], int]:
+    total_metrics = {
+        bucket.timestamp: MetricsDTO(
+            count=bucket.count,
+            duration=bucket.duration,
+            cost=bucket.cost,
+            tokens=bucket.tokens,
+        )
+        for bucket in total_bucket_dbes
+    }
+
+    error_metrics = {
+        bucket.timestamp: MetricsDTO(
+            count=bucket.count,
+            duration=bucket.duration,
+            cost=bucket.cost,
+            tokens=bucket.tokens,
+        )
+        for bucket in error_bucket_dbes
+    }
+
+    total_timestamps = list(
+        set(list(total_metrics.keys()) + list(error_metrics.keys()))
+    )
+    total_timestamps.sort()
+
+    bucket_dtos = [
+        BucketDTO(
+            timestamp=timestamp,
+            window=window,
+            total=total_metrics.get(timestamp, MetricsDTO()),
+            error=error_metrics.get(timestamp, MetricsDTO()),
+        )
+        for timestamp in total_timestamps
+    ]
+
+    count = len(bucket_dtos)
+
+    return bucket_dtos, count

@@ -1,5 +1,6 @@
 from typing import Optional, List, Tuple, Union
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
+from traceback import print_exc
 from uuid import UUID
 
 from sqlalchemy import and_, or_, not_, distinct, Column, func, cast, text
@@ -13,6 +14,7 @@ from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
 from agenta_backend.dbs.postgres.observability.mappings import (
     map_span_dto_to_dbe,
     map_span_dbe_to_dto,
+    map_bucket_dbes_to_dtos,
 )
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
@@ -43,9 +45,9 @@ from agenta_backend.core.observability.utils import (
 )
 
 _DEFAULT_TIME_DELTA = timedelta(days=30)
-_DEFAULT_BUCKET = "1 hour"
+_DEFAULT_WINDOW = "15 minutes"
 _MAX_ALLOWED_BUCKETS = 1024
-_SUGGESTED_BUCKET_LIST = [
+_SUGGESTED_BUCKETS_LIST = [
     (1, "1 minute"),
     (5, "5 minutes"),
     (15, "15 minutes"),
@@ -188,7 +190,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------------
 
             return [map_span_dbe_to_dto(span) for span in spans], count
+
         except AttributeError as e:
+            print_exc()
+
             raise FilteringException(
                 "Failed to run query due to non-existent key(s)."
             ) from e
@@ -202,10 +207,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         try:
             async with engine.session() as session:
                 # WINDOWING
-                today = datetime.now(timezone.utc)
+                today = datetime.now()
                 oldest = None
                 newest = None
-                bucket = None
+                window_text = None
                 # ---------
                 if analytics_dto.windowing:
                     if analytics_dto.windowing.newest:
@@ -221,88 +226,124 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     else:
                         oldest = newest - _DEFAULT_TIME_DELTA
 
-                    if analytics_dto.windowing.bucket:
-                        _desired_bucket = analytics_dto.windowing.bucket
+                    if analytics_dto.windowing.window:
+                        _desired_window = analytics_dto.windowing.window
                     else:
-                        _desired_bucket = 1
+                        _desired_window = 15
 
                     _window_minutes = (newest - oldest).total_seconds() // 60
 
-                    _desired_buckets = _window_minutes // _desired_bucket
-
-                    bucket = None
+                    _desired_buckets = _window_minutes // _desired_window
 
                     if _desired_buckets > _MAX_ALLOWED_BUCKETS:
                         for (
                             _suggested_minutes,
-                            _suggest_bucket,
-                        ) in _SUGGESTED_BUCKET_LIST:
+                            _suggest_window_text,
+                        ) in _SUGGESTED_BUCKETS_LIST:
                             _suggested_buckets = _window_minutes // _suggested_minutes
 
                             if _suggested_buckets <= _MAX_ALLOWED_BUCKETS:
-                                bucket = _suggest_bucket
+                                window_text = _suggest_window_text
                                 break
 
-                        if not bucket:
-                            bucket = _SUGGESTED_BUCKET_LIST[-1][1]
+                        if not window_text:
+                            window_text = _SUGGESTED_BUCKETS_LIST[-1][1]
 
                     else:
-                        bucket = f"{_desired_bucket} minute{'s' if _desired_bucket > 1 else ''}"
+                        window_text = f"{_desired_window} minute{'s' if _desired_window > 1 else ''}"
 
                 else:
                     newest = today
                     oldest = newest - _DEFAULT_TIME_DELTA
-                    bucket = _DEFAULT_BUCKET
+                    window_text = _DEFAULT_WINDOW
 
                 # ---------
 
                 # BASE QUERY
                 _count = func.count().label("count")  # pylint: disable=not-callable
-                _duration = func.sum(
-                    cast(
-                        InvocationSpanDBE.metrics["acc.duration.total"],
-                        Numeric,
-                    )
-                ).label("duration")
-                _cost = func.sum(
-                    cast(
-                        InvocationSpanDBE.metrics["acc.costs.total"],
-                        Numeric,
-                    )
-                ).label("cost")
-                _tokens = func.sum(
-                    cast(
-                        InvocationSpanDBE.metrics["acc.tokens.total"],
-                        Integer,
-                    )
-                ).label("tokens")
-                _bucket = func.date_bin(
-                    text(f"'{bucket}'"),
+                _duration = None
+                _cost = None
+                _tokens = None
+                _timestamp = func.date_bin(
+                    text(f"'{window_text}'"),
                     InvocationSpanDBE.created_at,
                     oldest,
-                ).label("bucket")
+                ).label("timestamp")
                 # ----------
-                no_error_query = select(
+
+                # GROUPING
+                if (
+                    analytics_dto.grouping
+                    and analytics_dto.grouping.focus.value != "node"
+                ):
+                    _duration = func.sum(
+                        cast(
+                            InvocationSpanDBE.metrics["acc.duration.total"],
+                            Numeric,
+                        )
+                    ).label("duration")
+                    _cost = func.sum(
+                        cast(
+                            InvocationSpanDBE.metrics["acc.costs.total"],
+                            Numeric,
+                        )
+                    ).label("cost")
+                    _tokens = func.sum(
+                        cast(
+                            InvocationSpanDBE.metrics["acc.tokens.total"],
+                            Integer,
+                        )
+                    ).label("tokens")
+                elif not analytics_dto.grouping or (
+                    analytics_dto.grouping
+                    and analytics_dto.grouping.focus.value == "node"
+                ):
+                    _duration = func.sum(
+                        cast(
+                            InvocationSpanDBE.metrics["unit.duration.total"],
+                            Numeric,
+                        )
+                    ).label("duration")
+                    _cost = func.sum(
+                        cast(
+                            InvocationSpanDBE.metrics["unit.costs.total"],
+                            Numeric,
+                        )
+                    ).label("cost")
+                    _tokens = func.sum(
+                        cast(
+                            InvocationSpanDBE.metrics["unit.tokens.total"],
+                            Integer,
+                        )
+                    ).label("tokens")
+                else:
+                    raise ValueError("Unknown grouping focus.")
+                # --------
+
+                # BASE QUERY
+                total_query = select(
                     _count,
                     _duration,
                     _cost,
                     _tokens,
-                    _bucket,
+                    _timestamp,
                 ).select_from(InvocationSpanDBE)
+
                 error_query = select(
                     _count,
                     _duration,
                     _cost,
                     _tokens,
-                    _bucket,
+                    _timestamp,
                 ).select_from(InvocationSpanDBE)
                 # ----------
 
                 # WINDOWING
-                no_error_query = no_error_query.filter(
+                total_query = total_query.filter(
                     InvocationSpanDBE.created_at >= oldest,
                     InvocationSpanDBE.created_at < newest,
                 )
+
                 error_query = error_query.filter(
                     InvocationSpanDBE.created_at >= oldest,
                     InvocationSpanDBE.created_at < newest,
@@ -310,37 +351,20 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
 
                 # SCOPING
-                no_error_query = no_error_query.filter_by(
+                total_query = total_query.filter_by(
                     project_id=project_id,
                 )
+
                 error_query = error_query.filter_by(
                     project_id=project_id,
                 )
                 # -------
 
-                # SUCESS / FAILURE
-                no_error_query = no_error_query.filter(
-                    InvocationSpanDBE.exception.is_(None),
-                )
+                # TOTAL vs ERROR
                 error_query = error_query.filter(
                     InvocationSpanDBE.exception.isnot(None),
                 )
                 # ----------------
-
-                # GROUPING
-                grouping = analytics_dto.grouping
-                grouping_column: Optional[Column] = None
-                # --------
-                if grouping and grouping.focus.value != "node":
-                    grouping_column = getattr(
-                        InvocationSpanDBE, grouping.focus.value + "_id"
-                    )
-
-                    query = select(
-                        distinct(grouping_column).label("grouping_key"),
-                        InvocationSpanDBE.created_at,
-                    )
-                # --------
 
                 # FILTERING
                 filtering = analytics_dto.filtering
@@ -349,7 +373,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     operator = filtering.operator
                     conditions = filtering.conditions
 
-                    query = query.filter(
+                    total_query = total_query.filter(
+                        _combine(
+                            operator,
+                            _filters(conditions),
+                        )
+                    )
+
+                    error_query = error_query.filter(
                         _combine(
                             operator,
                             _filters(conditions),
@@ -357,16 +388,31 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     )
                 # ---------
 
+                # GROUPING
+                if (
+                    analytics_dto.grouping
+                    and analytics_dto.grouping.focus.value != "node"
+                ):
+                    total_query = total_query.filter_by(
+                        parent_id=None,
+                    )
+
+                    error_query = error_query.filter_by(
+                        parent_id=None,
+                    )
+                # --------
+
                 # SORTING
-                no_error_query = no_error_query.order_by("bucket").group_by("bucket")
-                error_query = error_query.order_by("bucket").group_by("bucket")
+                total_query = total_query.group_by("timestamp")
+
+                error_query = error_query.group_by("timestamp")
                 # -------
 
                 # DEBUGGING
                 # TODO: HIDE THIS BEFORE RELEASING
                 print(
                     str(
-                        no_error_query.compile(
+                        total_query.compile(
                             dialect=postgresql.dialect(),
                             compile_kwargs={"literal_binds": True},
                         )
@@ -384,43 +430,23 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
 
                 # QUERY EXECUTION
-                no_error_buckets = (
-                    (await session.execute(no_error_query)).scalars().all()
-                )
-                error_buckets = (await session.execute(error_query)).scalars().all()
+                total_bucket_dbes = (await session.execute(total_query)).all()
+                error_bucket_dbes = (await session.execute(error_query)).all()
                 # ---------------
 
-                print("---")
-                print(no_error_buckets)
-                print(error_buckets)
+                window = _to_minutes(window_text)
 
-                no_error_buckets = [
-                    BucketDTO(
-                        bucket=bucket.bucket,
-                        count=bucket.count,
-                        duration=bucket.duration,
-                        cost=bucket.cost,
-                        tokens=bucket.tokens,
-                    )
-                    for bucket in no_error_buckets
-                ]
+                bucket_dtos, count = map_bucket_dbes_to_dtos(
+                    total_bucket_dbes=total_bucket_dbes,
+                    error_bucket_dbes=error_bucket_dbes,
+                    window=window,
+                )
 
-                error_buckets = [
-                    BucketDTO(
-                        bucket=bucket.bucket,
-                        count=bucket.count,
-                        duration=bucket.duration,
-                        cost=bucket.cost,
-                        tokens=bucket.tokens,
-                    )
-                    for bucket in error_buckets
-                ]
+            return bucket_dtos, count
 
-                print(no_error_buckets)
-                print(error_buckets)
-
-            return None  # [map_span_dbe_to_dto(span) for span in spans], count
         except AttributeError as e:
+            print_exc()
+
             raise FilteringException(
                 "Failed to run analytics due to non-existent key(s)."
             ) from e
@@ -804,3 +830,23 @@ def _filters(filtering: FilteringDTO) -> list:
                     _conditions.append(attribute.is_(None))
 
     return _conditions
+
+
+def _to_minutes(
+    window_text: str,
+) -> int:
+    quantity, unit = window_text.split()
+    quantity = int(quantity)
+
+    if unit == "minute" or unit == "minutes":
+        return quantity
+    elif unit == "hour" or unit == "hours":
+        return quantity * 60
+    elif unit == "day" or unit == "days":
+        return quantity * 1440
+    elif unit == "week" or unit == "weeks":
+        return quantity * 10080
+    elif unit == "month" or unit == "months":
+        return quantity * 43200
+    else:
+        raise ValueError(f"Unknown time unit: {unit}")
