@@ -28,7 +28,7 @@
         "@heroicons/react": "^2.0.17",
         "@lobehub/icons": "^1.18.0",
         "@mdx-js/loader": "^2.3.0",
-        "@mdx-js/react": "^2.3.0",
+        "@mdx-js/react": "^3.1.0",
         "@monaco-editor/react": "^4.5.2",
         "@next/mdx": "^13.4.13",
         "@phosphor-icons/react": "^2.1.7",
