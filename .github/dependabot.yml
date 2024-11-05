@@ -1,6 +1,21 @@
 version: 2
 updates:
   - package-ecosystem: "pip"
-    directory: "/agenta-cli" # The directory where your pyproject.toml file is located
+    directory: "/agenta-backend"
     schedule:
-      interval: "daily" # Check for updates daily
+      interval: "daily"
+
+  - package-ecosystem: "pip"
+    directory: "/agenta-cli"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/agenta-web"
+    schedule:
+      interval: "daily"
+
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "daily"
