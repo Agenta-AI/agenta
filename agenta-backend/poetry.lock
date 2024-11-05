@@ -379,17 +379,17 @@ tests-no-zope = ["attrs[tests-mypy]", "cloudpickle", "hypothesis", "pympler", "p
 
 [[package]]
 name = "autoevals"
-version = "0.0.83"
+version = "0.0.101"
 description = "Universal library for evaluating AI models"
 optional = false
 python-versions = ">=3.8.0"
 files = [
-    {file = "autoevals-0.0.83-py3-none-any.whl", hash = "sha256:41cc0cec096ce8a1e194a58acda205a2bc5d6ec91c79ff5bee3f8ddc8e3ab525"},
-    {file = "autoevals-0.0.83.tar.gz", hash = "sha256:c184ba29ac9c5a3067a4dd83db87f49b05bc5bec88897d24f43b764c34421044"},
+    {file = "autoevals-0.0.101-py3-none-any.whl", hash = "sha256:64616bd8a7eb4f4a63e2853116455c7effe1d0abecd0c6107e510780b320a73c"},
+    {file = "autoevals-0.0.101.tar.gz", hash = "sha256:223d0d6fdf3099c7e0eff342b1bd394b11218d1e175a2893e4f7a068d417b014"},
 ]
 
 [package.dependencies]
-braintrust-core = "0.0.49"
+braintrust-core = "0.0.54"
 chevron = "*"
 jsonschema = "*"
 levenshtein = "*"
@@ -490,13 +490,13 @@ crt = ["awscrt (==0.19.19)"]
 
 [[package]]
 name = "braintrust-core"
-version = "0.0.49"
+version = "0.0.54"
 description = "Shared core dependencies for Braintrust packages"
 optional = false
 python-versions = ">=3.8.0"
 files = [
-    {file = "braintrust_core-0.0.49-py3-none-any.whl", hash = "sha256:4be2a5e82b3b123ada4c54e5052da474cb80b29eed5468c8a9f0759c8b7ca0b9"},
-    {file = "braintrust_core-0.0.49.tar.gz", hash = "sha256:13081970114ecf0d25e8a77047d93f394ea8fe82e43dc673597992679e0b9215"},
+    {file = "braintrust_core-0.0.54-py3-none-any.whl", hash = "sha256:8127a6440bd4aa0824a25b7547a4377ea8b57bd8daeca6650779c6d60eac936c"},
+    {file = "braintrust_core-0.0.54.tar.gz", hash = "sha256:2ba3d339dfdc14b3b10a1ff523eec18bcd3ae775c30a99093fbf224095f91603"},
 ]
 
 [[package]]
@@ -3540,4 +3540,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "b56f2926a2771325990d81f66ec249652ea7a922733635464706a2745aa9e109"
+content-hash = "b4c00c2ffaffe4a2a229d26b9957c75ecaa90206eddb9beccb2570452c2bee78"

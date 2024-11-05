@@ -40,7 +40,7 @@ sqlalchemy-json = "^0.7.0"
 tqdm = "^4.66.6"
 alembic = "^1.13.2"
 numpy = "1.26.3"
-autoevals = "^0.0.83"
+autoevals = "^0.0.101"
 supertokens-python = "^0.24.2"
 
 [tool.poetry.group.dev.dependencies]
