@@ -22,12 +22,23 @@ async def test_configs_delete_success(get_app_by_name):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
-    response = await test_client.delete(
+    response = await test_client.post(
         "/api/variants/configs/delete",
-        params={"variant_slug": "from_pytest_for_deletion", "app_slug": app.app_name},
+        json={
+            "variant_ref": {
+                "slug": "from_pytest_for_deletion",
+                "version": None,
+                "id": None,
+            },
+            "application_ref": {
+                "slug": app.app_name,
+                "version": None,
+                "id": None,
+            },
+        },
     )
-    assert response.status_code == status.HTTP_200_OK
-    assert "Variant deleted successfully." in response.json()
+    assert response.status_code == 200
+    assert status.HTTP_204_NO_CONTENT == response.json()
 
 
 @pytest.mark.asyncio
@@ -35,9 +46,20 @@ async def test_configs_delete_not_found(get_app_by_name):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
-    response = await test_client.delete(
+    response = await test_client.post(
         "/api/variants/configs/delete",
-        params={"variant_slug": "non-existent-variant", "app_slug": app.app_name},
+        json={
+            "variant_ref": {
+                "slug": "non-existent-variant",
+                "version": None,
+                "id": None,
+            },
+            "application_ref": {
+                "slug": app.app_name,
+                "version": None,
+                "id": None,
+            },
+        },
     )
     assert response.status_code == status.HTTP_404_NOT_FOUND
     assert "Variant does not exist." in response.json()["detail"]

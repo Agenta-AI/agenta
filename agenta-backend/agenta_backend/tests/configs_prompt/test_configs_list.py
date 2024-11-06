@@ -22,10 +22,15 @@ async def test_configs_list_success(get_app_by_name):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
-    response = await test_client.get(
+    response = await test_client.post(
         "/api/variants/configs/list",
-        params={"app_slug": app.app_name},
+        json={
+            "slug": app.app_name,
+            "version": None,
+            "id": None,
+        },
     )
+    print("Response: ", response.json())
 
     assert response.status_code == status.HTTP_200_OK
     assert isinstance(response.json(), list)
@@ -37,10 +42,16 @@ async def test_configs_list_not_found(get_app_by_name):
     app = await get_app_by_name
     assert app is not None, "App with name :test_prompt_client not found."
 
-    response = await test_client.get(
+    response = await test_client.post(
         "/api/variants/configs/list",
-        params={"app_slug": "non_existing_app"},
+        json={
+            "slug": "non_existent_app",
+            "version": None,
+            "id": None,
+        },
     )
 
-    assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert "App with name non_existing_app not found." in response.json()["detail"]
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert (
+        "No configs found for the specified application." in response.json()["detail"]
+    )
