@@ -37,6 +37,12 @@ Agenta's observability features are built on **OpenTelemetry (OTel)**, an open-s
 - **Proven Reliability**: Use a mature and actively maintained SDK that's trusted in the industry.
 - **Ease of Integration**: If you're familiar with OTel, you already know how to instrument your app with Agenta. No new concepts or syntax to learn—Agenta uses familiar OTel concepts like traces and spans.
 
+## Key Concepts
+
+**Traces**: A trace represents the complete journey of a request through your application. In our context, a trace corresponds to a single request to your LLM application.
+
+**Spans**: A span is a unit of work within a trace. Spans can be nested, forming a tree-like structure. The root span represents the overall operation, while child spans represent sub-operations. Agenta enriches each span with cost information and metadata when you make LLM calls.
+
 ## Next Steps
 
 <section className='row'>
