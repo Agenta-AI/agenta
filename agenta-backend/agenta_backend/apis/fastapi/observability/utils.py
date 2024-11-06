@@ -924,7 +924,7 @@ def parse_legacy_analytics(
         total_latency += bucket_dto.total.duration if bucket_dto.total.duration else 0.0
 
     if summary.total_count:
-        summary.failure_rate = total_failure / summary.total_count
+        summary.failure_rate = (total_failure / summary.total_count) * 100
 
         summary.avg_cost = summary.total_cost / summary.total_count
         summary.avg_latency = (total_latency / summary.total_count) / 1_000
