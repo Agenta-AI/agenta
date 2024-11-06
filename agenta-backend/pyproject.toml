@@ -29,7 +29,7 @@ kubernetes = "^28.1.0"
 celery = "^5.3.6"
 watchdog = {extras = ["watchmedo"], version = "^3.0.0"}
 beanie = "^1.25.0"
-newrelic = "^9.8.0"
+newrelic = "^10.2.0"
 aioboto3 = "^12.4.0"
 openai = "^1.30.4"
 sqlalchemy = "^2.0.30"
