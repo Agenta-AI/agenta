@@ -689,7 +689,7 @@ async def configs_commit(
 ):
     config = await commit_config(  # type: ignore
         project_id=request.state.project_id,
-        config=config,  # type: ignore
+        config=config.config,  # type: ignore
         user_id=request.state.user_id,
     )
 
@@ -764,7 +764,7 @@ async def configs_list(
 ):
     configs = await list_configs(
         project_id=request.state.project_id,
-        application_ref=application_ref,  # type: ignore
+        application_ref=application_ref.application_ref,  # type: ignore
         user_id=request.state.user_id,
     )
 
