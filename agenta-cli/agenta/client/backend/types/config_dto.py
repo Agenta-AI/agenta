@@ -2,16 +2,20 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-import datetime as dt
+from .reference_dto import ReferenceDto
+from .lifecycle_dto import LifecycleDto
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class LifecycleDto(UniversalBaseModel):
-    deployed_at: typing.Optional[dt.datetime] = None
-    deployed_by: typing.Optional[str] = None
-    committed_by: typing.Optional[str] = None
-    committed_at: typing.Optional[dt.datetime] = None
+class ConfigDto(UniversalBaseModel):
+    params: typing.Dict[str, typing.Optional[typing.Any]]
+    url: typing.Optional[str] = None
+    application_ref: typing.Optional[ReferenceDto] = None
+    service_ref: typing.Optional[ReferenceDto] = None
+    variant_ref: typing.Optional[ReferenceDto] = None
+    environment_ref: typing.Optional[ReferenceDto] = None
+    lifecycle: typing.Optional[LifecycleDto] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

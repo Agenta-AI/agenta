@@ -8,6 +8,7 @@ from .app_variant_revision import AppVariantRevision
 from .base_output import BaseOutput
 from .body_import_testset import BodyImportTestset
 from .config_db import ConfigDb
+from .config_dto import ConfigDto
 from .config_response_model import ConfigResponseModel
 from .correct_answer import CorrectAnswer
 from .create_app_output import CreateAppOutput
@@ -87,6 +88,7 @@ __all__ = [
     "BaseOutput",
     "BodyImportTestset",
     "ConfigDb",
+    "ConfigDto",
     "ConfigResponseModel",
     "CorrectAnswer",
     "CreateAppOutput",
