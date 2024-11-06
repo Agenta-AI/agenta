@@ -262,10 +262,16 @@ async def fetch_app_variant_revision_by_variant(
 
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppVariantRevisionsDB).filter_by(
+            select(AppVariantRevisionsDB)
+            .filter_by(
                 variant_id=uuid.UUID(app_variant_id),
                 project_id=uuid.UUID(project_id),
                 revision=revision,
+            )
+            .options(
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                    UserDB.email, UserDB.username
+                )
             )
         )
         app_variant_revision = result.scalars().first()
@@ -703,7 +709,9 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
         return deployment
 
 
-async def list_app_variants_for_app_id(app_id: str, project_id: str):
+async def list_app_variants_for_app_id(
+    app_id: str, project_id: str
+) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db
 
@@ -718,15 +726,17 @@ async def list_app_variants_for_app_id(app_id: str, project_id: str):
     assert app_id is not None, "app_id cannot be None"
     async with db_engine.get_session() as session:
         result = await session.execute(
-            select(AppVariantDB).filter_by(
-                app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
-            )
+            select(AppVariantDB)
+            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
+            .options(joinedload(AppVariantDB.app))
         )
         app_variants = result.scalars().all()
         return app_variants
 
 
-async def list_app_variants_by_app_slug(app_slug: str, project_id: str):
+async def list_app_variants_by_app_slug(
+    app_slug: str, project_id: str
+) -> List[AppVariantDB]:
     """List all the app variants for the specified app_slug
 
     Args:
@@ -749,9 +759,12 @@ async def list_app_variants_by_app_slug(app_slug: str, project_id: str):
             select(AppVariantDB)
             .filter_by(app_id=app_db.id)
             .options(
+                joinedload(AppVariantDB.app),
                 load_only(
-                    AppVariantDB.id, AppVariantDB.config_name, AppVariantDB.revision  # type: ignore
-                )
+                    AppVariantDB.id,
+                    AppVariantDB.config_name,
+                    AppVariantDB.revision,  # type: ignore
+                ),
             )
         )
         variants = result.scalars().all()
@@ -1634,7 +1647,7 @@ async def create_environment_revision(
 
 async def list_app_variant_revisions_by_variant(
     app_variant: AppVariantDB, project_id: str
-):
+) -> List[AppVariantRevisionsDB]:
     """Returns list of app variant revision for the given app variant
 
     Args:
@@ -1646,15 +1659,20 @@ async def list_app_variant_revisions_by_variant(
     """
 
     async with db_engine.get_session() as session:
-        base_query = select(AppVariantRevisionsDB).filter_by(
-            variant_id=app_variant.id, project_id=uuid.UUID(project_id)
-        )
-        if isCloudEE():
-            base_query = base_query.options(
-                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
-                    UserDB.username
-                )  # type: ignore
+        base_query = (
+            select(AppVariantRevisionsDB)
+            .filter_by(variant_id=app_variant.id, project_id=uuid.UUID(project_id))
+            .options(
+                joinedload(AppVariantRevisionsDB.variant_revision)
+                .joinedload(AppVariantDB.app)
+                .load_only(AppDB.app_name)
             )
+            .options(
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                    UserDB.username, UserDB.email
+                )
+            )
+        )
 
         result = await session.execute(base_query)
         app_variant_revisions = result.scalars().all()
