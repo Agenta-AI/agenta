@@ -275,11 +275,9 @@ class entrypoint(BaseDecorator):
                 },
                 variant={
                     "slug": kwargs.get("config"),
-                    "version": kwargs.get("version"),
                 },
                 environment={
                     "slug": kwargs.get("environment"),
-                    "version": kwargs.get("version"),
                 },
             ):
                 entrypoint_result = await self.execute_function(
