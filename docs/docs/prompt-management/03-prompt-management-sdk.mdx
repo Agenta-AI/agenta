@@ -62,20 +62,25 @@ To create a new variant, use the `VariantManager.create_variant` method.
 from agenta import Prompt
 
 # Prompt is a pydantic BaseModel, for additional validation
-my_prompt = Prompt(temperature=0.6,
-       model="gpt-3.5-turbo",
-       max_tokens=150,
-       prompt=[{"role": "system", "content": "You are an assistant that provides concise answers"},
-                {"role": "user", "content": "Explain {topic} in simple terms"}],
-       top_p=1.0,
-       frequency_penalty=0.0,
-       presence_penalty=0.0 )
+my_prompt = Prompt(
+    temperature=0.7,
+    model="gpt-3.5-turbo",
+    max_tokens=150,
+    prompt=[
+        {"role": "system", "content": "You are an assistant that provides concise answers"},
+        {"role": "user", "content": "Explain {topic} in simple terms"}
+    ],
+    top_p=1.0,
+    frequency_penalty=0.0,
+    presence_penalty=0.0
+)
 
 # Create a new variant
 variant = ag.VariantManager.create_variant(
-    app_slug="my-app",
-    variant_slug="new-variant",
-    config_parameters=my_prompt.dict()
+    parameters=my_prompt.model_dump(),
+    app_slug="my-app-slug",
+    # app_id="my-app-id",  # you can also use `app_id`
+    variant_slug="my-variant-slug",
 )
 
 print("Created variant:")
@@ -87,7 +92,7 @@ This command will create a new variant and initialize it with the first commit c
 - **Parameters:**
   - `app_slug`: The slug of your application.
   - `variant_slug`: The slug of the new variant.
-  - `config_parameters`: A dictionary containing the initial configuration parameters.
+  - `parameters`: A dictionary containing the initial configuration parameters.
 
 **Note:** If a variant with the same `slug` and `version` already exists, the SDK will raise an exception.
 
@@ -96,21 +101,24 @@ This command will create a new variant and initialize it with the first commit c
 ```python
 Created variant:
 {
-    'app_slug': 'my-app',
-    'variant_slug': 'new-variant',
+    'parameters': {
+        'temperature': 0.7,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
     'variant_version': 1,
-    'config': {
-        'parameters': {
-            'temperature': 0.7,
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 150,
-            'prompt_system': 'You are an assistant that provides concise answers.',
-            'prompt_user': 'Explain {topic} in simple terms.',
-            'top_p': 1.0,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0
-        }
-    }
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
 }
 ```
 
@@ -119,20 +127,24 @@ Created variant:
 To save changes to a variant (creating a new version), use the `VariantManager.commit_variant` method with explicit parameters.
 
 ```python
-my_prompt2 = Prompt(temperature=1.0,
-                    model="gpt-4",
-                    max_tokens=150,
-                    prompt=[{"role": "system", "content": "You are an assistant that provides concise answers"},
-                                {"role": "user", "content": "Explain {topic} in simple terms"}],
-                    top_p=1.0,
-                    frequency_penalty=0.0,
-                    presence_penalty=0.0 )
+my_prompt2 = Prompt(
+    temperature=1.0,
+    model="gpt-4",
+    max_tokens=150,
+    prompt=[
+        {"role": "system", "content": "You are an assistant that provides concise answers"},
+        {"role": "user", "content": "Explain {topic} in simple terms"}
+    ],
+    top_p=1.0,
+    frequency_penalty=0.0,
+    presence_penalty=0.0
+)
 
 # Commit the new version
 variant = ag.VariantManager.commit_variant(
-    app_slug="my-app",
-    variant_slug="new-variant",
-    config_parameters=my_prompt2.dict()
+    parameters=my_prompt2.model_dump(),
+    app_slug="my-app-slug",
+    variant_slug="my-variant-slug",
 )
 
 print("Committed new version of variant:")
@@ -148,21 +160,24 @@ Each commit creates a new version of the variant. Versions are immutable once cr
 ```python
 Committed new version of variant:
 {
-    'app_slug': 'my-app',
-    'variant_slug': 'new-variant',
-    'variant_version': 2,
-    'config': {
-        'parameters': {
-            'temperature': 0.9,
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 150,
-            'prompt_system': 'You are an assistant that provides concise answers.',
-            'prompt_user': 'Explain {topic} in simple terms.',
-            'top_p': 1.0,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0
-        }
+    'parameters': {
+        'temperature': 1.0,
+        'model': 'gpt-4',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
     }
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'updated-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 2,
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
 }
 ```
 
@@ -173,8 +188,9 @@ To deploy a variant to an environment, use the `DeploymentManager.deploy_variant
 ```python
 # Deploy the variant to the staging environment
 deployment = ag.DeploymentManager.deploy_variant(
-    app_slug="my-app",
-    variant_slug="new-variant",
+    app_slug="my-app-slug",
+    # app_id="my-app-id",  # you can also use `app_id`
+    variant_slug="my-variant-slug",
     variant_version=None,  # Optional: If not provided, deploys the latest version
     environment_slug="staging"
 )
@@ -194,14 +210,27 @@ print(deployment)
 ```python
 Deployed variant to environment:
 {
-    'app_slug': 'my-app',
-    'variant_slug': 'new-variant',
-    'variant_version': 2,
+    'parameters': {
+        'temperature': 0.7,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 1,
+    'environment_id': 'staging-enviroment-id',
     'environment_slug': 'staging',
-    'deployment_info': {
-        'deployed_at': '2023-10-02T12:30:00Z',
-        'deployed_by': 'user@example.com'
-    }
+    'environment_version': 1,
+    'deployed_at': 'current-datetime',
+    'deployed_by': 'my-email-address',
+    'deployed_by_id': 'my-user-id',
 }
 ```
 
@@ -216,7 +245,8 @@ If you don't provide either `variant` or `environment` identifiers, the SDK fetc
 ```python
 # Fetch configuration from the latest version in production (default)
 config = ag.ConfigManager.get_from_registry(
-    app_slug="my-app"
+    app_slug="my-app-slug"
+    # app_id="my-app-id",  # you can also use `app_id`
 )
 
 print("Fetched configuration from production:")
@@ -228,8 +258,9 @@ print(config)
 ```python
 # Fetch configuration by variant
 config = ag.ConfigManager.get_from_registry(
-    app_slug="my-app",
-    variant_slug="new-variant",
+    app_slug="my-app-slug",
+    # app_id="my-app-id",  # you can also use `app_id`
+    variant_slug="my-variant-slug",
     variant_version=2  # Optional: If not provided, fetches the latest version
 )
 
@@ -242,21 +273,24 @@ print(config)
 ```python
 Fetched configuration:
 {
-    'app_slug': 'my-app',
-    'variant_slug': 'new-variant',
-    'variant_version': 2,
-    'config': {
-        'parameters': {
-            'temperature': 0.9,
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 150,
-            'prompt_system': 'You are an assistant that provides concise answers.',
-            'prompt_user': 'Explain {topic} in simple terms.',
-            'top_p': 1.0,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0
-        }
+    'parameters': {
+        'temperature': 1.0,
+        'model': 'gpt-4',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
     }
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'updated-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 2,
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
 }
 ```
 
@@ -267,6 +301,7 @@ Fetched configuration:
 config = ag.ConfigManager.get_from_registry(
     app_slug="my-app",
     environment_slug="staging"
+    environment_version=1  # Optional: If not provided, fetches the latest version
 )
 
 print("Fetched configuration from staging:")
@@ -278,22 +313,27 @@ print(config)
 ```python
 Fetched configuration from staging:
 {
-    'app_slug': 'my-app',
-    'variant_slug': 'new-variant',
-    'variant_version': 2,
+    'parameters': {
+        'temperature': 0.7,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 1,
+    'environment_id': 'staging-enviroment-id',
     'environment_slug': 'staging',
-    'config': {
-        'parameters': {
-            'temperature': 0.9,
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 150,
-            'prompt_system': 'You are an assistant that provides concise answers.',
-            'prompt_user': 'Explain {topic} in simple terms.',
-            'top_p': 1.0,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0
-        }
-    }
+    'environment_version': 1,
+    'deployed_at': 'current-datetime',
+    'deployed_by': 'my-email-address',
+    'deployed_by_id': 'my-user-id',
 }
 ```
 
@@ -305,6 +345,7 @@ To delete a variant, use the `VariantManager.delete_variant` method.
 # Delete a variant
 ag.VariantManager.delete_variant(
     app_slug="my-app",
+    # app_id="my-app-id",  # you can also use `app_id`
     variant_slug="obsolete-variant"
 )
 
@@ -314,7 +355,7 @@ print("Variant deleted successfully.")
 :::warning
 
 - Deleting a variant removes all versions of the variant. This action is irreversible.
-- Attempting to delete a variant that is deployed to an environment will raise an exception.
+- Attempting to delete a variant that is deployed to an environment will fail.
   :::
 
 ## Listing All Variants
@@ -323,7 +364,10 @@ To list all variants of an application, use the `VariantManager.list_variants` m
 
 ```python
 # List all variants
-variants = ag.VariantManager.list_variants(app_slug="my-app")
+variants = ag.VariantManager.list_variants(
+    app_slug="my-app"
+    # app_id="my-app-id",  # you can also use `app_id`
+)
 
 print("List of variants:")
 for variant in variants:
@@ -335,26 +379,119 @@ for variant in variants:
 ```python
 List of variants:
 {
-    'variant_slug': 'new-variant',
-    'versions': [1, 2],
-    'latest_version': 2
+    'parameters': {
+        'temperature': 1.0,
+        'model': 'gpt-4',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    }
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'updated-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 2,
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
 }
 {
-    'variant_slug': 'another-variant',
-    'versions': [1],
-    'latest_version': 1
+    'parameters': {
+        'temperature': 0.5,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 100,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    }
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'another-variant-id',
+    'variant_slug': 'another-variant-slug',
+    'variant_version': 1,
+    'committed_at': 'another-datetime',
+    'committed_by': 'another-email-address',
+    'committed_by_id': 'another-user-id',
+}
+```
+
+## Fetching a Variant's history
+
+To list all versions for a variant of an application, use the `VariantManager.list_variants` method.
+
+```python
+# List all variants
+variants = ag.VariantManager.list_variants(
+    app_slug="my-app"
+    # app_id="my-app-id",  # you can also use `app_id`
+)
+
+print("List of variants:")
+for variant in variants:
+    print(variant)
+```
+
+**Sample Output:**
+
+```python
+List of variants:
+{
+    'parameters': {
+        'temperature': 1.0,
+        'model': 'gpt-4',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    }
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'updated-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 2,
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
+}
+{
+    'parameters': {
+        'temperature': 0.5,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 100,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    }
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'another-variant-id',
+    'variant_slug': 'another-variant-slug',
+    'variant_version': 1,
+    'committed_at': 'another-datetime',
+    'committed_by': 'another-email-address',
+    'committed_by_id': 'another-user-id',
 }
 ```
 
 ## Asynchronous Operations
 
-If your application uses asynchronous programming, you can use the async versions of the methods.
+If your application uses asynchronous programming, you can use the async versions of the methods (see the `a` prefix in the function name).
 
 ```python
 # Asynchronous fetching of configuration
-config = await ag.ConfigManager.async_get_from_registry(
+config = await ag.ConfigManager.aget_from_registry(
     app_slug="my-app",
-    variant_slug="new-variant",
+    # app_id="my-app-id",  # you can also use `app_id`
+    variant_slug="my-variant-slug",
     variant_version=2
 )
 
