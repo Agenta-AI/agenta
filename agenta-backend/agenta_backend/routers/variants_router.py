@@ -529,13 +529,13 @@ from agenta_backend.services.variants_manager import (
 
 from agenta_backend.services.variants_manager import (
     add_config,
-    delete_config,
     fetch_config_by_variant_ref,
     fetch_config_by_environment_ref,
     fork_config_by_variant_ref,
     fork_config_by_environment_ref,
     commit_config,
     deploy_config,
+    delete_config,
     list_configs,
     history_configs,
 )
@@ -673,6 +673,7 @@ async def configs_fork(
     operation_id="configs_commit",
     response_model=ConfigResponseModel,
 )
+@handle_exceptions()
 async def configs_commit(
     request: Request,
     config: ConfigRequestModel,
@@ -697,6 +698,7 @@ async def configs_commit(
     operation_id="configs_deploy",
     response_model=ConfigResponseModel,
 )
+@handle_exceptions()
 async def configs_deploy(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -721,70 +723,11 @@ async def configs_deploy(
 
 
 @router.post(
-    "/configs/list",
-    operation_id="configs_list",
-    response_model=List[ConfigResponseModel],
-)
-async def configs_list(
-    request: Request,
-    application_ref: ReferenceRequestModel,
-):
-    try:
-        configs = await list_configs(
-            project_id=request.state.project_id,
-            application_ref=application_ref,
-        )
-        if not configs:
-            raise HTTPException(
-                status_code=404,
-                detail="No configs found for the specified application.",
-            )
-
-        return configs
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
-@router.post(
-    "/configs/history",
-    operation_id="configs_history",
-    response_model=List[ConfigResponseModel],
-)
-async def configs_history(
-    request: Request,
-    variant_ref: Optional[ReferenceRequestModel] = None,
-    application_ref: Optional[ReferenceRequestModel] = None,
-):
-    try:
-        configs = await history_configs(
-            project_id=request.state.project_id,
-            variant_ref=variant_ref,
-            application_ref=application_ref,
-        )
-        if not configs:
-            raise HTTPException(
-                status_code=404,
-                detail="No configs found for the specified variant or application.",
-            )
-
-        return configs
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e))
-
-
-@router.post(
     "/configs/delete",
     operation_id="configs_delete",
     response_model=int,
 )
+@handle_exceptions()
 async def configs_delete(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
@@ -794,5 +737,47 @@ async def configs_delete(
         project_id=request.state.project_id,
         variant_ref=variant_ref,
         application_ref=application_ref,
+        user_id=request.state.user_id,
     )
+
     return status.HTTP_204_NO_CONTENT
+
+
+@router.post(
+    "/configs/list",
+    operation_id="configs_list",
+    response_model=List[ConfigResponseModel],
+)
+@handle_exceptions()
+async def configs_list(
+    request: Request,
+    application_ref: ReferenceRequestModel,
+):
+    configs = await list_configs(
+        project_id=request.state.project_id,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+
+    return configs
+
+
+@router.post(
+    "/configs/history",
+    operation_id="configs_history",
+    response_model=List[ConfigResponseModel],
+)
+@handle_exceptions()
+async def configs_history(
+    request: Request,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+):
+    configs = await history_configs(
+        project_id=request.state.project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+
+    return configs
