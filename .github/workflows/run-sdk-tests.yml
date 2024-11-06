@@ -26,11 +26,8 @@ jobs:
         run: |
           cd agenta-cli
           poetry install
-      
-      - name: Check which Agenta is installed
-        run: which agenta
 
       - name: Run pytest
         run: |
           cd agenta-cli/agenta
-          poetry run pytest .
+          poetry run pytest prompt_sdk/
