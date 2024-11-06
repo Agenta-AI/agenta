@@ -2,19 +2,20 @@
 title: Quick Start
 ---
 
-Agenta enables you to capture all inputs, outputs, and metadata from your Large Language Model (LLM) applications, whether they're hosted within Agenta or running in your own environment. This guide will walk you through setting up observability for an OpenAI application running locally.
+```mdx-code-block
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import Image from "@theme/IdealImage";
 
-## Why Instrument Your Application?
+```
 
-Instrumenting your application allows you to monitor and debug its behavior in detail. You'll gain insights into how your app processes requests, helping you identify issues and optimize performance.
+Agenta enables you to capture all inputs, outputs, and metadata from your LLM applications, **whether they're hosted within Agenta or running in your own environment**.
 
-### Key Concepts
+This guide will walk you through setting up observability for an OpenAI application running locally.
 
-**Traces**: A trace represents the complete journey of a request through your application. In our context, a trace corresponds to a single request to your LLM application.
-
-**Spans**: A span is a unit of work within a trace. Spans can be nested, forming a tree-like structure. The root span represents the overall operation, while child spans represent sub-operations. Agenta enriches each span with cost information and metadata when you make LLM calls.
-
-> **Note**: If you create an application through the Agenta UI, tracing is enabled by default. No additional setup is required—simply go to the observability view to see all your requests.
+:::note
+If you create an application through the Agenta UI, tracing is enabled by default. No additional setup is required—simply go to the observability view to see all your requests.
+:::
 
 ## Step-by-Step Guide
 
@@ -26,54 +27,53 @@ First, install the Agenta SDK, OpenAI, and the OpenTelemetry instrumentor for Op
 pip install -U agenta openai opentelemetry-instrumentation-openai
 ```
 
-### 2. Obtain an API Key (Cloud and Enterprise Editions Only)
+### 2. Configure Environment Variables
 
+<Tabs>
+<TabItem value="cloud" label="Agenta Cloud or Enterprise">
 If you're using Agenta Cloud or Enterprise Edition, you'll need an API key:
 
 1. Visit the [Agenta API Keys page](https://cloud.agenta.ai/settings?tab=apiKeys).
 2. Click on **Create New API Key** and follow the prompts.
 
-### 3. Configure Environment Variables
-
-Set up the environment variables for your API key and host.
-
-For **Cloud and Enterprise Editions**:
-
 ```python
 import os
 
-os.environ["AGENTA_API_KEY"] = "YOUR_API_KEY_HERE"
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
 os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
 ```
 
-For **Open Source Version (OSS) Running Locally**:
+</TabItem>
+<TabItem value="oss" label="Agenta OSS Running Locally">
 
 ```python
 import os
 
-# No API key is needed for OSS
 os.environ["AGENTA_HOST"] = "http://localhost"
 ```
 
-### 4. Instrument Your Application
+</TabItem>
+</Tabs>
+
+### 3. Instrument Your Application
 
 Below is a sample script to instrument an OpenAI application:
 
 ```python
+# highlight-start
 import agenta as ag
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 import openai
+# highlight-end
 
-# Initialize Agenta
+# highlight-start
 ag.init()
+# highlight-end
 
-# Instrument OpenAI
+# highlight-start
 OpenAIInstrumentor().instrument()
+# highlight-end
 
-# Set your OpenAI API key
-openai.api_key = "YOUR_OPENAI_API_KEY"
-
-# Make a chat completion request
 response = openai.ChatCompletion.create(
     model="gpt-3.5-turbo",
     messages=[
@@ -82,7 +82,6 @@ response = openai.ChatCompletion.create(
     ],
 )
 
-# Print the assistant's reply
 print(response.choices[0].message.content)
 ```
 
@@ -91,11 +90,8 @@ print(response.choices[0].message.content)
 - **Import Libraries**: Import Agenta, OpenAI, and the OpenTelemetry instrumentor.
 - **Initialize Agenta**: Call `ag.init()` to initialize the Agenta SDK.
 - **Instrument OpenAI**: Use `OpenAIInstrumentor().instrument()` to enable tracing for OpenAI calls.
-- **Set OpenAI API Key**: Replace `"YOUR_OPENAI_API_KEY"` with your actual OpenAI API key.
-- **Make a Request**: Send a chat completion request to the OpenAI API.
-- **View Output**: The assistant's response is printed to the console.
 
-### 5. View Traces in the Agenta UI
+### 4. View Traces in the Agenta UI
 
 After running your application, you can view the captured traces in Agenta:
 
@@ -103,22 +99,9 @@ After running your application, you can view the captured traces in Agenta:
 2. Navigate to the **Observability** section.
 3. You'll see a list of traces corresponding to your application's requests.
 
-_Note: Replace `path_to_screenshot_image` with the actual path to your screenshot._
-
-## Next Steps
-
-Now that you've instrumented a simple OpenAI call, you can:
-
-- **Instrument Specific Applications**: Specify application IDs to monitor particular apps within Agenta.
-- **Instrument Complex Workflows**: Use decorators and instrument functions in more intricate workflows.
-- **Add Metadata**: Enrich your spans with custom metadata for deeper insights.
-- **Explore Integrations**: Auto-instrument other libraries and frameworks supported by Agenta:
-  - OpenAI
-  - LiteLLM
-  - Anthropic
-  - Bedrock
-  - LangChain
-  - LLamaIndex
-  - Instructor
-  - Vercel AI
-    0`
+<Image
+  style={{ display: "block", margin: "10 auto" }}
+  img={require("/images/observability/observability.png")}
+  alt="Illustration of observability"
+  loading="lazy"
+/>
