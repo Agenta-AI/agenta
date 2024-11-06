@@ -22,6 +22,7 @@ from agenta_backend.apis.fastapi.observability.utils import (
     parse_from_otel_span_dto,
     parse_to_otel_span_dto,
     parse_to_agenta_span_dto,
+    parse_legacy_analytics_dto,
     parse_legacy_analytics,
 )
 from agenta_backend.apis.fastapi.observability.models import (
@@ -30,7 +31,6 @@ from agenta_backend.apis.fastapi.observability.models import (
     AgentaNodesResponse,
     AgentaTreesResponse,
     AgentaRootsResponse,
-    AnalyticsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
     AgentaRootDTO,
@@ -295,12 +295,16 @@ class ObservabilityRouter:
         self,
         request: Request,
         analytics_dto: AnalyticsDTO = Depends(parse_analytics_dto),
+        legacy_analytics_dto: AnalyticsDTO = Depends(parse_legacy_analytics_dto),
         format: Literal[  # pylint: disable=W0622
             "legacy",
             "agenta",
         ] = Query("agenta"),
     ):
         try:
+            if legacy_analytics_dto is not None:
+                analytics_dto = legacy_analytics_dto
+
             bucket_dtos, count = await self.service.analytics(
                 project_id=UUID(request.state.project_id),
                 analytics_dto=analytics_dto,

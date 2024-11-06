@@ -1,5 +1,5 @@
 from typing import Optional, List, Tuple, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from traceback import print_exc
 from uuid import UUID
 
@@ -208,6 +208,8 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             async with engine.session() as session:
                 # WINDOWING
                 today = datetime.now()
+                end_of_today = datetime.combine(today, time.max)
+
                 oldest = None
                 newest = None
                 window_text = None
@@ -216,7 +218,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     if analytics_dto.windowing.newest:
                         newest = analytics_dto.windowing.newest
                     else:
-                        newest = today
+                        newest = end_of_today
 
                     if analytics_dto.windowing.oldest:
                         if analytics_dto.windowing.oldest > newest:
@@ -253,7 +255,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                         window_text = f"{_desired_window} minute{'s' if _desired_window > 1 else ''}"
 
                 else:
-                    newest = today
+                    newest = end_of_today
                     oldest = newest - _DEFAULT_TIME_DELTA
                     window_text = _DEFAULT_WINDOW
 

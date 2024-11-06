@@ -3,13 +3,16 @@ from uuid import UUID
 from collections import OrderedDict
 from json import loads, JSONDecodeError, dumps
 from copy import copy
-from datetime import datetime
-
-from pydantic import BaseModel
+from datetime import datetime, timedelta, time
 
 from fastapi import Query, HTTPException
 
 from agenta_backend.apis.fastapi.observability.opentelemetry.semconv import CODEX
+
+from agenta_backend.apis.fastapi.observability.models import (
+    LegacyDataPoint,
+    LegacySummary,
+)
 
 from agenta_backend.core.observability.dtos import (
     TimeDTO,
@@ -28,7 +31,6 @@ from agenta_backend.core.observability.dtos import (
     OTelContextDTO,
     OTelLinkDTO,
     BucketDTO,
-    MetricsDTO,
 )
 from agenta_backend.core.observability.dtos import (
     GroupingDTO,
@@ -37,6 +39,7 @@ from agenta_backend.core.observability.dtos import (
     PaginationDTO,
     QueryDTO,
     AnalyticsDTO,
+    ConditionDTO,
 )
 
 
@@ -781,26 +784,103 @@ def parse_to_agenta_span_dto(
     return span_dto
 
 
-# --- PARSE BUCKET DTO ---
+# --- PARSE LEGACY ANALYTICS ---
 
 
-class LegacySummary(BaseModel):
-    total_count: int
-    failure_rate: float
-    total_cost: float
-    avg_cost: float
-    avg_latency: float
-    total_tokens: int
-    avg_tokens: float
+def _parse_time_range(
+    window_text: str,
+) -> Tuple[datetime, datetime, int]:
+    quantity, unit = window_text.split("_")
+    quantity = int(quantity)
+
+    today = datetime.now()
+    newest = datetime.combine(today.date(), time.max)
+
+    if unit == "hours":
+        oldest = newest - timedelta(hours=quantity)
+        window = 60  # 1 hour
+        return newest, oldest, window
+
+    elif unit == "days":
+        oldest = newest - timedelta(days=quantity)
+        window = 1440  # 1 day
+        return newest, oldest, window
+
+    else:
+        raise ValueError(f"Unknown time unit: {unit}")
 
 
-class LegacyDataPoint(BaseModel):
-    timestamp: datetime
-    success_count: int
-    failure_count: int
-    cost: float
-    latency: float
-    total_tokens: int
+def parse_legacy_analytics_dto(
+    timeRange: Optional[str] = Query(None),  # pylint: disable=invalid-name
+    app_id: Optional[str] = Query(None),
+    environment: Optional[str] = Query(None),
+    variant: Optional[str] = Query(None),
+) -> Optional[AnalyticsDTO]:
+    if not timeRange and not environment and not variant:
+        return None
+
+    print("timeRange: ", timeRange)
+    print("app_id: ", app_id)
+    print("environment: ", environment)
+    print("variant: ", variant)
+
+    application_condition = None
+    environment_condition = None
+    variant_condition = None
+    filtering = None
+
+    if app_id:
+        application_condition = ConditionDTO(
+            key="refs.application.id",  # ID ?
+            operator="is",
+            value=app_id,
+        )
+
+    if environment:
+        environment_condition = ConditionDTO(
+            key="refs.environment.slug",  # SLUG ?
+            operator="is",
+            value=environment,
+        )
+
+    if variant:
+        variant_condition = ConditionDTO(
+            key="refs.variant.id",  # ID ?
+            operator="is",
+            value=variant,
+        )
+
+    if application_condition or environment_condition or variant_condition:
+        filtering = FilteringDTO(
+            conditions=[
+                condition
+                for condition in [
+                    application_condition,
+                    environment_condition,
+                    variant_condition,
+                ]
+                if condition
+            ]
+        )
+
+    windowing = None
+
+    if timeRange:
+        newest, oldest, window = _parse_time_range(timeRange)
+
+        print("newest: ", newest)
+        print("oldest: ", oldest)
+        print("window: ", window)
+
+        windowing = WindowingDTO(newest=newest, oldest=oldest, window=window)
+
+    grouping = GroupingDTO(focus="tree")
+
+    return AnalyticsDTO(
+        grouping=grouping,
+        windowing=windowing,
+        filtering=filtering,
+    )
 
 
 def parse_legacy_analytics(
@@ -809,7 +889,7 @@ def parse_legacy_analytics(
 
     data_points = list()
 
-    failure_count = 0
+    total_failure = 0
     total_latency = 0.0
 
     summary = LegacySummary(
@@ -834,19 +914,20 @@ def parse_legacy_analytics(
 
         data_points.append(data_point)
 
-        summary.total_count += bucket_dto.total.count
-        summary.total_cost += bucket_dto.total.cost
-        summary.total_tokens += bucket_dto.total.tokens
+        summary.total_count += bucket_dto.total.count if bucket_dto.total.count else 0
+        summary.total_cost += bucket_dto.total.cost if bucket_dto.total.cost else 0.0
+        summary.total_tokens += (
+            bucket_dto.total.tokens if bucket_dto.total.tokens else 0
+        )
 
-        failure_count += bucket_dto.error.count
-        total_latency += bucket_dto.total.duration
+        total_failure += bucket_dto.error.count if bucket_dto.error.count else 0
+        total_latency += bucket_dto.total.duration if bucket_dto.total.duration else 0.0
 
-    summary.failure_rate = (
-        failure_count / summary.total_count if summary.total_count else 0.0
-    )
+    if summary.total_count:
+        summary.failure_rate = total_failure / summary.total_count
 
-    summary.avg_cost = summary.total_cost / summary.total_count
-    summary.avg_latency = (total_latency / summary.total_count) / 1_000
-    summary.avg_tokens = summary.total_tokens / summary.total_count
+        summary.avg_cost = summary.total_cost / summary.total_count
+        summary.avg_latency = (total_latency / summary.total_count) / 1_000
+        summary.avg_tokens = summary.total_tokens / summary.total_count
 
     return data_points, summary
