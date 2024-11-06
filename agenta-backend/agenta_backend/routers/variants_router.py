@@ -3,7 +3,7 @@ from typing import Any, Optional, Union, List, Dict
 
 from docker.errors import DockerException
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request, Body
+from fastapi import HTTPException, Request, Body, status
 
 from agenta_backend.models import converters
 from agenta_backend.utils.common import APIRouter, isCloudEE
@@ -537,6 +537,7 @@ from agenta_backend.services.variants_manager import (
     commit_config,
     deploy_config,
     list_configs,
+    history_configs,
 )
 
 
@@ -719,29 +720,79 @@ async def configs_deploy(
     return config
 
 
-@router.get(
+@router.post(
     "/configs/list",
     operation_id="configs_list",
-    response_model=List[Dict[str, Any]],
+    response_model=List[ConfigDTO],
 )
-async def configs_list(request: Request, app_slug: str):
+async def configs_list(
+    request: Request,
+    application_ref: ReferenceRequestModel,
+):
     try:
         configs = await list_configs(
-            app_slug=app_slug, project_id=request.state.project_id
+            project_id=request.state.project_id,
+            application_ref=application_ref,
         )
+        if not configs:
+            raise HTTPException(
+                status_code=404,
+                detail="No configs found for the specified application.",
+            )
+
         return configs
     except Exception as e:
         import traceback
 
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
-@router.delete("/configs/delete", operation_id="configs_delete", response_model=str)
-async def configs_delete(request: Request, app_slug: str, variant_slug: str):
+@router.post(
+    "/configs/history",
+    operation_id="configs_history",
+    response_model=List[ConfigDTO],
+)
+async def configs_history(
+    request: Request,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+):
+    try:
+        configs = await history_configs(
+            project_id=request.state.project_id,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+        )
+        if not configs:
+            raise HTTPException(
+                status_code=404,
+                detail="No configs found for the specified variant or application.",
+            )
+
+        return configs
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(e))
+
+
+@router.post(
+    "/configs/delete",
+    operation_id="configs_delete",
+    response_model=int,
+)
+async def configs_delete(
+    request: Request,
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+):
     await delete_config(
         project_id=request.state.project_id,
-        app_slug=app_slug,
-        variant_slug=variant_slug,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
     )
-    return "Variant deleted successfully."
+    return status.HTTP_204_NO_CONTENT

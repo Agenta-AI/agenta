@@ -506,18 +506,6 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
     )
 
 
-def configs_variants_to_output(variants: List[AppVariantDB]):
-    def get_versions(version: int) -> List[int]:
-        return list(range(1, version + 1))
-
-    return [
-        {
-            "variant_slug": variant.config_name,
-            "versions": get_versions(variant.revision),  # type: ignore
-            "latest_version": variant.revision,
-        }
-        for variant in variants
-    ]
 
 
 def get_paginated_data(

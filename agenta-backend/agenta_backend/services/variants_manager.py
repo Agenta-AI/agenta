@@ -90,7 +90,6 @@ async def _fetch_app(
     with suppress():
         if app_id:
             app = await fetch_app_by_id(
-                # project_id=project_id,
                 app_id=app_id.hex,
             )
         elif app_name:
@@ -200,6 +199,57 @@ async def _fetch_variant(
         return None, None
 
     return app_variant, app_variant_revision
+
+
+async def _fetch_variants(
+    project_id: str,
+    application_ref: ReferenceDTO,
+) -> List[AppVariantDB]:  # type: ignore
+    logger.warning("[HELPERS] Fetching: app_variants")
+    with suppress():
+        app_variants = []
+        if application_ref.id:
+            app_variants = await db_manager.list_app_variants_for_app_id(
+                app_id=str(application_ref.id), project_id=project_id
+            )
+        elif application_ref.slug:
+            app_variants = await db_manager.list_app_variants_by_app_slug(
+                app_slug=application_ref.slug, project_id=project_id
+            )
+        return app_variants
+
+
+async def _fetch_variant_versions(
+    project_id: str, application_ref: Optional[ReferenceDTO], variant_ref: ReferenceDTO
+) -> Optional[List[AppVariantRevisionsDB]]:
+    logger.warning("[HELPERS]: Fetching variant versions")
+    with suppress():
+        if variant_ref.id:
+            print("Variant ref (id): ", variant_ref.id)
+            app_variant = await db_manager.fetch_app_variant_by_id(
+                app_variant_id=variant_ref.id.hex
+            )
+            print("App Variant (object): ", app_variant)
+        elif variant_ref.slug and application_ref is not None:
+            app = await _fetch_app(
+                project_id=project_id,
+                app_name=application_ref.slug,
+                app_id=application_ref.id,
+            )
+            if not app:
+                return None
+
+            app_variant = await db_manager.fetch_app_variant_by_slug(
+                variant_slug=variant_ref.slug, app_id=application_ref.id.hex
+            )
+
+        if not app_variant:
+            return None
+
+        variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
+            app_variant=app_variant, project_id=project_id
+        )
+        return variant_revisions
 
 
 async def _fetch_environment(
@@ -409,6 +459,94 @@ async def add_config(
 # - FETCH
 
 
+async def fetch_configs_by_application_ref(
+    project_id: str,
+    application_ref: ReferenceDTO,
+) -> Optional[List[ConfigDTO]]:
+    configs_list = []
+    app = await _fetch_app(
+        project_id=project_id,
+        app_id=application_ref.id,
+        app_name=application_ref.slug,
+    )
+    if not app:
+        return None
+
+    variants = await _fetch_variants(
+        project_id=project_id,
+        application_ref=application_ref,
+    )
+
+    for variant in variants:
+        logger.warning(f"[FETCH]: Fetching latest version of variant {variant.id}")
+        variant_latest_version = await db_manager.fetch_app_variant_revision_by_variant(
+            app_variant_id=variant.id.hex,
+            project_id=project_id,
+            revision=variant.revision,
+        )
+        config = ConfigDTO(
+            params=variant_latest_version.config_parameters,
+            url=None,
+            application_ref=ReferenceDTO(
+                slug=variant.app.app_name,
+                version=None,
+                id=variant.app.id,
+            ),
+            service_ref=None,
+            variant_ref=ReferenceDTO(
+                slug=variant.config_name,
+                version=variant_latest_version.revision,
+                id=variant_latest_version.id,
+            ),
+            environment_ref=None,
+            lifecycle=LifecycleDTO(
+                committed_at=variant_latest_version.updated_at,
+                committed_by=variant_latest_version.modified_by.email,
+            ),
+        )
+        configs_list.append(config)
+    return configs_list
+
+
+async def fetch_configs_by_variant_ref(
+    project_id: str,
+    variant_ref: ReferenceDTO,
+    application_ref: Optional[ReferenceDTO],
+) -> Optional[List[ConfigDTO]]:
+    configs_list = []
+    variant_versions = await _fetch_variant_versions(
+        project_id=project_id,
+        application_ref=application_ref,
+        variant_ref=variant_ref,
+    )
+    if not variant_versions:
+        return None
+
+    for variant_version in variant_versions:
+        config = ConfigDTO(
+            params=variant_version.config_parameters,
+            url=None,
+            application_ref=ReferenceDTO(
+                slug=variant_version.variant_revision.app.app_name,
+                version=None,
+                id=variant_version.variant_revision.app_id,
+            ),
+            service_ref=None,
+            variant_ref=ReferenceDTO(
+                slug=variant_version.variant_revision.config_name,
+                version=variant_version.variant_revision.revision,
+                id=variant_version.variant_revision.id,
+            ),
+            environment_ref=None,
+            lifecycle=LifecycleDTO(
+                committed_at=variant_version.updated_at,
+                committed_by=variant_version.modified_by.email,
+            ),
+        )
+        configs_list.append(config)
+    return configs_list
+
+
 async def fetch_config_by_variant_ref(
     project_id: str,
     variant_ref: ReferenceDTO,
@@ -460,7 +598,7 @@ async def fetch_config_by_variant_ref(
             id=UUID(deployment.container_name[-(32 + 4) :]),
         ),
         variant_ref=ReferenceDTO(
-            slug=app_variant.variant_name.split(".")[1],
+            slug=app_variant.config_name,
             version=app_variant_revision.revision,
             id=app_variant_revision.id,
         ),
@@ -729,25 +867,44 @@ async def deploy_config(
     return config
 
 
-# LIST
+# - LIST
 
 
-async def list_configs(app_slug: str, project_id: str) -> List[Dict[str, Any]]:
-    variants = await db_manager.list_app_variants_by_app_slug(
-        app_slug=app_slug, project_id=project_id
+async def list_configs(
+    project_id: str, application_ref: ReferenceDTO
+) -> Optional[List[ConfigDTO]]:
+    configs = await fetch_configs_by_application_ref(
+        project_id=project_id,
+        application_ref=application_ref,
     )
-    return converters.configs_variants_to_output(variants=variants)
+    return configs
+
+
+async def history_configs(
+    project_id: str,
+    variant_ref: Optional[ReferenceDTO] = None,
+    application_ref: Optional[ReferenceDTO] = None,
+) -> Optional[List[ConfigDTO]]:
+    configs = await fetch_configs_by_variant_ref(
+        project_id=project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
+    )
+    return configs
 
 
 # DELETE
 
 
-async def delete_config(project_id: str, app_slug: str, variant_slug: str):
-    app_db = await db_manager.fetch_app_by_name_and_parameters(
-        app_name=app_slug, project_id=project_id
-    )
-    variant = await db_manager.fetch_app_variant_by_slug(
-        variant_slug=variant_slug, app_id=str(app_db.id)
+async def delete_config(
+    project_id: str,
+    variant_ref: Optional[ReferenceDTO] = None,
+    application_ref: Optional[ReferenceDTO] = None,
+):
+    variant, _ = await _fetch_variant(
+        project_id=project_id,
+        variant_ref=variant_ref,
+        application_ref=application_ref,
     )
     if not variant:
         raise HTTPException(
