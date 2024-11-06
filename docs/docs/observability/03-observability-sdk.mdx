@@ -1,6 +1,16 @@
 ---
-title: Instrumenting Workflows
+title: Observability SDK
 ---
+
+This guide shows you how to use the Agenta observability SDK to instrument complex workflows for your application.
+
+If you are using solely a framework like [LangChain](/observability/integrations/langchain) or [LlamaIndex](/observability/integrations/llamaindex), you can use their auto-instrumentation packages to automatically instrument your application.
+
+However, if you need more flexibility, you can use the SDK to:
+
+- Instrument your own functions part of the workflow
+- Add additional **metadata** to the spans
+- Link your traces to **applications**, **variants**, and **environments** in Agenta
 
 ## 1. Create an application in **agenta**
 
@@ -41,8 +51,8 @@ Note that if you are serving your application to the **agenta** cloud, **agenta*
 Add the `@ag.instrument()` decorator to the functions you want to instrument. This decorator will trace all input and output information for the functions.
 
 :::caution
-  {" "}
-  Make sure the `instrument` decorator is the first decorator in the function.{" "}
+{" "}
+Make sure the `instrument` decorator is the first decorator in the function.{" "}
 :::
 
 ```python
