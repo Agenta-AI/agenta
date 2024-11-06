@@ -1,5 +1,15 @@
 import React from "react"
-import {Form, Input, InputNumber, Switch, Tooltip, Collapse, theme, AutoComplete} from "antd"
+import {
+    Form,
+    Input,
+    InputNumber,
+    Switch,
+    Tooltip,
+    Collapse,
+    theme,
+    AutoComplete,
+    Select,
+} from "antd"
 import {CaretRightOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
 import {Editor} from "@monaco-editor/react"
@@ -92,6 +102,13 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                                     width="100%"
                                     language="python"
                                     theme={`vs-${appTheme}`}
+                                />
+                            ) : field.type === "multiple_choice" ? (
+                                <Select
+                                    options={field.options?.map((option: string) => ({
+                                        label: option,
+                                        value: option,
+                                    }))}
                                 />
                             ) : field.type === "object" ? (
                                 <Editor
