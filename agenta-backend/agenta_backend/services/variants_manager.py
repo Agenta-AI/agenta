@@ -56,10 +56,11 @@ class ReferenceDTO(BaseModel):
 
 
 class LifecycleDTO(BaseModel):
-    deployed_at: Optional[datetime] = None
-    deployed_by: Optional[str] = None
-    committed_by: Optional[str] = None
-    committed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    updated_by_id: Optional[str] = None
+    # DEPRECATING
+    updated_by: Optional[str] = None  # email
 
 
 # DIFFERENT FROM A configuration IN THE SENSE OF Application sStructure
@@ -73,7 +74,10 @@ class ConfigDTO(BaseModel):
     variant_ref: Optional[ReferenceDTO]
     environment_ref: Optional[ReferenceDTO]
     # ----
-    lifecycle: Optional[LifecycleDTO] = None
+    application_lifecycle: Optional[LifecycleDTO] = None
+    service_lifecycle: Optional[LifecycleDTO] = None
+    variant_lifecycle: Optional[LifecycleDTO] = None
+    environment_lifecycle: Optional[LifecycleDTO] = None
 
 
 # - HERLPERS
@@ -85,6 +89,7 @@ async def _fetch_app(
     app_name: Optional[str] = None,
 ) -> Optional[AppDB]:
     logger.warning("[HELPERS] Fetching: app")
+
     app = None
 
     with suppress():
@@ -109,6 +114,7 @@ async def _fetch_deployment(
     base_id: UUID,
 ) -> Optional[DeploymentDB]:
     logger.warning("[HELPERS] Fetching: variant_base")
+
     variant_base = None
 
     with suppress():
@@ -121,6 +127,7 @@ async def _fetch_deployment(
         return None
 
     logger.warning("[HELPERS] Fetching: deployment")
+
     deployment = None
 
     with suppress():
@@ -141,6 +148,7 @@ async def _fetch_variant(
     application_ref: Optional[ReferenceDTO] = None,
 ) -> Tuple[Optional[AppVariantDB], Optional[AppVariantRevisionsDB]]:
     logger.warning("[HELPERS] Fetching: app_variant_revision / app_variant")
+
     app_variant_revision = None
     app_variant = None
 
@@ -206,16 +214,20 @@ async def _fetch_variants(
     application_ref: ReferenceDTO,
 ) -> List[AppVariantDB]:  # type: ignore
     logger.warning("[HELPERS] Fetching: app_variants")
+
     with suppress():
         app_variants = []
+
         if application_ref.id:
             app_variants = await db_manager.list_app_variants_for_app_id(
                 app_id=str(application_ref.id), project_id=project_id
             )
+
         elif application_ref.slug:
             app_variants = await db_manager.list_app_variants_by_app_slug(
                 app_slug=application_ref.slug, project_id=project_id
             )
+
         return app_variants
 
 
@@ -223,6 +235,7 @@ async def _fetch_variant_versions(
     project_id: str, application_ref: Optional[ReferenceDTO], variant_ref: ReferenceDTO
 ) -> Optional[List[AppVariantRevisionsDB]]:
     logger.warning("[HELPERS]: Fetching variant versions")
+
     with suppress():
         if variant_ref.id:
             app_variant = await db_manager.fetch_app_variant_by_id(
@@ -256,6 +269,7 @@ async def _fetch_environment(
     application_ref: Optional[ReferenceDTO] = None,
 ) -> Tuple[Optional[AppEnvironmentDB], Optional[AppEnvironmentRevisionDB]]:
     logger.warning("[HELPERS] Fetching: app_environment_revision / app_environment")
+
     app_environment_revision = None
     app_environment = None
 
@@ -327,6 +341,7 @@ async def _create_variant(
     base_id: UUID,
 ) -> Tuple[Optional[str], Optional[int]]:
     logger.warning("[HELPERS] Fetching: variant_base")
+
     variant_base = None
 
     with suppress():
@@ -339,6 +354,7 @@ async def _create_variant(
         return None, None
 
     logger.warning("[HELPERS] Adding: app_variant")
+
     app_variant = None
 
     with suppress():
@@ -363,6 +379,7 @@ async def _update_variant(
     params: Dict[str, Any],
 ) -> Tuple[Optional[str], Optional[int], Optional[datetime]]:
     logger.warning("[HELPERS] Updating: app_variant")
+
     app_variant = None
 
     with suppress():
@@ -386,6 +403,7 @@ async def _update_environment(
     variant_id: UUID,
 ):
     logger.warning("[HELPERS] Deploying: variant")
+
     await deploy_to_environment(
         # project_id=project_id,
         environment_name=environment_name,
@@ -404,6 +422,7 @@ async def add_config(
     user_id: str,
 ) -> Optional[ConfigDTO]:
     logger.warning("[ADD]     Fetching: app")
+
     app = await _fetch_app(
         project_id=project_id,
         app_id=application_ref.id,
@@ -412,11 +431,13 @@ async def add_config(
 
     if not app:
         logger.warning("[ADD]  App not found.")
+
         return None
 
     # --> FETCHING: bases
-    logger.info(f"[ADD]     Found app: {str(app.id)}")
+    logger.warning(f"[ADD]     Found app: {str(app.id)}")
     logger.warning("[ADD]     Fetching: bases")
+
     bases = await list_bases_for_app_id(
         # project_id=project_id,
         app_id=app.id.hex,
@@ -428,6 +449,7 @@ async def add_config(
     base_id = bases[0].id  # needs to be changed to use the 'default base'
 
     logger.warning("[ADD]     Creating: variant")
+
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
@@ -460,23 +482,29 @@ async def add_config(
 async def fetch_configs_by_application_ref(
     project_id: str,
     application_ref: ReferenceDTO,
-) -> Optional[List[ConfigDTO]]:
+) -> List[ConfigDTO]:
     configs_list = []
+
     app = await _fetch_app(
         project_id=project_id,
         app_id=application_ref.id,
         app_name=application_ref.slug,
     )
+
     if not app:
-        return None
+        return configs_list
 
     variants = await _fetch_variants(
         project_id=project_id,
         application_ref=application_ref,
     )
 
+    if not variants:
+        return configs_list
+
     for variant in variants:
         logger.warning(f"[FETCH]: Fetching latest version of variant {variant.id}")
+
         variant_latest_version = await db_manager.fetch_app_variant_revision_by_variant(
             app_variant_id=variant.id.hex,
             project_id=project_id,
@@ -485,6 +513,7 @@ async def fetch_configs_by_application_ref(
         config = ConfigDTO(
             params=variant_latest_version.config_parameters,
             url=None,
+            #
             application_ref=ReferenceDTO(
                 slug=variant.app.app_name,
                 version=None,
@@ -497,12 +526,18 @@ async def fetch_configs_by_application_ref(
                 id=variant_latest_version.id,
             ),
             environment_ref=None,
-            lifecycle=LifecycleDTO(
-                committed_at=variant_latest_version.updated_at,
-                committed_by=variant_latest_version.modified_by.email,
+            #
+            variant_lifecycle=LifecycleDTO(
+                created_at=variant_latest_version.created_at,
+                updated_at=variant_latest_version.updated_at,
+                updated_by_id=str(variant_latest_version.modified_by.id),
+                # DEPRECATING
+                updated_by=variant_latest_version.modified_by.email,
             ),
         )
+
         configs_list.append(config)
+
     return configs_list
 
 
@@ -510,20 +545,22 @@ async def fetch_configs_by_variant_ref(
     project_id: str,
     variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO],
-) -> Optional[List[ConfigDTO]]:
+) -> List[ConfigDTO]:
     configs_list = []
+
     variant_versions = await _fetch_variant_versions(
         project_id=project_id,
         application_ref=application_ref,
         variant_ref=variant_ref,
     )
     if not variant_versions:
-        return None
+        return configs_list
 
     for variant_version in variant_versions:
         config = ConfigDTO(
             params=variant_version.config_parameters,
             url=None,
+            #
             application_ref=ReferenceDTO(
                 slug=variant_version.variant_revision.app.app_name,
                 version=None,
@@ -536,12 +573,17 @@ async def fetch_configs_by_variant_ref(
                 id=variant_version.variant_revision.id,
             ),
             environment_ref=None,
-            lifecycle=LifecycleDTO(
-                committed_at=variant_version.updated_at,
-                committed_by=variant_version.modified_by.email,
+            #
+            variant_lifecycle=LifecycleDTO(
+                created_at=variant_version.created_at,
+                updated_at=variant_version.updated_at,
+                updated_by_id=str(variant_version.modified_by.id),
+                # DEPRECATING
+                updated_by=variant_version.modified_by.email,
             ),
         )
         configs_list.append(config)
+
     return configs_list
 
 
@@ -552,6 +594,7 @@ async def fetch_config_by_variant_ref(
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
     logger.warning("[FETCH]   Fetching: variant")
+
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -562,6 +605,7 @@ async def fetch_config_by_variant_ref(
         return None
 
     logger.warning("[FETCH]   Fetching: deployment")
+
     deployment = await _fetch_deployment(
         project_id=project_id,
         base_id=app_variant.base_id,
@@ -571,6 +615,7 @@ async def fetch_config_by_variant_ref(
         return None
 
     logger.warning("[FETCH]   Fetching: app")
+
     app = await _fetch_app(
         project_id=project_id,
         app_id=app_variant.app_id,
@@ -580,11 +625,13 @@ async def fetch_config_by_variant_ref(
         return None
 
     assert user_id is not None, "User ID is required."
+
     user = await get_user_with_uid(user_uid=user_id)
 
     config = ConfigDTO(
         params=app_variant_revision.config_parameters,
         url=deployment.uri,
+        #
         application_ref=ReferenceDTO(
             slug=app.app_name,
             version=None,
@@ -601,8 +648,13 @@ async def fetch_config_by_variant_ref(
             id=app_variant_revision.id,
         ),
         environment_ref=None,
-        lifecycle=LifecycleDTO(
-            committed_at=app_variant.updated_at, committed_by=user.email
+        #
+        variant_lifecycle=LifecycleDTO(
+            created_at=app_variant_revision.created_at,
+            updated_at=app_variant.updated_at,
+            updated_by_id=str(user.id),
+            # DEPRECATING
+            updated_by=user.email,
         ),
     )
     return config
@@ -615,6 +667,7 @@ async def fetch_config_by_environment_ref(
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
     logger.warning("[FETCH]   Fetching: environment")
+
     app_environment, app_environment_revision = await _fetch_environment(
         project_id=project_id,
         environment_ref=environment_ref,
@@ -648,10 +701,14 @@ async def fetch_config_by_environment_ref(
     config.environment_ref = environment_ref
 
     assert user_id is not None, "User ID is required."
+
     user = await get_user_with_uid(user_uid=user_id)
 
-    config.lifecycle = LifecycleDTO(
-        committed_at=app_environment_revision.created_at, committed_by=user.email
+    config.environment_lifecycle = LifecycleDTO(
+        created_at=app_environment_revision.created_at,
+        updated_by_id=str(user.id),
+        # DEPRECATING
+        updated_by=user.email,
     )
     return config
 
@@ -666,6 +723,7 @@ async def fork_config_by_variant_ref(
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
     logger.warning("[FORK] Fetching: variant")
+
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -676,6 +734,7 @@ async def fork_config_by_variant_ref(
         return None
 
     logger.warning("[FORK] Creating: variant")
+
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
@@ -763,6 +822,7 @@ async def commit_config(
     user_id: str,
 ) -> Optional[ConfigDTO]:
     logger.warning("[COMMIT] Fetching: variant")
+
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=config.variant_ref,
@@ -773,6 +833,7 @@ async def commit_config(
         return None
 
     logger.warning("[COMMIT] Updating: variant")
+
     variant_slug, variant_version, variant_updated_at = await _update_variant(
         project_id=project_id,
         user_id=user_id,
@@ -801,10 +862,14 @@ async def commit_config(
     assert user_id is not None, "User ID is required."
     user = await get_user_with_uid(user_uid=user_id)
 
-    # Include variant lifecycle to the config
-    config.lifecycle = LifecycleDTO(
-        committed_by=user.email, committed_at=variant_updated_at
+    config.variant_lifecycle = LifecycleDTO(
+        created_at=app_variant_revision.created_at,
+        updated_at=variant_updated_at,
+        updated_by_id=str(user.id),
+        # DEPRECATING
+        updated_by=user.email,
     )
+
     return config
 
 
@@ -819,6 +884,7 @@ async def deploy_config(
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
     logger.warning("[DEPLOY]  Fetching: variant")
+
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -829,6 +895,7 @@ async def deploy_config(
         return None
 
     logger.warning("[DEPLOY]  Fetching: environment")
+
     app_environment, app_environment_revision = await _fetch_environment(
         project_id=project_id,
         environment_ref=environment_ref,
@@ -839,6 +906,7 @@ async def deploy_config(
         return None
 
     logger.warning("[DEPLOY]  Updating: environment")
+
     await _update_environment(
         project_id=project_id,
         user_id=user_id,  # type: ignore
@@ -857,10 +925,14 @@ async def deploy_config(
         return None
 
     assert user_id is not None, "User ID is required."
+
     user = await get_user_with_uid(user_uid=user_id)
 
-    config.lifecycle = LifecycleDTO(
-        deployed_at=app_environment_revision.created_at, deployed_by=user.email
+    config.environment_lifecycle = LifecycleDTO(
+        created_at=app_environment_revision.created_at,
+        updated_by_id=str(user.id),
+        # DEPRECATING
+        updated_by=user.email,
     )
     return config
 
@@ -869,12 +941,15 @@ async def deploy_config(
 
 
 async def list_configs(
-    project_id: str, application_ref: ReferenceDTO
+    project_id: str,
+    application_ref: ReferenceDTO,
+    user_id: Optional[str] = None,
 ) -> Optional[List[ConfigDTO]]:
     configs = await fetch_configs_by_application_ref(
         project_id=project_id,
         application_ref=application_ref,
     )
+
     return configs
 
 
@@ -882,12 +957,14 @@ async def history_configs(
     project_id: str,
     variant_ref: Optional[ReferenceDTO] = None,
     application_ref: Optional[ReferenceDTO] = None,
-) -> Optional[List[ConfigDTO]]:
+    user_id: Optional[str] = None,
+) -> List[ConfigDTO]:
     configs = await fetch_configs_by_variant_ref(
         project_id=project_id,
         variant_ref=variant_ref,
         application_ref=application_ref,
     )
+
     return configs
 
 
@@ -898,7 +975,8 @@ async def delete_config(
     project_id: str,
     variant_ref: Optional[ReferenceDTO] = None,
     application_ref: Optional[ReferenceDTO] = None,
-):
+    user_id: Optional[str] = None,
+) -> None:
     variant, _ = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -911,5 +989,6 @@ async def delete_config(
         )
 
     await db_manager.remove_app_variant_from_db(
-        app_variant_db=variant, project_id=project_id
+        app_variant_db=variant,
+        project_id=project_id,
     )
