@@ -1,16 +1,16 @@
 import logging
-import warnings
 from typing import Optional, Dict, Any
 
 from agenta.sdk.utils.exceptions import handle_exceptions
-from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
-from agenta.client.backend.types.reference_dto import ReferenceDto
+
 from agenta.sdk.types import (
     ConfigurationResponse,
     DeploymentResponse,
 )
 from agenta.client.backend.types.config_response_model import ConfigResponseModel
 from agenta.client.backend.types.reference_request_model import ReferenceRequestModel
+
+import agenta as ag
 
 
 logger = logging.getLogger(__name__)
@@ -33,106 +33,30 @@ class SharedManager:
         - Methods prefixed with 'a' (e.g., aadd, afetch) are designed to be used in asynchronous environments.
     """
 
-    def __new__(cls, *args, **kwargs):
-        try:
-            from agenta import DEFAULT_AGENTA_SINGLETON_INSTANCE
-
-            cls.singleton = DEFAULT_AGENTA_SINGLETON_INSTANCE
-        except Exception as ex:
-            logger.error("Failed to initialize singleton with error: %s", str(ex))
-            raise
-
-        try:
-            cls._initialize_clients()
-        except Exception as ex:
-            logger.error("Failed to initialize Agenta client with error: %s", str(ex))
-            raise
-        return super(SharedManager, cls).__new__(cls)
-
     @classmethod
-    def _initialize_clients(cls):
-        cls.client = AgentaApi(
-            base_url=cls.singleton.host + "/api",
-            api_key=cls.singleton.api_key if cls.singleton.api_key else "",
-        )
-        cls.aclient = AsyncAgentaApi(
-            base_url=cls.singleton.host + "/api",
-            api_key=cls.singleton.api_key if cls.singleton.api_key else "",
-        )
-
-    @classmethod
-    def _validate_and_return_fetch_signatures(
+    def _parse_fetch_request(
         cls,
-        application_id: Optional[str] = None,
-        application_slug: Optional[str] = None,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
         variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
-        # DEPRECATING
-        app_id: Optional[str] = None,
-        app_slug: Optional[str] = None,
     ):
-        # Warnings for deprecated parameters
-        if app_id:
-            warnings.warn(
-                "The `app_id` parameter is deprecated. Use `application_id` instead.",
-                DeprecationWarning,
-            )
-            application_id = (
-                application_id or app_id
-            )  # Use app_id if application_id not provided
-
-        if app_slug:
-            warnings.warn(
-                "The `app_slug` parameter is deprecated. Use `application_slug` instead.",
-                DeprecationWarning,
-            )
-            application_slug = (
-                application_slug or app_slug
-            )  # Use app_slug if application_slug not provided
-
-        # Validation logic
-        if not (application_id or application_slug):
-            raise ValueError(
-                "Either `application_id` or `application_slug` must be provided."
-            )
-
-        if variant_id:
-            if not (application_id or application_slug):
-                raise ValueError(
-                    "`variant_id` requires either `application_id` or `application_slug`."
-                )
-        elif variant_slug:
-            if not (application_id or application_slug):
-                raise ValueError(
-                    "`variant_slug` requires either `application_id` or `application_slug`."
-                )
-            if variant_version and not variant_slug:
-                raise ValueError(
-                    "`variant_version` requires `variant_slug` to be specified."
-                )
-
-        if environment_id:
-            if not (application_id or application_slug):
-                raise ValueError(
-                    "`environment_id` requires either `application_id` or `application_slug`."
-                )
-        elif environment_slug:
-            if not (application_id or application_slug):
-                raise ValueError(
-                    "`environment_slug` requires either `application_id` or `application_slug`."
-                )
-            if environment_version and not environment_slug:
-                raise ValueError(
-                    "`environment_version` requires `environment_slug` to be specified."
-                )
+        if variant_slug and not (app_id or app_slug):
+            raise ValueError("`variant_slug` requires `app_id` or `app_slug`")
+        if variant_version and not variant_slug:
+            raise ValueError("`variant_version` requires `variant_slug`")
+        if environment_slug and not (app_id or app_slug):
+            raise ValueError("`environment_slug` requires `app_id` or `app_slug`")
+        if environment_version and not environment_slug:
+            raise ValueError("`environment_version` requires `environment_slug`")
 
         return {
-            "application_id": application_id,
-            "application_slug": application_slug,
+            "app_id": app_id,
+            "app_slug": app_slug,
             "variant_id": variant_id,
             "variant_slug": variant_slug,
             "variant_version": variant_version,
@@ -142,8 +66,9 @@ class SharedManager:
         }
 
     @classmethod
-    def _flatten_config_response(
-        cls, model: ConfigResponseModel, include_params: bool = True
+    def _parse_config_response(
+        cls,
+        model: ConfigResponseModel,
     ) -> Dict[str, Any]:
         flattened: Dict[str, Any] = {}
 
@@ -164,17 +89,20 @@ class SharedManager:
             flattened["environment_slug"] = model.environment_ref.slug
             flattened["environment_version"] = model.environment_ref.version
 
-        # Process lifecycle
-        if model.lifecycle:
-            if model.lifecycle.committed_at:
-                flattened["committed_at"] = model.lifecycle.committed_at
-                flattened["committed_by"] = model.lifecycle.committed_by
-            elif model.lifecycle.deployed_at:
-                flattened["deployed_at"] = model.lifecycle.deployed_at
-                flattened["deployed_by"] = model.lifecycle.deployed_by
+        # Process variant_lifecycle
+        if model.variant_lifecycle:
+            flattened["committed_at"] = model.variant_lifecycle.updated_at
+            flattened["committed_by"] = model.variant_lifecycle.updated_by
+            flattened["committed_by_id"] = model.variant_lifecycle.updated_by_id
+
+        # Process environment_lifecycle
+        if model.environment_lifecycle:
+            flattened["deployed_at"] = model.environment_lifecycle.created_at
+            flattened["deployed_by"] = model.environment_lifecycle.updated_by
+            flattened["deployed_by_id"] = model.environment_lifecycle.updated_by_id
 
         # Add parameters if required
-        if include_params and model.params:
+        if model.params:
             flattened["parameters"] = model.params
 
         return flattened
@@ -185,19 +113,24 @@ class SharedManager:
         cls,
         *,
         variant_slug: str,
+        #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
     ):
-        config_response = cls.client.variants.configs_add(  # type: ignore
-            variant_ref=ReferenceRequestModel(slug=variant_slug, version=None, id=None),
+        config_response = ag.api.variants.configs_add(  # type: ignore
+            variant_ref=ReferenceRequestModel(
+                slug=variant_slug,
+                version=None,
+                id=None,
+            ),
             application_ref=ReferenceRequestModel(
-                slug=app_slug, version=None, id=app_id
+                slug=app_slug,
+                version=None,
+                id=app_id,
             ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -206,19 +139,24 @@ class SharedManager:
         cls,
         *,
         variant_slug: str,
+        #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
     ):
-        config_response = await cls.aclient.variants.configs_add(  # type: ignore
-            variant_ref=ReferenceRequestModel(slug=variant_slug, version=None, id=None),
+        config_response = await ag.async_api.variants.configs_add(  # type: ignore
+            variant_ref=ReferenceRequestModel(
+                slug=variant_slug,
+                version=None,
+                id=None,
+            ),
             application_ref=ReferenceRequestModel(
-                slug=app_slug, version=None, id=app_id
+                slug=app_slug,
+                version=None,
+                id=app_id,
             ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -226,31 +164,27 @@ class SharedManager:
     def fetch(
         cls,
         *,
-        application_id: Optional[str] = None,
-        application_slug: Optional[str] = None,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
         variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
-        # DEPRECATING
-        app_id: Optional[str] = None,
-        app_slug: Optional[str] = None,
     ) -> ConfigurationResponse:
-        fetch_signatures = cls._validate_and_return_fetch_signatures(
-            application_id=application_id,
-            application_slug=application_slug,
+        fetch_signatures = SharedManager._parse_fetch_request(
+            app_id=app_id,
+            app_slug=app_slug,
             variant_id=variant_id,
             variant_slug=variant_slug,
             variant_version=variant_version,
             environment_id=environment_id,
             environment_slug=environment_slug,
             environment_version=environment_version,
-            app_id=app_id,
-            app_slug=app_slug,
         )
-        config_response = cls.client.variants.configs_fetch(  # type: ignore
+
+        config_response = ag.api.variants.configs_fetch(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=fetch_signatures["variant_slug"],
                 version=fetch_signatures["variant_version"],
@@ -262,15 +196,14 @@ class SharedManager:
                 id=fetch_signatures["environment_id"],
             ),
             application_ref=ReferenceRequestModel(
-                slug=fetch_signatures["application_slug"],
+                slug=fetch_signatures["app_slug"],
                 version=None,
-                id=fetch_signatures["application_id"],
+                id=fetch_signatures["app_id"],
             ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -278,31 +211,27 @@ class SharedManager:
     async def afetch(
         cls,
         *,
-        application_id: Optional[str] = None,
-        application_slug: Optional[str] = None,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
         variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
-        # DEPRECATING
-        app_id: Optional[str] = None,
-        app_slug: Optional[str] = None,
     ):
-        fetch_signatures = cls._validate_and_return_fetch_signatures(
-            application_id=application_id,
-            application_slug=application_slug,
+        fetch_signatures = SharedManager._parse_fetch_request(
+            app_id=app_id,
+            app_slug=app_slug,
             variant_id=variant_id,
             variant_slug=variant_slug,
             variant_version=variant_version,
             environment_id=environment_id,
             environment_slug=environment_slug,
             environment_version=environment_version,
-            app_id=app_id,
-            app_slug=app_slug,
         )
-        config_response = await cls.aclient.variants.configs_fetch(  # type: ignore
+
+        config_response = await ag.async_api.variants.configs_fetch(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=fetch_signatures["variant_slug"],
                 version=fetch_signatures["variant_version"],
@@ -314,15 +243,14 @@ class SharedManager:
                 id=fetch_signatures["environment_id"],
             ),
             application_ref=ReferenceRequestModel(
-                slug=fetch_signatures["application_slug"],
+                slug=fetch_signatures["app_slug"],
                 version=None,
-                id=fetch_signatures["application_id"],
+                id=fetch_signatures["app_id"],
             ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -330,18 +258,22 @@ class SharedManager:
     def list(
         cls,
         *,
-        id: Optional[str] = None,
-        slug: Optional[str] = None,
-        version: Optional[int] = None,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        configs_response = cls.client.variants.configs_list(id=id, slug=slug, version=version)  # type: ignore
+        configs_response = ag.api.variants.configs_list(
+            application_ref=ReferenceRequestModel(
+                slug=app_slug,
+                version=None,
+                id=app_id,
+            ),
+        )  # type: ignore
+
         transformed_response = [
-            cls._flatten_config_response(
-                config_response,
-                include_params=True,
-            )
+            SharedManager._parse_config_response(config_response)
             for config_response in configs_response
         ]
+
         return [
             ConfigurationResponse(**response)  # type: ignore
             for response in transformed_response
@@ -352,18 +284,22 @@ class SharedManager:
     async def alist(
         cls,
         *,
-        id: Optional[str] = None,
-        slug: Optional[str] = None,
-        version: Optional[int] = None,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        configs_response = await cls.aclient.variants.configs_list(id=id, slug=slug, version=version)  # type: ignore
+        configs_response = await ag.async_api.variants.configs_list(
+            application_ref=ReferenceRequestModel(
+                slug=app_slug,
+                version=None,
+                id=app_id,
+            ),
+        )  # type: ignore
+
         transformed_response = [
-            cls._flatten_config_response(
-                config_response,
-                include_params=True,
-            )
+            SharedManager._parse_config_response(config_response)
             for config_response in configs_response
         ]
+
         return [
             ConfigurationResponse(**response)  # type: ignore
             for response in transformed_response
@@ -379,21 +315,24 @@ class SharedManager:
         variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
     ):
-        configs_response = cls.client.variants.configs_history(  # type: ignore
+        configs_response = ag.api.variants.configs_history(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=None, id=variant_id
+                slug=variant_slug,
+                version=None,
+                id=variant_id,
             ),
             application_ref=ReferenceRequestModel(
-                slug=app_slug, version=None, id=app_id
+                slug=app_slug,
+                version=None,
+                id=app_id,
             ),
         )
+
         transformed_response = [
-            cls._flatten_config_response(
-                config_response,
-                include_params=True,
-            )
+            SharedManager._parse_config_response(config_response)
             for config_response in configs_response
         ]
+
         return [
             ConfigurationResponse(**response)  # type: ignore
             for response in transformed_response
@@ -409,21 +348,24 @@ class SharedManager:
         variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
     ):
-        configs_response = await cls.aclient.variants.configs_history(  # type: ignore
+        configs_response = await ag.async_api.variants.configs_history(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=None, id=variant_id
+                slug=variant_slug,
+                version=None,
+                id=variant_id,
             ),
             application_ref=ReferenceRequestModel(
-                slug=app_slug, version=None, id=app_id
+                slug=app_slug,
+                version=None,
+                id=app_id,
             ),
         )
+
         transformed_response = [
-            cls._flatten_config_response(
-                config_response,
-                include_params=True,
-            )
+            SharedManager._parse_config_response(config_response)
             for config_response in configs_response
         ]
+
         return [
             ConfigurationResponse(**response)  # type: ignore
             for response in transformed_response
@@ -436,25 +378,33 @@ class SharedManager:
         *,
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
+        environment_version: Optional[int] = None,
     ):
-        config_response = cls.client.variants.configs_fork(  # type: ignore
+        config_response = ag.api.variants.configs_fork(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version, id=None
+                slug=variant_slug,
+                version=variant_version,
+                id=variant_id,
             ),
             environment_ref=ReferenceRequestModel(
-                slug=environment_slug, version=None, id=None
+                slug=environment_slug,
+                version=environment_version,
+                id=environment_id,
             ),
             application_ref=ReferenceRequestModel(
-                slug=app_slug, version=None, id=app_id
+                slug=app_slug,
+                version=None,
+                id=app_id,
             ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -464,55 +414,94 @@ class SharedManager:
         *,
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
+        environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
+        environment_version: Optional[int] = None,
     ):
-        config_response = await cls.aclient.variants.configs_fork(  # type: ignore
+        config_response = await ag.async_api.variants.configs_fork(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version, id=None
+                slug=variant_slug,
+                version=variant_version,
+                id=variant_id,
             ),
             environment_ref=ReferenceRequestModel(
-                slug=environment_slug, version=None, id=None
+                slug=environment_slug,
+                version=environment_version,
+                id=environment_id,
             ),
             application_ref=ReferenceRequestModel(
-                slug=app_slug, version=None, id=app_id
+                slug=app_slug,
+                version=None,
+                id=app_id,
             ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
         return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
-    def commit(cls, *, app_slug: str, variant_slug: str, config_parameters: dict):
-        config_response = cls.client.variants.configs_commit(  # type: ignore
-            params=config_parameters,
-            variant_ref=ReferenceDto(slug=variant_slug, version=None, id=None),
-            application_ref=ReferenceDto(slug=app_slug, version=None, id=None),
+    def commit(
+        cls,
+        *,
+        parameters: dict,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ):
+        config_response = ag.api.variants.configs_commit(  # type: ignore
+            config=ConfigRequest(
+                params=parameters,
+                variant_ref=ReferenceRequestModel(
+                    slug=variant_slug,
+                    version=None,
+                    id=None,
+                ),
+                application_ref=ReferenceRequestModel(
+                    slug=app_slug,
+                    version=None,
+                    id=app_id,
+                ),
+            )
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
     @handle_exceptions()
     async def acommit(
-        cls, *, app_slug: str, variant_slug: str, config_parameters: dict
+        cls,
+        *,
+        parameters: dict,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        config_response = await cls.aclient.variants.configs_commit(  # type: ignore
-            params=config_parameters,
-            variant_ref=ReferenceDto(slug=variant_slug, version=None, id=None),
-            application_ref=ReferenceDto(slug=app_slug, version=None, id=None),
+        config_response = await ag.async_api.variants.configs_commit(  # type: ignore
+            config=ConfigRequest(
+                params=parameters,
+                variant_ref=ReferenceRequestModel(
+                    slug=variant_slug,
+                    version=None,
+                    id=None,
+                ),
+                application_ref=ReferenceRequestModel(
+                    slug=app_slug,
+                    version=None,
+                    id=app_id,
+                ),
+            )
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=True,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -520,24 +509,33 @@ class SharedManager:
     def deploy(
         cls,
         *,
-        app_slug: str,
         variant_slug: str,
         environment_slug: str,
-        variant_version: Optional[int],
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
     ):
-        config_response = cls.client.variants.configs_deploy(  # type: ignore
+        config_response = ag.api.variants.configs_deploy(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version, id=None
+                slug=variant_slug,
+                version=variant_version,
+                id=None,
             ),
             environment_ref=ReferenceRequestModel(
-                slug=environment_slug, version=None, id=None
+                slug=environment_slug,
+                version=None,
+                id=None,
             ),
-            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug,
+                version=None,
+                id=app_id,
+            ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=False,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return DeploymentResponse(**response)
 
     @classmethod
@@ -545,34 +543,83 @@ class SharedManager:
     async def adeploy(
         cls,
         *,
-        app_slug: str,
         variant_slug: str,
         environment_slug: str,
-        variant_version: Optional[int],
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
     ):
-        config_response = await cls.aclient.variants.configs_deploy(  # type: ignore
+        config_response = await ag.async_api.variants.configs_deploy(  # type: ignore
             variant_ref=ReferenceRequestModel(
-                slug=variant_slug, version=variant_version, id=None
+                slug=variant_slug,
+                version=variant_version,
+                id=None,
             ),
             environment_ref=ReferenceRequestModel(
-                slug=environment_slug, version=None, id=None
+                slug=environment_slug,
+                version=None,
+                id=None,
             ),
-            application_ref=ReferenceRequestModel(slug=app_slug, version=None, id=None),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug,
+                version=None,
+                id=app_id,
+            ),
         )
-        response = cls._flatten_config_response(
-            config_response,
-            include_params=False,
-        )
+
+        response = SharedManager._parse_config_response(config_response)
+
         return DeploymentResponse(**response)
 
     @classmethod
     @handle_exceptions()
-    def delete(cls, *, app_slug: str, variant_slug: str):
-        config_response = cls.client.variants.configs_delete(app_slug=app_slug, variant_slug=variant_slug)  # type: ignore
+    def delete(
+        cls,
+        *,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
+    ):
+        config_response = ag.api.variants.configs_delete(
+            variant_ref=ReferenceRequestModel(
+                slug=variant_slug,
+                version=variant_version,
+                id=variant_id,
+            ),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug,
+                version=None,
+                id=app_id,
+            ),
+        )  # type: ignore
+
         return config_response
 
     @classmethod
     @handle_exceptions()
-    async def adelete(cls, *, app_slug: str, variant_slug: str):
-        config_response = await cls.aclient.variants.configs_delete(app_slug=app_slug, variant_slug=variant_slug)  # type: ignore
+    async def adelete(
+        cls,
+        *,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
+    ):
+        config_response = await ag.async_api.variants.configs_delete(
+            variant_ref=ReferenceRequestModel(
+                slug=variant_slug,
+                version=variant_version,
+                id=variant_id,
+            ),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug,
+                version=None,
+                id=app_id,
+            ),
+        )  # type: ignore
+
         return config_response

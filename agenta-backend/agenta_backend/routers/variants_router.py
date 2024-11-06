@@ -523,6 +523,7 @@ async def get_variant_revision(
 from agenta_backend.utils.exceptions import handle_exceptions
 
 from agenta_backend.services.variants_manager import (
+    BaseModel,
     ReferenceDTO,
     ConfigDTO,
 )
@@ -539,6 +540,14 @@ from agenta_backend.services.variants_manager import (
     list_configs,
     history_configs,
 )
+
+
+class ReferenceRequest(BaseModel):
+    application_ref: ReferenceDTO
+
+
+class ConfigRequest(BaseModel):
+    config: ConfigDTO
 
 
 class ReferenceRequestModel(ReferenceDTO):
@@ -676,7 +685,7 @@ async def configs_fork(
 @handle_exceptions()
 async def configs_commit(
     request: Request,
-    config: ConfigRequestModel,
+    config: ConfigRequest,
 ):
     config = await commit_config(  # type: ignore
         project_id=request.state.project_id,
@@ -751,7 +760,7 @@ async def configs_delete(
 @handle_exceptions()
 async def configs_list(
     request: Request,
-    application_ref: ReferenceRequestModel,
+    application_ref: ReferenceRequest,
 ):
     configs = await list_configs(
         project_id=request.state.project_id,

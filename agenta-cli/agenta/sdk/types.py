@@ -199,35 +199,35 @@ class Context(BaseModel):
         return cls(**data)
 
 
-class SharedSDKResponse(BaseModel):
-    app_slug: str
+class ReferencesResponse(BaseModel):
+    app_id: Optional[str] = None
+    app_slug: Optional[str] = None
+    variant_id: Optional[str] = None
     variant_slug: Optional[str] = None
     variant_version: Optional[int] = None
+    environment_id: Optional[str] = None
     environment_slug: Optional[str] = None
+    environment_version: Optional[int] = None
 
     def __str__(self):
         return str(self.model_dump(exclude_none=True))
 
 
-class LifeCycleResponse(SharedSDKResponse):
+class LifecyclesResponse(ReferencesResponse):
     committed_at: Optional[str] = None
     committed_by: Optional[str] = None
+    committed_by_id: Optional[str] = None
     deployed_at: Optional[str] = None
     deployed_by: Optional[str] = None
+    deployed_by_id: Optional[str] = None
+
+    def __str__(self):
+        return str(self.model_dump(exclude_none=True))
 
 
-class ConfigurationResponse(LifeCycleResponse):
+class ConfigurationResponse(LifecyclesResponse):
     parameters: Dict[str, Any]
 
 
-class DeploymentResponse(LifeCycleResponse):
+class DeploymentResponse(LifecyclesResponse):
     pass
-
-
-class VariantConfigurationsResponse(BaseModel):
-    variant_slug: str
-    versions: List[int]
-    latest_version: int
-
-    def __repr__(self):
-        return self.model_dump_json(indent=4, exclude_none=True)
