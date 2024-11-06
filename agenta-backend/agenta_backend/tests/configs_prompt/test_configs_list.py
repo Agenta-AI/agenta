@@ -25,9 +25,11 @@ async def test_configs_list_success(get_app_by_name):
     response = await test_client.post(
         "/api/variants/configs/list",
         json={
-            "slug": app.app_name,
-            "version": None,
-            "id": None,
+            "application_ref": {
+                "slug": app.app_name,
+                "version": None,
+                "id": None,
+            }
         },
     )
 
@@ -44,9 +46,11 @@ async def test_configs_list_not_found(get_app_by_name):
     response = await test_client.post(
         "/api/variants/configs/list",
         json={
-            "slug": "non_existent_app",
-            "version": None,
-            "id": None,
+            "application_ref": {
+                "slug": "non_existent_app",
+                "version": None,
+                "id": None,
+            }
         },
     )
 

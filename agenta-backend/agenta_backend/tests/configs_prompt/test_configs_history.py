@@ -77,17 +77,21 @@ async def test_configs_history_not_found(get_app_by_name):
     app_not_found_response = await test_client.post(
         "/api/variants/configs/history",
         json={
-            "slug": "non_existent_app",
-            "version": None,
-            "id": None,
+            "variant_ref": {
+                "slug": "non_existent_app",
+                "version": None,
+                "id": None,
+            }
         },
     )
     variant_not_found_response = await test_client.post(
         "/api/variants/configs/history",
         json={
-            "slug": None,
-            "version": None,
-            "id": "f7c93215-b728-4b24-ae8d-2a611c68cdb2",
+            "variant_ref": {
+                "slug": None,
+                "version": None,
+                "id": "f7c93215-b728-4b24-ae8d-2a611c68cdb2",
+            }
         },
     )
 

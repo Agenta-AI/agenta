@@ -33,35 +33,37 @@ async def test_configs_commit_success(
     response = await test_client.post(
         "/api/variants/configs/commit",
         json={
-            "params": {
-                "model": "gpt-4",
-                "top_p": 1,
-                "inputs": [{"name": "country"}],
-                "force_json": 0,
-                "max_tokens": 1000,
-                "prompt_user": "What is the capital of {country}?",
-                "temperature": 0.65,
-                "prompt_system": "You are an expert in geography.",
-                "presence_penalty": 0,
-                "frequence_penalty": 0,
-            },
-            "url": "http://localhost/0192a45c-4630-7130-8d59-7036ec84002f/test/app",
-            "application_ref": {
-                "slug": None,
-                "version": None,
-                "id": str(app.id),
-            },
-            "service_ref": {
-                "slug": "app",
-                "version": None,
-                "id": "0192a45c-4630-7130-8d59-7036ec84002f",
-            },
-            "variant_ref": {
-                "slug": variant_revision.config_name,
-                "version": variant_revision.revision,
-                "id": str(variant_revision.id),
-            },
-            "environment_ref": None,
+            "config": {
+                "params": {
+                    "model": "gpt-4",
+                    "top_p": 1,
+                    "inputs": [{"name": "country"}],
+                    "force_json": 0,
+                    "max_tokens": 1000,
+                    "prompt_user": "What is the capital of {country}?",
+                    "temperature": 0.65,
+                    "prompt_system": "You are an expert in geography.",
+                    "presence_penalty": 0,
+                    "frequence_penalty": 0,
+                },
+                "url": "http://localhost/0192a45c-4630-7130-8d59-7036ec84002f/test/app",
+                "application_ref": {
+                    "slug": None,
+                    "version": None,
+                    "id": str(app.id),
+                },
+                "service_ref": {
+                    "slug": "app",
+                    "version": None,
+                    "id": "0192a45c-4630-7130-8d59-7036ec84002f",
+                },
+                "variant_ref": {
+                    "slug": variant_revision.config_name,
+                    "version": variant_revision.revision,
+                    "id": str(variant_revision.id),
+                },
+                "environment_ref": None,
+            }
         },
     )
     assert response.status_code == status.HTTP_200_OK
