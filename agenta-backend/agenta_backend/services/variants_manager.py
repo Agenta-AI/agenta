@@ -225,11 +225,9 @@ async def _fetch_variant_versions(
     logger.warning("[HELPERS]: Fetching variant versions")
     with suppress():
         if variant_ref.id:
-            print("Variant ref (id): ", variant_ref.id)
             app_variant = await db_manager.fetch_app_variant_by_id(
                 app_variant_id=variant_ref.id.hex
             )
-            print("App Variant (object): ", app_variant)
         elif variant_ref.slug and application_ref is not None:
             app = await _fetch_app(
                 project_id=project_id,

@@ -3,10 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from agenta.sdk.managers import VariantManager
-from agenta.sdk.managers.shared import (
-    ConfigurationResponse,
-    VariantConfigurationsResponse,
-)
+from agenta.sdk.managers.shared import ConfigurationResponse
 
 
 @patch("agenta.VariantManager.create_variant")
@@ -129,39 +126,185 @@ async def test_adelete_variant(mock_adelete_variant):
 
 
 @patch("agenta.VariantManager.list_variants")
-def test_list_variants(mock_list_variants):
+def test_list_variants(mock_list_variants, prompt):
     # Mock the API response for listing variants
     mock_list_variants.return_value = [
-        VariantConfigurationsResponse(
-            **{"variant_slug": "new-variant", "versions": [1, 2], "latest_version": 2}
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 0,
+                "parameters": {**prompt.model_dump(), "temperature": 0.2},
+            }
         ),
-        VariantConfigurationsResponse(
-            **{"variant_slug": "another-variant", "versions": [1], "latest_version": 1}
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 1,
+                "parameters": {**prompt.model_dump(), "temperature": 0.56},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 2,
+                "parameters": {**prompt.model_dump(), "temperature": 1.0},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 3,
+                "parameters": {**prompt.model_dump(), "temperature": 0.85},
+            }
         ),
     ]
 
     variants = VariantManager.list_variants(app_slug="my-app")
 
-    assert len(variants) == 2
-    assert variants[0].variant_slug == "new-variant"
-    assert variants[1].latest_version == 1
+    assert len(variants) == 4
+    assert variants[0].variant_slug == "new-app-variant"
+    assert variants[1].variant_version == 1
 
 
 @pytest.mark.asyncio
 @patch("agenta.VariantManager.alist_variants")
-async def testa_list_variants(mock_alist_variants):
+async def test_alist_variants(mock_alist_variants, prompt):
     # Mock the API response for listing variants
     mock_alist_variants.return_value = [
-        VariantConfigurationsResponse(
-            **{"variant_slug": "new-variant", "versions": [1, 2], "latest_version": 2}
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 0,
+                "parameters": {**prompt.model_dump(), "temperature": 0.2},
+            }
         ),
-        VariantConfigurationsResponse(
-            **{"variant_slug": "another-variant", "versions": [1], "latest_version": 1}
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 1,
+                "parameters": {**prompt.model_dump(), "temperature": 0.56},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 2,
+                "parameters": {**prompt.model_dump(), "temperature": 1.0},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 3,
+                "parameters": {**prompt.model_dump(), "temperature": 0.85},
+            }
         ),
     ]
 
     variants = await VariantManager.alist_variants(app_slug="my-app")
 
-    assert len(variants) == 2
-    assert variants[0].variant_slug == "new-variant"
-    assert variants[1].latest_version == 1
+    assert len(variants) == 4
+    assert variants[0].variant_slug == "new-app-variant"
+    assert variants[1].variant_version == 1
+
+
+@patch("agenta.VariantManager.history_variants")
+def test_history_variants(mock_history_variants, prompt):
+    # Mock the API response for listing variant history
+    mock_history_variants.return_value = [
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 0,
+                "parameters": {**prompt.model_dump(), "temperature": 0.2},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 1,
+                "parameters": {**prompt.model_dump(), "temperature": 0.56},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 2,
+                "parameters": {**prompt.model_dump(), "temperature": 1.0},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 3,
+                "parameters": {**prompt.model_dump(), "temperature": 0.85},
+            }
+        ),
+    ]
+
+    variants = VariantManager.history_variants(
+        app_id="06056815-c9d0-4cdb-bcc7-7c9e6a3fe5e3", variant_slug="new-app-variant"
+    )
+
+    assert len(variants) == 4
+    assert variants[0].variant_slug == "new-app-variant"
+    assert variants[1].variant_version == 1
+
+
+@pytest.mark.asyncio
+@patch("agenta.VariantManager.ahistory_variants")
+async def test_ahistory_variants(mock_ahistory_variants, prompt):
+    # Mock the API response for listing variants
+    mock_ahistory_variants.return_value = [
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 0,
+                "parameters": {**prompt.model_dump(), "temperature": 0.2},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 1,
+                "parameters": {**prompt.model_dump(), "temperature": 0.56},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 2,
+                "parameters": {**prompt.model_dump(), "temperature": 1.0},
+            }
+        ),
+        ConfigurationResponse(
+            **{
+                "app_slug": "my-app",
+                "variant_slug": "new-app-variant",
+                "variant_version": 3,
+                "parameters": {**prompt.model_dump(), "temperature": 0.85},
+            }
+        ),
+    ]
+
+    variants = await VariantManager.ahistory_variants(
+        variant_id="06056815-c9d0-4cdb-bcc7-7c9e6a3fe5e3"
+    )
+    assert len(variants) == 4
+    assert variants[0].variant_slug == "new-app-variant"
+    assert variants[1].variant_version == 1

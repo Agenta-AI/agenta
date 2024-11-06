@@ -1,3 +1,5 @@
+from typing import Optional
+
 from agenta.sdk.managers.shared import SharedManager
 
 
@@ -73,11 +75,47 @@ class VariantManager(SharedManager):
         return message
 
     @classmethod
-    def list_variants(cls, app_slug: str):
-        variants = SharedManager().list(app_slug=app_slug)
+    def list_variants(
+        cls, app_id: Optional[str] = None, app_slug: Optional[str] = None
+    ):
+        variants = SharedManager().list(id=app_id, slug=app_slug)
         return variants
 
     @classmethod
-    async def alist_variants(cls, app_slug: str):
-        variants = await SharedManager().alist(app_slug=app_slug)
+    async def alist_variants(
+        cls, app_id: Optional[str] = None, app_slug: Optional[str] = None
+    ):
+        variants = await SharedManager().alist(id=app_id, slug=app_slug)
+        return variants
+
+    @classmethod
+    def history_variants(
+        cls,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+    ):
+        variants = SharedManager().history(
+            app_id=app_id,
+            app_slug=app_slug,
+            variant_id=variant_id,
+            variant_slug=variant_slug,
+        )
+        return variants
+
+    @classmethod
+    async def ahistory_variants(
+        cls,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+    ):
+        variants = await SharedManager().ahistory(
+            app_id=app_id,
+            app_slug=app_slug,
+            variant_id=variant_id,
+            variant_slug=variant_slug,
+        )
         return variants
