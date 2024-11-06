@@ -689,7 +689,7 @@ async def configs_commit(
 ):
     config = await commit_config(  # type: ignore
         project_id=request.state.project_id,
-        config=config,
+        config=config,  # type: ignore
         user_id=request.state.user_id,
     )
 
@@ -739,7 +739,7 @@ async def configs_deploy(
 @handle_exceptions()
 async def configs_delete(
     request: Request,
-    variant_ref: Optional[ReferenceRequestModel] = None,
+    variant_ref: ReferenceRequestModel,
     application_ref: Optional[ReferenceRequestModel] = None,
 ):
     await delete_config(
@@ -764,7 +764,7 @@ async def configs_list(
 ):
     configs = await list_configs(
         project_id=request.state.project_id,
-        application_ref=application_ref,
+        application_ref=application_ref,  # type: ignore
         user_id=request.state.user_id,
     )
 
@@ -779,7 +779,7 @@ async def configs_list(
 @handle_exceptions()
 async def configs_history(
     request: Request,
-    variant_ref: Optional[ReferenceRequestModel] = None,
+    variant_ref: ReferenceRequestModel,
     application_ref: Optional[ReferenceRequestModel] = None,
 ):
     configs = await history_configs(

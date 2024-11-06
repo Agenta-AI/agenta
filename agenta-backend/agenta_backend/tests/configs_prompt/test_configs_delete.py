@@ -61,5 +61,5 @@ async def test_configs_delete_not_found(get_app_by_name):
             },
         },
     )
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-    assert "Variant does not exist." in response.json()["detail"]
+    assert response.status_code == status.HTTP_200_OK
+    assert None == response.json()

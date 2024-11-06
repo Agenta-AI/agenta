@@ -15,7 +15,10 @@ class ConfigDto(UniversalBaseModel):
     service_ref: typing.Optional[ReferenceDto] = None
     variant_ref: typing.Optional[ReferenceDto] = None
     environment_ref: typing.Optional[ReferenceDto] = None
-    lifecycle: typing.Optional[LifecycleDto] = None
+    application_lifecycle: typing.Optional[LifecycleDto] = None
+    service_lifecycle: typing.Optional[LifecycleDto] = None
+    variant_lifecycle: typing.Optional[LifecycleDto] = None
+    environment_lifecycle: typing.Optional[LifecycleDto] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

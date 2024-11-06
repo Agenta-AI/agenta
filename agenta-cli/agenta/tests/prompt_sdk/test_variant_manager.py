@@ -19,9 +19,9 @@ def test_create_variant_successful(mock_create_variant, prompt):
     )
 
     variant = VariantManager.create_variant(
-        app_slug="my-app",
+        parameters=prompt.model_dump(),
         variant_slug="new-variant",
-        config_parameters=prompt.model_dump(),
+        app_slug="my-app",
     )
 
     assert variant.app_slug == "my-app"
@@ -43,9 +43,9 @@ async def test_create_avariant_successful(mock_acreate_variant, prompt):
     )
 
     variant = await VariantManager.acreate_variant(
-        app_slug="qa-assistant",
+        parameters=prompt.model_dump(),
         variant_slug="school-assistant",
-        config_parameters=prompt.model_dump(),
+        app_slug="qa-assistant",
     )
 
     assert variant.app_slug == "qa-assistant"
@@ -66,9 +66,9 @@ def test_commit_variant(mock_commit_variant, prompt):
     )
 
     variant = VariantManager.commit_variant(
-        app_slug="my-app",
+        parameters=prompt.model_dump(),
         variant_slug="new-variant",
-        config_parameters=prompt.model_dump(),
+        app_slug="my-app",
     )
 
     assert variant.variant_version == 2
@@ -90,9 +90,9 @@ async def test_acommit_variant(mock_acommit_variant, prompt):
     )
 
     variant = await VariantManager.acommit_variant(
-        app_slug="my-new-app",
+        parameters=prompt.model_dump(),
         variant_slug="new-variant",
-        config_parameters=prompt.model_dump(),
+        app_slug="my-new-app",
     )
 
     assert variant.variant_version == 4
@@ -103,26 +103,28 @@ async def test_acommit_variant(mock_acommit_variant, prompt):
 @patch("agenta.VariantManager.delete_variant")
 def test_delete_variant(mock_delete_variant):
     # Mock the API response for deleting a variant
-    mock_delete_variant.return_value = "Variant deleted successfully."
+    mock_delete_variant.return_value = 204
 
     result = VariantManager.delete_variant(
-        app_slug="my-app", variant_slug="obsolete-variant"
+        variant_slug="obsolete-variant",
+        app_slug="my-app",
     )
 
-    assert result == "Variant deleted successfully."
+    assert result == 204
 
 
 @pytest.mark.asyncio
 @patch("agenta.VariantManager.adelete_variant")
 async def test_adelete_variant(mock_adelete_variant):
     # Mock the API response for deleting a variant
-    mock_adelete_variant.return_value = "Variant deleted successfully."
+    mock_adelete_variant.return_value = 204
 
     result = await VariantManager.adelete_variant(
-        app_slug="my-app", variant_slug="obsolete-variant-2"
+        variant_slug="obsolete-variant-2",
+        app_slug="my-app",
     )
 
-    assert result == "Variant deleted successfully."
+    assert result == 204
 
 
 @patch("agenta.VariantManager.list_variants")
@@ -255,7 +257,8 @@ def test_history_variants(mock_history_variants, prompt):
     ]
 
     variants = VariantManager.history_variants(
-        app_id="06056815-c9d0-4cdb-bcc7-7c9e6a3fe5e3", variant_slug="new-app-variant"
+        variant_slug="new-app-variant",
+        app_id="06056815-c9d0-4cdb-bcc7-7c9e6a3fe5e3",
     )
 
     assert len(variants) == 4
@@ -303,7 +306,7 @@ async def test_ahistory_variants(mock_ahistory_variants, prompt):
     ]
 
     variants = await VariantManager.ahistory_variants(
-        variant_id="06056815-c9d0-4cdb-bcc7-7c9e6a3fe5e3"
+        variant_slug="new-app-variant", app_id="06056815-c9d0-4cdb-bcc7-7c9e6a3fe5e3"
     )
     assert len(variants) == 4
     assert variants[0].variant_slug == "new-app-variant"

@@ -66,8 +66,8 @@ async def test_configs_commit_success(
     )
     assert response.status_code == status.HTTP_200_OK
     assert "params" and "url" in response.json()
-    assert "lifecycle" in response.json()
-    assert response.json()["lifecycle"]["committed_by"] == user.email
+    assert "variant_lifecycle" in response.json()
+    assert response.json()["variant_lifecycle"]["updated_by"] == user.email
 
 
 @pytest.mark.asyncio

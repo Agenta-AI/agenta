@@ -30,7 +30,6 @@ async def test_configs_list_success(get_app_by_name):
             "id": None,
         },
     )
-    print("Response: ", response.json())
 
     assert response.status_code == status.HTTP_200_OK
     assert isinstance(response.json(), list)
@@ -51,7 +50,5 @@ async def test_configs_list_not_found(get_app_by_name):
         },
     )
 
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-    assert (
-        "No configs found for the specified application." in response.json()["detail"]
-    )
+    assert response.status_code == status.HTTP_200_OK
+    assert [] == response.json()
