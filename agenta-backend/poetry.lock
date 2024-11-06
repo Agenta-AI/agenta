@@ -3220,17 +3220,17 @@ rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
 name = "restrictedpython"
-version = "6.2"
+version = "7.4"
 description = "RestrictedPython is a defined subset of the Python language which allows to provide a program input into a trusted environment."
 optional = false
-python-versions = ">=3.6, <3.12"
+python-versions = "<3.14,>=3.8"
 files = [
-    {file = "RestrictedPython-6.2-py3-none-any.whl", hash = "sha256:7c2ffa4904300d67732f841d8a975dcdc53eba4c1cdc9d84b97684ef12304a3d"},
-    {file = "RestrictedPython-6.2.tar.gz", hash = "sha256:db73eb7e3b39650f0d21d10cc8dda9c0e2986e621c94b0c5de32fb0dee3a08af"},
+    {file = "RestrictedPython-7.4-py3-none-any.whl", hash = "sha256:f431c76f848f6f6d50ae21457cb503642db60889a273e4be439cf7ca4cbaf999"},
+    {file = "restrictedpython-7.4.tar.gz", hash = "sha256:81b62924713dbd280917fceaecaf210fef7a49dddf1a08c8c214a3613fbeb425"},
 ]
 
 [package.extras]
-docs = ["Sphinx", "sphinx-rtd-theme"]
+docs = ["Sphinx", "furo"]
 test = ["pytest", "pytest-mock"]
 
 [[package]]
@@ -4300,4 +4300,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "57fb945a44b68abd59fe130117447e04f266dd61e35a0e23ae21fa3f669705af"
+content-hash = "82a9e248a9d1383a9076fc6288007a33df9710fc1330ad0fda3d0cc03ada4d1a"
