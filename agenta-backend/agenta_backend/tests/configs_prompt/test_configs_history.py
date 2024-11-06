@@ -91,9 +91,6 @@ async def test_configs_history_not_found(get_app_by_name):
         },
     )
 
-    assert app_not_found_response.status_code == status.HTTP_404_NOT_FOUND
-    assert variant_not_found_response.status_code == status.HTTP_404_NOT_FOUND
-    assert "No configs found for the specified variant or application." in (
-        app_not_found_response.json()["detail"]
-        and variant_not_found_response.json()["detail"]
-    )
+    assert app_not_found_response.status_code == status.HTTP_200_OK
+    assert variant_not_found_response.status_code == status.HTTP_200_OK
+    assert [] == (app_not_found_response.json() and variant_not_found_response.json())

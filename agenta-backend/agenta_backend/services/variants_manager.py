@@ -19,8 +19,7 @@ from agenta_backend.services.db_manager import (
 )
 from agenta_backend.services.db_manager import (
     get_user,  # It is very wrong that I have to use this,
-    get_user_with_id,  # instead of this.
-    get_user_with_uid,
+    get_user_with_uid,  # instead of this.
     get_deployment_by_id,
     fetch_base_by_id,
     fetch_app_by_id,
@@ -161,8 +160,12 @@ async def _fetch_variant(
             )
 
         # by application_id, variant_slug, and ...
-        elif (application_ref.id or application_ref.slug) and variant_ref.slug:
-            if not application_ref.id:
+        elif (
+            application_ref
+            and (application_ref.id or application_ref.slug)
+            and variant_ref.slug
+        ):
+            if not application_ref.id and application_ref.slug:
                 app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
                     app_name=application_ref.slug,
@@ -232,7 +235,9 @@ async def _fetch_variants(
 
 
 async def _fetch_variant_versions(
-    project_id: str, application_ref: Optional[ReferenceDTO], variant_ref: ReferenceDTO
+    project_id: str,
+    application_ref: Optional[ReferenceDTO],
+    variant_ref: ReferenceDTO,
 ) -> Optional[List[AppVariantRevisionsDB]]:
     logger.warning("[HELPERS]: Fetching variant versions")
 
@@ -247,11 +252,15 @@ async def _fetch_variant_versions(
                 app_name=application_ref.slug,
                 app_id=application_ref.id,
             )
+
             if not app:
                 return None
 
+            application_ref.id = app.id
+
             app_variant = await db_manager.fetch_app_variant_by_slug(
-                variant_slug=variant_ref.slug, app_id=application_ref.id.hex
+                variant_slug=variant_ref.slug,
+                app_id=application_ref.id.hex,  # type: ignore
             )
 
         if not app_variant:
@@ -282,8 +291,12 @@ async def _fetch_environment(
             )
 
         # by application_id, environment_slug, and ...
-        elif (application_ref.id or application_ref.slug) and environment_ref.slug:
-            if not application_ref.id:
+        elif (
+            application_ref
+            and (application_ref.id or application_ref.slug)
+            and environment_ref.slug
+        ):
+            if not application_ref.id and application_ref.slug:
                 app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
                     app_name=application_ref.slug,
@@ -449,6 +462,9 @@ async def add_config(
     base_id = bases[0].id  # needs to be changed to use the 'default base'
 
     logger.warning("[ADD]     Creating: variant")
+
+    if not variant_ref.slug:
+        return None
 
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
@@ -624,9 +640,15 @@ async def fetch_config_by_variant_ref(
     if not app:
         return None
 
-    assert user_id is not None, "User ID is required."
-
-    user = await get_user_with_uid(user_uid=user_id)
+    _user_id = None
+    _user_email = None
+    if user_id:
+        try:
+            user = await get_user_with_uid(user_uid=user_id)
+            _user_id = str(user.id)
+            _user_email = user.email
+        except:
+            pass
 
     config = ConfigDTO(
         params=app_variant_revision.config_parameters,
@@ -652,9 +674,9 @@ async def fetch_config_by_variant_ref(
         variant_lifecycle=LifecycleDTO(
             created_at=app_variant_revision.created_at,
             updated_at=app_variant.updated_at,
-            updated_by_id=str(user.id),
+            updated_by_id=_user_id,
             # DEPRECATING
-            updated_by=user.email,
+            updated_by=_user_email,
         ),
     )
     return config
@@ -700,15 +722,22 @@ async def fetch_config_by_environment_ref(
 
     config.environment_ref = environment_ref
 
-    assert user_id is not None, "User ID is required."
-
-    user = await get_user_with_uid(user_uid=user_id)
+    _user_id = None
+    _user_email = None
+    if user_id:
+        try:
+            user = await get_user_with_uid(user_uid=user_id)
+            _user_id = str(user.id)
+            _user_email = user.email
+        except:
+            pass
 
     config.environment_lifecycle = LifecycleDTO(
         created_at=app_environment_revision.created_at,
-        updated_by_id=str(user.id),
+        updated_at=app_environment_revision.created_at,
+        updated_by_id=_user_id,
         # DEPRECATING
-        updated_by=user.email,
+        updated_by=_user_email,
     )
     return config
 
@@ -734,6 +763,9 @@ async def fork_config_by_variant_ref(
         return None
 
     logger.warning("[FORK] Creating: variant")
+
+    if not user_id:
+        return None
 
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
@@ -823,6 +855,9 @@ async def commit_config(
 ) -> Optional[ConfigDTO]:
     logger.warning("[COMMIT] Fetching: variant")
 
+    if not config.variant_ref:
+        return None
+
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=config.variant_ref,
@@ -859,15 +894,22 @@ async def commit_config(
         user_id=user_id,
     )
 
-    assert user_id is not None, "User ID is required."
-    user = await get_user_with_uid(user_uid=user_id)
+    _user_id = None
+    _user_email = None
+    if user_id:
+        try:
+            user = await get_user_with_uid(user_uid=user_id)
+            _user_id = str(user.id)
+            _user_email = user.email
+        except:
+            pass
 
     config.variant_lifecycle = LifecycleDTO(
         created_at=app_variant_revision.created_at,
         updated_at=variant_updated_at,
-        updated_by_id=str(user.id),
+        updated_by_id=_user_id,
         # DEPRECATING
-        updated_by=user.email,
+        updated_by=_user_email,
     )
 
     return config
@@ -924,15 +966,22 @@ async def deploy_config(
     if not config:
         return None
 
-    assert user_id is not None, "User ID is required."
-
-    user = await get_user_with_uid(user_uid=user_id)
+    _user_id = None
+    _user_email = None
+    if user_id:
+        try:
+            user = await get_user_with_uid(user_uid=user_id)
+            _user_id = str(user.id)
+            _user_email = user.email
+        except:
+            pass
 
     config.environment_lifecycle = LifecycleDTO(
         created_at=app_environment_revision.created_at,
-        updated_by_id=str(user.id),
+        updated_at=app_environment_revision.created_at,
+        updated_by_id=_user_id,
         # DEPRECATING
-        updated_by=user.email,
+        updated_by=_user_email,
     )
     return config
 
@@ -955,7 +1004,7 @@ async def list_configs(
 
 async def history_configs(
     project_id: str,
-    variant_ref: Optional[ReferenceDTO] = None,
+    variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> List[ConfigDTO]:
@@ -973,7 +1022,7 @@ async def history_configs(
 
 async def delete_config(
     project_id: str,
-    variant_ref: Optional[ReferenceDTO] = None,
+    variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> None:
@@ -983,10 +1032,7 @@ async def delete_config(
         application_ref=application_ref,
     )
     if not variant:
-        raise HTTPException(
-            status_code=404,
-            detail="Variant does not exist.",
-        )
+        return None
 
     await db_manager.remove_app_variant_from_db(
         app_variant_db=variant,

@@ -7,6 +7,7 @@ from agenta.sdk.types import (
     ConfigurationResponse,
     DeploymentResponse,
 )
+from agenta.client.backend.types.config_dto import ConfigDto as ConfigRequest
 from agenta.client.backend.types.config_response_model import ConfigResponseModel
 from agenta.client.backend.types.reference_request_model import ReferenceRequestModel
 
@@ -261,8 +262,8 @@ class SharedManager:
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
     ):
-        configs_response = ag.api.variants.configs_list(
-            application_ref=ReferenceRequestModel(
+        configs_response = ag.api.variants.configs_list(  # type: ignore
+            application_ref=ReferenceRequestModel(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -287,8 +288,8 @@ class SharedManager:
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
     ):
-        configs_response = await ag.async_api.variants.configs_list(
-            application_ref=ReferenceRequestModel(
+        configs_response = await ag.async_api.variants.configs_list(  # type: ignore
+            application_ref=ReferenceRequestModel(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -456,12 +457,12 @@ class SharedManager:
         config_response = ag.api.variants.configs_commit(  # type: ignore
             config=ConfigRequest(
                 params=parameters,
-                variant_ref=ReferenceRequestModel(
+                variant_ref=ReferenceRequestModel(  # type: ignore
                     slug=variant_slug,
                     version=None,
                     id=None,
                 ),
-                application_ref=ReferenceRequestModel(
+                application_ref=ReferenceRequestModel(  # type: ignore
                     slug=app_slug,
                     version=None,
                     id=app_id,
@@ -487,12 +488,12 @@ class SharedManager:
         config_response = await ag.async_api.variants.configs_commit(  # type: ignore
             config=ConfigRequest(
                 params=parameters,
-                variant_ref=ReferenceRequestModel(
+                variant_ref=ReferenceRequestModel(  # type: ignore
                     slug=variant_slug,
                     version=None,
                     id=None,
                 ),
-                application_ref=ReferenceRequestModel(
+                application_ref=ReferenceRequestModel(  # type: ignore
                     slug=app_slug,
                     version=None,
                     id=app_id,
@@ -583,7 +584,7 @@ class SharedManager:
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
     ):
-        config_response = ag.api.variants.configs_delete(
+        config_response = ag.api.variants.configs_delete(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=variant_slug,
                 version=variant_version,
@@ -609,7 +610,7 @@ class SharedManager:
         variant_slug: Optional[str] = None,
         variant_version: Optional[int] = None,
     ):
-        config_response = await ag.async_api.variants.configs_delete(
+        config_response = await ag.async_api.variants.configs_delete(  # type: ignore
             variant_ref=ReferenceRequestModel(
                 slug=variant_slug,
                 version=variant_version,

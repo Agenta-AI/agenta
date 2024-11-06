@@ -48,8 +48,8 @@ async def test_configs_deploy_success(
     )
     assert response.status_code == status.HTTP_200_OK
     assert "params" and "url" in response.json()
-    assert "lifecycle" in response.json()
-    assert response.json()["lifecycle"]["deployed_by"] == user.email
+    assert "environment_lifecycle" in response.json()
+    assert response.json()["environment_lifecycle"]["updated_by"] == user.email
 
 
 @pytest.mark.asyncio

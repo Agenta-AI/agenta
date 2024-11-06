@@ -20,8 +20,8 @@ from ..core.serialization import convert_and_respect_annotation_metadata
 from ..types.app_variant_revision import AppVariantRevision
 from ..types.reference_request_model import ReferenceRequestModel
 from ..types.config_response_model import ConfigResponseModel
+from ..types.config_dto import ConfigDto
 from ..types.reference_dto import ReferenceDto
-from ..types.lifecycle_dto import LifecycleDto
 from ..core.client_wrapper import AsyncClientWrapper
 
 # this is used as the default value for optional parameters
@@ -951,31 +951,13 @@ class VariantsClient:
     def configs_commit(
         self,
         *,
-        params: typing.Dict[str, typing.Optional[typing.Any]],
-        url: typing.Optional[str] = OMIT,
-        application_ref: typing.Optional[ReferenceDto] = OMIT,
-        service_ref: typing.Optional[ReferenceDto] = OMIT,
-        variant_ref: typing.Optional[ReferenceDto] = OMIT,
-        environment_ref: typing.Optional[ReferenceDto] = OMIT,
-        lifecycle: typing.Optional[LifecycleDto] = OMIT,
+        config: ConfigDto,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> ConfigResponseModel:
         """
         Parameters
         ----------
-        params : typing.Dict[str, typing.Optional[typing.Any]]
-
-        url : typing.Optional[str]
-
-        application_ref : typing.Optional[ReferenceDto]
-
-        service_ref : typing.Optional[ReferenceDto]
-
-        variant_ref : typing.Optional[ReferenceDto]
-
-        environment_ref : typing.Optional[ReferenceDto]
-
-        lifecycle : typing.Optional[LifecycleDto]
+        config : ConfigDto
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -987,36 +969,24 @@ class VariantsClient:
 
         Examples
         --------
-        from agenta import AgentaApi
+        from agenta import AgentaApi, ConfigDto
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
         client.variants.configs_commit(
-            params={"key": "value"},
+            config=ConfigDto(
+                params={"key": "value"},
+            ),
         )
         """
         _response = self._client_wrapper.httpx_client.request(
             "variants/configs/commit",
             method="POST",
             json={
-                "params": params,
-                "url": url,
-                "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "service_ref": convert_and_respect_annotation_metadata(
-                    object_=service_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "lifecycle": convert_and_respect_annotation_metadata(
-                    object_=lifecycle, annotation=LifecycleDto, direction="write"
+                "config": convert_and_respect_annotation_metadata(
+                    object_=config, annotation=ConfigDto, direction="write"
                 ),
             },
             request_options=request_options,
@@ -1131,22 +1101,90 @@ class VariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def configs_delete(
+        self,
+        *,
+        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> int:
+        """
+        Parameters
+        ----------
+        variant_ref : typing.Optional[ReferenceRequestModel]
+
+        application_ref : typing.Optional[ReferenceRequestModel]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        int
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.configs_delete()
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "variants/configs/delete",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    int,
+                    parse_obj_as(
+                        type_=int,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     def configs_list(
         self,
         *,
-        slug: typing.Optional[str] = OMIT,
-        version: typing.Optional[int] = OMIT,
-        id: typing.Optional[str] = OMIT,
+        application_ref: ReferenceDto,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
-        slug : typing.Optional[str]
-
-        version : typing.Optional[int]
-
-        id : typing.Optional[str]
+        application_ref : ReferenceDto
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1158,21 +1196,23 @@ class VariantsClient:
 
         Examples
         --------
-        from agenta import AgentaApi
+        from agenta import AgentaApi, ReferenceDto
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.variants.configs_list()
+        client.variants.configs_list(
+            application_ref=ReferenceDto(),
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "variants/configs/list",
             method="POST",
             json={
-                "slug": slug,
-                "version": version,
-                "id": id,
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref, annotation=ReferenceDto, direction="write"
+                ),
             },
             request_options=request_options,
             omit=OMIT,
@@ -1257,80 +1297,6 @@ class VariantsClient:
                     typing.List[ConfigResponseModel],
                     parse_obj_as(
                         type_=typing.List[ConfigResponseModel],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def configs_delete(
-        self,
-        *,
-        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
-        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> int:
-        """
-        Parameters
-        ----------
-        variant_ref : typing.Optional[ReferenceRequestModel]
-
-        application_ref : typing.Optional[ReferenceRequestModel]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        int
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.variants.configs_delete()
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "variants/configs/delete",
-            method="POST",
-            json={
-                "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref,
-                    annotation=ReferenceRequestModel,
-                    direction="write",
-                ),
-                "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref,
-                    annotation=ReferenceRequestModel,
-                    direction="write",
-                ),
-            },
-            request_options=request_options,
-            omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    int,
-                    parse_obj_as(
-                        type_=int,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -2369,31 +2335,13 @@ class AsyncVariantsClient:
     async def configs_commit(
         self,
         *,
-        params: typing.Dict[str, typing.Optional[typing.Any]],
-        url: typing.Optional[str] = OMIT,
-        application_ref: typing.Optional[ReferenceDto] = OMIT,
-        service_ref: typing.Optional[ReferenceDto] = OMIT,
-        variant_ref: typing.Optional[ReferenceDto] = OMIT,
-        environment_ref: typing.Optional[ReferenceDto] = OMIT,
-        lifecycle: typing.Optional[LifecycleDto] = OMIT,
+        config: ConfigDto,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> ConfigResponseModel:
         """
         Parameters
         ----------
-        params : typing.Dict[str, typing.Optional[typing.Any]]
-
-        url : typing.Optional[str]
-
-        application_ref : typing.Optional[ReferenceDto]
-
-        service_ref : typing.Optional[ReferenceDto]
-
-        variant_ref : typing.Optional[ReferenceDto]
-
-        environment_ref : typing.Optional[ReferenceDto]
-
-        lifecycle : typing.Optional[LifecycleDto]
+        config : ConfigDto
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2407,7 +2355,7 @@ class AsyncVariantsClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi
+        from agenta import AsyncAgentaApi, ConfigDto
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -2417,7 +2365,9 @@ class AsyncVariantsClient:
 
         async def main() -> None:
             await client.variants.configs_commit(
-                params={"key": "value"},
+                config=ConfigDto(
+                    params={"key": "value"},
+                ),
             )
 
 
@@ -2427,22 +2377,8 @@ class AsyncVariantsClient:
             "variants/configs/commit",
             method="POST",
             json={
-                "params": params,
-                "url": url,
-                "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "service_ref": convert_and_respect_annotation_metadata(
-                    object_=service_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "environment_ref": convert_and_respect_annotation_metadata(
-                    object_=environment_ref, annotation=ReferenceDto, direction="write"
-                ),
-                "lifecycle": convert_and_respect_annotation_metadata(
-                    object_=lifecycle, annotation=LifecycleDto, direction="write"
+                "config": convert_and_respect_annotation_metadata(
+                    object_=config, annotation=ConfigDto, direction="write"
                 ),
             },
             request_options=request_options,
@@ -2565,29 +2501,26 @@ class AsyncVariantsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def configs_list(
+    async def configs_delete(
         self,
         *,
-        slug: typing.Optional[str] = OMIT,
-        version: typing.Optional[int] = OMIT,
-        id: typing.Optional[str] = OMIT,
+        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[ConfigResponseModel]:
+    ) -> int:
         """
         Parameters
         ----------
-        slug : typing.Optional[str]
+        variant_ref : typing.Optional[ReferenceRequestModel]
 
-        version : typing.Optional[int]
-
-        id : typing.Optional[str]
+        application_ref : typing.Optional[ReferenceRequestModel]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        typing.List[ConfigResponseModel]
+        int
             Successful Response
 
         Examples
@@ -2603,7 +2536,88 @@ class AsyncVariantsClient:
 
 
         async def main() -> None:
-            await client.variants.configs_list()
+            await client.variants.configs_delete()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "variants/configs/delete",
+            method="POST",
+            json={
+                "variant_ref": convert_and_respect_annotation_metadata(
+                    object_=variant_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref,
+                    annotation=ReferenceRequestModel,
+                    direction="write",
+                ),
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    int,
+                    parse_obj_as(
+                        type_=int,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def configs_list(
+        self,
+        *,
+        application_ref: ReferenceDto,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.List[ConfigResponseModel]:
+        """
+        Parameters
+        ----------
+        application_ref : ReferenceDto
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.List[ConfigResponseModel]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi, ReferenceDto
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.configs_list(
+                application_ref=ReferenceDto(),
+            )
 
 
         asyncio.run(main())
@@ -2612,9 +2626,9 @@ class AsyncVariantsClient:
             "variants/configs/list",
             method="POST",
             json={
-                "slug": slug,
-                "version": version,
-                "id": id,
+                "application_ref": convert_and_respect_annotation_metadata(
+                    object_=application_ref, annotation=ReferenceDto, direction="write"
+                ),
             },
             request_options=request_options,
             omit=OMIT,
@@ -2707,88 +2721,6 @@ class AsyncVariantsClient:
                     typing.List[ConfigResponseModel],
                     parse_obj_as(
                         type_=typing.List[ConfigResponseModel],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def configs_delete(
-        self,
-        *,
-        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
-        application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> int:
-        """
-        Parameters
-        ----------
-        variant_ref : typing.Optional[ReferenceRequestModel]
-
-        application_ref : typing.Optional[ReferenceRequestModel]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        int
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-
-
-        async def main() -> None:
-            await client.variants.configs_delete()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "variants/configs/delete",
-            method="POST",
-            json={
-                "variant_ref": convert_and_respect_annotation_metadata(
-                    object_=variant_ref,
-                    annotation=ReferenceRequestModel,
-                    direction="write",
-                ),
-                "application_ref": convert_and_respect_annotation_metadata(
-                    object_=application_ref,
-                    annotation=ReferenceRequestModel,
-                    direction="write",
-                ),
-            },
-            request_options=request_options,
-            omit=OMIT,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    int,
-                    parse_obj_as(
-                        type_=int,  # type: ignore
                         object_=_response.json(),
                     ),
                 )

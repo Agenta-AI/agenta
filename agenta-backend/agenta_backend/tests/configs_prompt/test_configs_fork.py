@@ -48,8 +48,8 @@ async def test_configs_fork_by_variant_ref(
     assert "application_ref" in response.json()
     assert isinstance(response.json(), dict)
     assert isinstance(response.json()["application_ref"], dict)
-    assert "lifecycle" in response.json()
-    assert response.json()["lifecycle"]["committed_by"] == user.email
+    assert "variant_lifecycle" in response.json()
+    assert response.json()["variant_lifecycle"]["updated_by"] == user.email
 
 
 @pytest.mark.asyncio
