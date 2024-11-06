@@ -8,98 +8,159 @@ class VariantManager(SharedManager):
     def create_variant(
         cls,
         *,
-        app_slug: str,
+        parameters: dict,
         variant_slug: str,
-        config_parameters: dict,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        variant = SharedManager().add(
+        variant = SharedManager.add(
+            app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
         )
+
         if variant:
-            variant = SharedManager().commit(
+            variant = SharedManager.commit(
+                parameters=parameters,
+                app_id=app_id,
                 app_slug=app_slug,
                 variant_slug=variant_slug,
-                config_parameters=config_parameters,
             )
 
         return variant
 
     @classmethod
     async def acreate_variant(
-        cls, *, app_slug: str, variant_slug: str, config_parameters: dict
+        cls,
+        *,
+        parameters: dict,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        variant = await SharedManager().aadd(
+        variant = await SharedManager.aadd(
+            app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
         )
         if variant:
-            variant = await SharedManager().acommit(
+            variant = await SharedManager.acommit(
+                parameters=parameters,
+                app_id=app_id,
                 app_slug=app_slug,
                 variant_slug=variant_slug,
-                config_parameters=config_parameters,
             )
 
         return variant
 
     @classmethod
-    def commit_variant(cls, app_slug: str, variant_slug: str, config_parameters: dict):
-        variant = SharedManager().commit(
+    def commit_variant(
+        cls,
+        *,
+        parameters: dict,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ):
+        variant = SharedManager.commit(
+            parameters=parameters,
+            app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
-            config_parameters=config_parameters,
         )
         return variant
 
     @classmethod
     async def acommit_variant(
-        cls, app_slug: str, variant_slug: str, config_parameters: dict
+        cls,
+        *,
+        parameters: dict,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        variant = await SharedManager().acommit(
+        variant = await SharedManager.acommit(
+            parameters=parameters,
+            app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
-            config_parameters=config_parameters,
         )
         return variant
 
     @classmethod
-    def delete_variant(cls, app_slug: str, variant_slug: str):
-        message = SharedManager().delete(app_slug=app_slug, variant_slug=variant_slug)
+    def delete_variant(
+        cls,
+        *,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ):
+        message = SharedManager.delete(
+            app_id=app_id,
+            app_slug=app_slug,
+            variant_slug=variant_slug,
+        )
         return message
 
     @classmethod
-    async def adelete_variant(cls, app_slug: str, variant_slug: str):
-        message = await SharedManager().adelete(
-            app_slug=app_slug, variant_slug=variant_slug
+    async def adelete_variant(
+        cls,
+        *,
+        variant_slug: str,
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+    ):
+        message = await SharedManager.adelete(
+            app_id=app_id,
+            app_slug=app_slug,
+            variant_slug=variant_slug,
         )
         return message
 
     @classmethod
     def list_variants(
-        cls, app_id: Optional[str] = None, app_slug: Optional[str] = None
+        cls,
+        *,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        variants = SharedManager().list(id=app_id, slug=app_slug)
+        variants = SharedManager.list(
+            app_id=app_id,
+            app_slug=app_slug,
+        )
         return variants
 
     @classmethod
     async def alist_variants(
-        cls, app_id: Optional[str] = None, app_slug: Optional[str] = None
+        cls,
+        *,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
     ):
-        variants = await SharedManager().alist(id=app_id, slug=app_slug)
+        variants = await SharedManager.alist(
+            app_id=app_id,
+            app_slug=app_slug,
+        )
         return variants
 
     @classmethod
     def history_variants(
         cls,
+        *,
+        variant_slug: str,
+        #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
-        variant_id: Optional[str] = None,
-        variant_slug: Optional[str] = None,
     ):
-        variants = SharedManager().history(
+        variants = SharedManager.history(
             app_id=app_id,
             app_slug=app_slug,
-            variant_id=variant_id,
             variant_slug=variant_slug,
         )
         return variants
@@ -107,15 +168,15 @@ class VariantManager(SharedManager):
     @classmethod
     async def ahistory_variants(
         cls,
+        *,
+        variant_slug: str,
+        #
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
-        variant_id: Optional[str] = None,
-        variant_slug: Optional[str] = None,
     ):
-        variants = await SharedManager().ahistory(
+        variants = await SharedManager.ahistory(
             app_id=app_id,
             app_slug=app_slug,
-            variant_id=variant_id,
             variant_slug=variant_slug,
         )
         return variants

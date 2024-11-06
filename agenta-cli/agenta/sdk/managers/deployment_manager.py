@@ -8,16 +8,19 @@ class DeploymentManager:
     def deploy_variant(
         cls,
         *,
-        app_slug: str,
         variant_slug: str,
         environment_slug: str,
-        variant_version: Optional[int]
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
     ):
-        deployment = SharedManager().deploy(
+        deployment = SharedManager.deploy(
+            app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
-            environment_slug=environment_slug,
             variant_version=variant_version,
+            environment_slug=environment_slug,
         )
         return deployment
 
@@ -25,15 +28,18 @@ class DeploymentManager:
     async def adeploy_variant(
         cls,
         *,
-        app_slug: str,
         variant_slug: str,
         environment_slug: str,
-        variant_version: Optional[int]
+        #
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_version: Optional[int] = None,
     ):
-        deployment = await SharedManager().adeploy(
+        deployment = await SharedManager.adeploy(
+            app_id=app_id,
             app_slug=app_slug,
             variant_slug=variant_slug,
-            environment_slug=environment_slug,
             variant_version=variant_version,
+            environment_slug=environment_slug,
         )
         return deployment

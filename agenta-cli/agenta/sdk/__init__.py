@@ -1,4 +1,7 @@
 from .utils.preinit import PreInitObject  # always the first import!
+
+import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+
 from .context import get_contexts, save_context
 from .types import (
     Context,
@@ -27,3 +30,8 @@ from .managers.deployment_manager import DeploymentManager
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
+
+api = DEFAULT_AGENTA_SINGLETON_INSTANCE.api  # type: ignore
+async_api = DEFAULT_AGENTA_SINGLETON_INSTANCE.async_api  # type: ignore
+
+types = client_types
