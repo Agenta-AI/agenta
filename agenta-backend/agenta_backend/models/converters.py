@@ -506,8 +506,6 @@ def evaluator_config_db_to_pydantic(evaluator_config: EvaluatorConfigDB):
     )
 
 
-
-
 def get_paginated_data(
     data: List[Any], data_count: int, query: PaginationParam = Depends()
 ):
