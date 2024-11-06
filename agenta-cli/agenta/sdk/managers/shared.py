@@ -8,7 +8,6 @@ from agenta.client.backend.types.reference_dto import ReferenceDto
 from agenta.sdk.types import (
     ConfigurationResponse,
     DeploymentResponse,
-    VariantConfigurationsResponse,
 )
 from agenta.client.backend.types.config_response_model import ConfigResponseModel
 from agenta.client.backend.types.reference_request_model import ReferenceRequestModel
@@ -328,20 +327,106 @@ class SharedManager:
 
     @classmethod
     @handle_exceptions()
-    def list(cls, *, app_slug: str):
-        configs_response = cls.client.variants.configs_list(app_slug=app_slug)  # type: ignore
-        return [
-            VariantConfigurationsResponse(**config_response)  # type: ignore
+    def list(
+        cls,
+        *,
+        id: Optional[str] = None,
+        slug: Optional[str] = None,
+        version: Optional[int] = None,
+    ):
+        configs_response = cls.client.variants.configs_list(id=id, slug=slug, version=version)  # type: ignore
+        transformed_response = [
+            cls._flatten_config_response(
+                config_response,
+                include_params=True,
+            )
             for config_response in configs_response
+        ]
+        return [
+            ConfigurationResponse(**response)  # type: ignore
+            for response in transformed_response
         ]
 
     @classmethod
     @handle_exceptions()
-    async def alist(cls, *, app_slug: str):
-        configs_response = await cls.aclient.variants.configs_list(app_slug=app_slug)  # type: ignore
-        return [
-            VariantConfigurationsResponse(**config_response)  # type: ignore
+    async def alist(
+        cls,
+        *,
+        id: Optional[str] = None,
+        slug: Optional[str] = None,
+        version: Optional[int] = None,
+    ):
+        configs_response = await cls.aclient.variants.configs_list(id=id, slug=slug, version=version)  # type: ignore
+        transformed_response = [
+            cls._flatten_config_response(
+                config_response,
+                include_params=True,
+            )
             for config_response in configs_response
+        ]
+        return [
+            ConfigurationResponse(**response)  # type: ignore
+            for response in transformed_response
+        ]
+
+    @classmethod
+    @handle_exceptions()
+    def history(
+        cls,
+        *,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+    ):
+        configs_response = cls.client.variants.configs_history(  # type: ignore
+            variant_ref=ReferenceRequestModel(
+                slug=variant_slug, version=None, id=variant_id
+            ),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug, version=None, id=app_id
+            ),
+        )
+        transformed_response = [
+            cls._flatten_config_response(
+                config_response,
+                include_params=True,
+            )
+            for config_response in configs_response
+        ]
+        return [
+            ConfigurationResponse(**response)  # type: ignore
+            for response in transformed_response
+        ]
+
+    @classmethod
+    @handle_exceptions()
+    async def ahistory(
+        cls,
+        *,
+        app_id: Optional[str] = None,
+        app_slug: Optional[str] = None,
+        variant_id: Optional[str] = None,
+        variant_slug: Optional[str] = None,
+    ):
+        configs_response = await cls.aclient.variants.configs_history(  # type: ignore
+            variant_ref=ReferenceRequestModel(
+                slug=variant_slug, version=None, id=variant_id
+            ),
+            application_ref=ReferenceRequestModel(
+                slug=app_slug, version=None, id=app_id
+            ),
+        )
+        transformed_response = [
+            cls._flatten_config_response(
+                config_response,
+                include_params=True,
+            )
+            for config_response in configs_response
+        ]
+        return [
+            ConfigurationResponse(**response)  # type: ignore
+            for response in transformed_response
         ]
 
     @classmethod

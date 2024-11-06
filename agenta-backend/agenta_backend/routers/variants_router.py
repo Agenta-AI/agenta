@@ -723,7 +723,7 @@ async def configs_deploy(
 @router.post(
     "/configs/list",
     operation_id="configs_list",
-    response_model=List[ConfigDTO],
+    response_model=List[ConfigResponseModel],
 )
 async def configs_list(
     request: Request,
@@ -752,7 +752,7 @@ async def configs_list(
 @router.post(
     "/configs/history",
     operation_id="configs_history",
-    response_model=List[ConfigDTO],
+    response_model=List[ConfigResponseModel],
 )
 async def configs_history(
     request: Request,

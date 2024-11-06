@@ -22,7 +22,6 @@ from ..types.reference_request_model import ReferenceRequestModel
 from ..types.config_response_model import ConfigResponseModel
 from ..types.reference_dto import ReferenceDto
 from ..types.lifecycle_dto import LifecycleDto
-from ..types.config_dto import ConfigDto
 from ..core.client_wrapper import AsyncClientWrapper
 
 # this is used as the default value for optional parameters
@@ -1139,7 +1138,7 @@ class VariantsClient:
         version: typing.Optional[int] = OMIT,
         id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[ConfigDto]:
+    ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
@@ -1154,7 +1153,7 @@ class VariantsClient:
 
         Returns
         -------
-        typing.List[ConfigDto]
+        typing.List[ConfigResponseModel]
             Successful Response
 
         Examples
@@ -1181,9 +1180,9 @@ class VariantsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    typing.List[ConfigDto],
+                    typing.List[ConfigResponseModel],
                     parse_obj_as(
-                        type_=typing.List[ConfigDto],  # type: ignore
+                        type_=typing.List[ConfigResponseModel],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1208,7 +1207,7 @@ class VariantsClient:
         variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[ConfigDto]:
+    ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
@@ -1221,7 +1220,7 @@ class VariantsClient:
 
         Returns
         -------
-        typing.List[ConfigDto]
+        typing.List[ConfigResponseModel]
             Successful Response
 
         Examples
@@ -1255,9 +1254,9 @@ class VariantsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    typing.List[ConfigDto],
+                    typing.List[ConfigResponseModel],
                     parse_obj_as(
-                        type_=typing.List[ConfigDto],  # type: ignore
+                        type_=typing.List[ConfigResponseModel],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -2573,7 +2572,7 @@ class AsyncVariantsClient:
         version: typing.Optional[int] = OMIT,
         id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[ConfigDto]:
+    ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
@@ -2588,7 +2587,7 @@ class AsyncVariantsClient:
 
         Returns
         -------
-        typing.List[ConfigDto]
+        typing.List[ConfigResponseModel]
             Successful Response
 
         Examples
@@ -2623,9 +2622,9 @@ class AsyncVariantsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    typing.List[ConfigDto],
+                    typing.List[ConfigResponseModel],
                     parse_obj_as(
-                        type_=typing.List[ConfigDto],  # type: ignore
+                        type_=typing.List[ConfigResponseModel],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -2650,7 +2649,7 @@ class AsyncVariantsClient:
         variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[ConfigDto]:
+    ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
@@ -2663,7 +2662,7 @@ class AsyncVariantsClient:
 
         Returns
         -------
-        typing.List[ConfigDto]
+        typing.List[ConfigResponseModel]
             Successful Response
 
         Examples
@@ -2705,9 +2704,9 @@ class AsyncVariantsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    typing.List[ConfigDto],
+                    typing.List[ConfigResponseModel],
                     parse_obj_as(
-                        type_=typing.List[ConfigDto],  # type: ignore
+                        type_=typing.List[ConfigResponseModel],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
