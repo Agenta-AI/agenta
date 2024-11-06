@@ -43,7 +43,7 @@ numpy = "1.26.3"
 autoevals = "^0.0.83"
 supertokens-python = "^0.24.2"
 
-protobuf = "^4.25.4"
+protobuf = "^5.28.3"
 litellm ="^1.48.0"
 
 [tool.poetry.group.dev.dependencies]
