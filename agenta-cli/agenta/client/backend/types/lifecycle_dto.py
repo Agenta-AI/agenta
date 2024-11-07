@@ -2,14 +2,13 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-import datetime as dt
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
 class LifecycleDto(UniversalBaseModel):
-    created_at: typing.Optional[dt.datetime] = None
-    updated_at: typing.Optional[dt.datetime] = None
+    created_at: typing.Optional[str] = None
+    updated_at: typing.Optional[str] = None
     updated_by_id: typing.Optional[str] = None
     updated_by: typing.Optional[str] = None
 

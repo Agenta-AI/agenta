@@ -55,8 +55,8 @@ class ReferenceDTO(BaseModel):
 
 
 class LifecycleDTO(BaseModel):
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     updated_by_id: Optional[str] = None
     # DEPRECATING
     updated_by: Optional[str] = None  # email
@@ -68,10 +68,10 @@ class ConfigDTO(BaseModel):
     params: Dict[str, Any]
     url: Optional[str] = None
     # ---
-    application_ref: Optional[ReferenceDTO]
-    service_ref: Optional[ReferenceDTO]
-    variant_ref: Optional[ReferenceDTO]
-    environment_ref: Optional[ReferenceDTO]
+    application_ref: Optional[ReferenceDTO] = None
+    service_ref: Optional[ReferenceDTO] = None
+    variant_ref: Optional[ReferenceDTO] = None
+    environment_ref: Optional[ReferenceDTO] = None
     # ----
     application_lifecycle: Optional[LifecycleDTO] = None
     service_lifecycle: Optional[LifecycleDTO] = None
@@ -550,8 +550,8 @@ async def fetch_configs_by_application_ref(
             environment_ref=None,
             #
             variant_lifecycle=LifecycleDTO(
-                created_at=variant_latest_version.created_at,
-                updated_at=variant_latest_version.updated_at,
+                created_at=variant_latest_version.created_at.isoformat(),
+                updated_at=variant_latest_version.updated_at.isoformat(),
                 updated_by_id=str(variant_latest_version.modified_by.id),
                 # DEPRECATING
                 updated_by=variant_latest_version.modified_by.email,
@@ -597,8 +597,8 @@ async def fetch_configs_by_variant_ref(
             environment_ref=None,
             #
             variant_lifecycle=LifecycleDTO(
-                created_at=variant_version.created_at,
-                updated_at=variant_version.updated_at,
+                created_at=variant_version.created_at.isoformat(),
+                updated_at=variant_version.updated_at.isoformat(),
                 updated_by_id=str(variant_version.modified_by.id),
                 # DEPRECATING
                 updated_by=variant_version.modified_by.email,
@@ -678,8 +678,8 @@ async def fetch_config_by_variant_ref(
         environment_ref=None,
         #
         variant_lifecycle=LifecycleDTO(
-            created_at=app_variant_revision.created_at,
-            updated_at=app_variant.updated_at,
+            created_at=app_variant_revision.created_at.isoformat(),
+            updated_at=app_variant.updated_at.isoformat(),
             updated_by_id=_user_id,
             # DEPRECATING
             updated_by=_user_email,
@@ -739,8 +739,8 @@ async def fetch_config_by_environment_ref(
             pass
 
     config.environment_lifecycle = LifecycleDTO(
-        created_at=app_environment_revision.created_at,
-        updated_at=app_environment_revision.created_at,
+        created_at=app_environment_revision.created_at.isoformat(),
+        updated_at=app_environment_revision.created_at.isoformat(),
         updated_by_id=_user_id,
         # DEPRECATING
         updated_by=_user_email,

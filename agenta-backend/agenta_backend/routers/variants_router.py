@@ -364,12 +364,13 @@ async def start_variant(
             request.state.user_id,
         )
 
-        # Deploy to production
-        await db_manager.deploy_to_environment(
-            environment_name="production",
-            variant_id=str(app_variant_db.id),
-            user_uid=request.state.user_id,
-        )
+        # Deploy to environments
+        for environment in ["development", "staging", "production"]:
+            await db_manager.deploy_to_environment(
+                environment_name=environment,
+                variant_id=str(app_variant_db.id),
+                user_uid=request.state.user_id,
+            )
     return url
 
 
@@ -614,7 +615,6 @@ async def configs_fetch(
     application_ref: Optional[ReferenceRequestModel] = None,
 ):
     config = None
-
     if variant_ref:
         config = await fetch_config_by_variant_ref(
             project_id=request.state.project_id,
@@ -623,6 +623,16 @@ async def configs_fetch(
             user_id=request.state.user_id,
         )
     elif environment_ref:
+        config = await fetch_config_by_environment_ref(
+            project_id=request.state.project_id,
+            environment_ref=environment_ref,
+            application_ref=application_ref,
+            user_id=request.state.user_id,
+        )
+    else:
+        environment_ref = ReferenceRequestModel(
+            slug="production", id=None, version=None
+        )
         config = await fetch_config_by_environment_ref(
             project_id=request.state.project_id,
             environment_ref=environment_ref,
