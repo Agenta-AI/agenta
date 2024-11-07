@@ -45,7 +45,7 @@
     "typescript": "^5.5.4"
   },
   "resolutions": {
-    "path-to-regexp": "^8.2.0"
+    "path-to-regexp": "^8.1.0"
   },
   "browserslist": {
     "production": [
