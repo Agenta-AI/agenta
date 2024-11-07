@@ -4,7 +4,7 @@ import toml
 from typing import Optional
 
 from agenta.sdk.utils.globals import set_global
-from agenta.client.backend.client import AgentaApi
+from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.tracing.llm_tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
@@ -20,6 +20,9 @@ class AgentaSingleton:
     setup = None
     config = None
     tracing: Optional[Tracing] = None
+
+    api = None
+    async_api = None
 
     def __new__(cls):
         if not cls._instance:
@@ -80,6 +83,14 @@ class AgentaSingleton:
             print(
                 "Warning: Your configuration will not be saved permanently since base_id is not provided."
             )
+
+        self.api = AgentaApi(
+            base_url=self.host + "/api", api_key=api_key if api_key else ""
+        )
+
+        self.async_api = AsyncAgentaApi(
+            base_url=self.host + "/api", api_key=api_key if api_key else ""
+        )
 
         self.config = Config(base_id=self.base_id, host=self.host, api_key=self.api_key)  # type: ignore
 
