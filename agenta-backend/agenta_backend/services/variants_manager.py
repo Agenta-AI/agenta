@@ -344,13 +344,14 @@ async def _fetch_environment(
             # coming from the app_variant revision.
 
             with suppress():
-                app_environment_revision, version = (
-                    await fetch_app_environment_revision_by_version(
-                        project_id=project_id,
-                        # application_id=application_ref.id.hex,
-                        app_environment_id=app_environment.id.hex,
-                        version=environment_ref.version,
-                    )
+                (
+                    app_environment_revision,
+                    version,
+                ) = await fetch_app_environment_revision_by_version(
+                    project_id=project_id,
+                    # application_id=application_ref.id.hex,
+                    app_environment_id=app_environment.id.hex,
+                    version=environment_ref.version,
                 )
 
             if not app_environment_revision:
