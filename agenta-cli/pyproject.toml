@@ -15,6 +15,10 @@ repository = "https://github.com/agenta-ai/agenta"
 documentation = "https://docs.agenta.ai"
 keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 
+exclude = [
+    "agenta/tests/*"
+]
+
 [tool.poetry.dependencies]
 python = "^3.9"
 docker = ">=6.1.1,<8.0.0"
@@ -41,6 +45,12 @@ litellm ="^1.48.0"
 [tool.poetry.dev-dependencies]
 pytest = "^8.3"
 setuptools = "^71.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest-asyncio = "^0.24.0"
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
 
 [build-system]
 requires = ["poetry-core"]
