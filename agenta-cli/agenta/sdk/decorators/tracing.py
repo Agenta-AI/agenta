@@ -214,7 +214,9 @@ class instrument:  # pylint: disable=invalid-name
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys() if ignore is True else []
+                else io.keys()
+                if ignore is True
+                else []
             )
         }
 
