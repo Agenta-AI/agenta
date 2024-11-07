@@ -26,6 +26,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: "1px 0",
         "& .ant-tree-node-content-wrapper": {
             minWidth: 240,
+            marginTop: 6,
+            marginBottom: 6,
         },
         "& .ant-tree-node-selected": {
             outline: `1px solid ${theme.colorBorder}`,
