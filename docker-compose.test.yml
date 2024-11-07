@@ -15,7 +15,7 @@ services:
         build: ./agenta-backend
         container_name: agenta-backend-test
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=${ENVIRONMENT}
             - BARE_DOMAIN_NAME=localhost
@@ -70,7 +70,7 @@ services:
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
             - FEATURE_FLAG=oss
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_AUTO_MIGRATIONS=true
         volumes:
@@ -128,7 +128,7 @@ services:
         command: >
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432
+            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
             - REDIS_URL=redis://redis:6379/0
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - ENVIRONMENT=${ENVIRONMENT}
@@ -161,7 +161,7 @@ services:
         volumes:
             - postgresdb-data:/var/lib/postgresql/data/
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
+            test: ["CMD-SHELL", "pg_isready -U username -d postgres"]
             interval: 10s
             timeout: 5s
             retries: 5

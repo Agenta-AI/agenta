@@ -11,8 +11,8 @@ class AppVariantResponse(UniversalBaseModel):
     app_name: str
     variant_id: str
     variant_name: str
-    parameters: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
     project_id: str
+    parameters: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
     base_name: str
     base_id: str
     config_name: str
@@ -21,6 +21,8 @@ class AppVariantResponse(UniversalBaseModel):
     created_at: typing.Optional[str] = None
     updated_at: typing.Optional[str] = None
     modified_by_id: typing.Optional[str] = None
+    organization_id: typing.Optional[str] = None
+    workspace_id: typing.Optional[str] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
