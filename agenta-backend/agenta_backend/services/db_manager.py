@@ -300,7 +300,7 @@ async def fetch_app_environment_revision_by_environment(
     assert app_environment_id is not None, "app_environment_id cannot be None"
     assert revision is not None, "revision cannot be None"
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppEnvironmentRevisionDB).filter_by(
                 environment_id=uuid.UUID(app_environment_id),
@@ -335,7 +335,7 @@ async def fetch_app_environment_revision_by_version(
         raise Exception("version cannot be negative")
 
     elif version and version > 0:
-        async with engine.get_session() as session:
+        async with engine.session() as session:
             result = await session.execute(
                 select(AppEnvironmentRevisionDB)
                 .filter_by(
@@ -355,7 +355,7 @@ async def fetch_app_environment_revision_by_version(
             return app_environment_revision, version
 
     else:
-        async with engine.get_session() as session:
+        async with engine.session() as session:
             result = await session.execute(
                 select(AppEnvironmentRevisionDB)
                 .filter_by(
@@ -448,7 +448,7 @@ async def fetch_app_variant_by_config_name_and_appid(
         AppVariantDB: the instance of the app variant
     """
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 config_name=config_name, app_id=uuid.UUID(app_id)
@@ -825,7 +825,7 @@ async def list_app_variants_by_app_slug(
     if app_db is None:
         raise NoResultFound(f"App with name {app_slug} not found.")
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .filter_by(app_id=app_db.id)
@@ -853,7 +853,7 @@ async def fetch_app_variant_by_slug(variant_slug: str, app_id: str) -> AppVarian
         AppVariantDB: the instance of the app variant
     """
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 config_name=variant_slug, app_id=uuid.UUID(app_id)
@@ -1437,7 +1437,7 @@ async def fetch_app_environment_by_id(
         AppEnvironmentDB: app environment object
     """
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppEnvironmentDB).filter_by(id=uuid.UUID(environment_id))
         )
@@ -1457,7 +1457,7 @@ async def fetch_app_environment_revision_by_app_variant_revision_id(
         AppEnvironmentRevisionDB: app environment object
     """
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         query = select(AppEnvironmentRevisionDB).filter_by(
             deployed_app_variant_revision_id=uuid.UUID(app_variant_revision_id),
         )
@@ -1729,7 +1729,7 @@ async def list_app_variant_revisions_by_variant(
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         base_query = (
             select(AppVariantRevisionsDB)
             .filter_by(variant_id=app_variant.id, project_id=uuid.UUID(project_id))
@@ -2792,7 +2792,7 @@ async def fetch_app_by_name_and_parameters(
     if project_id is None:
         raise ValueError("Either workspace_id or project_id must be provided.")
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         query = select(AppDB).filter_by(
             app_name=app_name, project_id=uuid.UUID(project_id)
         )
