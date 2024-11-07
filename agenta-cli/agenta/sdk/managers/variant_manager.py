@@ -5,7 +5,7 @@ from agenta.sdk.managers.shared import SharedManager
 
 class VariantManager(SharedManager):
     @classmethod
-    def create_variant(
+    def create(
         cls,
         *,
         parameters: dict,
@@ -31,7 +31,7 @@ class VariantManager(SharedManager):
         return variant
 
     @classmethod
-    async def acreate_variant(
+    async def acreate(
         cls,
         *,
         parameters: dict,
@@ -56,7 +56,7 @@ class VariantManager(SharedManager):
         return variant
 
     @classmethod
-    def commit_variant(
+    def commit(
         cls,
         *,
         parameters: dict,
@@ -74,7 +74,7 @@ class VariantManager(SharedManager):
         return variant
 
     @classmethod
-    async def acommit_variant(
+    async def acommit(
         cls,
         *,
         parameters: dict,
@@ -92,7 +92,7 @@ class VariantManager(SharedManager):
         return variant
 
     @classmethod
-    def delete_variant(
+    def delete(
         cls,
         *,
         variant_slug: str,
@@ -108,7 +108,7 @@ class VariantManager(SharedManager):
         return message
 
     @classmethod
-    async def adelete_variant(
+    async def adelete(
         cls,
         *,
         variant_slug: str,
@@ -124,7 +124,7 @@ class VariantManager(SharedManager):
         return message
 
     @classmethod
-    def list_variants(
+    def list(
         cls,
         *,
         app_id: Optional[str] = None,
@@ -137,7 +137,7 @@ class VariantManager(SharedManager):
         return variants
 
     @classmethod
-    async def alist_variants(
+    async def alist(
         cls,
         *,
         app_id: Optional[str] = None,
@@ -150,7 +150,7 @@ class VariantManager(SharedManager):
         return variants
 
     @classmethod
-    def history_variants(
+    def history(
         cls,
         *,
         variant_slug: str,
@@ -166,7 +166,7 @@ class VariantManager(SharedManager):
         return variants
 
     @classmethod
-    async def ahistory_variants(
+    async def ahistory(
         cls,
         *,
         variant_slug: str,

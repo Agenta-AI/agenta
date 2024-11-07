@@ -5,7 +5,7 @@ from agenta.sdk.managers.shared import SharedManager
 
 class DeploymentManager:
     @classmethod
-    def deploy_variant(
+    def deploy(
         cls,
         *,
         variant_slug: str,
@@ -25,7 +25,7 @@ class DeploymentManager:
         return deployment
 
     @classmethod
-    async def adeploy_variant(
+    async def adeploy(
         cls,
         *,
         variant_slug: str,

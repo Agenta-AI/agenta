@@ -102,11 +102,23 @@ class SharedManager:
             flattened["deployed_by"] = model.environment_lifecycle.updated_by
             flattened["deployed_by_id"] = model.environment_lifecycle.updated_by_id
 
-        # Add parameters if required
-        if model.params:
-            flattened["parameters"] = model.params
+        # Add parameters
+        flattened["params"] = model.params or {}
 
         return flattened
+
+    @classmethod
+    def _ref_or_none(
+        cls,
+        *,
+        id: Optional[str] = None,
+        slug: Optional[str] = None,
+        version: Optional[int] = None,
+    ) -> Optional[ReferenceRequestModel]:
+        if not id and not slug and not version:
+            return None
+
+        return ReferenceRequestModel(id=id, slug=slug, version=version)
 
     @classmethod
     @handle_exceptions()
@@ -119,19 +131,20 @@ class SharedManager:
         app_slug: Optional[str] = None,
     ):
         config_response = ag.api.variants.configs_add(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=None,
                 id=None,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
             ),
         )
+        print("Cnofig Response: ", config_response)
         response = SharedManager._parse_config_response(config_response)
-
+        print("Response: ", response)
         return ConfigurationResponse(**response)
 
     @classmethod
@@ -145,12 +158,12 @@ class SharedManager:
         app_slug: Optional[str] = None,
     ):
         config_response = await ag.async_api.variants.configs_add(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=None,
                 id=None,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -186,17 +199,17 @@ class SharedManager:
         )
 
         config_response = ag.api.variants.configs_fetch(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=fetch_signatures["variant_slug"],
                 version=fetch_signatures["variant_version"],
                 id=fetch_signatures["variant_id"],
             ),
-            environment_ref=ReferenceRequestModel(
+            environment_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=fetch_signatures["environment_slug"],
                 version=fetch_signatures["environment_version"],
                 id=fetch_signatures["environment_id"],
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=fetch_signatures["app_slug"],
                 version=None,
                 id=fetch_signatures["app_id"],
@@ -233,17 +246,17 @@ class SharedManager:
         )
 
         config_response = await ag.async_api.variants.configs_fetch(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=fetch_signatures["variant_slug"],
                 version=fetch_signatures["variant_version"],
                 id=fetch_signatures["variant_id"],
             ),
-            environment_ref=ReferenceRequestModel(
+            environment_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=fetch_signatures["environment_slug"],
                 version=fetch_signatures["environment_version"],
                 id=fetch_signatures["environment_id"],
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=fetch_signatures["app_slug"],
                 version=None,
                 id=fetch_signatures["app_id"],
@@ -263,7 +276,7 @@ class SharedManager:
         app_slug: Optional[str] = None,
     ):
         configs_response = ag.api.variants.configs_list(  # type: ignore
-            application_ref=ReferenceRequestModel(  # type: ignore
+            application_ref=SharedManager._ref_or_none(  # type: ignore  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -289,7 +302,7 @@ class SharedManager:
         app_slug: Optional[str] = None,
     ):
         configs_response = await ag.async_api.variants.configs_list(  # type: ignore
-            application_ref=ReferenceRequestModel(  # type: ignore
+            application_ref=SharedManager._ref_or_none(  # type: ignore  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -317,12 +330,12 @@ class SharedManager:
         variant_slug: Optional[str] = None,
     ):
         configs_response = ag.api.variants.configs_history(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=None,
                 id=variant_id,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -350,12 +363,12 @@ class SharedManager:
         variant_slug: Optional[str] = None,
     ):
         configs_response = await ag.async_api.variants.configs_history(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=None,
                 id=variant_id,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -387,17 +400,17 @@ class SharedManager:
         environment_version: Optional[int] = None,
     ):
         config_response = ag.api.variants.configs_fork(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=variant_version,
                 id=variant_id,
             ),
-            environment_ref=ReferenceRequestModel(
+            environment_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=environment_slug,
                 version=environment_version,
                 id=environment_id,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -423,17 +436,17 @@ class SharedManager:
         environment_version: Optional[int] = None,
     ):
         config_response = await ag.async_api.variants.configs_fork(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=variant_version,
                 id=variant_id,
             ),
-            environment_ref=ReferenceRequestModel(
+            environment_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=environment_slug,
                 version=environment_version,
                 id=environment_id,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -454,19 +467,21 @@ class SharedManager:
         app_id: Optional[str] = None,
         app_slug: Optional[str] = None,
     ):
+        variant_ref = SharedManager._ref_or_none(  # type: ignore  # type: ignore
+            slug=variant_slug,
+            version=None,
+            id=None,
+        )
+        application_ref = SharedManager._ref_or_none(  # type: ignore  # type: ignore
+            slug=app_slug,
+            version=None,
+            id=app_id,
+        )
         config_response = ag.api.variants.configs_commit(  # type: ignore
             config=ConfigRequest(
                 params=parameters,
-                variant_ref=ReferenceRequestModel(  # type: ignore
-                    slug=variant_slug,
-                    version=None,
-                    id=None,
-                ),
-                application_ref=ReferenceRequestModel(  # type: ignore
-                    slug=app_slug,
-                    version=None,
-                    id=app_id,
-                ),
+                variant_ref=variant_ref.model_dump() if variant_ref else None,  # type: ignore
+                application_ref=application_ref.model_dump() if application_ref else None,  # type: ignore
             )
         )
 
@@ -488,12 +503,12 @@ class SharedManager:
         config_response = await ag.async_api.variants.configs_commit(  # type: ignore
             config=ConfigRequest(
                 params=parameters,
-                variant_ref=ReferenceRequestModel(  # type: ignore
+                variant_ref=SharedManager._ref_or_none(  # type: ignore  # type: ignore
                     slug=variant_slug,
                     version=None,
                     id=None,
                 ),
-                application_ref=ReferenceRequestModel(  # type: ignore
+                application_ref=SharedManager._ref_or_none(  # type: ignore  # type: ignore
                     slug=app_slug,
                     version=None,
                     id=app_id,
@@ -518,17 +533,17 @@ class SharedManager:
         variant_version: Optional[int] = None,
     ):
         config_response = ag.api.variants.configs_deploy(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=variant_version,
                 id=None,
             ),
-            environment_ref=ReferenceRequestModel(
+            environment_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=environment_slug,
                 version=None,
                 id=None,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -552,17 +567,17 @@ class SharedManager:
         variant_version: Optional[int] = None,
     ):
         config_response = await ag.async_api.variants.configs_deploy(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=variant_version,
                 id=None,
             ),
-            environment_ref=ReferenceRequestModel(
+            environment_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=environment_slug,
                 version=None,
                 id=None,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -585,12 +600,12 @@ class SharedManager:
         variant_version: Optional[int] = None,
     ):
         config_response = ag.api.variants.configs_delete(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=variant_version,
                 id=variant_id,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
@@ -611,12 +626,12 @@ class SharedManager:
         variant_version: Optional[int] = None,
     ):
         config_response = await ag.async_api.variants.configs_delete(  # type: ignore
-            variant_ref=ReferenceRequestModel(
+            variant_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=variant_slug,
                 version=variant_version,
                 id=variant_id,
             ),
-            application_ref=ReferenceRequestModel(
+            application_ref=SharedManager._ref_or_none(  # type: ignore
                 slug=app_slug,
                 version=None,
                 id=app_id,
