@@ -284,6 +284,8 @@ async def _fetch_environment(
     with suppress():
         # by environment_id
         if environment_ref.id:
+            environment_ref.version = None
+
             app_environment_revision = await fetch_app_environment_revision(
                 # project_id=project_id,
                 revision_id=environment_ref.id.hex,
@@ -291,6 +293,8 @@ async def _fetch_environment(
 
             if not app_environment_revision:
                 return None, None
+
+            app_environment_revision.revision = None
 
             app_environment = await fetch_app_environment_by_id(
                 # project_id=project_id,
@@ -334,15 +338,22 @@ async def _fetch_environment(
             # as opposed to the latest version of a variant which is indicated by a version number
             # coming from the app_variant revision.
 
-            app_environment_revision = await fetch_app_environment_revision_by_version(
-                project_id=project_id,
-                # application_id=application_ref.id.hex,
-                app_environment_id=app_environment.id.hex,
-                version=environment_ref.version,
-            )
+            try:
+                app_environment_revision, version = (
+                    await fetch_app_environment_revision_by_version(
+                        project_id=project_id,
+                        # application_id=application_ref.id.hex,
+                        app_environment_id=app_environment.id.hex,
+                        version=environment_ref.version,
+                    )
+                )
+            except:  # pylint: disable=bare-except
+                app_environment_revision = None
 
             if not app_environment_revision:
                 return app_environment, None
+
+            app_environment_revision.revision = version
 
     if not (app_environment_revision and app_environment):
         return None, None
@@ -926,7 +937,7 @@ async def deploy_config(
 
     environment_ref.version = None
 
-    app_environment, app_environment_revision = await _fetch_environment(
+    app_environment, _ = await _fetch_environment(
         project_id=project_id,
         environment_ref=environment_ref,
         application_ref=application_ref,
@@ -943,17 +954,6 @@ async def deploy_config(
         environment_name=app_environment.name,
         variant_id=app_variant.id,
     )
-
-    environment_ref.id = None
-
-    app_environment, app_environment_revision = await _fetch_environment(
-        project_id=project_id,
-        environment_ref=environment_ref,
-        application_ref=application_ref,
-    )
-
-    if not (app_environment and app_environment_revision):
-        return None
 
     config = await fetch_config_by_environment_ref(
         project_id=project_id,
