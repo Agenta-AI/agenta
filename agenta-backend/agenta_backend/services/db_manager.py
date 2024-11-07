@@ -314,6 +314,61 @@ async def fetch_app_environment_revision_by_environment(
         return app_environment_revision
 
 
+async def fetch_app_environment_revision_by_version(
+    app_environment_id: str, project_id: str, version: str
+) -> AppEnvironmentRevisionDB:
+    """Fetches app environment revision by environment id and revision
+
+    Args:
+        app_environment_id: str
+        version: str
+
+    Returns:
+        AppEnvironmentRevisionDB
+    """
+
+    assert app_environment_id is not None, "app_environment_id cannot be None"
+
+    if version:
+        async with db_engine.get_session() as session:
+            result = await session.execute(
+                select(AppEnvironmentRevisionDB)
+                .filter_by(
+                    environment_id=uuid.UUID(app_environment_id),
+                    project_id=uuid.UUID(project_id),
+                )
+                .order_by(AppEnvironmentRevisionDB.created_at.asc())
+                .limit(1)
+                .offset(version - 1)
+            )
+            app_environment_revision = result.scalars().one_or_none()
+            if app_environment_revision is None:
+                raise Exception(
+                    f"app environment revision  for app_environment {app_environment_id} and revision {version} not found"
+                )
+
+            return app_environment_revision
+
+    else:
+        async with db_engine.get_session() as session:
+            result = await session.execute(
+                select(AppEnvironmentRevisionDB)
+                .filter_by(
+                    environment_id=uuid.UUID(app_environment_id),
+                    project_id=uuid.UUID(project_id),
+                )
+                .order_by(AppEnvironmentRevisionDB.created_at.desc())
+                .limit(1)
+            )
+            app_environment_revision = result.scalars().one_or_none()
+            if app_environment_revision is None:
+                raise Exception(
+                    f"app environment revision  for app_environment {app_environment_id} and revision {version} not found"
+                )
+
+            return app_environment_revision
+
+
 async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
     Fetches a base by its ID.

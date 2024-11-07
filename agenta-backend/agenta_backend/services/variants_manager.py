@@ -291,6 +291,17 @@ async def _fetch_environment(
                 revision_id=environment_ref.id.hex,
             )
 
+            if not app_environment_revision:
+                return None, None
+
+            app_environment = await fetch_app_environment_by_id(
+                # project_id=project_id,
+                environment_id=app_environment_revision.environment_id.hex,
+            )
+
+            if not app_environment:
+                return None, None
+
         # by application_id, environment_slug, and ...
         elif (
             application_ref
@@ -321,9 +332,9 @@ async def _fetch_environment(
                 return None, None
 
             # ... environment_version or latest environment version
-            environment_ref.version = (
-                environment_ref.version or app_environment.revision  # type: ignore
-            )
+            # in the case of environments, the latest version is indicated by a None,
+            # as opposed to the latest version of a variant which is indicated by a version number
+            # coming from the app_variant revision.
 
             app_environment_revision = await fetch_app_environment_revision_by_environment(
                 project_id=project_id,
@@ -332,14 +343,8 @@ async def _fetch_environment(
                 revision=environment_ref.version,
             )
 
-        if not app_environment_revision:
-            return None, None
-
-        if not app_environment:
-            app_environment = await fetch_app_environment_by_id(
-                # project_id=project_id,
-                environment_id=app_environment_revision.environment_id.hex,
-            )
+            if not app_environment_revision:
+                return app_environment, None
 
     if not (app_environment_revision and app_environment):
         return None, None
@@ -648,7 +653,7 @@ async def fetch_config_by_variant_ref(
             user = await get_user_with_uid(user_uid=user_id)
             _user_id = str(user.id)
             _user_email = user.email
-        except:
+        except:  # pylint: disable=bare-except
             pass
 
     config = ConfigDTO(
@@ -895,24 +900,6 @@ async def commit_config(
         user_id=user_id,
     )
 
-    _user_id = None
-    _user_email = None
-    if user_id:
-        try:
-            user = await get_user_with_uid(user_uid=user_id)
-            _user_id = str(user.id)
-            _user_email = user.email
-        except:
-            pass
-
-    config.variant_lifecycle = LifecycleDTO(
-        created_at=app_variant_revision.created_at,
-        updated_at=variant_updated_at,
-        updated_by_id=_user_id,
-        # DEPRECATING
-        updated_by=_user_email,
-    )
-
     return config
 
 
@@ -939,13 +926,15 @@ async def deploy_config(
 
     logger.warning("[DEPLOY]  Fetching: environment")
 
+    environment_ref.version = None
+
     app_environment, app_environment_revision = await _fetch_environment(
         project_id=project_id,
         environment_ref=environment_ref,
         application_ref=application_ref,
     )
 
-    if not (app_environment and app_environment_revision):
+    if not app_environment:
         return None
 
     logger.warning("[DEPLOY]  Updating: environment")
@@ -957,33 +946,24 @@ async def deploy_config(
         variant_id=app_variant.id,
     )
 
-    environment_ref.version = None
+    environment_ref.id = None
+
+    app_environment, app_environment_revision = await _fetch_environment(
+        project_id=project_id,
+        environment_ref=environment_ref,
+        application_ref=application_ref,
+    )
+
+    if not (app_environment and app_environment_revision):
+        return None
+
     config = await fetch_config_by_environment_ref(
         project_id=project_id,
         environment_ref=environment_ref,
         application_ref=application_ref,
         user_id=user_id,
     )
-    if not config:
-        return None
 
-    _user_id = None
-    _user_email = None
-    if user_id:
-        try:
-            user = await get_user_with_uid(user_uid=user_id)
-            _user_id = str(user.id)
-            _user_email = user.email
-        except:
-            pass
-
-    config.environment_lifecycle = LifecycleDTO(
-        created_at=app_environment_revision.created_at,
-        updated_at=app_environment_revision.created_at,
-        updated_by_id=_user_id,
-        # DEPRECATING
-        updated_by=_user_email,
-    )
     return config
 
 
