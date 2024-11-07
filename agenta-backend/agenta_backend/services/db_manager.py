@@ -316,7 +316,7 @@ async def fetch_app_environment_revision_by_environment(
 
 async def fetch_app_environment_revision_by_version(
     app_environment_id: str, project_id: str, version: str
-) -> AppEnvironmentRevisionDB:
+) -> Tuple[AppEnvironmentRevisionDB, int]:
     """Fetches app environment revision by environment id and revision
 
     Args:
@@ -329,7 +329,10 @@ async def fetch_app_environment_revision_by_version(
 
     assert app_environment_id is not None, "app_environment_id cannot be None"
 
-    if version:
+    if version and version < 0:
+        raise Exception("version cannot be negative")
+
+    elif version and version > 0:
         async with db_engine.get_session() as session:
             result = await session.execute(
                 select(AppEnvironmentRevisionDB)
@@ -347,7 +350,7 @@ async def fetch_app_environment_revision_by_version(
                     f"app environment revision  for app_environment {app_environment_id} and revision {version} not found"
                 )
 
-            return app_environment_revision
+            return app_environment_revision, version
 
     else:
         async with db_engine.get_session() as session:
@@ -366,7 +369,18 @@ async def fetch_app_environment_revision_by_version(
                     f"app environment revision  for app_environment {app_environment_id} and revision {version} not found"
                 )
 
-            return app_environment_revision
+            version = (
+                await session.execute(
+                    select(func.count())
+                    .select_from(AppEnvironmentRevisionDB)
+                    .filter_by(
+                        environment_id=uuid.UUID(app_environment_id),
+                        project_id=uuid.UUID(project_id),
+                    )
+                )
+            ).scalar()
+
+            return app_environment_revision, version
 
 
 async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
