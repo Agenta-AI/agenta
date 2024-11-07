@@ -42,7 +42,6 @@ alembic = "^1.13.2"
 numpy = "1.26.3"
 autoevals = "^0.0.83"
 supertokens-python = "^0.24.2"
-
 protobuf = "^4.25.4"
 litellm ="^1.48.0"
 
@@ -55,3 +54,11 @@ faker = "^23.2.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[[tool.poetry.dependencies.replace]]
+name = "starlette"
+version = "0.40.0"
+
+[[tool.poetry.dependencies.replace]]
+name = "pycryptodome"
+version = "3.19.1"
