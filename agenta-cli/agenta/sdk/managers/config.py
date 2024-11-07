@@ -7,7 +7,7 @@ import yaml
 from pydantic import BaseModel
 
 from agenta.sdk.managers.shared import SharedManager
-from agenta.sdk.decorators.routing import route_context
+from agenta.sdk.decorators.routing import routing_context
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -45,7 +45,7 @@ class ConfigManager:
             Only one of these should be provided.
         """
 
-        context = route_context.get()
+        context = routing_context.get()
 
         parameters = None
 
@@ -120,7 +120,7 @@ class ConfigManager:
             Only one of these should be provided.
         """
 
-        context = route_context.get()
+        context = routing_context.get()
 
         parameters = None
 
@@ -209,9 +209,9 @@ class ConfigManager:
         )
 
         if schema:
-            return schema(**config.parameters)
+            return schema(**config.params)
 
-        return config.parameters
+        return config.params
 
     @staticmethod
     async def async_get_from_registry(
@@ -255,9 +255,9 @@ class ConfigManager:
         )
 
         if schema:
-            return schema(**config.parameters)
+            return schema(**config.params)
 
-        return config.parameters
+        return config.params
 
     @staticmethod
     def get_from_yaml(
