@@ -142,9 +142,7 @@ class SharedManager:
                 id=app_id,
             ),
         )
-        print("Cnofig Response: ", config_response)
         response = SharedManager._parse_config_response(config_response)
-        print("Response: ", response)
         return ConfigurationResponse(**response)
 
     @classmethod
