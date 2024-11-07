@@ -226,7 +226,7 @@ class LifecyclesResponse(ReferencesResponse):
 
 
 class ConfigurationResponse(LifecyclesResponse):
-    parameters: Dict[str, Any]
+    params: Dict[str, Any]
 
 
 class DeploymentResponse(LifecyclesResponse):
