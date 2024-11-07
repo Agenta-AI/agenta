@@ -1,9 +1,12 @@
 from contextlib import AbstractContextManager
 from traceback import format_exc
+from functools import wraps
+from inspect import iscoroutinefunction
+
 from agenta.sdk.utils.logging import log
 
 
-class suppress(AbstractContextManager):
+class suppress(AbstractContextManager):  # pylint: disable=invalid-name
     def __init__(self):
         pass
 
@@ -20,3 +23,30 @@ class suppress(AbstractContextManager):
             log.error(format_exc().strip("\n"))
             log.error("-------------------------------------------------")
             return True
+
+
+def handle_exceptions():
+    def decorator(func):
+        is_coroutine_function = iscoroutinefunction(func)
+
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                log.error("--- HANDLING EXCEPTION ---")
+                log.error("--------------------------")
+                raise e
+
+        @wraps(func)
+        def sync_wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                log.error("--- HANDLING EXCEPTION ---")
+                log.error("--------------------------")
+                raise e
+
+        return async_wrapper if is_coroutine_function else sync_wrapper
+
+    return decorator

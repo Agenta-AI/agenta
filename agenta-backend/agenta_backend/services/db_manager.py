@@ -3,7 +3,7 @@ import uuid
 import logging
 from pathlib import Path
 from urllib.parse import urlparse
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
 
@@ -264,10 +264,16 @@ async def fetch_app_variant_revision_by_variant(
 
     async with engine.session() as session:
         result = await session.execute(
-            select(AppVariantRevisionsDB).filter_by(
+            select(AppVariantRevisionsDB)
+            .filter_by(
                 variant_id=uuid.UUID(app_variant_id),
                 project_id=uuid.UUID(project_id),
                 revision=revision,
+            )
+            .options(
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                    UserDB.email, UserDB.username
+                )
             )
         )
         app_variant_revision = result.scalars().first()
@@ -276,6 +282,107 @@ async def fetch_app_variant_revision_by_variant(
                 f"app variant revision  for app_variant {app_variant_id} and revision {revision} not found"
             )
         return app_variant_revision
+
+
+async def fetch_app_environment_revision_by_environment(
+    app_environment_id: str, project_id: str, revision: int
+) -> AppEnvironmentRevisionDB:
+    """Fetches app environment revision by environment id and revision
+
+    Args:
+        app_environment_id: str
+        revision: str
+
+    Returns:
+        AppEnvironmentRevisionDB
+    """
+
+    assert app_environment_id is not None, "app_environment_id cannot be None"
+    assert revision is not None, "revision cannot be None"
+
+    async with engine.get_session() as session:
+        result = await session.execute(
+            select(AppEnvironmentRevisionDB).filter_by(
+                environment_id=uuid.UUID(app_environment_id),
+                project_id=uuid.UUID(project_id),
+                revision=revision,
+            )
+        )
+        app_environment_revision = result.scalars().first()
+        if app_environment_revision is None:
+            raise Exception(
+                f"app environment revision  for app_environment {app_environment_id} and revision {revision} not found"
+            )
+        return app_environment_revision
+
+
+async def fetch_app_environment_revision_by_version(
+    app_environment_id: str, project_id: str, version: str
+) -> Tuple[AppEnvironmentRevisionDB, int]:
+    """Fetches app environment revision by environment id and revision
+
+    Args:
+        app_environment_id: str
+        version: str
+
+    Returns:
+        AppEnvironmentRevisionDB
+    """
+
+    assert app_environment_id is not None, "app_environment_id cannot be None"
+
+    if version and version < 0:
+        raise Exception("version cannot be negative")
+
+    elif version and version > 0:
+        async with engine.get_session() as session:
+            result = await session.execute(
+                select(AppEnvironmentRevisionDB)
+                .filter_by(
+                    environment_id=uuid.UUID(app_environment_id),
+                    project_id=uuid.UUID(project_id),
+                )
+                .order_by(AppEnvironmentRevisionDB.created_at.asc())
+                .limit(1)
+                .offset(version - 1)
+            )
+            app_environment_revision = result.scalars().one_or_none()
+            if app_environment_revision is None:
+                raise Exception(
+                    f"app environment revision  for app_environment {app_environment_id} and revision {version} not found"
+                )
+
+            return app_environment_revision, version
+
+    else:
+        async with engine.get_session() as session:
+            result = await session.execute(
+                select(AppEnvironmentRevisionDB)
+                .filter_by(
+                    environment_id=uuid.UUID(app_environment_id),
+                    project_id=uuid.UUID(project_id),
+                )
+                .order_by(AppEnvironmentRevisionDB.created_at.desc())
+                .limit(1)
+            )
+            app_environment_revision = result.scalars().one_or_none()
+            if app_environment_revision is None:
+                raise Exception(
+                    f"app environment revision  for app_environment {app_environment_id} and revision {version} not found"
+                )
+
+            version = (
+                await session.execute(
+                    select(func.count())
+                    .select_from(AppEnvironmentRevisionDB)
+                    .filter_by(
+                        environment_id=uuid.UUID(app_environment_id),
+                        project_id=uuid.UUID(project_id),
+                    )
+                )
+            ).scalar()
+
+            return app_environment_revision, version
 
 
 async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
@@ -322,6 +429,29 @@ async def fetch_app_variant_by_name_and_appid(
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 variant_name=variant_name, app_id=uuid.UUID(app_id)
+            )
+        )
+        app_variant = result.scalars().first()
+        return app_variant
+
+
+async def fetch_app_variant_by_config_name_and_appid(
+    config_name: str, app_id: str
+) -> AppVariantDB:
+    """Fetch an app variant by it's name and app id.
+
+    Args:
+        config_name (str): The name of the variant
+        app_id (str): The ID of the variant app
+
+    Returns:
+        AppVariantDB: the instance of the app variant
+    """
+
+    async with engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB).filter_by(
+                config_name=config_name, app_id=uuid.UUID(app_id)
             )
         )
         app_variant = result.scalars().first()
@@ -650,7 +780,9 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
         return deployment
 
 
-async def list_app_variants_for_app_id(app_id: str, project_id: str):
+async def list_app_variants_for_app_id(
+    app_id: str, project_id: str
+) -> List[AppVariantDB]:
     """
     Lists all the app variants from the db
 
@@ -665,12 +797,70 @@ async def list_app_variants_for_app_id(app_id: str, project_id: str):
     assert app_id is not None, "app_id cannot be None"
     async with engine.session() as session:
         result = await session.execute(
-            select(AppVariantDB).filter_by(
-                app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
-            )
+            select(AppVariantDB)
+            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
+            .options(joinedload(AppVariantDB.app))
         )
         app_variants = result.scalars().all()
         return app_variants
+
+
+async def list_app_variants_by_app_slug(
+    app_slug: str, project_id: str
+) -> List[AppVariantDB]:
+    """List all the app variants for the specified app_slug
+
+    Args:
+        app_slug (str): The slug of the app
+        project_id (str): The ID of the project.
+
+    Returns:
+        List[AppVariant]: List of AppVariant objects
+    """
+
+    assert app_slug is not None, "app_slug cannot be None"
+    app_db = await fetch_app_by_name_and_parameters(
+        app_name=app_slug, project_id=project_id
+    )
+    if app_db is None:
+        raise NoResultFound(f"App with name {app_slug} not found.")
+
+    async with engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB)
+            .filter_by(app_id=app_db.id)
+            .options(
+                joinedload(AppVariantDB.app),
+                load_only(
+                    AppVariantDB.id,
+                    AppVariantDB.config_name,
+                    AppVariantDB.revision,  # type: ignore
+                ),
+            )
+        )
+        variants = result.scalars().all()
+        return variants
+
+
+async def fetch_app_variant_by_slug(variant_slug: str, app_id: str) -> AppVariantDB:
+    """Fetch an app variant by it's slug name and app id.
+
+    Args:
+        variant_name (str): The name of the variant
+        app_id (str): The ID of the variant app
+
+    Returns:
+        AppVariantDB: the instance of the app variant
+    """
+
+    async with engine.get_session() as session:
+        result = await session.execute(
+            select(AppVariantDB).filter_by(
+                config_name=variant_slug, app_id=uuid.UUID(app_id)
+            )
+        )
+        app_variant = result.scalars().first()
+        return app_variant
 
 
 async def list_bases_for_app_id(app_id: str, base_name: Optional[str] = None):
@@ -755,6 +945,21 @@ async def get_user(user_uid: str) -> UserDB:
             return user_db
 
         return user
+
+
+async def get_user_with_uid(user_uid: str):
+    """Get the user with the specified uid from the database.
+
+    Arguments:
+        user_uid (str): The user unique identifier
+
+    Returns:
+        UserDB: instance of user
+    """
+
+    # TODO: deprecate use of get_user function and use get_user_with_uid instead.
+    user_db = await get_user(user_uid=user_uid)
+    return user_db
 
 
 async def get_user_with_id(user_id: str):
@@ -1131,7 +1336,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
 
 async def deploy_to_environment(
     environment_name: str, variant_id: str, **user_org_data
-):
+) -> Tuple[Optional[str], Optional[int]]:
     """
     Deploys an app variant to a specified environment.
 
@@ -1191,6 +1396,8 @@ async def deploy_to_environment(
 
         await session.commit()
 
+    return environment_db.name, environment_db.revision
+
 
 async def fetch_app_environment_by_name_and_appid(
     app_id: str, environment_name: str, **kwargs: dict
@@ -1215,6 +1422,51 @@ async def fetch_app_environment_by_name_and_appid(
             )
         result = await session.execute(query)
         app_environment = result.scalars().first()
+        return app_environment
+
+
+async def fetch_app_environment_by_id(
+    environment_id: str,
+) -> Optional[AppEnvironmentDB]:
+    """Fetch an app environment using the provided environment id.
+
+    Args:
+        environment_id (str): The ID of the environment
+
+    Returns:
+        AppEnvironmentDB: app environment object
+    """
+
+    async with engine.get_session() as session:
+        result = await session.execute(
+            select(AppEnvironmentDB).filter_by(id=uuid.UUID(environment_id))
+        )
+        app_environment = result.scalars().one_or_none()
+        return app_environment
+
+
+async def fetch_app_environment_revision_by_app_variant_revision_id(
+    app_variant_revision_id: str,
+) -> Optional[AppEnvironmentRevisionDB]:
+    """Fetch an app environment using the deployed app variant revision id.
+
+    Args:
+        app_variant_revision_id (str): The ID of the deployed app variant revision
+
+    Returns:
+        AppEnvironmentRevisionDB: app environment object
+    """
+
+    async with engine.get_session() as session:
+        query = select(AppEnvironmentRevisionDB).filter_by(
+            deployed_app_variant_revision_id=uuid.UUID(app_variant_revision_id),
+        )
+        if isCloudEE():
+            query = query.options(
+                joinedload(AppEnvironmentRevisionDB.deployed_app_variant.of_type(AppVariantDB)),  # type: ignore
+            )
+        result = await session.execute(query)
+        app_environment = result.scalars().one_or_none()
         return app_environment
 
 
@@ -1466,7 +1718,7 @@ async def create_environment_revision(
 
 async def list_app_variant_revisions_by_variant(
     app_variant: AppVariantDB, project_id: str
-):
+) -> List[AppVariantRevisionsDB]:
     """Returns list of app variant revision for the given app variant
 
     Args:
@@ -1477,16 +1729,21 @@ async def list_app_variant_revisions_by_variant(
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
-    async with engine.session() as session:
-        base_query = select(AppVariantRevisionsDB).filter_by(
-            variant_id=app_variant.id, project_id=uuid.UUID(project_id)
-        )
-        if isCloudEE():
-            base_query = base_query.options(
-                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
-                    UserDB.username
-                )  # type: ignore
+    async with engine.get_session() as session:
+        base_query = (
+            select(AppVariantRevisionsDB)
+            .filter_by(variant_id=app_variant.id, project_id=uuid.UUID(project_id))
+            .options(
+                joinedload(AppVariantRevisionsDB.variant_revision)
+                .joinedload(AppVariantDB.app)
+                .load_only(AppDB.app_name)
             )
+            .options(
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                    UserDB.username, UserDB.email
+                )
+            )
+        )
 
         result = await session.execute(base_query)
         app_variant_revisions = result.scalars().all()
@@ -1680,7 +1937,7 @@ async def remove_app_by_id(app_id: str, project_id: str):
 
 async def update_variant_parameters(
     app_variant_id: str, parameters: Dict[str, Any], project_id: str, user_uid: str
-) -> None:
+) -> AppVariantDB:
     """
     Update the parameters of an app variant in the database.
 
@@ -1731,6 +1988,8 @@ async def update_variant_parameters(
 
         session.add(variant_revision)
         await session.commit()
+
+        return app_variant_db
 
 
 async def get_app_variant_instance_by_id(
@@ -2526,17 +2785,17 @@ async def fetch_app_by_name_and_parameters(
         AppDB: the instance of the app
     """
 
-    if isCloudEE() and workspace_id is not None:
-        project = await db_manager_ee.get_project_by_workspace(
-            workspace_id=workspace_id
-        )
-        query = select(AppDB).filter_by(app_name=app_name, project_id=project.id)
-    else:
+    if not project_id and (isCloudEE() and workspace_id is not None):
+        project = await db_manager_ee.get_project_by_workspace(workspace_id)
+        project_id = str(project.id) if project else None
+
+    if project_id is None:
+        raise ValueError("Either workspace_id or project_id must be provided.")
+
+    async with engine.get_session() as session:
         query = select(AppDB).filter_by(
             app_name=app_name, project_id=uuid.UUID(project_id)
         )
-
-    async with engine.session() as session:
         result = await session.execute(query)
         app_db = result.unique().scalars().first()
         return app_db

@@ -10,6 +10,7 @@ from json.decoder import JSONDecodeError
 from ..core.api_error import ApiError
 from ..types.evaluation import Evaluation
 from ..types.llm_run_rate_limit import LlmRunRateLimit
+from ..core.serialization import convert_and_respect_annotation_metadata
 from ..core.jsonable_encoder import jsonable_encoder
 from ..types.evaluation_scenario import EvaluationScenario
 from ..core.client_wrapper import AsyncClientWrapper
@@ -249,7 +250,9 @@ class EvaluationsClient:
                 "variant_ids": variant_ids,
                 "evaluators_configs": evaluators_configs,
                 "testset_id": testset_id,
-                "rate_limit": rate_limit,
+                "rate_limit": convert_and_respect_annotation_metadata(
+                    object_=rate_limit, annotation=LlmRunRateLimit, direction="write"
+                ),
                 "lm_providers_keys": lm_providers_keys,
                 "correct_answer_column": correct_answer_column,
             },
@@ -959,7 +962,9 @@ class AsyncEvaluationsClient:
                 "variant_ids": variant_ids,
                 "evaluators_configs": evaluators_configs,
                 "testset_id": testset_id,
-                "rate_limit": rate_limit,
+                "rate_limit": convert_and_respect_annotation_metadata(
+                    object_=rate_limit, annotation=LlmRunRateLimit, direction="write"
+                ),
                 "lm_providers_keys": lm_providers_keys,
                 "correct_answer_column": correct_answer_column,
             },
