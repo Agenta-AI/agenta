@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy.dialects import postgresql
 
 from agenta_backend.dbs.postgres.shared.engine import engine
-from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
+from agenta_backend.dbs.postgres.observability.dbes import NodesDBE
 from agenta_backend.dbs.postgres.observability.mappings import (
     map_span_dto_to_dbe,
     map_span_dbe_to_dto,
@@ -52,7 +52,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         try:
             async with engine.session() as session:
                 # BASE (SUB-)QUERY
-                query = select(InvocationSpanDBE)
+                query = select(NodesDBE)
                 # ----------------
 
                 # GROUPING
@@ -61,12 +61,13 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # --------
                 if grouping and grouping.focus.value != "node":
                     grouping_column = getattr(
-                        InvocationSpanDBE, grouping.focus.value + "_id"
+                        NodesDBE,
+                        grouping.focus.value + "_id",
                     )
 
                     query = select(
                         distinct(grouping_column).label("grouping_key"),
-                        InvocationSpanDBE.created_at,
+                        NodesDBE.created_at,
                     )
                 # --------
 
@@ -81,14 +82,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
                 if windowing:
                     if windowing.oldest:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at >= windowing.oldest
-                        )
+                        query = query.filter(NodesDBE.created_at >= windowing.oldest)
 
                     if windowing.newest:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at < windowing.newest
-                        )
+                        query = query.filter(NodesDBE.created_at < windowing.newest)
                 # ---------
 
                 # FILTERING
@@ -108,7 +105,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 # SORTING
                 query = query.order_by(
-                    InvocationSpanDBE.created_at.desc(),
+                    NodesDBE.created_at.desc(),
                 )
                 # -------
 
@@ -134,21 +131,21 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 if grouping and grouping_column:
                     subquery = query.subquery()
 
-                    query = select(InvocationSpanDBE)
+                    query = select(NodesDBE)
                     query = query.filter(
                         grouping_column.in_(select(subquery.c["grouping_key"]))
                     )
 
                     # SORTING
                     query = query.order_by(
-                        InvocationSpanDBE.created_at.desc(),
-                        InvocationSpanDBE.time_start.asc(),
+                        NodesDBE.created_at.desc(),
+                        NodesDBE.time_start.asc(),
                     )
                     # -------
                 else:
                     # SORTING
                     query = query.order_by(
-                        InvocationSpanDBE.time_start.desc(),
+                        NodesDBE.time_start.desc(),
                     )
                     # -------
                 # --------
@@ -216,10 +213,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         node_id: UUID,
         to_dto: bool = True,
-    ) -> Union[Optional[SpanDTO], Optional[InvocationSpanDBE]]:
+    ) -> Union[Optional[SpanDTO], Optional[NodesDBE]]:
         span_dbe = None
         async with engine.session() as session:
-            query = select(InvocationSpanDBE)
+            query = select(NodesDBE)
 
             query = query.filter_by(
                 project_id=project_id,
@@ -242,14 +239,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         node_ids: List[UUID],
         to_dto: bool = True,
-    ) -> Union[List[SpanDTO], List[InvocationSpanDBE]]:
+    ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
         async with engine.session() as session:
-            query = select(InvocationSpanDBE)
+            query = select(NodesDBE)
 
             query = query.filter_by(project_id=project_id)
 
-            query = query.filter(InvocationSpanDBE.node_id.in_(node_ids))
+            query = query.filter(NodesDBE.node_id.in_(node_ids))
 
             span_dbes = (await session.execute(query)).scalars().all()
 
@@ -267,10 +264,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         parent_id: UUID,
         to_dto: bool = True,
-    ) -> Union[List[SpanDTO], List[InvocationSpanDBE]]:
+    ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
         async with engine.session() as session:
-            query = select(InvocationSpanDBE)
+            query = select(NodesDBE)
 
             query = query.filter_by(project_id=project_id)
 
@@ -368,14 +365,14 @@ def _chunk(
     # 2. WHERE next > created_at LIMIT size
     # -> unstable if created_at is not unique
     elif next and size:
-        query = query.filter(InvocationSpanDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at < next)
         query = query.limit(size)
 
     # 3. WHERE next > created_at AND created_at >= stop
     # -> stable thanks to the </<= combination
     elif next and stop:
-        query = query.filter(InvocationSpanDBE.created_at < next)
-        query = query.filter(InvocationSpanDBE.created_at >= stop)
+        query = query.filter(NodesDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at >= stop)
 
     # 4. WHERE LIMIT size
     # -> useful as a starter query
@@ -385,12 +382,12 @@ def _chunk(
     # 5. WHERE created_at >= stop
     # -> useful as a starter query
     elif stop:
-        query = query.filter(InvocationSpanDBE.created_at >= stop)
+        query = query.filter(NodesDBE.created_at >= stop)
 
     # 6. WHERE next > created_at
     # -> rather useless
     elif next:
-        query = query.filter(InvocationSpanDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at < next)
 
     return query
 
@@ -452,7 +449,7 @@ def _filters(filtering: FilteringDTO) -> list:
             key = _split[1] if len(_split) > 1 else None
 
             # GET COLUMN AS ATTRIBUTE
-            attribute: Column = getattr(InvocationSpanDBE, field)
+            attribute: Column = getattr(NodesDBE, field)
 
             if isinstance(attribute.type, JSONB) and key:
                 if field in _NESTED_FIELDS:
