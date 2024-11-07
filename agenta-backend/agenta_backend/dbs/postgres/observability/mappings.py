@@ -13,10 +13,10 @@ from agenta_backend.core.observability.dtos import (
     SpanDTO,
 )
 
-from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
+from agenta_backend.dbs.postgres.observability.dbes import NodesDBE
 
 
-def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
+def map_span_dbe_to_dto(span: NodesDBE) -> SpanDTO:
     return SpanDTO(
         lifecycle=LifecycleDTO(
             created_at=span.created_at,
@@ -77,8 +77,8 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
 def map_span_dto_to_dbe(
     project_id: str,
     span_dto: SpanDTO,
-) -> InvocationSpanDBE:
-    span_dbe = InvocationSpanDBE(
+) -> NodesDBE:
+    span_dbe = NodesDBE(
         # SCOPE
         project_id=project_id,
         # LIFECYCLE
