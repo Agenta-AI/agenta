@@ -216,9 +216,9 @@ async def _fetch_variants(
 ) -> List[AppVariantDB]:  # type: ignore
     logger.warning("[HELPERS] Fetching: app_variants")
 
-    with suppress():
-        app_variants = []
+    app_variants = []
 
+    with suppress():
         if application_ref.id:
             app_variants = await db_manager.list_app_variants_for_app_id(
                 app_id=str(application_ref.id), project_id=project_id
@@ -229,7 +229,7 @@ async def _fetch_variants(
                 app_slug=application_ref.slug, project_id=project_id
             )
 
-        return app_variants
+    return app_variants
 
 
 async def _fetch_variant_versions(
@@ -239,12 +239,16 @@ async def _fetch_variant_versions(
 ) -> Optional[List[AppVariantRevisionsDB]]:
     logger.warning("[HELPERS]: Fetching variant versions")
 
+    variant_revisions = []
+
     with suppress():
         app_variant = None
+
         if variant_ref.id:
             app_variant = await db_manager.fetch_app_variant_by_id(
                 app_variant_id=variant_ref.id.hex
             )
+
         elif variant_ref.slug and application_ref is not None:
             app = await _fetch_app(
                 project_id=project_id,
@@ -268,7 +272,8 @@ async def _fetch_variant_versions(
         variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
             app_variant=app_variant, project_id=project_id
         )
-        return variant_revisions
+
+    return variant_revisions
 
 
 async def _fetch_environment(
@@ -338,7 +343,7 @@ async def _fetch_environment(
             # as opposed to the latest version of a variant which is indicated by a version number
             # coming from the app_variant revision.
 
-            try:
+            with suppress():
                 app_environment_revision, version = (
                     await fetch_app_environment_revision_by_version(
                         project_id=project_id,
@@ -347,8 +352,6 @@ async def _fetch_environment(
                         version=environment_ref.version,
                     )
                 )
-            except:  # pylint: disable=bare-except
-                app_environment_revision = None
 
             if not app_environment_revision:
                 return app_environment, None
@@ -432,12 +435,13 @@ async def _update_environment(
 ):
     logger.warning("[HELPERS] Deploying: variant")
 
-    await deploy_to_environment(
-        # project_id=project_id,
-        environment_name=environment_name,
-        variant_id=variant_id.hex,
-        **{"user_uid": user_id},
-    )
+    with suppress():
+        await deploy_to_environment(
+            # project_id=project_id,
+            environment_name=environment_name,
+            variant_id=variant_id.hex,
+            **{"user_uid": user_id},
+        )
 
 
 # - CREATE
@@ -466,12 +470,15 @@ async def add_config(
     logger.warning(f"[ADD]     Found app: {str(app.id)}")
     logger.warning("[ADD]     Fetching: bases")
 
-    bases = await list_bases_for_app_id(
-        # project_id=project_id,
-        app_id=app.id.hex,
-    )
+    bases = None
 
-    if not bases:
+    with suppress():
+        bases = await list_bases_for_app_id(
+            # project_id=project_id,
+            app_id=app.id.hex,
+        )
+
+    if not bases or not isinstance(bases, list) or len(bases) < 1:
         return None
 
     base_id = bases[0].id  # needs to be changed to use the 'default base'
@@ -657,13 +664,12 @@ async def fetch_config_by_variant_ref(
 
     _user_id = None
     _user_email = None
+
     if user_id:
-        try:
+        with suppress():
             user = await get_user_with_uid(user_uid=user_id)
             _user_id = str(user.id)
             _user_email = user.email
-        except:  # pylint: disable=bare-except
-            pass
 
     config = ConfigDTO(
         params=app_variant_revision.config_parameters,
@@ -739,13 +745,12 @@ async def fetch_config_by_environment_ref(
 
     _user_id = None
     _user_email = None
+
     if user_id:
-        try:
+        with suppress():
             user = await get_user_with_uid(user_uid=user_id)
             _user_id = str(user.id)
             _user_email = user.email
-        except:
-            pass
 
     config.environment_lifecycle = LifecycleDTO(
         created_at=app_environment_revision.created_at.isoformat(),
