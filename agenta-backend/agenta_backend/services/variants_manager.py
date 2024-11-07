@@ -4,9 +4,7 @@ from logging import getLogger, INFO
 from typing import Any, Dict, Optional, Tuple, List
 
 from pydantic import BaseModel
-from fastapi import HTTPException
 
-from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.exceptions import suppress
 from agenta_backend.services.db_manager import (
@@ -31,7 +29,7 @@ from agenta_backend.services.db_manager import (
     fetch_app_environment_by_id,
     fetch_app_environment_revision,
     fetch_app_environment_by_name_and_appid,
-    fetch_app_environment_revision_by_environment,
+    fetch_app_environment_revision_by_version,
     list_bases_for_app_id,
     add_variant_from_base_and_config,
     update_variant_parameters,
@@ -336,11 +334,11 @@ async def _fetch_environment(
             # as opposed to the latest version of a variant which is indicated by a version number
             # coming from the app_variant revision.
 
-            app_environment_revision = await fetch_app_environment_revision_by_environment(
+            app_environment_revision = await fetch_app_environment_revision_by_version(
                 project_id=project_id,
                 # application_id=application_ref.id.hex,
                 app_environment_id=app_environment.id.hex,
-                revision=environment_ref.version,
+                version=environment_ref.version,
             )
 
             if not app_environment_revision:
