@@ -7,10 +7,12 @@ from ..types.evaluator import Evaluator
 from ..core.pydantic_utilities import parse_obj_as
 from json.decoder import JSONDecodeError
 from ..core.api_error import ApiError
-from ..types.evaluator_config import EvaluatorConfig
+from ..types.evaluator_mapping_output_interface import EvaluatorMappingOutputInterface
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
+from ..types.evaluator_output_interface import EvaluatorOutputInterface
 from ..core.jsonable_encoder import jsonable_encoder
+from ..types.evaluator_config import EvaluatorConfig
 from ..core.client_wrapper import AsyncClientWrapper
 
 # this is used as the default value for optional parameters
@@ -63,6 +65,171 @@ class EvaluatorsClient:
                         type_=typing.List[Evaluator],  # type: ignore
                         object_=_response.json(),
                     ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def evaluator_data_map(
+        self,
+        *,
+        inputs: typing.Dict[str, typing.Optional[typing.Any]],
+        mapping: typing.Dict[str, typing.Optional[typing.Any]],
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> EvaluatorMappingOutputInterface:
+        """
+        Endpoint to map the experiment data tree to evaluator interface.
+
+        Args:
+        request (Request): The request object.
+        payload (EvaluatorMappingInputInterface): The payload containing the request data.
+
+        Returns:
+        EvaluatorMappingOutputInterface: the evaluator mapping output object
+
+        Parameters
+        ----------
+        inputs : typing.Dict[str, typing.Optional[typing.Any]]
+
+        mapping : typing.Dict[str, typing.Optional[typing.Any]]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        EvaluatorMappingOutputInterface
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.evaluator_data_map(
+            inputs={"key": "value"},
+            mapping={"key": "value"},
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "evaluators/map",
+            method="POST",
+            json={
+                "inputs": inputs,
+                "mapping": mapping,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    EvaluatorMappingOutputInterface,
+                    parse_obj_as(
+                        type_=EvaluatorMappingOutputInterface,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def evaluator_run(
+        self,
+        evaluator_key: str,
+        *,
+        inputs: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = OMIT,
+        settings: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = OMIT,
+        credentials: typing.Optional[
+            typing.Dict[str, typing.Optional[typing.Any]]
+        ] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> EvaluatorOutputInterface:
+        """
+        Endpoint to evaluate LLM app run
+
+        Args:
+        request (Request): The request object.
+        evaluator_key (str): The key of the evaluator.
+        payload (EvaluatorInputInterface): The payload containing the request data.
+
+        Returns:
+        result: EvaluatorOutputInterface object containing the outputs.
+
+        Parameters
+        ----------
+        evaluator_key : str
+
+        inputs : typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        settings : typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        credentials : typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        EvaluatorOutputInterface
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.evaluators.evaluator_run(
+            evaluator_key="evaluator_key",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"evaluators/{jsonable_encoder(evaluator_key)}/run",
+            method="POST",
+            json={
+                "inputs": inputs,
+                "settings": settings,
+                "credentials": credentials,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    EvaluatorOutputInterface,
+                    parse_obj_as(
+                        type_=EvaluatorOutputInterface,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
@@ -494,6 +661,187 @@ class AsyncEvaluatorsClient:
                         type_=typing.List[Evaluator],  # type: ignore
                         object_=_response.json(),
                     ),
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def evaluator_data_map(
+        self,
+        *,
+        inputs: typing.Dict[str, typing.Optional[typing.Any]],
+        mapping: typing.Dict[str, typing.Optional[typing.Any]],
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> EvaluatorMappingOutputInterface:
+        """
+        Endpoint to map the experiment data tree to evaluator interface.
+
+        Args:
+        request (Request): The request object.
+        payload (EvaluatorMappingInputInterface): The payload containing the request data.
+
+        Returns:
+        EvaluatorMappingOutputInterface: the evaluator mapping output object
+
+        Parameters
+        ----------
+        inputs : typing.Dict[str, typing.Optional[typing.Any]]
+
+        mapping : typing.Dict[str, typing.Optional[typing.Any]]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        EvaluatorMappingOutputInterface
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.evaluators.evaluator_data_map(
+                inputs={"key": "value"},
+                mapping={"key": "value"},
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "evaluators/map",
+            method="POST",
+            json={
+                "inputs": inputs,
+                "mapping": mapping,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    EvaluatorMappingOutputInterface,
+                    parse_obj_as(
+                        type_=EvaluatorMappingOutputInterface,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def evaluator_run(
+        self,
+        evaluator_key: str,
+        *,
+        inputs: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = OMIT,
+        settings: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = OMIT,
+        credentials: typing.Optional[
+            typing.Dict[str, typing.Optional[typing.Any]]
+        ] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> EvaluatorOutputInterface:
+        """
+        Endpoint to evaluate LLM app run
+
+        Args:
+        request (Request): The request object.
+        evaluator_key (str): The key of the evaluator.
+        payload (EvaluatorInputInterface): The payload containing the request data.
+
+        Returns:
+        result: EvaluatorOutputInterface object containing the outputs.
+
+        Parameters
+        ----------
+        evaluator_key : str
+
+        inputs : typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        settings : typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        credentials : typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        EvaluatorOutputInterface
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.evaluators.evaluator_run(
+                evaluator_key="evaluator_key",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"evaluators/{jsonable_encoder(evaluator_key)}/run",
+            method="POST",
+            json={
+                "inputs": inputs,
+                "settings": settings,
+                "credentials": credentials,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    EvaluatorOutputInterface,
+                    parse_obj_as(
+                        type_=EvaluatorOutputInterface,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
