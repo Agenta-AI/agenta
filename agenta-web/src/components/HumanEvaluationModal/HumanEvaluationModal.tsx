@@ -3,7 +3,7 @@ import {GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Typ
 import {fetchVariants} from "@/services/api"
 import {createNewEvaluation} from "@/services/human-evaluations/api"
 import {isDemo} from "@/lib/helpers/utils"
-import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
+import {Button, Col, Modal, ModalProps, Row, Select, Spin, message} from "antd"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {EvaluationType} from "@/lib/enums"
 import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
@@ -14,7 +14,7 @@ import {createUseStyles} from "react-jss"
 import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLoadTestsetsList} from "@/services/testsets/api"
-import {CaretDown, Play} from "@phosphor-icons/react"
+import {Play} from "@phosphor-icons/react"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {
@@ -43,10 +43,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        width: "100%",
-    },
-    dropdownBtn: {
-        marginRight: 10,
         width: "100%",
     },
     optionSelected: {
@@ -95,10 +91,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     thresholdStyles: {
         paddingLeft: 10,
         paddingRight: 10,
-    },
-    variantDropdown: {
-        marginRight: 10,
-        width: "100%",
     },
     newCodeEval: {
         display: "flex",
@@ -226,28 +218,12 @@ const HumanEvaluationModal = ({
         setSelectedTestset(testsetsList[selectedTestsetIndexInTestsetsList])
     }
 
-    const getTestsetDropdownMenu = (): MenuProps => {
-        const items: MenuProps["items"] = testsetsList.map((testset, index) => {
-            return {
-                label: (
-                    <>
-                        <div data-cy={`testset-${index}`}>{testset.name}</div>
-                    </>
-                ),
-                key: `${testset.name}-${testset._id}`,
-            }
-        })
-
-        const menuProps: MenuProps = {
-            items,
-            onClick: ({key}) => {
-                const index = items.findIndex((item) => item?.key === key)
-                onTestsetSelect(index)
-            },
+    const testsetOptions = testsetsList.map((testset, index) => {
+        return {
+            label: <div data-cy={`testset-${index}`}>{testset.name}</div>,
+            value: `${testset.name}-${testset._id}`,
         }
-
-        return menuProps
-    }
+    })
 
     const handleAppVariantsMenuClick =
         (dropdownIndex: number) =>
@@ -273,40 +249,24 @@ const HumanEvaluationModal = ({
             })
         }
 
-    const getVariantsDropdownMenu = (index: number): MenuProps => {
-        const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
+    const getVariantsOptionsMenu = (index: number) => {
+        const selectedVariantNames = selectedVariants
+            .filter((_, idx) => idx !== index)
+            .map((variant) => variant?.variantName)
 
-        const items = variants.reduce((filteredVariants, variant, idx) => {
-            const label = variant.variantName
-
-            if (!selectedVariantsNames.includes(label)) {
-                filteredVariants.push({
-                    label: (
-                        <>
-                            <div
-                                data-cy={`variant-${idx}`}
-                                className="flex items-center justify-between"
-                            >
-                                <span>{variant.variantName}</span>
-                                <span className={classes.dropdownItemLabels}>
-                                    #{variant.variantId.split("-")[0]}
-                                </span>
-                            </div>
-                        </>
-                    ),
-                    key: label,
-                })
-            }
-
-            return filteredVariants
-        }, [])
-
-        const menuProps: MenuProps = {
-            items,
-            onClick: handleAppVariantsMenuClick(index),
-        }
-
-        return menuProps
+        return variants
+            .filter((variant) => !selectedVariantNames.includes(variant.variantName))
+            .map((variant, index) => ({
+                label: (
+                    <div data-cy={`variant-${index}`} className="flex items-center justify-between">
+                        <span>{variant.variantName}</span>
+                        <span className={classes.dropdownItemLabels}>
+                            #{variant.variantId.split("-")[0]}
+                        </span>
+                    </div>
+                ),
+                value: variant.variantName,
+            }))
     }
 
     const onStartEvaluation = async () => {
@@ -379,17 +339,19 @@ const HumanEvaluationModal = ({
                         <div style={{display: "flex", flexDirection: "column", gap: 10}}>
                             <div>
                                 <p>Which testset you want to use?</p>
-                                <Dropdown menu={getTestsetDropdownMenu()}>
-                                    <Button
-                                        className={classes.dropdownBtn}
-                                        data-cy="selected-testset"
-                                    >
-                                        <div className={classes.dropdownStyles}>
-                                            {selectedTestset.name}
-                                            <CaretDown size={16} />
-                                        </div>
-                                    </Button>
-                                </Dropdown>
+                                <Select
+                                    showSearch
+                                    placeholder="Select a Test set"
+                                    className="w-full mb-2.5"
+                                    data-cy="selected-testset"
+                                    options={testsetOptions}
+                                    onSelect={(value) => {
+                                        const index = testsetOptions.findIndex(
+                                            (item) => item?.value === value,
+                                        )
+                                        onTestsetSelect(index)
+                                    }}
+                                />
                             </div>
 
                             <div>
@@ -397,19 +359,17 @@ const HumanEvaluationModal = ({
                                 {Array.from({
                                     length: evaluationType === "human_a_b_testing" ? 2 : 1,
                                 }).map((_, index) => (
-                                    <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
-                                        <Button
-                                            className={classes.variantDropdown}
-                                            data-cy={`variants-dropdown-${index}`}
-                                            style={{marginTop: index === 1 ? 8 : 0}}
-                                        >
-                                            <div className={classes.dropdownStyles}>
-                                                {selectedVariants[index]?.variantName ||
-                                                    "Select a variant"}
-                                                <CaretDown size={16} />
-                                            </div>
-                                        </Button>
-                                    </Dropdown>
+                                    <Select
+                                        showSearch
+                                        key={index}
+                                        placeholder="Select a Variant"
+                                        className={`w-full ${index === 1 && "mt-2"}`}
+                                        data-cy={`variants-dropdown-${index}`}
+                                        options={getVariantsOptionsMenu(index)}
+                                        onSelect={(value) =>
+                                            handleAppVariantsMenuClick(index)({key: value})
+                                        }
+                                    />
                                 ))}
                             </div>
 
