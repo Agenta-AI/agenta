@@ -1191,7 +1191,7 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
         ),
         #
         app_id=(
-            span.refs.get("application.id", "missing-app-id")
+            span.refs.get("application", {}).get("id", "missing-app-id")
             if span.refs
             else "missing-app-id"
         ),
