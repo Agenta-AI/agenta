@@ -271,7 +271,7 @@ async def fetch_app_variant_revision_by_variant(
                 revision=revision,
             )
             .options(
-                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
                     UserDB.email, UserDB.username
                 )
             )
