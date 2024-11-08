@@ -9,6 +9,7 @@ import pydantic
 class App(UniversalBaseModel):
     app_id: str
     app_name: str
+    updated_at: str
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

@@ -10,6 +10,7 @@ import pydantic
 class EnvironmentOutputExtended(UniversalBaseModel):
     name: str
     app_id: str
+    project_id: str
     deployed_app_variant_id: typing.Optional[str] = None
     deployed_variant_name: typing.Optional[str] = None
     deployed_app_variant_revision_id: typing.Optional[str] = None
