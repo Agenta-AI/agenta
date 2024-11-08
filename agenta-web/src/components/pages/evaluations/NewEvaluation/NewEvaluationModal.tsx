@@ -156,7 +156,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         label="Which testset do you want to use?"
                         rules={[{required: true, message: "This field is required"}]}
                     >
-                        <Select placeholder="Select testset" data-cy="select-testset-group">
+                        <Select
+                            showSearch
+                            placeholder="Select testset"
+                            data-cy="select-testset-group"
+                        >
                             {testSets.map((testSet) => (
                                 <Select.Option
                                     key={testSet._id}

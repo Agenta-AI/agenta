@@ -22,13 +22,11 @@ describe("Single Model Test workflow", () => {
 
             cy.get(".ant-modal-content").should("exist")
 
-            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
+            cy.get('[data-cy="variants-dropdown-0"]').click()
             cy.get('[data-cy="variant-0"]').click()
-            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
 
-            cy.get('[data-cy="selected-testset"]').trigger("mouseover")
+            cy.get('[data-cy="selected-testset"]').click()
             cy.get('[data-cy^="testset"]').contains(testset_name).click()
-            cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.url().should("include", "/single_model_test")
