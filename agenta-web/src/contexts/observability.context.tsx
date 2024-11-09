@@ -132,9 +132,14 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         if (sort) {
             if (sort.type === "standard") {
                 params.oldest = sort.sorted
-            } else if (sort.type === "custom" && sort.customRange?.startTime) {
-                params.oldest = sort.customRange.startTime
-                params.newest = sort.customRange.endTime
+            } else if (
+                sort.type === "custom" &&
+                (sort.customRange?.startTime || sort.customRange?.endTime)
+            ) {
+                const {startTime, endTime} = sort.customRange
+
+                if (startTime) params.oldest = startTime
+                if (endTime) params.newest = endTime
             }
         }
 
