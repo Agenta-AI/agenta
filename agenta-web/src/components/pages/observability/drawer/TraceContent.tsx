@@ -75,7 +75,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {data, key, children, ...filteredTrace} = activeTrace
+    const {key, children, ...filteredTrace} = activeTrace
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
@@ -131,16 +131,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     )}
 
-                    {data && data?.inputs ? (
+                    {activeTrace.data && activeTrace.data?.inputs ? (
                         <Space direction="vertical" className="w-full" size={24}>
                             {activeTrace.node.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"inputs"}
-                                    value={data.inputs}
+                                    value={activeTrace.data.inputs}
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.entries(transformDataInputs(data.inputs)).map(
+                                Object.entries(transformDataInputs(activeTrace.data?.inputs)).map(
                                     ([key, values]) => {
                                         if (key === "prompt") {
                                             return Array.isArray(values)
@@ -171,16 +171,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     ) : null}
 
-                    {data && data?.outputs ? (
+                    {activeTrace.data && activeTrace.data?.outputs ? (
                         <Space direction="vertical" className="w-full" size={24}>
                             {activeTrace.node.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"outputs"}
-                                    value={data.outputs}
+                                    value={activeTrace.data.outputs}
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.values(data.outputs).map((item) =>
+                                Object.values(activeTrace.data.outputs).map((item) =>
                                     Array.isArray(item)
                                         ? item.map((param, index) =>
                                               !!param.content &&
@@ -206,12 +206,12 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     ) : null}
 
-                    {data && data?.internals && (
+                    {activeTrace.data && activeTrace.data?.internals && (
                         <Space direction="vertical" className="w-full" size={24}>
                             {activeTrace.node.type !== "chat" && (
                                 <AccordionTreePanel
                                     label={"internals"}
-                                    value={data.internals}
+                                    value={activeTrace.data.internals}
                                     enableFormatSwitcher
                                 />
                             )}
