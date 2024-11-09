@@ -45,7 +45,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 export type SortResult = {
     type: "custom" | "standard"
     sorted: string
-    customRange?: {startTime: string; endTime: string}
+    customRange?: {startTime?: string; endTime?: string}
 }
 type SortTypes =
     | "30 mins"
@@ -87,7 +87,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
         customRange?: CustomTimeRange
     }) => {
         let sortedTime
-        let customRangeTime
+        let customRangeTime: {startTime?: string; endTime?: string} = {}
 
         if (sortData && sortData !== "custom" && sortData !== "all time") {
             const now = dayjs().utc()
@@ -98,11 +98,11 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                 .subtract(parseInt(amount), unit as dayjs.ManipulateType)
                 .toISOString()
                 .split(".")[0]
-        } else if (customRange?.startTime && sortData == "custom") {
-            customRangeTime = {
-                startTime: customRange.startTime.toISOString().split(".")[0],
-                endTime: customRange.endTime?.toISOString().split(".")[0] as string,
-            }
+        } else if (sortData === "custom" && (customRange?.startTime || customRange?.endTime)) {
+            if (customRange.startTime)
+                customRangeTime.startTime = customRange.startTime.toISOString().split(".")[0]
+            if (customRange.endTime)
+                customRangeTime.endTime = customRange.endTime.toISOString().split(".")[0]
         } else if (sortData === "all time") {
             sortedTime = "1970-01-01T00:00:00"
         }
@@ -115,7 +115,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
     }
 
     const handleApplyCustomRange = () => {
-        if (customTime.startTime && customTime.endTime) {
+        if (customTime.startTime || customTime.endTime) {
             apply({sortData: "custom", customRange: customTime})
             setDropdownVisible(false)
         }
@@ -130,7 +130,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
             setCustomOptionSelected(false)
         }, 500)
 
-        if (customTime.startTime) {
+        if (customTime.startTime || customTime.endTime) {
             setCustomTime({startTime: null, endTime: null})
         }
     }
@@ -156,7 +156,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                 overlayClassName={`${classes.popover} ${customOptionSelected ? "!w-[536px]" : "!w-[256px]"} h-[345px]`}
                 arrow={false}
                 afterOpenChange={() => {
-                    if (sort == "custom" && customTime.startTime == null) {
+                    if (sort == "custom" && !customTime.startTime && !customTime.endTime) {
                         setSort(defaultSortValue)
                         setCustomOptionSelected(false)
                     }
@@ -213,6 +213,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                                                 <DatePicker
                                                     showTime
                                                     value={customTime.startTime}
+                                                    format="HH:mm:ss DD MMM YYYY"
                                                     onChange={(date) =>
                                                         setCustomTime({
                                                             ...customTime,
@@ -228,6 +229,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                                                 <DatePicker
                                                     showTime
                                                     value={customTime.endTime}
+                                                    format="HH:mm:ss DD MMM YYYY"
                                                     onChange={(date) =>
                                                         setCustomTime({
                                                             ...customTime,
@@ -252,7 +254,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                                         <Button
                                             type="primary"
                                             onClick={handleApplyCustomRange}
-                                            disabled={!customTime.startTime || !customTime.endTime}
+                                            disabled={!customTime.startTime && !customTime.endTime}
                                         >
                                             Apply
                                         </Button>
