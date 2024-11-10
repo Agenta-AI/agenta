@@ -204,15 +204,17 @@ const ObservabilityDashboard = () => {
             ),
         },
         {
-            title: "Start time",
-            key: "start_time",
-            dataIndex: ["time", "start"],
+            title: "Timestamp",
+            key: "timestamp",
+            dataIndex: ["lifecycle", "created_at"],
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <div>{dayjs(record.time.start).format("HH:mm:ss DD MMM YYYY")}</div>
+                return (
+                    <div>{dayjs(record.lifecycle?.created_at).format("HH:mm:ss DD MMM YYYY")}</div>
+                )
             },
         },
         {
