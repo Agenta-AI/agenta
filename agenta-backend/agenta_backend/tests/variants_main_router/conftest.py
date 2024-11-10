@@ -75,7 +75,7 @@ async def get_second_user_object():
 
 @pytest.fixture()
 async def get_or_create_project_from_db():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(ProjectDB).filter_by(project_name="default", is_default=True)
         )
@@ -94,7 +94,7 @@ async def get_first_user_app(get_first_user_object, get_or_create_project_from_d
     user = await get_first_user_object
     project = await get_or_create_project_from_db
 
-    async with engine.get_session() as session:
+    async with engine.session() as session:
         app = AppDB(app_name="myapp", project_id=project.id)
         session.add(app)
         await session.commit()
