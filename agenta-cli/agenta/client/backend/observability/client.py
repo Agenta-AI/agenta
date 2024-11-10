@@ -10,6 +10,7 @@ from json.decoder import JSONDecodeError
 from ..core.api_error import ApiError
 from ..types.create_span import CreateSpan
 from ..types.create_trace_response import CreateTraceResponse
+from ..core.serialization import convert_and_respect_annotation_metadata
 from ..types.with_pagination import WithPagination
 from ..types.trace_detail import TraceDetail
 from ..core.jsonable_encoder import jsonable_encoder
@@ -155,7 +156,11 @@ class ObservabilityClient:
             method="POST",
             json={
                 "trace": trace,
-                "spans": spans,
+                "spans": convert_and_respect_annotation_metadata(
+                    object_=spans,
+                    annotation=typing.Sequence[CreateSpan],
+                    direction="write",
+                ),
             },
             request_options=request_options,
             omit=OMIT,
@@ -764,7 +769,11 @@ class AsyncObservabilityClient:
             method="POST",
             json={
                 "trace": trace,
-                "spans": spans,
+                "spans": convert_and_respect_annotation_metadata(
+                    object_=spans,
+                    annotation=typing.Sequence[CreateSpan],
+                    direction="write",
+                ),
             },
             request_options=request_options,
             omit=OMIT,
