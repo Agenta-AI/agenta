@@ -12,8 +12,9 @@ export const usePostHogAg = () => {
 
     const capture: typeof posthog.capture = (...args) => {
         if (trackingEnabled && user?.id) {
-            posthog.capture(...args)
+            return posthog.capture(...args)
         }
+        return undefined
     }
 
     const identify: typeof posthog.identify = (id, ...args) => {
