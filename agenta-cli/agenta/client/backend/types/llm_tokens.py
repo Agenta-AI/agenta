@@ -13,11 +13,11 @@ class LlmTokens(UniversalBaseModel):
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=False
+            extra="allow", frozen=True
         )  # type: ignore # Pydantic v2
     else:
 
         class Config:
-            frozen = False
+            frozen = True
             smart_union = True
             extra = pydantic.Extra.allow

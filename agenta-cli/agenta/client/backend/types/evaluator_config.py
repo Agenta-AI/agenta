@@ -9,6 +9,7 @@ import pydantic
 class EvaluatorConfig(UniversalBaseModel):
     id: str
     name: str
+    project_id: str
     evaluator_key: str
     settings_values: typing.Optional[
         typing.Dict[str, typing.Optional[typing.Any]]
