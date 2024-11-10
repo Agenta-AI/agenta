@@ -1,6 +1,10 @@
 import ResultTag from "@/components/ResultTag/ResultTag"
 import {useAppId} from "@/hooks/useAppId"
-import {filterVariantParameters, formatVariantIdWithHash} from "@/lib/helpers/utils"
+import {
+    filterVariantParameters,
+    formatVariantIdWithHash,
+    getStringOrJson,
+} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CloseOutlined, MoreOutlined} from "@ant-design/icons"
@@ -153,7 +157,6 @@ const VariantDrawer = ({
                                 label: "Configuration",
                                 children: (
                                     <div>
-                                        {" "}
                                         {selectedVariant.parameters &&
                                         Object.keys(selectedVariant.parameters).length ? (
                                             <div className="flex flex-col gap-6">
@@ -173,7 +176,7 @@ const VariantDrawer = ({
                                                                 <ResultTag
                                                                     key={index}
                                                                     value1={key}
-                                                                    value2={value}
+                                                                    value2={getStringOrJson(value)}
                                                                 />
                                                             ))}
                                                     </div>
