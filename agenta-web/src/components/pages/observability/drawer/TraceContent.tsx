@@ -72,6 +72,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             fontWeight: 400,
         },
     },
+    resultTag: {
+        display: "flex",
+        alignItems: "center",
+        fontFamily: "monospace",
+        gap: 4,
+    },
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
@@ -289,19 +295,19 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     <StatusRenderer status={activeTrace.status} />
                     <ResultTag
                         value1={
-                            <>
+                            <div className={classes.resultTag}>
                                 <Timer size={14} />{" "}
                                 {formatLatency(activeTrace?.metrics?.acc?.duration.total / 1000)}
-                            </>
+                            </div>
                         }
                     />
                     <ResultTag
                         value1={
-                            <>
+                            <div className={classes.resultTag}>
                                 <PlusCircle size={14} />
                                 {formatTokenUsage(activeTrace.metrics?.acc?.tokens?.total)} /{" "}
                                 {formatCurrency(activeTrace.metrics?.acc?.costs?.total)}
-                            </>
+                            </div>
                         }
                         popoverContent={
                             <Space direction="vertical">
@@ -324,11 +330,11 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     />
                     <ResultTag
                         value1={
-                            <>
+                            <div className={classes.resultTag}>
                                 {dayjs(activeTrace.time.start).format("DD/MM/YYYY, hh:mm:ss A")}
                                 <ArrowRight size={14} />{" "}
                                 {dayjs(activeTrace.time.end).format("DD/MM/YYYY, hh:mm:ss A")}
-                            </>
+                            </div>
                         }
                     />
                 </div>
