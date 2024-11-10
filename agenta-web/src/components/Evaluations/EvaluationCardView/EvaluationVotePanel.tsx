@@ -270,7 +270,7 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                     >
                         <InputNumber
                             defaultValue={
-                                value.find((item) => item.variantId === variant.variantId)?.score ||
+                                value.find((item) => item.variantId === variant.variantId)?.score ??
                                 undefined
                             }
                             min={min}
