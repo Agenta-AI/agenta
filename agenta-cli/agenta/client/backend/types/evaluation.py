@@ -12,8 +12,7 @@ import pydantic
 class Evaluation(UniversalBaseModel):
     id: str
     app_id: str
-    user_id: str
-    user_username: str
+    project_id: str
     variant_ids: typing.List[str]
     variant_names: typing.List[str]
     variant_revision_ids: typing.List[str]

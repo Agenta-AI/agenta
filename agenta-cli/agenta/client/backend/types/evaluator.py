@@ -13,6 +13,8 @@ class Evaluator(UniversalBaseModel):
     settings_template: typing.Dict[str, typing.Optional[typing.Any]]
     description: typing.Optional[str] = None
     oss: typing.Optional[bool] = None
+    requires_llm_api_keys: typing.Optional[bool] = None
+    tags: typing.List[str]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
