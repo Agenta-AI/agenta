@@ -1719,29 +1719,26 @@ async def create_environment_revision(
 async def list_app_variant_revisions_by_variant(
     app_variant: AppVariantDB, project_id: str
 ) -> List[AppVariantRevisionsDB]:
-    """Returns list of app variant revision for the given app variant
+    """Returns list of app variant revisions for the given app variant.
 
     Args:
-        app_variant (AppVariantDB): The app variant to retrieve environments for.
+        app_variant (AppVariantDB): The app variant to retrieve revisions for.
         project_id (str): The ID of the project.
 
     Returns:
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
-
     async with engine.session() as session:
         base_query = (
             select(AppVariantRevisionsDB)
             .filter_by(variant_id=app_variant.id, project_id=uuid.UUID(project_id))
             .options(
-                joinedload(AppVariantRevisionsDB.variant_revision)
-                .joinedload(AppVariantDB.app)
-                .load_only(AppDB.app_name)
-            )
-            .options(
-                joinedload(AppVariantRevisionsDB.modified_by).load_only(
+                joinedload(AppVariantRevisionsDB.variant_revision.of_type(AppVariantDB))
+                .joinedload(AppVariantDB.app.of_type(AppDB))
+                .load_only(AppDB.app_name),
+                joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
                     UserDB.username, UserDB.email
-                )
+                ),
             )
         )
 

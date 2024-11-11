@@ -17,29 +17,6 @@ const gradients = [
     "linear-gradient(to bottom right, #60A5FA, #3B82F6)",
 ]
 
-const colors = [
-    "#FF5733",
-    "#00AABB",
-    "#FFC300",
-    "#FF0066",
-    "#22DD55",
-    "#FF3399",
-    "#FF9900",
-    "#44FFAA",
-    "#FF3366",
-    "#0088FF",
-    "#FFCC00",
-    "#DD33FF",
-    "#33FF99",
-    "#FF0033",
-    "#55AAFF",
-    "#FF6600",
-    "#FF00CC",
-    "#11FF44",
-    "#FF9933",
-    "#0099FF",
-]
-
 const tagColors = [
     "blue",
     "purple",
@@ -56,12 +33,28 @@ const tagColors = [
     "gold",
 ]
 
+const colorPairs = [
+    {backgroundColor: "#BAE0FF", textColor: "#1677FF"},
+    {backgroundColor: "#D9F7BE", textColor: "#389E0D"},
+    {backgroundColor: "#efdbff", textColor: "#722ED1"},
+    {backgroundColor: "#fff1b8", textColor: "#AD6800"},
+    {backgroundColor: "#D1F5F1", textColor: "#13C2C2"},
+    {backgroundColor: "#ffd6e7", textColor: "#EB2F96"},
+    {backgroundColor: "#f7cfcf", textColor: "#D61010"},
+    {backgroundColor: "#eaeff5", textColor: "#758391"},
+    {backgroundColor: "#D1E4E8", textColor: "#5E7579"},
+    {backgroundColor: "#F5E6D3", textColor: "#825E31"},
+    {backgroundColor: "#F9F6C1", textColor: "#84803A"},
+    {backgroundColor: "#F4E6E4", textColor: "#9C706A"},
+]
+
 export const getGradientFromStr = (value: string) => {
     return gradients[stringToNumberInRange(value, 0, gradients.length - 1)]
 }
 
-export const getColorFromStr = (value: string) => {
-    return colors[stringToNumberInRange(value, 0, colors.length - 1)]
+export const getColorPairFromStr = (value: string) => {
+    const index = stringToNumberInRange(value, 0, colorPairs.length - 1)
+    return colorPairs[index]
 }
 
 export const fadeColor = (hex: string, opacity: number) => {
@@ -80,4 +73,4 @@ export const fadeColor = (hex: string, opacity: number) => {
 
 export const getTagColors = () => [...tagColors]
 
-export const getRandomColors = () => [...colors]
+export const getRandomColors = () => colorPairs.map((color) => color.textColor)
