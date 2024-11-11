@@ -2707,7 +2707,7 @@
                 ],
                 "summary": "Create Evaluation",
                 "description": "Creates a new comparison table document\nRaises:\n    HTTPException: _description_\nReturns:\n    _description_",
-                "operationId": "create_evaluation",
+                "operationId": "create_human_evaluation",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -5957,6 +5957,7 @@
                     "run_evaluations",
                     "edit_evaluation",
                     "create_evaluation",
+                    "create_human_evaluation",
                     "delete_evaluation",
                     "deploy_application",
                     "view_workspace",

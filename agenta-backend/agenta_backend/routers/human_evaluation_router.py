@@ -42,9 +42,9 @@ logger.setLevel(logging.DEBUG)
 
 
 @router.post(
-    "/", response_model=SimpleEvaluationOutput, operation_id="create_evaluation"
+    "/", response_model=SimpleEvaluationOutput, operation_id="create_human_evaluation"
 )
-async def create_evaluation(
+async def create_human_evaluation(
     payload: NewHumanEvaluation,
     request: Request,
 ):
