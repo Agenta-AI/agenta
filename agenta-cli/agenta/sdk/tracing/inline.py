@@ -821,11 +821,15 @@ def parse_from_otel_span_dto(
 
     node_id = UUID(tree_id.hex[16:] + otel_span_dto.context.span_id[2:])
 
-    node_type: str = types.get("node")
+    node_type = NodeType.TASK
+    try:
+        node_type = NodeType(types.get("node", "").lower())
+    except:  # pylint: disable=bare-except
+        pass
 
     node = NodeDTO(
         id=node_id,
-        type=node_type.lower() if node_type else None,
+        type=node_type,
         name=otel_span_dto.name,
     )
 
