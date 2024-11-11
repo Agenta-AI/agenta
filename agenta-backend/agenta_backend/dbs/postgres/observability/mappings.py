@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from json import dumps
+from json import dumps, loads
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
 from agenta_backend.core.observability.dtos import (
@@ -16,10 +16,10 @@ from agenta_backend.core.observability.dtos import (
     BucketDTO,
 )
 
-from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
+from agenta_backend.dbs.postgres.observability.dbes import NodesDBE
 
 
-def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
+def map_span_dbe_to_dto(span: NodesDBE) -> SpanDTO:
     return SpanDTO(
         lifecycle=LifecycleDTO(
             created_at=span.created_at,
@@ -80,8 +80,8 @@ def map_span_dbe_to_dto(span: InvocationSpanDBE) -> SpanDTO:
 def map_span_dto_to_dbe(
     project_id: str,
     span_dto: SpanDTO,
-) -> InvocationSpanDBE:
-    span_dbe = InvocationSpanDBE(
+) -> NodesDBE:
+    span_dbe = NodesDBE(
         # SCOPE
         project_id=project_id,
         # LIFECYCLE
@@ -112,21 +112,27 @@ def map_span_dto_to_dbe(
         meta=span_dto.encode(span_dto.meta),
         refs=span_dto.encode(span_dto.refs),
         # EVENTS
-        exception=span_dto.encode(span_dto.exception) if span_dto.exception else None,
+        exception=(
+            loads(span_dto.exception.model_dump_json()) if span_dto.exception else None
+        ),
         # LINKS
-        links=span_dto.encode(span_dto.links),
+        links=(
+            [loads(link.model_dump_json()) for link in span_dto.links]
+            if span_dto.links
+            else None
+        ),
         # FULL TEXT SEARCH
         content=dumps(span_dto.data),
         # OTEL
-        otel=span_dto.otel.model_dump(exclude_none=True),
+        otel=loads(span_dto.otel.model_dump_json()) if span_dto.otel else None,
     )
 
     return span_dbe
 
 
 def map_bucket_dbes_to_dtos(
-    total_bucket_dbes: List[InvocationSpanDBE],
-    error_bucket_dbes: List[InvocationSpanDBE],
+    total_bucket_dbes: List[NodesDBE],
+    error_bucket_dbes: List[NodesDBE],
     window: int,
 ) -> Tuple[List[BucketDTO], int]:
     total_metrics = {
