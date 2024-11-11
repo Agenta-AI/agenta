@@ -35,8 +35,6 @@ class Tracing(metaclass=Singleton):
     ) -> None:
         # ENDPOINT (OTLP)
         self.otlp_url = url
-        # AITH (OTLP)
-        self.api_key: Optional[str] = None
         # HEADERS (OTLP)
         self.headers: Dict[str, str] = dict()
         # REFERENCES
@@ -59,16 +57,12 @@ class Tracing(metaclass=Singleton):
         # DEPRECATING
         app_id: Optional[str] = None,
     ):
-        # AUTH (OTLP)
-        self.api_key = api_key
         # HEADERS (OTLP)
-        self.headers = {}
-        if app_id:
-            self.headers.update(**{"AG-APP-ID": app_id})
         if api_key:
-            self.headers.update(**{"Authorization": self.api_key})
+            self.headers["Authorization"] = api_key
         # REFERENCES
-        self.references["application.id"] = app_id
+        if app_id:
+            self.references["application.id"] = app_id
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(

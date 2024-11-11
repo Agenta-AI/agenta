@@ -26,6 +26,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: "1px 0",
         "& .ant-tree-node-content-wrapper": {
             minWidth: 240,
+            marginTop: 6,
+            marginBottom: 6,
         },
         "& .ant-tree-node-selected": {
             outline: `1px solid ${theme.colorBorder}`,
@@ -55,7 +57,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         height: "100%",
         width: "calc(210px - 40px)",
     },
-    treeContent: {
+    treeContentContainer: {
         color: theme.colorTextSecondary,
         "& div": {
             display: "flex",
@@ -63,6 +65,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             gap: 4,
             fontSize: theme.fontSize,
         },
+    },
+    treeContent: {
+        display: "flex",
+        alignItems: "center",
+        fontFamily: "monospace",
+        gap: 2,
     },
 }))
 
@@ -85,21 +93,21 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                 >
                     {node.name}
                 </Typography.Text>
-                <Space className={classes.treeContent}>
-                    <div>
+                <Space className={classes.treeContentContainer}>
+                    <div className={classes.treeContent}>
                         <Timer />
                         {formatLatency(metrics?.acc?.duration.total / 1000)}
                     </div>
 
                     {metrics?.acc?.costs?.total && (
-                        <div>
+                        <div className={classes.treeContent}>
                             <Coins />
                             {formatCurrency(metrics?.acc?.costs?.total)}
                         </div>
                     )}
 
                     {!!metrics?.acc?.tokens?.total && (
-                        <div>
+                        <div className={classes.treeContent}>
                             <PlusCircle />
                             {formatTokenUsage(metrics?.acc?.tokens?.total)}
                         </div>

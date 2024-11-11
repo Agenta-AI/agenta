@@ -204,15 +204,17 @@ const ObservabilityDashboard = () => {
             ),
         },
         {
-            title: "Start time",
-            key: "start_time",
-            dataIndex: ["time", "start"],
+            title: "Timestamp",
+            key: "timestamp",
+            dataIndex: ["lifecycle", "created_at"],
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <div>{dayjs(record.time.start).format("HH:mm:ss DD MMM YYYY")}</div>
+                return (
+                    <div>{dayjs(record.lifecycle?.created_at).format("HH:mm:ss DD MMM YYYY")}</div>
+                )
             },
         },
         {
@@ -310,18 +312,16 @@ const ObservabilityDashboard = () => {
         {type: "exists", value: "exception.stacktrace", label: "exception stacktrace"},
         {type: "string", value: "content", label: "content"},
         {type: "number", value: "metrics.acc.duration.total", label: "duration"},
-        {type: "number", value: "metrics.acc.costs.total", label: "total cost (accumulated)"},
-        {type: "number", value: "metrics.unit.costs.total", label: "total cost"},
+        {type: "number", value: "metrics.acc.costs.total", label: "cost"},
         {type: "number", value: "metrics.acc.tokens.prompt", label: "prompt tokens (accumulated)"},
         {
             type: "number",
             value: "metrics.acc.tokens.completion",
             label: "completion tokens (accumulated)",
         },
-        {type: "number", value: "metrics.acc.tokens.total", label: "total tokens (accumulated)"},
+        {type: "number", value: "metrics.acc.tokens.total", label: "usage"},
         {type: "number", value: "metrics.unit.tokens.prompt", label: "prompt tokens"},
         {type: "number", value: "metrics.unit.tokens.completion", label: "completion tokens"},
-        {type: "number", value: "metrics.unit.tokens.total", label: "total tokens"},
         {type: "exists", value: "refs.variant.id", label: "variant ID"},
         {type: "exists", value: "refs.variant.slug", label: "variant slug"},
         {type: "exists", value: "refs.variant.version", label: "variant version"},

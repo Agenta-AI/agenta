@@ -5,8 +5,8 @@ from agenta_backend.dbs.postgres.shared.base import Base
 from agenta_backend.dbs.postgres.observability.dbas import SpanDBA
 
 
-class InvocationSpanDBE(Base, SpanDBA):
-    __tablename__ = "invocation_span"
+class NodesDBE(Base, SpanDBA):
+    __tablename__ = "nodes"
 
     __table_args__ = (
         PrimaryKeyConstraint(

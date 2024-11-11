@@ -4,6 +4,7 @@ import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phospho
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
+import {isEqual} from "lodash"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
@@ -39,7 +40,9 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     const classes = useStyles()
     const emptyFilter = [{key: "", operator: "", value: "", isPermanent: false}] as Filter[]
 
-    const [filter, setFilter] = useState<Filter[]>(filterData || emptyFilter)
+    const [filter, setFilter] = useState<Filter[]>(() =>
+        !filterData?.length ? emptyFilter : filterData,
+    )
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     useUpdateEffect(() => {
@@ -80,13 +83,15 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
         value,
         idx,
     }: {
-        columnName: Exclude<keyof Filter, "isPermanent">
+        columnName: keyof Omit<Filter, "isPermanent">
         value: any
         idx: number
     }) => {
-        const newFilters = [...filter]
-        newFilters[idx][columnName] = value
-        setFilter(newFilters)
+        setFilter((prevFilters) => {
+            const newFilters = [...prevFilters]
+            newFilters[idx] = {...newFilters[idx], [columnName]: value}
+            return newFilters
+        })
     }
 
     const onDeleteFilter = (index: number) => {
@@ -100,16 +105,16 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     const clearFilter = () => {
         const clearedFilters = filter.filter((f) => f.isPermanent)
 
-        if (JSON.stringify(clearedFilters) !== JSON.stringify(filter)) {
-            setFilter(clearedFilters)
+        if (!isEqual(clearedFilters, filterData)) {
             onClearFilter(clearedFilters)
         }
+        setFilter(!clearedFilters.length ? emptyFilter : clearedFilters)
     }
 
     const applyFilter = () => {
         const sanitizedFilters = filter.filter(({key, operator}) => key && operator)
 
-        if (JSON.stringify(sanitizedFilters) !== JSON.stringify(filterData)) {
+        if (!isEqual(sanitizedFilters, filterData)) {
             onApplyFilter(sanitizedFilters)
         }
         setIsFilterOpen(false)
