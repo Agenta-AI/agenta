@@ -2885,7 +2885,7 @@
                 ],
                 "summary": "Fetch Evaluation Scenarios",
                 "description": "Fetches evaluation scenarios for a given evaluation ID.\n\nArguments:\n    evaluation_id (str): The ID of the evaluation for which to fetch scenarios.\n\nRaises:\n    HTTPException: If the evaluation is not found or access is denied.\n\nReturns:\n    List[EvaluationScenario]: A list of evaluation scenarios.",
-                "operationId": "fetch_evaluation_scenarios",
+                "operationId": "fetch_human_evaluation_scenarios",
                 "parameters": [
                     {
                         "required": true,

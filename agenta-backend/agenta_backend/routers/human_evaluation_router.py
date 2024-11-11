@@ -168,9 +168,9 @@ async def fetch_human_evaluation(
 @router.get(
     "/{evaluation_id}/evaluation_scenarios/",
     response_model=List[HumanEvaluationScenario],
-    operation_id="fetch_evaluation_scenarios",
+    operation_id="fetch_human_evaluation_scenarios",
 )
-async def fetch_evaluation_scenarios(
+async def fetch_human_evaluation_scenarios(
     evaluation_id: str,
     request: Request,
 ):
