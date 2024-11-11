@@ -1,4 +1,4 @@
-from json import dumps
+from json import dumps, loads
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
 from agenta_backend.core.observability.dtos import (
@@ -109,13 +109,19 @@ def map_span_dto_to_dbe(
         meta=span_dto.encode(span_dto.meta),
         refs=span_dto.encode(span_dto.refs),
         # EVENTS
-        exception=span_dto.encode(span_dto.exception) if span_dto.exception else None,
+        exception=(
+            loads(span_dto.exception.model_dump_json()) if span_dto.exception else None
+        ),
         # LINKS
-        links=span_dto.encode(span_dto.links),
+        links=(
+            [loads(link.model_dump_json()) for link in span_dto.links]
+            if span_dto.links
+            else None
+        ),
         # FULL TEXT SEARCH
         content=dumps(span_dto.data),
         # OTEL
-        otel=span_dto.otel.model_dump(exclude_none=True),
+        otel=loads(span_dto.otel.model_dump_json()) if span_dto.otel else None,
     )
 
     return span_dbe
