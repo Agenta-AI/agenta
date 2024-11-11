@@ -111,6 +111,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                             glyphMargin: false,
                                             lineNumbersMinChars: 0, // Reduces the space for line numbers
                                             folding: false,
+                                            quickSuggestions: false,
                                         }}
                                         onChange={(newValue) => {
                                             const currentMessages =
