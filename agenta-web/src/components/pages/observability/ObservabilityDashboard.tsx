@@ -213,7 +213,9 @@ const ObservabilityDashboard = () => {
             }),
             render: (_, record) => {
                 return (
-                    <div>{dayjs(record.lifecycle?.created_at).format("HH:mm:ss DD MMM YYYY")}</div>
+                    <div>
+                        {dayjs(record.lifecycle?.created_at).local().format("HH:mm:ss DD MMM YYYY")}
+                    </div>
                 )
             },
         },

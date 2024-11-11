@@ -99,10 +99,18 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                 .toISOString()
                 .split(".")[0]
         } else if (sortData === "custom" && (customRange?.startTime || customRange?.endTime)) {
-            if (customRange.startTime)
-                customRangeTime.startTime = customRange.startTime.toISOString().split(".")[0]
-            if (customRange.endTime)
-                customRangeTime.endTime = customRange.endTime.toISOString().split(".")[0]
+            if (customRange.startTime) {
+                customRangeTime.startTime = dayjs(customRange.startTime)
+                    .utc()
+                    .toISOString()
+                    .split(".")[0]
+            }
+            if (customRange.endTime) {
+                customRangeTime.endTime = dayjs(customRange.endTime)
+                    .utc()
+                    .toISOString()
+                    .split(".")[0]
+            }
         } else if (sortData === "all time") {
             sortedTime = "1970-01-01T00:00:00"
         }
