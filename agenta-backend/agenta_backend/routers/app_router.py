@@ -681,10 +681,13 @@ async def list_environments(
 
         fixed_order = ["development", "staging", "production"]
 
-        sorted_environments = sorted(environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name))
+        sorted_environments = sorted(
+            environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
+        )
 
         return [
-            await converters.environment_db_to_output(env) for env in sorted_environments
+            await converters.environment_db_to_output(env)
+            for env in sorted_environments
         ]
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
