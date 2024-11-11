@@ -9,6 +9,7 @@ from asyncio import sleep, get_event_loop
 from traceback import format_exc, format_exception
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from os import environ
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
@@ -156,7 +157,6 @@ class entrypoint:
 
             with routing_context_manager(
                 config=api_config_params,
-                environment="playground",
             ):
                 entrypoint_result = await self.execute_function(
                     func,
@@ -213,7 +213,9 @@ class entrypoint:
         @wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
             func_params = {
-                k: v for k, v in kwargs.items() if k not in ["config", "environment"]
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["config", "environment", "app"]
             }
             if not config_schema:
                 if "environment" in kwargs and kwargs["environment"] is not None:
@@ -223,10 +225,19 @@ class entrypoint:
                 else:
                     ag.config.pull(config_name="default")
 
+            app_id = environ.get("AGENTA_APP_ID")
+
             with routing_context_manager(
-                config=config_params,
-                variant=kwargs["config"],
-                environment=kwargs["environment"],
+                application={
+                    "id": app_id,
+                    "slug": kwargs["app"],
+                },
+                variant={
+                    "slug": kwargs.get("config"),
+                },
+                environment={
+                    "slug": kwargs.get("environment"),
+                },
             ):
                 entrypoint_result = await self.execute_function(
                     func,

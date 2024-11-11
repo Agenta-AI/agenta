@@ -72,10 +72,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             fontWeight: 400,
         },
     },
+    resultTag: {
+        display: "flex",
+        alignItems: "center",
+        fontFamily: "monospace",
+        gap: 4,
+    },
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {data, key, children, ...filteredTrace} = activeTrace
+    const {key, children, ...filteredTrace} = activeTrace
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
@@ -131,16 +137,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     )}
 
-                    {data && data?.inputs ? (
+                    {activeTrace.data && activeTrace.data?.inputs ? (
                         <Space direction="vertical" className="w-full" size={24}>
                             {activeTrace.node.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"inputs"}
-                                    value={data.inputs}
+                                    value={activeTrace.data.inputs}
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.entries(transformDataInputs(data.inputs)).map(
+                                Object.entries(transformDataInputs(activeTrace.data?.inputs)).map(
                                     ([key, values]) => {
                                         if (key === "prompt") {
                                             return Array.isArray(values)
@@ -156,14 +162,14 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                                   ))
                                                 : null
                                         } else {
-                                            return (
+                                            return Array.isArray(values) && values.length > 0 ? (
                                                 <AccordionTreePanel
                                                     key={key}
                                                     label="tools"
                                                     value={values as any[]}
                                                     enableFormatSwitcher
                                                 />
-                                            )
+                                            ) : null
                                         }
                                     },
                                 )
@@ -171,16 +177,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     ) : null}
 
-                    {data && data?.outputs ? (
+                    {activeTrace.data && activeTrace.data?.outputs ? (
                         <Space direction="vertical" className="w-full" size={24}>
                             {activeTrace.node.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"outputs"}
-                                    value={data.outputs}
+                                    value={activeTrace.data.outputs}
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.values(data.outputs).map((item) =>
+                                Object.values(activeTrace.data.outputs).map((item) =>
                                     Array.isArray(item)
                                         ? item.map((param, index) =>
                                               !!param.content &&
@@ -206,12 +212,12 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     ) : null}
 
-                    {data && data?.internals && (
+                    {activeTrace.data && activeTrace.data?.internals && (
                         <Space direction="vertical" className="w-full" size={24}>
                             {activeTrace.node.type !== "chat" && (
                                 <AccordionTreePanel
                                     label={"internals"}
-                                    value={data.internals}
+                                    value={activeTrace.data.internals}
                                     enableFormatSwitcher
                                 />
                             )}
@@ -254,7 +260,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             {activeTrace.node.name}
                         </Typography.Text>
 
-                        <Space>
+                        {/* <Space>
                             {!activeTrace.parent && activeTrace.refs?.application?.id && (
                                 <Button
                                     className="flex items-center"
@@ -268,7 +274,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                 <Database size={14} />
                                 Add to testset
                             </Button>
-                        </Space>
+                        </Space> */}
                     </div>
                     <Divider className="m-0" />
                 </div>
@@ -289,19 +295,19 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     <StatusRenderer status={activeTrace.status} />
                     <ResultTag
                         value1={
-                            <>
+                            <div className={classes.resultTag}>
                                 <Timer size={14} />{" "}
-                                {formatLatency(activeTrace?.metrics?.acc?.duration.total)}
-                            </>
+                                {formatLatency(activeTrace?.metrics?.acc?.duration.total / 1000)}
+                            </div>
                         }
                     />
                     <ResultTag
                         value1={
-                            <>
+                            <div className={classes.resultTag}>
                                 <PlusCircle size={14} />
                                 {formatTokenUsage(activeTrace.metrics?.acc?.tokens?.total)} /{" "}
                                 {formatCurrency(activeTrace.metrics?.acc?.costs?.total)}
-                            </>
+                            </div>
                         }
                         popoverContent={
                             <Space direction="vertical">
@@ -324,11 +330,11 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     />
                     <ResultTag
                         value1={
-                            <>
+                            <div className={classes.resultTag}>
                                 {dayjs(activeTrace.time.start).format("DD/MM/YYYY, hh:mm:ss A")}
                                 <ArrowRight size={14} />{" "}
                                 {dayjs(activeTrace.time.end).format("DD/MM/YYYY, hh:mm:ss A")}
-                            </>
+                            </div>
                         }
                     />
                 </div>

@@ -412,9 +412,12 @@ def _connect_tree_dfs(
 ### apis.fastapi.observability.opentelemetry.semconv ###
 ### ------------------------------------------------ ###
 
+from json import loads
+
 VERSION = "0.4.1"
 
 V_0_4_1_ATTRIBUTES_EXACT = [
+    # OPENLLMETRY
     ("gen_ai.system", "ag.meta.system"),
     ("gen_ai.request.base_url", "ag.meta.request.base_url"),
     ("gen_ai.request.endpoint", "ag.meta.request.endpoint"),
@@ -439,11 +442,34 @@ V_0_4_1_ATTRIBUTES_EXACT = [
     ("db.vector.query.top_k", "ag.meta.request.top_k"),
     ("pinecone.query.top_k", "ag.meta.request.top_k"),
     ("traceloop.span.kind", "ag.type.node"),
+    ("traceloop.entity.name", "ag.node.name"),
+    # OPENINFERENCE
+    ("output.value", "ag.data.outputs"),
+    ("input.value", "ag.data.inputs"),
+    ("embedding.model_name", "ag.meta.request.model"),
+    ("llm.invocation_parameters", "ag.meta.request"),
+    ("llm.model_name", "ag.meta.request.model"),
+    ("llm.provider", "ag.meta.provider"),
+    ("llm.system", "ag.meta.system"),
 ]
 V_0_4_1_ATTRIBUTES_PREFIX = [
+    # OPENLLMETRY
     ("gen_ai.prompt", "ag.data.inputs.prompt"),
     ("gen_ai.completion", "ag.data.outputs.completion"),
+    ("llm.request.functions", "ag.data.inputs.functions"),
+    ("llm.request.tools", "ag.data.inputs.tools"),
+    # OPENINFERENCE
+    ("llm.token_count", "ag.metrics.unit.tokens"),
+    ("llm.input_messages", "ag.data.inputs.prompt"),
+    ("llm.output_messages", "ag.data.outputs.completion"),
 ]
+
+V_0_4_1_ATTRIBUTES_DYNAMIC = [
+    # OPENLLMETRY
+    ("traceloop.entity.input", lambda x: ("ag.data.inputs", loads(x).get("inputs"))),
+    ("traceloop.entity.output", lambda x: ("ag.data.outputs", loads(x).get("outputs"))),
+]
+
 
 V_0_4_1_MAPS = {
     "attributes": {
@@ -454,6 +480,9 @@ V_0_4_1_MAPS = {
         "prefix": {
             "from": {otel: agenta for otel, agenta in V_0_4_1_ATTRIBUTES_PREFIX[::-1]},
             "to": {agenta: otel for otel, agenta in V_0_4_1_ATTRIBUTES_PREFIX[::-1]},
+        },
+        "dynamic": {
+            "from": {otel: agenta for otel, agenta in V_0_4_1_ATTRIBUTES_DYNAMIC[::-1]}
         },
     },
 }
@@ -467,6 +496,9 @@ V_0_4_1_KEYS = {
             "from": list(V_0_4_1_MAPS["attributes"]["prefix"]["from"].keys()),
             "to": list(V_0_4_1_MAPS["attributes"]["prefix"]["to"].keys()),
         },
+        "dynamic": {
+            "from": list(V_0_4_1_MAPS["attributes"]["dynamic"]["from"].keys()),
+        },
     },
 }
 
@@ -479,6 +511,7 @@ KEYS = {
 }
 
 CODEX = {"maps": MAPS[VERSION], "keys": KEYS[VERSION]}
+
 
 ### ------------------------------------------------ ###
 ### apis.fastapi.observability.opentelemetry.semconv ###
@@ -653,6 +686,18 @@ def _parse_from_semconv(
 
                     del attributes[old_key]
 
+            for dynamic_key in CODEX["keys"]["attributes"]["dynamic"]["from"]:
+                if old_key == dynamic_key:
+                    try:
+                        new_key, new_value = CODEX["maps"]["attributes"]["dynamic"][
+                            "from"
+                        ][dynamic_key](value)
+
+                        attributes[new_key] = new_value
+
+                    except:  # pylint: disable=bare-except
+                        pass
+
 
 def _parse_from_links(
     otel_span_dto: OTelSpanDTO,
@@ -776,11 +821,15 @@ def parse_from_otel_span_dto(
 
     node_id = UUID(tree_id.hex[16:] + otel_span_dto.context.span_id[2:])
 
-    node_type: str = types.get("node")
+    node_type = NodeType.TASK
+    try:
+        node_type = NodeType(types.get("node", "").lower())
+    except:  # pylint: disable=bare-except
+        pass
 
     node = NodeDTO(
         id=node_id,
-        type=node_type.lower() if node_type else None,
+        type=node_type,
         name=otel_span_dto.name,
     )
 
@@ -1146,7 +1195,7 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
         ),
         #
         app_id=(
-            span.refs.get("application.id", "missing-app-id")
+            span.refs.get("application", {}).get("id", "missing-app-id")
             if span.refs
             else "missing-app-id"
         ),

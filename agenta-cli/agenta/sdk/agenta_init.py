@@ -6,7 +6,7 @@ from importlib.metadata import version
 
 from agenta.sdk.utils.logging import log
 from agenta.sdk.utils.globals import set_global
-from agenta.client.backend.client import AgentaApi
+from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
@@ -22,6 +22,9 @@ class AgentaSingleton:
     config = None
     tracing = None
 
+    api = None
+    async_api = None
+
     def __new__(cls):
         if not cls._instance:
             cls._instance = super(AgentaSingleton, cls).__new__(cls)
@@ -33,14 +36,11 @@ class AgentaSingleton:
         host: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
-        #
+        # DEPRECATING
         app_id: Optional[str] = None,
     ) -> None:
-        log.info(f"---------------------------")
-        log.info(f"Agenta SDK - using version: {version('agenta')}")
-        log.info(f"---------------------------")
-
-        """Main function to initialize the singleton.
+        """
+        Main function to initialize the singleton.
 
         Initializes the singleton with the given `app_id`, `host`, and `api_key`. The order of precedence for these variables is:
         1. Explicit argument provided in the function call.
@@ -62,6 +62,10 @@ class AgentaSingleton:
             ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
         """
 
+        log.info("---------------------------")
+        log.info("Agenta SDK - using version: %s", version("agenta"))
+        log.info("---------------------------")
+
         config = {}
         if config_fname:
             config = toml.load(config_fname)
@@ -75,13 +79,13 @@ class AgentaSingleton:
         )
 
         self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
-        if not self.app_id:
-            raise ValueError(
-                "App ID must be specified. You can provide it in one of the following ways:\n"
-                "1. As an argument when calling ag.init(app_id='your_app_id').\n"
-                "2. In the configuration file specified by config_fname.\n"
-                "3. As an environment variable 'AGENTA_APP_ID'."
-            )
+        # if not self.app_id:
+        #     raise ValueError(
+        #         "App ID must be specified. You can provide it in one of the following ways:\n"
+        #         "1. As an argument when calling ag.init(app_id='your_app_id').\n"
+        #         "2. In the configuration file specified by config_fname.\n"
+        #         "3. As an environment variable 'AGENTA_APP_ID'."
+        #     )
 
         self.api_key = (
             api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
@@ -95,6 +99,16 @@ class AgentaSingleton:
             api_key=self.api_key,
             # DEPRECATING
             app_id=self.app_id,
+        )
+
+        self.api = AgentaApi(
+            base_url=self.host + "/api",
+            api_key=api_key if api_key else "",
+        )
+
+        self.async_api = AsyncAgentaApi(
+            base_url=self.host + "/api",
+            api_key=api_key if api_key else "",
         )
 
         self.base_id = os.environ.get("AGENTA_BASE_ID")

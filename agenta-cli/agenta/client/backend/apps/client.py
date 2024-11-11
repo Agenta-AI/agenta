@@ -176,7 +176,6 @@ class AppsClient:
         self,
         *,
         app_name: typing.Optional[str] = None,
-        org_id: typing.Optional[str] = None,
         workspace_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[App]:
@@ -197,8 +196,6 @@ class AppsClient:
         Parameters
         ----------
         app_name : typing.Optional[str]
-
-        org_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
 
@@ -225,7 +222,6 @@ class AppsClient:
             method="GET",
             params={
                 "app_name": app_name,
-                "org_id": org_id,
                 "workspace_id": workspace_id,
             },
             request_options=request_options,
@@ -258,8 +254,9 @@ class AppsClient:
         self,
         *,
         app_name: str,
-        organization_id: typing.Optional[str] = OMIT,
+        project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
         """
@@ -279,9 +276,11 @@ class AppsClient:
         ----------
         app_name : str
 
-        organization_id : typing.Optional[str]
+        project_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -308,8 +307,9 @@ class AppsClient:
             method="POST",
             json={
                 "app_name": app_name,
-                "organization_id": organization_id,
+                "project_id": project_id,
                 "workspace_id": workspace_id,
+                "organization_id": organization_id,
             },
             request_options=request_options,
             omit=OMIT,
@@ -586,8 +586,9 @@ class AppsClient:
         app_name: str,
         template_id: str,
         env_vars: typing.Dict[str, str],
-        organization_id: typing.Optional[str] = OMIT,
+        project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
@@ -611,9 +612,11 @@ class AppsClient:
 
         env_vars : typing.Dict[str, str]
 
-        organization_id : typing.Optional[str]
+        project_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -643,9 +646,10 @@ class AppsClient:
             json={
                 "app_name": app_name,
                 "template_id": template_id,
+                "project_id": project_id,
+                "workspace_id": workspace_id,
                 "env_vars": env_vars,
                 "organization_id": organization_id,
-                "workspace_id": workspace_id,
             },
             request_options=request_options,
             omit=OMIT,
@@ -976,7 +980,6 @@ class AsyncAppsClient:
         self,
         *,
         app_name: typing.Optional[str] = None,
-        org_id: typing.Optional[str] = None,
         workspace_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[App]:
@@ -997,8 +1000,6 @@ class AsyncAppsClient:
         Parameters
         ----------
         app_name : typing.Optional[str]
-
-        org_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
 
@@ -1033,7 +1034,6 @@ class AsyncAppsClient:
             method="GET",
             params={
                 "app_name": app_name,
-                "org_id": org_id,
                 "workspace_id": workspace_id,
             },
             request_options=request_options,
@@ -1066,8 +1066,9 @@ class AsyncAppsClient:
         self,
         *,
         app_name: str,
-        organization_id: typing.Optional[str] = OMIT,
+        project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
         """
@@ -1087,9 +1088,11 @@ class AsyncAppsClient:
         ----------
         app_name : str
 
-        organization_id : typing.Optional[str]
+        project_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1124,8 +1127,9 @@ class AsyncAppsClient:
             method="POST",
             json={
                 "app_name": app_name,
-                "organization_id": organization_id,
+                "project_id": project_id,
                 "workspace_id": workspace_id,
+                "organization_id": organization_id,
             },
             request_options=request_options,
             omit=OMIT,
@@ -1426,8 +1430,9 @@ class AsyncAppsClient:
         app_name: str,
         template_id: str,
         env_vars: typing.Dict[str, str],
-        organization_id: typing.Optional[str] = OMIT,
+        project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
@@ -1451,9 +1456,11 @@ class AsyncAppsClient:
 
         env_vars : typing.Dict[str, str]
 
-        organization_id : typing.Optional[str]
+        project_id : typing.Optional[str]
 
         workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1491,9 +1498,10 @@ class AsyncAppsClient:
             json={
                 "app_name": app_name,
                 "template_id": template_id,
+                "project_id": project_id,
+                "workspace_id": workspace_id,
                 "env_vars": env_vars,
                 "organization_id": organization_id,
-                "workspace_id": workspace_id,
             },
             request_options=request_options,
             omit=OMIT,

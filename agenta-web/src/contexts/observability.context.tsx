@@ -8,19 +8,45 @@ import {
 } from "@/services/observability/types"
 import React, {createContext, PropsWithChildren, useContext, useEffect, useState} from "react"
 import {useRouter} from "next/router"
+import {SortResult} from "@/components/Filters/Sort"
+import {Filter} from "@/lib/Types"
 
 type ObservabilityContextType = {
     traces: _AgentaRootsResponse[]
     count: number
     isLoading: boolean
-    fetchTraces: (queries?: string) => void
+    fetchTraces: () => void
+    clearQueryStates: () => void
+    searchQuery: string
+    setSearchQuery: React.Dispatch<React.SetStateAction<string>>
+    traceTabs: TraceTabTypes
+    setTraceTabs: React.Dispatch<React.SetStateAction<TraceTabTypes>>
+    filters: Filter[]
+    setFilters: React.Dispatch<React.SetStateAction<Filter[]>>
+    sort: SortResult
+    setSort: React.Dispatch<React.SetStateAction<SortResult>>
+    pagination: {page: number; size: number}
+    setPagination: React.Dispatch<React.SetStateAction<{page: number; size: number}>>
 }
+
+type TraceTabTypes = "tree" | "node" | "chat"
 
 const initialValues: ObservabilityContextType = {
     traces: [],
     count: 0,
     isLoading: false,
     fetchTraces: () => {},
+    clearQueryStates: () => {},
+    searchQuery: "",
+    setSearchQuery: () => {},
+    traceTabs: "tree",
+    setTraceTabs: () => {},
+    filters: [],
+    setFilters: () => {},
+    sort: {type: "standard", sorted: ""},
+    setSort: () => {},
+    pagination: {page: 1, size: 10},
+    setPagination: () => {},
 }
 
 export const ObservabilityContext = createContext<ObservabilityContextType>(initialValues)
@@ -37,11 +63,24 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
     const [traceCount, setTraceCount] = useState(0)
     const [isLoading, setIsLoading] = useState(true)
+    // query states
+    const [searchQuery, setSearchQuery] = useState("")
+    const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
+    const [filters, setFilters] = useState<Filter[]>(
+        appId
+            ? [{key: "refs.application.id", operator: "is", value: appId, isPermanent: true}]
+            : [],
+    )
+    const [sort, setSort] = useState<SortResult>({} as SortResult)
+    const [pagination, setPagination] = useState({page: 1, size: 10})
 
-    const fetchTraces = async (queries?: string) => {
+    const fetchTraces = async () => {
         try {
             setIsLoading(true)
-            const data = await fetchAllTraces({appId, queries: queries || ""})
+
+            const queries = generateTraceQueryString()
+
+            const data = await fetchAllTraces(queries)
 
             const transformedTraces: _AgentaRootsResponse[] = []
 
@@ -77,11 +116,47 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         }
     }
 
-    useEffect(() => {
-        if (appId) {
-            fetchTraces("&focus=tree&size=10&page=1")
+    const generateTraceQueryString = () => {
+        const params: Record<string, any> = {
+            size: pagination.size,
+            page: pagination.page,
+            focus: traceTabs === "chat" ? "node" : traceTabs,
         }
-    }, [appId])
+
+        if (filters.length > 0) {
+            const sanitizedFilters = filters.map(({isPermanent, ...rest}) => rest)
+
+            params.filtering = JSON.stringify({conditions: sanitizedFilters})
+        }
+
+        if (sort) {
+            if (sort.type === "standard") {
+                params.oldest = sort.sorted
+            } else if (
+                sort.type === "custom" &&
+                (sort.customRange?.startTime || sort.customRange?.endTime)
+            ) {
+                const {startTime, endTime} = sort.customRange
+
+                if (startTime) params.oldest = startTime
+                if (endTime) params.newest = endTime
+            }
+        }
+
+        return params
+    }
+
+    const clearQueryStates = () => {
+        setSearchQuery("")
+        setTraceTabs("tree")
+        setFilters([])
+        setSort({} as SortResult)
+        setPagination({page: 1, size: 10})
+    }
+
+    useEffect(() => {
+        fetchTraces()
+    }, [appId, filters, traceTabs, sort, pagination])
 
     observabilityContextValues.traces = traces
     observabilityContextValues.isLoading = isLoading
@@ -95,6 +170,17 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
                 isLoading,
                 fetchTraces,
                 count: traceCount || 0,
+                clearQueryStates,
+                searchQuery,
+                setSearchQuery,
+                traceTabs,
+                setTraceTabs,
+                filters,
+                setFilters,
+                sort,
+                setSort,
+                pagination,
+                setPagination,
             }}
         >
             {children}

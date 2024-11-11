@@ -24,6 +24,7 @@ from .core.jsonable_encoder import jsonable_encoder
 from .types.organization import Organization
 from .types.organization_output import OrganizationOutput
 from .types.invite_request import InviteRequest
+from .core.serialization import convert_and_respect_annotation_metadata
 from .types.workspace_response import WorkspaceResponse
 import datetime as dt
 from .types.workspace_role_response import WorkspaceRoleResponse
@@ -732,7 +733,11 @@ class AgentaApi:
         _response = self._client_wrapper.httpx_client.request(
             f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
-            json=request,
+            json=convert_and_respect_annotation_metadata(
+                object_=request,
+                annotation=typing.Sequence[InviteRequest],
+                direction="write",
+            ),
             request_options=request_options,
             omit=OMIT,
         )
@@ -847,6 +852,7 @@ class AgentaApi:
         org_id: str,
         workspace_id: str,
         *,
+        project_id: str,
         token: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
@@ -866,6 +872,8 @@ class AgentaApi:
         org_id : str
 
         workspace_id : str
+
+        project_id : str
 
         token : str
 
@@ -888,12 +896,16 @@ class AgentaApi:
         client.accept_invitation(
             org_id="org_id",
             workspace_id="workspace_id",
+            project_id="project_id",
             token="token",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
             f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
             method="POST",
+            params={
+                "project_id": project_id,
+            },
             json={
                 "token": token,
             },
@@ -2333,7 +2345,11 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
-            json=request,
+            json=convert_and_respect_annotation_metadata(
+                object_=request,
+                annotation=typing.Sequence[InviteRequest],
+                direction="write",
+            ),
             request_options=request_options,
             omit=OMIT,
         )
@@ -2456,6 +2472,7 @@ class AsyncAgentaApi:
         org_id: str,
         workspace_id: str,
         *,
+        project_id: str,
         token: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
@@ -2475,6 +2492,8 @@ class AsyncAgentaApi:
         org_id : str
 
         workspace_id : str
+
+        project_id : str
 
         token : str
 
@@ -2502,6 +2521,7 @@ class AsyncAgentaApi:
             await client.accept_invitation(
                 org_id="org_id",
                 workspace_id="workspace_id",
+                project_id="project_id",
                 token="token",
             )
 
@@ -2511,6 +2531,9 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
             method="POST",
+            params={
+                "project_id": project_id,
+            },
             json={
                 "token": token,
             },

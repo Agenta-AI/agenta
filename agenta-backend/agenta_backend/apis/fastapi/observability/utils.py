@@ -24,6 +24,7 @@ from agenta_backend.core.observability.dtos import (
     OTelSpanDTO,
     OTelContextDTO,
     OTelLinkDTO,
+    NodeType,
 )
 from agenta_backend.core.observability.dtos import (
     GroupingDTO,
@@ -321,6 +322,18 @@ def _parse_from_semconv(
 
                     del attributes[old_key]
 
+            for dynamic_key in CODEX["keys"]["attributes"]["dynamic"]["from"]:
+                if old_key == dynamic_key:
+                    try:
+                        new_key, new_value = CODEX["maps"]["attributes"]["dynamic"][
+                            "from"
+                        ][dynamic_key](value)
+
+                        attributes[new_key] = new_value
+
+                    except:  # pylint: disable=bare-except
+                        pass
+
 
 def _parse_from_links(
     otel_span_dto: OTelSpanDTO,
@@ -397,15 +410,6 @@ def _parse_from_attributes(
     for key in _refs.keys():
         del otel_span_dto.attributes[_encode_key("refs", key)]
 
-    for key in _refs.keys():
-        if key.endswith(".id"):
-            try:
-                _refs[key] = str(UUID(_refs[key]))
-            except:  # pylint: disable=W0702:bare-except
-                _refs[key] = None
-
-        _refs[key] = str(_refs[key])
-
     _refs = _refs if _refs else None
 
     if len(otel_span_dto.attributes.keys()) < 1:
@@ -462,11 +466,15 @@ def parse_from_otel_span_dto(
 
     node_id = UUID(tree_id.hex[16:] + otel_span_dto.context.span_id[2:])
 
-    node_type: str = types.get("node")
+    node_type = NodeType.TASK
+    try:
+        node_type = NodeType(types.get("node", "").lower())
+    except:  # pylint: disable=bare-except
+        pass
 
     node = NodeDTO(
         id=node_id,
-        type=node_type.lower() if node_type else None,
+        type=node_type,
         name=otel_span_dto.name,
     )
 
@@ -506,7 +514,7 @@ def parse_from_otel_span_dto(
 
     exception = _parse_from_events(otel_span_dto)
 
-    root_id = refs.get("scenario.id", tree.id.hex)
+    root_id = refs.get("scenario.id", str(tree.id)) if refs else str(tree.id)
 
     root = RootDTO(id=UUID(root_id))
 
