@@ -331,9 +331,13 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     <ResultTag
                         value1={
                             <div className={classes.resultTag}>
-                                {dayjs(activeTrace.time.start).format("DD/MM/YYYY, hh:mm:ss A")}
+                                {dayjs(activeTrace.time.start)
+                                    .local()
+                                    .format("DD/MM/YYYY, hh:mm:ss A")}
                                 <ArrowRight size={14} />{" "}
-                                {dayjs(activeTrace.time.end).format("DD/MM/YYYY, hh:mm:ss A")}
+                                {dayjs(activeTrace.time.end)
+                                    .local()
+                                    .format("DD/MM/YYYY, hh:mm:ss A")}
                             </div>
                         }
                     />
