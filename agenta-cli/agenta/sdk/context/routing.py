@@ -7,16 +7,17 @@ routing_context = ContextVar("routing_context", default={})
 
 @contextmanager
 def routing_context_manager(
+    *,
     config: Optional[Dict[str, Any]] = None,
-    environment: Optional[str] = None,
-    version: Optional[str] = None,
-    variant: Optional[str] = None,
+    application: Optional[Dict[str, Any]] = None,
+    variant: Optional[Dict[str, Any]] = None,
+    environment: Optional[Dict[str, Any]] = None,
 ):
     context = {
         "config": config,
-        "environment": environment,
-        "version": version,
+        "application": application,
         "variant": variant,
+        "environment": environment,
     }
     token = routing_context.set(context)
     try:

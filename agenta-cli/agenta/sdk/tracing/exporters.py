@@ -38,13 +38,22 @@ class InlineTraceExporter(SpanExporter):
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         return True
 
+    def is_ready(
+        self,
+        trace_id: int,
+    ) -> bool:
+        is_ready = trace_id in self._registry
+
+        return is_ready
+
     def fetch(
         self,
         trace_id: int,
     ) -> List[ReadableSpan]:
         trace = self._registry.get(trace_id, [])
 
-        del self._registry[trace_id]
+        if trace_id in self._registry:
+            del self._registry[trace_id]
 
         return trace
 

@@ -1,6 +1,7 @@
 import re
 import json
 import asyncio
+import litellm
 import logging
 import traceback
 from typing import Any, Dict, Union
@@ -358,7 +359,6 @@ async def auto_ai_critique(
     Returns:
         Result: Evaluation result.
     """
-
     try:
         output = validate_string_output("ai_critique", output)
         correct_answer = get_correct_answer(data_point, settings_values)
@@ -366,9 +366,12 @@ async def auto_ai_critique(
             "prompt_user": app_params.get("prompt_user", "").format(**data_point),
             "prediction": output,
             "ground_truth": correct_answer,
+            **data_point,
         }
         settings = {
             "prompt_template": settings_values.get("prompt_template", ""),
+            "version": settings_values.get("version", "1"),
+            "model": settings_values.get("model", ""),
         }
         response = await ai_critique(
             input=EvaluatorInputInterface(
@@ -380,7 +383,7 @@ async def auto_ai_critique(
             )
         )
         return Result(type="text", value=str(response["outputs"]["score"]))
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:  # pylint: disable=broad-except∆`§
         return Result(
             type="error",
             value=None,
@@ -393,33 +396,59 @@ async def auto_ai_critique(
 
 async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
-
+    anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
+    litellm.openai_key = openai_api_key
+    litellm.anthropic_api_key = anthropic_api_key
     if not openai_api_key:
         raise Exception(
             "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
+    if (
+        input.settings.get("version", "1") == "2"
+    ) and (  # this check is used when running in the background (celery)
+        type(input.settings.get("prompt_template", "")) is not str
+    ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
+        try:
+            prompt_template = input.settings.get("prompt_template", "")
 
-    chain_run_args = {
-        "llm_app_prompt_template": input.inputs.get("prompt_user", ""),
-        "variant_output": input.inputs["prediction"],
-        "correct_answer": input.inputs["ground_truth"],
-    }
-    for key, value in input.inputs.items():
-        chain_run_args[key] = value
+            formatted_prompt_template = []
+            for message in prompt_template:
+                formatted_prompt_template.append(
+                    {
+                        "role": message["role"],
+                        "content": message["content"].format(**input.inputs),
+                    }
+                )
+            app_output = input.inputs.get("prediction")
+            if app_output is None:
+                raise ValueError("Prediction is required in inputs")
+            response = await litellm.acompletion(
+                model=input.settings.get("model", "gpt-3.5-turbo"),
+                messages=formatted_prompt_template,
+                temperature=0.01,
+            )
+            evaluation_output = response.choices[0].message.content.strip()
+        except Exception as e:
+            raise RuntimeError(f"Evaluation failed: {str(e)}")
+    else:
+        chain_run_args = {
+            "llm_app_prompt_template": input.inputs.get("prompt_template", ""),
+            "variant_output": input.inputs["prediction"],
+            "correct_answer": input.inputs["ground_truth"],
+        }
+        for key, value in input.inputs.items():
+            chain_run_args[key] = value
 
-    prompt_template = input.settings.get("prompt_template", "")
-    messages = [
-        {"role": "system", "content": prompt_template},
-        {"role": "user", "content": str(chain_run_args)},
-    ]
-
-    print(input)
-
-    client = AsyncOpenAI(api_key=openai_api_key)
-    response = await client.chat.completions.create(
-        model="gpt-3.5-turbo", messages=messages, temperature=0.8
-    )
-    evaluation_output = response.choices[0].message.content.strip()
+        prompt_template = input.settings.get("prompt_template", "")
+        messages = [
+            {"role": "system", "content": prompt_template},
+            {"role": "user", "content": str(chain_run_args)},
+        ]
+        client = AsyncOpenAI(api_key=openai_api_key)
+        response = await client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=messages, temperature=0.8
+        )
+        evaluation_output = response.choices[0].message.content.strip()
     return {"outputs": {"score": evaluation_output}}
 
 
@@ -1171,9 +1200,6 @@ async def similarity_match(input: EvaluatorInputInterface) -> EvaluatorOutputInt
     set2 = set(input.inputs["ground_truth"].split())
     intersect = set1.intersection(set2)
     union = set1.union(set2)
-    print(set1)
-    print(set2)
-    print(union)
 
     similarity = len(intersect) / len(union)
     is_similar = True if similarity > input.settings["similarity_threshold"] else False

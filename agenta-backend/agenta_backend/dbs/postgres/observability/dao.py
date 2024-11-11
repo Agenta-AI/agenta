@@ -1,14 +1,15 @@
 from typing import Optional, List, Tuple, Union
 from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import and_, or_, not_, distinct, Column, cast, func
-from sqlalchemy import UUID, String, Float, Boolean, TIMESTAMP, Enum
-from sqlalchemy.dialects.postgresql import HSTORE, JSON, JSONB
+from sqlalchemy import and_, or_, not_, distinct, Column, func, cast
+from sqlalchemy import TIMESTAMP, Enum, UUID as SQLUUID, Integer, Numeric
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.future import select
 from sqlalchemy.dialects import postgresql
 
 from agenta_backend.dbs.postgres.shared.engine import engine
-from agenta_backend.dbs.postgres.observability.dbes import InvocationSpanDBE
+from agenta_backend.dbs.postgres.observability.dbes import NodesDBE
 from agenta_backend.dbs.postgres.observability.mappings import (
     map_span_dto_to_dbe,
     map_span_dbe_to_dto,
@@ -16,7 +17,6 @@ from agenta_backend.dbs.postgres.observability.mappings import (
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
 from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
-from agenta_backend.core.observability.utils import FilteringException
 from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     ConditionDTO,
@@ -26,6 +26,15 @@ from agenta_backend.core.observability.dtos import (
     StringOperator,
     ListOperator,
     ExistenceOperator,
+)
+from agenta_backend.core.observability.utils import FilteringException
+from agenta_backend.core.observability.utils import (
+    _is_uuid_key,
+    _is_literal_key,
+    _is_integer_key,
+    _is_float_key,
+    _is_datetime_key,
+    _is_string_key,
 )
 
 
@@ -43,7 +52,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         try:
             async with engine.session() as session:
                 # BASE (SUB-)QUERY
-                query = select(InvocationSpanDBE)
+                query = select(NodesDBE)
                 # ----------------
 
                 # GROUPING
@@ -52,12 +61,13 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # --------
                 if grouping and grouping.focus.value != "node":
                     grouping_column = getattr(
-                        InvocationSpanDBE, grouping.focus.value + "_id"
+                        NodesDBE,
+                        grouping.focus.value + "_id",
                     )
 
                     query = select(
                         distinct(grouping_column).label("grouping_key"),
-                        InvocationSpanDBE.created_at,
+                        NodesDBE.created_at,
                     )
                 # --------
 
@@ -72,14 +82,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
                 if windowing:
                     if windowing.oldest:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at >= windowing.oldest
-                        )
+                        query = query.filter(NodesDBE.created_at >= windowing.oldest)
 
                     if windowing.newest:
-                        query = query.filter(
-                            InvocationSpanDBE.created_at < windowing.newest
-                        )
+                        query = query.filter(NodesDBE.created_at < windowing.newest)
                 # ---------
 
                 # FILTERING
@@ -99,7 +105,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 # SORTING
                 query = query.order_by(
-                    InvocationSpanDBE.created_at.desc(),
+                    NodesDBE.created_at.desc(),
                 )
                 # -------
 
@@ -125,21 +131,21 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 if grouping and grouping_column:
                     subquery = query.subquery()
 
-                    query = select(InvocationSpanDBE)
+                    query = select(NodesDBE)
                     query = query.filter(
                         grouping_column.in_(select(subquery.c["grouping_key"]))
                     )
 
                     # SORTING
                     query = query.order_by(
-                        InvocationSpanDBE.created_at.desc(),
-                        InvocationSpanDBE.time_start.asc(),
+                        NodesDBE.created_at.desc(),
+                        NodesDBE.time_start.asc(),
                     )
                     # -------
                 else:
                     # SORTING
                     query = query.order_by(
-                        InvocationSpanDBE.time_start.desc(),
+                        NodesDBE.time_start.desc(),
                     )
                     # -------
                 # --------
@@ -207,10 +213,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         node_id: UUID,
         to_dto: bool = True,
-    ) -> Union[Optional[SpanDTO], Optional[InvocationSpanDBE]]:
+    ) -> Union[Optional[SpanDTO], Optional[NodesDBE]]:
         span_dbe = None
         async with engine.session() as session:
-            query = select(InvocationSpanDBE)
+            query = select(NodesDBE)
 
             query = query.filter_by(
                 project_id=project_id,
@@ -233,14 +239,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         node_ids: List[UUID],
         to_dto: bool = True,
-    ) -> Union[List[SpanDTO], List[InvocationSpanDBE]]:
+    ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
         async with engine.session() as session:
-            query = select(InvocationSpanDBE)
+            query = select(NodesDBE)
 
             query = query.filter_by(project_id=project_id)
 
-            query = query.filter(InvocationSpanDBE.node_id.in_(node_ids))
+            query = query.filter(NodesDBE.node_id.in_(node_ids))
 
             span_dbes = (await session.execute(query)).scalars().all()
 
@@ -258,10 +264,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         parent_id: UUID,
         to_dto: bool = True,
-    ) -> Union[List[SpanDTO], List[InvocationSpanDBE]]:
+    ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
         async with engine.session() as session:
-            query = select(InvocationSpanDBE)
+            query = select(NodesDBE)
 
             query = query.filter_by(project_id=project_id)
 
@@ -359,14 +365,14 @@ def _chunk(
     # 2. WHERE next > created_at LIMIT size
     # -> unstable if created_at is not unique
     elif next and size:
-        query = query.filter(InvocationSpanDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at < next)
         query = query.limit(size)
 
     # 3. WHERE next > created_at AND created_at >= stop
     # -> stable thanks to the </<= combination
     elif next and stop:
-        query = query.filter(InvocationSpanDBE.created_at < next)
-        query = query.filter(InvocationSpanDBE.created_at >= stop)
+        query = query.filter(NodesDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at >= stop)
 
     # 4. WHERE LIMIT size
     # -> useful as a starter query
@@ -376,12 +382,12 @@ def _chunk(
     # 5. WHERE created_at >= stop
     # -> useful as a starter query
     elif stop:
-        query = query.filter(InvocationSpanDBE.created_at >= stop)
+        query = query.filter(NodesDBE.created_at >= stop)
 
     # 6. WHERE next > created_at
     # -> rather useless
     elif next:
-        query = query.filter(InvocationSpanDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at < next)
 
     return query
 
@@ -412,6 +418,8 @@ _FLAT_KEYS = {
     "parent.id": "parent_id",
 }
 
+_NESTED_FIELDS = ("data",)
+
 
 def _filters(filtering: FilteringDTO) -> list:
     _conditions = []
@@ -428,44 +436,45 @@ def _filters(filtering: FilteringDTO) -> list:
             )
 
         elif isinstance(condition, ConditionDTO):
-            key = condition.key
+            _key = condition.key
             value = condition.value
 
             # MAP FLAT KEYS
-            if key in _FLAT_KEYS:
-                key = _FLAT_KEYS[key]
+            if _key in _FLAT_KEYS:
+                _key = _FLAT_KEYS[_key]
 
             # SPLIT FIELD AND KEY
-            _split = key.split(".", 1)
+            _split = _key.split(".", 1)
             field = _split[0]
             key = _split[1] if len(_split) > 1 else None
 
             # GET COLUMN AS ATTRIBUTE
-            attribute: Column = getattr(InvocationSpanDBE, field)
+            attribute: Column = getattr(NodesDBE, field)
 
-            # Handle JSON/JSONB/HSTORE key-paths
-            # Assumption: JSON/JSONB/HSTORE columns are stored flat even when nested
-            if key:
-                if isinstance(attribute.type, (JSON, JSONB, HSTORE)):
-                    if isinstance(attribute.type, HSTORE):
-                        attribute = attribute[key]
-                        value = str(value)
-                    else:
-                        attribute = attribute[key].astext
+            if isinstance(attribute.type, JSONB) and key:
+                if field in _NESTED_FIELDS:
+                    key = key.split(".")
 
-                        if isinstance(value, UUID):
-                            attribute = cast(attribute, UUID)
-                        elif isinstance(value, str):
-                            attribute = cast(attribute, String)
-                            # value = f'"{value}"'
-                            # # WILL ADD THIS BACK
-                            # AS SOON AS I FIGURE OUT WHY THE QUOTES WERE ADDED
-                        elif isinstance(value, int):
-                            attribute = cast(attribute, Float)  # Yes, Float
-                        elif isinstance(value, float):
-                            attribute = cast(attribute, Float)
-                        elif isinstance(value, bool):
-                            attribute = cast(attribute, Boolean)
+                    for k in key[-1]:
+                        attribute = attribute[k]
+
+                attribute = attribute[key].astext
+
+                # CASTING
+                if _is_uuid_key(_key):
+                    attribute = cast(attribute, SQLUUID)
+                elif _is_literal_key(_key):
+                    pass
+                elif _is_integer_key(_key):
+                    attribute = cast(attribute, Integer)
+                elif _is_float_key(_key):
+                    attribute = cast(attribute, Numeric)
+                elif _is_datetime_key(_key):
+                    pass
+                elif _is_string_key(_key):
+                    pass
+                else:
+                    pass
 
             if isinstance(attribute.type, TIMESTAMP):
                 value = datetime.fromisoformat(value)

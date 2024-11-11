@@ -1,9 +1,8 @@
 import json
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from dataclasses import dataclass
-from typing import Union
 
 
 @dataclass
@@ -186,3 +185,49 @@ class FileInputURL(HttpUrl):
     @classmethod
     def __schema_type_properties__(cls) -> dict:
         return {"x-parameter": "file_url", "type": "string"}
+
+
+class Context(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    def to_json(self):
+        return self.model_dump()
+
+    @classmethod
+    def from_json(cls, json_str: str):
+        data = json.loads(json_str)
+        return cls(**data)
+
+
+class ReferencesResponse(BaseModel):
+    app_id: Optional[str] = None
+    app_slug: Optional[str] = None
+    variant_id: Optional[str] = None
+    variant_slug: Optional[str] = None
+    variant_version: Optional[int] = None
+    environment_id: Optional[str] = None
+    environment_slug: Optional[str] = None
+    environment_version: Optional[int] = None
+
+    def __str__(self):
+        return str(self.model_dump(exclude_none=True))
+
+
+class LifecyclesResponse(ReferencesResponse):
+    committed_at: Optional[str] = None
+    committed_by: Optional[str] = None
+    committed_by_id: Optional[str] = None
+    deployed_at: Optional[str] = None
+    deployed_by: Optional[str] = None
+    deployed_by_id: Optional[str] = None
+
+    def __str__(self):
+        return str(self.model_dump(exclude_none=True))
+
+
+class ConfigurationResponse(LifecyclesResponse):
+    params: Dict[str, Any]
+
+
+class DeploymentResponse(LifecyclesResponse):
+    pass

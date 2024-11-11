@@ -4,6 +4,7 @@ import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phospho
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
+import {isEqual} from "lodash"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
@@ -37,9 +38,11 @@ type Props = {
 
 const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFilter}) => {
     const classes = useStyles()
-    const emptyFilter = [{key: "", operator: "", value: ""}] as Filter[]
+    const emptyFilter = [{key: "", operator: "", value: "", isPermanent: false}] as Filter[]
 
-    const [filter, setFilter] = useState<Filter[]>(emptyFilter)
+    const [filter, setFilter] = useState<Filter[]>(() =>
+        !filterData?.length ? emptyFilter : filterData,
+    )
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     useUpdateEffect(() => {
@@ -80,13 +83,15 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
         value,
         idx,
     }: {
-        columnName: keyof Filter
+        columnName: keyof Omit<Filter, "isPermanent">
         value: any
         idx: number
     }) => {
-        const newFilters = [...filter]
-        newFilters[idx][columnName] = value
-        setFilter(newFilters)
+        setFilter((prevFilters) => {
+            const newFilters = [...prevFilters]
+            newFilters[idx] = {...newFilters[idx], [columnName]: value}
+            return newFilters
+        })
     }
 
     const onDeleteFilter = (index: number) => {
@@ -94,19 +99,39 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     }
 
     const addNestedFilter = () => {
-        setFilter([...filter, {key: "", operator: "", value: ""}])
+        setFilter([...filter, {key: "", operator: "", value: "", isPermanent: false}])
     }
 
     const clearFilter = () => {
-        setFilter(emptyFilter)
-        onClearFilter(emptyFilter)
+        const clearedFilters = filter.filter((f) => f.isPermanent)
+
+        if (!isEqual(clearedFilters, filterData)) {
+            onClearFilter(clearedFilters)
+        }
+        setFilter(!clearedFilters.length ? emptyFilter : clearedFilters)
     }
 
     const applyFilter = () => {
         const sanitizedFilters = filter.filter(({key, operator}) => key && operator)
-        onApplyFilter(sanitizedFilters)
+
+        if (!isEqual(sanitizedFilters, filterData)) {
+            onApplyFilter(sanitizedFilters)
+        }
         setIsFilterOpen(false)
     }
+
+    const mapColumnLabel = useMemo(
+        () =>
+            columns.reduce(
+                (acc, col) => {
+                    acc[col.value] = col.label
+                    return acc
+                },
+                {} as Record<string, string>,
+            ),
+        [columns],
+    )
+    const getColumnLabelFromValue = (key: string) => mapColumnLabel[key] || key
 
     return (
         <Popover
@@ -145,14 +170,19 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                         labelRender={(label) =>
                                             !label.value ? "Column" : label.label
                                         }
-                                        style={{width: 200}}
                                         popupMatchSelectWidth={220}
+                                        popupClassName="capitalize"
+                                        className="capitalize w-[200px]"
                                         suffixIcon={<CaretDown size={14} />}
                                         onChange={(value) =>
                                             onFilterChange({columnName: "key", value, idx})
                                         }
-                                        value={item.key}
+                                        value={{
+                                            value: item.key,
+                                            label: getColumnLabelFromValue(item.key),
+                                        }}
                                         options={filteredColumns}
+                                        disabled={item.isPermanent}
                                     />
 
                                     {item.key && (
@@ -173,12 +203,14 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                                 popupMatchSelectWidth={100}
                                                 value={item.operator}
                                                 options={filteredOperators}
+                                                disabled={item.isPermanent}
                                             />
 
                                             <Input
                                                 placeholder="Keyword"
                                                 className="w-[220px]"
                                                 value={item.value}
+                                                disabled={item.isPermanent}
                                                 onChange={(e) =>
                                                     onFilterChange({
                                                         columnName: "value",
@@ -193,6 +225,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                                         <Button
                                             type="link"
                                             icon={<Trash size={14} />}
+                                            disabled={item.isPermanent}
                                             onClick={() => onDeleteFilter(idx)}
                                         />
                                     )}

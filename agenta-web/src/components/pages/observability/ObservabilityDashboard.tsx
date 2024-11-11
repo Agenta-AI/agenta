@@ -1,10 +1,10 @@
 import EmptyComponent from "@/components/EmptyComponent"
 import GenericDrawer from "@/components/GenericDrawer"
-import {nodeTypeStyles} from "@/components/pages/observability/components/AvatarTreeContent"
-import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
-import TraceContent from "@/components/pages/observability/drawer/TraceContent"
-import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
-import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import {nodeTypeStyles} from "./components/AvatarTreeContent"
+import StatusRenderer from "./components/StatusRenderer"
+import TraceContent from "./drawer/TraceContent"
+import TraceHeader from "./drawer/TraceHeader"
+import TraceTree from "./drawer/TraceTree"
 import Filters from "@/components/Filters/Filters"
 import Sort, {SortResult} from "@/components/Filters/Sort"
 import EditColumns from "@/components/Filters/EditColumns"
@@ -27,6 +27,7 @@ import {
     Table,
     TableColumnType,
     Tag,
+    Tooltip,
     Typography,
 } from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -55,28 +56,47 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface Props {}
-
-type TraceTabTypes = "tree" | "node" | "chat"
-
-const ObservabilityDashboard = ({}: Props) => {
-    const {traces, isLoading, count, fetchTraces} = useObservabilityData()
+const ObservabilityDashboard = () => {
+    const {
+        traces,
+        isLoading,
+        count,
+        searchQuery,
+        setSearchQuery,
+        traceTabs,
+        setTraceTabs,
+        filters,
+        setFilters,
+        sort,
+        setSort,
+        pagination,
+        setPagination,
+    } = useObservabilityData()
     const appId = useAppId()
     const router = useRouter()
     const classes = useStyles()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const [searchQuery, setSearchQuery] = useState("")
-    const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
-    const [editColumns, setEditColumns] = useState<string[]>(["span_type"])
-    const [filters, setFilters] = useState<Filter[]>([])
-    const [sort, setSort] = useState<SortResult>({} as SortResult)
+    const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const [pagination, setPagination] = useState({current: 1, page: 10})
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
-            dataIndex: ["key"],
+            dataIndex: ["node", "id"],
             key: "key",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 200},
+            }),
+            fixed: "left",
+            render: (_, record) => {
+                return <ResultTag value1={`# ${record.node.id.split("-")[0]}`} />
+            },
+        },
+        {
+            title: "Name",
+            dataIndex: ["node", "name"],
+            key: "name",
+            ellipsis: true,
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
@@ -85,14 +105,20 @@ const ObservabilityDashboard = ({}: Props) => {
             render: (_, record) => {
                 const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
 
-                return !record.parent ? (
-                    <ResultTag value1={`# ${record.key.split("-")[0]}`} />
-                ) : (
+                return (
                     <Space align="center" size={4}>
                         <div className="grid place-items-center">
                             <Icon size={16} />
                         </div>
-                        <Typography>{record.node.name}</Typography>
+                        <Typography>
+                            {record.node.name.length >= 15 ? (
+                                <Tooltip title={record.node.name} placement="bottom">
+                                    {record.node.name.slice(0, 15)}...
+                                </Tooltip>
+                            ) : (
+                                record.node.name
+                            )}
+                        </Typography>
                     </Space>
                 )
             },
@@ -110,66 +136,60 @@ const ObservabilityDashboard = ({}: Props) => {
             },
         },
         {
-            title: "Timestamp",
-            key: "timestamp",
-            dataIndex: ["time", "start"],
-            width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
-            render: (_, record) => {
-                return <div>{dayjs(record.time.start).format("HH:mm:ss DD MMM YYYY")}</div>
-            },
-        },
-        {
             title: "Inputs",
             key: "inputs",
-            width: 350,
+            width: 400,
             render: (_, record) => {
                 return (
-                    <Tag
+                    <Tooltip
                         title={getStringOrJson(record?.data?.inputs)}
+                        overlayInnerStyle={{width: 400}}
                         className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                        placement="bottom"
                     >
-                        {getStringOrJson(record?.data?.inputs)}
-                    </Tag>
+                        <Tag>{getStringOrJson(record?.data?.inputs)}</Tag>
+                    </Tooltip>
                 )
             },
         },
         {
             title: "Outputs",
             key: "outputs",
-            width: 350,
+            width: 400,
             render: (_, record) => {
                 return (
-                    <Tag
+                    <Tooltip
                         title={getStringOrJson(record?.data?.outputs)}
+                        overlayInnerStyle={{width: 400}}
                         className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                        placement="bottom"
                     >
-                        {getStringOrJson(record?.data?.outputs)}
-                    </Tag>
+                        <Tag>{getStringOrJson(record?.data?.outputs)}</Tag>
+                    </Tooltip>
                 )
             },
         },
         {
-            title: "Status",
-            key: "status",
-            dataIndex: ["status", "code"],
-            width: 160,
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
-        },
-        {
-            title: "Latency",
-            key: "latency",
+            title: "Duration",
+            key: "duration",
             dataIndex: ["time", "span"],
             width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <div>{formatLatency(record?.metrics?.acc?.duration.total)}</div>,
+            render: (_, record) => (
+                <div>{formatLatency(record?.metrics?.acc?.duration.total / 1000)}</div>
+            ),
+        },
+        {
+            title: "Cost",
+            key: "cost",
+            dataIndex: ["metrics", "acc", "costs", "total"],
+            width: 80,
+            onHeaderCell: () => ({
+                style: {minWidth: 80},
+            }),
+            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
         },
         {
             title: "Usage",
@@ -184,17 +204,30 @@ const ObservabilityDashboard = ({}: Props) => {
             ),
         },
         {
-            title: "Total cost",
-            key: "total_cost",
-            dataIndex: ["metrics", "acc", "costs", "total"],
-            width: 80,
+            title: "Timestamp",
+            key: "timestamp",
+            dataIndex: ["lifecycle", "created_at"],
+            width: 200,
             onHeaderCell: () => ({
-                style: {minWidth: 80},
+                style: {minWidth: 200},
             }),
-            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
+            render: (_, record) => {
+                return (
+                    <div>{dayjs(record.lifecycle?.created_at).format("HH:mm:ss DD MMM YYYY")}</div>
+                )
+            },
+        },
+        {
+            title: "Status",
+            key: "status",
+            dataIndex: ["status", "code"],
+            width: 160,
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
         },
     ])
-
     const activeTraceIndex = useMemo(
         () =>
             traces?.findIndex((item) =>
@@ -268,47 +301,35 @@ const ObservabilityDashboard = ({}: Props) => {
     }, [columns, editColumns])
 
     const filterColumns = [
-        {type: "exists", value: "root.id", label: "root.id"},
-        {type: "exists", value: "tree.id", label: "tree.id"},
-        {type: "exists", value: "tree.type", label: "tree.type"},
-        {type: "exists", value: "node.id", label: "node.id"},
-        {type: "exists", value: "node.type", label: "node.type"},
-        {type: "exists", value: "node.name", label: "node.name"},
-        {type: "exists", value: "parent.id", label: "parent.id"},
-        {type: "exists", value: "status.code", label: "status.code"},
-        {type: "exists", value: "status.message", label: "status.message"},
-        {type: "exists", value: "exception.type", label: "exception.type"},
-        {type: "exists", value: "exception.message", label: "exception.message"},
-        {type: "exists", value: "exception.stacktrace", label: "exception.stacktrace"},
-        {type: "string", value: "data", label: "data"},
-        {type: "number", value: "metrics.acc.duration.total", label: "metrics.acc.duration.total"},
-        {type: "number", value: "metrics.acc.costs.total", label: "metrics.acc.costs.total"},
-        {type: "number", value: "metrics.unit.costs.total", label: "metrics.unit.costs.total"},
-        {type: "number", value: "metrics.acc.tokens.prompt", label: "metrics.acc.tokens.prompt"},
+        {type: "exists", value: "tree.id", label: "tree ID"},
+        {type: "exists", value: "node.id", label: "node ID"},
+        {type: "exists", value: "node.type", label: "node type"},
+        {type: "exists", value: "node.name", label: "node name"},
+        {type: "exists", value: "status.code", label: "status code"},
+        {type: "exists", value: "status.message", label: "status message"},
+        {type: "exists", value: "exception.type", label: "exception type"},
+        {type: "exists", value: "exception.message", label: "exception message"},
+        {type: "exists", value: "exception.stacktrace", label: "exception stacktrace"},
+        {type: "string", value: "content", label: "content"},
+        {type: "number", value: "metrics.acc.duration.total", label: "duration"},
+        {type: "number", value: "metrics.acc.costs.total", label: "cost"},
+        {type: "number", value: "metrics.acc.tokens.prompt", label: "prompt tokens (accumulated)"},
         {
             type: "number",
             value: "metrics.acc.tokens.completion",
-            label: "metrics.acc.tokens.completion",
+            label: "completion tokens (accumulated)",
         },
-        {type: "number", value: "metrics.acc.tokens.total", label: "metrics.acc.tokens.total"},
-        {type: "number", value: "metrics.unit.tokens.prompt", label: "metrics.unit.tokens.prompt"},
-        {
-            type: "number",
-            value: "metrics.unit.tokens.completion",
-            label: "metrics.unit.tokens.completion",
-        },
-        {type: "number", value: "metrics.unit.tokens.total", label: "metrics.unit.tokens.total"},
-        {type: "exists", value: "refs.variant.id", label: "refs.variant.id"},
-        {type: "exists", value: "refs.variant.slug", label: "refs.variant.slug"},
-        {type: "exists", value: "refs.variant.version", label: "refs.variant.version"},
-        {type: "exists", value: "refs.environment.id", label: "refs.environment.id"},
-        {type: "exists", value: "refs.environment.slug", label: "refs.environment.slug"},
-        {type: "exists", value: "refs.environment.version", label: "refs.environment.version"},
-        {type: "exists", value: "refs.application.id", label: "refs.application.id"},
-        {type: "exists", value: "refs.application.slug", label: "refs.application.slug"},
-        {type: "exists", value: "link.type", label: "link.type"},
-        {type: "exists", value: "link.node.id", label: "link.node.id"},
-        {type: "exists", value: "otel.kind", label: "otel.kind"},
+        {type: "number", value: "metrics.acc.tokens.total", label: "usage"},
+        {type: "number", value: "metrics.unit.tokens.prompt", label: "prompt tokens"},
+        {type: "number", value: "metrics.unit.tokens.completion", label: "completion tokens"},
+        {type: "exists", value: "refs.variant.id", label: "variant ID"},
+        {type: "exists", value: "refs.variant.slug", label: "variant slug"},
+        {type: "exists", value: "refs.variant.version", label: "variant version"},
+        {type: "exists", value: "refs.environment.id", label: "environment ID"},
+        {type: "exists", value: "refs.environment.slug", label: "environment slug"},
+        {type: "exists", value: "refs.environment.version", label: "environment version"},
+        {type: "exists", value: "refs.application.id", label: "application ID"},
+        {type: "exists", value: "refs.application.slug", label: "application slug"},
     ]
 
     const onExport = async () => {
@@ -324,6 +345,7 @@ const ObservabilityDashboard = ({}: Props) => {
                 // Helper function to create a trace object
                 const createTraceObject = (trace: any) => ({
                     "Trace ID": trace.key,
+                    Name: trace.node.name,
                     Timestamp: dayjs(trace.time.start).format("HH:mm:ss DD MMM YYYY"),
                     Inputs: trace?.data?.inputs?.topic || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
@@ -380,34 +402,40 @@ const ObservabilityDashboard = ({}: Props) => {
     }
 
     const onPaginationChange = (current: number, pageSize: number) => {
-        setPagination({current, page: pageSize})
+        setPagination({size: pageSize, page: current})
     }
+    // reset pagination to page 1 whenever quearies get updated
+    useUpdateEffect(() => {
+        if (pagination.page > 1) {
+            setPagination({...pagination, page: 1})
+        }
+    }, [filters, sort, traceTabs])
 
     const onSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const query = e.target.value
         setSearchQuery(query)
 
         if (!query) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
         }
     }
 
     const onSearchQueryApply = () => {
         if (searchQuery) {
-            updateFilter({key: "data", operator: "contains", value: searchQuery})
+            updateFilter({key: "content", operator: "contains", value: searchQuery})
         }
     }
 
     const onSearchClear = () => {
-        const isSearchFilterExist = filters.some((item) => item.key === "data")
+        const isSearchFilterExist = filters.some((item) => item.key === "content")
 
         if (isSearchFilterExist) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "data"))
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
         }
     }
     // Sync searchQuery with filters state
     useUpdateEffect(() => {
-        const dataFilter = filters.find((f) => f.key === "data")
+        const dataFilter = filters.find((f) => f.key === "content")
         setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
 
@@ -415,8 +443,8 @@ const ObservabilityDashboard = ({}: Props) => {
         setFilters(newFilters)
     }, [])
 
-    const onClearFilter = useCallback(() => {
-        setFilters([])
+    const onClearFilter = useCallback((filter: Filter[]) => {
+        setFilters(filter)
         setSearchQuery("")
         if (traceTabs === "chat") {
             setTraceTabs("tree")
@@ -438,9 +466,6 @@ const ObservabilityDashboard = ({}: Props) => {
                 setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
             }
         }
-        if (pagination.current > 1) {
-            setPagination({...pagination, current: 1})
-        }
     }
     // Sync traceTabs with filters state
     useUpdateEffect(() => {
@@ -453,32 +478,6 @@ const ObservabilityDashboard = ({}: Props) => {
     const onSortApply = useCallback(({type, sorted, customRange}: SortResult) => {
         setSort({type, sorted, customRange})
     }, [])
-
-    const fetchFilterdTrace = async () => {
-        const focusPoint = traceTabs == "tree" || traceTabs == "node" ? `focus=${traceTabs}` : ""
-        const filterQuery = filters[0]?.operator
-            ? `&filtering={"conditions":${JSON.stringify(filters)}}`
-            : ""
-        const paginationQuery = `&size=${pagination.page}&page=${pagination.current}`
-
-        let sortQuery = ""
-        if (sort) {
-            sortQuery =
-                sort.type === "standard"
-                    ? `&oldest=${sort.sorted}`
-                    : sort.type === "custom" && sort.customRange?.startTime
-                      ? `&oldest=${sort.customRange.startTime}&newest=${sort.customRange.endTime}`
-                      : ""
-        }
-
-        const data = await fetchTraces(`&${focusPoint}${paginationQuery}${sortQuery}${filterQuery}`)
-
-        return data
-    }
-
-    useUpdateEffect(() => {
-        fetchFilterdTrace()
-    }, [filters, traceTabs, sort, pagination])
 
     return (
         <div className="flex flex-col gap-6">
@@ -568,8 +567,11 @@ const ObservabilityDashboard = ({}: Props) => {
                                     }
                                     description="Monitor the performance and results of your LLM applications here."
                                     primaryCta={{
-                                        text: "Go to Playground",
-                                        onClick: () => router.push(`/apps/${appId}/playground`),
+                                        text: appId ? "Go to Playground" : "Create an Application",
+                                        onClick: () =>
+                                            router.push(
+                                                appId ? `/apps/${appId}/playground` : "/apps",
+                                            ),
                                         tooltip:
                                             "Run your LLM app in the playground to generate and view insights.",
                                     }}
@@ -591,8 +593,8 @@ const ObservabilityDashboard = ({}: Props) => {
                     total={count}
                     align="end"
                     className={classes.pagination}
-                    current={pagination.current}
-                    pageSize={pagination.page}
+                    current={pagination.page}
+                    pageSize={pagination.size}
                     onChange={onPaginationChange}
                 />
             </div>

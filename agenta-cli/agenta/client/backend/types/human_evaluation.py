@@ -9,8 +9,7 @@ import pydantic
 class HumanEvaluation(UniversalBaseModel):
     id: str
     app_id: str
-    user_id: str
-    user_username: str
+    project_id: str
     evaluation_type: str
     variant_ids: typing.List[str]
     variant_names: typing.List[str]

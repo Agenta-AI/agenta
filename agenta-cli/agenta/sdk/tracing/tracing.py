@@ -1,6 +1,5 @@
 from typing import Optional, Any, Dict
 from enum import Enum
-from uuid import UUID
 
 from httpx import get as check
 
@@ -36,8 +35,6 @@ class Tracing(metaclass=Singleton):
     ) -> None:
         # ENDPOINT (OTLP)
         self.otlp_url = url
-        # AITH (OTLP)
-        self.api_key: Optional[str] = None
         # HEADERS (OTLP)
         self.headers: Dict[str, str] = dict()
         # REFERENCES
@@ -60,16 +57,12 @@ class Tracing(metaclass=Singleton):
         # DEPRECATING
         app_id: Optional[str] = None,
     ):
-        # AUTH (OTLP)
-        self.api_key = api_key
         # HEADERS (OTLP)
-        self.headers = {}
-        if app_id:
-            self.headers.update(**{"AG-APP-ID": app_id})
         if api_key:
-            self.headers.update(**{"Authorization": self.api_key})
+            self.headers["Authorization"] = api_key
         # REFERENCES
-        self.references["application.id"] = app_id
+        if app_id:
+            self.references["application.id"] = app_id
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(
@@ -156,15 +149,6 @@ class Tracing(metaclass=Singleton):
 
             for key in refs.keys():
                 if key in [_.value for _ in Reference.__members__.values()]:
-                    # TYPE AND FORMAT CHECKING
-                    if key.endswith(".id"):
-                        try:
-                            refs[key] = str(UUID(refs[key]))
-                        except:  # pylint: disable=bare-except
-                            refs[key] = None
-
-                    refs[key] = str(refs[key])
-
                     # ADD REFERENCE TO THIS SPAN
                     span.set_attribute(
                         key.value if isinstance(key, Enum) else key,

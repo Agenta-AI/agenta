@@ -1,3 +1,5 @@
+from json import loads
+
 VERSION = "0.4.1"
 
 V_0_4_1_ATTRIBUTES_EXACT = [
@@ -27,8 +29,6 @@ V_0_4_1_ATTRIBUTES_EXACT = [
     ("pinecone.query.top_k", "ag.meta.request.top_k"),
     ("traceloop.span.kind", "ag.type.node"),
     ("traceloop.entity.name", "ag.node.name"),
-    ("traceloop.entity.input", "ag.data.inputs"),
-    ("traceloop.entity.output", "ag.data.outputs"),
     # OPENINFERENCE
     ("output.value", "ag.data.outputs"),
     ("input.value", "ag.data.inputs"),
@@ -50,6 +50,13 @@ V_0_4_1_ATTRIBUTES_PREFIX = [
     ("llm.output_messages", "ag.data.outputs.completion"),
 ]
 
+V_0_4_1_ATTRIBUTES_DYNAMIC = [
+    # OPENLLMETRY
+    ("traceloop.entity.input", lambda x: ("ag.data.inputs", loads(x).get("inputs"))),
+    ("traceloop.entity.output", lambda x: ("ag.data.outputs", loads(x).get("outputs"))),
+]
+
+
 V_0_4_1_MAPS = {
     "attributes": {
         "exact": {
@@ -59,6 +66,9 @@ V_0_4_1_MAPS = {
         "prefix": {
             "from": {otel: agenta for otel, agenta in V_0_4_1_ATTRIBUTES_PREFIX[::-1]},
             "to": {agenta: otel for otel, agenta in V_0_4_1_ATTRIBUTES_PREFIX[::-1]},
+        },
+        "dynamic": {
+            "from": {otel: agenta for otel, agenta in V_0_4_1_ATTRIBUTES_DYNAMIC[::-1]}
         },
     },
 }
@@ -71,6 +81,9 @@ V_0_4_1_KEYS = {
         "prefix": {
             "from": list(V_0_4_1_MAPS["attributes"]["prefix"]["from"].keys()),
             "to": list(V_0_4_1_MAPS["attributes"]["prefix"]["to"].keys()),
+        },
+        "dynamic": {
+            "from": list(V_0_4_1_MAPS["attributes"]["dynamic"]["from"].keys()),
         },
     },
 }

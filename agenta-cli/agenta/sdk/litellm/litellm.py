@@ -1,16 +1,15 @@
-import agenta as ag
-
 from opentelemetry.trace import SpanKind
 
+import agenta as ag
+
 from agenta.sdk.tracing.spans import CustomSpan
-from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.exceptions import suppress  # TODO: use it !
 from agenta.sdk.utils.logging import log
 
 
 def litellm_handler():
     try:
-        from litellm.utils import ModelResponse
-        from litellm.integrations.custom_logger import (
+        from litellm.integrations.custom_logger import (  # pylint: disable=import-outside-toplevel
             CustomLogger as LitellmCustomLogger,
         )
     except ImportError as exc:
@@ -18,18 +17,23 @@ def litellm_handler():
             "The litellm SDK is not installed. Please install it using `pip install litellm`."
         ) from exc
     except Exception as exc:
-        raise Exception(
-            "Unexpected error occurred when importing litellm: {}".format(exc)
+        raise Exception(  # pylint: disable=broad-exception-raised
+            f"Unexpected error occurred when importing litellm: {exc}"
         ) from exc
 
     class LitellmHandler(LitellmCustomLogger):
-        """This handler is responsible for instrumenting certain events when using litellm to call LLMs.
+        """
+        This handler is responsible for instrumenting certain events,
+        when using litellm to call LLMs.
 
         Args:
-            LitellmCustomLogger (object): custom logger that allows us to override the events to capture.
+            LitellmCustomLogger (object): custom logger that allows us
+            to override the events to capture.
         """
 
         def __init__(self):
+            super().__init__()
+
             self.span = None
 
         def log_pre_api_call(
@@ -38,7 +42,7 @@ def litellm_handler():
             messages,
             kwargs,
         ):
-            type = (
+            type = (  # pylint: disable=redefined-builtin
                 "chat"
                 if kwargs.get("call_type") in ["completion", "acompletion"]
                 else "embedding"
@@ -59,10 +63,8 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            log.info(f"log_pre_api_call({hex(self.span.context.span_id)[2:]})")
-
             self.span.set_attributes(
-                attributes={"inputs": {"messages": kwargs["messages"]}},
+                attributes={"inputs": {"prompt": kwargs["messages"]}},
                 namespace="data",
             )
 
@@ -87,12 +89,14 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            # log.info(f"log_stream({hex(self.span.context.span_id)[2:]})")
+            result = kwargs.get("complete_streaming_response")
+
+            outputs = (
+                {"__default__": result} if not isinstance(result, dict) else result
+            )
 
             self.span.set_attributes(
-                attributes={
-                    "output": {"__default__": kwargs.get("complete_streaming_response")}
-                },
+                attributes={"outputs": outputs},
                 namespace="data",
             )
 
@@ -127,14 +131,20 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            # log.info(f"log_success({hex(self.span.context.span_id)[2:]})")
+            try:
+                result = []
+                for choice in response_obj.choices:
+                    message = choice.message.__dict__
+                    result.append(message)
 
-            self.span.set_attributes(
-                attributes={
-                    "output": {"__default__": response_obj.choices[0].message.content}
-                },
-                namespace="data",
-            )
+                outputs = {"completion": result}
+                self.span.set_attributes(
+                    attributes={"outputs": outputs},
+                    namespace="data",
+                )
+
+            except Exception as e:
+                pass
 
             self.span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},
@@ -167,8 +177,6 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            # log.info(f"log_failure({hex(self.span.context.span_id)[2:]})")
-
             self.span.record_exception(kwargs["exception"])
 
             self.span.set_status(status="ERROR")
@@ -186,12 +194,14 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            # log.info(f"async_log_stream({hex(self.span.context.span_id)[2:]})")
+            result = kwargs.get("complete_streaming_response")
+
+            outputs = (
+                {"__default__": result} if not isinstance(result, dict) else result
+            )
 
             self.span.set_attributes(
-                attributes={
-                    "output": {"__default__": kwargs.get("complete_streaming_response")}
-                },
+                attributes={"outputs": outputs},
                 namespace="data",
             )
 
@@ -226,12 +236,15 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            log.info(f"async_log_success({hex(self.span.context.span_id)[2:]})")
+            # result = kwargs.get("complete_streaming_response")
+            result = response_obj.choices[0].message.content
+
+            outputs = (
+                {"__default__": result} if not isinstance(result, dict) else result
+            )
 
             self.span.set_attributes(
-                attributes={
-                    "output": {"__default__": kwargs.get("complete_streaming_response")}
-                },
+                attributes={"outputs": outputs},
                 namespace="data",
             )
 
@@ -265,8 +278,6 @@ def litellm_handler():
             if not self.span:
                 log.error("LiteLLM callback error: span not found.")
                 return
-
-            # log.info(f"async_log_failure({hex(self.span.context.span_id)[2:]})")
 
             self.span.record_exception(kwargs["exception"])
 
