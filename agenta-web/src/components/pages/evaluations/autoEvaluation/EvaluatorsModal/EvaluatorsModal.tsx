@@ -159,7 +159,14 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     return (
         <Modal
             footer={null}
-            width={current === 2 && !debugEvaluator ? 600 : 1200}
+            style={{
+                height: "95vh",
+                width: current === 2 && !debugEvaluator ? "600px" : "80vw",
+                maxWidth: "1800px",
+                maxHeight: "1100px",
+                minWidth: current === 2 && !debugEvaluator ? "600px" : "1200px",
+                minHeight: "800px",
+            }}
             closeIcon={null}
             title={null}
             className={classes.modalWrapper}
