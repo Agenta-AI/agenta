@@ -83,6 +83,12 @@ class ExceptionDTO(BaseModel):
     stacktrace: Optional[str] = None
     attributes: Optional[Attributes] = None
 
+    class Config:
+        json_encoders = {
+            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
+            datetime: lambda dt: dt.isoformat(),
+        }
+
 
 Data = Dict[str, Any]
 Metrics = Dict[str, Any]
@@ -97,6 +103,9 @@ class LinkDTO(BaseModel):
 
     class Config:
         use_enum_values = True
+        json_encoders = {
+            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
+        }
 
 
 class OTelSpanKind(Enum):
