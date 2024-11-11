@@ -79,13 +79,13 @@ class AgentaSingleton:
         )
 
         self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
-        if not self.app_id:
-            raise ValueError(
-                "App ID must be specified. You can provide it in one of the following ways:\n"
-                "1. As an argument when calling ag.init(app_id='your_app_id').\n"
-                "2. In the configuration file specified by config_fname.\n"
-                "3. As an environment variable 'AGENTA_APP_ID'."
-            )
+        # if not self.app_id:
+        #     raise ValueError(
+        #         "App ID must be specified. You can provide it in one of the following ways:\n"
+        #         "1. As an argument when calling ag.init(app_id='your_app_id').\n"
+        #         "2. In the configuration file specified by config_fname.\n"
+        #         "3. As an environment variable 'AGENTA_APP_ID'."
+        #     )
 
         self.api_key = (
             api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
