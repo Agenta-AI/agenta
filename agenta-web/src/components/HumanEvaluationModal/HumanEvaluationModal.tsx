@@ -256,7 +256,7 @@ const HumanEvaluationModal = ({
 
         return variants
             .filter((variant) => !selectedVariantNames.includes(variant.variantName))
-            .map((variant, index) => ({
+            .map((variant) => ({
                 label: (
                     <div data-cy={`variant-${index}`} className="flex items-center justify-between">
                         <span>{variant.variantName}</span>
