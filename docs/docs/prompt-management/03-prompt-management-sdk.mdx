@@ -39,11 +39,14 @@ The workflow of deploying something to production is therefore as follows:
 Before using the SDK, you need to initialize it using the `ag.init()` method.
 
 ```python
+import os
 import agenta as ag
 
+
 # Initialize the SDK with your API key
-os.environment["AGENTA_API_KEY"] = "xxx" # Only needs setting in oss
-os.environment["AGENTA_HOST"] = "https://cloud.agenta.ai" # default value no need setting explicitly
+os.environ["AGENTA_API_KEY"] = "xxx" # Only needs setting in oss
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # default value no need setting explicitly
+
 ag.init()
 ```
 
@@ -55,13 +58,14 @@ Each prompt in agenta is a unique application. Currently creating a prompt is on
 
 ### Creating a New Variant
 
-To create a new variant, use the `VariantManager.create_variant` method.
+To create a new variant, use the `VariantManager.create` method.
 
 ```python
 
 from agenta import Prompt
 
-# Prompt is a pydantic BaseModel, for additional validation
+# Prompt is a pydantic BaseModel we created for common prompt settings. 
+# To add more fields or validations, create your own custom model.
 my_prompt = Prompt(
     temperature=0.7,
     model="gpt-3.5-turbo",
@@ -74,7 +78,7 @@ my_prompt = Prompt(
 )
 
 # Create a new variant
-variant = ag.VariantManager.create_variant(
+variant = ag.VariantManager.create(
     parameters=my_prompt.model_dump(),
     app_slug="my-app-slug",
     # app_id="my-app-id",  # you can also use `app_id`
@@ -83,6 +87,18 @@ variant = ag.VariantManager.create_variant(
 
 print("Created variant:")
 print(variant)
+
+# Create a new version asynchronously (optional)
+# async def create_variant():
+#     variant = ag.VariantManager.acreate(
+#         parameters=my_prompt.model_dump(),
+#         app_slug="my-app-slug",
+#         app_id="my-app-id",  # you can also use `app_id`
+#         variant_slug="my-variant-slug",
+#     )
+
+#     print("Created variant (async):")
+#     print(variant)
 ```
 
 This command will create a new variant and initialize it with the first commit containing the parameters provided
@@ -122,7 +138,7 @@ Created variant:
 
 ### Committing Changes to a Variant
 
-To save changes to a variant (creating a new version), use the `VariantManager.commit_variant` method with explicit parameters.
+To save changes to a variant (creating a new version), use the `VariantManager.commit` method with explicit parameters.
 
 ```python
 my_prompt2 = Prompt(
@@ -137,7 +153,7 @@ my_prompt2 = Prompt(
 )
 
 # Commit the new version
-variant = ag.VariantManager.commit_variant(
+variant = ag.VariantManager.commit(
     parameters=my_prompt2.model_dump(),
     app_slug="my-app-slug",
     variant_slug="my-variant-slug",
@@ -145,6 +161,17 @@ variant = ag.VariantManager.commit_variant(
 
 print("Committed new version of variant:")
 print(variant)
+
+# Commit the new version asynchronously (optional)
+# async def commit_variant():
+#     variant = ag.VariantManager.acommit(
+#         parameters=my_prompt2.model_dump(),
+#         app_slug="my-app-slug",
+#         variant_slug="my-variant-slug",
+#     )
+
+#     print("Committed new version of variant (async):")
+#     print(variant)
 ```
 
 :::info Immutability
@@ -179,11 +206,11 @@ Committed new version of variant:
 
 ## Deploying to an Environment
 
-To deploy a variant to an environment, use the `DeploymentManager.deploy_variant` method with the variant reference and `environment_slug`: The slug of the environment (`development`, `staging`, or `production`).
+To deploy a variant to an environment, use the `DeploymentManager.deploy` method with the variant reference and `environment_slug`: The slug of the environment (`development`, `staging`, or `production`).
 
 ```python
 # Deploy the variant to the staging environment
-deployment = ag.DeploymentManager.deploy_variant(
+deployment = ag.DeploymentManager.deploy(
     app_slug="my-app-slug",
     # app_id="my-app-id",  # you can also use `app_id`
     variant_slug="my-variant-slug",
@@ -193,6 +220,19 @@ deployment = ag.DeploymentManager.deploy_variant(
 
 print("Deployed variant to environment:")
 print(deployment)
+
+# Deploy the variant to the staging environment asynchronously (optional)
+# async def deploy_variant():
+#     deployment = await ag.DeploymentManager.adeploy(
+#         app_slug="my-app-slug",
+#         # app_id="my-app-id",  # you can also use `app_id`
+#         variant_slug="my-variant-slug",
+#         variant_version=None,  # Optional: If not provided, deploys the latest version
+#         environment_slug="staging"
+#     )
+
+#     print("Deployed variant to environment (async):")
+#     print(deployment)
 ```
 
 :::warning
@@ -269,24 +309,14 @@ print(config)
 ```python
 Fetched configuration:
 {
-    'parameters': {
-        'temperature': 1.0,
-        'model': 'gpt-4',
-        'max_tokens': 150,
-        'prompt_system': 'You are an assistant that provides concise answers.',
-        'prompt_user': 'Explain {topic} in simple terms.',
-        'top_p': 1.0,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0
-    }
-    'app_id': 'my-app-id',
-    'app_slug': 'my-app-slug',
-    'variant_id': 'updated-variant-id',
-    'variant_slug': 'my-variant-slug',
-    'variant_version': 2,
-    'committed_at': 'current-datetime',
-    'committed_by': 'my-email-address',
-    'committed_by_id': 'my-user-id',
+    'temperature': 1.0,
+    'model': 'gpt-4',
+    'max_tokens': 150,
+    'prompt_system': 'You are an assistant that provides concise answers.',
+    'prompt_user': 'Explain {topic} in simple terms.',
+    'top_p': 1.0,
+    'frequency_penalty': 0.0,
+    'presence_penalty': 0.0
 }
 ```
 
@@ -309,41 +339,36 @@ print(config)
 ```python
 Fetched configuration from staging:
 {
-    'parameters': {
-        'temperature': 0.7,
-        'model': 'gpt-3.5-turbo',
-        'max_tokens': 150,
-        'prompt_system': 'You are an assistant that provides concise answers.',
-        'prompt_user': 'Explain {topic} in simple terms.',
-        'top_p': 1.0,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0
-    },
-    'app_id': 'my-app-id',
-    'app_slug': 'my-app-slug',
-    'variant_id': 'new-variant-id',
-    'variant_slug': 'my-variant-slug',
-    'variant_version': 1,
-    'environment_id': 'staging-enviroment-id',
-    'environment_slug': 'staging',
-    'environment_version': 1,
-    'deployed_at': 'current-datetime',
-    'deployed_by': 'my-email-address',
-    'deployed_by_id': 'my-user-id',
+    'temperature': 0.7,
+    'model': 'gpt-3.5-turbo',
+    'max_tokens': 150,
+    'prompt_system': 'You are an assistant that provides concise answers.',
+    'prompt_user': 'Explain {topic} in simple terms.',
+    'top_p': 1.0,
+    'frequency_penalty': 0.0,
+    'presence_penalty': 0.0
 }
 ```
 
 ## Deleting a Variant
 
-To delete a variant, use the `VariantManager.delete_variant` method.
+To delete a variant, use the `VariantManager.delete` method.
 
 ```python
 # Delete a variant
-ag.VariantManager.delete_variant(
+ag.VariantManager.delete(
     app_slug="my-app",
     # app_id="my-app-id",  # you can also use `app_id`
     variant_slug="obsolete-variant"
 )
+
+# Delete a variant asynchronously (optional)
+# async def delete_variant():
+#     versions = await ag.VariantManager.adelete(
+#         app_slug="my-app",
+#         # app_id="my-app-id",  # you can also use `app_id`
+#         variant_slug="obsolete-variant",
+#     )
 
 print("Variant deleted successfully.")
 ```
@@ -356,11 +381,11 @@ print("Variant deleted successfully.")
 
 ## Listing All Variants
 
-To list all variants of an application, use the `VariantManager.list_variants` method.
+To list all variants of an application, use the `VariantManager.list` method.
 
 ```python
-# List all variants
-variants = ag.VariantManager.list_variants(
+# List all variants (syncrhonously)
+variants = ag.VariantManager.list(
     app_slug="my-app"
     # app_id="my-app-id",  # you can also use `app_id`
 )
@@ -368,6 +393,17 @@ variants = ag.VariantManager.list_variants(
 print("List of variants:")
 for variant in variants:
     print(variant)
+
+# List all variants asynchronously (optional)
+# async def list_variants():
+#     variants = await ag.VariantManager.alist(
+#         app_slug="my-app"
+#         # app_id="my-app-id",  # you can also use `app_id`
+#     )
+
+#     print("List of variants (async):")
+#     for variant in variants:
+#         print(variant)
 ```
 
 **Sample Output:**
@@ -418,18 +454,31 @@ List of variants:
 
 ## Fetching a Variant's history
 
-To list all versions for a variant of an application, use the `VariantManager.list_variants` method.
+To list all versions for a variant of an application, use the `VariantManager.list` method.
 
 ```python
-# List all variants
-variants = ag.VariantManager.list_variants(
+# List all variant versions/history (synchronously)
+versions = ag.VariantManager.history(
+    variant_slug="variant-slug",
     app_slug="my-app"
     # app_id="my-app-id",  # you can also use `app_id`
 )
 
-print("List of variants:")
-for variant in variants:
-    print(variant)
+print("History of variant:")
+for version in versions:
+    print(version)
+
+# List all variant versions/history asynchronously (optional)
+# async def fetch_variant_history():
+#     versions = await ag.VariantManager.ahistory(
+#         variant_slug="variant-slug",
+#         app_slug="my-app"
+#         # app_id="my-app-id",  # you can also use `app_id`
+#     )
+
+#     print("History of variant:")
+#     for version in versions:
+#         print(version)
 ```
 
 **Sample Output:**
@@ -484,7 +533,7 @@ If your application uses asynchronous programming, you can use the async version
 
 ```python
 # Asynchronous fetching of configuration
-config = await ag.ConfigManager.aget_from_registry(
+config = await ag.ConfigManager.async_get_from_registry(
     app_slug="my-app",
     # app_id="my-app-id",  # you can also use `app_id`
     variant_slug="my-variant-slug",
