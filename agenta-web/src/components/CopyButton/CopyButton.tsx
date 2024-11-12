@@ -7,12 +7,14 @@ type Props = {
     text: string
     buttonText?: string | null
     icon?: boolean
+    stopPropagation?: boolean
 }
 
 const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
     text,
     buttonText = "Copy",
     icon = false,
+    stopPropagation = false,
     ...props
 }) => {
     const [buttonIcon, setButtonIcon] = useState(<CopyOutlined />)
@@ -21,7 +23,10 @@ const CopyButton: React.FC<Props & ComponentProps<typeof Button>> = ({
         <Button
             icon={icon && buttonIcon}
             {...props}
-            onClick={async () => {
+            onClick={async (e) => {
+                if (stopPropagation) {
+                    e.stopPropagation()
+                }
                 if (text === "") return
                 const copied = await copyToClipboard(text)
                 if (copied) {
