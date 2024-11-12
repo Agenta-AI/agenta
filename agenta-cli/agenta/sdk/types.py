@@ -222,7 +222,10 @@ class LifecyclesResponse(ReferencesResponse):
     deployed_by_id: Optional[str] = None
 
     def __str__(self):
-        return str(self.model_dump(exclude_none=True))
+        return self.model_dump_json(indent=4)
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class ConfigurationResponse(LifecyclesResponse):
@@ -231,3 +234,14 @@ class ConfigurationResponse(LifecyclesResponse):
 
 class DeploymentResponse(LifecyclesResponse):
     pass
+
+
+class Prompt(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+    prompt_system: str
+    prompt_user: str
+    top_p: float
+    frequency_penalty: float
+    presence_penalty: float
