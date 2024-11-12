@@ -64,7 +64,7 @@ const AppTemplateCard: React.FC<Props> = ({onWriteOwnApp, onCreateFromTemplate})
         "Evaluate workflows end-to-end in the web UI",
     ]
     return (
-        <section className="flex items-center gap-4">
+        <section className="flex flex-wrap items-center justify-center gap-4">
             <Card
                 title="Create a prompt"
                 className={classes.card}
