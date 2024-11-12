@@ -46,7 +46,7 @@ We're going to create a new completion prompt called `topic-explainer`.
 
 [Todo: Image showing before and after. The new elements are added in different colors]
 
-Variants are similar to branches in **git**. Any change to the prompt must first be committed to a variant. Here, we'll create a new variant and make our first commit to it using the `VariantManager.create_variant` method:
+Variants are similar to branches in **git**. Any change to the prompt must first be committed to a variant. Here, we'll create a new variant and make our first commit to it using the `VariantManager.create` method:
 
 ```python
 
@@ -56,14 +56,14 @@ from agenta import Prompt
 my_prompt = Prompt(temperature=0.6,
        model="gpt-3.5-turbo",
        max_tokens=150,
-       prompt=[{"role": "system", "content": "You are an assistant that provides concise answers"},
-                {"role": "user", "content": "Explain {topic} in simple terms"}],
+        prompt_system="You are an assistant that provides concise answers",
+        prompt_user="Explain {topic} in simple terms",
        top_p=1.0,
        frequency_penalty=0.0,
        presence_penalty=0.0 )
 
 # Create a new variant
-variant = ag.VariantManager.create_variant(
+variant = ag.VariantManager.create(
     app_slug="topic-explainer",
     variant_slug="new-variant",
     config_parameters=my_prompt.dict()
@@ -85,21 +85,24 @@ This command will create a new variant and initialize it with the first commit c
 ```python
 Created variant:
 {
-    'app_slug': 'topic-explainer',
-    'variant_slug': 'new-variant',
+    'parameters': {
+        'temperature': 0.6,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
     'variant_version': 1,
-    'config': {
-        'parameters': {
-            'temperature': 0.7,
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 150,
-            'prompt_system': 'You are an assistant that provides concise answers.',
-            'prompt_user': 'Explain {topic} in simple terms.',
-            'top_p': 1.0,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0
-        },
-    }
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
 }
 ```
 
@@ -107,11 +110,11 @@ Created variant:
 
 [Todo: Image showing before and after. The new elements are added in a different colors]
 
-To deploy our commit to an environment, use the `DeploymentManager.deploy_variant` method.
+To deploy our commit to an environment, use the `DeploymentManager.deploy` method.
 
 ```python
 # Deploy the variant to the production environment
-deployment = ag.DeploymentManager.deploy_variant(
+deployment = ag.DeploymentManager.deploy(
     app_slug="topic-explainer",
     variant_slug="new-variant",
     environment_slug="production",
@@ -133,11 +136,27 @@ print(deployment)
 ```python
 Deployed variant to environment:
 {
+    'parameters': {
+        'temperature': 0.7,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
     'app_slug': 'topic-explainer',
-    'variant_slug': 'new-variant',
-    'variant_version': 1
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 1,
+    'environment_id': 'production-enviroment-id',
     'environment_slug': 'production',
-    'environment_version': 1
+    'environment_version': 1,
+    'deployed_at': 'current-datetime',
+    'deployed_by': 'my-email-address',
+    'deployed_by_id': 'my-user-id',
 }
 ```
 
@@ -150,14 +169,15 @@ We're now going to commit changes to our variant. Note that this will not modify
 To save changes to a variant (creating a new version), we are goin to use the `VariantManager.commit_variant` method with explicit parameters.
 
 ```python
-my_prompt2 = Prompt(temperature=0.6,
-       model="gpt-3.5-turbo",
-       max_tokens=150,
-       prompt=[{"role": "system", "content": "You are an assistant that provides concise answers"},
-                {"role": "user", "content": "Use Paul Graham style to explain {topic} in simple terms."}],
-       top_p=1.0,
-       frequency_penalty=0.0,
-       presence_penalty=0.0 )
+my_prompt2 = Prompt(
+    temperature=0.9,
+    model="gpt-3.5-turbo",
+    max_tokens=150,
+    prompt_system="You are an assistant that provides concise answers",
+    prompt_user="Use Paul Graham style to explain {topic} in simple terms.",
+    top_p=1.0,
+    frequency_penalty=0.0,
+    presence_penalty=0.0 )
 
 
 # Commit the new version
@@ -180,21 +200,24 @@ Each commit creates a new version of the variant. Versions are immutable once cr
 ```python
 Committed new version of variant:
 {
+    'parameters': {
+        'temperature': 0.9,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Use Paul Graham style to explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
     'app_slug': 'topic-explainer',
-    'variant_slug': 'new-variant',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'new-variant-slug',
     'variant_version': 2,
-    'config': {
-        'parameters': {
-            'temperature': 0.9,
-            'model': 'gpt-3.5-turbo',
-            'max_tokens': 150,
-            'prompt_system': 'You are an assistant that provides concise answers.',
-            'prompt_user': 'Use Paul Graham style to explain {topic} in simple terms.',
-            'top_p': 1.0,
-            'frequency_penalty': 0.0,
-            'presence_penalty': 0.0
-        }
-    }
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
 }
 ```
 
@@ -213,14 +236,14 @@ print("Fetched configuration from production:")
 print(config)
 
 client.completion(
-        model=myprompt.model,
-        messages=format_prompt(myprompt.prompt, topic),
-        temperature=myprompt.temperature,
-        max_tokens=myprompt.max_tokens,
-        top_p=myprompt.top_p,
-        frequency_penalty=myprompt.frequency_penalty,
-        presence_penalty=myprompt.presence_penalty,
-    )
+    model=myprompt.model,
+    messages=format_prompt(myprompt.prompt, topic),
+    temperature=myprompt.temperature,
+    max_tokens=myprompt.max_tokens,
+    top_p=myprompt.top_p,
+    frequency_penalty=myprompt.frequency_penalty,
+    presence_penalty=myprompt.presence_penalty,
+)
 ```
 
 ## Next Steps
