@@ -141,7 +141,7 @@ def test_fetch_configuration_and_return_schema(mock_get_config):
 
 
 @pytest.mark.asyncio
-@patch("agenta.ConfigManager.async_get_from_registry")
+@patch("agenta.ConfigManager.aget_from_registry")
 async def test_afetch_configuration_and_return_dict(mock_aget_config):
     # Mock the API response for fetching configuration
 
@@ -161,7 +161,7 @@ async def test_afetch_configuration_and_return_dict(mock_aget_config):
 
 
 @pytest.mark.asyncio
-@patch("agenta.ConfigManager.async_get_from_registry")
+@patch("agenta.ConfigManager.aget_from_registry")
 async def test_afetch_configuration_and_return_schema(mock_aget_config):
     # Mock the API response for fetching configuration
 
