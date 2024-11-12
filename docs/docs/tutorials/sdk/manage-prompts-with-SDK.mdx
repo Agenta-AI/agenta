@@ -166,7 +166,7 @@ Deployed variant to environment:
 
 We're now going to commit changes to our variant. Note that this will not modify the version in deployment!
 
-To save changes to a variant (creating a new version), we are goin to use the `VariantManager.commit_variant` method with explicit parameters.
+To save changes to a variant (creating a new version), we are goin to use the `VariantManager.commit` method with explicit parameters.
 
 ```python
 my_prompt2 = Prompt(
@@ -181,7 +181,7 @@ my_prompt2 = Prompt(
 
 
 # Commit the new version
-variant = ag.VariantManager.commit_variant(
+variant = ag.VariantManager.commit(
     app_slug="topic-explainer",
     variant_slug="new-variant",
     config_parameters=my_prompt2.dict()
