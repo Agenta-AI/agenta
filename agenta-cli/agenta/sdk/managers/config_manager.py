@@ -93,7 +93,7 @@ class ConfigManager:
         return parameters
 
     @staticmethod
-    async def async_get_from_route(
+    async def aget_from_route(
         schema: Optional[Type[T]] = None,
     ) -> Union[Dict[str, Any], T]:
         """
@@ -214,7 +214,7 @@ class ConfigManager:
         return config.parameters
 
     @staticmethod
-    async def async_get_from_registry(
+    async def aget_from_registry(
         schema: Optional[Type[T]] = None,
         #
         app_id: Optional[str] = None,
