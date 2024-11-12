@@ -14,6 +14,7 @@ from .sdk.types import (
     TextParam,
     FileInputURL,
     BinaryParam,
+    Prompt,
 )
 
 from .sdk.utils.logging import log as logging
