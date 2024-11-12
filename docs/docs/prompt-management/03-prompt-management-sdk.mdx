@@ -90,7 +90,7 @@ print(variant)
 
 # Create a new version asynchronously (optional)
 # async def create_variant():
-#     variant = ag.VariantManager.acreate(
+#     variant = await ag.VariantManager.acreate(
 #         parameters=my_prompt.model_dump(),
 #         app_slug="my-app-slug",
 #         app_id="my-app-id",  # you can also use `app_id`
@@ -164,7 +164,7 @@ print(variant)
 
 # Commit the new version asynchronously (optional)
 # async def commit_variant():
-#     variant = ag.VariantManager.acommit(
+#     variant = await ag.VariantManager.acommit(
 #         parameters=my_prompt2.model_dump(),
 #         app_slug="my-app-slug",
 #         variant_slug="my-variant-slug",
