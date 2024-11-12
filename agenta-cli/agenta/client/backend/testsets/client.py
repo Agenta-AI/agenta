@@ -26,9 +26,9 @@ class TestsetsClient:
         self,
         *,
         file: core.File,
-        upload_type: typing.Optional[str] = None,
-        testset_name: typing.Optional[str] = None,
-        app_id: typing.Optional[str] = None,
+        upload_type: typing.Optional[str] = OMIT,
+        testset_name: typing.Optional[str] = OMIT,
+        app_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
@@ -261,10 +261,10 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in a MongoDB collection using its id.
+        Fetch a specific testset in a MongoDB collection using its \_id.
 
         Args:
-        testset_id (str): The id of the testset to fetch.
+        testset_id (str): The \_id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
@@ -555,9 +555,9 @@ class AsyncTestsetsClient:
         self,
         *,
         file: core.File,
-        upload_type: typing.Optional[str] = None,
-        testset_name: typing.Optional[str] = None,
-        app_id: typing.Optional[str] = None,
+        upload_type: typing.Optional[str] = OMIT,
+        testset_name: typing.Optional[str] = OMIT,
+        app_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
@@ -814,10 +814,10 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in a MongoDB collection using its id.
+        Fetch a specific testset in a MongoDB collection using its \_id.
 
         Args:
-        testset_id (str): The id of the testset to fetch.
+        testset_id (str): The \_id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
