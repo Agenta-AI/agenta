@@ -231,7 +231,7 @@ config = ag.ConfigManager.get_from_registry(
     app_slug="topic-explainer",
     environment_slug="production"
 )
-myprompt = Prompt(config.parameters)
+myprompt = Prompt(config)
 print("Fetched configuration from production:")
 print(config)
 
