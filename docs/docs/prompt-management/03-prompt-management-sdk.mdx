@@ -484,7 +484,7 @@ for version in versions:
 **Sample Output:**
 
 ```python
-List of variants:
+History of variants:
 {
     'parameters': {
         'temperature': 1.0,
@@ -533,7 +533,7 @@ If your application uses asynchronous programming, you can use the async version
 
 ```python
 # Asynchronous fetching of configuration
-config = await ag.ConfigManager.async_get_from_registry(
+config = await ag.ConfigManager.aget_from_registry(
     app_slug="my-app",
     # app_id="my-app-id",  # you can also use `app_id`
     variant_slug="my-variant-slug",
