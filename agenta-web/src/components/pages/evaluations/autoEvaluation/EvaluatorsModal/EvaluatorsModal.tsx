@@ -161,7 +161,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
             footer={null}
             style={{
                 height: "95vh",
-                width: current === 2 && !debugEvaluator ? "600px" : "80vw",
+                width: current === 2 && !debugEvaluator ? "600px" : "90vw",
                 maxWidth: "1800px",
                 maxHeight: "1100px",
                 minWidth: current === 2 && !debugEvaluator ? "600px" : "1200px",
