@@ -16,6 +16,7 @@ from .sdk.types import (
     TextParam,
     FileInputURL,
     BinaryParam,
+    Prompt,
 )
 
 from .sdk.tracing.logger import llm_logger as logging
