@@ -151,7 +151,7 @@ async def test_afetch_configuration_and_return_dict(mock_aget_config):
         "max_tokens": 100,
     }
 
-    config = await ConfigManager.async_get_from_registry(
+    config = await ConfigManager.aget_from_registry(
         app_slug="my-app", variant_slug="new-variant", variant_version=2
     )
 
@@ -169,7 +169,7 @@ async def test_afetch_configuration_and_return_schema(mock_aget_config):
         temperature=0.9, model="gpt-3.5-turbo", max_tokens=100
     )
 
-    config_as_schema = await ConfigManager.async_get_from_registry(
+    config_as_schema = await ConfigManager.aget_from_registry(
         schema=Parameters,
         app_slug="my-app",
         variant_slug="new-variant",
