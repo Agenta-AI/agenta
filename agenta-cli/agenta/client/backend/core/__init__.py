@@ -3,7 +3,7 @@
 from .api_error import ApiError
 from .client_wrapper import AsyncClientWrapper, BaseClientWrapper, SyncClientWrapper
 from .datetime_utils import serialize_datetime
-from .file import File, convert_file_dict_to_httpx_tuples
+from .file import File, convert_file_dict_to_httpx_tuples, with_content_type
 from .http_client import AsyncHttpClient, HttpClient
 from .jsonable_encoder import jsonable_encoder
 from .pydantic_utilities import (
@@ -43,4 +43,5 @@ __all__ = [
     "universal_field_validator",
     "universal_root_validator",
     "update_forward_refs",
+    "with_content_type",
 ]
