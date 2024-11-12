@@ -1,4 +1,4 @@
-FROM public.ecr.aws/s2t9a1r1/agentaai/lambda_templates_public:main
+FROM public.ecr.aws/h3w6n5z0/agentaai/lambda_templates_public:main
 
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 RUN pip install --no-cache-dir --disable-pip-version-check -U agenta

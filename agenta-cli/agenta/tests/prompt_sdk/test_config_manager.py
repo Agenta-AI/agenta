@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 import agenta as ag
 from agenta.tests.prompt_sdk.conftest import Parameters
-from agenta.sdk.managers.config_manager import ConfigManager
+from agenta.sdk.managers.config import ConfigManager
 
 
 # AGENTA_MODE = TRUE
