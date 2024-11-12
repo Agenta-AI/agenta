@@ -148,9 +148,9 @@ def get_request_body(
         json_body = maybe_filter_request_body(json, request_options, omit)
 
     # If you have an empty JSON body, you should just send None
-    return (
-        json_body if json_body != {} else None
-    ), data_body if data_body != {} else None
+    return (json_body if json_body != {} else None), (
+        data_body if data_body != {} else None
+    )
 
 
 class HttpClient:
@@ -249,9 +249,11 @@ class HttpClient:
             json=json_body,
             data=data_body,
             content=content,
-            files=convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
-            if (files is not None and files is not omit)
-            else None,
+            files=(
+                convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
+                if (files is not None and files is not omit)
+                else None
+            ),
             timeout=timeout,
         )
 
@@ -348,9 +350,11 @@ class HttpClient:
             json=json_body,
             data=data_body,
             content=content,
-            files=convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
-            if (files is not None and files is not omit)
-            else None,
+            files=(
+                convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
+                if (files is not None and files is not omit)
+                else None
+            ),
             timeout=timeout,
         ) as stream:
             yield stream
@@ -453,9 +457,11 @@ class AsyncHttpClient:
             json=json_body,
             data=data_body,
             content=content,
-            files=convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
-            if files is not None
-            else None,
+            files=(
+                convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
+                if files is not None
+                else None
+            ),
             timeout=timeout,
         )
 
@@ -551,9 +557,11 @@ class AsyncHttpClient:
             json=json_body,
             data=data_body,
             content=content,
-            files=convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
-            if files is not None
-            else None,
+            files=(
+                convert_file_dict_to_httpx_tuples(remove_none_from_dict(files))
+                if files is not None
+                else None
+            ),
             timeout=timeout,
         ) as stream:
             yield stream

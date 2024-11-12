@@ -366,7 +366,7 @@ const AppSelector: React.FC = () => {
                 footer={null}
                 title={null}
                 className={classes.modal}
-                width={steps.length === 3 && current == 0 ? 845 : 480}
+                width={steps.length === 3 && current == 0 ? 855 : 480}
                 centered
             >
                 {steps[current]?.content}

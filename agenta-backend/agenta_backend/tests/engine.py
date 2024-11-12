@@ -1,18 +1,10 @@
-from agenta_backend.models.db.models import models
-from agenta_backend.models.db.postgres_engine import DBEngine
+from agenta_backend.dbs.postgres.shared.engine import Engine
+from agenta_backend.tests.models import models
 
 
-class TestDBEngine(DBEngine):
-    """
-    Database engine to remove database tables in test db.
-    """
-
+class TestDBEngine(Engine):
     async def remove_db(self):
-        """
-        Remove the database tables.
-        """
-
-        async with self.engine.begin() as conn:
+        async with self.async_engine.begin() as conn:
             for model in models:
                 await conn.run_sync(model.metadata.drop_all)
 

@@ -5,6 +5,7 @@ const nextConfig = {
     pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
     productionBrowserSourceMaps: true,
     transpilePackages: [
+        "@lobehub/ui",
         "@lobehub/icons",
         "rc-util",
         "antd",
