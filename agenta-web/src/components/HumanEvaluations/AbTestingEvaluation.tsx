@@ -2,7 +2,6 @@ import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEval
 import {HumanEvaluationListTableDataType, JSSTheme} from "@/lib/Types"
 import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
-import {getColorFromStr} from "@/lib/helpers/colors"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
 import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"

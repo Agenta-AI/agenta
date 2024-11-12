@@ -3,7 +3,9 @@ import pytest
 import logging
 from datetime import datetime, timezone
 
-from agenta_backend.models.db.postgres_engine import db_engine
+import httpx
+from sqlalchemy.future import select
+
 from agenta_backend.models.shared_models import ConfigDB
 from agenta_backend.models.db_models import (
     ProjectDB,
@@ -20,8 +22,8 @@ from agenta_backend.tests.unit.test_traces import (
 )
 from agenta_backend.resources.evaluators.evaluators import get_all_evaluators
 
-import httpx
-from sqlalchemy.future import select
+
+from agenta_backend.dbs.postgres.shared.engine import engine
 
 
 # Initialize logger
@@ -41,7 +43,7 @@ elif ENVIRONMENT == "github":
 async def get_first_user_object():
     """Get the user object from the database or create a new one if not found."""
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         if user is None:
@@ -57,7 +59,7 @@ async def get_first_user_object():
 async def get_second_user_object():
     """Create a second user object."""
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="1"))
         user = result.scalars().first()
         if user is None:
@@ -73,7 +75,7 @@ async def get_second_user_object():
 
 @pytest.fixture()
 async def get_or_create_project_from_db():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(ProjectDB).filter_by(project_name="default", is_default=True)
         )
@@ -92,7 +94,7 @@ async def get_first_user_app(get_first_user_object, get_or_create_project_from_d
     user = await get_first_user_object
     project = await get_or_create_project_from_db
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         app = AppDB(app_name="myapp", project_id=project.id)
         session.add(app)
         await session.commit()
@@ -154,7 +156,7 @@ async def get_first_user_app(get_first_user_object, get_or_create_project_from_d
 
 @pytest.fixture(scope="session")
 async def fetch_user():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         return user
