@@ -16,6 +16,7 @@ from .types import (
     MessagesInput,
     FileInputURL,
     BinaryParam,
+    Prompt,
 )
 
 from .tracing.llm_tracing import Tracing
