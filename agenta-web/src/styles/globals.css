@@ -60,6 +60,11 @@ body {
     opacity: 1;
 }
 
+.ant-tooltip-inner {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 @media screen and (max-width: 1572px) {
     .evalaution-title {
         min-height: 80px;

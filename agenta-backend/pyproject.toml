@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta_backend"
-version = "0.26.0"
+version = "0.27.0"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
