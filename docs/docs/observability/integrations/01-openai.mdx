@@ -1,0 +1,198 @@
+---
+title: OpenAI
+---
+
+```mdx-code-block
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+```
+
+OpenAI calls can be automatically instrumented with Agenta using the `opentelemetry-instrumentation-openai` package. This guide shows how to set it up.
+
+## Installation
+
+Install the required packages:
+
+```bash
+pip install -U agenta openai opentelemetry-instrumentation-openai
+```
+
+---
+
+## Instrument OpenAI API Calls
+
+### 1. Configure Environment Variables
+
+<Tabs>
+<TabItem value="cloud" label="Agenta Cloud or Enterprise">
+
+```python
+import os
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+```
+
+</TabItem>
+<TabItem value="oss" label="Agenta OSS Running Locally">
+
+```python
+import os
+
+os.environ["AGENTA_HOST"] = "http://localhost"
+```
+
+</TabItem>
+</Tabs>
+
+### 2. Initialize Agenta and Instrument OpenAI
+
+```python
+# highlight-start
+import agenta as ag
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+# highlight-end
+import openai
+
+# highlight-start
+ag.init()
+OpenAIInstrumentor().instrument()
+# highlight-end
+
+response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "user", "content": "Write a short story about AI."},
+    ],
+)
+
+print(response.choices[0].message.content)
+```
+
+After running this code, Agenta will automatically capture the details of this API call.
+
+## Instrumenting a Workflow with a Parent Span
+
+If you have a function or workflow with multiple calls you want to monitor as a single trace, you can use the `@ag.instrument` decorator.
+
+### Example
+
+```python
+# highlight-start
+import agenta as ag
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+# highlight-end
+
+import openai
+import asyncio
+
+# highlight-start
+ag.init()
+OpenAIInstrumentor().instrument()
+# highlight-end
+
+# highlight-next-line
+@ag.instrument(spankind="TASK")
+async def generate_story_prompt(topic: str, genre: str):
+    return f"Write a {genre} story about {topic}."
+
+# highlight-next-line
+@ag.instrument(spankind="WORKFLOW")
+async def generate_story(topic: str, genre: str):
+    prompt = await generate_story_prompt(topic, genre)
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+    )
+    return response.choices[0].message.content
+
+if __name__ == "__main__":
+    asyncio.run(generate_story(topic="the future", genre="sci-fi"))
+```
+
+## Associating Traces with Applications
+
+In the previous examples, the traces are instrumented in the global project scope. They are not associated with a specific application or variant or environment.
+To link traces to specific parts of your Agenta projects, you can store references inside your instrumented functions.
+
+```python
+# highlight-next-line
+@ag.instrument(spankind="WORKFLOW")
+async def generate_story(topic: str, genre: str):
+    # highlight-start
+    # Associate with a specific application and variant
+    ag.tracing.store_refs({
+        "application.id": "YOUR_APPLICATION_ID",
+        "variant.id": "YOUR_VARIANT_ID",
+        "environment.slug": "production",
+    })
+    # highlight-end
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "user",
+                "content": f"Write a {genre} story about {topic}.",
+            },
+        ],
+    )
+    return response.choices[0].message.content
+```
+
+**Note**: You need to have the `@ag.instrument` decorator to use `ag.tracing.store_refs`.
+
+## Complete Example
+
+Here's the full code putting it all together:
+
+```python
+import os
+import agenta as ag
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+import openai
+import asyncio
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"  # Skip if using OSS locally
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"  # Use "http://localhost" for OSS
+
+# highlight-next-line
+ag.init()
+
+# Set your OpenAI API key
+openai.api_key = "YOUR_OPENAI_API_KEY"
+
+# highlight-next-line
+OpenAIInstrumentor().instrument()
+
+# highlight-next-line
+@ag.instrument(spankind="WORKFLOW")
+async def generate_story(topic: str, genre: str):
+    # highlight-start
+    # Associate with application and variant
+    ag.tracing.store_refs({
+        "application.id": "YOUR_APPLICATION_ID",
+        "variant.id": "YOUR_VARIANT_ID",
+    })
+    ag.tracing.store_refs({"environment.slug": "production"})
+    # highlight-end
+    # Make the OpenAI API call
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "user",
+                "content": f"Write a {genre} story about {topic}.",
+            },
+        ],
+    )
+    return response.choices[0].message.content
+
+if __name__ == "__main__":
+    asyncio.run(generate_story(topic="the future", genre="sci-fi"))
+```
