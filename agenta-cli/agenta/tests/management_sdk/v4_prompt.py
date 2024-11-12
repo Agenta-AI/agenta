@@ -4,7 +4,7 @@ from typing import List, Union, Dict
 from dataclasses import dataclass
 import pdb
 import agenta as ag
-from agenta.sdk.config_manager import ConfigManager
+from agenta.sdk.managers.config import ConfigManager
 from agenta import FloatParam, TextParam
 from pydantic import BaseModel, Field
 from typing import Annotated

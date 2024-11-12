@@ -19,6 +19,8 @@ from agenta_backend.models.db_models import IDsMappingDB
 from agenta_backend.models.base import Base
 from agenta_backend.migrations.mongo_to_postgres.mongo_db_engine import mongo_db
 
+from agenta_backend.dbs.postgres.shared.engine import engine
+
 BATCH_SIZE = 1000
 
 
@@ -37,7 +39,7 @@ async def create_all_tables(tables):
 async def store_mapping(table_name, mongo_id, uuid):
     """Store the mapping of MongoDB ObjectId to UUID in the mapping table."""
     id_ = generate_uuid()
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         mapping = IDsMappingDB(
             id=id_, table_name=table_name, objectid=str(mongo_id), uuid=uuid
         )
@@ -47,7 +49,7 @@ async def store_mapping(table_name, mongo_id, uuid):
 
 async def get_mapped_uuid(table_name, mongo_id):
     """Retrieve the mapped UUID for a given MongoDB ObjectId and table name."""
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         stmt = select(IDsMappingDB.uuid).filter(
             IDsMappingDB.table_name == table_name,
             IDsMappingDB.objectid == str(mongo_id),
@@ -138,7 +140,7 @@ async def migrate_collection(
     migrated_docs = 0
     skipped_docs = 0
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         for skip in tqdm(
             range(0, total_docs, BATCH_SIZE),
             total=(total_docs - 1) // BATCH_SIZE + 1,
