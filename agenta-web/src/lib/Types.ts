@@ -337,6 +337,9 @@ type ValueTypeOptions =
     | "error"
     | "cost"
     | "latency"
+    | "hidden"
+    | "messages"
+    | "multiple_choice"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -348,6 +351,7 @@ export interface EvaluationSettingsTemplate {
     max?: number
     required?: boolean
     advanced?: boolean
+    options?: string[]
 }
 
 export interface Evaluator {
