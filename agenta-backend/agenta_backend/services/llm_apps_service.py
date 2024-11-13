@@ -14,25 +14,59 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def extract_result_from_response(response):
+def extract_result_from_response(response: dict):
+    def get_nested_value(d: dict, keys: list, default=None):
+        """
+        Helper function to safely retrieve nested values.
+        """
+
+        for key in keys:
+            if isinstance(d, dict):
+                d = d.get(key, default)
+            else:
+                return default
+        return d
+
+    # Initialize default values
     value = None
     latency = None
     cost = None
 
-    if response.get("version", None) == "2.0":
+    # Handle version 3.0 response
+    if response.get("version") == "3.0":
         value = response
-
-        if not isinstance(value["data"], dict):
-            value["data"] = str(value["data"])
+        # Ensure 'data' is a dictionary or convert it to a string
+        if not isinstance(value.get("data"), dict):
+            value["data"] = str(value.get("data"))
 
         if "trace" in response:
-            latency = response["trace"].get("latency", None)
-            cost = response["trace"].get("cost", None)
-    else:
-        value = {"data": str(response["message"])}
-        latency = response.get("latency", None)
-        cost = response.get("cost", None)
+            trace_tree = (
+                response["trace"][0] if isinstance(response.get("trace"), list) else {}
+            )
+            latency = (
+                get_nested_value(trace_tree, ["time", "span"]) * 1_000_000
+                if trace_tree
+                else None
+            )
+            cost = get_nested_value(trace_tree, ["metrics", "acc", "costs", "total"])
 
+    # Handle version 2.0 response
+    elif response.get("version") == "2.0":
+        value = response
+        if not isinstance(value.get("data"), dict):
+            value["data"] = str(value.get("data"))
+
+        if "trace" in response:
+            latency = response["trace"].get("latency")
+            cost = response["trace"].get("cost")
+
+    # Handle generic response (neither 2.0 nor 3.0)
+    else:
+        value = {"data": str(response.get("message", ""))}
+        latency = response.get("latency")
+        cost = response.get("cost")
+
+    # Determine the type of 'value' (either 'text' or 'object')
     kind = "text" if isinstance(value, str) else "object"
 
     return value, kind, cost, latency
