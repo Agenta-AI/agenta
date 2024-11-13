@@ -1,4 +1,5 @@
 langchain
+langchain_community
 openai
 agenta
 replicate

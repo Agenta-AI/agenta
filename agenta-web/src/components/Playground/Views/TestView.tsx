@@ -10,8 +10,10 @@ import {
     Parameter,
     Variant,
     StyleProps,
+    BaseResponseSpans,
+    BaseResponse,
 } from "@/lib/Types"
-import {batchExecute, randString, removeKeys} from "@/lib/helpers/utils"
+import {batchExecute, getStringOrJson, isDemo, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
 import AddToTestSetDrawer from "../AddToTestSetDrawer/AddToTestSetDrawer"
 import {DeleteOutlined} from "@ant-design/icons"
@@ -31,8 +33,11 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {dynamicService} from "@/lib/helpers/dynamic"
+import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
+import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
+import {fromBaseResponseToTraceSpanType} from "@/lib/transformers"
 
+const PlaygroundDrawer: any = dynamicComponent(`Playground/PlaygroundDrawer/PlaygroundDrawer`)
 const promptRevision: any = dynamicService("promptVersioning/api")
 
 dayjs.extend(relativeTime)
@@ -48,7 +53,7 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         marginRight: "24px",
         marginLeft: "12px",
         "& .ant-card-body": {
-            padding: "4px 16px",
+            padding: "8px 16px",
             border: "0px solid #ccc",
         },
     },
@@ -69,9 +74,9 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         marginTop: "16px",
     },
     row2Col: {
-        justifyContent: "flex-end",
+        justifyContent: "space-between",
         display: "flex",
-        gap: "0.75rem",
+        alignItems: "center",
     },
     row3: {
         margin: "16px 0",
@@ -87,6 +92,18 @@ const useStylesBox = createUseStyles((theme: JSSTheme) => ({
         opacity: 0.5,
         bottom: 6,
         color: theme.colorPrimary,
+    },
+    viewTracesBtn: {
+        "& > span": {
+            textDecoration: "underline",
+            color: theme.colorPrimary,
+            "&:hover": {
+                textDecoration: "none",
+            },
+        },
+    },
+    cardDeleteIcon: {
+        color: "red",
     },
 }))
 
@@ -146,7 +163,6 @@ interface TestViewProps {
     optParams: Parameter[] | null
     isChatVariant?: boolean
     compareMode: boolean
-    onStateChange: (isDirty: boolean) => void
     setPromptOptParams: React.Dispatch<React.SetStateAction<Parameter[] | null>>
     promptOptParams: Parameter[] | null
 }
@@ -167,6 +183,19 @@ interface BoxComponentProps {
     isChatVariant?: boolean
     variant: Variant
     onCancel: () => void
+    traceSpans:
+        | {
+              trace_id: string
+              cost?: number
+              latency?: number
+              usage?: {
+                  completion_tokens: number
+                  prompt_tokens: number
+                  total_tokens: number
+              }
+              spans?: BaseResponseSpans[]
+          }
+        | undefined
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -181,8 +210,10 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     isChatVariant = false,
     variant,
     onCancel,
+    traceSpans,
 }) => {
     const {appTheme} = useAppTheme()
+    const [activeSpan, setActiveSpan] = useQueryParam("activeSpan")
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
@@ -210,7 +241,14 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         <Card className={classes.card}>
             <Row className={classes.rowHeader}>
                 <h4>{isChatVariant ? "Chat" : "Input parameters"}</h4>
-                {onDelete && <Button icon={<DeleteOutlined />} onClick={onDelete}></Button>}
+
+                {onDelete && (
+                    <Button
+                        type="text"
+                        icon={<DeleteOutlined className={classes.cardDeleteIcon} />}
+                        onClick={onDelete}
+                    ></Button>
+                )}
             </Row>
 
             <Row className={classes.row1}>
@@ -229,48 +267,41 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     isLoading={loading}
                 />
             </Row>
-            {additionalData?.cost || additionalData?.latency ? (
-                <Space>
-                    <p>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</p>
-                    <p>Cost: {formatCurrency(additionalData?.cost)}</p>
-                    <p>Latency: {formatLatency(additionalData?.latency)}</p>
-                </Space>
-            ) : (
-                ""
-            )}
             <Row className={classes.row2} style={{marginBottom: isChatVariant ? 12 : 0}}>
                 <Col span={24} className={classes.row2Col} id={variant.variantId}>
-                    <Button
-                        shape="round"
-                        icon={<PlusOutlined />}
-                        onClick={handleAddToTestset}
-                        disabled={loading}
-                    >
-                        Add to Test Set
-                    </Button>
-                    {loading ? (
+                    <h4>{isChatVariant ? "" : "Results"}</h4>
+
+                    <Space>
                         <Button
-                            icon={<CloseCircleOutlined />}
-                            type="primary"
-                            style={{backgroundColor: "#d32f2f"}}
-                            onClick={onCancel}
-                            className={`testview-cancel-button-${testData._id}`}
+                            icon={<PlusOutlined />}
+                            onClick={handleAddToTestset}
+                            disabled={loading}
                         >
-                            Cancel
+                            Add to Test Set
                         </Button>
-                    ) : (
-                        <Button
-                            data-cy="testview-input-parameters-run-button"
-                            className={`testview-run-button-${testData._id}`}
-                            type="primary"
-                            shape="round"
-                            icon={<CaretRightOutlined />}
-                            onClick={isChatVariant ? onRun : form.submit}
-                            loading={loading}
-                        >
-                            Run
-                        </Button>
-                    )}
+                        {loading ? (
+                            <Button
+                                icon={<CloseCircleOutlined />}
+                                type="primary"
+                                style={{backgroundColor: "#d32f2f"}}
+                                onClick={onCancel}
+                                className={`testview-cancel-button-${testData._id}`}
+                            >
+                                Cancel
+                            </Button>
+                        ) : (
+                            <Button
+                                data-cy="testview-input-parameters-run-button"
+                                className={`testview-run-button-${testData._id}`}
+                                type="primary"
+                                icon={<CaretRightOutlined />}
+                                onClick={isChatVariant ? onRun : form.submit}
+                                loading={loading}
+                            >
+                                Run Test
+                            </Button>
+                        )}
+                    </Space>
                 </Col>
             </Row>
             {!isChatVariant && (
@@ -303,6 +334,36 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     />
                 </Row>
             )}
+            {additionalData?.cost || additionalData?.latency ? (
+                <Space className="flex items-center gap-3">
+                    <span>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</span>
+                    <span>Cost: {formatCurrency(additionalData?.cost)}</span>
+                    <span>Latency: {formatLatency(additionalData?.latency)}</span>
+                    {traceSpans?.spans?.length && isDemo() && (
+                        <Button
+                            type="link"
+                            className={classes.viewTracesBtn}
+                            onClick={() => setActiveSpan(traceSpans.trace_id)}
+                        >
+                            View Trace
+                        </Button>
+                    )}
+                </Space>
+            ) : (
+                ""
+            )}
+
+            {traceSpans?.spans?.length && !!activeSpan && (
+                <PlaygroundDrawer
+                    placement="bottom"
+                    open={!!activeSpan}
+                    onClose={() => setActiveSpan("")}
+                    traceSpans={fromBaseResponseToTraceSpanType(
+                        traceSpans.spans,
+                        traceSpans.trace_id,
+                    )}
+                />
+            )}
         </Card>
     )
 }
@@ -313,7 +374,6 @@ const App: React.FC<TestViewProps> = ({
     variant,
     isChatVariant,
     compareMode,
-    onStateChange,
     setPromptOptParams,
 }) => {
     const router = useRouter()
@@ -340,6 +400,20 @@ const App: React.FC<TestViewProps> = ({
             usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
+    const [traceSpans, setTraceSpans] = useState<
+        | {
+              trace_id: string
+              cost?: number
+              latency?: number
+              usage?: {
+                  completion_tokens: number
+                  prompt_tokens: number
+                  total_tokens: number
+              }
+              spans?: BaseResponseSpans[]
+          }
+        | undefined
+    >()
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -477,7 +551,7 @@ const App: React.FC<TestViewProps> = ({
             }
             setResultForIndex(LOADING_TEXT, index)
 
-            const res = await callVariant(
+            const result = await callVariant(
                 isChatVariant ? removeKeys(testItem, ["chat"]) : testItem,
                 inputParams || [],
                 optParams || [],
@@ -488,16 +562,42 @@ const App: React.FC<TestViewProps> = ({
                 true,
             )
 
-            // check if res is an object or string
-            if (typeof res === "string") {
-                setResultForIndex(res, index)
-            } else {
-                setResultForIndex(res.message, index)
+            let res: BaseResponse | undefined
+
+            // Check result type
+            // String, FuncResponse or BaseResponse
+            if (typeof result === "string") {
+                res = {version: "2.0", data: result} as BaseResponse
+                setResultForIndex(getStringOrJson(res.data), index)
+            } else if (isFuncResponse(result)) {
+                res = {version: "2.0", data: result.message} as BaseResponse
+                setResultForIndex(getStringOrJson(res.data), index)
+
+                const {message, cost, latency, usage} = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    newDataList[index] = {cost: res.cost, latency: res.latency, usage: res.usage}
+                    newDataList[index] = {cost, latency, usage}
                     return newDataList
                 })
+            } else if (isBaseResponse(result)) {
+                res = result as BaseResponse
+                setResultForIndex(getStringOrJson(res.data), index)
+
+                const {data, trace} = result
+                setAdditionalDataList((prev) => {
+                    const newDataList = [...prev]
+                    newDataList[index] = {
+                        cost: trace?.cost || null,
+                        latency: trace?.latency || null,
+                        usage: trace?.usage || null,
+                    }
+                    return newDataList
+                })
+                if (trace && isDemo()) {
+                    setTraceSpans(trace)
+                }
+            } else {
+                console.error("Unknown response type:", result)
             }
         } catch (e: any) {
             if (!controller.signal.aborted) {
@@ -642,6 +742,7 @@ const App: React.FC<TestViewProps> = ({
                     isChatVariant={isChatVariant}
                     variant={variant}
                     onCancel={() => handleCancel(index)}
+                    traceSpans={traceSpans}
                 />
             ))}
             <Button

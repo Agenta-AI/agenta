@@ -95,7 +95,16 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
             {variants.map((variant, ix) => (
                 <ConfigProvider
                     key={variant.variantId}
-                    theme={{token: {colorError: VARIANT_COLORS[ix]}}}
+                    theme={{
+                        components: {
+                            Button: {
+                                colorError: VARIANT_COLORS[ix],
+                                colorErrorHover: VARIANT_COLORS[ix],
+                                colorErrorBorderHover: VARIANT_COLORS[ix],
+                                colorErrorActive: VARIANT_COLORS[ix],
+                            },
+                        },
+                    }}
                 >
                     <Button
                         onClick={getOnClick(variant.variantId)}
@@ -112,7 +121,18 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                 className={vertical ? classes.btnsDividerVertical : classes.btnsDividerHorizontal}
                 style={{borderColor: token.colorBorder}}
             />
-            <ConfigProvider theme={{token: {colorError: VARIANT_COLORS[2]}}}>
+            <ConfigProvider
+                theme={{
+                    components: {
+                        Button: {
+                            colorError: VARIANT_COLORS[2],
+                            colorErrorBorderHover: VARIANT_COLORS[2],
+                            colorErrorHover: VARIANT_COLORS[2],
+                            colorErrorActive: VARIANT_COLORS[2],
+                        },
+                    },
+                }}
+            >
                 <Button
                     danger
                     type={value === goodId ? "primary" : undefined}
@@ -250,7 +270,7 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                     >
                         <InputNumber
                             defaultValue={
-                                value.find((item) => item.variantId === variant.variantId)?.score ||
+                                value.find((item) => item.variantId === variant.variantId)?.score ??
                                 undefined
                             }
                             min={min}

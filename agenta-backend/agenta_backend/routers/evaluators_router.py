@@ -1,17 +1,28 @@
 import logging
+import traceback
 
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
+
 from agenta_backend.utils.common import APIRouter, isCloudEE
-from agenta_backend.services import evaluator_manager, db_manager
+from agenta_backend.services import (
+    evaluator_manager,
+    db_manager,
+    evaluators_service,
+    app_manager,
+)
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluator,
     EvaluatorConfig,
     NewEvaluatorConfig,
     UpdateEvaluatorConfig,
+    EvaluatorInputInterface,
+    EvaluatorOutputInterface,
+    EvaluatorMappingInputInterface,
+    EvaluatorMappingOutputInterface,
 )
 
 if isCloudEE():
@@ -47,8 +58,68 @@ async def get_evaluators_endpoint():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/map/", response_model=EvaluatorMappingOutputInterface)
+async def evaluator_data_map(request: Request, payload: EvaluatorMappingInputInterface):
+    """Endpoint to map the experiment data tree to evaluator interface.
+
+    Args:
+        request (Request): The request object.
+        payload (EvaluatorMappingInputInterface): The payload containing the request data.
+
+    Returns:
+        EvaluatorMappingOutputInterface: the evaluator mapping output object
+    """
+
+    try:
+        mapped_outputs = await evaluators_service.map(mapping_input=payload)
+        return mapped_outputs
+    except Exception as e:
+        logger.error(f"Error mapping data tree: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Error mapping data tree",
+                "stacktrace": traceback.format_exc(),
+            },
+        )
+
+
+@router.post("/{evaluator_key}/run/", response_model=EvaluatorOutputInterface)
+async def evaluator_run(
+    request: Request, evaluator_key: str, payload: EvaluatorInputInterface
+):
+    """Endpoint to evaluate LLM app run
+
+    Args:
+        request (Request): The request object.
+        evaluator_key (str): The key of the evaluator.
+        payload (EvaluatorInputInterface): The payload containing the request data.
+
+    Returns:
+        result: EvaluatorOutputInterface object containing the outputs.
+    """
+
+    try:
+        result = await evaluators_service.run(
+            evaluator_key=evaluator_key, evaluator_input=payload
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error while running {evaluator_key} evaluator: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": f"Error while running {evaluator_key} evaluator",
+                "stacktrace": traceback.format_exc(),
+            },
+        )
+
+
 @router.get("/configs/", response_model=List[EvaluatorConfig])
-async def get_evaluator_configs(app_id: str, request: Request):
+async def get_evaluator_configs(
+    app_id: str,
+    request: Request,
+):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -59,11 +130,11 @@ async def get_evaluator_configs(app_id: str, request: Request):
     """
 
     try:
+        app_db = await db_manager.fetch_app_by_id(app_id=app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=str(app_db.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -74,7 +145,9 @@ async def get_evaluator_configs(app_id: str, request: Request):
                     status_code=403,
                 )
 
-        evaluators_configs = await evaluator_manager.get_evaluators_configs(app_id)
+        evaluators_configs = await evaluator_manager.get_evaluators_configs(
+            str(app_db.project_id)
+        )
         return evaluators_configs
     except Exception as e:
         raise HTTPException(
@@ -83,7 +156,10 @@ async def get_evaluator_configs(app_id: str, request: Request):
 
 
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
-async def get_evaluator_config(evaluator_config_id: str, request: Request):
+async def get_evaluator_config(
+    evaluator_config_id: str,
+    request: Request,
+):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Returns:
@@ -97,7 +173,7 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_db.app,
+                project_id=str(evaluator_config_db.project_id),
                 permission=Permission.VIEW_EVALUATION,
             )
             if not has_permission:
@@ -119,7 +195,10 @@ async def get_evaluator_config(evaluator_config_id: str, request: Request):
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
-async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Request):
+async def create_new_evaluator_config(
+    payload: NewEvaluatorConfig,
+    request: Request,
+):
     """Endpoint to fetch evaluator configurations for a specific app.
 
     Args:
@@ -129,11 +208,11 @@ async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Requ
         EvaluatorConfigDB: Evaluator configuration api model.
     """
     try:
+        app_db = await db_manager.get_app_instance_by_id(app_id=payload.app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=payload.app_id,
-                object_type="app",
+                project_id=str(app_db.project_id),
                 permission=Permission.CREATE_EVALUATION,
             )
             if not has_permission:
@@ -145,13 +224,17 @@ async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Requ
                 )
 
         evaluator_config = await evaluator_manager.create_evaluator_config(
-            app_id=payload.app_id,
+            project_id=str(app_db.project_id),
+            app_name=app_db.app_name,
             name=payload.name,
             evaluator_key=payload.evaluator_key,
             settings_values=payload.settings_values,
         )
         return evaluator_config
     except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(
             status_code=500, detail=f"Error creating evaluator configuration: {str(e)}"
         )
@@ -159,7 +242,9 @@ async def create_new_evaluator_config(payload: NewEvaluatorConfig, request: Requ
 
 @router.put("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
 async def update_evaluator_config(
-    evaluator_config_id: str, payload: UpdateEvaluatorConfig, request: Request
+    evaluator_config_id: str,
+    payload: UpdateEvaluatorConfig,
+    request: Request,
 ):
     """Endpoint to update evaluator configurations for a specific app.
 
@@ -168,11 +253,13 @@ async def update_evaluator_config(
     """
 
     try:
+        evaluator_config = await db_manager.fetch_evaluator_config(
+            evaluator_config_id=evaluator_config_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_id,
-                object_type="evaluator_config",
+                project_id=str(evaluator_config.project_id),
                 permission=Permission.EDIT_EVALUATION,
             )
             if not has_permission:
@@ -184,7 +271,7 @@ async def update_evaluator_config(
                 )
 
         evaluators_configs = await evaluator_manager.update_evaluator_config(
-            evaluator_config_id=evaluator_config_id, updates=payload.dict()
+            evaluator_config_id=evaluator_config_id, updates=payload.model_dump()
         )
         return evaluators_configs
     except Exception as e:
@@ -197,7 +284,10 @@ async def update_evaluator_config(
 
 
 @router.delete("/configs/{evaluator_config_id}/", response_model=bool)
-async def delete_evaluator_config(evaluator_config_id: str, request: Request):
+async def delete_evaluator_config(
+    evaluator_config_id: str,
+    request: Request,
+):
     """Endpoint to delete a specific evaluator configuration.
 
     Args:
@@ -207,11 +297,13 @@ async def delete_evaluator_config(evaluator_config_id: str, request: Request):
         bool: True if deletion was successful, False otherwise.
     """
     try:
+        evaluator_config = await db_manager.fetch_evaluator_config(
+            evaluator_config_id=evaluator_config_id
+        )
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=evaluator_config_id,
-                object_type="evaluator_config",
+                project_id=str(evaluator_config.project_id),
                 permission=Permission.DELETE_EVALUATION,
             )
             if not has_permission:

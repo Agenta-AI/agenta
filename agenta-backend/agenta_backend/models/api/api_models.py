@@ -58,11 +58,21 @@ class VariantAction(BaseModel):
 
 class CreateApp(BaseModel):
     app_name: str
+    project_id: Optional[str] = None
+    workspace_id: Optional[str] = None
 
 
 class CreateAppOutput(BaseModel):
     app_id: str
     app_name: str
+
+
+class UpdateApp(BaseModel):
+    app_name: str
+
+
+class UpdateAppOutput(CreateAppOutput):
+    pass
 
 
 class AppOutput(CreateAppOutput):
@@ -76,6 +86,7 @@ class UpdateVariantParameterPayload(BaseModel):
 class AppVariant(BaseModel):
     app_id: str
     app_name: str
+    project_id: Optional[str] = None
     variant_name: str
     parameters: Optional[Dict[str, Any]]
     previous_variant_name: Optional[str]
@@ -92,13 +103,16 @@ class AppVariantResponse(BaseModel):
     app_name: str
     variant_id: str
     variant_name: str
+    project_id: str
     parameters: Optional[Dict[str, Any]]
-    user_id: str
     base_name: str
     base_id: str
     config_name: str
     uri: Optional[str]
     revision: int
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    modified_by_id: Optional[str] = None
 
 
 class AppVariantRevision(BaseModel):
@@ -127,6 +141,7 @@ class AppVariantOutputExtended(BaseModel):
 class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
+    project_id: str
     deployed_app_variant_id: Optional[str]
     deployed_variant_name: Optional[str]
     deployed_app_variant_revision_id: Optional[str]
@@ -186,6 +201,7 @@ class AddVariantFromImagePayload(BaseModel):
 class ImageExtended(Image):
     # includes the mongodb image id
     id: str
+    project_id: Optional[str] = None
 
 
 class TemplateImageInfo(BaseModel):
@@ -211,6 +227,7 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+    updated_at: str
 
 
 class RemoveApp(BaseModel):
@@ -224,6 +241,8 @@ class DockerEnvVars(BaseModel):
 class CreateAppVariant(BaseModel):
     app_name: str
     template_id: str
+    project_id: Optional[str] = None
+    workspace_id: Optional[str] = None
     env_vars: Dict[str, str]
 
 

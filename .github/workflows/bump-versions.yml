@@ -39,30 +39,63 @@ jobs:
         run: |
           curl -sSL https://install.python-poetry.org | python3 -
 
-      - name: Bump versions
+      - name: Bump versions and compare
+        id: bump_versions
         run: |
           BUMP_TYPE=${{ inputs.bump-type }}
           echo "Bumping versions to $BUMP_TYPE"
+
           cd agenta-web
           npm version $BUMP_TYPE
+          WEB_VERSION=$(npm pkg get version | tr -d '"')
           cd ..
+
           cd agenta-cli
           poetry version $BUMP_TYPE
+          CLI_VERSION=$(poetry version -s)
           cd ..
+
           cd agenta-backend
           poetry version $BUMP_TYPE
+          BACKEND_VERSION=$(poetry version -s)
+          cd ..
+
+          echo "WEB_VERSION=$WEB_VERSION"
+          echo "CLI_VERSION=$CLI_VERSION"
+          echo "BACKEND_VERSION=$BACKEND_VERSION"
+
+          if [ "$WEB_VERSION" = "$CLI_VERSION" ] && [ "$CLI_VERSION" = "$BACKEND_VERSION" ]; then
+            echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
+            echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "VERSIONS_MATCH=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create and push tag
+        if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git tag -a "v${{ steps.bump_versions.outputs.NEW_VERSION }}" -m "Version ${{ steps.bump_versions.outputs.NEW_VERSION }}"
+          git push origin "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
 
       - name: Create Pull Request
+        if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: Bump versions
+          commit-message: v${{ steps.bump_versions.outputs.NEW_VERSION }}
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          branch: bump-versions
+          branch: v${{ steps.bump_versions.outputs.NEW_VERSION }}
           delete-branch: true
-          title: 'Bump versions'
+          title: "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
-            New version in
+            New version v${{ steps.bump_versions.outputs.NEW_VERSION }} in
             - agenta-web
             - agenta-backend
             - agenta-cli
 
+      - name: Fail if versions don't match
+        if: steps.bump_versions.outputs.VERSIONS_MATCH != 'true'
+        run: |
+          echo "Versions in the three folders do not match. Please check and update manually."
+          exit 1

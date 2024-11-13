@@ -2,7 +2,7 @@ import React from "react"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {GenericObject, Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"
-import {Form, FormInstance, Image, Input} from "antd"
+import {Form, FormInstance, Image, Input, InputNumber, Switch} from "antd"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
 
@@ -18,7 +18,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: "0.5rem",
         alignItems: "flex-start",
         marginTop: "1rem",
-
+        flexDirection: "column",
         "& .ant-input": {
             marginTop: 1,
         },
@@ -78,7 +78,13 @@ const ParamsForm: React.FC<Props> = ({
             {/*@ts-ignore*/}
             {(_, formInstance) => {
                 return inputParams.map((param, index) => {
-                    const type = param.type === "file_url" ? "url" : param.type
+                    const type =
+                        param.type === "file_url"
+                            ? "url"
+                            : param.type === "integer"
+                              ? "number"
+                              : param.type
+
                     return (
                         <Form.Item
                             key={param.name}
@@ -87,10 +93,6 @@ const ParamsForm: React.FC<Props> = ({
                                 {
                                     required: param.required,
                                     message: "This field is required",
-                                },
-                                {
-                                    type: type as any,
-                                    message: `Must be a valid ${type}`,
                                 },
                             ]}
                             initialValue={param.value}
@@ -109,18 +111,58 @@ const ParamsForm: React.FC<Props> = ({
                                         />
                                     )}
 
-                                <Input.TextArea
-                                    data-cy={`testview-input-parameters-${index}`}
-                                    key={index}
-                                    className={
-                                        !isPlaygroundComponent ? classes.paramValueContainer : ""
-                                    }
-                                    value={param.value}
-                                    placeholder={`${renameVariables(param.name)} (${type})`}
-                                    onChange={(e) => onParamChange?.(param.name, e.target.value)}
-                                    disabled={!isPlaygroundComponent}
-                                    autoSize={{minRows: 2, maxRows: 8}}
-                                />
+                                {type === "number" && (
+                                    <InputNumber
+                                        data-cy={`testview-input-parameters-${index}`}
+                                        key={index}
+                                        className={
+                                            !isPlaygroundComponent
+                                                ? classes.paramValueContainer
+                                                : ""
+                                        }
+                                        style={{
+                                            height: "54px",
+                                            minHeight: "54px",
+                                            maxHeight: "186px",
+                                            width: "100%",
+                                        }}
+                                        controls={false}
+                                        type={type}
+                                        value={param.value}
+                                        placeholder={`${renameVariables(param.name)} (${type})`}
+                                        onChange={(value) => onParamChange?.(param.name, value)}
+                                        disabled={!isPlaygroundComponent}
+                                    />
+                                )}
+
+                                {type === "string" && (
+                                    <Input.TextArea
+                                        data-cy={`testview-input-parameters-${index}`}
+                                        key={index}
+                                        className={
+                                            !isPlaygroundComponent
+                                                ? classes.paramValueContainer
+                                                : ""
+                                        }
+                                        value={param.value}
+                                        placeholder={`${renameVariables(param.name)} (${type})`}
+                                        onChange={(e) =>
+                                            onParamChange?.(param.name, e.target.value)
+                                        }
+                                        disabled={!isPlaygroundComponent}
+                                        autoSize={{minRows: 2, maxRows: 8}}
+                                    />
+                                )}
+
+                                {type === "boolean" && (
+                                    <Switch
+                                        disabled={!isPlaygroundComponent}
+                                        value={param.value}
+                                        onChange={(checked: boolean) =>
+                                            onParamChange?.(param.name, checked)
+                                        }
+                                    />
+                                )}
                             </div>
                         </Form.Item>
                     )

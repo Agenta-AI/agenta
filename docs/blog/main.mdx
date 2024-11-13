@@ -1,0 +1,898 @@
+---
+title: "Changelog"
+---
+
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
+import Image from "@theme/IdealImage";
+```
+
+<section class="changelog">
+
+### Observability and Prompt Management
+
+_6 November 2024_
+
+**v0.27.0**
+
+<Image
+  style={{
+    display: "block",
+    margin: "5px auto",
+    width: "80%",
+    textAlign: "center",
+  }}
+  img={require("/images/observability/observability.png")}
+  alt="Observability view showing an open trace for an OpenAI application"
+  loading="lazy"
+/>
+This release is one of our biggest yet—one changelog hardly does it justice.
+
+**First up: Observability**
+
+We’ve had observability in beta for a while, but now it’s been completely rewritten,
+with a brand-new UI and fully **open-source code**.
+
+The new [Observability SDK](/observability/overview) is compatible with [OpenTelemetry (Otel)](https://opentelemetry.io/) and [gen-ai semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). This means you get a lot of integrations right out of the box, like [LangChain](/observability/integrations/langchain), [OpenAI](/observability/integrations/openai), and more.
+
+We’ll publish a full blog post soon, but here’s a quick look at what the new observability offers:
+
+- A redesigned UI that lets you visualize nested traces, making it easier to understand what’s happening behind the scenes.
+
+- The web UI lets you filter traces by name, cost, and other attributes—you can even search through them easily.
+
+- The SDK is Otel-compatible, and we’ve already tested integrations for [OpenAI](/observability/integrations/openai), [LangChain](/observability/integrations/langchain), [LiteLLM](/observability/integrations/litellm), and [Instructor](/observability/integrations/instructor), with guides available for each. In most cases, adding a few lines of code will have you seeing traces directly in Agenta.
+
+**Next: Prompt Management**
+
+We’ve completely rewritten the [prompt management SDK](/prompt-management/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
+
+**And finally: LLM-as-a-Judge Overhaul**
+
+We’ve made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we’re seeing better results with it.
+
+<Image
+  style={{
+    display: "block",
+    margin: "5px auto",
+    width: "50%",
+    textAlign: "center",
+  }}
+  img={require("/images/evaluation/llm-as-a-judge.gif")}
+  alt="Configuring the LLM-as-a-Judge evaluator"
+  loading="lazy"
+/>
+
+---
+
+### New Application Management View and Various Improvements
+
+_22 October 2024_
+
+**v0.26.0**
+
+We updated the **Application Management View** to improve the UI. Many users struggled to find their applications when they had a large number, so we've improved the view and added a search bar for quick filtering.
+Additionally, we are moving towards a new project structure for the application. We moved test sets and evaluators outside of the application scope. So now, you can use the same test set and evaluators in multiple applications.
+
+**Bug Fixes**
+
+- Added an export button in the evaluation view to export results from the main view.
+- Eliminated Pydantic warnings in the CLI.
+- Improved error messages when `fetch_config` is called with wrong arguments.
+- Enhanced the custom code evaluation sandbox and removed the limitation that results need to be between 0 and 1
+
+---
+
+### Evaluator Testing Playground and a New Evaluation View
+
+_22 September 2024_
+
+**v0.25.0**
+
+<Stream controls src="41941e8e6b5a119faa5ced10af891f86" height="400px" />
+<br />
+Many users faced challenges configuring evaluators in the web UI. Some
+evaluators, such as `LLM as a judge`, `custom code`, or RAG evaluators can be
+tricky to set up correctly on the first try. Until now, users needed to setup,
+run an evaluation, check the errors, then do it again.
+
+To address this, we've introduced a new evaluator test/debug playground. This feature allows you to test the evaluator live on real data, helping you test the configuration before committing to it and using it for evaluations.
+
+Additionally, we have improved and redesigned the evaluation view. Both automatic and human evaluations are now within the same view but in different tabs. We're moving towards unifying all evaluator results and consolidating them in one view, allowing you to quickly get an overview of what's working.
+
+---
+
+### UI Redesign and Configuration Management and Overview View
+
+_22 August 2024_
+
+**v0.24.0**
+
+<div>
+  <Image
+    img={require("/images/changelog/new_ui.png")}
+    alt="Button for exporting evaluation results"
+    style={{
+      display: "block",
+      margin: "5px auto",
+      width: "80%",
+      textAlign: "center",
+    }}
+  />
+</div>
+
+We've completely redesigned the platform's UI. Additionally we have introduced a new overview view for your applications. This is part of a series of upcoming improvements slated for the next few weeks.
+
+The new overview view offers:
+
+- A dashboard displaying key metrics of your application
+- A table with all the variants of your applications
+- A summary of your application's most recent evaluations
+
+We've also added a new **JSON Diff evaluator**. This evaluator compares two JSON objects and provides a similarity score.
+
+Lastly, we've updated the UI of our documentation.
+
+---
+
+### New Alpha Version of the SDK for Creating Custom Applications
+
+_20 August 2024_
+
+**v0.23.0**
+
+We've released a new version of the SDK for creating custom applications. This Pydantic-based SDK significantly simplifies the process of building custom applications. It's fully backward compatible, so your existing code will continue to work seamlessly. We'll soon be rolling out comprehensive documentation and examples for the new SDK.
+
+In the meantime, here's a quick example of how to use it:
+
+```python
+import agenta as ag
+from agenta import Agenta
+from pydantic import BaseModel, Field
+
+#highlight-start
+ag.init()
+#highlight-end
+
+# Define the configuration of the application (that will be shown in the playground )
+#highlight-start
+class MyConfig(BaseModel):
+    temperature: float = Field(default=0.2)
+    prompt_template: str = Field(default="What is the capital of {country}?")
+#highlight-end
+
+# Creates an endpoint for the entrypoint of the application
+#highlight-start
+@ag.route("/", config_schema=MyConfig)
+#highlight-end
+def generate(country: str) -> str:
+    # Fetch the config from the request
+    #highlight-start
+    config: MyConfig = ag.ConfigManager.get_from_route(schema=MyConfig)
+    #highlight-end
+    prompt = config.prompt_template.format(country=country)
+    chat_completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=config.temperature,
+    )
+    return chat_completion.choices[0].message.content
+
+```
+
+---
+
+### RAGAS Evaluators and Traces in the Playground
+
+_12 August 2024_
+
+**v0.22.0**
+
+We're excited to announce two major features this week:
+
+1. We've integrated [RAGAS evaluators](https://docs.ragas.io/) into agenta. Two new evaluators have been added: **RAG Faithfulness** (measuring how consistent the LLM output is with the context) and **Context Relevancy** (assessing how relevant the retrieved context is to the question). Both evaluators use intermediate outputs within the trace to calculate the final score.
+
+   [Check out the tutorial](/evaluation/evaluators/rag-evaluators) to learn how to use RAG evaluators.
+
+{" "}
+
+<div>
+  <Image
+    img={require("/images/changelog/rag_faithfulness.png")}
+    alt="Button for exporting evaluation results"
+    style={{ width: "80%", maxWidth: "800px" }}
+  />
+</div>
+
+2. You can now **view traces directly in the playground**. This feature enables you to debug your application while configuring it—for example, by examining the prompts sent to the LLM or reviewing intermediate outputs.
+
+   <div>
+     <Image
+       img={require("/images/changelog/trace_in_playground.png")}
+       alt="Button for exporting evaluation results"
+       style={{ width: "80%", maxWidth: "800px" }}
+     />
+   </div>
+
+:::note
+Both features are available exclusively in the cloud and enterprise versions of agenta.
+:::
+
+---
+
+### Migration from MongoDB to Postgres
+
+_9 July 2024_
+
+**v0.19.0**
+
+We have migrated the Agenta database from MongoDB to Postgres. As a result, the **platform is much more faster** (up to 10x in some use cases).
+
+However, if you are self-hosting agenta, note that this is a breaking change that requires you to manually migrate your data from MongoDB to Postgres. You can find more information how to migrate your data [here](/self-host/migration/migration-to-postgres).
+
+If you are using the cloud version of Agenta, there is nothing you need to do (other than enjoying the new performance improvements).
+
+---
+
+### More Reliable Evaluations
+
+_5 July 2024_
+
+**v0.18.0**
+
+<div>
+  <Image
+    img={require("/images/changelog/export_evaluation.png")}
+    alt="Button for exporting evaluation results"
+    style={{ width: "80%", maxWidth: "800px" }}
+  />
+</div>
+
+We have worked extensively on improving the **reliability of evaluations**. Specifically:
+
+- We improved the status for evaluations and added a new `Queued` status
+- We improved the error handling in evaluations. Now we show the exact error message that caused the evaluation to fail.
+- We fixed issues that caused evaluations to run infinitely
+- We fixed issues in the calculation of scores in human evaluations.
+- We fixed small UI issues with large output in human evaluations.
+- We have added a new export button in the evaluation view to export the results as a CSV file.
+
+Additionally, we have added a new [Cookbook for run evaluation using the SDK](/tutorials/sdk/evaluate-with-SDK).
+
+In **observability**:
+
+- We have added a **new integration with [Litellm](https://litellm.ai/)** to automatically trace all LLM calls done through it.
+- Now we automatically propagate cost and token usage from spans to traces.
+
+---
+
+### Evaluators can access all columns
+
+_4 June 2024_
+
+**v0.17.0**
+
+<div>
+  <Image
+    img={require("/images/changelog/configure_expected_answer.png")}
+    alt="Configure Expected Answer"
+    style={{ width: "70%", maxWidth: "800px" }}
+  />
+</div>
+
+Evaluators now can access all columns in the test set. Previously, you were limited to using only the `correct_answer` column for the ground truth / reference answer in evaluation.
+Now you can configure your evaluator to use any column in the test set as the ground truth. To do that, open the collapsable `Advanced Settings` when configuring the evaluator, and define the `Expected Answer Column` to the name of the columns containing the reference answer you want to use.
+
+In addition to this:
+
+- We've upgraded the SDK to pydantic v2.
+- We have improved by 10x the speed for the get config endpoint
+- We have add documentation for observability
+
+---
+
+### New LLM Provider: Welcome Gemini!
+
+_25 May 2024_
+
+**v0.14.14**
+
+We are excited to announce the addition of Google's Gemini to our list of supported LLM providers, bringing the total number to 12.
+
+<Image img={require("/images/changelog/gemini_screenshot.png")} />
+
+---
+
+### Playground Improvements
+
+_24 May 2024_
+
+**v0.14.1-13**
+
+- We've improved the workflow for adding outputs to a dataset in the playground. In the past, you had to select the name of the test set each time. Now, the last used test set is selected by default..
+  <Image
+    img={require("/images/changelog/default-selected-testset_video.gif")}
+  />
+- We have significantly improved the debugging experience when creating applications from code. Now, if an application fails, you can view the logs to understand the reason behind the failure.
+- We moved the copy message button in the playground to the output text area.
+- We now hide the cost and usage in the playground when they aren't specified
+- We've made improvements to error messages in the playground
+
+**Bug Fixes**
+
+- Fixed the order of the arguments when running a custom code evaluator
+- Fixed the timestamp in the Testset view (previous stamps was droppping the trailing 0)
+- Fixed the creation of application from code in the self-hosted version when using Windows
+
+---
+
+### Prompt and Configuration Registry
+
+_1 May 2024_
+
+**v0.14.0**
+
+We've introduced a feature that allows you to use Agenta as a prompt registry or management system. In the deployment view, we now provide an endpoint to directly fetch the latest version of your prompt. Here is how it looks like:
+
+```
+
+from agenta import Agenta
+agenta = Agenta()
+config = agenta.get_config(base_id="xxxxx", environment="production", cache_timeout=200) # Fetches the configuration with caching
+
+```
+
+You can find additional documentation [here](/prompt-management/integration/how-to-integrate-with-agenta).
+
+**Improvements**
+
+- Previously, publishing a variant from the playground to an environment was a manual process., from now on we are publishing by default to the production environment.
+  <Image
+    img={require("/images/changelog/publish_to_production_by_default_screenshot.png")}
+  />
+
+---
+
+### Miscellaneous Improvements
+
+_28 April 2024_
+
+**v0.13.8**
+
+- The total cost of an evaluation is now displayed in the evaluation table. This allows you to understand how much evaluations are costing you and track your expenses.
+  <Image img={require("/images/changelog/total_cost_screenshot.png")} />
+
+**Bug Fixes**
+
+- Fixed sidebar focus in automatic evaluation results view
+- Fix the incorrect URLs shown when running agenta variant serve
+
+---
+
+### Evaluation Speed Increase and Numerous Quality of Life Improvements
+
+_23rd April 2024_
+
+**v0.13.1-5**
+
+- We've improved the speed of evaluations by 3x through the use of asynchronous batching of calls.
+- We've added Groq as a new provider along with Llama3 to our playground.
+
+**Bug Fixes**
+
+- Resolved a rendering UI bug in Testset view.
+- Fixed incorrect URLs displayed when running the 'agenta variant serve' command.
+- Corrected timestamps in the configuration.
+- Resolved errors when using the chat template with empty input.
+- Fixed latency format in evaluation view.
+- Added a spinner to the Human Evaluation results table.
+- Resolved an issue where the gitignore was being overwritten when running 'agenta init'.
+
+---
+
+### Observability (beta)
+
+_14th April 2024_
+
+**v0.13.0**
+
+You can now monitor your application usage in production. We've added a new observability feature (currently in beta), which allows you to:
+
+- Monitor cost, latency, and the number of calls to your applications in real-time.
+- View the logs of your LLM calls, including inputs, outputs, and used configurations. You can also add any interesting logs to your test set.
+- Trace your more complex LLM applications to understand the logic within and debug it.
+
+As of now, all new applications created will include observability by default. We are working towards a GA version in the next weeks, which will be scalable and better integrated with your applications. We will also be adding tutorials and documentation about it.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/observability_beta_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/observability_beta_dark.png")}
+/>
+
+Find examples of LLM apps created from code with observability <a href="https://github.com/Agenta-AI/agenta/tree/main/examples/app_with_observability" _target="_blank">here</a>.
+
+---
+
+### Compare latency and costs
+
+_1st April 2024_
+
+**v0.12.6**
+
+You can now compare the latency and cost of different variants in the evaluation view.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/compare_latency_and_cost_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/compare_latency_and_cost_dark.png")}
+/>
+
+---
+
+### Minor improvements
+
+_31st March 2024_
+
+**v0.12.5**
+
+**Toggle variants in comparison view**
+
+You can now toggle the visibility of variants in the comparison view, allowing you to compare a multitude of variants side-by-side at the same time.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/toggle_variants_visibility_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/toggle_variants_visibility_dark.png")}
+/>
+
+**Improvements**
+
+- You can now add a datapoint from the playground to the test set even if there is a column mismatch
+
+**Bug fixes**
+
+- Resolved issue with "Start Evaluation" button in Testset view
+- Fixed bug in CLI causing variant not to serve
+
+---
+
+### New evaluators
+
+_25th March 2024_
+
+**v0.12.4**
+
+We have added some more evaluators, a new string matching and a Levenshtein distance evaluation.
+
+**Improvements**
+
+- Updated documentation for human evaluation
+- Made improvements to Human evaluation card view
+- Added dialog to indicate testset being saved in UI
+
+**Bug fixes**
+
+- Fixed issue with viewing the full output value during evaluation
+- Enhanced error boundary logic to unblock user interface
+- Improved logic to save and retrieve multiple LLM provider keys
+- Fixed Modal instances to support dark mode
+
+---
+
+### Minor improvements
+
+_11th March 2024_
+
+**v0.12.3**
+
+- Improved the logic of the Webhook evaluator
+- Made the inputs in the Human evaluation view non-editable
+- Added an option to save a test set in the Single model evaluation view
+- Included the evaluator name in the "Configure your evaluator" modal
+
+**Bug fixes**
+
+- Fixed column resize in comparison view
+- Resolved a bug affecting the evaluation output in the CSV file
+- Corrected the path to the Evaluators view when navigating from Evaluations
+
+---
+
+### Highlight ouput difference when comparing evaluations
+
+_4th March 2024_
+
+**v0.12.2**
+
+We have improved the evaluation comparison view to show the difference to the expected output.
+
+**Improvements**
+
+- Improved the error messages when invoking LLM applications
+- Improved "Add new evaluation" modal
+- Upgraded Sidemenu to display Configure evaluator and run evaluator under Evaluations section
+- Changed cursor to pointer when hovering over evaluation results
+
+---
+
+### Deployment Versioning and RBAC
+
+_14th February 2024_
+
+**v0.12.0**
+
+**Deployment versioning**
+
+You now have access to a history of prompts deployed to our three environments. This feature allows you to roll back to previous versions if needed.
+
+**Role-Based Access Control**
+
+You can now invite team members and assign them fine-grained roles in agenta.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/rbac_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/rbac_dark.png")}
+/>
+
+**Improvements**
+
+- We now prevent the deletion of test sets that are used in evaluations
+
+**Bug fixes**
+
+- Fixed bug in custom code evaluation aggregation. Up until know the aggregated result for custom code evalution where not computed correctly.
+- Fixed bug with Evaluation results not being exported correctly
+
+- Updated documentation for vision gpt explain images
+- Improved Frontend test for Evaluations
+
+---
+
+### Minor fixes
+
+_4th February 2024_
+
+**v0.10.2**
+
+- Addressed issue when invoking LLM app with missing LLM provider key
+- Updated LLM providers in Backend enum
+- Fixed bug in variant environment deployment
+- Fixed the sorting in evaluation tables
+- Made use of server timezone instead of UTC
+
+---
+
+### Prompt Versioning
+
+_31st January 2024_
+
+**v0.10.0**
+
+We've introduced the feature to version prompts, allowing you to track changes made by the team and revert to previous versions. To view the change history of the configuration, click on the sign in the playground to access all previous versions.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/prompt_versioning_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/prompt_versioning_dark.png")}
+/>
+
+---
+
+### New JSON Evaluator
+
+_30th January 2024_
+
+**v0.9.1**
+We have added a new evaluator to match JSON fields and added the possiblity to use other columns in the test set other than the `correct_answer` column as the ground truth.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/new_json_evaluator_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/new_json_evaluator_dark.png")}
+/>
+
+---
+
+### Improved error handling in evaluation
+
+_29th January 2024_
+
+**v0.9.0**
+
+We have improved error handling in evaluation to return more information about the exact source of the error in the evaluation view.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/improved_error_handling_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/improved_error_handling_dark.png")}
+/>
+
+**Improvements**:
+
+- Added the option in A/B testing human evaluation to mark both variants as correct
+- Improved loading state in Human Evaluation
+
+---
+
+### Bring your own API key
+
+_25th January 2024_
+
+**v0.8.3**
+
+Up until know, we required users to use our OpenAI API key when using cloud. Starting now, you can use your own API key for any new application you create.
+
+---
+
+### Improved human evaluation workflow
+
+_24th January 2024_
+
+**v0.8.2**
+
+**Faster human evaluation workflow**
+
+We have updated the human evaluation table view to add annotation and correct answer columns.
+
+<Image
+  className="dark:hidden"
+  img={require("/images/changelog/improved_human_eval_workflow_light.png")}
+/>
+<Image
+  className="hidden dark:block"
+  img={require("/images/changelog/improved_human_eval_workflow_dark.png")}
+/>
+
+**Improvements**:
+
+- Simplified the database migration process
+- Fixed environment variable injection to enable cloud users to use their own keys
+- Disabled import from endpoint in cloud due to security reasons
+- Improved query lookup speed for evaluation scenarios
+- Improved error handling in playground
+
+**Bug fixes**:
+
+- Resolved failing Backend tests
+- Fixed a bug in rate limit configuration validation
+- Fixed issue with all aggregated results
+- Resolved issue with live results in A/B testing evaluation not updating
+
+---
+
+### Revamping evaluation
+
+_22nd January 2024_
+
+**v0.8.0**
+
+We've spent the past month re-engineering our evaluation workflow. Here's what's new:
+
+**Running Evaluations**
+
+1. Simultaneous Evaluations: You can now run multiple evaluations for different app variants and evaluators concurrently.
+
+<Image img={require("/images/changelog/eval_1.png")} />
+
+2. Rate Limit Parameters: Specify these during evaluations and reattempts to ensure reliable results without exceeding open AI rate limits.
+
+<Image img={require("/images/changelog/eval_2.png")} />
+
+3. Reusable Evaluators: Configure evaluators such as similarity match, regex match, or AI critique and use them across multiple evaluations.
+
+<Image img={require("/images/changelog/eval_3.png")} />
+
+**Evaluation Reports**
+
+1. Dashboard Improvements: We've upgraded our dashboard interface to better display evaluation results. You can now filter and sort results by evaluator, test set, and outcomes.
+
+<Image img={require("/images/changelog/eval_4.png")} />
+
+2. Comparative Analysis: Select multiple evaluation runs and view the results of various LLM applications side-by-side.
+
+<Image img={require("/images/changelog/eval_5.png")} />
+
+---
+
+### Adding Cost and Token Usage to the Playground
+
+_12th January 2024_
+
+**v0.7.1**
+
+:::caution
+This change requires you to pull the latest version of the agenta platform if you're using the self-serve version.
+:::
+
+<Image img={require("/images/changelog/screenshot_cost_and_token_usage.png")} />
+
+We've added a feature that allows you to compare the time taken by an LLM app, its cost, and track token usage, all in one place.
+
+----#
+
+### Changes to the SDK
+
+This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
+
+```
+
+{
+"message": string,
+"usage": {
+"prompt_tokens": int,
+"completion_tokens": int,
+"total_tokens": int
+},
+"cost": float
+}
+
+```
+
+---
+
+### Improving Side-by-side Comparison in the Playground
+
+_19th December 2023_
+
+**v0.6.6**
+
+- Enhanced the side-by-side comparison in the playground for better user experience
+
+---
+
+### Resolved Batch Logic Issue in Evaluation
+
+_18th December 2023_
+
+**v0.6.5**
+
+- Resolved an issue with batch logic in evaluation (users can now run extensive evaluations)
+
+---
+
+### Comprehensive Updates and Bug Fixes
+
+_12th December 2023_
+
+**v0.6.4**
+
+- Incorporated all chat turns to the chat set
+- Rectified self-hosting documentation
+- Introduced asynchronous support for applications
+- Added 'register_default' alias
+- Fixed a bug in the side-by-side feature
+
+---
+
+### Integrated File Input and UI Enhancements
+
+_12th December 2023_
+
+**v0.6.3**
+
+- Integrated file input feature in the SDK
+- Provided an example that includes images
+- Upgraded the human evaluation view to present larger inputs
+- Fixed issues related to data overwriting in the cloud
+- Implemented UI enhancements to the side bar
+
+---
+
+### Minor Adjustments for Better Performance
+
+_7th December 2023_
+
+**v0.6.2**
+
+- Made minor adjustments
+
+---
+
+### Bug Fix for Application Saving
+
+_7th December 2023_
+
+**v0.6.1**
+
+- Resolved a bug related to saving the application
+
+---
+
+### Introduction of Chat-based Applications
+
+_1st December 2023_
+
+**v0.6.0**
+
+- Introduced chat-based applications
+- Fixed a bug in 'export csv' feature in auto evaluation
+
+---
+
+### Multiple UI and CSV Reader Fixes
+
+_1st December 2023_
+
+**v0.5.8**
+
+- Fixed a bug impacting the csv reader
+- Addressed an issue of variant overwriting
+- Made tabs draggable for better UI navigation
+- Implemented support for multiple LLM keys in the UI
+
+---
+
+### Enhanced Self-hosting and Mistral Model Tutorial
+
+_17th November 2023_
+
+**v0.5.7**
+
+- Enhanced and simplified self-hosting feature
+- Added a tutorial for the Mistral model
+- Resolved a race condition issue in deployment
+- Fixed an issue with saving in the playground
+
+---
+
+### Sentry Integration and User Communication Improvements
+
+_12th November 2023_
+
+**v0.5.6**
+
+- Enhanced bug tracking with Sentry integration in the cloud
+- Integrated Intercom for better user communication in the cloud
+- Upgraded to the latest version of OpenAI
+- Cleaned up files post serving in CLI
+
+---
+
+### Cypress Tests and UI Improvements
+
+_2nd November 2023_
+
+**v0.5.5**
+
+- Conducted extensive Cypress tests for improved application stability
+- Added a collapsible sidebar for better navigation
+- Improved error handling mechanisms
+- Added documentation for the evaluation feature
+
+---
+
+### Launch of SDK Version 2 and Cloud-hosted Version
+
+_23rd October 2023_
+
+**v0.5.0**
+
+- Launched SDK version 2
+- Launched the cloud-hosted version
+- Completed a comprehensive refactoring of the application
+
+</section>
+```

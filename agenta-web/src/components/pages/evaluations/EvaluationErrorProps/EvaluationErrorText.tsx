@@ -3,19 +3,14 @@ import React from "react"
 
 interface EvaluationErrorTextProps {
     text: string
-    setIsErrorModalOpen: (value: React.SetStateAction<boolean>) => void
+    handleOnClick: () => void
 }
 
-const EvaluationErrorText = ({text, setIsErrorModalOpen}: EvaluationErrorTextProps) => {
+const EvaluationErrorText = ({text, handleOnClick}: EvaluationErrorTextProps) => {
     return (
         <Typography.Text type={"danger"} strong>
             {text}{" "}
-            <Button
-                size="small"
-                className="text-xs"
-                type="text"
-                onClick={() => setIsErrorModalOpen(true)}
-            >
+            <Button size="small" className="text-xs" type="text" onClick={() => handleOnClick()}>
                 (more details)
             </Button>
         </Typography.Text>

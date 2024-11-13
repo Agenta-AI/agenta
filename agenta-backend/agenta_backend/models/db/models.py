@@ -6,8 +6,9 @@ if isCloudEE():
         WorkspaceDB,
         OrganizationDB,
         InvitationDB,
-        UserOrganizationDB,
+        OrganizationMemberDB,
         WorkspaceMemberDB,
+        ProjectMemberDB,
         AppDB_ as AppDB,
         UserDB_ as UserDB,
         ImageDB_ as ImageDB,
@@ -27,6 +28,7 @@ else:
     from agenta_backend.models.db_models import (
         AppDB,
         UserDB,
+        ProjectDB,
         ImageDB,
         TestSetDB,
         EvaluationDB,
@@ -49,6 +51,7 @@ from agenta_backend.models.db_models import (
 models = [
     AppDB,
     UserDB,
+    ProjectDB,
     ImageDB,
     TestSetDB,
     TemplateDB,
@@ -66,4 +69,4 @@ models = [
 ]
 
 if isCloudEE():
-    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, UserOrganizationDB, WorkspaceMemberDB])  # type: ignore
+    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, OrganizationMemberDB, ProjectMemberDB, WorkspaceMemberDB])  # type: ignore

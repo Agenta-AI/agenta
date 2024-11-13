@@ -1,0 +1,32 @@
+---
+title: 'Team Management'
+---
+
+import Image from "@theme/IdealImage";
+
+## Inviting users
+
+To add new users to your workspace, start by clicking on **Settings** in the lower left corner of the screen. Then, navigate to the **Workspace** tab and on the far right, you will find the **Invite** button. Clicking this button will open a modal window where you can enter the email address(es) of the user(s) you wish to invite and select their role from a dropdown menu. Once you have entered the necessary information, click the **"Invite"** button to send the invitation. The user(s) will then receive an email invitation to join your workspace.
+
+<Image img={require("/images/misc/team_management_light.png")} className="dark:hidden" />
+<Image img={require("/images/misc/team_management_dark.png")} className="hidden dark:block" />
+
+### User Roles and Their Rights
+- **Owner**: The Owner has full management capabilities within the workspace. This includes adding and removing members, as well as managing all settings and content. Essentially, the Owner has unrestricted access to all features and controls.
+
+- **Workspace Admin**: A Workspace Admin can manage most aspects of the workspace, including settings and member management. However, they do not have the authority to delete the workspace itself.
+
+- **Editor**: Editors are responsible for editing workspace content. They do not have the ability to manage members or assign roles, focusing solely on content management.
+
+- **Evaluator**: Evaluators are tasked with evaluating models and providing feedback. They do not have editing privileges or member management rights, ensuring their role is concentrated on assessment and feedback.
+
+- **Deployment Manager**: Deployment Managers handle the management of model deployments within the workspace. Similar to Evaluators, they do not have content editing or member management rights, allowing them to specialize in deployment tasks.
+
+- **Viewer**: Viewers can access and view all workspace content, but they are restricted from making any changes or managing members and roles. This role is typically for those who need to monitor progress without intervening in the workspace operations.
+
+## Switching workspaces
+
+If you're a member of multiple workspaces, you can switch between them by clicking the workspace name in the lower left corner of the screen. Remember, all applications in a workspace are shared among all its members.
+
+<Image img={require("/images/misc/workspace_tab_light.png")} className="dark:hidden" />
+<Image img={require("/images/misc/workspace_tab_dark.png")} className="hidden dark:block" />

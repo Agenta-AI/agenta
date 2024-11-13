@@ -1,0 +1,49 @@
+---
+title: "Custom Code Evaluator"
+---
+
+Sometimes, the default evaluators in **Agenta** may not be sufficient for your specific use case. In such cases, you can create a custom evaluator to suit your specific needs. Custom evaluators are written in Python.
+
+:::info
+For the moment, there are limitation on the code that can be written in the custom evaluator. Our backend uses `RestrictedPython` to execute the code which limits the libraries that can be used.
+:::
+
+## Evaluation code
+
+Your custom evaluator should include a function called `evaluate` with the following signature:
+
+```python
+from typing import Dict
+
+def evaluate(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: str,
+    correct_answer: str
+) -> float:
+```
+
+This function should return a float value representing the evaluation score. The score ranges from 0.0 to 1.0, where 0.0 indicates a failed evaluation and 1.0 indicates a perfect score.
+
+The function parameters are:
+
+1. `app_params`: A dictionary containing the configuration of the app. This
+   would include the prompt, model and all the other parameters specified in the
+   playground with the same naming.
+2. `inputs`: A dictionary containing the inputs of the app.
+3. `output`: The generated output of the app.
+4. `correct_answer`: The correct answer of the app.
+
+Here's an example implementation of an exact match evaluator:
+
+```python
+from typing import Dict
+
+def evaluate(
+    app_params: Dict[str, str],
+    inputs: Dict[str, str],
+    output: str,
+    correct_answer: str
+) -> float:
+    return 1 if output == correct_answer else 0
+```

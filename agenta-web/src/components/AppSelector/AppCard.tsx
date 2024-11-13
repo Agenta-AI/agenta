@@ -1,76 +1,54 @@
-import {Modal, Card, Avatar} from "antd"
-import {DeleteOutlined} from "@ant-design/icons"
+import {Card, Dropdown, Button, Typography, Tag} from "antd"
+import {MoreOutlined} from "@ant-design/icons"
 import {deleteApp} from "@/services/app-selector/api"
 import {useState} from "react"
-import Link from "next/link"
 import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
-import {ListAppsItem} from "@/lib/Types"
+import {JSSTheme, ListAppsItem} from "@/lib/Types"
 import {useAppsData} from "@/contexts/app.context"
+import {Note, PencilLine, Trash} from "@phosphor-icons/react"
+import {useRouter} from "next/router"
+import {formatDay} from "@/lib/helpers/dateTimeHelper"
+import DeleteAppModal from "./modals/DeleteAppModal"
+import EditAppModal from "./modals/EditAppModal"
 
-const useStyles = createUseStyles({
+const {Text} = Typography
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
-        width: 300,
-        height: 120,
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
-        overflow: "hidden",
-        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
-        "& svg": {
-            color: "#ef4146",
+        transition: "all 0.025s ease-in",
+        cursor: "pointer",
+        boxShadow: theme.boxShadowTertiary,
+        "& > .ant-card-head": {
+            minHeight: 0,
+            padding: `${theme.paddingXS}px ${theme.paddingSM}px`,
+            "& .ant-card-head-title": {
+                fontSize: theme.fontSizeLG,
+                fontWeight: theme.fontWeightMedium,
+            },
         },
-        "& .ant-card-meta": {
-            height: "110%",
+        "& > .ant-card-body": {
+            padding: theme.paddingSM,
+        },
+        "&:hover": {
+            boxShadow: theme.boxShadow,
+        },
+    },
+    app_card_link: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "8px",
+        "& > div": {
             display: "flex",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: "space-between",
+            textDecoration: "none",
+            color: theme.colorText,
         },
-        "& .ant-card-meta-title div": {
-            textAlign: "center",
-        },
     },
-    cardCover: {
-        "z-index": 1,
-        position: "absolute",
-        top: 0,
-        right: 0,
-        left: 0,
-        background: "transparent",
-        margin: "auto",
-        width: "300px",
-        height: "70px",
-        display: "flex",
-        overflow: "hidden",
-        "flex-direction": "column",
-        "justify-content": "space-between",
-    },
-    cardLink: {
-        padding: "24px",
-    },
-})
-
-const DeleteModal: React.FC<{
-    open: boolean
-    handleOk: () => Promise<void>
-    handleCancel: () => void
-    appName: string
-    confirmLoading: boolean
-}> = ({open, handleOk, handleCancel, appName, confirmLoading}) => {
-    return (
-        <Modal
-            title="Are you sure?"
-            open={open}
-            onOk={handleOk}
-            confirmLoading={confirmLoading} // add this line
-            onCancel={handleCancel}
-            okText="Yes"
-            cancelText="No"
-        >
-            <p>Are you sure you want to delete {appName}?</p>
-        </Modal>
-    )
-}
+}))
 
 const AppCard: React.FC<{
     app: ListAppsItem
@@ -78,10 +56,8 @@ const AppCard: React.FC<{
     const [visibleDelete, setVisibleDelete] = useState(false)
     const [confirmLoading, setConfirmLoading] = useState(false)
     const {mutate} = useAppsData()
-
-    const showDeleteModal = () => {
-        setVisibleDelete(true)
-    }
+    const router = useRouter()
+    const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
 
     const handleDeleteOk = async () => {
         setConfirmLoading(true)
@@ -107,29 +83,79 @@ const AppCard: React.FC<{
         <>
             <Card
                 className={classes.card}
-                actions={[<DeleteOutlined key="delete" onClick={showDeleteModal} />]}
+                title={renameVariablesCapitalizeAll(app.app_name)}
+                onClick={() => router.push(`/apps/${app.app_id}/overview`)}
+                extra={
+                    <Dropdown
+                        trigger={["click"]}
+                        overlayStyle={{width: 180}}
+                        menu={{
+                            items: [
+                                {
+                                    key: "open_app",
+                                    label: "Open",
+                                    icon: <Note size={16} />,
+                                    onClick: (e: any) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/apps/${app.app_id}/overview`)
+                                    },
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "rename_app",
+                                    label: "Rename",
+                                    icon: <PencilLine size={16} />,
+                                    onClick: (e: any) => {
+                                        e.domEvent.stopPropagation()
+                                        setIsEditAppModalOpen(true)
+                                    },
+                                },
+                                {
+                                    key: "delete_app",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: (e: any) => {
+                                        e.domEvent.stopPropagation()
+                                        setVisibleDelete(true)
+                                    },
+                                },
+                            ],
+                        }}
+                    >
+                        <Button
+                            type="text"
+                            onClick={(e) => e.stopPropagation()}
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
+                    </Dropdown>
+                }
             >
-                <Link data-cy="app-card-link" href={`/apps/${app.app_id}/playground`}>
-                    <Card.Meta
-                        title={<div>{renameVariablesCapitalizeAll(app.app_name)}</div>}
-                        avatar={
-                            <Avatar
-                                size="large"
-                                style={{backgroundColor: "hsl(150, 52%, 62%)"}} // Example: blue in HSL
-                            >
-                                {app.app_name.charAt(0).toUpperCase()}
-                            </Avatar>
-                        }
-                    />
-                </Link>
+                <div data-cy="app-card-link" className={classes.app_card_link}>
+                    <div>
+                        <Text>Type</Text>
+                        <Tag className="mr-0">Template</Tag>
+                    </div>
+                    <div>
+                        <Text>Last modified:</Text>
+                        <Text>{formatDay(app.updated_at)}</Text>
+                    </div>
+                </div>
             </Card>
 
-            <DeleteModal
+            <DeleteAppModal
                 open={visibleDelete}
-                handleOk={handleDeleteOk}
-                handleCancel={handleDeleteCancel}
+                onOk={handleDeleteOk}
+                onCancel={handleDeleteCancel}
                 appName={app.app_name}
                 confirmLoading={confirmLoading}
+            />
+
+            <EditAppModal
+                open={isEditAppModalOpen}
+                onCancel={() => setIsEditAppModalOpen(false)}
+                appDetails={app}
             />
         </>
     )

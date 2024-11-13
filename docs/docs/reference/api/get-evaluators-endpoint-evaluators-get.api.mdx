@@ -1,0 +1,180 @@
+---
+id: get-evaluators-endpoint-evaluators-get
+title: "Get Evaluators Endpoint"
+description: "Endpoint to fetch a list of evaluators."
+sidebar_label: "Get Evaluators Endpoint"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9VMFu2zAM/RVB5yDJdsxp2Rp0RYdhaNpTEwSMzcRqHUmV6GKZ4X8faTu2ky07Lhc55CP5SD6p1AT7qGfPevEOeQHkQtTrkU4xJsF4Ms7qmV7Y1DtjSZFTO6QkU6ByE0m5ncIubryyK/uAVAQbZyur+PeNQc9d5vVMzf+MU277ggnFsR5p5zGAFL1LueweadOn32DLYmhjCIcFjN7ZiNxIqT9Op3Kcd7AskgRj3BW5emjBHJc4S2hJ4OB9bpK69uQlSkypY5LhAeTLEB7q5D4IRTJNKQsHlJOOnk8dKRi757xkKBfDd/FXI/2Kx3/B7tnNqNQEnsOmiMOcW+dyBDtA39Qw9RTr1BGJOFvcMEOfAw1jm8EOQpctWD2ewNXFqq+TvBnAKg67rBHwrWBmqWipnkvT9llbf6O77kt0QtF9fggBjgMap+2pWyTVa1Z1Eh3YGMJUK2F7QMpcqynO5oEy/jPplVRzC+8Y5DKUugg5+zMiH2eTSZK7Ih3DnrUCYzAT8EZf3pF57VVfBKqrtaRLimDoWOeb/7jjLX9FSDGwYT0ELEVmjaDOYd0yuN59PctGcHpecDfB/KrlymYjBLImSro1dufq8HZoLbfPkLzyJeIA6bOhPR1/GE+vNdMGKKbV3hZIqBd+C2PX+bi6QbGHL5ARHyEcPvUOYeldpAPYQb4rO72kV/YX9/89Te0qCH/ShJXLI6/avstWTs8az97QjPsTa1luIeJTyKtKzG8FBhEFf75DMLCVFbEiRqcNil7qF0PP+dHy0r7kbYRw8UqJjjpt3y4eebC/AbwIBD8=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get Evaluators Endpoint"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators"}
+>
+  
+</MethodEndpoint>
+
+
+
+Endpoint to fetch a list of evaluators.
+
+Returns:
+    List[Evaluator]: A list of evaluator objects.
+
+<div>
+  <div>
+    <ApiTabs
+      label={undefined}
+      id={undefined}
+    >
+      <TabItem
+        label={"200"}
+        value={"200"}
+      >
+        <div>
+          
+          
+          Successful Response
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      <li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                        >
+                          Array [
+                        </div>
+                      </li><SchemaItem
+                        collapsible={false}
+                        name={"name"}
+                        required={true}
+                        schemaName={"Name (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Name"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"key"}
+                        required={true}
+                        schemaName={"Key (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Key"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"direct_use"}
+                        required={true}
+                        schemaName={"Direct Use (boolean)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"boolean","title":"Direct Use"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"settings_template"}
+                        required={true}
+                        schemaName={"object"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"object","title":"Settings Template"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"description"}
+                        required={false}
+                        schemaName={"Description (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Description"}}
+                      >
+                        
+                      </SchemaItem><li>
+                        <div
+                          style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                        >
+                          ]
+                        </div>
+                      </li>
+                    </ul>
+                  </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"[\n  {\n    \"name\": \"string\",\n    \"key\": \"string\",\n    \"direct_use\": true,\n    \"settings_template\": {},\n    \"description\": \"string\"\n  }\n]"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
+      

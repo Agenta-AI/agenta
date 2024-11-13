@@ -5,7 +5,6 @@ import {createNewEvaluation} from "@/services/human-evaluations/api"
 import {isDemo} from "@/lib/helpers/utils"
 import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
-import {DownOutlined} from "@ant-design/icons"
 import {EvaluationType} from "@/lib/enums"
 import {PERMISSION_ERR_MSG} from "@/lib/helpers/axiosConfig"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
@@ -15,6 +14,7 @@ import {createUseStyles} from "react-jss"
 import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLoadTestsetsList} from "@/services/testsets/api"
+import {CaretDown, Play} from "@phosphor-icons/react"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     evaluationContainer: {
@@ -110,6 +110,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
+    },
+    dropdownItemLabels: {
+        fontSize: theme.fontSizeSM,
+        lineHeight: theme.lineHeightSM,
+        color: theme.colorTextDescription,
     },
 }))
 
@@ -258,7 +263,7 @@ const HumanEvaluationModal = ({
             const selectedVariant = variants.find((variant) => variant.variantName === key)
 
             if (!selectedVariant) {
-                console.log("Error: No variant found")
+                console.error("Error: No variant found")
             }
 
             setSelectedVariants((prevState) => {
@@ -278,7 +283,15 @@ const HumanEvaluationModal = ({
                 filteredVariants.push({
                     label: (
                         <>
-                            <div data-cy={`variant-${idx}`}>{variant.variantName}</div>
+                            <div
+                                data-cy={`variant-${idx}`}
+                                className="flex items-center justify-between"
+                            >
+                                <span>{variant.variantName}</span>
+                                <span className={classes.dropdownItemLabels}>
+                                    #{variant.variantId.split("-")[0]}
+                                </span>
+                            </div>
                         </>
                     ),
                     key: label,
@@ -340,9 +353,9 @@ const HumanEvaluationModal = ({
         setVariants(selectedVariants)
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
-            router.push(`/apps/${appId}/annotations/human_a_b_testing/${evaluationTableId}`)
+            router.push(`/apps/${appId}/evaluations/human_a_b_testing/${evaluationTableId}`)
         } else if (evaluationType === EvaluationType.single_model_test) {
-            router.push(`/apps/${appId}/annotations/single_model_test/${evaluationTableId}`)
+            router.push(`/apps/${appId}/evaluations/single_model_test/${evaluationTableId}`)
         }
     }
 
@@ -352,10 +365,11 @@ const HumanEvaluationModal = ({
                 open={isEvalModalOpen}
                 onCancel={() => {
                     setIsEvalModalOpen(false)
+
                     setSelectedTestset({name: "Select a Test set"})
                     setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
                 }}
-                title="Start a New Evaluation"
+                title="New Evaluation"
                 footer={null}
             >
                 <Spin spinning={areAppVariantsLoading}>
@@ -372,7 +386,7 @@ const HumanEvaluationModal = ({
                                     >
                                         <div className={classes.dropdownStyles}>
                                             {selectedTestset.name}
-                                            <DownOutlined />
+                                            <CaretDown size={16} />
                                         </div>
                                     </Button>
                                 </Dropdown>
@@ -392,7 +406,7 @@ const HumanEvaluationModal = ({
                                             <div className={classes.dropdownStyles}>
                                                 {selectedVariants[index]?.variantName ||
                                                     "Select a variant"}
-                                                <DownOutlined />
+                                                <CaretDown size={16} />
                                             </div>
                                         </Button>
                                     </Dropdown>
@@ -429,6 +443,8 @@ const HumanEvaluationModal = ({
                                         onClick={onStartEvaluation}
                                         type="primary"
                                         data-cy="start-new-evaluation-button"
+                                        icon={<Play size={14} />}
+                                        className="flex items-center"
                                     >
                                         Start
                                     </Button>
