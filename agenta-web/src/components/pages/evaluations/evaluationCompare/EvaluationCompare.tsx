@@ -15,7 +15,7 @@ import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/lib/helpers/evaluate"
-import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
+import {getColorPairFromStr, getRandomColors} from "@/lib/helpers/colors"
 import {CheckOutlined, CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -114,10 +114,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         const previous = new Set<string>()
         const colors = getRandomColors()
         return variants.map((v) => {
-            const color = getColorFromStr(v.evaluationId)
-            if (previous.has(color)) return colors.find((c) => !previous.has(c))!
-            previous.add(color)
-            return color
+            const {textColor} = getColorPairFromStr(v.evaluationId)
+            if (previous.has(textColor)) return colors.find((c) => !previous.has(c))!
+            previous.add(textColor)
+            return textColor
         })
     }, [variants])
 
