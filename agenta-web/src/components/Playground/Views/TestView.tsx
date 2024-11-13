@@ -567,10 +567,10 @@ const App: React.FC<TestViewProps> = ({
             // Check result type
             // String, FuncResponse or BaseResponse
             if (typeof result === "string") {
-                res = { version: "3.0", data: result } as BaseResponse
+                res = {version: "3.0", data: result} as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
             } else if (isFuncResponse(result)) {
-                res = { version: "3.0", data: result.message } as BaseResponse
+                res = {version: "3.0", data: result.message} as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
 
                 const {message, cost, latency, usage} = result
