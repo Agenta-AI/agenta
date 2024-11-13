@@ -992,50 +992,13 @@ def parse_inline_trace(
     ### services.observability.service.query() ###
     ##############################################
 
-    LEGACY = True
     inline_trace = None
 
-    if LEGACY:
-        legacy_spans = [
-            _parse_to_legacy_span(span_dto) for span_dto in span_idx.values()
-        ]
-
-        root_span = agenta_span_dtos[0]
-
-        trace_id = root_span.root.id.hex
-        latency = root_span.time.span / 1_000_000
-        cost = root_span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
-        tokens = {
-            "prompt_tokens": root_span.metrics.get("acc", {})
-            .get("tokens", {})
-            .get("prompt", 0),
-            "completion_tokens": root_span.metrics.get("acc", {})
-            .get("tokens", {})
-            .get("completion", 0),
-            "total_tokens": root_span.metrics.get("acc", {})
-            .get("tokens", {})
-            .get("total", 0),
-        }
-
-        spans = [
-            loads(span.model_dump_json(exclude_none=True)) for span in legacy_spans
-        ]
-
-        inline_trace = {
-            "trace_id": trace_id,
-            "latency": latency,
-            "cost": cost,
-            "usage": tokens,
-            "spans": spans,
-        }
-
-    else:
-        spans = [
-            loads(span_dto.model_dump_json(exclude_none=True))
-            for span_dto in agenta_span_dtos
-        ]
-
-        inline_trace = spans  # turn into Agenta Model ?
+    spans = [
+        loads(span_dto.model_dump_json(exclude_none=True))
+        for span_dto in agenta_span_dtos
+    ]
+    inline_trace = spans  # NOTE (author: @jp-agenta): turn into Agenta Model ?
 
     return inline_trace
 
