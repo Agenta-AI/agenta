@@ -1,0 +1,90 @@
+---
+title: LiteLLM
+description: Learn how to instrument LiteLLM traces with Agenta for enhanced LLM observability. This guide covers setup, configuration, and best practices for monitoring API calls and performance using LiteLLM and OpenAI models.
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+```
+
+[LiteLLM](https://www.litellm.ai/) is Python SDK that allows you to **call 100+ LLM APIs in OpenAI format - [Bedrock, Azure, OpenAI, VertexAI, Cohere, Anthropic, Sagemaker, HuggingFace, Replicate, Groq]**.
+
+This guide shows you how to instrument LiteLLM applications using Agenta's observability features.
+
+## Installation
+
+Install the required packages:
+
+```bash
+pip install -U agenta litellm
+```
+
+## Configure Environment Variables
+
+<Tabs>
+<TabItem value="cloud" label="Agenta Cloud or Enterprise">
+
+```python
+import os
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+```
+
+</TabItem>
+<TabItem value="oss" label="Agenta OSS Running Locally">
+
+```python
+import os
+
+os.environ["AGENTA_HOST"] = "http://localhost"
+```
+
+</TabItem>
+</Tabs>
+
+## Code Example
+
+```python
+# highlight-next-line
+import agenta as ag
+import litellm
+import asyncio
+
+# highlight-next-line
+ag.init()
+
+# highlight-next-line
+@ag.instrument()
+async def agenerate_completion():
+    # highlight-next-line
+    litellm.callbacks = [ag.callbacks.litellm_handler()]
+
+    # Define the messages for the chat completion
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Write a short story about AI Engineering."},
+    ]
+    temperature = 0.2
+    max_tokens = 100
+
+    # Make an asynchronous chat completion request
+    chat_completion = await litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    print(chat_completion)
+
+# Run the asynchronous function
+asyncio.run(agenerate_completion())
+```
+
+## Explanation
+
+- **Initialize Agenta**: `ag.init()` sets up the Agenta SDK.
+- **Instrument the Function**: The `@ag.instrument()` decorator wraps the `agenerate_completion` function, creating a parent span in Agenta.
+- **Set Up Callback**: `litellm.callbacks = [ag.callbacks.litellm_handler()]` sets the Agenta callback handler for LiteLLM. This enables LiteLLM to send trace data to Agenta.

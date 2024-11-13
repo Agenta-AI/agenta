@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agenta_backend.services import db_manager
-from agenta_backend.models.db.postgres_engine import db_engine
+from agenta_backend.dbs.postgres.shared.engine import engine
 from agenta_backend.models.db_models import (
     ProjectDB,
     AppDB,
@@ -42,7 +42,7 @@ BASE_ID = "0192a45c-4630-7130-8d59-7036ec84002f"
 
 @pytest.fixture()
 async def get_or_create_user_from_db():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         if user is None:
@@ -56,7 +56,7 @@ async def get_or_create_user_from_db():
 
 @pytest.fixture()
 async def get_or_create_project_from_db():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(ProjectDB).filter_by(is_default=True))
         project = result.scalars().first()
         if project is None:
@@ -70,7 +70,7 @@ async def get_or_create_project_from_db():
 
 @pytest.fixture()
 async def get_app_variant_by_slug():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(config_name="from_pytest")
         )
@@ -80,7 +80,7 @@ async def get_app_variant_by_slug():
 
 @pytest.fixture()
 async def get_app_by_name():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="test_prompt_client")
         )
@@ -90,7 +90,7 @@ async def get_app_by_name():
 
 @pytest.fixture()
 async def get_production_environment_by_name():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppEnvironmentDB).filter_by(name="production")
         )
@@ -100,7 +100,7 @@ async def get_production_environment_by_name():
 
 @pytest.fixture()
 async def get_user_from_db():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         return user
@@ -113,7 +113,7 @@ async def get_app_variant_revision_by_variant_id(get_app_variant_by_slug):
         variant, AppVariantDB
     ), "App variant gotten from fixture is not of type AppVariantDB"
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(variant_id=variant.id)
         )
@@ -130,7 +130,7 @@ async def get_environment_revision_by_environment_id(
         environment, AppEnvironmentDB
     ), "Production environment gotten from fixture is not of type AppEnvironmentDB"
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppEnvironmentRevisionDB).filter_by(environment_id=environment.id)
         )
@@ -172,7 +172,7 @@ async def create_app_variant_for_prompt_management(
         project_db, ProjectDB
     ), "Project gotten from fixture is not of type ProjectDB"
 
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         app = AppDB(
             id=uuid.UUID(APP_ID),
             app_name="test_prompt_client",

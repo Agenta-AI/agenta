@@ -6,18 +6,18 @@ import Image from "@theme/IdealImage";
 
 ## Introduction
 
-In this tutorial, we will **create a prompt** in the web UI, **publish** it to a deployment, **integrate** it with our code base.
+In this tutorial, we will **create a prompt** in the web UI, **publish** it to a deployment, and **integrate** it with our codebase using the Agenta SDK.
 
 :::note
-If you want to do this whole process programatically, jump to [this guide](/prompt-management/integration/how-to-integrate-with-agenta)
+If you want to do this whole process programmatically, jump to [this guide](/prompt-management/integration/how-to-integrate-with-agenta).
 :::
 
-## 1. Create a prompt
+## 1. Create a Prompt
 
-We will create a prompt from the web UI. This can be done simply by going to the app overview, clicking on create a prompt. You have here the choice between using a chat prompt or a text prompt:
+We will create a prompt from the web UI. This can be done by going to the app overview and clicking on **Create a Prompt**. You have the choice between using a chat prompt or a text prompt:
 
-- A text prompt is useful for single turn LLM applications such as question answering, text generation, entity extraction, and classification, etc.
-- A chat application is designed for multi-turn applications like chatbots.
+- **Text Prompt**: Useful for single-turn LLM applications such as question answering, text generation, entity extraction, classification, etc.
+- **Chat Application**: Designed for multi-turn applications like chatbots.
 
 <Image
   style={{ width: "80%", display: "block", margin: "0 auto" }}
@@ -25,76 +25,144 @@ We will create a prompt from the web UI. This can be done simply by going to the
 />
 <br />
 
-## 2. Publish a variant
+## 2. Publish a Variant
 
-You can create in each LLM application multiple variants. You can think of variants as git branches. Each variant is versioned with each variant version having it's own commit number and being immutable.
+Within each LLM application, you can create multiple variants. Variants are like Git branches, allowing you to experiment with different configurations. Each variant is versioned, and each version has its own commit number and is immutable.
 
-When you are satified with a commit (after evaluating it for instance) you can publish it to a deployment. The deployment is tagged with an environment (`production`, `development` or `staging`) and provides you access to endpoint for both the published configuration and to a proxy for the calls.
+When you are satisfied with a variant's version (after evaluating it, for instance), you can publish it to a deployment. A deployment is tagged with an environment (`production`, `development`, or `staging`) and provides you with access to endpoints for both the published configuration and proxying the calls.
 
-To publish a variant, go to overview, click on the three dots on the **variant** that you want to publish and select Deploy (see screenshto)
+To publish a variant, go to the overview, click on the three dots on the **variant** that you want to publish, and select **Deploy** (see screenshot):
 
 <Image
   style={{ width: "75%", display: "block", margin: "0 auto" }}
   img={require("/images/prompt_management/deploy-action.png")}
 />
 <br />
-You can select now which deployments you want to publish the variant to
+
+You can now select which environments you want to publish the variant to:
 
 <Image
   style={{ width: "75%", display: "block", margin: "0 auto" }}
   img={require("/images/prompt_management/deployment-modal.png")}
 />
-
 <br />
+
 :::caution
 
-New change
-to the **variant** will not be automaticly published to the **deployment** unless
-we explicitly **publish it**.
+New changes to the **variant** will not be automatically published to the **deployment** unless you explicitly **publish it** again.
 
-The reason is that we have published the last **version**/**commit** of the **variant** to
-that deployment and not the **variant** itself!
+The reason is that we have published a specific **version**/**commit** of the **variant** to that deployment, not the **variant** itself!
 
 :::
 
-## 3. Integrate with your code
+## 3. Integrate with Your Code
 
-To see the code snippet needed to use the prompt, click on the name of the deployment and you will see a drawer with the integration code. For example for python
+To use the prompt in your code, you can utilize the Agenta SDK to fetch the configuration. Here's how you can do it in Python:
 
-```python
-from agenta import Agenta
-agenta = Agenta()
-config = agenta.get_config(base_id="xxxxx", environment="production", cache_timeout=200) # Fetches the configuration with caching
-```
+### a. Initialize the SDK
 
-The prompt object will be like this:
+First, import the `agenta` module and initialize the SDK using `ag.init()`. Make sure you have your API key set in your environment variables or configuration file.
 
 ```python
-{'temperature': 1.0,
-'model': 'gpt-3.5-turbo',
-'max_tokens': -1,
-'prompt_system': 'You are an expert in geography.',
-'prompt_user': 'What is the capital of {country}?',
-'top_p': 1.0,
-'frequence_penalty': 0.0,
-'presence_penalty': 0.0,
-'force_json': 0}
+import agenta as ag
 
+# Initialize the SDK (API key can be set in environment variables or passed directly)
+ag.init(api_key="your_api_key")  # Replace with your actual API key or omit if set elsewhere
 ```
 
-## 4. Revert to previous deployment (optional)
+### b. Fetch the Configuration
+
+To fetch the configuration from the production environment, use the `ConfigManager.get_from_registry` method:
+
+```python
+# Fetch configuration from the production environment
+config = ag.ConfigManager.get_from_registry(
+    app_slug="your-app-slug"
+)
+```
+
+- **Note**: If you do not provide a `variant_ref` or `environment_ref`, the SDK defaults to fetching the latest configuration deployed to the `production` environment.
+
+### c. Use the Configuration
+
+The `config` object will be a dictionary containing your prompt configuration. You can use it directly in your application:
+
+```python
+# Use the configuration
+print(config)
+```
+
+**Example Output:**
+
+```python
+{
+    'temperature': 1.0,
+    'model': 'gpt-3.5-turbo',
+    'max_tokens': -1,
+    'prompt_system': 'You are an expert in geography.',
+    'prompt_user': 'What is the capital of {country}?',
+    'top_p': 1.0,
+    'frequency_penalty': 0.0,
+    'presence_penalty': 0.0,
+    'force_json': 0
+}
+```
+
+### d. (Optional) Schema Validation with Pydantic
+
+If you have a predefined schema for your configuration, you can use Pydantic to validate it:
+
+```python
+from pydantic import BaseModel
+
+# Define your configuration schema
+class ConfigSchema(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+    prompt_system: str
+    prompt_user: str
+    top_p: float
+    frequency_penalty: float
+    presence_penalty: float
+    force_json: int
+
+# Fetch configuration with schema validation
+config = ag.ConfigManager.get_from_registry(
+    app_slug="your-app-slug",
+    schema=ConfigSchema
+)
+
+# Use the configuration
+print(config)
+```
+
+- The `config` object will now be an instance of `ConfigSchema`, allowing you to access its fields directly with type checking.
+
+### e. Asynchronous Fetching (Optional)
+
+If your application is asynchronous, you can use the async version of the method:
+
+```python
+# Asynchronous fetching of configuration
+config = await ag.ConfigManager.aget_from_registry(
+    app_slug="your-app-slug"
+)
+```
+
+## 4. Revert to Previous Deployment (Optional)
 
 :::note
-This feature is only available in cloud and enterprise version
+This feature is only available in the cloud and enterprise versions.
 :::
 
-Optionally you would like to revert to a previously published commit. For this click on the deployment in the overview view, then click on **history**, you will see all the previous published version. You can revert to a previous version by clicking on revert.
+If you need to revert to a previously published commit, click on the deployment in the overview view, then click on **History**. You will see all the previously published versions. You can revert to a previous version by clicking on **Revert**.
 
 <Image
   style={{ width: "75%", display: "block", margin: "0 auto" }}
   img={require("/images/prompt_management/revert-deployment.png")}
 />
 
-## Next steps
+## Next Steps
 
-Now that you've created and published your first prompt, you can learn how to do [prompt engineering in the playground](/prompt-management/using-the-playground) or dive deeper into [the capabilities of the prompt management SDK](/prompt-management/creating-a-custom-template)
+Now that you've created and published your first prompt, you can learn how to do [prompt engineering in the playground](/prompt-management/using-the-playground) or dive deeper into [the capabilities of the prompt management SDK](/prompt-management/creating-a-custom-template).
