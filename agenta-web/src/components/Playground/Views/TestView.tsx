@@ -174,7 +174,7 @@ interface BoxComponentProps {
     additionalData: {
         cost: number | null
         latency: number | null
-        usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
+        usage: {completion: number; prompt: number; total: number} | null
     }
     onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
@@ -336,7 +336,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             )}
             {additionalData?.cost || additionalData?.latency ? (
                 <Space className="flex items-center gap-3">
-                    <span>Tokens: {formatTokenUsage(additionalData?.usage?.total_tokens)}</span>
+                    <span>Tokens: {formatTokenUsage(additionalData?.usage?.total)}</span>
                     <span>Cost: {formatCurrency(additionalData?.cost)}</span>
                     <span>Latency: {formatLatency(additionalData?.latency)}</span>
                     {traceSpans?.spans?.length && isDemo() && (
@@ -397,7 +397,7 @@ const App: React.FC<TestViewProps> = ({
         Array<{
             cost: number | null
             latency: number | null
-            usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number} | null
+            usage: {completion?: number; prompt?: number; total: number} | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
     const [traceSpans, setTraceSpans] = useState<
@@ -405,11 +405,7 @@ const App: React.FC<TestViewProps> = ({
               trace_id: string
               cost?: number
               latency?: number
-              usage?: {
-                  completion_tokens: number
-                  prompt_tokens: number
-                  total_tokens: number
-              }
+              usage?: {completion: number; prompt: number; total: number}
               spans?: BaseResponseSpans[]
           }
         | undefined
@@ -583,13 +579,13 @@ const App: React.FC<TestViewProps> = ({
                 res = result as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
 
-                const {data, trace} = result
+                const trace = result.trace
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
                     newDataList[index] = {
-                        cost: trace?.cost || null,
-                        latency: trace?.latency || null,
-                        usage: trace?.usage || null,
+                        cost: trace[0]?.metrics?.acc?.costs?.total || null,
+                        latency: trace[0]?.time?.span / 1_000_000 || null,
+                        usage: trace[0]?.metrics?.acc?.tokens || null,
                     }
                     return newDataList
                 })
