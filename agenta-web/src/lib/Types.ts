@@ -547,13 +547,7 @@ export type FuncResponse = {
 export type BaseResponse = {
     version: string
     data: string | Record<string, any>
-    trace?: {
-        trace_id: string
-        cost?: number
-        latency?: number
-        usage?: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
-        spans?: BaseResponseSpans[]
-    }
+    trace?: Record<string, any>[]
 }
 
 export type BaseResponseSpans = {

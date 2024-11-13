@@ -5,5 +5,5 @@ export function isFuncResponse(res: any): res is FuncResponse {
 }
 
 export function isBaseResponse(res: any): res is BaseResponse {
-    return res && res?.version === "2.0"
+    return res && res?.version
 }
