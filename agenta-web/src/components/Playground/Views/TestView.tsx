@@ -397,7 +397,10 @@ const App: React.FC<TestViewProps> = ({
         Array<{
             cost: number | null
             latency: number | null
-            usage: {completion?: number; prompt?: number; total: number} | null
+            usage:
+                | {completion?: number; prompt?: number; total: number}
+                | {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
+                | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
     const [traceSpans, setTraceSpans] = useState<
