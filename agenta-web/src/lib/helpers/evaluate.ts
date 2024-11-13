@@ -1,4 +1,4 @@
-import {HumanEvaluationListTableDataType} from "@/components/Evaluations/HumanEvaluationResult"
+import {HumanEvaluationListTableDataType, SingleModelEvaluationListTableDataType} from "@/lib/Types"
 import {
     Evaluation,
     GenericObject,
@@ -15,6 +15,8 @@ import {capitalize, round} from "lodash"
 import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
 import {formatCurrency, formatLatency} from "./formatters"
+import {isDemo} from "./utils"
+import {EvaluationType} from "../enums"
 
 export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
     const exportRow = rows.map((data, ix) => {
@@ -238,7 +240,13 @@ export const getVotesPercentage = (record: HumanEvaluationListTableDataType, ind
 export const checkIfResourceValidForDeletion = async (
     data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
 ) => {
-    const appId = getAppValues().currentApp?.app_id
+    let appId
+
+    if (data.resourceType === "testset") {
+        appId = getAppValues().apps[0]?.app_id
+    } else {
+        appId = getAppValues().currentApp?.app_id
+    }
     if (!appId) return false
 
     const response = await fetchEvaluatonIdsByResource({...data, appId})
@@ -351,4 +359,97 @@ const getCustomComparator = (type: CellDataType) => (valueA: string, valueB: str
 
 export const removeCorrectAnswerPrefix = (str: string) => {
     return str.replace(/^correctAnswer_/, "")
+}
+
+export const mapTestcaseAndEvalValues = (
+    settingsValues: Record<string, any>,
+    selectedTestcase: Record<string, any>,
+) => {
+    let testcaseObj: Record<string, any> = {}
+    let evalMapObj: Record<string, any> = {}
+
+    Object.entries(settingsValues).forEach(([key, value]) => {
+        if (typeof value === "string" && value.startsWith("testcase.")) {
+            testcaseObj[key] = selectedTestcase[value.split(".")[1]]
+        } else {
+            evalMapObj[key] = value
+        }
+    })
+
+    return {testcaseObj, evalMapObj}
+}
+
+export const transformTraceKeysInSettings = (
+    settingsValues: Record<string, any>,
+): Record<string, any> => {
+    return Object.keys(settingsValues).reduce(
+        (acc, curr) => {
+            if (
+                !acc[curr] &&
+                typeof settingsValues[curr] === "string" &&
+                settingsValues[curr].startsWith("trace.")
+            ) {
+                acc[curr] = settingsValues[curr].replace("trace.", "")
+            } else {
+                acc[curr] = settingsValues[curr]
+            }
+
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
+
+export const getEvaluatorTags = () => {
+    const evaluatorTags = [
+        {
+            label: "Classifiers",
+            value: "classifiers",
+        },
+        {
+            label: "Similarity",
+            value: "similarity",
+        },
+        {
+            label: "AI / LLM",
+            value: "ai_llm",
+        },
+        {
+            label: "Functional",
+            value: "functional",
+        },
+    ]
+
+    if (isDemo()) {
+        evaluatorTags.unshift({
+            label: "RAG",
+            value: "rag",
+        })
+    }
+
+    return evaluatorTags
+}
+
+export const calculateAvgScore = (evaluation: SingleModelEvaluationListTableDataType) => {
+    let score = 0
+    if (evaluation.scoresData) {
+        score =
+            ((evaluation.scoresData.correct?.length || evaluation.scoresData.true?.length || 0) /
+                evaluation.scoresData.nb_of_rows) *
+            100
+    } else if (evaluation.resultsData) {
+        const multiplier = {
+            [EvaluationType.auto_webhook_test]: 100,
+            [EvaluationType.single_model_test]: 1,
+        }
+        score = calculateResultsDataAvg(
+            evaluation.resultsData,
+            multiplier[evaluation.evaluationType as keyof typeof multiplier],
+        )
+        score = isNaN(score) ? 0 : score
+    } else if (evaluation.avgScore) {
+        score = evaluation.avgScore * 100
+    }
+
+    return score
 }

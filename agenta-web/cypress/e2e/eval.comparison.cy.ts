@@ -8,7 +8,6 @@ describe("Evaluation Comparison Test", function () {
         cy.get("@app_id").then((appId) => {
             app_id = appId
         })
-        cy.get('[data-cy="playground-save-changes-button"]').eq(0).click()
     })
 
     context("When creating an app variant", () => {
@@ -40,8 +39,8 @@ describe("Evaluation Comparison Test", function () {
 
     context("Executing Evaluation Comparison Workflow", () => {
         beforeEach(() => {
-            cy.visit(`/apps/${app_id}/evaluations/results`)
-            cy.location("pathname").should("include", "/evaluations/results")
+            cy.visit(`/apps/${app_id}/evaluations`)
+            cy.location("pathname").should("include", "/evaluations")
         })
 
         it("Should create 2 new Evaluations", () => {
@@ -49,11 +48,7 @@ describe("Evaluation Comparison Test", function () {
                 url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
                 method: "GET",
             }).then((resp) => {
-                if (resp.body.length) {
-                    cy.get('[data-cy="new-evaluation-button"]').click()
-                } else {
-                    cy.get('[data-cy="new-evaluation-button__no_variants"]').click()
-                }
+                cy.get('[data-cy="new-evaluation-button"]').click()
             })
             cy.get(".ant-modal-content").should("exist")
 
@@ -74,19 +69,19 @@ describe("Evaluation Comparison Test", function () {
         })
 
         it("Should verify that there are completed evaluations in the list", () => {
-            cy.get('.ag-row[row-index="0"]').should("exist")
-            cy.get('.ag-row[row-index="1"]').should("exist")
-            cy.get('.ag-cell[col-id="status"]', {timeout: 60000})
+            cy.get(".ant-table-row").eq(0).should("exist")
+            cy.get(".ant-table-row").eq(1).should("exist")
+            cy.get('[data-cy="evaluation-status-cell"]', {timeout: 60000})
                 .eq(0)
                 .should("contain.text", "Completed")
-            cy.get('.ag-cell[col-id="status"]', {timeout: 60000})
+            cy.get('[data-cy="evaluation-status-cell"]', {timeout: 60000})
                 .eq(1)
                 .should("contain.text", "Completed")
         })
 
         it("Should select 2 evaluations, click on the compare button, and successfully navigate to the comparison page", () => {
-            cy.get("div.ag-selection-checkbox input").eq(0).check()
-            cy.get("div.ag-selection-checkbox input").eq(1).check()
+            cy.get(".ant-checkbox-input").eq(0).check()
+
             cy.get('[data-cy="evaluation-results-compare-button"]').should("not.be.disabled")
             cy.get('[data-cy="evaluation-results-compare-button"]').click()
             cy.location("pathname").should("include", "/evaluations/results/compare")

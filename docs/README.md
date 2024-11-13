@@ -1,35 +1,55 @@
-# Mintlify Starter Kit
+# Agenta Documentation
 
-Click on `Use this template` to copy the Mintlify starter kit. The starter kit contains examples including
+This documentation is powered by [Docusaurus](https://docusaurus.io/), a modern and efficient static site generator.
 
-- Guide pages
-- Navigation
-- Customizations
-- API Reference pages
-- Use of popular components
+## Getting Started
 
-### 👩‍💻 Development
+To set up the documentation locally, follow these steps:
 
-Install the [Mintlify CLI](https://www.npmjs.com/package/mintlify) to preview the documentation changes locally. To install, use the following command
+1. **Install Dependencies**  
+   First, install the required packages:
 
-```
-npm i -g mintlify
-```
+   ```bash
+   npm install
+   ```
 
-Run the following command at the root of your documentation (where mint.json is)
+2. **Start the Local Development Server**  
+   Spin up the server to start working locally:
 
-```
-mintlify dev
-```
+   ```bash
+   npm run start
+   ```
 
-### 😎 Publishing Changes
+   Open your browser and go to `localhost:5000` to view the development site.
 
-Changes will be deployed to production automatically after pushing to the default branch.
+3. **Build the Project**  
+   Ensure everything is working by building the project:
 
-You can also preview changes using PRs, which generates a preview link of the docs.
+   ```bash
+   npm run build
+   ```
 
-#### Troubleshooting
+4. **Preview the Production Environment**  
+   Run the production build server to see how your site will look in production:
+   ```bash
+   npm run serve
+   ```
+   Visit `localhost:3000` to explore the production build.
 
-- Mintlify dev isn't running - Run `mintlify install` it'll re-install dependencies.
-- Page loads as a 404 - Make sure you are running in a folder with `mint.json`
+## Changelog Guidelines
 
+When working on the changelog page, following specific formatting rules are important to ensure the page's layout remains intact. Failure to follow these guidelines may result in broken UI elements.
+
+### Key Guidelines for Editing the Changelog Page
+
+1. **Avoid using italic (`**`) formatting** except when specifying the **publishing date\*\*.
+2. **Use Heading 3 (`###`)** for all changelog section titles.
+3. **Always insert a horizontal rule (`----`)** before beginning a new section of the changelog.
+4. **Ensure all content is written within** the `<section class="changelog">...</section>` **elements**. Writing outside of this structure will break the UI.
+
+By inserting to these formatting conventions, you'll maintain the integrity and readability of the changelog page.
+
+## Notes
+
+- Do not update any libraries or packages as this could disrupt the template structure and cause it to break.
+- Please use kebab-case (this-way) instead of snake_case for naming files and folders

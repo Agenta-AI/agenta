@@ -3,8 +3,9 @@ import logging
 from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
-from agenta_backend.utils.common import APIRouter, isCloudEE
 
+
+from agenta_backend.utils.common import APIRouter, isCloudEE
 from agenta_backend.models.api.api_models import (
     SaveConfigPayload,
     GetConfigResponse,
@@ -35,7 +36,7 @@ async def save_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=base_db,
+                project_id=str(base_db.project_id),
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -60,6 +61,7 @@ async def save_config(
                     app_variant_id=str(variant_to_overwrite.id),
                     parameters=payload.parameters,
                     user_uid=request.state.user_id,
+                    project_id=str(base_db.project_id),
                 )
 
                 logger.debug("Deploying to production environment")
@@ -82,6 +84,7 @@ async def save_config(
                 new_config_name=payload.config_name,
                 parameters=payload.parameters,
                 user_uid=request.state.user_id,
+                project_id=str(base_db.project_id),
             )
 
     except HTTPException as e:
@@ -110,7 +113,7 @@ async def get_config(
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object=base_db,
+                project_id=str(base_db.project_id),
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
             if not has_permission:
@@ -124,7 +127,7 @@ async def get_config(
         # in case environment_name is provided, find the variant deployed
         if environment_name:
             app_environments = await db_manager.list_environments(
-                app_id=str(base_db.app_id)  # type: ignore
+                app_id=str(base_db.app_id),  # type: ignore
             )
             found_variant_revision = next(
                 (
@@ -195,7 +198,10 @@ async def get_config(
     "/deployment/{deployment_revision_id}/",
     operation_id="get_config_deployment_revision",
 )
-async def get_config_deployment_revision(request: Request, deployment_revision_id: str):
+async def get_config_deployment_revision(
+    request: Request,
+    deployment_revision_id: str,
+):
     try:
         environment_revision = await db_manager.fetch_app_environment_revision(
             deployment_revision_id
@@ -231,7 +237,10 @@ async def get_config_deployment_revision(request: Request, deployment_revision_i
     "/deployment/{deployment_revision_id}/revert/",
     operation_id="revert_deployment_revision",
 )
-async def revert_deployment_revision(request: Request, deployment_revision_id: str):
+async def revert_deployment_revision(
+    request: Request,
+    deployment_revision_id: str,
+):
     environment_revision = await db_manager.fetch_app_environment_revision(
         deployment_revision_id
     )
@@ -244,7 +253,7 @@ async def revert_deployment_revision(request: Request, deployment_revision_id: s
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=environment_revision,
+            project_id=str(environment_revision.project_id),
             permission=Permission.EDIT_APP_ENVIRONMENT_DEPLOYMENT,
         )
         if not has_permission:

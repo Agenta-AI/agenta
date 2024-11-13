@@ -14,6 +14,30 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
+def extract_result_from_response(response):
+    value = None
+    latency = None
+    cost = None
+
+    if response.get("version", None) == "2.0":
+        value = response
+
+        if not isinstance(value["data"], dict):
+            value["data"] = str(value["data"])
+
+        if "trace" in response:
+            latency = response["trace"].get("latency", None)
+            cost = response["trace"].get("cost", None)
+    else:
+        value = {"data": str(response["message"])}
+        latency = response.get("latency", None)
+        cost = response.get("cost", None)
+
+    kind = "text" if isinstance(value, str) else "object"
+
+    return value, kind, cost, latency
+
+
 async def make_payload(
     datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
 ) -> Dict:
@@ -89,14 +113,17 @@ async def invoke_app(
             response = await client.post(url, json=payload, timeout=900)
             app_response = await response.json()
             response.raise_for_status()
+
+            value, kind, cost, latency = extract_result_from_response(app_response)
+
             return InvokationResult(
                 result=Result(
-                    type="text",
-                    value=app_response["message"],
+                    type=kind,
+                    value=value,
                     error=None,
                 ),
-                latency=app_response.get("latency"),
-                cost=app_response.get("cost"),
+                latency=latency,
+                cost=cost,
             )
 
         except aiohttp.ClientResponseError as e:

@@ -1,13 +1,19 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/hooks/useAppId"
-import {CorrectAnswer, JSSTheme, _Evaluation, _EvaluationScenario} from "@/lib/Types"
+import {
+    CorrectAnswer,
+    EvaluatorConfig,
+    JSSTheme,
+    _Evaluation,
+    _EvaluationScenario,
+} from "@/lib/Types"
 import {
     deleteEvaluations,
     fetchAllEvaluationScenarios,
     fetchAllEvaluators,
 } from "@/services/evaluations/api"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
-import {ColDef} from "ag-grid-community"
+import {ColDef, ICellRendererParams} from "ag-grid-community"
 import {AgGridReact} from "ag-grid-react"
 import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
@@ -29,6 +35,7 @@ import _ from "lodash"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -143,21 +150,23 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 hide: hiddenCols.includes("Output"),
                 ...getFilterParams("text"),
                 field: `outputs.0`,
-                cellRenderer: (params: any) => {
+                cellRenderer: (params: ICellRendererParams<_EvaluationScenario>) => {
                     const correctAnswer = params?.data?.correct_answers?.find(
                         (item: any) => item.key === selectedCorrectAnswer[0],
                     )
                     const result = params.data?.outputs[index].result
 
                     if (result && result.error && result.type == "error") {
-                        setModalErrorMsg({
-                            message: result.error.message,
-                            stackTrace: result.error.stacktrace,
-                        })
                         return (
                             <EvaluationErrorText
-                                text="Failed to invoke LLM app"
-                                setIsErrorModalOpen={setIsErrorModalOpen}
+                                text="Failure to compute evaluation"
+                                handleOnClick={() => {
+                                    setModalErrorMsg({
+                                        message: result.error?.message || "",
+                                        stackTrace: result.error?.stacktrace || "",
+                                    })
+                                    setIsErrorModalOpen(true)
+                                }}
                             />
                         )
                     }
@@ -165,15 +174,15 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         ? LongTextCellRenderer(
                               params,
                               <CompareOutputDiff
-                                  variantOutput={result?.value}
+                                  variantOutput={getStringOrJson(result?.value)}
                                   expectedOutput={correctAnswer?.value || ""}
                               />,
                           )
                         : LongTextCellRenderer(params)
                 },
-                valueGetter: (params) => {
-                    const result = params.data?.outputs[index].result
-                    return result?.value
+                valueGetter: (params: any) => {
+                    const result = params.data?.outputs[index].result.value
+                    return getStringOrJson(result)
                 },
             })
         })
@@ -195,11 +204,32 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 autoHeaderHeight: true,
                 field: `results`,
                 ...getFilterParams("text"),
-                cellRenderer: ResultRenderer,
+                cellRenderer: (
+                    params: ICellRendererParams<_EvaluationScenario> & {
+                        config: EvaluatorConfig
+                    },
+                ) => {
+                    const result = params.data?.results.find(
+                        (item) => item.evaluator_config === params.config.id,
+                    )?.result
+
+                    return result?.type === "error" && result.error ? (
+                        <EvaluationErrorText
+                            text="Failure to compute evaluation"
+                            handleOnClick={() => {
+                                setModalErrorMsg({
+                                    message: result.error?.message || "",
+                                    stackTrace: result.error?.stacktrace || "",
+                                })
+                                setIsErrorModalOpen(true)
+                            }}
+                        />
+                    ) : (
+                        <ResultRenderer {...params} />
+                    )
+                },
                 cellRendererParams: {
                     config,
-                    setIsErrorModalOpen,
-                    setModalErrorMsg,
                 },
                 valueGetter: (params) => {
                     return params.data?.results[index].result.value
@@ -232,14 +262,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
             },
         })
         return colDefs
-    }, [evalaution, scenarios, selectedCorrectAnswer, hiddenCols])
+    }, [evalaution, scenarios, selectedCorrectAnswer, hiddenCols, evaluators, uniqueCorrectAnswers])
 
     const shownCols = useMemo(
         () =>
             colDefs
                 .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenCols.includes(item)) as string[],
-        [colDefs],
+        [colDefs, hiddenCols],
     )
 
     const onToggleEvaluatorVisibility = (evalConfigId: string) => {
@@ -304,7 +334,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`/apps/${appId}/evaluations/results`))
+                    .then(() => router.push(`/apps/${appId}/evaluations`))
                     .catch(console.error),
         })
     }
@@ -319,7 +349,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Link href={`/apps/${appId}/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/apps/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>

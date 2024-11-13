@@ -8,14 +8,14 @@ import {
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
-import {ColDef, ValueGetterParams} from "ag-grid-community"
+import {ColDef, ICellRendererParams} from "ag-grid-community"
 import {fetchAllComparisonResults} from "@/services/evaluations/api"
 import {AgGridReact} from "ag-grid-react"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/lib/helpers/evaluate"
-import {getColorFromStr, getRandomColors} from "@/lib/helpers/colors"
+import {getColorPairFromStr, getRandomColors} from "@/lib/helpers/colors"
 import {CheckOutlined, CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
 import {getAppValues} from "@/contexts/app.context"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -32,6 +32,7 @@ import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -113,10 +114,10 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         const previous = new Set<string>()
         const colors = getRandomColors()
         return variants.map((v) => {
-            const color = getColorFromStr(v.evaluationId)
-            if (previous.has(color)) return colors.find((c) => !previous.has(c))!
-            previous.add(color)
-            return color
+            const {textColor} = getColorPairFromStr(v.evaluationId)
+            if (previous.has(textColor)) return colors.find((c) => !previous.has(c))!
+            previous.add(textColor)
+            return textColor
         })
     }, [variants])
 
@@ -193,20 +194,22 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 field: `variants.${vi}.output` as any,
                 ...getFilterParams("text"),
                 hide: hiddenVariants.includes("Output"),
-                cellRenderer: (params: any) => {
+                cellRenderer: (params: ICellRendererParams<ComparisonResultRow>) => {
                     const result = params.data?.variants.find(
                         (item: any) => item.evaluationId === variant.evaluationId,
                     )?.output?.result
 
                     if (result && result.error && result.type == "error") {
-                        setModalErrorMsg({
-                            message: result.error.message,
-                            stackTrace: result.error.stacktrace,
-                        })
                         return (
                             <EvaluationErrorText
                                 text="Failed to invoke LLM app"
-                                setIsErrorModalOpen={setIsErrorModalOpen}
+                                handleOnClick={() => {
+                                    setModalErrorMsg({
+                                        message: result.error?.message || "",
+                                        stackTrace: result.error?.stacktrace || "",
+                                    })
+                                    setIsErrorModalOpen(true)
+                                }}
                             />
                         )
                     }
@@ -217,21 +220,23 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                 ? LongTextCellRenderer(
                                       params,
                                       <CompareOutputDiff
-                                          variantOutput={getTypedValue(result)}
+                                          variantOutput={getStringOrJson(result?.value)}
                                           expectedOutput={
-                                              params.data[selectedCorrectAnswer[0]] || ""
+                                              params.data
+                                                  ? params.data[selectedCorrectAnswer[0]]
+                                                  : ""
                                           }
                                       />,
                                   )
-                                : LongTextCellRenderer(params, getTypedValue(result))}
+                                : LongTextCellRenderer(params, getStringOrJson(result?.value))}
                         </>
                     )
                 },
                 valueGetter: (params) => {
-                    return getTypedValue(
+                    return getStringOrJson(
                         params.data?.variants.find(
                             (item) => item.evaluationId === variant.evaluationId,
-                        )?.output?.result,
+                        )?.output?.result.value,
                     )
                 },
             })
@@ -274,24 +279,23 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     field: "variants.0.evaluatorConfigs.0.result" as any,
                     ...getFilterParams("text"),
                     hide: hiddenVariants.includes(config.name),
-                    cellRenderer: (params: ValueGetterParams<ComparisonResultRow, any>) => {
+                    cellRenderer: (params: ICellRendererParams<ComparisonResultRow>) => {
                         const result = params.data?.variants
                             .find((item) => item.evaluationId === variant.evaluationId)
                             ?.evaluatorConfigs.find(
                                 (item) => item.evaluatorConfig.id === config.id,
                             )?.result
 
-                        if (result?.error && result.type === "error") {
-                            setModalErrorMsg({
-                                message: result.error.message,
-                                stackTrace: result.error.stacktrace,
-                            })
-                        }
-
                         return result?.type === "error" && result.error ? (
                             <EvaluationErrorText
                                 text="Failure to compute evaluation"
-                                setIsErrorModalOpen={setIsErrorModalOpen}
+                                handleOnClick={() => {
+                                    setModalErrorMsg({
+                                        message: result.error?.message || "",
+                                        stackTrace: result.error?.stacktrace || "",
+                                    })
+                                    setIsErrorModalOpen(true)
+                                }}
                             />
                         ) : (
                             <Typography.Text>{getTypedValue(result)}</Typography.Text>
@@ -361,7 +365,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
         })
 
         return colDefs
-    }, [rows, hiddenVariants, evalIds, selectedCorrectAnswer])
+    }, [rows, hiddenVariants, evalIds, selectedCorrectAnswer, colors, evaluators])
 
     const fetcher = () => {
         setFetching(true)
@@ -406,7 +410,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
             colDefs
                 .map((item) => item.headerName)
                 .filter((item) => item !== undefined && !hiddenVariants.includes(item)) as string[],
-        [colDefs],
+        [colDefs, hiddenVariants],
     )
 
     const getDynamicHeaderName = (params: ColDef): string => {
@@ -454,7 +458,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 <Space size="large">
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Link href={`/apps/${appId}/testsets/${testset?.id}`}>
+                        <Typography.Link href={`/apps/testsets/${testset?.id}`}>
                             {testset?.name || ""}
                         </Typography.Link>
                     </Space>

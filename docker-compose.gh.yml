@@ -26,7 +26,6 @@ services:
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         command:
@@ -65,7 +64,7 @@ services:
         restart: always
 
     apply_alembic_migration:
-        build: ghcr.io/agenta-ai/agenta-backend
+        image: ghcr.io/agenta-ai/agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
             - FEATURE_FLAG=oss
@@ -75,8 +74,8 @@ services:
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         depends_on:
-          postgres:
-            condition: service_healthy
+            postgres:
+                condition: service_healthy
         networks:
             - agenta-network
 
@@ -158,7 +157,7 @@ services:
             - postgresdb-data:/var/lib/postgresql/data/
             - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
             interval: 10s
             timeout: 5s
             retries: 5

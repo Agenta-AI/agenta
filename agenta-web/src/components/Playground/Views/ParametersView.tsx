@@ -173,7 +173,7 @@ const ParametersView: React.FC<Props> = ({
             setHistoryStatus({loading: false, error: false})
         } catch (error) {
             setHistoryStatus({loading: false, error: true})
-            console.log(error)
+            console.error(error)
         }
     }
 

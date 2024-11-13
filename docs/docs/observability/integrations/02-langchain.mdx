@@ -1,0 +1,116 @@
+---
+title: LangChain
+description: Learn how to instrument LangChain traces with Agenta for enhanced LLM observability. This guide covers setup, configuration, and best practices for monitoring structured data extraction using LangChain and OpenAI models.
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+```
+
+[LangChain](https://python.langchain.com/) **is a framework for developing applications powered by large language models (LLMs)**. By instrumenting LangChain with Agenta, you can monitor and debug your applications more effectively, gaining insights into each step of your workflows.
+
+This guide shows you how to instrument LangChain applications using Agenta's observability features.
+
+## Installation
+
+Install the required packages:
+
+```bash
+pip install -U agenta openai opentelemetry-instrumentation-langchain langchain langchain_community
+```
+
+## Configure Environment Variables
+
+<Tabs>
+<TabItem value="cloud" label="Agenta Cloud or Enterprise">
+
+```python
+import os
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+```
+
+</TabItem>
+<TabItem value="oss" label="Agenta OSS Running Locally">
+
+```python
+import os
+
+os.environ["AGENTA_HOST"] = "http://localhost"
+```
+
+</TabItem>
+</Tabs>
+
+## Code Example
+
+```python
+# highlight-next-line
+import agenta as ag
+# highlight-next-line
+from opentelemetry.instrumentation.langchain import LangchainInstrumentor
+from langchain.schema import SystemMessage, HumanMessage
+from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain_community.chat_models import ChatOpenAI
+from langchain.chains import LLMChain, SequentialChain, TransformChain
+
+# highlight-next-line
+ag.init()
+# highlight-next-line
+LangchainInstrumentor().instrument()
+
+
+def langchain_app():
+    # Initialize the chat model
+    chat = ChatOpenAI(temperature=0)
+
+    # Define a transformation chain to create the prompt
+    transform = TransformChain(
+        input_variables=["subject"],
+        output_variables=["prompt"],
+        transform=lambda inputs: {"prompt": f"Tell me a joke about {inputs['subject']}."},
+    )
+
+    # Define the first LLM chain to generate a joke
+    first_prompt_messages = [
+        SystemMessage(content="You are a funny sarcastic nerd."),
+        HumanMessage(content="{prompt}"),
+    ]
+    first_prompt_template = ChatPromptTemplate.from_messages(first_prompt_messages)
+    first_chain = LLMChain(llm=chat, prompt=first_prompt_template, output_key="joke")
+
+    # Define the second LLM chain to translate the joke
+    second_prompt_messages = [
+        SystemMessage(content="You are an Elf."),
+        HumanMessagePromptTemplate.from_template(
+            "Translate the joke below into Sindarin language:\n{joke}"
+        ),
+    ]
+    second_prompt_template = ChatPromptTemplate.from_messages(second_prompt_messages)
+    second_chain = LLMChain(llm=chat, prompt=second_prompt_template)
+
+    # Chain everything together in a sequential workflow
+    workflow = SequentialChain(
+        chains=[transform, first_chain, second_chain],
+        input_variables=["subject"],
+    )
+
+    # Execute the workflow and print the result
+    result = workflow({"subject": "OpenTelemetry"})
+    print(result)
+
+# Run the LangChain application
+langchain_app()
+```
+
+## Explanation
+
+- **Initialize Agenta**: `ag.init()` sets up the Agenta SDK.
+- **Instrument LangChain**: `LangchainInstrumentor().instrument()` instruments LangChain for tracing. This must be called **before** running your application to ensure all components are traced.
+
+## Using Workflows
+
+You can optionally use the `@ag.instrument(spankind="WORKFLOW")` decorator to create a parent span for your workflow. This is optional, but it's a good practice to instrument the main function of your application.

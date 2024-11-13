@@ -35,6 +35,20 @@ export const createAppFromTemplate = async (
     return response
 }
 
+export const updateAppName = async (
+    appId: string,
+    appName: string,
+    ignoreAxiosError: boolean = false,
+) => {
+    const response = await axios.patch(
+        `${getAgentaApiUrl()}/api/apps/${appId}`,
+        {app_name: appName},
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+
+    return response.data
+}
+
 export const createAndStartTemplate = async ({
     appName,
     providerKey,

@@ -40,6 +40,38 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+export const createParams = (
+    inputParams: Parameter[] | null,
+    environmentName: string,
+    value: string | number,
+    isChatVariant: boolean | null,
+) => {
+    let mainParams: GenericObject = {}
+    let secondaryParams: GenericObject = {}
+
+    inputParams?.forEach((item) => {
+        if (item.input) {
+            mainParams[item.name] = item.default || value
+        } else {
+            secondaryParams[item.name] = item.default || value
+        }
+    })
+    if (isChatVariant) {
+        mainParams["inputs"] = [
+            {
+                role: "user",
+                content: "Example message",
+            },
+        ]
+    } else if (Object.keys(secondaryParams).length > 0) {
+        mainParams["inputs"] = secondaryParams
+    }
+
+    mainParams["environment"] = environmentName
+
+    return JSON.stringify(mainParams, null, 2)
+}
+
 export default function VariantEndpoint() {
     const classes = useStyles()
     const router = useRouter()
@@ -124,36 +156,6 @@ export default function VariantEndpoint() {
     }, [variants, appId])
 
     const {inputParams, isChatVariant, isLoading, isError, error} = useVariant(appId, variant!)
-    const createParams = (
-        inputParams: Parameter[] | null,
-        environmentName: string,
-        value: string | number,
-    ) => {
-        let mainParams: GenericObject = {}
-        let secondaryParams: GenericObject = {}
-
-        inputParams?.forEach((item) => {
-            if (item.input) {
-                mainParams[item.name] = item.default || value
-            } else {
-                secondaryParams[item.name] = item.default || value
-            }
-        })
-        if (isChatVariant) {
-            mainParams["inputs"] = [
-                {
-                    role: "user",
-                    content: "Example message",
-                },
-            ]
-        } else if (Object.keys(secondaryParams).length > 0) {
-            mainParams["inputs"] = secondaryParams
-        }
-
-        mainParams["environment"] = environmentName
-
-        return JSON.stringify(mainParams, null, 2)
-    }
 
     if (isVariantsError) {
         return <ResultComponent status={"error"} title="Failed to load variants" />
@@ -173,7 +175,12 @@ export default function VariantEndpoint() {
         )
     }
 
-    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
+    const params = createParams(
+        inputParams,
+        selectedEnvironment?.name || "none",
+        "add_a_value",
+        isChatVariant,
+    )
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         Python: invokeLlmApppythonCode(uri!, params),
         cURL: invokeLlmAppcURLCode(uri!, params),

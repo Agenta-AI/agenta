@@ -27,7 +27,6 @@ from agenta_backend.services.db_manager import (
     create_new_evaluation_scenario,
     fetch_app_by_id,
     fetch_app_variant_by_id,
-    fetch_evaluation_by_id,
     fetch_evaluator_config,
     fetch_testset_by_id,
     get_deployment_by_id,
@@ -38,16 +37,12 @@ from agenta_backend.services.db_manager import (
 )
 from agenta_backend.services.evaluator_manager import get_evaluators
 
-if isCloudEE():
-    from agenta_backend.commons.models.db_models import AppDB_ as AppDB
-else:
-    from agenta_backend.models.db_models import AppDB
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Fetch all evaluators and precompute ground truth keys
+# Fetch all evaluators and pre-compute ground truth keys
 all_evaluators = get_evaluators()
 ground_truth_keys_dict = {
     evaluator.key: [
@@ -63,6 +58,7 @@ ground_truth_keys_dict = {
 def evaluate(
     self,
     app_id: str,
+    project_id: str,
     variant_id: str,
     evaluators_config_ids: List[str],
     testset_id: str,
@@ -76,6 +72,7 @@ def evaluate(
     Args:
         self: The task instance.
         app_id (str): The ID of the app.
+        project_id (str): The ID of the project.
         variant_id (str): The ID of the app variant.
         evaluators_config_ids (List[str]): The IDs of the evaluators configurations to be used.
         testset_id (str): The ID of the testset.
@@ -94,6 +91,7 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
+                project_id,
                 {
                     "status": Result(
                         type="status", value=EvaluationStatusEnum.EVALUATION_STARTED
@@ -110,9 +108,6 @@ def evaluate(
         ), f"App variant with id {variant_id} not found!"
         app_variant_parameters = app_variant_db.config_parameters
         testset_db = loop.run_until_complete(fetch_testset_by_id(testset_id))
-        new_evaluation_db = loop.run_until_complete(
-            fetch_evaluation_by_id(evaluation_id)
-        )
         evaluator_config_dbs = []
         for evaluator_config_id in evaluators_config_ids:
             evaluator_config = loop.run_until_complete(
@@ -159,19 +154,20 @@ def evaluate(
                 EvaluationScenarioInput(
                     name=input_item["name"],
                     type="text",
-                    value=data_point[
+                    value=data_point.get(
                         (
                             input_item["name"]
                             if input_item["type"] != "messages"
                             else "chat"
-                        )
-                    ],  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
+                        ),
+                        "",
+                    ),  # TODO: We need to remove the hardcoding of chat as name for chat inputs from the FE
                 )
                 for input_item in list_inputs
             ]
             logger.debug(f"Inputs: {inputs}")
 
-            # 2. We skip the iteration if error invking the llm-app
+            # 2. We skip the iteration if error invoking the llm-app
             if app_output.result.error:
                 print("There is an error when invoking the llm app so we need to skip")
                 error_results = [
@@ -191,8 +187,8 @@ def evaluate(
 
                 loop.run_until_complete(
                     create_new_evaluation_scenario(
-                        user_id=str(app.user_id),
-                        evaluation=new_evaluation_db,
+                        project_id=project_id,
+                        evaluation_id=evaluation_id,
                         variant_id=variant_id,
                         inputs=inputs,
                         outputs=[
@@ -211,8 +207,6 @@ def evaluate(
                         is_pinned=False,
                         note="",
                         results=error_results,
-                        organization=str(app.organization_id) if isCloudEE() else None,
-                        workspace=str(app.workspace_id) if isCloudEE() else None,
                     )
                 )
                 continue
@@ -232,14 +226,16 @@ def evaluate(
                 )
                 logger.debug(f"Evaluating with evaluator: {evaluator_config_db}")
 
-                result = evaluators_service.evaluate(
-                    evaluator_key=evaluator_config_db.evaluator_key,
-                    output=app_output.result.value,
-                    data_point=data_point,
-                    settings_values=evaluator_config_db.settings_values,
-                    app_params=app_variant_parameters,  # type: ignore
-                    inputs=data_point,
-                    lm_providers_keys=lm_providers_keys,
+                result = loop.run_until_complete(
+                    evaluators_service.evaluate(
+                        evaluator_key=evaluator_config_db.evaluator_key,
+                        output=app_output.result.value,
+                        data_point=data_point,
+                        settings_values=evaluator_config_db.settings_values,
+                        app_params=app_variant_parameters,  # type: ignore
+                        inputs=data_point,
+                        lm_providers_keys=lm_providers_keys,
+                    )
                 )
 
                 # Update evaluators aggregated data
@@ -270,13 +266,15 @@ def evaluate(
             # 4. We save the result of the eval scenario in the db
             loop.run_until_complete(
                 create_new_evaluation_scenario(
-                    user_id=str(app.user_id),
-                    evaluation=new_evaluation_db,
+                    project_id=project_id,
+                    evaluation_id=evaluation_id,
                     variant_id=variant_id,
                     inputs=inputs,
                     outputs=[
                         EvaluationScenarioOutput(
-                            result=Result(type="text", value=app_output.result.value),
+                            result=Result(
+                                type="text", value=app_output.result.value["data"]
+                            ),
                             latency=app_output.latency,
                             cost=app_output.cost,
                         )
@@ -285,8 +283,6 @@ def evaluate(
                     is_pinned=False,
                     note="",
                     results=evaluators_results,
-                    organization=str(app.organization_id) if isCloudEE() else None,
-                    workspace=str(app.workspace_id) if isCloudEE() else None,
                 )
             )
 
@@ -303,6 +299,7 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
+                project_id,
                 {
                     "average_latency": average_latency.model_dump(),
                     "average_cost": average_cost.model_dump(),
@@ -317,6 +314,7 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
+                project_id,
                 {
                     "status": Result(
                         type="status",
@@ -338,15 +336,11 @@ def evaluate(
         )
 
         loop.run_until_complete(
-            update_evaluation_with_aggregated_results(
-                str(new_evaluation_db.id), aggregated_results
-            )
+            update_evaluation_with_aggregated_results(evaluation_id, aggregated_results)
         )
 
         failed_evaluation_scenarios = loop.run_until_complete(
-            check_if_evaluation_contains_failed_evaluation_scenarios(
-                str(new_evaluation_db.id)
-            )
+            check_if_evaluation_contains_failed_evaluation_scenarios(evaluation_id)
         )
 
         evaluation_status = Result(
@@ -362,7 +356,8 @@ def evaluate(
 
         loop.run_until_complete(
             update_evaluation(
-                evaluation_id=str(new_evaluation_db.id),
+                evaluation_id=evaluation_id,
+                project_id=project_id,
                 updates={"status": evaluation_status.model_dump()},
             )
         )
@@ -373,6 +368,7 @@ def evaluate(
         loop.run_until_complete(
             update_evaluation(
                 evaluation_id,
+                project_id,
                 {
                     "status": Result(
                         type="status",
@@ -381,7 +377,7 @@ def evaluate(
                             message="Evaluation Aggregation Failed",
                             stacktrace=str(traceback.format_exc()),
                         ),
-                    )
+                    ).model_dump()
                 },
             )
         )
@@ -432,6 +428,8 @@ async def aggregate_evaluator_results(
             "auto_json_diff",
             "auto_semantic_similarity",
             "auto_levenshtein_distance",
+            "rag_faithfulness",
+            "rag_context_relevancy",
         ]:
             result = aggregation_service.aggregate_float(results)
 
@@ -440,9 +438,8 @@ async def aggregate_evaluator_results(
                 type="error", value=None, error=Error(message="Aggregation failed")
             )
 
-        evaluator_config = await fetch_evaluator_config(config_id)
         aggregated_result = AggregatedResult(
-            evaluator_config=str(evaluator_config.id),  # type: ignore
+            evaluator_config=config_id,
             result=result,
         )
         aggregated_results.append(aggregated_result)

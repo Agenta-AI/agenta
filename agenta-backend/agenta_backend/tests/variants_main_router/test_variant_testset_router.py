@@ -4,12 +4,12 @@ import httpx
 import pytest
 from sqlalchemy.future import select
 
-from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.db_models import (
     AppDB,
     TestSetDB,
 )
 
+from agenta_backend.dbs.postgres.shared.engine import engine
 
 # Initialize http client
 test_client = httpx.AsyncClient()
@@ -29,7 +29,7 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_create_testset():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -61,14 +61,14 @@ async def test_create_testset():
 
 @pytest.mark.asyncio
 async def test_update_testset():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -101,7 +101,7 @@ async def test_update_testset():
 
 @pytest.mark.asyncio
 async def test_get_testsets():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -112,19 +112,19 @@ async def test_get_testsets():
         )
 
         assert response.status_code == 200
-        assert len(response.json()) == 1
+        assert len(response.json()) == 2
 
 
 @pytest.mark.asyncio()
 async def test_get_testset():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -139,14 +139,14 @@ async def test_get_testset():
 
 @pytest.mark.asyncio
 async def test_delete_testsets():
-    async with db_engine.get_session() as session:
+    async with engine.session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testsets = testset_result.scalars().all()
 

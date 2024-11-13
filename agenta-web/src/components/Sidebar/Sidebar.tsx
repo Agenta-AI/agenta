@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {Layout, Menu, Tag, Tooltip} from "antd"
+import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -9,8 +9,16 @@ import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 import {SidebarConfig, useSidebarConfig} from "./config"
 import {JSSTheme} from "@/lib/Types"
+import {isDemo} from "@/lib/helpers/utils"
+import {useProfileData} from "@/contexts/profile.context"
+import {useSession} from "@/hooks/useSession"
+import {CaretDown, Gear, SignOut} from "@phosphor-icons/react"
+import AlertPopup from "../AlertPopup/AlertPopup"
+import {dynamicContext} from "@/lib/helpers/dynamic"
+import Avatar from "@/components/Avatar/Avatar"
 
 const {Sider} = Layout
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     sidebar: {
@@ -31,11 +39,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        padding: "0 10px",
+        padding: "0 10px 10px",
         "& > div:nth-of-type(1)": {
-            marginTop: "20px",
-            marginBottom: "20px",
-            marginRight: "20px",
+            margin: `${theme.padding}px 0`,
             display: "flex",
             justifyContent: "center",
         },
@@ -46,6 +52,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             flex: 1,
         },
         "& .ant-menu-submenu-title": {
+            display: "flex",
+            alignItems: "center",
             paddingInlineEnd: "20px",
             "& .ant-menu-submenu-arrow": {
                 insetInlineEnd: "8px",
@@ -54,15 +62,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-menu-item,.ant-menu-submenu-title": {
             padding: "0 16px !important",
         },
-        "& .ant-menu-sub > .ant-menu-item": {
-            paddingLeft: "24px !important",
-        },
     },
     menuContainer: {
         borderRight: "0 !important",
         maxHeight: "calc(100vh - 390px)",
         overflowY: "auto",
         position: "relative",
+        "& .ant-menu-item-selected": {
+            fontWeight: theme.fontWeightMedium,
+        },
     },
     menuContainer2: {
         borderRight: "0 !important",
@@ -71,17 +79,52 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "inline-block",
         width: "100%",
     },
+    menuItem: {
+        textOverflow: "initial !important",
+        display: "flex !important",
+        alignItems: "center",
+    },
+    avatarMainContainer: {
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "4px 16px 4px 8px",
+        borderRadius: theme.borderRadiusLG,
+    },
+    avatarContainer: {
+        display: "flex",
+        alignItems: "center",
+        gap: theme.paddingSM,
+        "& > div": {
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            "& .ant-typography:nth-of-type(2)": {
+                color: theme.colorTextDescription,
+            },
+        },
+    },
+    menuHeader: {
+        padding: `${theme.paddingXS}px ${theme.padding}px`,
+        color: theme.colorTextDescription,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+    },
 }))
 
 const SidebarMenu: React.FC<{
     items: SidebarConfig[]
     collapsed: boolean
     menuProps?: React.ComponentProps<typeof Menu>
-}> = ({items, menuProps, collapsed}) => {
+    mode?: "horizontal" | "vertical" | "inline"
+}> = ({items, menuProps, collapsed, mode = "inline"}) => {
     const classes = useStyles()
 
     return (
-        <Menu mode="inline" {...menuProps}>
+        <Menu mode={mode} {...menuProps}>
             {items.map((item) => {
                 if (item.submenu) {
                     if (item.isCloudFeature) {
@@ -176,6 +219,7 @@ const SidebarMenu: React.FC<{
                                             key={subitem.key}
                                             onClick={subitem.onClick}
                                             data-cy={subitem.key}
+                                            className={classes.menuItem}
                                         >
                                             {collapsed ? (
                                                 node
@@ -190,6 +234,12 @@ const SidebarMenu: React.FC<{
                             </Menu.SubMenu>
                         )
                     }
+                } else if (item.header) {
+                    return (
+                        <div key={item.key} className={classes.menuHeader}>
+                            {item.title}
+                        </div>
+                    )
                 } else {
                     const node = (
                         <Link
@@ -201,20 +251,24 @@ const SidebarMenu: React.FC<{
                         </Link>
                     )
                     return (
-                        <Menu.Item
-                            data-cy={item.key}
-                            icon={item.icon}
-                            key={item.key}
-                            onClick={item.onClick}
-                        >
-                            {collapsed ? (
-                                node
-                            ) : (
-                                <Tooltip title={item.tooltip} placement="right">
-                                    {node}
-                                </Tooltip>
-                            )}
-                        </Menu.Item>
+                        <>
+                            <Menu.Item
+                                data-cy={item.key}
+                                icon={item.icon}
+                                key={item.key}
+                                onClick={item.onClick}
+                                className={classes.menuItem}
+                            >
+                                {collapsed ? (
+                                    node
+                                ) : (
+                                    <Tooltip title={item.tooltip} placement="right">
+                                        {node}
+                                    </Tooltip>
+                                )}
+                            </Menu.Item>
+                            {item.divider && <Divider className="my-4" />}
+                        </>
                     )
                 }
             })}
@@ -227,10 +281,19 @@ const Sidebar: React.FC = () => {
     const router = useRouter()
     const classes = useStyles()
     const [openKey, setOpenKey] = useState<string>()
-
     const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
-
     const menu = useSidebarConfig()
+    const {user} = useProfileData()
+    const {logout} = useSession()
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
+
     const {topItems, bottomItems} = useMemo(() => {
         const topItems: SidebarConfig[] = []
         const bottomItems: SidebarConfig[] = []
@@ -280,19 +343,84 @@ const Sidebar: React.FC = () => {
 
     return (
         <div className={classes.siderWrapper}>
-            <Sider
-                theme={appTheme}
-                className={classes.sidebar}
-                width={236}
-                collapsible
-                collapsed={collapsed}
-                onCollapse={(value) => setCollapsed(value)}
-            >
+            <Sider theme={appTheme} className={classes.sidebar} width={236}>
                 <div className={classes.sliderContainer}>
                     <div>
-                        <Link data-cy="app-management-link" href="/apps">
-                            <Logo isOnlyIconLogo={collapsed} />
-                        </Link>
+                        {!isDemo() && (
+                            <Link data-cy="app-management-link" href="/apps">
+                                <Logo isOnlyIconLogo={collapsed} />
+                            </Link>
+                        )}
+                        {selectedOrg?.id && user?.id && isDemo() && (
+                            <Dropdown
+                                trigger={["hover"]}
+                                menu={{
+                                    items: [
+                                        ...orgs.map((org: any) => ({
+                                            key: org.id,
+                                            label: (
+                                                <Space>
+                                                    <Avatar size="small" name={org.name} />
+                                                    <Text>{org.name}</Text>
+                                                </Space>
+                                            ),
+                                        })),
+                                        {type: "divider"},
+                                        {
+                                            key: "settings",
+                                            label: (
+                                                <Link
+                                                    href={"/settings"}
+                                                    className="flex items-center gap-2"
+                                                >
+                                                    <Gear size={16} />
+                                                    <Text>Settings</Text>
+                                                </Link>
+                                            ),
+                                        },
+                                        {
+                                            key: "logout",
+                                            label: (
+                                                <div
+                                                    className="flex items-center gap-2"
+                                                    onClick={() => {
+                                                        AlertPopup({
+                                                            title: "Logout",
+                                                            message:
+                                                                "Are you sure you want to logout?",
+                                                            onOk: logout,
+                                                        })
+                                                    }}
+                                                >
+                                                    <SignOut size={16} />
+                                                    <Text>Logout</Text>
+                                                </div>
+                                            ),
+                                        },
+                                    ],
+                                    selectedKeys: [selectedOrg.id],
+                                    onClick: ({key}) => {
+                                        if (["settings", "logout"].includes(key)) return
+                                        changeSelectedOrg(key)
+                                    },
+                                }}
+                            >
+                                <Button className={classes.avatarMainContainer}>
+                                    <div className={classes.avatarContainer}>
+                                        <Avatar className="text-lg" name={selectedOrg.name} />
+
+                                        {!collapsed && (
+                                            <div>
+                                                <Text>{selectedOrg.name}</Text>
+                                                <Text>{selectedOrg.type}</Text>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <CaretDown size={14} />
+                                </Button>
+                            </Dropdown>
+                        )}
                     </div>
                     <ErrorBoundary fallback={<div />}>
                         <div>
@@ -315,6 +443,7 @@ const Sidebar: React.FC = () => {
                                 }}
                                 items={bottomItems}
                                 collapsed={collapsed}
+                                mode="vertical"
                             />
                         </div>
                     </ErrorBoundary>

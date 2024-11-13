@@ -21,7 +21,6 @@ import Link from "next/link"
 import React, {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getTypedValue} from "@/lib/helpers/evaluate"
-import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
 
@@ -86,7 +85,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
                 message.success("Copied to clipboard")
             })
             .catch(console.error)
-    }, [])
+    }, [value])
 
     const onExpand = useCallback(() => {
         const cells = document.querySelectorAll(`[row-id='${node.id}'] .ag-cell > *`)
@@ -111,13 +110,13 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
             node.setRowHeight(defaultHeight)
         }
         api.onRowHeightChanged()
-    }, [expanded])
+    }, [expanded, api, node])
 
     useEffect(() => {
         node.addEventListener("heightChanged", () => {
             setExpanded(node.rowHeight !== api.getSizesForCurrentTheme().rowHeight)
         })
-    }, [])
+    }, [api, node])
 
     return (
         <div
@@ -141,31 +140,13 @@ export const ResultRenderer = React.memo(
     (
         params: ICellRendererParams<_EvaluationScenario> & {
             config: EvaluatorConfig
-            setIsErrorModalOpen: React.Dispatch<React.SetStateAction<boolean>>
-            setModalErrorMsg: React.Dispatch<
-                React.SetStateAction<{
-                    message: string
-                    stackTrace: string
-                }>
-            >
         },
     ) => {
-        const {setIsErrorModalOpen, setModalErrorMsg} = params
         const result = params.data?.results.find(
             (item) => item.evaluator_config === params.config.id,
         )?.result
-        if (result?.type === "error" && result.error) {
-            setModalErrorMsg({message: result.error.message, stackTrace: result.error.stacktrace})
-        }
 
-        return result?.type === "error" && result.error ? (
-            <EvaluationErrorText
-                text="Failure to compute evaluation"
-                setIsErrorModalOpen={setIsErrorModalOpen}
-            />
-        ) : (
-            <Typography.Text>{getTypedValue(result)}</Typography.Text>
-        )
+        return <Typography.Text>{getTypedValue(result)}</Typography.Text>
     },
     (prev, next) => prev.value === next.value,
 )

@@ -5,6 +5,7 @@ on:
       - "agenta-backend/**"
       - "agenta-cli/**"
       - "examples/**"
+      - "website/scripts/**"
 
 jobs:
   linter_name:

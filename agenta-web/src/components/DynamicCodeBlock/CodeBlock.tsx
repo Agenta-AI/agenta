@@ -29,7 +29,7 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
                     language={language}
                     style={appTheme === "dark" ? darcula : coy}
                     showLineNumbers
-                    wrapLongLines={true}
+                    wrapLongLines={false}
                 >
                     {value}
                 </SyntaxHighlighter>

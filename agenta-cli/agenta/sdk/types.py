@@ -1,7 +1,13 @@
 import json
-from typing import Dict, List, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
+
+
+@dataclass
+class MultipleChoice:
+    choices: Union[List[str], Dict[str, List[str]]]
 
 
 class InFile:
@@ -16,11 +22,10 @@ class LLMTokenUsage(BaseModel):
     total_tokens: int
 
 
-class FuncResponse(BaseModel):
-    message: str
-    usage: Optional[LLMTokenUsage]
-    cost: Optional[float]
-    latency: float
+class BaseResponse(BaseModel):
+    version: Optional[str] = "2.0"
+    data: Optional[Union[str, Dict[str, Any]]]
+    trace: Optional[Dict[str, Any]]
 
 
 class DictInput(dict):
@@ -192,3 +197,51 @@ class Context(BaseModel):
     def from_json(cls, json_str: str):
         data = json.loads(json_str)
         return cls(**data)
+
+
+class ReferencesResponse(BaseModel):
+    app_id: Optional[str] = None
+    app_slug: Optional[str] = None
+    variant_id: Optional[str] = None
+    variant_slug: Optional[str] = None
+    variant_version: Optional[int] = None
+    environment_id: Optional[str] = None
+    environment_slug: Optional[str] = None
+    environment_version: Optional[int] = None
+
+    def __str__(self):
+        return str(self.model_dump(exclude_none=True))
+
+
+class LifecyclesResponse(ReferencesResponse):
+    committed_at: Optional[str] = None
+    committed_by: Optional[str] = None
+    committed_by_id: Optional[str] = None
+    deployed_at: Optional[str] = None
+    deployed_by: Optional[str] = None
+    deployed_by_id: Optional[str] = None
+
+    def __str__(self):
+        return self.model_dump_json(indent=4)
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class ConfigurationResponse(LifecyclesResponse):
+    params: Dict[str, Any]
+
+
+class DeploymentResponse(LifecyclesResponse):
+    pass
+
+
+class Prompt(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+    prompt_system: str
+    prompt_user: str
+    top_p: float
+    frequency_penalty: float
+    presence_penalty: float

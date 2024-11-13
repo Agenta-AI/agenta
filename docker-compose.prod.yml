@@ -23,7 +23,6 @@ services:
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - CELERY_BROKER_URL=amqp://guest@rabbitmq//
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - TEMPLATES_BASE_URL=https://llm-app-json.s3.eu-central-1.amazonaws.com
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
@@ -79,8 +78,8 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/agenta_backend:/app/agenta_backend
         depends_on:
-          postgres:
-            condition: service_healthy
+            postgres:
+                condition: service_healthy
         networks:
             - agenta-network
 
@@ -161,7 +160,7 @@ services:
             - postgresdb-data:/var/lib/postgresql/data/
             - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
             interval: 10s
             timeout: 5s
             retries: 5
