@@ -36,6 +36,7 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/for
 import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {fromBaseResponseToTraceSpanType} from "@/lib/transformers"
+import {AgentaNodeDTO} from "@/services/observability/types"
 
 const PlaygroundDrawer: any = dynamicComponent(`Playground/PlaygroundDrawer/PlaygroundDrawer`)
 const promptRevision: any = dynamicService("promptVersioning/api")
@@ -174,7 +175,7 @@ interface BoxComponentProps {
     additionalData: {
         cost: number | null
         latency: number | null
-        usage: {completion: number; prompt: number; total: number} | null
+        usage: number | null
     }
     onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
@@ -183,19 +184,7 @@ interface BoxComponentProps {
     isChatVariant?: boolean
     variant: Variant
     onCancel: () => void
-    traceSpans:
-        | {
-              trace_id: string
-              cost?: number
-              latency?: number
-              usage?: {
-                  completion_tokens: number
-                  prompt_tokens: number
-                  total_tokens: number
-              }
-              spans?: BaseResponseSpans[]
-          }
-        | undefined
+    traceSpans: AgentaNodeDTO
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -336,14 +325,14 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
             )}
             {additionalData?.cost || additionalData?.latency ? (
                 <Space className="flex items-center gap-3">
-                    <span>Tokens: {formatTokenUsage(additionalData?.usage?.total)}</span>
+                    <span>Tokens: {formatTokenUsage(additionalData?.usage)}</span>
                     <span>Cost: {formatCurrency(additionalData?.cost)}</span>
                     <span>Latency: {formatLatency(additionalData?.latency)}</span>
-                    {traceSpans?.spans?.length && isDemo() && (
+                    {traceSpans?.nodes?.length && isDemo() && (
                         <Button
                             type="link"
                             className={classes.viewTracesBtn}
-                            onClick={() => setActiveSpan(traceSpans.trace_id)}
+                            onClick={() => setActiveSpan(traceSpans.root.id)}
                         >
                             View Trace
                         </Button>
@@ -353,17 +342,21 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                 ""
             )}
 
-            {traceSpans?.spans?.length && !!activeSpan && (
+            {/* TODO:
+                Replace PlaygroundDrawer with Drawer component used
+                in observability feature
+            */}
+            {/* {traceSpans?.nodes?.length && !!activeSpan && (
                 <PlaygroundDrawer
                     placement="bottom"
                     open={!!activeSpan}
                     onClose={() => setActiveSpan("")}
                     traceSpans={fromBaseResponseToTraceSpanType(
-                        traceSpans.spans,
-                        traceSpans.trace_id,
+                        traceSpans.nodes,
+                        traceSpans.root.id,
                     )}
                 />
-            )}
+            )} */}
         </Card>
     )
 }
@@ -397,22 +390,10 @@ const App: React.FC<TestViewProps> = ({
         Array<{
             cost: number | null
             latency: number | null
-            usage:
-                | {completion?: number; prompt?: number; total: number}
-                | {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
-                | null
+            usage: number | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
-    const [traceSpans, setTraceSpans] = useState<
-        | {
-              trace_id: string
-              cost?: number
-              latency?: number
-              usage?: {completion: number; prompt: number; total: number}
-              spans?: BaseResponseSpans[]
-          }
-        | undefined
-    >()
+    const [traceSpans, setTraceSpans] = useState<AgentaNodeDTO[]>([])
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -575,20 +556,20 @@ const App: React.FC<TestViewProps> = ({
                 const {message, cost, latency, usage} = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    newDataList[index] = {cost, latency, usage}
+                    newDataList[index] = {cost, latency, usage: usage.total_tokens}
                     return newDataList
                 })
             } else if (isBaseResponse(result)) {
                 res = result as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
 
-                const trace = result.trace
+                const {trace} = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
                     newDataList[index] = {
-                        cost: trace[0]?.metrics?.acc?.costs?.total || null,
-                        latency: trace[0]?.time?.span / 1_000_000 || null,
-                        usage: trace[0]?.metrics?.acc?.tokens || null,
+                        cost: trace?.[0]?.metrics?.acc?.costs?.total ?? null,
+                        latency: trace?.[0]?.time?.span ? trace?.[0]?.time?.span / 1_000_000 : null,
+                        usage: trace?.[0]?.metrics?.acc?.tokens?.total ?? null,
                     }
                     return newDataList
                 })
@@ -741,7 +722,7 @@ const App: React.FC<TestViewProps> = ({
                     isChatVariant={isChatVariant}
                     variant={variant}
                     onCancel={() => handleCancel(index)}
-                    traceSpans={traceSpans}
+                    traceSpans={traceSpans[0]}
                 />
             ))}
             <Button
