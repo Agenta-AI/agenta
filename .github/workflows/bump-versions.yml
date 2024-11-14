@@ -71,14 +71,6 @@ jobs:
             echo "VERSIONS_MATCH=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create and push tag
-        if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
-        run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
-          git tag -a "v${{ steps.bump_versions.outputs.NEW_VERSION }}" -m "Version ${{ steps.bump_versions.outputs.NEW_VERSION }}"
-          git push origin "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
-
       - name: Create Pull Request
         if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
         uses: peter-evans/create-pull-request@v6
@@ -93,6 +85,14 @@ jobs:
             - agenta-web
             - agenta-backend
             - agenta-cli
+
+      - name: Create and push tag
+        if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git tag -a "v${{ steps.bump_versions.outputs.NEW_VERSION }}" -m "Version ${{ steps.bump_versions.outputs.NEW_VERSION }}"
+          git push origin "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
 
       - name: Fail if versions don't match
         if: steps.bump_versions.outputs.VERSIONS_MATCH != 'true'
