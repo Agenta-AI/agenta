@@ -260,11 +260,6 @@ def litellm_handler():
                 pass
 
             self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
-
-            self.span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},
                 namespace="metrics.unit.costs",
             )
