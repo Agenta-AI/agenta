@@ -65,6 +65,7 @@ def execute_code_safely(
         "json",
         "requests",
         "numpy",
+        "typing",
     ]
 
     # Create a dictionary to simulate allowed imports
@@ -88,19 +89,32 @@ def execute_code_safely(
     # Compile the code in a restricted environment
     byte_code = compile_restricted(code, filename="<inline>", mode="exec")
 
-    # Execute the code
-    exec(byte_code, environment)
-
     # Call the evaluation function, extract the result if it exists
     # and is a float between 0 and 1
     try:
+        # Execute the code
+        exec(byte_code, environment)
+
+        # Call the evaluation function, extract the result
         result = environment["evaluate"](app_params, inputs, output, correct_answer)
-        if isinstance(result, float) and 0 <= result <= 1:
-            return result
-        else:
-            raise ValueError("Result is not a float between 0 and 1.")
+
+        # Attempt to convert result to float
+        if isinstance(result, (float, int, str)):
+            try:
+                result = float(result)
+            except ValueError as e:
+                raise ValueError(f"Result cannot be converted to float: {e}")
+
+        if not isinstance(result, float):
+            raise TypeError(f"Result is not a float after conversion: {type(result)}")
+
+        return result
+
+    except KeyError as e:
+        raise KeyError(f"Missing expected key in environment: {e}")
+
+    except SyntaxError as e:
+        raise SyntaxError(f"Syntax error in provided code: {e}")
+
     except Exception as e:
-        result = environment["evaluate"](app_params, inputs, output, datapoint)
-        if isinstance(result, float) and 0 <= result <= 1:
-            return result
-        return None
+        raise RuntimeError(f"Error during code execution: {e}")

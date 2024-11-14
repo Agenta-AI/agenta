@@ -16,13 +16,14 @@ agenta_registry_repo = os.getenv("REGISTRY_REPO_NAME")
 
 
 async def start_service(
-    app_variant_db: AppVariantDB, env_vars: Dict[str, str]
+    app_variant_db: AppVariantDB, project_id: str, env_vars: Dict[str, str]
 ) -> DeploymentDB:
     """
     Start a service.
 
     Args:
         app_variant_db (AppVariantDB): The app variant to start.
+        project_id (str): The ID of the project the app variant belongs to.
         env_vars (Dict[str, str]): The environment variables to pass to the container.
 
     Returns:
@@ -30,11 +31,11 @@ async def start_service(
     """
 
     if isCloudEE():
-        uri_path = f"{app_variant_db.organization.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
-        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.organization.id}"
+        uri_path = f"{app_variant_db.project_id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
+        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.project_id}"
     else:
-        uri_path = f"{app_variant_db.user.id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
-        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.user.id}"
+        uri_path = f"{app_variant_db.project_id}/{app_variant_db.app.app_name}/{app_variant_db.base_name}"
+        container_name = f"{app_variant_db.app.app_name}-{app_variant_db.base_name}-{app_variant_db.project_id}"
 
     logger.debug("Starting service with the following parameters:")
     logger.debug(f"image_name: {app_variant_db.image.tags}")
@@ -59,13 +60,11 @@ async def start_service(
 
     deployment = await db_manager.create_deployment(
         app_id=str(app_variant_db.app.id),
-        user_id=str(app_variant_db.user.id),
+        project_id=project_id,
         container_name=container_name,
         container_id=container_id,
         uri=uri,
         status="running",
-        organization=str(app_variant_db.organization_id) if isCloudEE() else None,
-        workspace=str(app_variant_db.workspace_id) if isCloudEE() else None,
     )
     return deployment
 
@@ -138,7 +137,7 @@ async def validate_image(image: Image) -> bool:
         raise ValueError(msg)
 
     if isCloudEE():
-        image = Image(**image.model_dump(exclude={"workspace", "organization"}))
+        image = Image(**image.model_dump())
 
     if not image.tags.startswith(agenta_registry_repo):
         raise ValueError(

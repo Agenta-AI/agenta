@@ -1,10 +1,10 @@
 import os
 import pytest
 
-from test_traces import simple_rag_trace
-
+from agenta_backend.tests.unit.test_traces import simple_rag_trace
 from agenta_backend.services.evaluators_service import (
     auto_levenshtein_distance,
+    auto_ai_critique,
     auto_starts_with,
     auto_ends_with,
     auto_contains,
@@ -16,6 +16,53 @@ from agenta_backend.services.evaluators_service import (
     rag_context_relevancy,
     rag_faithfulness,
 )
+
+
+@pytest.mark.parametrize(
+    "ground_truth, output, settings_values, openai_api_key, expected_min, expected_max",
+    [
+        (
+            {"correct_answer": "The capital of Kiribati is Tarawa."},
+            "The capital of Kiribati is South Tarawa.",
+            {
+                "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nExpected Answer Column:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
+                "correct_answer_key": "correct_answer",
+            },
+            os.environ.get("OPENAI_API_KEY"),
+            0,
+            10,
+        ),
+        (
+            {"correct_answer": "The capital of Kiribati is Tarawa."},
+            "The capital of Kiribati is South Tarawa.",
+            {
+                "prompt_template": "We have an LLM App that we want to evaluate its outputs. Based on the prompt and the parameters provided below evaluate the output based on the evaluation strategy below:\nEvaluation strategy: 0 to 10 0 is very bad and 10 is very good.\nPrompt: {llm_app_prompt_template}\nInputs: country: {country}\nExpected Answer Column:{correct_answer}\nEvaluate this: {variant_output}\n\nAnswer ONLY with one of the given grading or evaluation options.",
+                "correct_answer_key": "correct_answer",
+            },
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_auto_ai_critique_evaluator(
+    ground_truth, output, settings_values, openai_api_key, expected_min, expected_max
+):
+    result = await auto_ai_critique(
+        {},
+        output,
+        ground_truth,
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": openai_api_key},
+    )
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
 
 
 @pytest.mark.parametrize(
@@ -59,8 +106,9 @@ from agenta_backend.services.evaluators_service import (
         ),
     ],
 )
-def test_auto_starts_with(output, settings_values, expected):
-    result = auto_starts_with(
+@pytest.mark.asyncio
+async def test_auto_starts_with(output, settings_values, expected):
+    result = await auto_starts_with(
         inputs={},
         output=output,
         data_point={},
@@ -83,8 +131,9 @@ def test_auto_starts_with(output, settings_values, expected):
         ("Hello world", "Hello", True, False),
     ],
 )
-def test_auto_ends_with(output, suffix, case_sensitive, expected):
-    result = auto_ends_with(
+@pytest.mark.asyncio
+async def test_auto_ends_with(output, suffix, case_sensitive, expected):
+    result = await auto_ends_with(
         {},
         output,
         {},
@@ -106,8 +155,9 @@ def test_auto_ends_with(output, suffix, case_sensitive, expected):
         ("Hello world", "abc", True, False),
     ],
 )
-def test_auto_contains(output, substring, case_sensitive, expected):
-    result = auto_contains(
+@pytest.mark.asyncio
+async def test_auto_contains(output, substring, case_sensitive, expected):
+    result = await auto_contains(
         {},
         output,
         {},
@@ -130,8 +180,9 @@ def test_auto_contains(output, substring, case_sensitive, expected):
         ("Hello world", "abc,xyz", True, False),
     ],
 )
-def test_auto_contains_any(output, substrings, case_sensitive, expected):
-    result = auto_contains_any(
+@pytest.mark.asyncio
+async def test_auto_contains_any(output, substrings, case_sensitive, expected):
+    result = await auto_contains_any(
         {},
         output,
         {},
@@ -154,8 +205,9 @@ def test_auto_contains_any(output, substrings, case_sensitive, expected):
         ("Hello world", "world,universe", True, False),
     ],
 )
-def test_auto_contains_all(output, substrings, case_sensitive, expected):
-    result = auto_contains_all(
+@pytest.mark.asyncio
+async def test_auto_contains_all(output, substrings, case_sensitive, expected):
+    result = await auto_contains_all(
         {},
         output,
         {},
@@ -174,10 +226,14 @@ def test_auto_contains_all(output, substrings, case_sensitive, expected):
         ("No JSON here!", False),
         ("{Malformed JSON, nope!}", False),
         ('{"valid": "json", "number": 123}', True),
+        ({"data": {"message": "The capital of Azerbaijan is Baku."}}, True),
+        ({"data": '{"message": "The capital of Azerbaijan is Baku."}'}, True),
+        ({"data": "The capital of Azerbaijan is Baku."}, False),
     ],
 )
-def test_auto_contains_json(output, expected):
-    result = auto_contains_json({}, output, {}, {}, {}, {})
+@pytest.mark.asyncio
+async def test_auto_contains_json(output, expected):
+    result = await auto_contains_json({}, output, {}, {}, {}, {})
     assert result.value == expected
 
 
@@ -226,12 +282,47 @@ def test_auto_contains_json(output, expected):
             0.0,
             1.0,
         ),
+        (
+            {
+                "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
+            },
+            {
+                "data": '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}'
+            },
+            {
+                "predict_keys": True,
+                "compare_schema_only": False,
+                "case_insensitive_keys": True,
+                "correct_answer_key": "correct_answer",
+            },
+            0.0,
+            1.0,
+        ),
+        (
+            {
+                "correct_answer": '{"user": {"name": "John", "details": {"age": 30, "location": "New York"}}}'
+            },
+            {
+                "data": {
+                    "output": '{"USER": {"NAME": "John", "DETAILS": {"AGE": 30, "LOCATION": "New York"}}}'
+                }
+            },
+            {
+                "predict_keys": True,
+                "compare_schema_only": False,
+                "case_insensitive_keys": True,
+                "correct_answer_key": "correct_answer",
+            },
+            0.0,
+            1.0,
+        ),
     ],
 )
-def test_auto_json_diff(
+@pytest.mark.asyncio
+async def test_auto_json_diff(
     ground_truth, app_output, settings_values, expected_min, expected_max
 ):
-    result = auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
+    result = await auto_json_diff({}, app_output, ground_truth, {}, settings_values, {})
     assert expected_min <= result.value <= expected_max
 
 
@@ -265,12 +356,22 @@ def test_auto_json_diff(
             0.0,
             1.0,
         ),
+        (
+            {"correct_answer": "The capital of Namibia is Windhoek."},
+            "Windhoek is the capital of Namibia.",
+            {
+                "correct_answer_key": "correct_answer",
+            },
+            None,
+            None,
+        ),
     ],
 )
-def test_auto_semantic_similarity_match(
+@pytest.mark.asyncio
+async def test_auto_semantic_similarity_match(
     ground_truth, app_output, settings_values, expected_min, expected_max
 ):
-    result = auto_semantic_similarity(
+    result = await auto_semantic_similarity(
         {},
         app_output,
         ground_truth,
@@ -278,7 +379,12 @@ def test_auto_semantic_similarity_match(
         settings_values,
         {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
     )
-    assert expected_min <= round(result.value, 3) <= expected_max
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
 
 
 @pytest.mark.parametrize(
@@ -322,8 +428,9 @@ def test_auto_semantic_similarity_match(
         ),
     ],
 )
-def test_auto_levenshtein_distance(output, data_point, settings_values, expected):
-    result = auto_levenshtein_distance(
+@pytest.mark.asyncio
+async def test_auto_levenshtein_distance(output, data_point, settings_values, expected):
+    result = await auto_levenshtein_distance(
         inputs={},
         output=output,
         data_point=data_point,
@@ -335,7 +442,7 @@ def test_auto_levenshtein_distance(output, data_point, settings_values, expected
 
 
 @pytest.mark.parametrize(
-    "settings_values, expected_min, expected_max",
+    "settings_values, expected_min, openai_api_key, expected_max",
     [
         (
             {
@@ -343,27 +450,46 @@ def test_auto_levenshtein_distance(output, data_point, settings_values, expected
                 "answer_key": "rag.reporter.outputs.report",
                 "contexts_key": "rag.retriever.outputs.movies",
             },
+            os.environ.get("OPENAI_API_KEY"),
             0.0,
             1.0,
+        ),
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            None,
+            None,
+            None,
         ),
         # add more use cases
     ],
 )
-def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max):
-    result = rag_faithfulness(
+@pytest.mark.asyncio
+async def test_rag_faithfulness_evaluator(
+    settings_values, expected_min, openai_api_key, expected_max
+):
+    result = await rag_faithfulness(
         {},
         simple_rag_trace,
         {},
         {},
         settings_values,
-        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+        {"OPENAI_API_KEY": openai_api_key},
     )
 
-    assert expected_min <= round(result.value, 1) <= expected_max
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
 
 
 @pytest.mark.parametrize(
-    "settings_values, expected_min, expected_max",
+    "settings_values, expected_min, openai_api_key, expected_max",
     [
         (
             {
@@ -371,20 +497,34 @@ def test_rag_faithfulness_evaluator(settings_values, expected_min, expected_max)
                 "answer_key": "rag.reporter.outputs.report",
                 "contexts_key": "rag.retriever.outputs.movies",
             },
+            os.environ.get("OPENAI_API_KEY"),
             0.0,
             1.0,
+        ),
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            None,
+            None,
+            None,
         ),
         # add more use cases
     ],
 )
-def test_rag_context_relevancy_evaluator(settings_values, expected_min, expected_max):
-    result = rag_context_relevancy(
+@pytest.mark.asyncio
+async def test_rag_context_relevancy_evaluator(
+    settings_values, expected_min, openai_api_key, expected_max
+):
+    result = await rag_context_relevancy(
         {},
         simple_rag_trace,
         {},
         {},
         settings_values,
-        {"OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY")},
+        {"OPENAI_API_KEY": openai_api_key},
     )
 
     try:

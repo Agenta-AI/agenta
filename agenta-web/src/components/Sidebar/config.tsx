@@ -10,13 +10,13 @@ import {
     Desktop,
     GithubLogo,
     PaperPlane,
-    PersonSimpleRun,
     Phone,
     Question,
     Scroll,
     SlackLogo,
     Gear,
     Dot,
+    TreeView,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
 
@@ -40,7 +40,7 @@ export type SidebarConfig = {
 export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
-    const {currentApp, recentlyVisitedAppId} = useAppsData()
+    const {currentApp, recentlyVisitedAppId, apps} = useAppsData()
     const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
@@ -55,12 +55,28 @@ export const useSidebarConfig = () => {
 
     const sidebarConfig: SidebarConfig[] = [
         {
-            key: "app-management-link",
-            title: "App Management",
+            key: "application-link",
+            title: "Applications",
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined />,
+            divider: apps.length === 0 ? true : false,
+        },
+        {
+            key: "app-testsets-link",
+            title: "Test Sets",
+            tooltip: "Create and manage testsets for evaluation purposes.",
+            link: `/apps/testsets`,
+            icon: <DatabaseOutlined />,
+            isHidden: apps.length === 0,
+        },
+        {
+            key: "app-observability-link",
+            title: "Observability",
+            link: `/observability`,
+            icon: <ChartLineUp />,
             divider: true,
+            isHidden: apps.length === 0,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
@@ -85,91 +101,18 @@ export const useSidebarConfig = () => {
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {
-            key: "app-testsets-link",
-            title: "Test Sets",
-            tooltip: "Create and manage testsets for evaluation purposes.",
-            link: `/apps/${appId || recentlyVisitedAppId}/testsets`,
-            icon: <DatabaseOutlined />,
+            key: "app-evaluations-link",
+            title: "Evaluations",
+            link: `/apps/${appId || recentlyVisitedAppId}/evaluations`,
             isHidden: !appId && !recentlyVisitedAppId,
-        },
-        {
-            key: "app-auto-evaluations-link",
-            title: "Automatic Evaluation",
             icon: <ChartDonut size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
-            submenu: [
-                {
-                    key: "app-evaluators-link",
-                    title: "Evaluators",
-                    tooltip:
-                        "Select and customize evaluators such as custom code or regex evaluators.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/evaluations/new-evaluator`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-evaluations-results-link",
-                    title: "Results",
-                    tooltip: "Choose your variants and evaluators to start the evaluation process.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/evaluations/results`,
-                    icon: <Dot size={16} />,
-                },
-            ],
         },
         {
-            key: "app-human-evaluations-link",
-            title: "Human Evaluation",
-            icon: <PersonSimpleRun size={16} />,
+            key: "app-traces-link",
+            title: "Traces",
+            icon: <TreeView size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            submenu: [
-                {
-                    key: "app-human-ab-testing-link",
-                    title: "A/B Evaluation",
-                    tooltip:
-                        "A/B tests allow you to compare the performance of two different variants manually.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/annotations/human_a_b_testing`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-single-model-test-link",
-                    title: "Single Model Eval.",
-                    tooltip:
-                        "Single model test allows you to score the performance of a single LLM app manually.",
-                    link: `/apps/${appId || recentlyVisitedAppId}/annotations/single_model_test`,
-                    icon: <Dot size={16} />,
-                },
-            ],
-        },
-        {
-            key: "app-observability-link",
-            title: "Observability",
-            icon: <ChartLineUp size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
-            isCloudFeature: true && isOss,
-            cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
-            tag: "beta",
-            submenu: [
-                {
-                    key: "app-observability-dashboard-link",
-                    title: "Dashboard",
-                    tooltip: "Dashboard view of traces and generations",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-observability-traces-link",
-                    title: "Traces",
-                    tooltip: "Traces and their details",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability/traces`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-observability-generations-link",
-                    title: "Generations",
-                    tooltip: "Generations and their details",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability/generations`,
-                    icon: <Dot size={16} />,
-                },
-            ],
+            link: `/apps/${appId || recentlyVisitedAppId}/traces`,
         },
         {
             key: "invite-teammate-link",

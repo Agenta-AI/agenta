@@ -14,6 +14,9 @@ const config: Config = {
         transparent: "transparent",
         current: "currentColor",
         extend: {
+            fontFamily: {
+                sans: ["var(--font-inter)"],
+            },
             colors: {
                 // light mode
                 tremor: {

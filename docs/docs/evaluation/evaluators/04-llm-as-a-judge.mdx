@@ -1,0 +1,50 @@
+---
+title: "LLM-as-a-Judge"
+---
+
+LLM-as-a-Judge is an evaluator that uses an LLM to assess LLM outputs. It's particularly useful for evaluating text generation tasks or chatbots where there's no single correct answer.
+
+![Configuration of LLM-as-a-judge](/images/evaluation/llm-as-a-judge.png)
+
+The evaluator has the following parameters:
+
+#### The Prompt
+
+You can configure the prompt used for evaluation. The prompt can contain multiple messages in OpenAI format (role/content). All messages in the prompt have access to the inputs, outputs, and reference answers (any columns in the test set). To reference these in your prompts, use the following variables:
+
+- `correct_answer`: the column with the reference answer in the test set. You can configure the name of this column under `Advanced Setting` in the configuration modal.
+- `prediction`: the output of the llm application
+- `$input_column_name`: the value of any input column for the given row of your test set
+
+Here's the default prompt used for the country expert demo application (note that it uses the `country` input column from our test set):
+
+**System prompt:**
+
+```
+You are an evaluator grading an LLM App.
+ You will be given INPUTS, the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.
+ Here is the grade criteria to follow:
+:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER
+
+SCORE:
+-The score should be between 0 and 10
+-A score of 10 means that the answer is perfect. This is the highest (best) score.
+A score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.
+
+ANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER
+```
+
+**User prompt:**
+
+```
+
+INPUTS:
+country: {country}
+CORRECT ANSWER:{correct_answer}
+LLM APP OUTPUT: {prediction}.
+
+```
+
+### The Model
+
+The model can be configured to select one of the supported options (`gpt-3.5-turbo`, `gpt-4`, `claude-3-5-sonnet`, `claude-3-5-haiku`, `claude-3-5-opus`). To use LLM-as-a-Judge, you'll need to set your OpenAI or Anthropic API key in the settings. The key is saved locally and only sent to our servers for evaluation—it's not stored there.

@@ -334,7 +334,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`/apps/${appId}/evaluations/results`))
+                    .then(() => router.push(`/apps/${appId}/evaluations`))
                     .catch(console.error),
         })
     }
@@ -349,7 +349,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Link href={`/apps/${appId}/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/apps/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>

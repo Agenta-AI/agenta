@@ -7,13 +7,13 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #758391;
-  --ifm-color-primary-dark: #586673;
-  --ifm-color-primary-darker: #394857;
-  --ifm-color-primary-darkest: #1c2c3d;
-  --ifm-color-primary-light: #97a4b0;
-  --ifm-color-primary-lighter: #bdc7d1;
-  --ifm-color-primary-lightest: #d6dee6;
+  --ifm-color-primary: hsl(210, 11%, 46%);
+  --ifm-color-primary-dark: hsl(209, 13%, 40%);
+  --ifm-color-primary-darker: hsl(210, 21%, 28%);
+  --ifm-color-primary-darkest: hsl(211, 37%, 17%);
+  --ifm-color-primary-light: hsl(209, 14%, 55%);
+  --ifm-color-primary-lighter: hsl(210, 18%, 78%);
+  --ifm-color-primary-lightest: hsl(210, 24%, 87%);
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.274);
   --ifm-font-weight-normal: 400;
   --ifm-navbar-height: 3.9rem;
@@ -94,7 +94,7 @@ article a:hover {
 @media (min-width: 1350px) and (max-width: 1850px) {
   .main-wrapper,
   .navbar__inner {
-    width: 85%;
+    width: 95%;
     margin: auto;
   }
 }
@@ -340,7 +340,7 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   }
 }
 .table-of-contents__link {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 20px;
   font-weight: 400;
   color: var(--ifm-color-primary-light);
@@ -353,11 +353,6 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 }
 
 /***************************** Sidebar Method labels in Referencce page API section *****************************/
-.cardTitle_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
-.cardTitle_rnsV {
-  font-size: var(--ifm-heading-h3-font-size) !important;
-  line-height: 28px !important;
-}
 [href="/reference/api/agenta-backend"],
 .list_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module article:first-child,
 .list_eTzJ article:first-child,
@@ -539,4 +534,41 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 }
 [data-theme="dark"] .medium-zoom-image--opened {
   border: 1px solid rgba(255, 255, 255, 0.096);
+}
+
+[class*="cardTitle"] {
+    font-size: var(--ifm-heading-h4-font-size) !important;
+    font-weight: var(--ifm-font-weight-normal) !important;
+    margin-bottom: 8px;
+    font-variant-emoji: no-emoji !important;
+}
+
+
+[class*="cardDescription"] {
+  font-size: 14px !important;
+} 
+a[class*="cardContainer"] {
+  /* --ifm-link-color: var(--ifm-color-emphasis-100); */
+  /* --ifm-link-hover-color: var(--ifm-color-emphasis-100); */
+  --ifm-link-hover-decoration: none;
+
+  box-shadow: 0 0 0 1px rgba(50, 50, 93, 0.01);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 4px;
+  transition: all var(--ifm-transition-fast) ease-in-out;
+  transition-property: border, box-shadow;
+  padding: 18px;
+  font-variant-emoji: no-emoji !important;
+}
+
+
+
+.card.padding--lg[class*="cardContainer"] {
+  padding: 18px !important;
+}
+
+details {
+  background-color: var(--background-color) !important;
+  border: 1px solid var(--ifm-color-emphasis-200) !important;
+  --docusaurus-details-decoration-color: grey !important;
 }

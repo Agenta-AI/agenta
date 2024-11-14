@@ -5,12 +5,12 @@ import random
 
 from sqlalchemy.future import select
 
-from agenta_backend.models.db.postgres_engine import db_engine
 from agenta_backend.models.db_models import (
     AppDB,
-    TestSetDB,
     AppVariantDB,
 )
+
+from agenta_backend.dbs.postgres.shared.engine import engine
 
 
 # Initialize http client
@@ -18,7 +18,6 @@ test_client = httpx.AsyncClient()
 timeout = httpx.Timeout(timeout=5, read=None, write=5)
 
 # Set global variables
-APP_NAME = "evaluation_in_backend"
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
 VARIANT_DEPLOY_ENVIRONMENTS = ["development", "staging", "production"]
 OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
@@ -30,14 +29,11 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_update_app_variant_parameters(app_variant_parameters_updated):
-    async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
-        app = result.scalars().first()
-
-        testset_result = await session.execute(
-            select(TestSetDB).filter_by(app_id=app.id)
+    async with engine.session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="evaluation_in_backend")
         )
-        testset = testset_result.scalars().first()
+        app = result.scalars().first()
 
         app_variant_result = await session.execute(
             select(AppVariantDB).filter_by(app_id=app.id, variant_name="app.default")
@@ -49,7 +45,6 @@ async def test_update_app_variant_parameters(app_variant_parameters_updated):
             parameters["temperature"] = random.uniform(0.9, 1.5)
             parameters["frequence_penalty"] = random.uniform(0.9, 1.5)
             parameters["frequence_penalty"] = random.uniform(0.9, 1.5)
-            parameters["inputs"] = [{"name": list(testset.csvdata[0].keys())[0]}]
             payload = {"parameters": parameters}
 
             response = await test_client.put(
@@ -61,8 +56,10 @@ async def test_update_app_variant_parameters(app_variant_parameters_updated):
 
 @pytest.mark.asyncio
 async def test_deploy_to_environment(deploy_to_environment_payload):
-    async with db_engine.get_session() as session:
-        result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
+    async with engine.session() as session:
+        result = await session.execute(
+            select(AppDB).filter_by(app_name="evaluation_in_backend")
+        )
         app = result.scalars().first()
 
         app_variant_result = await session.execute(
