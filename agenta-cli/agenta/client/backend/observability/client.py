@@ -280,7 +280,7 @@ class ObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def delete_traces(
+    def delete_traces_legacy(
         self,
         *,
         request: typing.Sequence[str],
@@ -307,7 +307,7 @@ class ObservabilityClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.observability.delete_traces(
+        client.observability.delete_traces_legacy(
             request=["string"],
         )
         """
@@ -901,7 +901,7 @@ class AsyncObservabilityClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def delete_traces(
+    async def delete_traces_legacy(
         self,
         *,
         request: typing.Sequence[str],
@@ -933,7 +933,7 @@ class AsyncObservabilityClient:
 
 
         async def main() -> None:
-            await client.observability.delete_traces(
+            await client.observability.delete_traces_legacy(
                 request=["string"],
             )
 
