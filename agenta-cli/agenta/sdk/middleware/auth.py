@@ -6,7 +6,7 @@ from traceback import format_exc
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, Response
 
 from agenta.sdk.utils.logging import log
 from agenta.sdk.middleware.cache import TTLLRUCache
@@ -22,9 +22,9 @@ AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
 )
 
 
-class Deny(HTTPException):
+class Deny(Response):
     def __init__(self) -> None:
-        super().__init__(status_code=401, detail="Unauthorized")
+        super().__init__(status_code=401, content="Unauthorized")
 
 
 cache = TTLLRUCache(
@@ -54,17 +54,15 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         project_id: Optional[UUID] = None,
     ):
         try:
-            auth_header = (
+            authorization = (
                 request.headers.get("Authorization")
                 or request.headers.get("authorization")
                 or None
             )
 
-            headers = {"Authorization": auth_header} if auth_header else None
+            headers = {"Authorization": authorization} if authorization else None
 
-            cookies = {
-                "sAccessToken": request.cookies.get("sAccessToken"),
-            }
+            cookies = {"sAccessToken": request.cookies.get("sAccessToken")}
 
             params = {
                 "action": "run_service",
@@ -75,7 +73,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             if project_id:
                 params["project_id"] = project_id
 
-            hash = dumps(
+            _hash = dumps(
                 {
                     "headers": headers,
                     "cookies": cookies,
@@ -84,41 +82,47 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 sort_keys=True,
             )
 
-            cached_policy = cache.get(hash)
+            cached_policy = cache.get(_hash)
 
-            if cached_policy:
-                if cached_policy.get("effect") == "allow":
-                    return await call_next(request)
-                else:
-                    raise Deny()
+            if not cached_policy:
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        f"{self.host}/api/permissions/verify",
+                        headers=headers,
+                        cookies=cookies,
+                        params=params,
+                    )
 
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.host}/api/permissions/verify",
-                    headers=headers,
-                    cookies=cookies,
-                    params=params,
-                )
+                    if response.status_code != 200:
+                        cache.put(_hash, {"effect": "deny"})
+                        return Deny()
 
-                if response.status_code != 200:
-                    cache.put(hash, {"effect": "deny"})
-                    raise Deny()
+                    auth = response.json()
 
-                auth_result = response.json()
+                    if auth.get("effect") != "allow":
+                        cache.put(_hash, {"effect": "deny"})
+                        return Deny()
 
-                if auth_result.get("effect") != "allow":
-                    cache.put(hash, {"effect": "deny"})
-                    raise Deny()
+                    credentials = auth.get("credentials")
 
-            cache.put(hash, {"effect": "allow"})
+                    if not auth.get("credentials"):
+                        return Deny()
+
+                    cached_policy = {"effect": "allow", "credentials": credentials}
+
+                    cache.put(_hash, cached_policy)
+
+            request.state.credentials = cached_policy.get("credentials")
+
+            print(f"credentials: {request.state.credentials}")
 
             return await call_next(request)
 
-        except Exception as exc:  # pylint: disable=bare-except
-            log.error("-------------------------------------------------")
-            log.error("Agenta SDK - handling middleware exception below:")
-            log.error("-------------------------------------------------")
+        except:  # pylint: disable=bare-except
+            log.error("------------------------------------------------------")
+            log.error("Agenta SDK - handling auth middleware exception below:")
+            log.error("------------------------------------------------------")
             log.error(format_exc().strip("\n"))
-            log.error("-------------------------------------------------")
+            log.error("------------------------------------------------------")
 
-            raise Deny() from exc
+            return Deny()

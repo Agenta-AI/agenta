@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
 from agenta.sdk.middleware.auth import AuthorizationMiddleware
+from agenta.sdk.middleware.otel import OpenTelemetryMiddleware
 from agenta.sdk.context.routing import routing_context_manager, routing_context
 from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.router import router
@@ -51,7 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_AUTH_MIDDLEWARE = False
+_MIDDLEWARES = False
 
 
 app.include_router(router, prefix="")
@@ -264,9 +265,9 @@ class entrypoint:
 
         ### --- Update Middleware --- #
         try:
-            global _AUTH_MIDDLEWARE  # pylint: disable=global-statement
+            global _MIDDLEWARES  # pylint: disable=global-statement
 
-            if not _AUTH_MIDDLEWARE:
+            if not _MIDDLEWARES:
                 app.add_middleware(
                     AuthorizationMiddleware,
                     host=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host,
@@ -274,7 +275,9 @@ class entrypoint:
                     resource_type="application",
                 )
 
-                _AUTH_MIDDLEWARE = True
+                app.add_middleware(OpenTelemetryMiddleware)
+
+                _MIDDLEWARES = True
 
         except:  # pylint: disable=bare-except
             log.error("------------------------------------")
