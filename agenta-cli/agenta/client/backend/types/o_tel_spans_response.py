@@ -2,20 +2,15 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
+from .o_tel_span_dto import OTelSpanDto
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class EvaluatorConfig(UniversalBaseModel):
-    id: str
-    name: str
-    project_id: str
-    evaluator_key: str
-    settings_values: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = (
-        None
-    )
-    created_at: str
-    updated_at: str
+class OTelSpansResponse(UniversalBaseModel):
+    version: str
+    count: typing.Optional[int] = None
+    spans: typing.List[OTelSpanDto]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
