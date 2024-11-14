@@ -1,5 +1,6 @@
 from typing import Optional, Dict, List
 
+from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import Span
 from opentelemetry.sdk.trace.export import (
@@ -11,8 +12,9 @@ from opentelemetry.sdk.trace.export import (
 )
 
 from agenta.sdk.utils.logging import log
+from agenta.sdk.tracing.conventions import Reference
 
-# LOAD CONTEXT, HERE !
+# LOAD CONTEXT, HERE
 
 
 class TraceProcessor(BatchSpanProcessor):
@@ -45,8 +47,16 @@ class TraceProcessor(BatchSpanProcessor):
     ) -> None:
         # ADD LINKS FROM CONTEXT, HERE
 
+        baggage = get_baggage(parent_context)
+
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
+
+        for key in baggage.keys():
+            if key.startswith("ag.refs."):
+                _key = key.replace("ag.refs.", "")
+                if _key in [_.value for _ in Reference.__members__.values()]:
+                    span.set_attribute(key, baggage[key])
 
         if span.context.trace_id not in self._registry:
             self._registry[span.context.trace_id] = dict()

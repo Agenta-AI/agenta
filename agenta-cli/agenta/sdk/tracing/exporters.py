@@ -9,6 +9,11 @@ from opentelemetry.sdk.trace.export import (
 )
 
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.context.exporting import (
+    exporting_context_manager,
+    exporting_context,
+    ExportingContext,
+)
 
 
 class InlineTraceExporter(SpanExporter):
@@ -58,8 +63,47 @@ class InlineTraceExporter(SpanExporter):
         return trace
 
 
-OTLPSpanExporter._MAX_RETRY_TIMEOUT = 2  # pylint: disable=protected-access
+class OTLPExporter(OTLPSpanExporter):
+    _MAX_RETRY_TIMEOUT = 2
+
+    def __init__(self, *args, credentials: Dict[int, str] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.credentials = credentials
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        headers = {}
+
+        # --- DEBUG
+        for span in spans:
+            print(span.name, span.attributes)
+        # ---------
+
+        if self.credentials:
+            trace_ids = set(span.get_span_context().trace_id for span in spans)
+
+            if len(trace_ids) == 1:
+                trace_id = trace_ids.pop()
+
+                if trace_id in self.credentials:
+                    api_key = self.credentials.pop(trace_id)
+
+                    if api_key:
+                        headers = {"Authorization": api_key}
+
+        with exporting_context_manager(context=ExportingContext(headers=headers)):
+            return super().export(spans)
+
+    def _export(self, serialized_data: bytes):
+        self._session.headers.update(exporting_context.get().headers)
+
+        # --- DEBUG
+        auth = {"Authorization": self._session.headers.get("Authorization")}
+        print("    ", auth)
+        # ---------
+
+        return super()._export(serialized_data)
+
 
 ConsoleExporter = ConsoleSpanExporter
 InlineExporter = InlineTraceExporter
-OTLPExporter = OTLPSpanExporter

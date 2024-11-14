@@ -39,6 +39,8 @@ class Tracing(metaclass=Singleton):
         self.headers: Dict[str, str] = dict()
         # REFERENCES
         self.references: Dict[str, str] = dict()
+        # CREDENTIALS
+        self.credentials: Dict[int, str] = dict()
 
         # TRACER PROVIDER
         self.tracer_provider: Optional[TracerProvider] = None
@@ -48,8 +50,6 @@ class Tracing(metaclass=Singleton):
         self.tracer: Optional[Tracer] = None
         # INLINE SPANS for INLINE TRACES (INLINE PROCESSOR)
         self.inline_spans: Dict[str, Any] = dict()
-
-    # PUBLIC
 
     def configure(
         self,
@@ -95,6 +95,7 @@ class Tracing(metaclass=Singleton):
                 OTLPExporter(
                     endpoint=self.otlp_url,
                     headers=self.headers,
+                    credentials=self.credentials,
                 ),
                 references=self.references,
             )
