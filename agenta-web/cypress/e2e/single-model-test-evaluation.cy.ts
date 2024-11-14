@@ -16,9 +16,9 @@ describe("Single Model Test workflow", () => {
 
     context("When executing the evaluation", () => {
         it("Should successfully execute the evaluation process", () => {
-            cy.visit(`/apps/${app_id}/annotations/single_model_test`)
-            cy.url().should("include", "/annotations/single_model_test")
-            cy.clickLinkAndWait('[data-cy="new-annotation-modal-button"]')
+            cy.visit(`/apps/${app_id}/evaluations?selectedEvaluation=human_annotation`)
+            cy.url().should("include", "/evaluations?selectedEvaluation=human_annotation")
+            cy.clickLinkAndWait('[data-cy="new-human-eval-modal-button"]')
 
             cy.get(".ant-modal-content").should("exist")
 
@@ -49,10 +49,10 @@ describe("Single Model Test workflow", () => {
         })
 
         it("Should modify the evaluation vote scores", () => {
-            cy.visit(`/apps/${app_id}/annotations/single_model_test`)
-            cy.url().should("include", "/annotations/single_model_test")
+            cy.visit(`/apps/${app_id}/evaluations?selectedEvaluation=human_annotation`)
+            cy.url().should("include", "/evaluations?selectedEvaluation=human_annotation")
             cy.wait(1000)
-            cy.clickLinkAndWait('[data-cy="single-model-view-evaluation-button"]')
+            cy.clickLinkAndWait(".ant-table-row").eq(0)
             cy.get('[data-cy="evalInstructionsShown-ok-btn"]').click()
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').clear()
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').type("85")
@@ -64,10 +64,9 @@ describe("Single Model Test workflow", () => {
         })
 
         it("Should check the evaluation testset is successfully saved", () => {
-            cy.visit(`/apps/${app_id}/testsets`)
+            cy.visit(`/apps/testsets`)
             cy.url().should("include", "/testsets")
             cy.get('[data-cy="app-testset-list"]').as("table")
-            cy.get("@table").get(".ant-table-pagination li a").last().click()
             cy.get("@table").contains(saved_testset_name).as("tempTestSet").should("be.visible")
         })
     })

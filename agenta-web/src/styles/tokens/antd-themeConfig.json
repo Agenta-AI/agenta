@@ -281,7 +281,6 @@
         "paddingContentVerticalSM": 8,
         "controlPaddingHorizontal": 12,
         "controlPaddingHorizontalSM": 8,
-
         "fontSize": 12,
         "fontSizeLG": 14,
         "fontSizeSM": 10,
@@ -1334,7 +1333,6 @@
             "closeBtnSize": 22,
             "primaryNextBtnHoverBg": "#f0f0f0",
             "primaryPrevBtnBg": "rgba(255, 255, 255, 0.15)",
-
             "lineWidthFocus": 4
         },
         "QRCode": {
@@ -2153,7 +2151,6 @@
             "optionActiveBg": "rgba(0, 0, 0, 0.04)",
             "optionHeight": 32,
             "optionFontSize": 12,
-
             "fontSize": 12,
             "fontSizeIcon": 12,
             "fontSizeLG": 14,

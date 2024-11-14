@@ -8,6 +8,7 @@ export interface testset {
     _id: string
     name: string
     created_at: string
+    updated_at: string
 }
 
 export interface TestSet {
@@ -17,6 +18,8 @@ export interface TestSet {
     updated_at: string
     csvdata: KeyValuePair[]
 }
+
+export type TestsetCreationMode = "create" | "clone" | "rename"
 
 export interface ListAppsItem {
     app_id: string
@@ -335,6 +338,9 @@ type ValueTypeOptions =
     | "error"
     | "cost"
     | "latency"
+    | "hidden"
+    | "messages"
+    | "multiple_choice"
 
 //evaluation revamp types
 export interface EvaluationSettingsTemplate {
@@ -346,6 +352,7 @@ export interface EvaluationSettingsTemplate {
     max?: number
     required?: boolean
     advanced?: boolean
+    options?: string[]
 }
 
 export interface Evaluator {
@@ -357,6 +364,8 @@ export interface Evaluator {
     direct_use?: boolean
     description: string
     oss?: boolean
+    requires_llm_api_keys?: boolean
+    tags: string[]
 }
 
 export interface EvaluatorConfig {
@@ -365,6 +374,9 @@ export interface EvaluatorConfig {
     name: string
     settings_values: Record<string, any>
     created_at: string
+    color?: string
+    updated_at: string
+    tags?: string[]
 }
 
 export type EvaluationError = {
@@ -623,3 +635,63 @@ export interface TraceSpanTreeNode {
     key: string
     children?: TraceSpanTreeNode[]
 }
+
+interface VariantVotesData {
+    number_of_votes: number
+    percentage: number
+}
+export interface HumanEvaluationListTableDataType {
+    key: string
+    variants: string[]
+    testset: {
+        _id: string
+        name: string
+    }
+    evaluationType: string
+    status: EvaluationFlow
+    votesData: {
+        nb_of_rows: number
+        variants: string[]
+        flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        variants_votes_data: Record<string, VariantVotesData>
+    }
+    createdAt: string
+    revisions: string[]
+    variant_revision_ids: string[]
+    variantNames: string[]
+}
+
+export type Filter = {
+    key: string
+    operator: FilterConditions
+    value: string
+    isPermanent?: boolean
+}
+
+export type FilterConditions =
+    | "contains"
+    | "matches"
+    | "like"
+    | "startswith"
+    | "endswith"
+    | "exists"
+    | "not_exists"
+    | "eq"
+    | "neq"
+    | "gt"
+    | "lt"
+    | "gte"
+    | "lte"
+    | "between"
+    | "in"
+    | "is"
+    | "is_not"
+    | "btwn"
+    | ""

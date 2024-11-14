@@ -125,14 +125,8 @@ export const removeKeys = (obj: GenericObject, keys: string[]) => {
 export const safeParse = (str: string, fallback: any = "") => {
     try {
         if (!str) return fallback
-
-        if (typeof str !== "string") {
-            return JSON.parse(str)
-        } else {
-            return str
-        }
+        return JSON.parse(str)
     } catch (error) {
-        console.log("error parsing JSON:", error)
         return fallback
     }
 }

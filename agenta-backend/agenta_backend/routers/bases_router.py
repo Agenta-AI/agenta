@@ -40,11 +40,11 @@ async def list_bases(
         HTTPException: If there was an error retrieving the bases.
     """
     try:
+        app = await db_manager.fetch_app_by_id(app_id=app_id)
         if isCloudEE() and app_id is not None:
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                object_id=app_id,
-                object_type="app",
+                project_id=str(app.project_i),
                 permission=Permission.VIEW_APPLICATION,
             )
             if not has_permission:

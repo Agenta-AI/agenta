@@ -2,15 +2,17 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-import pydantic
+import typing_extensions
+from ..core.serialization import FieldMetadata
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
+import pydantic
 
 
 class WithPagination(UniversalBaseModel):
     data: typing.List[typing.Optional[typing.Any]]
     total: int
     page: int
-    page_size: int = pydantic.Field(alias="pageSize")
+    page_size: typing_extensions.Annotated[int, FieldMetadata(alias="pageSize")]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

@@ -12,7 +12,7 @@ import {axiosFetcher} from "@/services/api"
 
 export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
-        `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`,
+        () => (appId ? `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}` : null),
         axiosFetcher,
         {revalidateOnFocus: false, shouldRetryOnError: false},
     )
@@ -58,6 +58,24 @@ export const fetchTestset = async (testsetId: string | null) => {
     }
     const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/${testsetId}/`)
     return response.data
+}
+
+export const uploadTestsets = async (formData: FormData) => {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+        //@ts-ignore
+        _ignoreError: true,
+    })
+    return response
+}
+
+export const importTestsetsViaEndpoint = async (formData: FormData) => {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/endpoint/`, formData, {
+        headers: {"Content-Type": "multipart/form-data"},
+    })
+    return response
 }
 
 export const deleteTestsets = async (ids: string[]) => {

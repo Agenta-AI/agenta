@@ -1,0 +1,88 @@
+---
+title: "Classification and Entity Extraction Evaluators"
+---
+
+Agenta offers several evaluators to assess model performance in classification and entity extraction tasks.
+
+## Exact Match
+
+The Exact Match evaluator determines if the model's output precisely matches the expected answer.
+
+### How It Works
+
+This evaluator compares the generated output with the correct answer stored in the test set. It returns a boolean value: `true` for an exact match, and `false` otherwise.
+
+### Configuration
+
+| Parameter            | Type   | Description                                                   |
+| -------------------- | ------ | ------------------------------------------------------------- |
+| `correct_answer_key` | String | The column name in the test set containing the correct answer |
+
+## Contains JSON
+
+The Contains JSON evaluator checks if the model's output contains a valid JSON structure.
+
+### How It Works
+
+This evaluator attempts to parse the output as JSON. It returns `true` if a valid JSON structure is found within the output, and `false` otherwise.
+
+## JSON Field Match
+
+The JSON Field Match evaluator compares specific fields within JSON data.
+
+### How It Works
+
+This evaluator attempts to parse the output as JSON and extract a specified field. It then compares this field value to the correct answer. The evaluator returns `true` if the field value matches the correct answer, and `false` otherwise. Note that the value in the `correct_answer` column should be a string, not JSON.
+
+### Configuration
+
+| Parameter            | Type   | Description                                                   |
+| -------------------- | ------ | ------------------------------------------------------------- |
+| `json_field`         | String | The name of the field in the JSON output to evaluate          |
+| `correct_answer_key` | String | The column name in the test set containing the correct answer |
+
+## JSON Diff Match
+
+### How It Works
+
+This evaluator compares the output JSON with the correct answer JSON. Here's a detailed breakdown of the process:
+
+1. **JSON Flattening**: Both the output and correct answer JSONs are flattened into single-level dictionaries.
+
+   For example, a JSON like:
+
+   ```json
+   {
+     "name": "John",
+     "address": {
+       "city": "New York",
+       "zip": "10001"
+     },
+     "hobbies": ["reading", "swimming"]
+   }
+   ```
+
+   Would be flattened to:
+
+   ```python
+   {
+     "name": "John",
+     "address.city": "New York",
+     "address.zip": "10001",
+     "hobbies.0": "reading",
+     "hobbies.1": "swimming"
+   }
+   ```
+
+2. **Comparison**: The evaluator compares these flattened structures, checking each key-value pair while considering configuration options (like case sensitivity and schema-only comparison).
+
+3. **Scoring**: For each matching key-value pair, a score of 1 is assigned. The final score is the average of all comparisons, resulting in a value between 0 and 1.
+
+### Configuration
+
+| Parameter               | Type    | Description                                                        |
+| ----------------------- | ------- | ------------------------------------------------------------------ |
+| `compare_schema_only`   | Boolean | If true, only compares key names and types, ignoring values        |
+| `predict_keys`          | Boolean | If true, only considers keys present in the ground truth           |
+| `case_insensitive_keys` | Boolean | If true, treats keys as case-insensitive                           |
+| `correct_answer_key`    | String  | The column name in the test set containing the correct answer JSON |

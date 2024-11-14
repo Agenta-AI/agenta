@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, List, Dict
 from pydantic import BaseModel, Field
 
@@ -10,7 +9,7 @@ class TestsetModel(BaseModel):
     app_id: str = Field(...)
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "column_name": "column1",
                 "column_value": "value1",
@@ -48,6 +47,7 @@ class TestSetOutputResponse(BaseModel):
     id: str = Field(..., alias="_id")
     name: str
     created_at: str
+    updated_at: str
 
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True

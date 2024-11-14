@@ -1,209 +1,160 @@
-import Link from "next/link"
-import CopyButton from "@/components/CopyButton/CopyButton"
-import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Modal, Typography} from "antd"
-import React, {useEffect, useRef} from "react"
+import {Typography, Space, Button} from "antd"
+import {ArrowLeft, Check, Copy, Play} from "@phosphor-icons/react"
 import {createUseStyles} from "react-jss"
-import YouTube, {YouTubeProps} from "react-youtube"
+import {JSSTheme} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
-import {StyleProps} from "@/lib/Types"
+import {useRouter} from "next/router"
+import {useState} from "react"
 
-const useStyles = createUseStyles({
-    modal: ({themeMode}: StyleProps) => ({
-        "& .ant-modal-content": {
-            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#fff",
-        },
-        "& .ant-modal-header": {
-            backgroundColor: themeMode === "dark" ? "rgb(13, 17, 23)" : "#fff",
-        },
-        "& .ant-modal-close": {
-            top: 23,
-        },
-        "& .ant-modal": {
-            width: "auto !important",
-        },
-        "& .ant-modal-body": {
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-        },
-    }),
-    title: {
-        margin: 0,
+const {Text} = Typography
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    modal: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 24,
     },
-    body: {
-        marginTop: 16,
-        height: 360,
-    },
-    wrapper: {
-        width: 450,
-        marginRight: 10,
-        "& ol": {
-            padding: "0 5px",
-            listStyleType: "none",
+    headerText: {
+        "& .ant-typography": {
+            lineHeight: theme.lineHeightLG,
+            fontSize: theme.fontSizeHeading4,
+            fontWeight: theme.fontWeightStrong,
         },
+    },
+    label: {
+        fontWeight: theme.fontWeightMedium,
+    },
+    command: {
+        width: "92%",
+        backgroundColor: "#f6f8fa",
+        borderRadius: theme.borderRadius,
+        border: "1px solid",
+        borderColor: theme.colorBorder,
+        color: theme.colorText,
+        cursor: "default",
+        padding: "3.5px 11px",
     },
     copyBtn: {
-        backgroundColor: "transparent",
-        alignSelf: "flex-start",
-    },
-    container: {
-        margin: "20px 0",
-        "& li": {
-            fontSize: 16,
-            fontWeight: 600,
-            marginBottom: 3,
+        width: theme.controlHeight,
+        height: theme.controlHeight,
+        "& > .ant-btn-icon": {
+            marginTop: 2,
+            marginLeft: 1,
         },
     },
-    command: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        backgroundColor: themeMode === "light" ? "#f6f8fa" : "#161b22",
-        padding: "5px 10px",
-        borderRadius: 5,
-        border: `1px solid ${themeMode === "light" ? "#d0d7de" : "#30363d"}`,
-        color: themeMode === "light" ? "#1f2328" : "#e6edf3",
-        "& span": {
-            letterSpacing: 0.3,
-        },
-    }),
-    youtube: {
-        "& iframe": {
-            height: 430,
-            width: 560,
-        },
-    },
-})
+}))
 
-const {Title} = Typography
+type Props = {
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+    hasAvailableApps: boolean
+}
 
-type Props = React.ComponentProps<typeof Modal> & {}
+const WriteOwnAppModal = ({setCurrent, hasAvailableApps}: Props) => {
+    const classes = useStyles()
+    const router = useRouter()
+    const [isCopied, setIsCopied] = useState<number | null>(null)
 
-const WriteOwnAppModal: React.FC<Props> = ({...props}) => {
-    const {appTheme} = useAppTheme()
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const youtubePlayer = useRef<YouTube | null>(null)
+    const onCopyCode = (code: string, index: number) => {
+        navigator.clipboard.writeText(code)
+        setIsCopied(index)
 
-    const onPlayerReady: YouTubeProps["onStateChange"] = (event) => {
-        if (!props.open) {
-            event.target.pauseVideo()
-        }
+        setTimeout(() => setIsCopied(null), 2000)
     }
-
-    useEffect(() => {
-        if (!props.open && youtubePlayer.current) {
-            youtubePlayer.current.getInternalPlayer().pauseVideo()
-        }
-    }, [props.open])
-
+    const listOfCommands = [
+        ...(isDemo()
+            ? [
+                  {
+                      title: "Add an API Key",
+                      code: "",
+                  },
+              ]
+            : []),
+        {
+            title: "Install Agenta AI",
+            code: "pip install -U agenta",
+        },
+        {
+            title: "Clone the example application",
+            code: "git clone https://github.com/Agenta-AI/simple_prompt && cd simple_prompt",
+        },
+        {
+            title: "Set up environement variable",
+            code: 'echo -e "OPENAI_API_KEY=sk-xxx" > .env',
+        },
+        {
+            title: "Setup Agenta (select start from blank)",
+            code: "agenta init",
+        },
+        {
+            title: "Serve an app variant",
+            code: "agenta variant serve --file_name app.py",
+        },
+    ]
     return (
-        <Modal
-            rootClassName={classes.modal}
-            centered
-            footer={null}
-            title={
-                <Title level={4} className={classes.title}>
-                    Write Your Own App
-                </Title>
-            }
-            {...props}
-            afterClose={() => {
-                if (youtubePlayer.current) {
-                    youtubePlayer.current.getInternalPlayer().stopVideo()
-                }
-            }}
-        >
-            <div className={classes.wrapper}>
-                <ol>
-                    {isDemo() && (
-                        <div className={classes.container}>
-                            <li>
-                                0. <Link href="/settings?tab=apiKeys">Get an API key</Link>
-                            </li>
-                        </div>
+        <section className={classes.modal}>
+            <div className="flex items-center justify-between">
+                <Space className={classes.headerText}>
+                    {hasAvailableApps && (
+                        <Button
+                            icon={<ArrowLeft size={14} className="mt-0.5" />}
+                            className="flex items-center justify-center"
+                            onClick={() => setCurrent(0)}
+                        />
                     )}
-                    <div className={classes.container}>
-                        <li>1. Install agenta</li>
-                        <div className={classes.command}>
-                            <span>pip install -U agenta</span>
-                            <CopyButton
-                                text="pip install -U agenta"
-                                icon={true}
-                                buttonText={""}
-                                className={classes.copyBtn}
-                            />
-                        </div>
-                    </div>
 
-                    <div className={classes.container}>
-                        <li>2. Clone the example application</li>
-                        <div className={classes.command}>
-                            <span>
-                                git clone https://github.com/Agenta-AI/simple_prompt && cd
-                                simple_prompt
-                            </span>
-                            <CopyButton
-                                text="git clone https://github.com/Agenta-AI/simple_prompt && cd simple_prompt"
-                                icon={true}
-                                buttonText={""}
-                                className={classes.copyBtn}
-                            />
-                        </div>
-                    </div>
-                    <div className={classes.container}>
-                        <li>3. Set up environement variable</li>
-                        <div className={classes.command}>
-                            <span>echo -e "OPENAI_API_KEY=sk-xxx" {">"} .env</span>
-                            <CopyButton
-                                text={"echo -e 'OPENAI_API_KEY=sk-xxx' > .env"}
-                                icon={true}
-                                buttonText={""}
-                                className={classes.copyBtn}
-                            />
-                        </div>
-                    </div>
-                    <div className={classes.container}>
-                        <li>4. Setup agenta (select start from blank)</li>
-                        <div className={classes.command}>
-                            <span>agenta init</span>
-                            <CopyButton
-                                text={"agenta init"}
-                                icon={true}
-                                buttonText={""}
-                                className={classes.copyBtn}
-                            />
-                        </div>
-                    </div>
-                    <div className={classes.container}>
-                        <li>5. Serve an app variant</li>
-                        <div className={classes.command}>
-                            <span>agenta variant serve --file_name app.py</span>
-                            <CopyButton
-                                text={"agenta variant serve --file_name app.py"}
-                                icon={true}
-                                buttonText={""}
-                                className={classes.copyBtn}
-                            />
-                        </div>
-                    </div>
-                    <span>
-                        Check out{" "}
-                        <a href="https://docs.agenta.ai/advanced_guides/custom_applications">
-                            our tutorial for writing your first LLM app
-                        </a>
-                    </span>
-                </ol>
+                    <Typography.Text>Write your own app</Typography.Text>
+                </Space>
+
+                <Typography.Link href="https://www.youtube.com/watch?v=nggaRwDZM-0" target="_blank">
+                    <Button icon={<Play size={14} className="mt-[2px]" />} className="mr-6">
+                        Tutorial
+                    </Button>
+                </Typography.Link>
             </div>
-            <YouTube
-                videoId="nggaRwDZM-0"
-                onStateChange={onPlayerReady}
-                ref={(youtube) => {
-                    youtubePlayer.current = youtube
-                }}
-                className={classes.youtube}
-            />
-        </Modal>
+
+            <Text>
+                Create your own complex application using any framework. To learn more about how to
+                write your own LLM app here,{" "}
+                <a
+                    href="https://docs.agenta.ai/guides/tutorials/a-more-complicated-tutorial-draft"
+                    target="_blank"
+                    className="!underline !underline-offset-2"
+                >
+                    Click here
+                </a>
+            </Text>
+
+            {listOfCommands.map((item, ind) => (
+                <div className="grid gap-4" key={ind}>
+                    <div className="space-y-2">
+                        <Text className={classes.label}>
+                            Step {ind + 1}: {item.title}
+                        </Text>
+
+                        {item.title.includes("API Key") ? (
+                            <Button
+                                className="block"
+                                onClick={() => router.push("/settings?tab=apiKeys")}
+                            >
+                                Get an API key
+                            </Button>
+                        ) : (
+                            <div className="flex items-center justify-between gap-2">
+                                <div className={classes.command}>{item.code}</div>
+
+                                <Button
+                                    onClick={() => onCopyCode(item.code, ind)}
+                                    icon={
+                                        isCopied !== ind ? <Copy size={14} /> : <Check size={14} />
+                                    }
+                                    className={classes.copyBtn}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ))}
+        </section>
     )
 }
 

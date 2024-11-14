@@ -387,7 +387,11 @@ class AsyncContainersClient:
             files={
                 "tar_file": tar_file,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:

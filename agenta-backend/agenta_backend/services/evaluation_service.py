@@ -5,14 +5,9 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from sqlalchemy.orm import Session
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db.postgres_engine import db_engine
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -67,10 +62,9 @@ class UpdateEvaluationScenarioError(Exception):
 async def prepare_csvdata_and_create_evaluation_scenario(
     csvdata: List[Dict[str, str]],
     payload_inputs: List[str],
+    project_id: str,
     evaluation_type: EvaluationType,
     new_evaluation: HumanEvaluationDB,
-    user: UserDB,
-    app: AppDB,
 ):
     """
     Prepares CSV data and creates evaluation scenarios based on the inputs, evaluation
@@ -79,10 +73,9 @@ async def prepare_csvdata_and_create_evaluation_scenario(
     Args:
         csvdata: A list of dictionaries representing the CSV data.
         payload_inputs: A list of strings representing the names of the inputs in the variant.
+        project_id (str): The ID of the project
         evaluation_type: The type of evaluation
         new_evaluation: The instance of EvaluationDB
-        user: The owner of the evaluation scenario
-        app: The app the evaluation is going to belong to
     """
 
     for datum in csvdata:
@@ -121,8 +114,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
         }
         await db_manager.create_human_evaluation_scenario(
             inputs=list_of_scenario_input,
-            user_id=str(user.id),
-            app=app,
+            project_id=project_id,
             evaluation_id=str(new_evaluation.id),
             evaluation_extend=evaluation_scenario_extend_payload,
         )
@@ -141,23 +133,26 @@ async def update_human_evaluation_service(
 
     # Update the evaluation
     await db_manager.update_human_evaluation(
-        evaluation_id=str(evaluation.id), values_to_update=update_payload.dict()
+        evaluation_id=str(evaluation.id), values_to_update=update_payload.model_dump()
     )
 
 
-async def fetch_evaluation_scenarios_for_evaluation(evaluation_id: str):
+async def fetch_evaluation_scenarios_for_evaluation(
+    evaluation_id: str, project_id: str
+):
     """
     Fetch evaluation scenarios for a given evaluation ID.
 
     Args:
         evaluation_id (str): The ID of the evaluation.
+        project_id (str): The ID of the project.
 
     Returns:
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
     evaluation_scenarios = await db_manager.fetch_evaluation_scenarios(
-        evaluation_id=evaluation_id
+        evaluation_id=evaluation_id, project_id=project_id
     )
     return [
         await converters.evaluation_scenario_db_to_pydantic(
@@ -213,7 +208,7 @@ async def update_human_evaluation_scenario(
     """
 
     values_to_update = {}
-    payload = evaluation_scenario_data.dict(exclude_unset=True)
+    payload = evaluation_scenario_data.model_dump(exclude_unset=True)
 
     if "score" in payload and evaluation_type == EvaluationType.single_model_test:
         values_to_update["score"] = str(payload["score"])
@@ -226,7 +221,7 @@ async def update_human_evaluation_scenario(
             HumanEvaluationScenarioOutput(
                 variant_id=output["variant_id"],
                 variant_output=output["variant_output"],
-            ).dict()
+            ).model_dump()
             for output in payload["outputs"]
         ]
         values_to_update["outputs"] = new_outputs
@@ -236,7 +231,7 @@ async def update_human_evaluation_scenario(
             HumanEvaluationScenarioInput(
                 input_name=input_item["input_name"],
                 input_value=input_item["input_value"],
-            ).dict()
+            ).model_dump()
             for input_item in payload["inputs"]
         ]
         values_to_update["inputs"] = new_inputs
@@ -273,20 +268,21 @@ def _extend_with_correct_answer(evaluation_type: EvaluationType, row: dict):
     return correct_answer
 
 
-async def fetch_list_evaluations(
-    app: AppDB,
-) -> List[Evaluation]:
+async def fetch_list_evaluations(app: AppDB, project_id: str) -> List[Evaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
         app (AppDB): An app to filter the evaluations.
+        project_id (str): The ID of the project
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
 
-    evaluations_db = await db_manager.list_evaluations(app_id=str(app.id))
+    evaluations_db = await db_manager.list_evaluations(
+        app_id=str(app.id), project_id=project_id
+    )
     return [
         await converters.evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -294,19 +290,22 @@ async def fetch_list_evaluations(
 
 
 async def fetch_list_human_evaluations(
-    app_id: str,
+    app_id: str, project_id: str
 ) -> List[HumanEvaluation]:
     """
     Fetches a list of evaluations based on the provided filtering criteria.
 
     Args:
         app_id (Optional[str]): An optional app ID to filter the evaluations.
+        project_id (str): The ID of the project.
 
     Returns:
         List[Evaluation]: A list of evaluations.
     """
 
-    evaluations_db = await db_manager.list_human_evaluations(app_id=app_id)
+    evaluations_db = await db_manager.list_human_evaluations(
+        app_id=app_id, project_id=project_id
+    )
     return [
         await converters.human_evaluation_db_to_pydantic(evaluation)
         for evaluation in evaluations_db
@@ -333,6 +332,7 @@ async def delete_human_evaluations(evaluation_ids: List[str]) -> None:
 
     Args:
         evaluation_ids (List[str]): A list of evaluation IDs.
+        project_id (str): The ID of the project.
 
     Raises:
         NoResultFound: If evaluation not found or access denied.
@@ -356,21 +356,17 @@ async def delete_evaluations(evaluation_ids: List[str]) -> None:
     await db_manager.delete_evaluations(evaluation_ids=evaluation_ids)
 
 
-async def create_new_human_evaluation(
-    payload: NewHumanEvaluation, user_uid: str
-) -> HumanEvaluationDB:
+async def create_new_human_evaluation(payload: NewHumanEvaluation) -> HumanEvaluationDB:
     """
     Create a new evaluation based on the provided payload and additional arguments.
 
     Args:
         payload (NewEvaluation): The evaluation payload.
-        user_uid (str): The user_uid of the user
 
     Returns:
         HumanEvaluationDB
     """
 
-    user = await db_manager.get_user(user_uid)
     app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
     if app is None:
         raise HTTPException(
@@ -380,7 +376,6 @@ async def create_new_human_evaluation(
 
     human_evaluation = await db_manager.create_human_evaluation(
         app=app,
-        user_id=str(user.id),
         status=payload.status,
         evaluation_type=payload.evaluation_type,
         testset_id=payload.testset_id,
@@ -394,18 +389,17 @@ async def create_new_human_evaluation(
     await prepare_csvdata_and_create_evaluation_scenario(
         human_evaluation.testset.csvdata,
         payload.inputs,
+        str(app.project_id),
         payload.evaluation_type,
         human_evaluation,
-        user,
-        app,
     )
     return human_evaluation
 
 
 async def create_new_evaluation(
     app_id: str,
+    project_id: str,
     variant_id: str,
-    evaluator_config_ids: List[str],
     testset_id: str,
 ) -> Evaluation:
     """
@@ -413,8 +407,8 @@ async def create_new_evaluation(
 
     Args:
         app_id (str): The ID of the app.
+        project_id (str): The ID of the project.
         variant_id (str): The ID of the variant.
-        evaluator_config_ids (List[str]): The IDs of the evaluator configurations.
         testset_id (str): The ID of the testset.
 
     Returns:
@@ -423,22 +417,27 @@ async def create_new_evaluation(
 
     app = await db_manager.fetch_app_by_id(app_id=app_id)
     testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
-    variant_db = await db_manager.get_app_variant_instance_by_id(variant_id=variant_id)
+    variant_db = await db_manager.get_app_variant_instance_by_id(
+        variant_id=variant_id, project_id=project_id
+    )
+
+    assert variant_db is not None, f"App variant with ID {variant_id} cannot be None."
+    assert (
+        variant_db.revision is not None
+    ), f"Revision of App variant with ID {variant_id} cannot be None"
     variant_revision = await db_manager.fetch_app_variant_revision_by_variant(
-        app_variant_id=variant_id, revision=variant_db.revision  # type: ignore
+        app_variant_id=variant_id, project_id=project_id, revision=variant_db.revision  # type: ignore
     )
 
     evaluation_db = await db_manager.create_new_evaluation(
         app=app,
-        user_id=str(app.user_id),
+        project_id=project_id,
         testset=testset,
         status=Result(
             value=EvaluationStatusEnum.EVALUATION_INITIALIZED, type="status", error=None
         ),
         variant=variant_id,
         variant_revision=str(variant_revision.id),
-        organization=str(app.organization_id) if isCloudEE() else None,
-        workspace=str(app.workspace_id) if isCloudEE() else None,
     )
     return await converters.evaluation_db_to_pydantic(evaluation_db)
 
@@ -458,9 +457,7 @@ async def retrieve_evaluation_results(evaluation_id: str) -> List[dict]:
     return await converters.aggregated_result_to_pydantic(evaluation.aggregated_results)
 
 
-async def compare_evaluations_scenarios(
-    evaluations_ids: List[str],
-):
+async def compare_evaluations_scenarios(evaluations_ids: List[str], project_id: str):
     evaluation = await db_manager.fetch_evaluation_by_id(evaluations_ids[0])
     testset = evaluation.testset
     unique_testset_datapoints = remove_duplicates(testset.csvdata)
@@ -471,7 +468,7 @@ async def compare_evaluations_scenarios(
 
     for evaluation_id in evaluations_ids:
         eval_scenarios = await fetch_evaluation_scenarios_for_evaluation(
-            evaluation_id=evaluation_id
+            evaluation_id=evaluation_id, project_id=project_id
         )
         all_scenarios.append(eval_scenarios)
 

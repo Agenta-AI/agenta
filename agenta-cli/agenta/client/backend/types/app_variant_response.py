@@ -11,8 +11,8 @@ class AppVariantResponse(UniversalBaseModel):
     app_name: str
     variant_id: str
     variant_name: str
+    project_id: str
     parameters: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
-    user_id: str
     base_name: str
     base_id: str
     config_name: str
