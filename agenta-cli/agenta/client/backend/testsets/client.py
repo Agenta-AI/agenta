@@ -261,10 +261,10 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in a MongoDB collection using its \_id.
+        Fetch a specific testset in a MongoDB collection using its _id.
 
         Args:
-        testset_id (str): The \_id of the testset to fetch.
+        testset_id (str): The _id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
@@ -814,10 +814,10 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in a MongoDB collection using its \_id.
+        Fetch a specific testset in a MongoDB collection using its _id.
 
         Args:
-        testset_id (str): The \_id of the testset to fetch.
+        testset_id (str): The _id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
