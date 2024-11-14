@@ -16,21 +16,31 @@ import {useLocalStorage} from "usehooks-ts"
 type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
 
 const useStyles = createUseStyles(() => ({
-    modalWrapper: {
+    modalWrapper: ({current, debugEvaluator}: {current: number; debugEvaluator: boolean}) => ({
+        height: "95vh",
+        width: `${current === 2 && !debugEvaluator ? "600px" : "90vw"} !important`,
+        maxWidth: "1800px",
+        maxHeight: "1100px",
+        minWidth: current === 2 && !debugEvaluator ? "600px" : "1000px",
+        minHeight: "800px",
         transition: "width 0.3s ease",
+        "& > div": {
+            height: "100%",
+        },
         "& .ant-modal-content": {
-            height: 800,
+            height: "100%",
             "& .ant-modal-body": {
                 height: "100%",
             },
         },
-    },
+    }),
 }))
 
 const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
-    const classes = useStyles()
     const appId = useAppId()
     const [current, setCurrent] = useState(0)
+    const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
+    const classes = useStyles({current, debugEvaluator})
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
@@ -51,7 +61,6 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
         "list",
     )
     const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
-    const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [selectedTestset, setSelectedTestset] = useState("")
 
     const evalConfigFetcher = () => {
@@ -159,14 +168,6 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
     return (
         <Modal
             footer={null}
-            style={{
-                height: "95vh",
-                width: current === 2 && !debugEvaluator ? "600px" : "90vw",
-                maxWidth: "1800px",
-                maxHeight: "1100px",
-                minWidth: current === 2 && !debugEvaluator ? "600px" : "1200px",
-                minHeight: "800px",
-            }}
             closeIcon={null}
             title={null}
             className={classes.modalWrapper}
