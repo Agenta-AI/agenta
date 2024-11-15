@@ -3462,59 +3462,6 @@
                 }
             }
         },
-        "/testsets/{app_id}": {
-            "post": {
-                "tags": [
-                    "Testsets"
-                ],
-                "summary": "Create Testset",
-                "description": "Create a testset with given name and app_name, save the testset to MongoDB.\n\nArgs:\nname (str): name of the test set.\napp_name (str): name of the application.\ntestset (Dict[str, str]): test set data.\n\nReturns:\nstr: The id of the test set created.",
-                "operationId": "create_testset",
-                "parameters": [
-                    {
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "App Id"
-                        },
-                        "name": "app_id",
-                        "in": "path"
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/NewTestset"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "Successful Response",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/TestSetSimpleResponse"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "description": "Validation Error",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/testsets/{testset_id}": {
             "get": {
                 "tags": [
@@ -3606,6 +3553,47 @@
             }
         },
         "/testsets": {
+            "post": {
+                "tags": [
+                    "Testsets"
+                ],
+                "summary": "Create Testset",
+                "description": "Create a testset with given name, save the testset to MongoDB.\n\nArgs:\nname (str): name of the test set.\ntestset (Dict[str, str]): test set data.\n\nReturns:\nstr: The id of the test set created.",
+                "operationId": "create_testset",
+                "parameters": [],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/NewTestset"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TestSetSimpleResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "get": {
                 "tags": [
                     "Testsets"
@@ -3613,17 +3601,7 @@
                 "summary": "Get Testsets",
                 "description": "Get all testsets.\n\nReturns:\n- A list of testset objects.\n\nRaises:\n- `HTTPException` with status code 404 if no testsets are found.",
                 "operationId": "get_testsets",
-                "parameters": [
-                    {
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "title": "App Id"
-                        },
-                        "name": "app_id",
-                        "in": "query"
-                    }
-                ],
+                "parameters": [],
                 "responses": {
                     "200": {
                         "description": "Successful Response",
@@ -4405,10 +4383,6 @@
                     "testset_name": {
                         "type": "string",
                         "title": "Testset Name"
-                    },
-                    "app_id": {
-                        "type": "string",
-                        "title": "App Id"
                     }
                 },
                 "type": "object",

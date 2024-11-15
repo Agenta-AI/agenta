@@ -67,7 +67,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         setIsLoading(true)
         try {
             const rowData = data || (await generateInitialRowData())
-            const response = await createNewTestset(appId, testsetName, rowData)
+            const response = await createNewTestset(testsetName, rowData)
             message.success("Test set created successfully")
             router.push(`/apps/testsets/${response.data.id}`)
         } catch (error) {
