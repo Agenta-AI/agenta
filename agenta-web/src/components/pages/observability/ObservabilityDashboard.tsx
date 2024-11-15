@@ -213,7 +213,9 @@ const ObservabilityDashboard = () => {
             }),
             render: (_, record) => {
                 return (
-                    <div>{dayjs(record.lifecycle?.created_at).format("HH:mm:ss DD MMM YYYY")}</div>
+                    <div>
+                        {dayjs(record.lifecycle?.created_at).local().format("HH:mm:ss DD MMM YYYY")}
+                    </div>
                 )
             },
         },
@@ -336,7 +338,7 @@ const ObservabilityDashboard = () => {
         try {
             if (traces.length) {
                 const {currentApp} = getAppValues()
-                const filename = `${currentApp?.app_name}_observability.csv`
+                const filename = `${currentApp?.app_name || ""}_observability.csv`
 
                 const convertToStringOrJson = (value: any) => {
                     return typeof value === "string" ? value : JSON.stringify(value)
@@ -346,15 +348,14 @@ const ObservabilityDashboard = () => {
                 const createTraceObject = (trace: any) => ({
                     "Trace ID": trace.key,
                     Name: trace.node.name,
-                    Timestamp: dayjs(trace.time.start).format("HH:mm:ss DD MMM YYYY"),
-                    Inputs: trace?.data?.inputs?.topic || "N/A",
+                    "Span type": trace.node.type || "N/A",
+                    Inputs: convertToStringOrJson(trace?.data?.inputs?.topic) || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
-                    Status: trace.status.code,
-                    Latency: formatLatency(trace.metrics?.acc?.duration.total),
-                    Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total || 0),
-                    "Total Cost": formatCurrency(trace.metrics?.acc?.costs?.total || 0),
-                    "Span Type": trace.node.type || "N/A",
-                    "Span ID": trace.node.id,
+                    Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
+                    Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
+                    Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total),
+                    Timestamp: dayjs(trace.time.start).local().format("HH:mm:ss DD MMM YYYY"),
+                    Status: trace.status.code === "failed" ? "ERROR" : "SUCCESS",
                 })
 
                 const csvData = convertToCsv(
@@ -364,13 +365,7 @@ const ObservabilityDashboard = () => {
                             ? [parentTrace, ...trace.children.map(createTraceObject)]
                             : [parentTrace]
                     }),
-                    [
-                        ...columns.map((col) =>
-                            col.title === "ID" ? "Trace ID" : (col.title as string),
-                        ),
-                        "Span ID",
-                        "Span Type",
-                    ],
+                    columns.map((col) => (col.title === "ID" ? "Trace ID" : (col.title as string))),
                 )
 
                 downloadCsv(csvData, filename)
