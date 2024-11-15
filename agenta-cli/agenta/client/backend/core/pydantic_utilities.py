@@ -290,7 +290,9 @@ def universal_field_validator(
         if IS_PYDANTIC_V2:
             return pydantic.field_validator(
                 field_name, mode="before" if pre else "after"
-            )(func)  # type: ignore # Pydantic v2
+            )(
+                func
+            )  # type: ignore # Pydantic v2
         else:
             return pydantic.validator(field_name, pre=pre)(func)  # type: ignore # Pydantic v1
 
