@@ -435,10 +435,37 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 window = _to_minutes(window_text)
 
+                def generate_all_buckets(
+                    oldest: datetime, newest: datetime, window: int
+                ) -> List[Tuple[datetime, datetime]]:
+                    """
+                    Generate all buckets between the oldest and newest timestamps based on a given window.
+
+                    Args:
+                        oldest (datetime): The start time of the bucket range.
+                        newest (datetime): The end time of the bucket range.
+                        window (int): The window size in minutes.
+
+                    Returns:
+                        List[Tuple[datetime, datetime]]: A list of tuples representing bucket start and end times.
+                    """
+                    bucket_start = oldest
+                    buckets = []
+
+                    while bucket_start < newest:
+                        bucket_end = bucket_start + timedelta(minutes=window)
+                        buckets.append((bucket_start, min(bucket_end, newest)))
+                        bucket_start = bucket_end
+
+                    return buckets
+
+                buckets = generate_all_buckets(oldest, newest, window)
+
                 bucket_dtos, count = map_bucket_dbes_to_dtos(
                     total_bucket_dbes=total_bucket_dbes,
                     error_bucket_dbes=error_bucket_dbes,
                     window=window,
+                    buckets=buckets,
                 )
 
             return bucket_dtos, count
