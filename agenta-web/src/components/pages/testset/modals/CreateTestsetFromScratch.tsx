@@ -33,7 +33,6 @@ type Props = {
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
-    appId: string
 }
 
 const CreateTestsetFromScratch: React.FC<Props> = ({
