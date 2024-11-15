@@ -4,56 +4,54 @@ description: "Learn about custom workflows with Agenta"
 ---
 
 <img
-  src="/images/custom-workflows/custom-workflows-draft.png"
+  src="/images/custom-workflows/custom-workflows.png"
   alt="Custom Workflows Overview"
   width="100%"
 />
 
-LLM applications are more than single prompts —they involve orchestrating models,
-configurations, and processes to ensure consistent results
+Custom workflows let you build a playground for any custom LLM workflow, such as RAG or agents. This playground replicates the logic of your real application, enabling subject matter experts to easily iterate on its parameters and evaluate it end-to-end from the web UI
 
-While traditional tools for prompt engineering focus on optimizing individual prompts, building robust applications requires experimenting with the **entire workflow**, which may include RAG strategies, or AI architectures like agents or chains of prompts.
+## The problem with traditional prompt playgrounds
 
-Agenta's **Custom Workflows** allow you to integrate your entire LLM app code directly into the platform. This enables both technical and non-technical team members to collaborate in the web UI, iterate on its configuration, and evaluate and monitor the application end-to-end.
+Traditional prompt playgrounds suffer from a major limitation: their output doesn't accurately represent the output of LLM applications. The reason is that LLM applications are more than single prompts—they involve workflows with multiple LLM calls, pre- and post-processing steps, and retrieval steps.
 
-## What problems do custom workflows solve?
+As a result, subject matter experts find it hard to trust the outputs of the playground and make the collaboration with developers hard since they don't share the same context.
+
+## Custom workflows to the rescue
+
+Custom workflows solve this problem by allowing you to create custom playground for the workflow in your LLM application. This way you can accurately represent the output of the LLM applications and make the collaboration easy.
 
 With Agenta's Custom Workflows, you can:
 
-- **Collaborate with Subject Matter Experts**: Empower non-technical stakeholders to experiment with and evaluate different configurations of your workflow.
-- **Evaluate end-to-end**: Assess your entire workflow, not just individual prompts, from the web UI.
-- **Debug from the Playground**: Use the Playground to inspect results at every step of your workflow.
-- **Version control the whole workflow**: Keep track of changes across the entire application, not just single prompts.
+- **Collaborate with Subject Matter Experts**: Allow product teams to experiment with the real production workflow using the same codebase and logic as the live application.
+- **Evaluate the Entire Workflow**: Evaluate your workflow end-to-end directly from the web UI.
+- **Simplify Debugging**: View detailed traces of your calls directly in the playground, making debugging easier.
+- **Track Versions**: Keep version control of the entire application configuration, not just individual prompts.
 
-You can get started quickly—often in under an hour—using our code templates or by integrating your existing code.
+## How to get started
+
+You can get started quickly using our code templates—often in just a few minutes—or in under an hour when integrating with your existing codebase.
+
+To create a custom workflow, add a few lines to your existing codebase to define the workflow configuration and expose the entry points to Agenta.
+
+Refer to our quick start guide to begin.
 
 ## How custom workflows work
 
-Custom workflows create an endpoint between your code and Agenta, allowing Agenta to modify the configuration in the code and run the workflow.
+Custom workflows create an API endpoint between your code and Agenta, allowing Agenta to run the workflow.
 
-You can integrate your existing codebase into Agenta with minimal setup:
-
-1. **Define workflow configuration**: Specify the configuration of your workflow that you want to experiment with in the playground and version (like prompts and model settings).
-2. **Add entry points**: Use Agenta decorators to expose the entry point functions to Agenta.
-3. **Integrate with Agenta**: Link your code using Agenta's CLI with a single command.
-
-After completing these steps, you can:
-
-- **Playground**: Test and tweak your workflow parameters and interact with it.
-- **Configuration Management**: Track different configurations and deploy them.
-- **Evaluation Tools**: Run evaluations on the entire workflow or specific parts.
-- **Observability**: Monitor performance and inspect intermediate steps.
+Agenta provides an SDK that makes creating the API endpoint as simple as adding a decorator to your existing code. The CLI takes care of serving the codebase and integrating it with Agenta.
 
 ## FAQ
 
 - **How long does it take to set up?**  
-  You can usually get started in about an hour by integrating your existing code. Less if you are starting from scratch or a template.
+  You can usually get started in about an hour by integrating your existing code—less if you are starting from scratch or using a template.
 
-- **Do I need to host my application on Agenta?**  
-  No, you can keep your workflow in your own codebase and use Agenta for testing and configuration management.
+- **Do I need to host production application in Agenta?**  
+  No, you can keep your production application hosted on your premises and use Agenta for prompt engineering and evaluation. Your application will integrate with Agenta to fetch the latest configuration.
 
 - **Can I use Agenta with my existing framework / model?**  
-  Yes, Agenta works with any framework (langchain, llama index, haystack) and any model. The only current requirement is that the code for the workflow needs to be written in Python.
+  Yes, Agenta works with any framework (e.g., Langchain, Llama Index, Haystack) and any model. The only current requirement is that the code for the workflow needs to be written in Python.
 
 ## Next steps
 
