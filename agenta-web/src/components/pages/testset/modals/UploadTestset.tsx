@@ -83,7 +83,6 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
             if (testsetName && testsetName.trim() !== "") {
                 formData.append("testset_name", testsetName)
             }
-            formData.append("app_id", appId)
 
             try {
                 setUploadLoading(true)

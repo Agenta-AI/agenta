@@ -75,7 +75,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel, appId}) =>
     const [selectedLang, setSelectedLang] = useState("python")
 
     const uploadURI = `${getAgentaApiUrl()}/api/testsets/upload`
-    const jsonURI = `${getAgentaApiUrl()}/api/testsets/${appId}`
+    const jsonURI = `${getAgentaApiUrl()}/api/testsets`
 
     const params = `{
     "name": "testset_name",}`
@@ -87,9 +87,9 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel, appId}) =>
     }
 
     const csvCodeSnippets: Record<string, string> = {
-        python: pythonCodeUpload(uploadURI, appId),
-        bash: cURLCodeUpload(uploadURI, appId),
-        typescript: tsCodeUpload(uploadURI, appId),
+        python: pythonCodeUpload(uploadURI),
+        bash: cURLCodeUpload(uploadURI),
+        typescript: tsCodeUpload(uploadURI),
     }
 
     const codeSnippets = uploadType === "csv" ? csvCodeSnippets : jsonCodeSnippets

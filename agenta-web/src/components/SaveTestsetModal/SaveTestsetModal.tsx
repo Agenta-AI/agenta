@@ -1,5 +1,4 @@
 import React, {useEffect, useState} from "react"
-import {useAppId} from "@/hooks/useAppId"
 import {Evaluation, EvaluationScenario} from "@/lib/Types"
 import {EvaluationFlow} from "@/lib/enums"
 import {createNewTestset} from "@/services/testsets/api"
@@ -21,7 +20,6 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
     onSuccess,
     ...props
 }) => {
-    const appId = useAppId()
     const [form] = Form.useForm()
     const [submitLoading, setSubmitLoading] = useState(false)
 
@@ -46,7 +44,7 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
             }
         })
 
-        createNewTestset(appId, values.testset_name, newRows)
+        createNewTestset(values.testset_name, newRows)
             .then(() => onSuccess(values.testset_name))
             .catch(console.error)
             .finally(() => {

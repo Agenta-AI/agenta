@@ -28,8 +28,6 @@ const LoadTestsModal: React.FC<Props> = (props) => {
     const [isOpen, setIsOpen] = useState(false)
     const [selectedSet, setSelectedSet] = useState<string>("")
 
-    const appId = router.query.app_id as string
-
     const {testsets, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList()
 
     const options = testsets?.map((item: Record<string, any>) => ({

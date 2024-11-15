@@ -53,7 +53,6 @@ async def upload_file(
     upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
-    app_id: str = Form(None),
 ):
     """
     Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -67,11 +66,10 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to upload Testset: {has_permission}")
@@ -114,7 +112,8 @@ async def upload_file(
 
     try:
         testset = await db_manager.create_testset(
-            app=app, project_id=str(app.project_id), testset_data=document
+            project_id=request.state.project_id,
+            testset_data=document,
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -132,7 +131,6 @@ async def import_testset(
     request: Request,
     endpoint: str = Form(None),
     testset_name: str = Form(None),
-    app_id: str = Form(None),
 ):
     """
     Import JSON testset data from an endpoint and save it to MongoDB.
@@ -145,11 +143,10 @@ async def import_testset(
         dict: The result of the import process.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to import Testset: {has_permission}")
@@ -180,7 +177,8 @@ async def import_testset(
             document["csvdata"].append(row)
 
         testset = await db_manager.create_testset(
-            app=app, project_id=str(app.project_id), testset_data=document
+            project_id=request.state.project_id,
+            testset_data=document,
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -204,30 +202,30 @@ async def import_testset(
 
 
 @router.post(
-    "/{app_id}/", response_model=TestSetSimpleResponse, operation_id="create_testset"
+    "/{app_id}",
+    response_model=TestSetSimpleResponse,
+    operation_id="deprecating_create_testset",
 )
+@router.post("/", response_model=TestSetSimpleResponse, operation_id="create_testset")
 async def create_testset(
-    app_id: str,
     csvdata: NewTestset,
     request: Request,
 ):
     """
-    Create a testset with given name and app_name, save the testset to MongoDB.
+    Create a testset with given name, save the testset to MongoDB.
 
     Args:
     name (str): name of the test set.
-    app_name (str): name of the application.
     testset (Dict[str, str]): test set data.
 
     Returns:
     str: The id of the test set created.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to create Testset: {has_permission}")
@@ -245,7 +243,8 @@ async def create_testset(
             "csvdata": csvdata.csvdata,
         }
         testset_instance = await db_manager.create_testset(
-            app=app, project_id=str(app.project_id), testset_data=testset_data
+            project_id=request.state.project_id,
+            testset_data=testset_data,
         )
         if testset_instance is not None:
             return TestSetSimpleResponse(
