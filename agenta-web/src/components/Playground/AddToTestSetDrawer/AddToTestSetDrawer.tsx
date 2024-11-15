@@ -102,10 +102,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     const router = useRouter()
     const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList()
     const storedValue = localStorage.getItem(`selectedTestset`)?.replace(/"/g, "")
-    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(
-        `selectedTestset`,
-        "",
-    )
+    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(`selectedTestset`, "")
 
     useEffect(() => {
         if (storedValue && testsets.some((testset: testset) => testset._id === storedValue)) {
