@@ -903,9 +903,9 @@ def parse_to_agenta_span_dto(
     if span_dto.data:
         span_dto.data = _unmarshal_attributes(span_dto.data)
 
-        # if "outputs" in span_dto.data:
-        #     if "__default__" in span_dto.data["outputs"]:
-        #         span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
+        if "outputs" in span_dto.data:
+            if "__default__" in span_dto.data["outputs"]:
+                span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
 
     # METRICS
     if span_dto.metrics:
@@ -934,6 +934,17 @@ def parse_to_agenta_span_dto(
             else:
                 parse_to_agenta_span_dto(v)
 
+    # MASK LINKS FOR NOW
+    span_dto.links = None
+    # ------------------
+
+    # MASK LIFECYCLE FOR NOW
+    # span_dto.lifecycle = None
+    if span_dto.lifecycle:
+        span_dto.lifecycle.updated_at = None
+        span_dto.lifecycle.updated_by_id = None
+    # ----------------------
+
     return span_dto
 
 
@@ -944,6 +955,8 @@ def parse_to_agenta_span_dto(
 
 from litellm import cost_calculator
 from opentelemetry.sdk.trace import ReadableSpan
+
+from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse
 
 
 def parse_inline_trace(
@@ -992,14 +1005,19 @@ def parse_inline_trace(
     ### services.observability.service.query() ###
     ##############################################
 
-    inline_trace = None
-
     spans = [
-        loads(span_dto.model_dump_json(exclude_none=True))
+        loads(
+            span_dto.model_dump_json(
+                exclude_none=True,
+                exclude_defaults=True,
+            )
+        )
         for span_dto in agenta_span_dtos
     ]
-    inline_trace = spans  # NOTE (author: @jp-agenta): turn into Agenta Model ?
-
+    inline_trace = AgentaNodesResponse(
+        version="1.0.0",
+        nodes=[AgentaNodeDto(**span) for span in spans],
+    ).model_dump(exclude_none=True, exclude_unset=True)
     return inline_trace
 
 

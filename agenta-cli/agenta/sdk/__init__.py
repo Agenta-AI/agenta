@@ -17,6 +17,8 @@ from .types import (
     FileInputURL,
     BinaryParam,
     Prompt,
+    AgentaNodeDto,
+    AgentaNodesResponse,
 )
 
 from .tracing import Tracing, get_tracer
