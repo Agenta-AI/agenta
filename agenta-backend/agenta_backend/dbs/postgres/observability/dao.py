@@ -45,7 +45,8 @@ from agenta_backend.core.observability.utils import (
 )
 
 _DEFAULT_TIME_DELTA = timedelta(days=30)
-_DEFAULT_WINDOW = "15 minutes"
+_DEFAULT_WINDOW = 1440  # 1 day
+_DEFAULT_WINDOW_TEXT = "1 day"
 _MAX_ALLOWED_BUCKETS = 1024
 _SUGGESTED_BUCKETS_LIST = [
     (1, "1 minute"),
@@ -205,7 +206,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
             async with engine.session() as session:
                 # WINDOWING
                 today = datetime.now()
-                end_of_today = datetime.combine(today, time.max)
+                start_of_next_day = datetime.combine(
+                    today + timedelta(days=1), time.min
+                )
 
                 oldest = None
                 newest = None
@@ -215,7 +218,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     if analytics_dto.windowing.newest:
                         newest = analytics_dto.windowing.newest
                     else:
-                        newest = end_of_today
+                        newest = start_of_next_day
 
                     if analytics_dto.windowing.oldest:
                         if analytics_dto.windowing.oldest > newest:
@@ -228,7 +231,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     if analytics_dto.windowing.window:
                         _desired_window = analytics_dto.windowing.window
                     else:
-                        _desired_window = 15
+                        _desired_window = _DEFAULT_WINDOW
 
                     _window_minutes = (newest - oldest).total_seconds() // 60
 
@@ -252,9 +255,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                         window_text = f"{_desired_window} minute{'s' if _desired_window > 1 else ''}"
 
                 else:
-                    newest = end_of_today
+                    newest = start_of_next_day
                     oldest = newest - _DEFAULT_TIME_DELTA
-                    window_text = _DEFAULT_WINDOW
+                    window_text = _DEFAULT_WINDOW_TEXT
 
                 # ---------
 
@@ -435,37 +438,13 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 window = _to_minutes(window_text)
 
-                def generate_all_buckets(
-                    oldest: datetime, newest: datetime, window: int
-                ) -> List[Tuple[datetime, datetime]]:
-                    """
-                    Generate all buckets between the oldest and newest timestamps based on a given window.
-
-                    Args:
-                        oldest (datetime): The start time of the bucket range.
-                        newest (datetime): The end time of the bucket range.
-                        window (int): The window size in minutes.
-
-                    Returns:
-                        List[Tuple[datetime, datetime]]: A list of tuples representing bucket start and end times.
-                    """
-                    bucket_start = oldest
-                    buckets = []
-
-                    while bucket_start < newest:
-                        bucket_end = bucket_start + timedelta(minutes=window)
-                        buckets.append((bucket_start, min(bucket_end, newest)))
-                        bucket_start = bucket_end
-
-                    return buckets
-
-                buckets = generate_all_buckets(oldest, newest, window)
+                timestamps = _to_timestamps(oldest, newest, window)
 
                 bucket_dtos, count = map_bucket_dbes_to_dtos(
                     total_bucket_dbes=total_bucket_dbes,
                     error_bucket_dbes=error_bucket_dbes,
                     window=window,
-                    buckets=buckets,
+                    timestamps=timestamps,
                 )
 
             return bucket_dtos, count
@@ -874,3 +853,20 @@ def _to_minutes(
         return quantity * 43200
     else:
         raise ValueError(f"Unknown time unit: {unit}")
+
+
+def _to_timestamps(
+    oldest: datetime,
+    newest: datetime,
+    window: int,
+) -> List[datetime]:
+    buckets = []
+
+    bucket_start = oldest
+
+    while bucket_start < newest:
+        buckets.append(bucket_start)
+
+        bucket_start += timedelta(minutes=window)
+
+    return buckets
