@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from json import dumps, loads
 from datetime import datetime
 
@@ -135,7 +135,7 @@ def map_bucket_dbes_to_dtos(
     total_bucket_dbes: List[NodesDBE],
     error_bucket_dbes: List[NodesDBE],
     window: int,
-    buckets: List[datetime],
+    timestamps: Optional[List[datetime]] = None,
 ) -> Tuple[List[BucketDTO], int]:
     total_metrics = {
         bucket.timestamp: MetricsDTO(
@@ -157,12 +157,12 @@ def map_bucket_dbes_to_dtos(
         for bucket in error_bucket_dbes
     }
 
-    total_timestamps = list(
-        set(list(total_metrics.keys()) + list(error_metrics.keys()))
-    )
-    total_timestamps.sort()
-
-    total_timestamps = bucket_dtos
+    total_timestamps = timestamps
+    if not total_timestamps:
+        total_timestamps = list(
+            set(list(total_metrics.keys()) + list(error_metrics.keys()))
+        )
+        total_timestamps.sort()
 
     bucket_dtos = [
         BucketDTO(
