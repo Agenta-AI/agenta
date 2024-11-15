@@ -164,6 +164,11 @@ def map_bucket_dbes_to_dtos(
         )
         total_timestamps.sort()
 
+    _total_timestamps = list(
+        set(list(total_metrics.keys()) + list(error_metrics.keys()))
+    )
+    _total_timestamps.sort()
+
     bucket_dtos = [
         BucketDTO(
             timestamp=timestamp,

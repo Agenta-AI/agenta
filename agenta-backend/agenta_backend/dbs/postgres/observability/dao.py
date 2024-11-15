@@ -1,5 +1,5 @@
 from typing import Optional, List, Tuple, Union
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from traceback import print_exc
 from uuid import UUID
 
@@ -862,9 +862,21 @@ def _to_timestamps(
 ) -> List[datetime]:
     buckets = []
 
-    bucket_start = oldest
+    _oldest = oldest
+    if oldest.tzinfo is None:
+        _oldest = oldest.replace(tzinfo=timezone.utc)
+    else:
+        _oldest = oldest.astimezone(timezone.utc)
 
-    while bucket_start < newest:
+    _newest = newest
+    if newest.tzinfo is None:
+        _newest = newest.replace(tzinfo=timezone.utc)
+    else:
+        _newest = newest.astimezone(timezone.utc)
+
+    bucket_start = _oldest
+
+    while bucket_start < _newest:
         buckets.append(bucket_start)
 
         bucket_start += timedelta(minutes=window)
