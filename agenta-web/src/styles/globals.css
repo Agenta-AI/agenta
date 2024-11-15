@@ -60,6 +60,11 @@ body {
     opacity: 1;
 }
 
+.ant-tooltip-inner {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
 @media screen and (max-width: 1572px) {
     .evalaution-title {
         min-height: 80px;
@@ -93,4 +98,44 @@ body {
     display: flex;
     justify-content: center;
     margin: 0 auto;
+}
+
+/* Custom loading circle for app creation proccess  */
+.loading-circle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 160px;
+    height: 160px;
+}
+.loading-circle path {
+    stroke-width: 2;
+    animation: colorChange 1.6s infinite;
+    transition:
+        stroke 0.4s ease,
+        stroke-width 0.4s ease;
+    transition-duration: 0.5s;
+}
+
+.loading-circle path:nth-child(1) {
+    animation-delay: 0s;
+}
+.loading-circle path:nth-child(2) {
+    animation-delay: 0.4s;
+}
+.loading-circle path:nth-child(3) {
+    animation-delay: 0.8s;
+}
+.loading-circle path:nth-child(4) {
+    animation-delay: 1.2s;
+}
+@keyframes colorChange {
+    0%,
+    25% {
+        stroke: #36cfc9;
+    }
+    26%,
+    100% {
+        stroke: #d6dee6;
+    }
 }

@@ -220,11 +220,8 @@ async def create_app(
                     Permission.CREATE_APPLICATION,
                 )
 
-            workspace_id_from_apikey = await db_manager_ee.get_workspace_id_from_apikey(
-                api_key_from_headers, request.state.user_id
-            )
             if payload.workspace_id is None:
-                payload.workspace_id = workspace_id_from_apikey
+                payload.workspace_id = request.state.workspace_id
 
             try:
                 user_org_workspace_data = await get_user_org_and_workspace_id(
@@ -681,8 +678,16 @@ async def list_environments(
             app_id=app_id, project_id=request.state.project_id
         )
         logger.debug(f"environments_db: {environments_db}")
+
+        fixed_order = ["development", "staging", "production"]
+
+        sorted_environments = sorted(
+            environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
+        )
+
         return [
-            await converters.environment_db_to_output(env) for env in environments_db
+            await converters.environment_db_to_output(env)
+            for env in sorted_environments
         ]
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")

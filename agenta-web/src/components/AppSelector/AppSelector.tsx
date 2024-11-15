@@ -1,6 +1,6 @@
 import {useState, useEffect, useMemo} from "react"
 import {PlusOutlined} from "@ant-design/icons"
-import {Input, Modal, ConfigProvider, theme, Button, notification} from "antd"
+import {Modal, ConfigProvider, theme, Button, notification, Typography, Input, Divider} from "antd"
 import AppCard from "./AppCard"
 import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -9,7 +9,6 @@ import Welcome from "./Welcome"
 import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {createAndStartTemplate, fetchAllTemplates, deleteApp} from "@/services/app-selector/api"
 import {waitForAppToStart} from "@/services/api"
-import AddNewAppModal from "./modals/AddNewAppModal"
 import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
 import MaxAppModal from "./modals/MaxAppModal"
 import WriteOwnAppModal from "./modals/WriteOwnAppModal"
@@ -21,6 +20,9 @@ import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import ResultComponent from "../ResultComponent/ResultComponent"
 import {dynamicContext} from "@/lib/helpers/dynamic"
+import AppTemplateCard from "./AppTemplateCard"
+import dayjs from "dayjs"
+import NoResultsFound from "../NoResultsFound/NoResultsFound"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
@@ -28,41 +30,22 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         width: "100%",
         color: themeMode === "dark" ? "#fff" : "#000",
     }),
-    cardsList: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        flexWrap: "wrap",
+    cardsList: {
+        width: "100%",
+        display: "grid",
         gap: 16,
-        "& .ant-card-bordered, .ant-card-actions": {
-            borderColor: themeMode === "dark" ? "rgba(256, 256, 256, 0.2)" : "rgba(5, 5, 5, 0.1)",
+        "@media (max-width: 1199px)": {
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
         },
-    }),
-    createCard: ({themeMode}: StyleProps) => ({
-        fontSize: 20,
-        backgroundColor: themeMode === "dark" ? "" : "hsl(0, 0%, 100%)",
-        borderColor: themeMode === "dark" ? "hsl(0, 0%, 100%)" : "hsl(0, 0%, 10%) !important",
-        color: themeMode === "dark" ? "#fff" : "#000",
-        boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.1)",
-
-        width: 300,
-        height: 120,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        "& .ant-card-meta-title": {
-            color: themeMode === "dark" ? "#fff" : "#000",
+        "@media (min-width: 1200px) and (max-width: 1699px)": {
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         },
-    }),
-    createCardMeta: ({themeMode}: StyleProps) => ({
-        height: "90%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-evenly",
-        color: themeMode === "dark" ? "#fff" : "#000",
-    }),
-    closeIcon: {
-        fontSize: 20,
-        color: "red",
+        "@media (min-width: 1700px) and (max-width: 2000px)": {
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+        },
+        "@media (min-width: 2001px)": {
+            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        },
     },
     title: {
         fontSize: 16,
@@ -70,19 +53,24 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         lineHeight: "24px",
     },
     modal: {
-        "& .ant-modal-body": {
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.75rem",
-            marginTop: 20,
+        transition: "width 0.3s ease",
+        "& .ant-modal-content": {
+            overflow: "hidden",
+            borderRadius: 16,
+            "& > .ant-modal-close": {
+                top: 16,
+            },
         },
     },
-    modalError: {
-        color: "red",
-        marginLeft: "10px",
+    appTemplate: {
+        gap: 16,
+        display: "flex",
+        flexDirection: "column",
     },
-    modalBtn: {
-        alignSelf: "flex-end",
+    headerText: {
+        lineHeight: theme.lineHeightLG,
+        fontSize: theme.fontSizeHeading4,
+        fontWeight: theme.fontWeightStrong,
     },
 }))
 
@@ -93,17 +81,16 @@ const AppSelector: React.FC = () => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isCreateAppModalOpen, setIsCreateAppModalOpen] = useState(false)
-    const [isCreateAppFromTemplateModalOpen, setIsCreateAppFromTemplateModalOpen] = useState(false)
-    const [isWriteAppModalOpen, setIsWriteAppModalOpen] = useState(false)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const [templates, setTemplates] = useState<Template[]>([])
     const {user} = useProfileData()
-    const [templateMessage, setTemplateMessage] = useState("")
+    const [noTemplateMessage, setNoTemplateMessage] = useState("")
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
-    const [isInputTemplateModalOpen, setIsInputTemplateModalOpen] = useState<boolean>(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
+    const [current, setCurrent] = useState(0)
+    const [searchTerm, setSearchTerm] = useState("")
     const {apps, error, isLoading, mutate} = useAppsData()
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
@@ -112,6 +99,8 @@ const AppSelector: React.FC = () => {
     })
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg} = useOrgData()
+
+    const hasAvailableApps = Array.isArray(apps) && apps.length > 0
 
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
@@ -126,38 +115,17 @@ const AppSelector: React.FC = () => {
     const showMaxAppError = () => {
         setIsMaxAppModalOpen(true)
     }
+
     const showCreateAppFromTemplateModal = () => {
         setTemplateId(undefined)
         setNewApp("")
-        setIsCreateAppModalOpen(false)
-        setIsCreateAppFromTemplateModalOpen(true)
+        setIsCreateAppModalOpen(true)
+        setCurrent(hasAvailableApps ? 1 : 0)
     }
 
     const showWriteAppModal = () => {
-        setIsCreateAppModalOpen(false)
-        setIsWriteAppModalOpen(true)
-    }
-
-    const showInputTemplateModal = () => {
-        setIsCreateAppFromTemplateModalOpen(false)
-        setIsInputTemplateModalOpen(true)
-    }
-
-    const handleCreateAppFromTemplateModalCancel = () => {
-        setIsCreateAppFromTemplateModalOpen(false)
-    }
-
-    const handleWriteApppModalCancel = () => {
-        setIsWriteAppModalOpen(false)
-    }
-
-    const handleCreateAppModalCancel = () => {
-        setIsCreateAppModalOpen(false)
-    }
-
-    const handleInputTemplateModalCancel = () => {
-        if (fetchingTemplate) return
-        setIsInputTemplateModalOpen(false)
+        setIsCreateAppModalOpen(true)
+        setCurrent(hasAvailableApps ? 2 : 1)
     }
 
     useEffect(() => {
@@ -167,7 +135,7 @@ const AppSelector: React.FC = () => {
             if (typeof data == "object") {
                 setTemplates(data)
             } else {
-                setTemplateMessage(data)
+                setNoTemplateMessage(data)
             }
         }
 
@@ -175,10 +143,7 @@ const AppSelector: React.FC = () => {
     }, [])
 
     const handleTemplateCardClick = async (template_id: string) => {
-        handleInputTemplateModalCancel()
-        handleCreateAppFromTemplateModalCancel()
-        handleCreateAppModalCancel()
-
+        setIsCreateAppModalOpen(false)
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
         if (redirectIfNoLLMKeys()) return
@@ -242,12 +207,6 @@ const AppSelector: React.FC = () => {
         [apps, newApp],
     )
 
-    const handleEnterKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === "Enter") {
-            handleCreateApp()
-        }
-    }
-
     const handleCreateApp = () => {
         if (appNameExist) {
             notification.warning({
@@ -270,6 +229,60 @@ const AppSelector: React.FC = () => {
                 duration: 3,
             })
         }
+    }
+
+    const filteredApps = useMemo(() => {
+        let filtered = apps.sort(
+            (a, b) => dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
+        )
+
+        if (searchTerm) {
+            filtered = apps.filter((app) =>
+                app.app_name.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+        return filtered
+    }, [apps, searchTerm])
+
+    const steps = [
+        {
+            content: (
+                <AddAppFromTemplatedModal
+                    hasAvailableApps={hasAvailableApps}
+                    newApp={newApp}
+                    templates={templates}
+                    noTemplateMessage={noTemplateMessage}
+                    templateId={templateId}
+                    appNameExist={appNameExist}
+                    setCurrent={setCurrent}
+                    setNewApp={setNewApp}
+                    onCardClick={(template) => {
+                        setTemplateId(template.id)
+                    }}
+                    handleCreateApp={handleCreateApp}
+                />
+            ),
+        },
+        {
+            content: (
+                <WriteOwnAppModal setCurrent={setCurrent} hasAvailableApps={hasAvailableApps} />
+            ),
+        },
+    ]
+
+    if (hasAvailableApps) {
+        steps.unshift({
+            content: (
+                <section className={classes.appTemplate}>
+                    <Typography.Text className={classes.headerText}>Add new app</Typography.Text>
+
+                    <AppTemplateCard
+                        onWriteOwnApp={showWriteAppModal}
+                        onCreateFromTemplate={showCreateAppFromTemplateModal}
+                    />
+                </section>
+            ),
+        })
     }
 
     return (
@@ -305,7 +318,7 @@ const AppSelector: React.FC = () => {
                     </div>
                 )}
 
-                {isLoading ? (
+                {isLoading || (!apps && !error) ? (
                     <div>
                         <ResultComponent status={"info"} title="Loading..." spinner={true} />
                     </div>
@@ -314,18 +327,28 @@ const AppSelector: React.FC = () => {
                         <ResultComponent status={"error"} title="Failed to load" />
                     </div>
                 ) : Array.isArray(apps) && apps.length ? (
-                    <div className="flex flex-col gap-6">
-                        <div className={classes.cardsList}>
-                            {Array.isArray(apps) && (
-                                <>
-                                    {apps.map((app, index: number) => (
-                                        <div key={index}>
-                                            <AppCard app={app} />
-                                        </div>
-                                    ))}
-                                </>
-                            )}
+                    <div className="flex flex-col gap-2">
+                        <div className="-mx-6">
+                            <Input.Search
+                                placeholder="Search"
+                                className="w-[400px] mx-6"
+                                allowClear
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                            <Divider />
                         </div>
+
+                        {Array.isArray(apps) && filteredApps.length ? (
+                            <div className={classes.cardsList}>
+                                {filteredApps.map((app, index: number) => (
+                                    <div key={index}>
+                                        <AppCard app={app} />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <NoResultsFound />
+                        )}
 
                         <TipsAndFeatures />
                     </div>
@@ -337,63 +360,28 @@ const AppSelector: React.FC = () => {
                 )}
             </div>
 
-            <AddNewAppModal
+            <Modal
                 open={isCreateAppModalOpen}
-                onCancel={handleCreateAppModalCancel}
-                onCreateFromTemplate={showCreateAppFromTemplateModal}
-                onWriteOwnApp={showWriteAppModal}
-            />
-            <AddAppFromTemplatedModal
-                open={isCreateAppFromTemplateModalOpen}
-                onCancel={handleCreateAppFromTemplateModalCancel}
-                newApp={newApp}
-                templates={templates}
-                noTemplateMessage={templateMessage}
-                onCardClick={(template) => {
-                    showInputTemplateModal()
-                    setTemplateId(template.id)
+                afterClose={() => setCurrent(0)}
+                onCancel={() => {
+                    setIsCreateAppModalOpen(false)
                 }}
-            />
+                footer={null}
+                title={null}
+                className={classes.modal}
+                width={steps.length === 3 && current == 0 ? 855 : 480}
+                centered
+            >
+                {steps[current]?.content}
+            </Modal>
+
             <MaxAppModal
                 open={isMaxAppModalOpen}
                 onCancel={() => {
                     setIsMaxAppModalOpen(false)
                 }}
             />
-            <Modal
-                data-cy="enter-app-name-modal"
-                title="Enter the app name"
-                open={isInputTemplateModalOpen}
-                onCancel={handleInputTemplateModalCancel}
-                width={500}
-                footer={null}
-                centered
-                className={classes.modal}
-            >
-                <Input
-                    placeholder="New app name (e.g., chat-app)"
-                    value={newApp}
-                    onChange={(e) => setNewApp(e.target.value)}
-                    onKeyDown={handleEnterKeyPress}
-                    disabled={fetchingTemplate}
-                />
-                {appNameExist && <div className={classes.modalError}>App name already exists</div>}
-                {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <div className={classes.modalError} data-cy="enter-app-name-modal-text-warning">
-                        App name must contain only letters, numbers, underscore, or dash
-                    </div>
-                )}
-                <Button
-                    data-cy="enter-app-name-modal-button"
-                    className={classes.modalBtn}
-                    type="primary"
-                    loading={fetchingTemplate}
-                    disabled={appNameExist || newApp.length === 0}
-                    onClick={handleCreateApp}
-                >
-                    Create
-                </Button>
-            </Modal>
+
             <CreateAppStatusModal
                 open={statusModalOpen}
                 loading={fetchingTemplate}
@@ -403,8 +391,6 @@ const AppSelector: React.FC = () => {
                 statusData={statusData}
                 appName={newApp}
             />
-
-            <WriteOwnAppModal open={isWriteAppModalOpen} onCancel={handleWriteApppModalCancel} />
         </ConfigProvider>
     )
 }
