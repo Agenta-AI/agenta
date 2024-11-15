@@ -68,9 +68,7 @@ const TestsetModal: React.FC<Props> = ({
             content: <UploadTestset setCurrent={setCurrent} onCancel={onCancel} />,
         },
         {
-            content: (
-                <CreateTestsetFromApi setCurrent={setCurrent} onCancel={onCancel} />
-            ),
+            content: <CreateTestsetFromApi setCurrent={setCurrent} onCancel={onCancel} />,
         },
     ]
 
