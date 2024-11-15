@@ -1,6 +1,6 @@
-import os
 import logging
 import toml
+from os import getenv
 from typing import Optional
 from importlib.metadata import version
 
@@ -72,13 +72,13 @@ class AgentaSingleton:
 
         self.host = (
             host
-            or os.environ.get("AGENTA_HOST")
+            or getenv("AGENTA_HOST")
             or config.get("backend_host")
             or config.get("host")
             or "https://cloud.agenta.ai"
         )
 
-        self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
+        self.app_id = app_id or config.get("app_id") or getenv("AGENTA_APP_ID")
         # if not self.app_id:
         #     raise ValueError(
         #         "App ID must be specified. You can provide it in one of the following ways:\n"
@@ -87,9 +87,7 @@ class AgentaSingleton:
         #         "3. As an environment variable 'AGENTA_APP_ID'."
         #     )
 
-        self.api_key = (
-            api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
-        )
+        self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
 
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/otlp/traces",  # type: ignore
@@ -103,15 +101,15 @@ class AgentaSingleton:
 
         self.api = AgentaApi(
             base_url=self.host + "/api",
-            api_key=api_key if api_key else "",
+            api_key=self.api_key if self.api_key else "",
         )
 
         self.async_api = AsyncAgentaApi(
             base_url=self.host + "/api",
-            api_key=api_key if api_key else "",
+            api_key=self.api_key if self.api_key else "",
         )
 
-        self.base_id = os.environ.get("AGENTA_BASE_ID")
+        self.base_id = getenv("AGENTA_BASE_ID")
 
         self.config = Config(
             host=self.host,
