@@ -13,10 +13,16 @@ if isCloudEE():
 
 
 class Allow(JSONResponse):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        credentials: Optional[str] = None,
+    ) -> None:
         super().__init__(
             status_code=200,
-            content={"effect": "allow"},
+            content={
+                "effect": "allow",
+                "credentials": credentials,
+            },
         )
 
 
@@ -43,7 +49,7 @@ async def verify_permissions(
 ):
     try:
         if isOss():
-            return Allow()
+            return Allow(None)
 
         if not action or not resource_type or not resource_id:
             raise Deny()
@@ -71,7 +77,7 @@ async def verify_permissions(
             if not allow_resource:
                 raise Deny()
 
-            return Allow()
+            return Allow(request.state.credentials)
 
     except Exception as exc:  # pylint: disable=bare-except
         raise Deny() from exc
