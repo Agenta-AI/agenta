@@ -53,82 +53,82 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const NestedTable: React.FC = () => {
     const classes = useStyles()
     const [columnsTop, setColumnsTop] = useState<ColumnsType<TableDataType>>([
-        // {
-        //     title: null,
-        //     dataIndex: "null",
-        //     key: "input1",
-        //     width: 200,
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: null,
-        //     dataIndex: "null",
-        //     key: "input2",
-        //     width: 200,
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: null,
-        //     dataIndex: "null",
-        //     key: "input3",
-        //     width: 200,
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: null,
-        //     dataIndex: "null",
-        //     key: "input4",
-        //     width: 200,
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
+        {
+            title: null,
+            dataIndex: "null",
+            key: "input1",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: null,
+            dataIndex: "null",
+            key: "input2",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: null,
+            dataIndex: "null",
+            key: "input3",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: null,
+            dataIndex: "null",
+            key: "input4",
+            width: 200,
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
         {
             title: "Variant 1",
             dataIndex: "input1",
             key: "variant1",
-            width: "200px",
-            className: "select-none",
+            width: 200,
+            className: "select-none *:!w-[300px]",
             onHeaderCell: () => ({
-                style: {minWidth: "100px"},
+                style: {width: "100px"},
             }),
         },
-        // {
-        //     title: "Variant 2",
-        //     dataIndex: "input2",
-        //     key: "variant2",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Variant 3",
-        //     dataIndex: "input3",
-        //     key: "variant3",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Variant 4",
-        //     dataIndex: "additionalInfo",
-        //     key: "input3",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
+        {
+            title: "Variant 2",
+            dataIndex: "input2",
+            key: "variant2",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Variant 3",
+            dataIndex: "input3",
+            key: "variant3",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Variant 4",
+            dataIndex: "additionalInfo",
+            key: "input3",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
     ])
 
     const [columnsBottom, setColumnsBottom] = useState<ColumnsType<TableDataType>>([
@@ -141,78 +141,77 @@ const NestedTable: React.FC = () => {
             onHeaderCell: () => ({
                 style: {minWidth: 100},
             }),
-
         },
-        // {
-        //     title: "Input 2",
-        //     dataIndex: "input2",
-        //     key: "input2",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Input 3",
-        //     dataIndex: "input3",
-        //     key: "input3",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Input 4",
-        //     dataIndex: "input4",
-        //     key: "input4",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Expected Output",
-        //     dataIndex: "expectedOutput",
-        //     key: "variant1",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "App Output",
-        //     dataIndex: "appOutput",
-        //     key: "variant2",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Any Output",
-        //     dataIndex: "anyOutput",
-        //     key: "variant3",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
-        // {
-        //     title: "Additional Info",
-        //     dataIndex: "additionalInfo",
-        //     key: "variant4",
-        //     width: 200,
-        //     className: "select-none",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 100},
-        //     }),
-        // },
+        {
+            title: "Input 2",
+            dataIndex: "input2",
+            key: "input2",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Input 3",
+            dataIndex: "input3",
+            key: "input3",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Input 4",
+            dataIndex: "input4",
+            key: "input4",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Expected Output",
+            dataIndex: "expectedOutput",
+            key: "variant1",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "App Output",
+            dataIndex: "appOutput",
+            key: "variant2",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Any Output",
+            dataIndex: "anyOutput",
+            key: "variant3",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
+        {
+            title: "Additional Info",
+            dataIndex: "additionalInfo",
+            key: "variant4",
+            width: 200,
+            className: "select-none",
+            onHeaderCell: () => ({
+                style: {minWidth: 100},
+            }),
+        },
     ])
 
     const handleCols = (cols: ColumnsType<TableDataType>, key: string, size: any) => {
