@@ -64,10 +64,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     formContainer: {
         display: "flex",
         flexDirection: "column",
-        maxWidth: 552,
         gap: theme.padding,
+        height: "100%",
         overflowY: "auto",
-        maxHeight: 580,
+        maxHeight: 650,
         "& .ant-form-item": {
             marginBottom: 0,
         },
