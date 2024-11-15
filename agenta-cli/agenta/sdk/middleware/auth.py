@@ -21,9 +21,8 @@ AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
     15 * 60,  # 15 minutes
 )
 
-AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = environ.get(
-    "AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED",
-    False,
+AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = str(
+    environ.get("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", False)
 ).lower() in ("true", "1", "t")
 
 
