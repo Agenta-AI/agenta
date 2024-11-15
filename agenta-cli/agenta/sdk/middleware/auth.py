@@ -21,6 +21,11 @@ AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
     15 * 60,  # 15 minutes
 )
 
+AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = environ.get(
+    "AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED",
+    False,
+).lower() in ("true", "1", "t")
+
 
 class Deny(Response):
     def __init__(self) -> None:
@@ -53,6 +58,9 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         call_next: Callable,
         project_id: Optional[UUID] = None,
     ):
+        if AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED:
+            return await call_next(request)
+
         try:
             authorization = (
                 request.headers.get("Authorization")
@@ -106,11 +114,15 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     credentials = auth.get("credentials")
 
                     if not auth.get("credentials"):
+                        cache.put(_hash, {"effect": "deny"})
                         return Deny()
 
                     cached_policy = {"effect": "allow", "credentials": credentials}
 
                     cache.put(_hash, cached_policy)
+
+            if cached_policy.get("effect") == "deny":
+                return Deny()
 
             request.state.credentials = cached_policy.get("credentials")
 
