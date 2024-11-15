@@ -150,7 +150,7 @@ const HumanEvaluationModal = ({
 
     const appId = router.query.app_id?.toString() || ""
 
-    const {testsets, isTestsetsLoadingError} = useLoadTestsetsList(appId)
+    const {testsets, isTestsetsLoadingError} = useLoadTestsetsList()
 
     const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 

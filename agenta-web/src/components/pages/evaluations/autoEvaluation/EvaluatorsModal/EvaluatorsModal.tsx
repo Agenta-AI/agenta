@@ -67,7 +67,7 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
             fetchAllEvaluators(),
             fetchAllEvaluatorConfigs(appId),
             fetchVariants(appId),
-            fetchTestsets(appId),
+            fetchTestsets(),
         ]).then(([evaluators, configs, variants, testsets]) => {
             setEvaluators(evaluators)
             setEvaluatorConfigs(configs)

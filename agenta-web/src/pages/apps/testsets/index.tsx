@@ -58,7 +58,7 @@ const Testset = () => {
     const {apps, isLoading: isAppsLoading} = useAppsData()
     const appId = apps[0]?.app_id
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList(appId)
+    const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
