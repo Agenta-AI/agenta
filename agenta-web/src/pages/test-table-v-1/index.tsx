@@ -1,248 +1,194 @@
-import React, {useMemo, useState} from "react"
-import {Button, Table, TableColumnType} from "antd"
-import type {ColumnsType} from "antd/es/table"
-import {ResizableTitle} from "@/components/ServerTable/components"
+import React, {useState} from "react"
+import {Table} from "antd"
+import {Resizable} from "react-resizable"
+import "react-resizable/css/styles.css"
+import {ResizableTitle, ResizableRow} from "@/components/ServerTable/components"
 
-interface TableDataType {
-    key: any
-    input1: string
-    input2: string
-    input3: string
-    input4: string
-    expectedOutput: string
-    appOutput: string
-    anyOutput: string
-    additionalInfo: string
-}
+const SynchronizedResizableTables = () => {
+    // Shared state for synchronized column widths by index
+    const [columnWidths, setColumnWidths] = useState(
+        Array(8).fill(100), // Initial width for 8 columns
+    )
 
-const data: TableDataType[] = [
-    {
-        key: 1,
-        input1: "Sample Input 1",
-        input2: "Sample Input 2",
-        input3: "Sample Input 3",
-        input4: "Sample Input 4",
-        expectedOutput: "Expected Output 1",
-        appOutput: "App Output 1",
-        anyOutput: "Any Output 1",
-        additionalInfo: "Additional Info 1",
-    },
-    {
-        key: 2,
-        input1: "Sample Input 1",
-        input2: "Sample Input 2",
-        input3: "Sample Input 3",
-        input4: "Sample Input 4",
-        expectedOutput: "Expected Output 2",
-        appOutput: "App Output 2",
-        anyOutput: "Any Output 2",
-        additionalInfo: "Additional Info 2",
-    },
-]
-
-const NestedTable: React.FC = () => {
-    const [columnsTop, setColumnsTop] = useState<ColumnsType<TableDataType>>([
-        {
-            title: null,
-            dataIndex: "null",
-            key: "input1",
-            width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-            colSpan: 4,
-            onCell: (_, index) => ({
-                colSpan: 4,
-            }),
-        },
-
-        {
-            title: "Variant 1",
-            dataIndex: "input1",
-            key: "variant1",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Variant 2",
-            dataIndex: "input2",
-            key: "variant2",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Variant 3",
-            dataIndex: "input3",
-            key: "variant3",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Variant 4",
-            dataIndex: "additionalInfo",
-            key: "input3",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-    ])
-
-    const [columnsBottom, setColumnsBottom] = useState<ColumnsType<TableDataType>>([
-        {
-            title: "Input 1",
-            dataIndex: "input1",
-            key: "input1",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Input 2",
-            dataIndex: "input2",
-            key: "input1",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Input 3",
-            dataIndex: "input3",
-            key: "input1",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Input 4",
-            dataIndex: "input4",
-            key: "input1",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Expected Output",
-            dataIndex: "expectedOutput",
-            key: "variant1",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "App Output",
-            dataIndex: "appOutput",
-            key: "variant2",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Any Output",
-            dataIndex: "anyOutput",
-            key: "variant3",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-        {
-            title: "Additional Info",
-            dataIndex: "additionalInfo",
-            key: "variant4",
-            width: 200,
-            className: "select-none",
-            onHeaderCell: () => ({
-                style: {minWidth: 100},
-            }),
-        },
-    ])
-
-    const handleCols = (cols: ColumnsType<TableDataType>, key: string, size: any) => {
-        return cols.map((col) => ({
-            ...col,
-            width: col.key === key ? size.width : col.width,
-        }))
-    }
+    // Handle resizing and update shared widths
     const handleResize =
-        (key: string) =>
-        (_: any, {size}: {size: {width: number}}) => {
-            setColumnsTop((cols) => handleCols(cols, key, size))
-            setColumnsBottom((cols) => handleCols(cols, key, size))
+        (index) =>
+        (e, {size}) => {
+            setColumnWidths((prevWidths) => {
+                const newWidths = [...prevWidths]
+                newWidths[index] = size.width
+                return newWidths
+            })
         }
 
-    const mergedColumnsTop = useMemo(() => {
-        return columnsTop.map((col) => ({
-            ...col,
-            onHeaderCell: (column: TableColumnType<TableDataType>) => ({
-                width: column.width,
-                onResize: handleResize(column.key as string),
+    // Define columns for Table 1 with the first column spanning 4 columns
+    const columnsTable1 = [
+        {
+            title: "Details",
+            dataIndex: "details",
+            width: columnWidths[0],
+            onHeaderCell: () => ({
+                width: columnWidths[0] * 4, // Make it span across 4 columns
+                onResize: handleResize(0),
             }),
-        }))
-    }, [columnsTop])
+            colSpan: 4, // Set to span 4 columns
+            render: (value) => ({
+                children: value,
+                props: {colSpan: 4},
+            }),
+        },
+        {
+            title: "Name",
+            dataIndex: "name",
+            width: columnWidths[4],
+            onHeaderCell: () => ({width: columnWidths[4], onResize: handleResize(4)}),
+        },
+        {
+            title: "Age",
+            dataIndex: "age",
+            width: columnWidths[5],
+            onHeaderCell: () => ({width: columnWidths[5], onResize: handleResize(5)}),
+        },
+        {
+            title: "Location",
+            dataIndex: "location",
+            width: columnWidths[6],
+            onHeaderCell: () => ({width: columnWidths[6], onResize: handleResize(6)}),
+        },
+        {
+            title: "Occupation",
+            dataIndex: "occupation",
+            width: columnWidths[7],
+            onHeaderCell: () => ({width: columnWidths[7], onResize: handleResize(7)}),
+        },
+    ]
 
-    const mergedColumnsBottom = useMemo(() => {
-        return columnsBottom.map((col) => ({
-            ...col,
-            onHeaderCell: (column: TableColumnType<TableDataType>) => ({
-                width: column.width,
-                onResize: handleResize(column.key as string),
-            }),
-        }))
-    }, [columnsBottom])
+    // Define columns for Table 2 with individual column headers
+    const columnsTable2 = [
+        {
+            title: "ID",
+            dataIndex: "id",
+            width: columnWidths[0],
+            onHeaderCell: () => ({width: columnWidths[0], onResize: handleResize(0)}),
+        },
+        {
+            title: "Username",
+            dataIndex: "username",
+            width: columnWidths[1],
+            onHeaderCell: () => ({width: columnWidths[1], onResize: handleResize(1)}),
+        },
+        {
+            title: "Email",
+            dataIndex: "email",
+            width: columnWidths[2],
+            onHeaderCell: () => ({width: columnWidths[2], onResize: handleResize(2)}),
+        },
+        {
+            title: "Phone",
+            dataIndex: "phone",
+            width: columnWidths[3],
+            onHeaderCell: () => ({width: columnWidths[3], onResize: handleResize(3)}),
+        },
+        {
+            title: "Address",
+            dataIndex: "address",
+            width: columnWidths[4],
+            onHeaderCell: () => ({width: columnWidths[4], onResize: handleResize(4)}),
+        },
+        {
+            title: "Company",
+            dataIndex: "company",
+            width: columnWidths[5],
+            onHeaderCell: () => ({width: columnWidths[5], onResize: handleResize(5)}),
+            
+        },
+        {
+            title: "Role",
+            dataIndex: "role",
+            width: columnWidths[6],
+            onHeaderCell: () => ({width: columnWidths[6], onResize: handleResize(6)}),
+        },
+        {
+            title: "Status",
+            dataIndex: "status",
+            width: columnWidths[7],
+            onHeaderCell: () => ({width: columnWidths[7], onResize: handleResize(7)}),
+        },
+    ]
+
+    // Sample data for both tables
+    const dataSource1 = [
+        {
+            key: 1,
+            details: "Personal Information",
+            name: "John",
+            age: 25,
+            location: "New York",
+            occupation: "Engineer",
+        },
+        {
+            key: 2,
+            details: "Personal Information",
+            name: "Jane",
+            age: 28,
+            location: "San Francisco",
+            occupation: "Designer",
+        },
+    ]
+
+    const dataSource2 = [
+        {
+            key: 1,
+            id: "001",
+            username: "jdoe",
+            email: "jdoe@example.com",
+            phone: "123-456-7890",
+            address: "123 Main St",
+            company: "TechCorp",
+            role: "Admin",
+            status: "Active",
+        },
+        {
+            key: 2,
+            id: "002",
+            username: "jsmith",
+            email: "jsmith@example.com",
+            phone: "987-654-3210",
+            address: "456 Elm St",
+            company: "BizGroup",
+            role: "User",
+            status: "Inactive",
+        },
+    ]
 
     return (
-        <>
-            <Button href="/test-table-v-2" className="my-10">
-                Version 2
-            </Button>
-
-            <h1 className="select-none">Table 1</h1>
+        <div>
+            <h3>Table 1</h3>
             <Table
-                columns={mergedColumnsTop as TableColumnType<TableDataType>[]}
-                dataSource={data}
                 bordered
-                components={{header: {cell: ResizableTitle}}}
-                rowKey="key"
+                components={{
+                    header: {
+                        cell: ResizableTitle,
+                    },
+                }}
+                columns={columnsTable1}
+                dataSource={dataSource1}
                 pagination={false}
-                scroll={{x: "max-content"}}
             />
-
-            <h1>Table 2</h1>
+            <h3>Table 2</h3>
             <Table
-                columns={mergedColumnsBottom as TableColumnType<TableDataType>[]}
-                dataSource={data}
                 bordered
-                components={{header: {cell: ResizableTitle}}}
-                rowKey="key"
+                components={{
+                    header: {
+                        cell: ResizableTitle,
+                    },
+                }}
+                columns={columnsTable2}
+                dataSource={dataSource2}
                 pagination={false}
-                scroll={{x: "max-content"}}
             />
-        </>
+        </div>
     )
 }
 
-export default NestedTable
+export default SynchronizedResizableTables
