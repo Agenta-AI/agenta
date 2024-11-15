@@ -1,0 +1,255 @@
+---
+title: "Manage Prompts with SDK"
+---
+
+import Image from "@theme/IdealImage";
+
+You can manage prompts easily through Agenta's web UI. But sometimes you might want to do things programmatically instead of using the interface.
+
+In this tutorial, we'll use the Agenta SDK to create a new prompt, commit changes, deploy them to production, then fetch their configuration and use it to call the LLM.
+
+## Tutorial Overview
+
+Before we begin, let's quickly review how Agenta versions prompts:
+
+Agenta follows a structure similar to **git** for prompt versioning. Instead of having one commit history, it uses **multiple branches (called variants)** where changes can be committed, and **environments** where these changes can be deployed (and used in your application). (You can read more about why we chose this approach [here](/concepts/concepts#motivation)).
+You can find more about how prompt versioning works in the [concepts page](/concepts/concepts).
+
+The workflow for deploying a change to production that we'll follow in this tutorial is:
+
+1. Create a new variant
+2. Commit a change to that variant
+3. Deploy that commit (variant/version) to the production environment
+4. Commit a new change to that variant
+5. Fetch the config from that environment
+
+## Setup
+
+Before using the SDK, we need to initialize it using the `ag.init()` method, which takes the host (default `cloud.agenta.ai`) and the API key (not required for community editions):
+
+```python
+import agenta as ag
+
+# Initialize the SDK with your API key
+os.environ["AGENTA_API_KEY"] = "xxx" # Only needs setting in OSS
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # Default value, no need to set explicitly
+ag.init()
+```
+
+## Creating a new prompt
+
+Each prompt in Agenta is a unique application. Currently, creating a prompt is only available in the web UI. To create a new prompt, click on "Create a new prompt" and select whether it's a chat or completion prompt. The name of the prompt is the slug we'll use for all operations below.
+
+We're going to create a new completion prompt called `topic-explainer`.
+
+## Creating a new variant
+
+[Todo: Image showing before and after. The new elements are added in different colors]
+
+Variants are similar to branches in **git**. Any change to the prompt must first be committed to a variant. Here, we'll create a new variant and make our first commit to it using the `VariantManager.create` method:
+
+```python
+
+from agenta import Prompt
+
+# Prompt is a pydantic BaseModel, for additional validation
+my_prompt = Prompt(temperature=0.6,
+       model="gpt-3.5-turbo",
+       max_tokens=150,
+        prompt_system="You are an assistant that provides concise answers",
+        prompt_user="Explain {topic} in simple terms",
+       top_p=1.0,
+       frequency_penalty=0.0,
+       presence_penalty=0.0 )
+
+# Create a new variant
+variant = ag.VariantManager.create(
+    app_slug="topic-explainer",
+    variant_slug="new-variant",
+    config_parameters=my_prompt.dict()
+)
+
+print("Created variant:")
+print(variant)
+```
+
+This command will create a new variant and initialize it with the first commit containing the provided parameters.
+
+- **Parameters:**
+  - `app_slug`: The unique slug of your application.
+  - `variant_slug`: The unique slug of the new variant.
+  - `config_parameters`: A dictionary containing the initial configuration parameters.
+
+**Sample Output:**
+
+```python
+Created variant:
+{
+    'parameters': {
+        'temperature': 0.6,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 1,
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
+}
+```
+
+## Deploying changes to the production environment
+
+[Todo: Image showing before and after. The new elements are added in a different colors]
+
+To deploy our commit to an environment, use the `DeploymentManager.deploy` method.
+
+```python
+# Deploy the variant to the production environment
+deployment = ag.DeploymentManager.deploy(
+    app_slug="topic-explainer",
+    variant_slug="new-variant",
+    environment_slug="production",
+)
+
+print("Deployed variant to environment:")
+print(deployment)
+```
+
+- **Parameters:**
+
+  - `environment_slug`: The slug of the environment (`development`, `staging`, or `production`).
+
+- **Notes:**
+  - Deploying a variant without specifying a `variant_version` deploys the latest version.
+
+**Sample Output:**
+
+```python
+Deployed variant to environment:
+{
+    'parameters': {
+        'temperature': 0.7,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'topic-explainer',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'my-variant-slug',
+    'variant_version': 1,
+    'environment_id': 'production-enviroment-id',
+    'environment_slug': 'production',
+    'environment_version': 1,
+    'deployed_at': 'current-datetime',
+    'deployed_by': 'my-email-address',
+    'deployed_by_id': 'my-user-id',
+}
+```
+
+## Committing a change to variant
+
+[ Image showing changes]
+
+We're now going to commit changes to our variant. Note that this will not modify the version in deployment!
+
+To save changes to a variant (creating a new version), we are goin to use the `VariantManager.commit` method with explicit parameters.
+
+```python
+my_prompt2 = Prompt(
+    temperature=0.9,
+    model="gpt-3.5-turbo",
+    max_tokens=150,
+    prompt_system="You are an assistant that provides concise answers",
+    prompt_user="Use Paul Graham style to explain {topic} in simple terms.",
+    top_p=1.0,
+    frequency_penalty=0.0,
+    presence_penalty=0.0 )
+
+
+# Commit the new version
+variant = ag.VariantManager.commit(
+    app_slug="topic-explainer",
+    variant_slug="new-variant",
+    config_parameters=my_prompt2.dict()
+)
+
+print("Committed new version of variant:")
+print(variant)
+```
+
+:::info Immutability
+Each commit creates a new version of the variant. Versions are immutable once created.
+:::
+
+**Sample Output:**
+
+```python
+Committed new version of variant:
+{
+    'parameters': {
+        'temperature': 0.9,
+        'model': 'gpt-3.5-turbo',
+        'max_tokens': 150,
+        'prompt_system': 'You are an assistant that provides concise answers.',
+        'prompt_user': 'Use Paul Graham style to explain {topic} in simple terms.',
+        'top_p': 1.0,
+        'frequency_penalty': 0.0,
+        'presence_penalty': 0.0
+    },
+    'app_id': 'my-app-id',
+    'app_slug': 'topic-explainer',
+    'variant_id': 'new-variant-id',
+    'variant_slug': 'new-variant-slug',
+    'variant_version': 2,
+    'committed_at': 'current-datetime',
+    'committed_by': 'my-email-address',
+    'committed_by_id': 'my-user-id',
+}
+```
+
+## Fetching the prompt in production
+
+Now we'll fetch and use the prompt that's in production. Keep in mind that the production environment still references the first version of our variant. If we want it to reflect the latest changes, we'll need to deploy it again.
+
+```python
+# Fetch configuration from the staging environment
+config = ag.ConfigManager.get_from_registry(
+    app_slug="topic-explainer",
+    environment_slug="production"
+)
+myprompt = Prompt(config)
+print("Fetched configuration from production:")
+print(config)
+
+client.completion(
+    model=myprompt.model,
+    messages=format_prompt(myprompt.prompt, topic),
+    temperature=myprompt.temperature,
+    max_tokens=myprompt.max_tokens,
+    top_p=myprompt.top_p,
+    frequency_penalty=myprompt.frequency_penalty,
+    presence_penalty=myprompt.presence_penalty,
+)
+```
+
+## Next Steps
+
+Now that you've learned how to manage configurations using the SDK, you can:
+
+- Read the guide to explore more advanced features of the SDK. [add link]
+- Read how to reference prompts in your traces. [add link]
+- Read how to manage configuration for your workflows (chain of prompts, RAG..). [add link]
