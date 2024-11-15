@@ -65,7 +65,7 @@ export const useSidebarConfig = () => {
             key: "app-testsets-link",
             title: "Test Sets",
             tooltip: "Create and manage testsets for evaluation purposes.",
-            link: `/apps/testsets`,
+            link: `/testsets`,
             icon: <DatabaseOutlined />,
         },
         {

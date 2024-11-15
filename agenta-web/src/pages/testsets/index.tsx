@@ -157,7 +157,7 @@ const Testset = () => {
                                     icon: <Note size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/testsets/${record._id}`)
+                                        router.push(`/testsets/${record._id}`)
                                     },
                                 },
                                 {
@@ -262,7 +262,7 @@ const Testset = () => {
                     pagination={false}
                     onRow={(record) => {
                         return {
-                            onClick: () => router.push(`/apps/testsets/${record._id}`),
+                            onClick: () => router.push(`/testsets/${record._id}`),
                             style: {cursor: "pointer"},
                         }
                     }}
