@@ -1,17 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {
-    Avatar,
-    Button,
-    Divider,
-    Dropdown,
-    Layout,
-    Menu,
-    Space,
-    Tag,
-    Tooltip,
-    Typography,
-} from "antd"
+import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -20,13 +9,13 @@ import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 import {SidebarConfig, useSidebarConfig} from "./config"
 import {JSSTheme} from "@/lib/Types"
-import {getColorFromStr} from "@/lib/helpers/colors"
-import {getInitials, isDemo} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 import {useSession} from "@/hooks/useSession"
 import {CaretDown, Gear, SignOut} from "@phosphor-icons/react"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {dynamicContext} from "@/lib/helpers/dynamic"
+import Avatar from "@/components/Avatar/Avatar"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -116,10 +105,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
                 color: theme.colorTextDescription,
             },
         },
-    },
-    userAvatar: {
-        backgroundColor: theme.colorPrimaryBgHover,
-        color: theme.colorPrimary,
     },
     menuHeader: {
         padding: `${theme.paddingXS}px ${theme.padding}px`,
@@ -375,13 +360,7 @@ const Sidebar: React.FC = () => {
                                             key: org.id,
                                             label: (
                                                 <Space>
-                                                    <Avatar
-                                                        size={"small"}
-                                                        className={classes.userAvatar}
-                                                        shape="square"
-                                                    >
-                                                        {getInitials(org.name)}
-                                                    </Avatar>
+                                                    <Avatar size="small" name={org.name} />
                                                     <Text>{org.name}</Text>
                                                 </Space>
                                             ),
@@ -428,15 +407,7 @@ const Sidebar: React.FC = () => {
                             >
                                 <Button className={classes.avatarMainContainer}>
                                     <div className={classes.avatarContainer}>
-                                        <Avatar
-                                            shape="square"
-                                            style={{
-                                                fontSize: 18,
-                                            }}
-                                            className={classes.userAvatar}
-                                        >
-                                            {getInitials(selectedOrg.name)}
-                                        </Avatar>
+                                        <Avatar className="text-lg" name={selectedOrg.name} />
 
                                         {!collapsed && (
                                             <div>

@@ -16,15 +16,14 @@ const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     card: {
-        width: 300,
         display: "flex",
         flexDirection: "column",
         transition: "all 0.025s ease-in",
         cursor: "pointer",
+        boxShadow: theme.boxShadowTertiary,
         "& > .ant-card-head": {
             minHeight: 0,
-            padding: theme.paddingSM,
-
+            padding: `${theme.paddingXS}px ${theme.paddingSM}px`,
             "& .ant-card-head-title": {
                 fontSize: theme.fontSizeLG,
                 fontWeight: theme.fontWeightMedium,
@@ -88,7 +87,7 @@ const AppCard: React.FC<{
                 onClick={() => router.push(`/apps/${app.app_id}/overview`)}
                 extra={
                     <Dropdown
-                        trigger={["hover"]}
+                        trigger={["click"]}
                         overlayStyle={{width: 180}}
                         menu={{
                             items: [

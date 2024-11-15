@@ -5,14 +5,9 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException
 
-from sqlalchemy.orm import Session
-from sqlalchemy.future import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from agenta_backend.models import converters
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
-from agenta_backend.models.db.postgres_engine import db_engine
 
 from agenta_backend.models.api.evaluation_model import (
     Evaluation,
@@ -92,7 +87,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             ]
         except KeyError:
             await db_manager.delete_human_evaluation(
-                evaluation_id=str(new_evaluation.id), project_id=project_id
+                evaluation_id=str(new_evaluation.id)
             )
             msg = f"""
             Columns in the test set should match the names of the inputs in the variant.

@@ -16,6 +16,7 @@ import {
     SlackLogo,
     Gear,
     Dot,
+    TreeView,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
 
@@ -67,6 +68,13 @@ export const useSidebarConfig = () => {
             tooltip: "Create and manage testsets for evaluation purposes.",
             link: `/apps/testsets`,
             icon: <DatabaseOutlined />,
+            isHidden: apps.length === 0,
+        },
+        {
+            key: "app-observability-link",
+            title: "Observability",
+            link: `/observability`,
+            icon: <ChartLineUp />,
             divider: true,
             isHidden: apps.length === 0,
         },
@@ -100,36 +108,11 @@ export const useSidebarConfig = () => {
             icon: <ChartDonut size={16} />,
         },
         {
-            key: "app-observability-link",
-            title: "Observability",
-            icon: <ChartLineUp size={16} />,
+            key: "app-traces-link",
+            title: "Traces",
+            icon: <TreeView size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            isCloudFeature: true && isOss,
-            cloudFeatureTooltip: "Observability available in Cloud/Enterprise editions only",
-            tag: "beta",
-            submenu: [
-                {
-                    key: "app-observability-dashboard-link",
-                    title: "Dashboard",
-                    tooltip: "Dashboard view of traces and generations",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-observability-traces-link",
-                    title: "Traces",
-                    tooltip: "Traces and their details",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability/traces`,
-                    icon: <Dot size={16} />,
-                },
-                {
-                    key: "app-observability-generations-link",
-                    title: "Generations",
-                    tooltip: "Generations and their details",
-                    link: `/apps/${appId || recentlyVisitedAppId}/observability/generations`,
-                    icon: <Dot size={16} />,
-                },
-            ],
+            link: `/apps/${appId || recentlyVisitedAppId}/traces`,
         },
         {
             key: "invite-teammate-link",
