@@ -43,7 +43,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     setEditTestsetValues,
     setCurrent,
     onCancel,
-    appId,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -53,20 +52,10 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     const [isLoading, setIsLoading] = useState(false)
     const {mutate} = useLoadTestsetsList()
 
-    const generateInitialRowData = async (): Promise<KeyValuePair[]> => {
-        const backendVariants = await fetchVariants(appId)
-        const variant = backendVariants[0]
-        const inputParams = await getVariantInputParameters(appId, variant)
-        const fields = [...inputParams.map((param) => param.name), "correct_answer"]
-        return Array(3)
-            .fill({})
-            .map(() => fields.reduce((acc, field) => ({...acc, [field]: ""}), {}))
-    }
-
     const handleCreateTestset = async (data?: KeyValuePair[]) => {
         setIsLoading(true)
         try {
-            const rowData = data || (await generateInitialRowData())
+            const rowData = data
             const response = await createNewTestset(testsetName, rowData)
             message.success("Test set created successfully")
             router.push(`/testsets/${response.data.id}`)

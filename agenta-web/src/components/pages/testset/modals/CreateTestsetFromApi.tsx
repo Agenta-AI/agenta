@@ -43,7 +43,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
-    appId: string
 }
 type LanguageCodeBlockProps = {
     selectedLang: string
@@ -68,7 +67,7 @@ const LanguageCodeBlock = ({selectedLang, codeSnippets}: LanguageCodeBlockProps)
     )
 }
 
-const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
+const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
     const router = useRouter()
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")

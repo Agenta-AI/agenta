@@ -56,7 +56,6 @@ const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
     const {apps, isLoading: isAppsLoading} = useAppsData()
-    const appId = apps[0]?.app_id
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
@@ -64,13 +63,6 @@ const Testset = () => {
     const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
     const [editTestsetValues, setEditTestsetValues] = useState<testset | null>(null)
     const [current, setCurrent] = useState(0)
-
-    useUpdateEffect(() => {
-        if ((apps.length === 0 || !apps) && !isAppsLoading) {
-            message.warning("To view the test set, you first need to create an app.")
-            router.push("/apps")
-        }
-    }, [isAppsLoading])
 
     const rowSelection = {
         onChange: (selectedRowKeys: React.Key[]) => {
@@ -278,7 +270,6 @@ const Testset = () => {
                 testsetCreationMode={testsetCreationMode}
                 setTestsetCreationMode={setTestsetCreationMode}
                 open={isCreateTestsetModalOpen}
-                appId={appId}
                 onCancel={() => {
                     setIsCreateTestsetModalOpen(false)
                 }}

@@ -49,10 +49,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
-    appId: string
 }
 
-const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
+const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
     const router = useRouter()
     const [form] = Form.useForm()
