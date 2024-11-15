@@ -245,7 +245,6 @@ export const fetchEvaluatonIdsByResource = async ({
 }: {
     resourceIds: string[]
     resourceType: "testset" | "evaluator_config" | "variant"
-    appId: string
 }) => {
     return axios.get(`/api/evaluations/by_resource`, {
         params: {resource_ids: resourceIds, resource_type: resourceType},
