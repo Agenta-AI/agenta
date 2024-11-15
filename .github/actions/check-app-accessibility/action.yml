@@ -4,6 +4,9 @@ inputs:
   log-file:
     description: 'The path to the log file containing the serve output'
     required: true
+  api-key:
+    description: 'The API key for accessing the app'
+    required: false
 runs:
   using: "composite"
   steps:
@@ -31,9 +34,13 @@ runs:
                 echo "$APP_URL is accessible without API key"
                 exit 0
             elif [ "$status_code" -eq 401 ]; then
+                if [ -z "${{ inputs.api-key }}" ]; then
+                    echo "Error: $APP_URL is not accessible without API key"
+                    sleep 10 # Wait before retrying
+                fi
                 status_code=$( \
                   curl --max-time 60 --write-out %{http_code} --silent --output /dev/null --verbose \
-                  -H "Authorization: Bearer ${{ secrets.AGENTA_API_KEY }}" \
+                  -H "Authorization: Bearer ${{ inputs.api-key }}" \
                   $APP_URL)
                 echo "Attempt $i: Status code: $status_code"
                 if [ "$status_code" -eq 200 ]; then
