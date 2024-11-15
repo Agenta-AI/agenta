@@ -27,7 +27,6 @@ type Props = {
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-    appId: string
 } & React.ComponentProps<typeof Modal>
 
 const TestsetModal: React.FC<Props> = ({
@@ -37,7 +36,6 @@ const TestsetModal: React.FC<Props> = ({
     setEditTestsetValues,
     current,
     setCurrent,
-    appId,
     ...props
 }) => {
     const classes = useStyles()
@@ -63,16 +61,15 @@ const TestsetModal: React.FC<Props> = ({
                     onCancel={onCancel}
                     editTestsetValues={editTestsetValues}
                     setEditTestsetValues={setEditTestsetValues}
-                    appId={appId}
                 />
             ),
         },
         {
-            content: <UploadTestset setCurrent={setCurrent} onCancel={onCancel} appId={appId} />,
+            content: <UploadTestset setCurrent={setCurrent} onCancel={onCancel} />,
         },
         {
             content: (
-                <CreateTestsetFromApi setCurrent={setCurrent} onCancel={onCancel} appId={appId} />
+                <CreateTestsetFromApi setCurrent={setCurrent} onCancel={onCancel} />
             ),
         },
     ]
