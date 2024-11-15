@@ -110,13 +110,10 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                         cache.put(_hash, {"effect": "deny"})
                         return Deny()
 
-                    credentials = auth.get("credentials")
-
-                    if not auth.get("credentials"):
-                        cache.put(_hash, {"effect": "deny"})
-                        return Deny()
-
-                    cached_policy = {"effect": "allow", "credentials": credentials}
+                    cached_policy = {
+                        "effect": "allow",
+                        "credentials": auth.get("credentials"),
+                    }
 
                     cache.put(_hash, cached_policy)
 
