@@ -61,7 +61,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
     const [testsetName, setTestsetName] = useState("")
     const [uploadLoading, setUploadLoading] = useState(false)
     const [fileProgress, setFileProgress] = useState<UploadFile>({} as UploadFile)
-    const {mutate} = useLoadTestsetsList(appId)
+    const {mutate} = useLoadTestsetsList()
 
     const onFinish = async (values: any) => {
         const {file} = values

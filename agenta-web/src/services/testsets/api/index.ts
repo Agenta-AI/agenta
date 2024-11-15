@@ -10,9 +10,9 @@ import {axiosFetcher} from "@/services/api"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const useLoadTestsetsList = (appId: string) => {
+export const useLoadTestsetsList = () => {
     const {data, error, mutate, isLoading} = useSWR(
-        () => (appId ? `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}` : null),
+        `${getAgentaApiUrl()}/api/testsets`,
         axiosFetcher,
         {revalidateOnFocus: false, shouldRetryOnError: false},
     )
@@ -25,8 +25,8 @@ export const useLoadTestsetsList = (appId: string) => {
     }
 }
 
-export const fetchTestsets = async (appId: string) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`)
+export const fetchTestsets = async () => {
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets`)
     return response.data
 }
 

@@ -101,7 +101,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     const dirty = useRef(false)
     const router = useRouter()
     const appId = router.query.app_id as string
-    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
+    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList()
     const storedValue = localStorage.getItem(`selectedTestset_${appId}`)?.replace(/"/g, "")
     const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(
         `selectedTestset_${appId}`,

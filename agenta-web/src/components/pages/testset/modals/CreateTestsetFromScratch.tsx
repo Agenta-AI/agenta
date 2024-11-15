@@ -51,7 +51,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
-    const {mutate} = useLoadTestsetsList(appId)
+    const {mutate} = useLoadTestsetsList()
 
     const generateInitialRowData = async (): Promise<KeyValuePair[]> => {
         const backendVariants = await fetchVariants(appId)
