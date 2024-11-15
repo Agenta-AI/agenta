@@ -34,7 +34,14 @@ async def test_batch_invoke_success():
         ]
 
         # Mock the response of invoke_app to always succeed
-        def invoke_app_side_effect(uri, datapoint, parameters, openapi_parameters):
+        def invoke_app_side_effect(
+            uri,
+            datapoint,
+            parameters,
+            openapi_parameters,
+            user_id,
+            project_id,
+        ):
             return InvokationResult(
                 result=Result(type="text", value="Success", error=None),
                 latency=0.1,
@@ -96,7 +103,14 @@ async def test_batch_invoke_retries_and_failure():
         ]
 
         # Mock the response of invoke_app to always fail
-        def invoke_app_side_effect(uri, datapoint, parameters, openapi_parameters):
+        def invoke_app_side_effect(
+            uri,
+            datapoint,
+            parameters,
+            openapi_parameters,
+            user_id,
+            project_id,
+        ):
             raise aiohttp.ClientError("Test Error")
 
         mock_invoke_app.side_effect = invoke_app_side_effect
@@ -154,7 +168,14 @@ async def test_batch_invoke_generic_exception():
         ]
 
         # Mock the response of invoke_app to raise a generic exception
-        def invoke_app_side_effect(uri, datapoint, parameters, openapi_parameters):
+        def invoke_app_side_effect(
+            uri,
+            datapoint,
+            parameters,
+            openapi_parameters,
+            user_id,
+            project_id,
+        ):
             raise Exception("Generic Error")
 
         mock_invoke_app.side_effect = invoke_app_side_effect
