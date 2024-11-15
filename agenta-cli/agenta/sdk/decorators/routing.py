@@ -125,6 +125,26 @@ class entrypoint:
         route_path="",
         config_schema: Optional[BaseModel] = None,
     ):
+        ### --- Update Middleware --- #
+        try:
+            global _MIDDLEWARES  # pylint: disable=global-statement
+
+            if _MIDDLEWARES:
+                app.add_middleware(
+                    AuthorizationMiddleware,
+                    host=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host,
+                    resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
+                    resource_type="application",
+                )
+
+                _MIDDLEWARES = False
+
+        except:  # pylint: disable=bare-except
+            log.error("------------------------------------")
+            log.error("Agenta SDK - failed to secure route: %s", route_path)
+            log.error("------------------------------------")
+        ### --- Update Middleware --- #
+
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -261,26 +281,6 @@ class entrypoint:
         route_deployed = f"{RUN_PATH}{route_path}"
         app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
         ### ---------------- #
-
-        ### --- Update Middleware --- #
-        try:
-            global _MIDDLEWARES  # pylint: disable=global-statement
-
-            if _MIDDLEWARES:
-                app.add_middleware(
-                    AuthorizationMiddleware,
-                    host=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host,
-                    resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
-                    resource_type="application",
-                )
-
-                _MIDDLEWARES = False
-
-        except:  # pylint: disable=bare-except
-            log.error("------------------------------------")
-            log.error("Agenta SDK - failed to secure route: %s", route_path)
-            log.error("------------------------------------")
-        ### --- Update Middleware --- #
 
         ### --- Update OpenAPI --- #
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
