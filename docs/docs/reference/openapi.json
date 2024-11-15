@@ -2227,15 +2227,6 @@
                         "required": true,
                         "schema": {
                             "type": "string",
-                            "title": "App Id"
-                        },
-                        "name": "app_id",
-                        "in": "query"
-                    },
-                    {
-                        "required": true,
-                        "schema": {
-                            "type": "string",
                             "title": "Resource Type"
                         },
                         "name": "resource_type",

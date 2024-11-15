@@ -178,7 +178,7 @@ const Testset = () => {
                                     },
                                 },
                                 {
-                                    key: "delete_eval",
+                                    key: "delete",
                                     label: "Delete",
                                     icon: <Trash size={16} />,
                                     danger: true,
