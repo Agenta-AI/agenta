@@ -891,7 +891,6 @@ def parse_legacy_analytics_dto(
 def parse_legacy_analytics(
     bucket_dtos: List[BucketDTO],
 ) -> Tuple[List[LegacyDataPoint], LegacySummary]:
-
     data_points = list()
 
     total_failure = 0
