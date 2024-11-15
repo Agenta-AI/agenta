@@ -44,7 +44,6 @@ import TabItem from "@theme/TabItem";
 Fetches evaluation ids for a given resource type and id.
 
 Arguments:
-    app_id (str): The ID of the app for which to fetch evaluations.
     resource_type (str): The type of resource for which to fetch evaluations.
     resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
@@ -78,11 +77,6 @@ Returns:
     </h3>
   </summary><div>
     <ul>
-      <ParamsItem
-        className={"paramsItem"}
-        param={{"required":true,"schema":{"type":"string","title":"App Id"},"name":"app_id","in":"query"}}
-      >
-        
       </ParamsItem><ParamsItem
         className={"paramsItem"}
         param={{"required":true,"schema":{"type":"string","title":"Resource Type"},"name":"resource_type","in":"query"}}

@@ -242,14 +242,13 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
 export const fetchEvaluatonIdsByResource = async ({
     resourceIds,
     resourceType,
-    appId,
 }: {
     resourceIds: string[]
     resourceType: "testset" | "evaluator_config" | "variant"
     appId: string
 }) => {
     return axios.get(`/api/evaluations/by_resource`, {
-        params: {resource_ids: resourceIds, resource_type: resourceType, app_id: appId},
+        params: {resource_ids: resourceIds, resource_type: resourceType},
         paramsSerializer: {
             indexes: null, //no brackets in query params
         },
