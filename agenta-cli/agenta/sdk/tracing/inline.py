@@ -1195,11 +1195,7 @@ def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
         ),
         #
         app_id=(
-<<<<<<< HEAD
-            span.refs.get("application", {}).get("id")
-=======
             span.refs.get("application", {}).get("id", "missing-app-id")
->>>>>>> feature/observability-checkpoint-2
             if span.refs
             else "missing-app-id"
         ),
