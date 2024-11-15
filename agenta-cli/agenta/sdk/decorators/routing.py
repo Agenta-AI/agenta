@@ -226,7 +226,7 @@ class entrypoint:
             with routing_context_manager(
                 application={
                     "id": app_id,
-                    "slug": kwargs["app"],
+                    "slug": kwargs.get("app"),
                 },
                 variant={
                     "slug": kwargs.get("config"),

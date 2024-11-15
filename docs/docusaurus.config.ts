@@ -8,7 +8,7 @@ import "dotenv/config";
 
 const config: Config = {
   title: "Agenta Documentation",
-  tagline: "The LLM platform.",
+  tagline: "The LLMOps platform.",
   favicon: "images/favicon.ico",
   // Set the production url of your site here
   url: "https://docs.agenta.ai",
@@ -113,6 +113,11 @@ const config: Config = {
           to: "/changelog/main",
           position: "left",
           label: "Changelog",
+        },
+        {
+          to: "https://agenta.ai/blog",
+          position: "left",
+          label: "Blog",
         },
         // {
         //   to: "https://github.com/orgs/Agenta-AI/projects/13/views/1",
