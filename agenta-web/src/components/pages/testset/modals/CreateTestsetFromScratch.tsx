@@ -69,7 +69,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const rowData = data || (await generateInitialRowData())
             const response = await createNewTestset(testsetName, rowData)
             message.success("Test set created successfully")
-            router.push(`/apps/testsets/${response.data.id}`)
+            router.push(`/testsets/${response.data.id}`)
         } catch (error) {
             console.error("Error saving test set:", error)
             message.error("Failed to create Test set. Please try again!")

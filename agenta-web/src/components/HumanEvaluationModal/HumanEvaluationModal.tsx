@@ -340,7 +340,7 @@ const HumanEvaluationModal = ({
                 setError({
                     message: getErrorMessage(err),
                     btnText: "Go to Test sets",
-                    endpoint: `/apps/testsets`,
+                    endpoint: `/testsets`,
                 })
             }
         })
