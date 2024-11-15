@@ -586,11 +586,11 @@ const App: React.FC<TestViewProps> = ({
                     } else if (result.version === "3.0") {
                         // Version 3.0 logic
                         newDataList[index] = {
-                            cost: trace?.[0]?.metrics?.acc?.costs?.total ?? null,
-                            latency: trace?.[0]?.time?.span
-                                ? trace?.[0]?.time?.span / 1_000_000
+                            cost: trace?.nodes?.[0]?.metrics?.acc?.costs?.total ?? null,
+                            latency: trace?.nodes?.[0]?.time?.span
+                                ? trace?.nodes?.[0]?.time?.span / 1_000_000
                                 : null,
-                            usage: trace?.[0]?.metrics?.acc?.tokens?.total ?? null,
+                            usage: trace?.nodes?.[0]?.metrics?.acc?.tokens?.total ?? null,
                         }
                     }
                     return newDataList
