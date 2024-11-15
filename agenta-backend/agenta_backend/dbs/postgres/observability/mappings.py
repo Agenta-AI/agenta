@@ -1,5 +1,6 @@
 from typing import List, Tuple
 from json import dumps, loads
+from datetime import datetime
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
 from agenta_backend.core.observability.dtos import (
@@ -134,6 +135,7 @@ def map_bucket_dbes_to_dtos(
     total_bucket_dbes: List[NodesDBE],
     error_bucket_dbes: List[NodesDBE],
     window: int,
+    buckets: List[datetime],
 ) -> Tuple[List[BucketDTO], int]:
     total_metrics = {
         bucket.timestamp: MetricsDTO(
@@ -159,6 +161,8 @@ def map_bucket_dbes_to_dtos(
         set(list(total_metrics.keys()) + list(error_metrics.keys()))
     )
     total_timestamps.sort()
+
+    total_timestamps = bucket_dtos
 
     bucket_dtos = [
         BucketDTO(
