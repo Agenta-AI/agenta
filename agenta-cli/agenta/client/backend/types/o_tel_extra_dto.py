@@ -2,20 +2,17 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
+from .o_tel_event_dto import OTelEventDto
+from .o_tel_link_dto import OTelLinkDto
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class EvaluatorConfig(UniversalBaseModel):
-    id: str
-    name: str
-    project_id: str
-    evaluator_key: str
-    settings_values: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = (
-        None
-    )
-    created_at: str
-    updated_at: str
+class OTelExtraDto(UniversalBaseModel):
+    kind: typing.Optional[str] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
+    events: typing.Optional[typing.List[OTelEventDto]] = None
+    links: typing.Optional[typing.List[OTelLinkDto]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

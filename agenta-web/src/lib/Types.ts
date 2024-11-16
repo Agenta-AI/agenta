@@ -1,6 +1,7 @@
 import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
 import {GlobalToken} from "antd"
+import {AgentaNodeDTO} from "@/services/observability/types"
 
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
@@ -547,7 +548,7 @@ export type FuncResponse = {
 export type BaseResponse = {
     version: string
     data: string | Record<string, any>
-    trace?: Record<string, any>[]
+    trace?: AgentaNodeDTO[]
 }
 
 export type BaseResponseSpans = {

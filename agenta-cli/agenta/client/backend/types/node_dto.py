@@ -2,20 +2,15 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
+from .node_type import NodeType
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class EvaluatorConfig(UniversalBaseModel):
+class NodeDto(UniversalBaseModel):
     id: str
     name: str
-    project_id: str
-    evaluator_key: str
-    settings_values: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = (
-        None
-    )
-    created_at: str
-    updated_at: str
+    type: typing.Optional[NodeType] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
