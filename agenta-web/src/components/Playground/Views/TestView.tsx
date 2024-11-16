@@ -12,6 +12,7 @@ import {
     StyleProps,
     BaseResponseSpans,
     BaseResponse,
+    TraceDetails,
 } from "@/lib/Types"
 import {batchExecute, getStringOrJson, isDemo, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
@@ -175,7 +176,10 @@ interface BoxComponentProps {
     additionalData: {
         cost: number | null
         latency: number | null
-        usage: number | null
+        usage:
+            | {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+            | number
+            | null
     }
     onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
@@ -393,7 +397,7 @@ const App: React.FC<TestViewProps> = ({
             usage: number | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
-    const [traceSpans, setTraceSpans] = useState<AgentaNodeDTO[]>([])
+    const [traceSpans, setTraceSpans] = useState<AgentaNodeDTO[] | TraceDetails | null>(null)
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -550,13 +554,19 @@ const App: React.FC<TestViewProps> = ({
                 res = {version: "3.0", data: result} as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
             } else if (isFuncResponse(result)) {
-                res = {version: "3.0", data: result.message} as BaseResponse
+                const res: BaseResponse = {version: "3.0", data: result.message}
                 setResultForIndex(getStringOrJson(res.data), index)
 
                 const {message, cost, latency, usage} = result
+
+                // Set additional data
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    newDataList[index] = {cost, latency, usage: usage.total_tokens}
+                    newDataList[index] = {
+                        cost,
+                        latency,
+                        usage: usage?.total_tokens,
+                    }
                     return newDataList
                 })
             } else if (isBaseResponse(result)) {
@@ -566,10 +576,22 @@ const App: React.FC<TestViewProps> = ({
                 const {trace} = result
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    newDataList[index] = {
-                        cost: trace?.[0]?.metrics?.acc?.costs?.total ?? null,
-                        latency: trace?.[0]?.time?.span ? trace?.[0]?.time?.span / 1_000_000 : null,
-                        usage: trace?.[0]?.metrics?.acc?.tokens?.total ?? null,
+                    if (result.version === "2.0") {
+                        // Version 2.0 logic
+                        newDataList[index] = {
+                            cost: trace?.cost || null,
+                            latency: trace?.latency || null,
+                            usage: trace?.usage?.total_tokens || null,
+                        }
+                    } else if (result.version === "3.0") {
+                        // Version 3.0 logic
+                        newDataList[index] = {
+                            cost: trace?.nodes?.[0]?.metrics?.acc?.costs?.total ?? null,
+                            latency: trace?.nodes?.[0]?.time?.span
+                                ? trace?.nodes?.[0]?.time?.span / 1_000_000
+                                : null,
+                            usage: trace?.nodes?.[0]?.metrics?.acc?.tokens?.total ?? null,
+                        }
                     }
                     return newDataList
                 })
@@ -722,7 +744,7 @@ const App: React.FC<TestViewProps> = ({
                     isChatVariant={isChatVariant}
                     variant={variant}
                     onCancel={() => handleCancel(index)}
-                    traceSpans={traceSpans[0]}
+                    traceSpans={Array.isArray(traceSpans) ? traceSpans : traceSpans}
                 />
             ))}
             <Button

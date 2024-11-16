@@ -494,7 +494,9 @@ export type ComparisonResultRow = {
 export type RequestMetadata = {
     cost: number
     latency: number
-    usage: {completion?: number; prompt?: number; total: number}
+    usage:
+        | {completion?: number; prompt?: number; total: number}
+        | {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
 }
 
 export type WithPagination<T> = {
@@ -545,10 +547,18 @@ export type FuncResponse = {
     usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
 }
 
+export interface TraceDetails {
+    trace_id: string
+    cost?: number
+    latency?: number
+    usage?: number
+    spans?: BaseResponseSpans[]
+}
+
 export type BaseResponse = {
     version: string
     data: string | Record<string, any>
-    trace?: AgentaNodeDTO[]
+    trace?: TraceDetails | AgentaNodeDTO[]
 }
 
 export type BaseResponseSpans = {
