@@ -67,13 +67,13 @@ async def map(
     mapping_outputs = {}
     trace = process_distributed_trace_into_trace_tree(
         mapping_input.inputs["trace"],
-        version=mapping_input.inputs.get("version", "3.0"),
+        version=mapping_input.inputs.get("version"),
     )
     for to_key, from_key in mapping_input.mapping.items():
         mapping_outputs[to_key] = get_field_value_from_trace_tree(
             trace,
             from_key,
-            version=mapping_input.inputs.get("version", "3.0"),
+            version=mapping_input.inputs.get("version"),
         )
     return {"outputs": mapping_outputs}
 
