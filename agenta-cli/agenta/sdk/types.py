@@ -4,6 +4,9 @@ from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
 
+from agenta.client.backend.types.agenta_node_dto import AgentaNodeDto
+from agenta.client.backend.types.agenta_nodes_response import AgentaNodesResponse
+
 
 @dataclass
 class MultipleChoice:
@@ -25,7 +28,7 @@ class LLMTokenUsage(BaseModel):
 class BaseResponse(BaseModel):
     version: Optional[str] = "3.0"
     data: Optional[Union[str, Dict[str, Any]]]
-    trace: Optional[List[Dict[str, Any]]]
+    trace: AgentaNodesResponse
 
 
 class DictInput(dict):
