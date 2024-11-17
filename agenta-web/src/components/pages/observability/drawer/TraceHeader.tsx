@@ -11,9 +11,9 @@ interface TraceHeaderProps {
     activeTrace: _AgentaRootsResponse
     traces: _AgentaRootsResponse[]
     setSelectedTraceId: (val: string) => void
-    activeTraceIndex: number
-    handleNextTrace: () => void
-    handlePrevTrace: () => void
+    activeTraceIndex?: number
+    handleNextTrace?: () => void
+    handlePrevTrace?: () => void
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
