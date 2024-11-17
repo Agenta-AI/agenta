@@ -30,10 +30,10 @@ def _make_spans_id_tree(trace):
     index = {}
 
     def push(span) -> None:
-        if span["parent_span_id"] is None:
+        if span.get("parent_span_id") is None:
             tree[span["id"]] = OrderedDict()
             index[span["id"]] = tree[span["id"]]
-        elif span["parent_span_id"] in index:
+        elif span.get("parent_span_id") in index:
             index[span["parent_span_id"]][span["id"]] = OrderedDict()
             index[span["id"]] = index[span["parent_span_id"]][span["id"]]
         else:
@@ -199,7 +199,7 @@ def _make_spans_tree(spans_id_tree, spans_index):
 
             key = spans_index[id]["name"]
 
-            span = {k: spans_index[id][k] for k in INCLUDED_KEYS}
+            span = {k: spans_index[id].get(k, None) for k in INCLUDED_KEYS}
 
             if TRACE_DEFAULT_KEY in span["outputs"]:
                 span["outputs"] = span["outputs"][TRACE_DEFAULT_KEY]
