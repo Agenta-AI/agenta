@@ -37,7 +37,7 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/for
 import {dynamicService} from "@/lib/helpers/dynamic"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {AgentaNodeDTO} from "@/services/observability/types"
-import {isTraceDetailsV2, isTraceDetailsV3} from "@/lib/helpers/observability"
+import {isTraceDetailsV2, isTraceDetailsV3} from "@/lib/helpers/observability_helpers"
 import GenericDrawer from "@/components/GenericDrawer"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
