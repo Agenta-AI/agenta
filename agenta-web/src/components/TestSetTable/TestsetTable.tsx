@@ -122,12 +122,14 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         if (writeMode === "edit" && testset_id) {
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
-                setRowData(data.csvdata)
-                applyColData(
-                    Object.keys(data.csvdata[0]).map((key) => ({
-                        field: key,
-                    })),
-                )
+                if (data.csvdata.length > 0) {
+                    applyColData(
+                        Object.keys(data.csvdata[0]).map((key) => ({
+                            field: key,
+                        })),
+                    )
+                    setRowData(data.csvdata)
+                }
             })
         }
     }, [writeMode, testset_id])
