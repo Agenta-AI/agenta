@@ -175,6 +175,9 @@ TRACE_DEFAULT_KEY = "__default__"
 def _make_spans_tree(spans_id_tree, spans_index):
     """
     Recursively collects and organizes span information into a dictionary.
+    This function retrieves the current spans tree and extracts detailed data for each span.
+    It processes spans in a tree structure, organizing them with their start time, end time, inputs, internals, and outputs.
+    If an error occurs, it logs the error message and stack trace.
 
     Args:
         spans_id_tree: {[span_id]: spans_id_tree(span_id)} # recursive (ids only)
