@@ -33,7 +33,7 @@ export const fetchTestsets = async () => {
 export async function createNewTestset(testsetName: string, testsetData: any) {
     const response = await axios.post(`${getAgentaApiUrl()}/api/testsets`, {
         name: testsetName,
-        csvdata: testsetData,
+        csvdata: testsetData || [{ "input": null, "correct_answer": null}],
     })
     return response
 }
