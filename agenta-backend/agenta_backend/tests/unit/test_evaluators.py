@@ -1,7 +1,10 @@
 import os
 import pytest
 
-from agenta_backend.tests.unit.test_traces import simple_rag_trace
+from agenta_backend.tests.unit.test_traces import (
+    simple_rag_trace,
+    simple_rag_trace_for_baseresponse_v3,
+)
 from agenta_backend.services.evaluators_service import (
     auto_levenshtein_distance,
     auto_ai_critique,
@@ -521,6 +524,102 @@ async def test_rag_context_relevancy_evaluator(
     result = await rag_context_relevancy(
         {},
         simple_rag_trace,
+        {},
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": openai_api_key},
+    )
+
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by autoevals -> ValueError (caught already and then passed as a stacktrace to the result)
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
+        assert result.error.message == "Error during RAG Context Relevancy evaluation"
+
+
+@pytest.mark.parametrize(
+    "settings_values, expected_min, openai_api_key, expected_max",
+    [
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            os.environ.get("OPENAI_API_KEY"),
+            0.0,
+            1.0,
+        ),
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            None,
+            None,
+            None,
+        ),
+        # add more use cases
+    ],
+)
+@pytest.mark.asyncio
+async def test_rag_faithfulness_evaluator_for_baseresponse_v3(
+    settings_values, expected_min, openai_api_key, expected_max
+):
+    result = await rag_faithfulness(
+        {},
+        simple_rag_trace_for_baseresponse_v3,
+        {},
+        {},
+        settings_values,
+        {"OPENAI_API_KEY": openai_api_key},
+    )
+
+    try:
+        assert expected_min <= round(result.value, 1) <= expected_max
+    except TypeError as error:
+        # exceptions
+        # - raised by evaluator (agenta) -> TypeError
+        assert not isinstance(result.value, float) or not isinstance(result.value, int)
+
+
+@pytest.mark.parametrize(
+    "settings_values, expected_min, openai_api_key, expected_max",
+    [
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            os.environ.get("OPENAI_API_KEY"),
+            0.0,
+            1.0,
+        ),
+        (
+            {
+                "question_key": "rag.retriever.internals.prompt",
+                "answer_key": "rag.reporter.outputs.report",
+                "contexts_key": "rag.retriever.outputs.movies",
+            },
+            None,
+            None,
+            None,
+        ),
+        # add more use cases
+    ],
+)
+@pytest.mark.asyncio
+async def test_rag_context_relevancy_evaluator_for_baseresponse_v3(
+    settings_values, expected_min, openai_api_key, expected_max
+):
+    result = await rag_context_relevancy(
+        {},
+        simple_rag_trace_for_baseresponse_v3,
         {},
         {},
         settings_values,
