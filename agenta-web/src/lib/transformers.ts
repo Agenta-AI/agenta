@@ -129,6 +129,87 @@ export const singleModelTestEvaluationTransformer = ({
     variant_revision_ids: item.variant_revision_ids,
 })
 
+export const fromBaseResponseToTraceSpanType = (
+    spans: BaseResponseSpans[],
+    traceId: string,
+): [TraceSpan[], Record<string, TraceSpan>] => {
+    const TRACE_DEFAULT_KEY = "__default__"
+
+    const all_spans = spans.map((span) => ({
+        id: span.id,
+        name: span.name,
+        created_at: span.start_time,
+        variant: {
+            variant_id: span.variant_id || null,
+            variant_name: span.variant_name || null,
+
+            revision:
+                span.environment == "playground"
+                    ? null
+                    : span.config
+                      ? span.config?.revision
+                      : null,
+        },
+        environment: span.environment || null,
+        spankind: span.spankind,
+        status: span.status,
+        metadata: {
+            cost: span.cost,
+            latency:
+                (new Date(span.end_time).getTime() - new Date(span.start_time).getTime()) / 1000,
+            usage: span.tokens,
+        },
+        content: {
+            inputs: span.inputs,
+            internals: span.internals,
+            outputs:
+                Array.isArray(span.outputs) ||
+                span.outputs == undefined ||
+                !span.outputs.hasOwnProperty(TRACE_DEFAULT_KEY)
+                    ? span.outputs
+                    : span.outputs[TRACE_DEFAULT_KEY],
+        } as {
+            inputs: Record<string, any> | null
+            internals: Record<string, any> | null
+            outputs: string[] | Record<string, any> | null
+        },
+        user_id: span.user,
+        trace_id: traceId,
+        parent_span_id: span.parent_span_id,
+
+        children: null,
+    }))
+
+    let spans_dict: Record<string, TraceSpan> = {}
+    for (const span of all_spans) {
+        spans_dict[span.id] = span
+    }
+
+    let child_spans: Array<string> = []
+
+    for (const span of all_spans) {
+        if (span.parent_span_id) {
+            const parent_span: TraceSpan = spans_dict[span.parent_span_id]
+            const child_span: TraceSpan = spans_dict[span.id]
+
+            if (parent_span) {
+                if (parent_span?.children === null) {
+                    parent_span.children = []
+                }
+
+                parent_span.children?.push(child_span)
+                child_spans.push(child_span.id)
+            }
+        }
+    }
+
+    const top_level_spans: Array<TraceSpan> = all_spans.filter(
+        (span) => !child_spans.includes(span.id),
+    )
+
+    return [top_level_spans, spans_dict]
+}
+
 export const transformTraceTreeToJson = (tree: TraceSpan[]) => {
     const nodeMap: Record<string, any> = {}
 
