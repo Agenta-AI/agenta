@@ -701,7 +701,7 @@ async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
 
     template_db = await get_template(template_id=template_id)
     if "Completion Prompt" in template_db.title:
-        return AppType.PROMPT_TEMPLATE
+        return AppType.COMPLETION_TEMPLATE
     elif "Chat Prompt" in template_db.title:
         return AppType.CHAT_TEMPLATE
     return AppType.CUSTOM
