@@ -1,0 +1,85 @@
+from typing import Optional, List
+from uuid import UUID
+
+from pydantic import BaseModel
+
+from fastapi import Request, Query, HTTPException
+from fastapi.responses import JSONResponse
+
+from agenta_backend.utils.common import isCloudEE, isOss, APIRouter
+from agenta_backend.services import db_manager
+
+if isCloudEE():
+    from agenta_backend.commons.services import db_manager_ee
+
+
+class ProjectsResponse(BaseModel):
+    project_id: UUID
+    project_name: str
+    is_default: bool
+
+
+router = APIRouter()
+
+
+@router.get(
+    "/",
+    operation_id="get_projects",
+    response_model=List[ProjectsResponse],
+)
+async def get_projects(
+    request: Request,
+):
+    try:
+        if isOss():
+            _project = await db_manager.fetch_project_by_id(
+                project_id=request.state.project_id
+            )
+
+            projects = [
+                ProjectsResponse(
+                    project_id=_project.id,
+                    project_name=_project.project_name,
+                    is_default=_project.is_default,
+                )
+            ]
+
+            return projects
+
+        elif isCloudEE():
+            _project_memberships = (
+                await db_manager_ee.fetch_project_memberships_by_user_id(
+                    user_id=request.state.user_id
+                )
+            )
+
+            if not _project_memberships:
+                return JSONResponse(
+                    status_code=404,
+                    content={"message": "No projects found."},
+                )
+
+            projects = [
+                ProjectsResponse(
+                    project_id=project_membership.project.id,
+                    project_name=project_membership.project.project_name,
+                    is_default=project_membership.project.is_default,
+                )
+                for project_membership in _project_memberships
+            ]
+
+            return projects
+
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"message": "No projects found."},
+            )
+
+    except Exception as exc:  # pylint: disable=bare-except
+        print(exc)
+
+        return JSONResponse(
+            status_code=404,
+            content={"message": "No projects found."},
+        )
