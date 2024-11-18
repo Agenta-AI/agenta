@@ -69,14 +69,14 @@ class TemplateType(enum.Enum):
 
 class AppType(str, enum.Enum):
     CHAT_TEMPLATE = "TEMPLATE:simple_chat"
-    PROMPT_TEMPLATE = "TEMPLATE:single_prompt"
+    COMPLETION_TEMPLATE = "TEMPLATE:simple_completion"
     CUSTOM = "CUSTOM"
 
     @classmethod
     def friendly_tag(cls, app_type: str):
         mappings = {
             cls.CHAT_TEMPLATE: "chat",
-            cls.PROMPT_TEMPLATE: "completion",
+            cls.COMPLETION_TEMPLATE: "completion",
             cls.CUSTOM: "custom",
         }
         return mappings.get(app_type, None)
