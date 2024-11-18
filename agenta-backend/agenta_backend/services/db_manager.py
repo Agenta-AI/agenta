@@ -96,7 +96,9 @@ logger.setLevel(logging.DEBUG)
 PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
-async def fetch_project_by_id(project_id: str) -> ProjectDB:
+async def fetch_project_by_id(
+    project_id: str,
+) -> ProjectDB:
     async with engine.session() as session:
         project = (
             (
