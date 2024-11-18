@@ -19,55 +19,87 @@ def extract_result_from_response(response: dict):
         """
         Helper function to safely retrieve nested values.
         """
-
-        for key in keys:
-            if isinstance(d, dict):
-                d = d.get(key, default)
-            else:
-                return default
-        return d
+        try:
+            for key in keys:
+                if isinstance(d, dict):
+                    d = d.get(key, default)
+                else:
+                    return default
+            return d
+        except Exception as e:
+            print(f"Error accessing nested value: {e}")
+            return default
 
     # Initialize default values
     value = None
     latency = None
     cost = None
 
-    # Handle version 3.0 response
-    if response.get("version") == "3.0":
-        value = response
-        # Ensure 'data' is a dictionary or convert it to a string
-        if not isinstance(value.get("data"), dict):
-            value["data"] = str(value.get("data"))
+    try:
+        # Validate input
+        if not isinstance(response, dict):
+            raise ValueError("The response must be a dictionary.")
 
-        if "trace" in response:
-            trace_tree = (
-                response["trace"][0] if isinstance(response.get("trace"), list) else {}
-            )
-            latency = (
-                get_nested_value(trace_tree, ["time", "span"]) * 1_000_000
-                if trace_tree
-                else None
-            )
-            cost = get_nested_value(trace_tree, ["metrics", "acc", "costs", "total"])
+        # Handle version 3.0 response
+        if response.get("version") == "3.0":
+            value = response
+            # Ensure 'data' is a dictionary or convert it to a string
+            if not isinstance(value.get("data"), dict):
+                value["data"] = str(value.get("data"))
 
-    # Handle version 2.0 response
-    elif response.get("version") == "2.0":
-        value = response
-        if not isinstance(value.get("data"), dict):
-            value["data"] = str(value.get("data"))
+            if "trace" in response:
+                trace_tree = (
+                    response["trace"][0]
+                    if isinstance(response.get("trace"), list)
+                    else {}
+                )
+                latency = (
+                    get_nested_value(trace_tree, ["time", "span"]) * 1_000_000
+                    if trace_tree
+                    else None
+                )
+                cost = get_nested_value(
+                    trace_tree, ["metrics", "acc", "costs", "total"]
+                )
 
-        if "trace" in response:
-            latency = response["trace"].get("latency")
-            cost = response["trace"].get("cost")
+        # Handle version 2.0 response
+        elif response.get("version") == "2.0":
+            value = response
+            if not isinstance(value.get("data"), dict):
+                value["data"] = str(value.get("data"))
 
-    # Handle generic response (neither 2.0 nor 3.0)
-    else:
-        value = {"data": str(response.get("message", ""))}
-        latency = response.get("latency")
-        cost = response.get("cost")
+            if "trace" in response:
+                latency = response["trace"].get("latency")
+                cost = response["trace"].get("cost")
 
-    # Determine the type of 'value' (either 'text' or 'object')
-    kind = "text" if isinstance(value, str) else "object"
+        # Handle generic response (neither 2.0 nor 3.0)
+        else:
+            value = {"data": str(response.get("message", ""))}
+            latency = response.get("latency")
+            cost = response.get("cost")
+
+        # Determine the type of 'value' (either 'text' or 'object')
+        kind = "text" if isinstance(value, str) else "object"
+
+    except ValueError as ve:
+        print(f"Input validation error: {ve}")
+        value = {"error": str(ve)}
+        kind = "error"
+
+    except KeyError as ke:
+        print(f"Missing key: {ke}")
+        value = {"error": f"Missing key: {ke}"}
+        kind = "error"
+
+    except TypeError as te:
+        print(f"Type error: {te}")
+        value = {"error": f"Type error: {te}"}
+        kind = "error"
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        value = {"error": f"Unexpected error: {e}"}
+        kind = "error"
 
     return value, kind, cost, latency
 
