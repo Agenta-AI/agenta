@@ -4,7 +4,6 @@ import {Modal, ConfigProvider, theme, Button, notification, Typography, Input, D
 import AppCard from "./AppCard"
 import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import TipsAndFeatures from "./TipsAndFeatures"
 import Welcome from "./Welcome"
 import {isAppNameInputValid, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {createAndStartTemplate, fetchAllTemplates, deleteApp} from "@/services/app-selector/api"
@@ -349,8 +348,6 @@ const AppSelector: React.FC = () => {
                         ) : (
                             <NoResultsFound />
                         )}
-
-                        <TipsAndFeatures />
                     </div>
                 ) : (
                     <Welcome
