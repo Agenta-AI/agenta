@@ -360,7 +360,9 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
 
             {selectedRow && (
                 <div className={classes.btnContainer}>
-                    <Button onClick={onAddRow}>Add Row</Button>
+                    <Button onClick={onAddRow} data-cy="add-new-testset-row">
+                        Add Row
+                    </Button>
                     <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
                         Delete Row{selectedRow.length > 1 && "s"}
                     </Button>
