@@ -73,7 +73,7 @@ export const useSidebarConfig = () => {
             title: "Observability",
             link: `/observability`,
             icon: <ChartLineUp />,
-            divider: apps.length === 0 ? true : false,
+            divider: true,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,

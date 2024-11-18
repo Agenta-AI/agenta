@@ -1,6 +1,5 @@
 import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
 import {Button, Divider, Modal, Select} from "antd"
-import {useRouter} from "next/router"
 import {PropsWithChildren, useState} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -24,7 +23,6 @@ const useStyles = createUseStyles({
 const LoadTestsModal: React.FC<Props> = (props) => {
     const classes = useStyles()
     const {onLoad} = props
-    const router = useRouter()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedSet, setSelectedSet] = useState<string>("")
 

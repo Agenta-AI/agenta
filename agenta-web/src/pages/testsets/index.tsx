@@ -7,12 +7,11 @@ import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/lib/Types"
 import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Input, message, Spin, Table, Typography} from "antd"
+import {Button, Dropdown, Input, Spin, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table/interface"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import dayjs from "dayjs"
-import {useUpdateEffect} from "usehooks-ts"
 import {useAppsData} from "@/contexts/app.context"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
