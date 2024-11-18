@@ -4,6 +4,7 @@ from nbconvert.preprocessors import ClearOutputPreprocessor
 import nbformat
 import os
 import sys
+import argparse
 
 
 def make_header(notebook_path):
@@ -41,7 +42,12 @@ def clear_outputs(notebook_path):
         nbformat.write(notebook, f)
 
 
-def export_notebook(notebook_path, output_path):
+def export_notebook(notebook_path, output_path, force_overwrite=False):
+    # Check if file exists and force_overwrite is False
+    if os.path.exists(output_path) and not force_overwrite:
+        print(f"Skipping {output_path} (file already exists). Use --force to overwrite.")
+        return
+
     # Clear outputs before converting
     clear_outputs(notebook_path)
 
@@ -77,31 +83,36 @@ def export_notebook(notebook_path, output_path):
         f.write(output)
 
 
-def export_all_notebooks_in_primary_dir():
+def export_all_notebooks_in_primary_dir(force_overwrite=False):
     for filename in os.listdir("../cookbook"):
         if filename.endswith(".ipynb"):
             export_notebook(
                 f"../cookbook/{filename}",
-                f"./docs/guides/cookbooks/{filename.replace('.ipynb', '.mdx')}",
+                f"./docs/tutorials/cookbooks/{filename.replace('.ipynb', '.mdx')}",
+                force_overwrite,
             )
 
 
-def main(notebook_filename=None):
+def main(notebook_filename=None, force_overwrite=False):
     if notebook_filename:
         # Export a specific notebook
         if os.path.exists(f"../cookbook/{notebook_filename}"):
             export_notebook(
                 f"../cookbook/{notebook_filename}",
                 f"./docs/guides/cookbooks/{notebook_filename.replace('.ipynb', '.mdx')}",
+                force_overwrite,
             )
         else:
             print(f"Notebook {notebook_filename} not found in ../cookbook/ directory.")
     else:
         # Export all notebooks
-        export_all_notebooks_in_primary_dir()
+        export_all_notebooks_in_primary_dir(force_overwrite)
 
 
 if __name__ == "__main__":
-    # Get the filename argument from the command line
-    notebook_filename = sys.argv[1] if len(sys.argv) > 1 else None
-    main(notebook_filename)
+    parser = argparse.ArgumentParser(description='Convert Jupyter notebooks to MDX files.')
+    parser.add_argument('notebook', nargs='?', help='Specific notebook to convert')
+    parser.add_argument('--force', '-f', action='store_true', help='Force overwrite existing files')
+    
+    args = parser.parse_args()
+    main(args.notebook, args.force)
