@@ -45,7 +45,9 @@ def clear_outputs(notebook_path):
 def export_notebook(notebook_path, output_path, force_overwrite=False):
     # Check if file exists and force_overwrite is False
     if os.path.exists(output_path) and not force_overwrite:
-        print(f"Skipping {output_path} (file already exists). Use --force to overwrite.")
+        print(
+            f"Skipping {output_path} (file already exists). Use --force to overwrite."
+        )
         return
 
     # Clear outputs before converting
@@ -110,9 +112,13 @@ def main(notebook_filename=None, force_overwrite=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Convert Jupyter notebooks to MDX files.')
-    parser.add_argument('notebook', nargs='?', help='Specific notebook to convert')
-    parser.add_argument('--force', '-f', action='store_true', help='Force overwrite existing files')
-    
+    parser = argparse.ArgumentParser(
+        description="Convert Jupyter notebooks to MDX files."
+    )
+    parser.add_argument("notebook", nargs="?", help="Specific notebook to convert")
+    parser.add_argument(
+        "--force", "-f", action="store_true", help="Force overwrite existing files"
+    )
+
     args = parser.parse_args()
     main(args.notebook, args.force)
