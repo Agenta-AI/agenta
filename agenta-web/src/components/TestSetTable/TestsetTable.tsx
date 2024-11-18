@@ -17,7 +17,6 @@ import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
-import {useAppsData} from "@/contexts/app.context"
 
 type TestsetTableProps = {
     mode: "edit"

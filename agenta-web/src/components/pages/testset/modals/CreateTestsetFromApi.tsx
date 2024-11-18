@@ -5,7 +5,6 @@ import {JSSTheme} from "@/lib/Types"
 import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
 import {Button, Radio, Tabs, Typography} from "antd"
-import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import pythonCode from "@/code_snippets/testsets/create_with_json/python"
 import cURLCode from "@/code_snippets/testsets/create_with_json/curl"
@@ -69,7 +68,6 @@ const LanguageCodeBlock = ({selectedLang, codeSnippets}: LanguageCodeBlockProps)
 
 const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
-    const router = useRouter()
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
     const [selectedLang, setSelectedLang] = useState("python")
 
