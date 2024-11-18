@@ -25,7 +25,7 @@ def upgrade() -> None:
     # Create the enum type first
     app_enumtype = sa.Enum(
         "CHAT_TEMPLATE",
-        "PROMPT_TEMPLATE",
+        "COMPLETION_TEMPLATE",
         "CUSTOM",
         name="app_enumtype",
     )
@@ -52,7 +52,7 @@ def downgrade() -> None:
     # Then drop the enum type
     app_enumtype = sa.Enum(
         "CHAT_TEMPLATE",
-        "PROMPT_TEMPLATE",
+        "COMPLETION_TEMPLATE",
         "CUSTOM",
         name="app_enumtype",
     )
