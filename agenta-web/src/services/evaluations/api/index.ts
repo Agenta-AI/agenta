@@ -51,7 +51,7 @@ export const fetchAllEvaluators = async () => {
     const tagColors = getTagColors()
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`/api/evaluators/?project_id=${projectId}`)
+    const response = await axios.get(`/api/evaluators?project_id=${projectId}`)
     const evaluators = (response.data || [])
         .filter((item: Evaluator) => !item.key.startsWith("human"))
         .filter((item: Evaluator) => isDemo() || item.oss)
@@ -69,7 +69,7 @@ export const fetchAllEvaluatorConfigs = async (appId: string) => {
     const tagColors = getTagColors()
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`/api/evaluators/configs/?project_id=${projectId}`, {
+    const response = await axios.get(`/api/evaluators/configs?project_id=${projectId}`, {
         params: {app_id: appId},
     })
     const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
@@ -84,7 +84,7 @@ export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_a
 export const createEvaluatorConfig = async (appId: string, config: CreateEvaluationConfigData) => {
     const {projectId} = getCurrentProject()
 
-    return axios.post(`/api/evaluators/configs/?project_id=${projectId}`, {
+    return axios.post(`/api/evaluators/configs?project_id=${projectId}`, {
         ...config,
         app_id: appId,
     })
@@ -96,13 +96,13 @@ export const updateEvaluatorConfig = async (
 ) => {
     const {projectId} = getCurrentProject()
 
-    return axios.put(`/api/evaluators/configs/${configId}/?project_id=${projectId}`, config)
+    return axios.put(`/api/evaluators/configs/${configId}?project_id=${projectId}`, config)
 }
 
 export const deleteEvaluatorConfig = async (configId: string) => {
     const {projectId} = getCurrentProject()
 
-    return axios.delete(`/api/evaluators/configs/${configId}/?project_id=${projectId}`)
+    return axios.delete(`/api/evaluators/configs/${configId}?project_id=${projectId}`)
 }
 
 // Evaluations
@@ -136,7 +136,7 @@ const evaluationTransformer = (item: any) => ({
 export const fetchAllEvaluations = async (appId: string) => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`/api/evaluations/?project_id=${projectId}`, {
+    const response = await axios.get(`/api/evaluations?project_id=${projectId}`, {
         params: {app_id: appId},
     })
     return response.data.map(evaluationTransformer) as _Evaluation[]
@@ -145,7 +145,7 @@ export const fetchAllEvaluations = async (appId: string) => {
 export const fetchEvaluation = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`/api/evaluations/${evaluationId}/?project_id=${projectId}`)
+    const response = await axios.get(`/api/evaluations/${evaluationId}?project_id=${projectId}`)
     return evaluationTransformer(response.data) as _Evaluation
 }
 
@@ -153,7 +153,7 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `/api/evaluations/${evaluationId}/status/?project_id=${projectId}`,
+        `/api/evaluations/${evaluationId}/status?project_id=${projectId}`,
     )
     return response.data as {status: _Evaluation["status"]}
 }
@@ -169,13 +169,13 @@ export type CreateEvaluationData = {
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
     const {projectId} = getCurrentProject()
 
-    return axios.post(`/api/evaluations/?project_id=${projectId}`, {...evaluation, app_id: appId})
+    return axios.post(`/api/evaluations?project_id=${projectId}`, {...evaluation, app_id: appId})
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
     const {projectId} = getCurrentProject()
 
-    return axios.delete(`/api/evaluations/?project_id=${projectId}`, {
+    return axios.delete(`/api/evaluations?project_id=${projectId}`, {
         data: {evaluations_ids: evaluationsIds},
     })
 }
@@ -185,7 +185,7 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
 
     const [{data: evaluationScenarios}, evaluation] = await Promise.all([
-        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/?project_id=${projectId}`),
+        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios?project_id=${projectId}`),
         fetchEvaluation(evaluationId),
     ])
 
@@ -282,7 +282,7 @@ export const fetchEvaluatonIdsByResource = async ({
 }) => {
     const {projectId} = getCurrentProject()
 
-    return axios.get(`/api/evaluations/by_resource/?project_id=${projectId}`, {
+    return axios.get(`/api/evaluations/by_resource?project_id=${projectId}`, {
         params: {resource_ids: resourceIds, resource_type: resourceType, app_id: appId},
         paramsSerializer: {
             indexes: null, //no brackets in query params

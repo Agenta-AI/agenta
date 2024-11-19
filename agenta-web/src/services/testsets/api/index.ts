@@ -17,7 +17,7 @@ export const useLoadTestsetsList = (appId: string) => {
     const {data, error, mutate, isLoading} = useSWR(
         () =>
             appId
-                ? `${getAgentaApiUrl()}/api/testsets/?project_id=${projectId}&app_id=${appId}`
+                ? `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}&app_id=${appId}`
                 : null,
         axiosFetcher,
         {revalidateOnFocus: false, shouldRetryOnError: false},
@@ -35,7 +35,7 @@ export const fetchTestsets = async (appId: string) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/testsets/?project_id=${projectId}&app_id=${appId}`,
+        `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}&app_id=${appId}`,
     )
     return response.data
 }
@@ -44,7 +44,7 @@ export async function createNewTestset(appId: string, testsetName: string, tests
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets/${appId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/testsets/${appId}?project_id=${projectId}`,
         {
             name: testsetName,
             csvdata: testsetData,
@@ -57,7 +57,7 @@ export async function updateTestset(testsetId: String, testsetName: string, test
     const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/testsets/${testsetId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/testsets/${testsetId}?project_id=${projectId}`,
         {
             name: testsetName,
             csvdata: testsetData,
@@ -79,7 +79,7 @@ export const fetchTestset = async (testsetId: string | null) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/testsets/${testsetId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/testsets/${testsetId}?project_id=${projectId}`,
     )
     return response.data
 }
@@ -88,7 +88,7 @@ export const uploadTestsets = async (formData: FormData) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets/upload/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/testsets/upload?project_id=${projectId}`,
         formData,
         {
             headers: {
@@ -105,7 +105,7 @@ export const importTestsetsViaEndpoint = async (formData: FormData) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets/endpoint/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/testsets/endpoint?project_id=${projectId}`,
         formData,
         {
             headers: {"Content-Type": "multipart/form-data"},
@@ -119,7 +119,7 @@ export const deleteTestsets = async (ids: string[]) => {
 
     const response = await axios({
         method: "delete",
-        url: `${getAgentaApiUrl()}/api/testsets/?project_id=${projectId}`,
+        url: `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`,
         data: {testset_ids: ids},
     })
     return response.data

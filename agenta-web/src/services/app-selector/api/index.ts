@@ -17,7 +17,7 @@ export const fetchAllTemplates = async () => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/containers/templates/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/containers/templates?project_id=${projectId}`,
     )
     return response.data
 }
@@ -25,7 +25,7 @@ export const fetchAllTemplates = async () => {
 export async function deleteApp(appId: string) {
     const {projectId} = getCurrentProject()
 
-    await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}/?project_id=${projectId}`, {
+    await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`, {
         data: {app_id: appId},
     })
 }
@@ -37,7 +37,7 @@ export const createAppFromTemplate = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/apps/app_and_variant_from_template/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/apps/app_and_variant_from_template?project_id=${projectId}`,
         templateObj,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -52,7 +52,7 @@ export const updateAppName = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.patch(
-        `${getAgentaApiUrl()}/api/apps/${appId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`,
         {app_name: appName},
         {_ignoreError: ignoreAxiosError} as any,
     )

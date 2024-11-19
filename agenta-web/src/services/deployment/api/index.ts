@@ -15,7 +15,7 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
         const {projectId} = getCurrentProject()
 
         const response = await axios.get(
-            `${getAgentaApiUrl()}/api/apps/${appId}/environments/?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/api/apps/${appId}/environments?project_id=${projectId}`,
         )
         return response.data
     } catch (error) {
@@ -26,7 +26,7 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
 export const createPublishVariant = async (variantId: string, environmentName: string) => {
     const {projectId} = getCurrentProject()
 
-    await axios.post(`${getAgentaApiUrl()}/api/environments/deploy/?project_id=${projectId}`, {
+    await axios.post(`${getAgentaApiUrl()}/api/environments/deploy?project_id=${projectId}`, {
         environment_name: environmentName,
         variant_id: variantId,
     })

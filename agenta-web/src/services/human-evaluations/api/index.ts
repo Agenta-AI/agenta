@@ -28,7 +28,7 @@ export const fetchAllLoadEvaluations = async (appId: string, ignoreAxiosError: b
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/human-evaluations/?project_id=${projectId}&app_id=${appId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations?project_id=${projectId}&app_id=${appId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -85,7 +85,7 @@ export const fetchLoadEvaluation = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
 
     return await axios
-        .get(`${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/?project_id=${projectId}`)
+        .get(`${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}?project_id=${projectId}`)
         .then((responseData) => {
             return fromEvaluationResponseToEvaluation(responseData.data)
         })
@@ -96,7 +96,7 @@ export const deleteEvaluations = async (ids: string[]) => {
 
     const response = await axios({
         method: "delete",
-        url: `${getAgentaApiUrl()}/api/human-evaluations/?project_id=${projectId}`,
+        url: `${getAgentaApiUrl()}/api/human-evaluations?project_id=${projectId}`,
         data: {evaluations_ids: ids},
     })
     return response.data
@@ -110,7 +110,7 @@ export const fetchAllLoadEvaluationsScenarios = async (
 
     return await axios
         .get(
-            `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenarios/?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenarios?project_id=${projectId}`,
         )
         .then((responseData) => {
             const evaluationsRows = responseData.data.map((item: any) => {
@@ -160,7 +160,7 @@ export const createNewEvaluation = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/human-evaluations/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations?project_id=${projectId}`,
         data,
         {
             _ignoreError: ignoreAxiosError,
@@ -173,7 +173,7 @@ export const updateEvaluation = async (evaluationId: string, data: GenericObject
     const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}?project_id=${projectId}`,
         data,
     )
     return response.data
@@ -188,7 +188,7 @@ export const updateEvaluationScenario = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/${evaluationScenarioId}/${evaluationType}?project_id=${projectId}`,
         data,
     )
     return response.data
@@ -198,7 +198,7 @@ export const createEvaluationScenario = async (evaluationTableId: string, data: 
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationTableId}/evaluation_scenario?project_id=${projectId}`,
         data,
     )
     return response.data
@@ -211,7 +211,7 @@ export const createEvaluateAICritiqueForEvalScenario = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/ai_critique/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/ai_critique?project_id=${projectId}`,
         data,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -225,7 +225,7 @@ export const fetchEvaluationResults = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/results/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/results?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -237,7 +237,7 @@ export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: str
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score?project_id=${projectId}`,
     )
     return response
 }
@@ -249,7 +249,7 @@ export const createCustomCodeEvaluation = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation?project_id=${projectId}`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -264,7 +264,7 @@ export const updateCustomEvaluationDetail = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}?project_id=${projectId}`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -275,7 +275,7 @@ export const fetchCustomEvaluations = async (app_id: string, ignoreAxiosError: b
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/list/${app_id}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/list/${app_id}?project_id=${projectId}`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -288,7 +288,7 @@ export const fetchCustomEvaluationDetail = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${id}?project_id=${projectId}`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response.data
@@ -301,7 +301,7 @@ export const fetchCustomEvaluationNames = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${app_id}/names/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/${app_id}/names?project_id=${projectId}`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response
@@ -316,7 +316,7 @@ export const createExecuteCustomEvaluationCode = async (
     const response = await axios.post(
         `${getAgentaApiUrl()}/api/human-evaluations/custom_evaluation/execute/${
             payload.evaluation_id
-        }/?project_id=${projectId}`,
+        }?project_id=${projectId}`,
         payload,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -331,7 +331,7 @@ export const updateEvaluationScenarioScore = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/human-evaluations/evaluation_scenario/${evaluation_scenario_id}/score?project_id=${projectId}`,
         {score},
         {_ignoreError: ignoreAxiosError} as any,
     )
