@@ -1,14 +1,19 @@
 from typing import List, Tuple, Optional
 from uuid import UUID
 
-from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
+from agenta_backend.core.observability.dtos import (
+    QueryDTO,
+    SpanDTO,
+    AnalyticsDTO,
+    BucketDTO,
+)
 
 
 class ObservabilityDAOInterface:
     def __init__(self):
         raise NotImplementedError
 
-    # ANALYTICS
+    # QUERIES
 
     async def query(
         self,
@@ -16,6 +21,14 @@ class ObservabilityDAOInterface:
         project_id: UUID,
         query_dto: QueryDTO,
     ) -> Tuple[List[SpanDTO], Optional[int]]:
+        raise NotImplementedError
+
+    async def analytics(
+        self,
+        *,
+        project_id: UUID,
+        analytics_dto: AnalyticsDTO,
+    ) -> Tuple[List[BucketDTO], Optional[int]]:
         raise NotImplementedError
 
     # TRANSACTIONS
