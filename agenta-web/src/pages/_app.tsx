@@ -55,15 +55,15 @@ export default function App({Component, pageProps}: AppProps) {
             <main className={`${inter.variable} font-sans`}>
                 <PostHogProvider client={posthog}>
                     <ThemeContextProvider>
-                        <ProjectContextProvider>
-                            <ProfileContextProvider>
+                        <ProfileContextProvider>
+                            <ProjectContextProvider>
                                 <AppContextProvider>
                                     <Layout>
                                         <Component {...pageProps} />
                                     </Layout>
                                 </AppContextProvider>
-                            </ProfileContextProvider>
-                        </ProjectContextProvider>
+                            </ProjectContextProvider>
+                        </ProfileContextProvider>
                     </ThemeContextProvider>
                 </PostHogProvider>
             </main>
