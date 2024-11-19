@@ -14,7 +14,7 @@ export function restartAppVariantContainer(variantId: string) {
     const {projectId} = getCurrentProject()
 
     return axios.post(
-        `${getAgentaApiUrl()}/api/containers/restart_container/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/containers/restart_container?project_id=${projectId}`,
         {
             variant_id: variantId,
         },
@@ -24,14 +24,14 @@ export function restartAppVariantContainer(variantId: string) {
 export async function deleteSingleVariant(variantId: string) {
     const {projectId} = getCurrentProject()
 
-    await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}/?project_id=${projectId}`)
+    await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}?project_id=${projectId}`)
 }
 
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
     const {projectId} = getCurrentProject()
 
     await axios.put(
-        `${getAgentaApiUrl()}/api/variants/${variantId}/parameters/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/variants/${variantId}/parameters?project_id=${projectId}`,
         {
             parameters: parameters.reduce((acc, param) => {
                 return {...acc, [param.name]: param.default}
@@ -51,7 +51,7 @@ export async function createNewVariant(
 ) {
     const {projectId} = getCurrentProject()
 
-    await axios.post(`${getAgentaApiUrl()}/api/variants/from-base/?project_id=${projectId}`, {
+    await axios.post(`${getAgentaApiUrl()}/api/variants/from-base?project_id=${projectId}`, {
         base_id: baseId,
         new_variant_name: newVariantName,
         new_config_name: newConfigName,
@@ -65,7 +65,7 @@ export const fetchVariantLogs = async (variantId: string, ignoreAxiosError: bool
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/variants/${variantId}/logs/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/variants/${variantId}/logs?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,

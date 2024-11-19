@@ -36,7 +36,7 @@ export async function fetchVariants(
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/apps/${appId}/variants/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/apps/${appId}/variants?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -122,7 +122,7 @@ export async function callVariant(
     const {projectId} = getCurrentProject()
 
     return axios
-        .post(`${appContainerURI}/generate/?project_id=${projectId}`, requestBody, {
+        .post(`${appContainerURI}/generate?project_id=${projectId}`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
         } as any)
@@ -194,7 +194,7 @@ export const fetchAppContainerURL = async (
         const {projectId} = getCurrentProject()
 
         // Retrieve container URL from backend
-        const url = `${getAgentaApiUrl()}/api/containers/container_url/?project_id=${projectId}`
+        const url = `${getAgentaApiUrl()}/api/containers/container_url?project_id=${projectId}`
         const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
         if (response.status === 200 && response.data && response.data.uri) {
             return response.data.uri
@@ -210,7 +210,7 @@ export const fetchAppContainerURL = async (
 export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
     const {projectId} = getCurrentProject()
 
-    return axios.get(`${getAgentaApiUrl()}/api/profile/?project_id=${projectId}`, {
+    return axios.get(`${getAgentaApiUrl()}/api/profile?project_id=${projectId}`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -222,7 +222,7 @@ export const fetchSingleProfile = async (
     const {projectId} = getCurrentProject()
 
     const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/profile/?project_id=${projectId}&user_id=${userId}`,
+        `${getAgentaApiUrl()}/api/profile?project_id=${projectId}&user_id=${userId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
