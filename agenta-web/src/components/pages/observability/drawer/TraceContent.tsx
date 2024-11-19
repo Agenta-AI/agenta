@@ -298,9 +298,9 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             <div className={classes.resultTag}>
                                 <Timer size={14} />{" "}
                                 {formatLatency(
-                                    activeTrace?.metrics?.acc?.duration.total
-                                        ? activeTrace?.metrics?.acc?.duration.total
-                                        : activeTrace?.metrics?.acc?.tokens.total / 1000,
+                                    activeTrace?.metrics?.acc?.duration?.total
+                                        ? activeTrace?.metrics?.acc?.duration?.total
+                                        : activeTrace?.metrics?.acc?.tokens?.total / 1000,
                                 )}
                             </div>
                         }
