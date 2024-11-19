@@ -58,6 +58,7 @@ ground_truth_keys_dict = {
 def evaluate(
     self,
     app_id: str,
+    user_id: str,
     project_id: str,
     variant_id: str,
     evaluators_config_ids: List[str],
@@ -136,6 +137,8 @@ def evaluate(
                 testset_db.csvdata,  # type: ignore
                 app_variant_parameters,  # type: ignore
                 rate_limit_config,
+                user_id,
+                project_id,
             )
         )
 
