@@ -547,18 +547,24 @@ export type FuncResponse = {
     usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
 }
 
-export interface TraceDetails {
+export interface TraceDetailsV2 {
     trace_id: string
     cost?: number
     latency?: number
-    usage?: number
+    usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
     spans?: BaseResponseSpans[]
 }
 
-export type BaseResponse = {
+export interface TraceDetailsV3 {
     version: string
+    nodes: AgentaNodeDTO[]
+    count?: number | null
+}
+
+export type BaseResponse = {
+    version?: string | null
     data: string | Record<string, any>
-    trace?: TraceDetails | AgentaNodeDTO[]
+    trace: TraceDetailsV2 | TraceDetailsV3
 }
 
 export type BaseResponseSpans = {

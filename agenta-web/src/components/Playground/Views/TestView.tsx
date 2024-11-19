@@ -1,4 +1,4 @@
-import React, {useContext, useEffect, useRef, useState} from "react"
+import React, {useContext, useEffect, useMemo, useRef, useState} from "react"
 import {Button, Input, Card, Row, Col, Space, Form, Modal} from "antd"
 import {CaretRightOutlined, CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {callVariant} from "@/services/api"
@@ -10,9 +10,9 @@ import {
     Parameter,
     Variant,
     StyleProps,
-    BaseResponseSpans,
     BaseResponse,
-    TraceDetails,
+    TraceDetailsV2,
+    TraceDetailsV3,
 } from "@/lib/Types"
 import {batchExecute, getStringOrJson, isDemo, randString, removeKeys} from "@/lib/helpers/utils"
 import LoadTestsModal from "../LoadTestsModal"
@@ -34,12 +34,20 @@ import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
-import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
+import {dynamicService} from "@/lib/helpers/dynamic"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
-import {fromBaseResponseToTraceSpanType} from "@/lib/transformers"
 import {AgentaNodeDTO} from "@/services/observability/types"
+import {isTraceDetailsV2, isTraceDetailsV3} from "@/lib/helpers/observability_helpers"
+import GenericDrawer from "@/components/GenericDrawer"
+import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
+import TraceTree from "@/components/pages/observability/drawer/TraceTree"
+import TraceContent from "@/components/pages/observability/drawer/TraceContent"
+import {
+    buildNodeTree,
+    getNodeById,
+    observabilityTransformer,
+} from "@/lib/helpers/observability_helpers"
 
-const PlaygroundDrawer: any = dynamicComponent(`Playground/PlaygroundDrawer/PlaygroundDrawer`)
 const promptRevision: any = dynamicService("promptVersioning/api")
 
 dayjs.extend(relativeTime)
@@ -176,10 +184,7 @@ interface BoxComponentProps {
     additionalData: {
         cost: number | null
         latency: number | null
-        usage:
-            | {completion_tokens: number; prompt_tokens: number; total_tokens: number}
-            | number
-            | null
+        usage: number | null
     }
     onInputParamChange: (paramName: string, newValue: any) => void
     onRun: () => void
@@ -188,7 +193,7 @@ interface BoxComponentProps {
     isChatVariant?: boolean
     variant: Variant
     onCancel: () => void
-    traceSpans: AgentaNodeDTO
+    traceSpans: TraceDetailsV2 | TraceDetailsV3 | undefined
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -205,8 +210,31 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     onCancel,
     traceSpans,
 }) => {
+    const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
+
+    const traces = useMemo(() => {
+        if (traceSpans && isTraceDetailsV3(traceSpans)) {
+            return traceSpans.nodes
+                .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
+                .flatMap((item: any) => observabilityTransformer(item))
+        }
+    }, [traceSpans])
+
+    const activeTrace = useMemo(() => (traces ? (traces[0] ?? null) : null), [traces])
+    const [selected, setSelected] = useState("")
+
+    useEffect(() => {
+        if (!selected) {
+            setSelected(activeTrace?.node.id ?? "")
+        }
+    }, [activeTrace, selected])
+
+    const selectedItem = useMemo(
+        () => (traces?.length ? getNodeById(traces, selected) : null),
+        [selected, traces],
+    )
+
     const {appTheme} = useAppTheme()
-    const [activeSpan, setActiveSpan] = useQueryParam("activeSpan")
     const classes = useStylesBox()
     const loading = result === LOADING_TEXT
     const [form] = Form.useForm()
@@ -332,11 +360,11 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     <span>Tokens: {formatTokenUsage(additionalData?.usage)}</span>
                     <span>Cost: {formatCurrency(additionalData?.cost)}</span>
                     <span>Latency: {formatLatency(additionalData?.latency)}</span>
-                    {traceSpans?.nodes?.length && isDemo() && (
+                    {traceSpans && isTraceDetailsV3(traceSpans) && (
                         <Button
                             type="link"
                             className={classes.viewTracesBtn}
-                            onClick={() => setActiveSpan(traceSpans.root.id)}
+                            onClick={() => setSelectedTraceId(traceSpans.nodes[0].node.id)}
                         >
                             View Trace
                         </Button>
@@ -346,21 +374,29 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                 ""
             )}
 
-            {/* TODO:
-                Replace PlaygroundDrawer with Drawer component used
-                in observability feature
-            */}
-            {/* {traceSpans?.nodes?.length && !!activeSpan && (
-                <PlaygroundDrawer
-                    placement="bottom"
-                    open={!!activeSpan}
-                    onClose={() => setActiveSpan("")}
-                    traceSpans={fromBaseResponseToTraceSpanType(
-                        traceSpans.nodes,
-                        traceSpans.root.id,
-                    )}
+            {activeTrace && !!traces?.length && (
+                <GenericDrawer
+                    open={!!selectedTraceId}
+                    onClose={() => setSelectedTraceId("")}
+                    expandable
+                    headerExtra={
+                        <TraceHeader
+                            activeTrace={activeTrace}
+                            traces={traces}
+                            setSelectedTraceId={setSelectedTraceId}
+                            activeTraceIndex={0}
+                        />
+                    }
+                    mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
+                    sideContent={
+                        <TraceTree
+                            activeTrace={activeTrace}
+                            selected={selected}
+                            setSelected={setSelected}
+                        />
+                    }
                 />
-            )} */}
+            )}
         </Card>
     )
 }
@@ -397,7 +433,7 @@ const App: React.FC<TestViewProps> = ({
             usage: number | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
-    const [traceSpans, setTraceSpans] = useState<AgentaNodeDTO[] | TraceDetails | null>(null)
+    const [traceSpans, setTraceSpans] = useState<TraceDetailsV2 | TraceDetailsV3>()
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -554,7 +590,7 @@ const App: React.FC<TestViewProps> = ({
                 res = {version: "3.0", data: result} as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
             } else if (isFuncResponse(result)) {
-                const res: BaseResponse = {version: "3.0", data: result.message}
+                const res = {version: "3.0", data: result.message}
                 setResultForIndex(getStringOrJson(res.data), index)
 
                 const {message, cost, latency, usage} = result
@@ -573,28 +609,30 @@ const App: React.FC<TestViewProps> = ({
                 res = result as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
 
-                const {trace} = result
+                const {trace, version} = result
+
+                // Main update logic
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    if (result.version === "2.0") {
-                        // Version 2.0 logic
+                    if (version === "2.0" && isTraceDetailsV2(result.trace)) {
                         newDataList[index] = {
-                            cost: trace?.cost || null,
-                            latency: trace?.latency || null,
-                            usage: trace?.usage?.total_tokens || null,
+                            cost: result.trace?.cost ?? null,
+                            latency: result.trace?.latency ?? null,
+                            usage: result.trace?.usage?.total_tokens ?? null,
                         }
-                    } else if (result.version === "3.0") {
-                        // Version 3.0 logic
+                    } else if (version === "3.0" && isTraceDetailsV3(result.trace)) {
+                        const firstTraceNode = result.trace.nodes[0]
                         newDataList[index] = {
-                            cost: trace?.nodes?.[0]?.metrics?.acc?.costs?.total ?? null,
-                            latency: trace?.nodes?.[0]?.time?.span
-                                ? trace?.nodes?.[0]?.time?.span / 1_000_000
+                            cost: firstTraceNode?.metrics?.acc?.costs?.total ?? null,
+                            latency: firstTraceNode?.time?.span
+                                ? firstTraceNode.time.span / 1_000_000
                                 : null,
-                            usage: trace?.nodes?.[0]?.metrics?.acc?.tokens?.total ?? null,
+                            usage: firstTraceNode?.metrics?.acc?.tokens?.total ?? null,
                         }
                     }
                     return newDataList
                 })
+
                 if (trace && isDemo()) {
                     setTraceSpans(trace)
                 }
@@ -744,7 +782,7 @@ const App: React.FC<TestViewProps> = ({
                     isChatVariant={isChatVariant}
                     variant={variant}
                     onCancel={() => handleCancel(index)}
-                    traceSpans={Array.isArray(traceSpans) ? traceSpans : traceSpans}
+                    traceSpans={traceSpans}
                 />
             ))}
             <Button
