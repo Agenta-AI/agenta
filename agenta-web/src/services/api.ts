@@ -121,14 +121,18 @@ export async function callVariant(
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
     const {projectId} = getCurrentProject()
 
-    return axios
+    const response = axios
         .post(`${appContainerURI}/generate?project_id=${projectId}`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
         } as any)
         .then((res) => {
             return res.data
+        }).catch((error) => {
+            console.log("ERROR", error)
         })
+    
+    return response
 }
 
 /**
