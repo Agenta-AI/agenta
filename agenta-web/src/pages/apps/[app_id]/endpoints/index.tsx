@@ -17,7 +17,7 @@ import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography}
 import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
-import { useQueryParam } from "@/hooks/useQuery"
+import {useQueryParam} from "@/hooks/useQuery"
 import {getCurrentProject} from "@/contexts/project.context"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")

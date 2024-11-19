@@ -217,12 +217,9 @@ export const fetchSingleProfile = async (
     userId: string,
     ignoreAxiosError: boolean = false,
 ): Promise<User> => {
-    const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/profile?user_id=${userId}`,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
+    const {data} = await axios.get(`${getAgentaApiUrl()}/api/profile?user_id=${userId}`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
 
     return data
 }

@@ -45,7 +45,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const {doesSessionExist} = useSession()
 
     const isProjectId = !isLoading && Boolean(project?.project_id)
-    const projectId = project?.project_id as string || DEFAULT_UUID
+    const projectId = (project?.project_id as string) || DEFAULT_UUID
 
     const fetcher = useCallback(async (onSuccess?: () => void) => {
         try {
