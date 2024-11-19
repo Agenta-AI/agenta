@@ -14,26 +14,92 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def extract_result_from_response(response):
+def extract_result_from_response(response: dict):
+    def get_nested_value(d: dict, keys: list, default=None):
+        """
+        Helper function to safely retrieve nested values.
+        """
+        try:
+            for key in keys:
+                if isinstance(d, dict):
+                    d = d.get(key, default)
+                else:
+                    return default
+            return d
+        except Exception as e:
+            print(f"Error accessing nested value: {e}")
+            return default
+
+    # Initialize default values
     value = None
     latency = None
     cost = None
 
-    if response.get("version", None) == "2.0":
-        value = response
+    try:
+        # Validate input
+        if not isinstance(response, dict):
+            raise ValueError("The response must be a dictionary.")
 
-        if not isinstance(value["data"], dict):
-            value["data"] = str(value["data"])
+        # Handle version 3.0 response
+        if response.get("version") == "3.0":
+            value = response
+            # Ensure 'data' is a dictionary or convert it to a string
+            if not isinstance(value.get("data"), dict):
+                value["data"] = str(value.get("data"))
 
-        if "trace" in response:
-            latency = response["trace"].get("latency", None)
-            cost = response["trace"].get("cost", None)
-    else:
-        value = {"data": str(response["message"])}
-        latency = response.get("latency", None)
-        cost = response.get("cost", None)
+            if "tree" in response:
+                trace_tree = (
+                    response["tree"][0]
+                    if isinstance(response.get("tree"), list)
+                    else {}
+                )
+                latency = (
+                    get_nested_value(trace_tree, ["time", "span"]) * 1_000_000
+                    if trace_tree
+                    else None
+                )
+                cost = get_nested_value(
+                    trace_tree, ["metrics", "acc", "costs", "total"]
+                )
 
-    kind = "text" if isinstance(value, str) else "object"
+        # Handle version 2.0 response
+        elif response.get("version") == "2.0":
+            value = response
+            if not isinstance(value.get("data"), dict):
+                value["data"] = str(value.get("data"))
+
+            if "trace" in response:
+                latency = response["trace"].get("latency")
+                cost = response["trace"].get("cost")
+
+        # Handle generic response (neither 2.0 nor 3.0)
+        else:
+            value = {"data": str(response.get("message", ""))}
+            latency = response.get("latency")
+            cost = response.get("cost")
+
+        # Determine the type of 'value' (either 'text' or 'object')
+        kind = "text" if isinstance(value, str) else "object"
+
+    except ValueError as ve:
+        print(f"Input validation error: {ve}")
+        value = {"error": str(ve)}
+        kind = "error"
+
+    except KeyError as ke:
+        print(f"Missing key: {ke}")
+        value = {"error": f"Missing key: {ke}"}
+        kind = "error"
+
+    except TypeError as te:
+        print(f"Type error: {te}")
+        value = {"error": f"Type error: {te}"}
+        kind = "error"
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        value = {"error": f"Unexpected error: {e}"}
+        kind = "error"
 
     return value, kind, cost, latency
 
