@@ -9,6 +9,12 @@ from typing import Any, Dict, List
 from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
 
+from agenta_backend.utils.common import isCloudEE
+
+if isCloudEE():
+    from agenta_backend.cloud.services.auth_helper import sign_secret_token
+
+
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -151,7 +157,12 @@ async def make_payload(
 
 
 async def invoke_app(
-    uri: str, datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
+    uri: str,
+    datapoint: Any,
+    parameters: Dict,
+    openapi_parameters: List[Dict],
+    user_id: str,
+    project_id: str,
 ) -> InvokationResult:
     """
     Invokes an app for one datapoint using the openapi_parameters to determine
@@ -171,12 +182,25 @@ async def invoke_app(
     """
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
+
+    headers = None
+
+    if isCloudEE():
+        secret_token = await sign_secret_token(user_id, project_id, None)
+
+        headers = {"Authorization": f"Secret {secret_token}"}
+
     async with aiohttp.ClientSession() as client:
         app_response = {}
 
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
-            response = await client.post(url, json=payload, timeout=900)
+            response = await client.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=900,
+            )
             app_response = await response.json()
             response.raise_for_status()
 
@@ -240,6 +264,8 @@ async def run_with_retry(
     max_retry_count: int,
     retry_delay: int,
     openapi_parameters: List[Dict],
+    user_id: str,
+    project_id: str,
 ) -> InvokationResult:
     """
     Runs the specified app with retry mechanism.
@@ -261,7 +287,14 @@ async def run_with_retry(
     last_exception = None
     while retries < max_retry_count:
         try:
-            result = await invoke_app(uri, input_data, parameters, openapi_parameters)
+            result = await invoke_app(
+                uri,
+                input_data,
+                parameters,
+                openapi_parameters,
+                user_id,
+                project_id,
+            )
             return result
         except aiohttp.ClientError as e:
             last_exception = e
@@ -294,7 +327,12 @@ async def run_with_retry(
 
 
 async def batch_invoke(
-    uri: str, testset_data: List[Dict], parameters: Dict, rate_limit_config: Dict
+    uri: str,
+    testset_data: List[Dict],
+    parameters: Dict,
+    rate_limit_config: Dict,
+    user_id: str,
+    project_id: str,
 ) -> List[InvokationResult]:
     """
     Invokes the LLm apps in batches, processing the testset data.
@@ -339,6 +377,8 @@ async def batch_invoke(
                     max_retries,
                     retry_delay,
                     openapi_parameters,
+                    user_id,
+                    project_id,
                 )
             )
             tasks.append(task)
