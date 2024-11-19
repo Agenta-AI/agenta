@@ -1,6 +1,6 @@
 import {useSession} from "@/hooks/useSession"
 import {PropsWithChildren, createContext, useState, useContext, useEffect, useCallback} from "react"
-import {fetcAllhProjects} from "@/services/project"
+import {fetcAllProjects} from "@/services/project"
 import useStateCallback from "@/hooks/useStateCallback"
 
 type Project = {
@@ -35,7 +35,7 @@ export const useProjectData = () => useContext(ProjectContext)
 
 const projectContextValues = {...initialValues}
 
-export const getProjectValues = () => projectContextValues
+export const getCurrentProject = () => projectContextValues
 
 const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [project, setProject] = useStateCallback<Project | null>(null)
@@ -47,7 +47,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     const fetcher = useCallback(async (onSuccess?: () => void) => {
         try {
-            const data = await fetcAllhProjects()
+            const data = await fetcAllProjects()
             setProject(data[0], onSuccess)
         } catch (error) {
             console.error(error)
@@ -67,6 +67,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     }
 
     projectContextValues.project = project
+    projectContextValues.isLoading = isLoading
     projectContextValues.isProjectId = isProjectId
     projectContextValues.projectId = projectId
 
