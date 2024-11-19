@@ -176,14 +176,104 @@ def rag_workflow(query:str):
 
 ```
 
-## Excluding Inputs/Outputs from Capture
+## Excluding Inputs/Outputs Information from Capture
 
 In some cases, you may want to exclude parts of the inputs or outputs due to privacy concerns or because the data is too large to be stored in the span.
 
-You can achieve this by setting the ignore_inputs and ignore_outputs arguments to True in the instrument decorator.
+You can achieve this by setting the `ignore_inputs` and/or `ignore_outputs` arguments to `True` in the instrument decorator.
 
 ```python
-@ag.instrument(spankind="workflow", ignore_inputs=True, ignore_outputs=True)
+@ag.instrument(
+     spankind="workflow", 
+     ignore_inputs=True, 
+     ignore_outputs=True
+)
 def rag_workflow(query:str):
      ...
+```
+
+If you need finer control, you can specify which parts of the inputs and outputs you want to exclude.
+
+```python
+@ag.instrument(
+     spankind="workflow", 
+     ignore_inputs=["user_id"], 
+     ignore_outputs=["pii"], 
+)
+def rag_workflow(query:str, user_id:str):
+     ...
+     return {
+          "result": ...,
+          "pii": ...
+     }
+```
+
+If you need even finer control, you can alternatively specify a custom `redact()` callback, along with instructions in the case of errors.
+
+```python
+def my_redact(name, field, data):
+     if name == "rag_workflow":
+          if field == "inputs":
+               del data["user_id"]
+          if field == "outputs":
+               del data["pii"]
+
+     return data
+
+
+@ag.instrument(
+     spankind="workflow", 
+     redact=my_redact,
+     redact_on_error=False,
+)
+def rag_workflow(query:str, user_id:str):
+     ...
+     return {
+          "result": ...,
+          "pii": ...
+     }
+```
+
+Finally, if you want global guardrails, you can specify a global `redact()` callback that will be applied on top of everything else.
+
+```python
+def global_redact(
+     name:str,
+     field:str, 
+     data: Dict[str, Any]
+):
+     if "pii" in data:
+          del data["pii"]
+
+     return data
+
+
+ag.init(
+     redact=global_redact,
+     redact_on_error=True,
+)
+
+def local_redact(
+     name:str,
+     field:str, 
+     data: Dict[str, Any]
+):
+     if name == "rag_workflow":
+          if field == "inputs":
+               del data["user_id"]
+
+     return data
+
+
+@ag.instrument(
+     spankind="workflow", 
+     redact=local_redact,
+     redact_on_error=False,
+)
+def rag_workflow(query:str, user_id:str):
+     ...
+     return {
+          "result": ...,
+          "pii": ...
+     }
 ```
