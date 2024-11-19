@@ -20,7 +20,8 @@ services:
             - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - DOMAIN_NAME=http://localhost
+            - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
+            - WEBSITE_DOMAIN_NAME=${WEBSITE_DOMAIN_NAME:-http://localhost}
             - FEATURE_FLAG=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
