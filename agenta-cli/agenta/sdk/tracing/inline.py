@@ -903,9 +903,9 @@ def parse_to_agenta_span_dto(
     if span_dto.data:
         span_dto.data = _unmarshal_attributes(span_dto.data)
 
-        # if "outputs" in span_dto.data:
-        #     if "__default__" in span_dto.data["outputs"]:
-        #         span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
+        if "outputs" in span_dto.data:
+            if "__default__" in span_dto.data["outputs"]:
+                span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
 
     # METRICS
     if span_dto.metrics:
@@ -934,6 +934,17 @@ def parse_to_agenta_span_dto(
             else:
                 parse_to_agenta_span_dto(v)
 
+    # MASK LINKS FOR NOW
+    span_dto.links = None
+    # ------------------
+
+    # MASK LIFECYCLE FOR NOW
+    # span_dto.lifecycle = None
+    if span_dto.lifecycle:
+        span_dto.lifecycle.updated_at = None
+        span_dto.lifecycle.updated_by_id = None
+    # ----------------------
+
     return span_dto
 
 
@@ -944,6 +955,8 @@ def parse_to_agenta_span_dto(
 
 from litellm import cost_calculator
 from opentelemetry.sdk.trace import ReadableSpan
+
+from agenta.sdk.types import AgentaNodeDto, AgentaNodesResponse
 
 
 def parse_inline_trace(
@@ -992,51 +1005,19 @@ def parse_inline_trace(
     ### services.observability.service.query() ###
     ##############################################
 
-    LEGACY = True
-    inline_trace = None
-
-    if LEGACY:
-        legacy_spans = [
-            _parse_to_legacy_span(span_dto) for span_dto in span_idx.values()
-        ]
-
-        root_span = agenta_span_dtos[0]
-
-        trace_id = root_span.root.id.hex
-        latency = root_span.time.span / 1_000_000
-        cost = root_span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
-        tokens = {
-            "prompt_tokens": root_span.metrics.get("acc", {})
-            .get("tokens", {})
-            .get("prompt", 0),
-            "completion_tokens": root_span.metrics.get("acc", {})
-            .get("tokens", {})
-            .get("completion", 0),
-            "total_tokens": root_span.metrics.get("acc", {})
-            .get("tokens", {})
-            .get("total", 0),
-        }
-
-        spans = [
-            loads(span.model_dump_json(exclude_none=True)) for span in legacy_spans
-        ]
-
-        inline_trace = {
-            "trace_id": trace_id,
-            "latency": latency,
-            "cost": cost,
-            "usage": tokens,
-            "spans": spans,
-        }
-
-    else:
-        spans = [
-            loads(span_dto.model_dump_json(exclude_none=True))
-            for span_dto in agenta_span_dtos
-        ]
-
-        inline_trace = spans  # turn into Agenta Model ?
-
+    spans = [
+        loads(
+            span_dto.model_dump_json(
+                exclude_none=True,
+                exclude_defaults=True,
+            )
+        )
+        for span_dto in agenta_span_dtos
+    ]
+    inline_trace = AgentaNodesResponse(
+        version="1.0.0",
+        nodes=[AgentaNodeDto(**span) for span in spans],
+    ).model_dump(exclude_none=True, exclude_unset=True)
     return inline_trace
 
 
@@ -1118,98 +1099,6 @@ class LlmTokens(BaseModel):
     prompt_tokens: Optional[int] = 0
     completion_tokens: Optional[int] = 0
     total_tokens: Optional[int] = 0
-
-
-class CreateSpan(BaseModel):
-    id: str
-    app_id: str
-    variant_id: Optional[str] = None
-    variant_name: Optional[str] = None
-    inputs: Optional[Dict[str, Optional[Any]]] = None
-    internals: Optional[Dict[str, Optional[Any]]] = None
-    outputs: Optional[Union[str, Dict[str, Optional[Any]], List[Any]]] = None
-    config: Optional[Dict[str, Optional[Any]]] = None
-    environment: Optional[str] = None
-    tags: Optional[List[str]] = None
-    token_consumption: Optional[int] = None
-    name: str
-    parent_span_id: Optional[str] = None
-    attributes: Optional[Dict[str, Optional[Any]]] = None
-    spankind: str
-    status: str
-    user: Optional[str] = None
-    start_time: datetime
-    end_time: datetime
-    tokens: Optional[LlmTokens] = None
-    cost: Optional[float] = None
-
-
-def _parse_to_legacy_span(span: SpanDTO) -> CreateSpan:
-    attributes = None
-    if span.otel:
-        attributes = span.otel.attributes or {}
-
-        if span.otel.events:
-            for event in span.otel.events:
-                if event.name == "exception":
-                    attributes.update(**event.attributes)
-
-    legacy_span = CreateSpan(
-        id=span.node.id.hex[:24],
-        spankind=span.node.type,
-        name=span.node.name,
-        #
-        status=span.status.code.name,
-        #
-        start_time=span.time.start,
-        end_time=span.time.end,
-        #
-        parent_span_id=span.parent.id.hex[:24] if span.parent else None,
-        #
-        inputs=span.data.get("inputs") if span.data else {},
-        internals=span.data.get("internals") if span.data else {},
-        outputs=span.data.get("outputs") if span.data else {},
-        #
-        environment=span.meta.get("environment") if span.meta else None,
-        config=span.meta.get("configuration") if span.meta else None,
-        #
-        tokens=(
-            LlmTokens(
-                prompt_tokens=span.metrics.get("acc", {})
-                .get("tokens", {})
-                .get("prompt", 0.0),
-                completion_tokens=span.metrics.get("acc", {})
-                .get("tokens", {})
-                .get("completion", 0.0),
-                total_tokens=span.metrics.get("acc", {})
-                .get("tokens", {})
-                .get("total", 0.0),
-            )
-            if span.metrics
-            else None
-        ),
-        cost=(
-            span.metrics.get("acc", {}).get("costs", {}).get("total", 0.0)
-            if span.metrics
-            else None
-        ),
-        #
-        app_id=(
-            span.refs.get("application", {}).get("id", "missing-app-id")
-            if span.refs
-            else "missing-app-id"
-        ),
-        #
-        attributes=attributes,
-        #
-        variant_id=None,
-        variant_name=None,
-        tags=None,
-        token_consumption=None,
-        user=None,
-    )
-
-    return legacy_span
 
 
 TYPES_WITH_COSTS = [
