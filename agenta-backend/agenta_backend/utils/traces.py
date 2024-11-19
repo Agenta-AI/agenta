@@ -45,12 +45,12 @@ def _make_spans_id_tree(trace):
     return tree
 
 
-def _make_nested_nodes_tree(trace: dict):
+def _make_nested_nodes_tree(tree: dict):
     """
     Creates a nested tree structure from a flat list of nodes.
 
     Args:
-        trace: {trace: {nodes: List[Node]}}
+        tree: {tree: {nodes: List[Node]}}
 
     Returns:
         tree: {[node_id]: tree(node_id)} # recursive
@@ -61,7 +61,7 @@ def _make_nested_nodes_tree(trace: dict):
                     node_id_0_1
     """
 
-    tree = OrderedDict()
+    ordered_tree = OrderedDict()
 
     def add_node(node: dict, parent_tree: dict):
         """
@@ -77,10 +77,10 @@ def _make_nested_nodes_tree(trace: dict):
                 add_node(child_node, parent_tree[node_id])
 
     # Process the top-level nodes
-    for node in trace["nodes"]:
-        add_node(node, tree)
+    for node in tree["nodes"]:
+        add_node(node, ordered_tree)
 
-    return tree
+    return ordered_tree
 
 
 def _make_nodes_ids(ordered_dict: OrderedDict):
@@ -99,13 +99,13 @@ def _make_nodes_ids(ordered_dict: OrderedDict):
     return ordered_dict
 
 
-def _build_nodes_tree(nodes_id: dict, trace_nodes: list):
+def _build_nodes_tree(nodes_id: dict, tree_nodes: list):
     """
     Recursively builds a dictionary of node keys from a dictionary of nodes.
 
     Args:
         nodes_id (dict): The dictionary representing the nodes.
-        trace_nodes (list): List[Node]
+        tree_nodes (list): List[Node]
 
     Returns:
         List[dict]: A list of dictionary of unique node keys with their corresponding details from trace_tree.
@@ -160,10 +160,8 @@ def _build_nodes_tree(nodes_id: dict, trace_nodes: list):
 
     # Initialize the ordered dictionary and start the recursion
     ordered_result = dict()
-    trace_nodes = gather_nodes(nodes=trace_nodes)
-    recursive_flatten(
-        current_nodes_id=nodes_id, result=ordered_result, nodes=trace_nodes
-    )
+    nodes = gather_nodes(nodes=tree_nodes)
+    recursive_flatten(current_nodes_id=nodes_id, result=ordered_result, nodes=nodes)
     return list(ordered_result.values())
 
 
@@ -233,10 +231,11 @@ def process_distributed_trace_into_trace_tree(trace: Any, version: str):
     """
 
     if version == "3.0":
-        trace_id = trace.get("nodes", [{}])[0].get("root", {}).get("id")
-        spans_id_tree = _make_nested_nodes_tree(trace)
+        tree = trace  # swap trace name to tree
+        trace_id = tree.get("nodes", [{}])[0].get("root", {}).get("id")
+        spans_id_tree = _make_nested_nodes_tree(tree=tree)
         nodes_ids = _make_nodes_ids(ordered_dict=spans_id_tree)
-        spans = _build_nodes_tree(nodes_id=nodes_ids, trace_nodes=trace["nodes"])
+        spans = _build_nodes_tree(nodes_id=nodes_ids, tree_nodes=tree["nodes"])
 
     elif version == "2.0":
         trace_id = trace["trace_id"]
