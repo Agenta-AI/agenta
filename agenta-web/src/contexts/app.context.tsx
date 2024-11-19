@@ -8,6 +8,7 @@ import {dynamicContext} from "@/lib/helpers/dynamic"
 import {HookAPI} from "antd/es/modal/useModal"
 import {useLocalStorage} from "usehooks-ts"
 import {useProfileData} from "./profile.context"
+import {useProjectData} from "./project.context"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -32,6 +33,7 @@ const initialValues: AppContextType = {
 
 const useApps = () => {
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {projectId} = useProjectData()
     const {user} = useProfileData()
 
     useEffect(() => {
@@ -43,9 +45,9 @@ const useApps = () => {
     const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
         !!user
-            ? `${getAgentaApiUrl()}/api/apps/` +
+            ? `${getAgentaApiUrl()}/api/apps/?project_id=${projectId}` +
                   (isDemo()
-                      ? `?org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
+                      ? `&org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
                       : "")
             : null,
         !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
