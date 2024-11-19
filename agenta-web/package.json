@@ -7,6 +7,7 @@
     },
     "scripts": {
         "dev": "next dev",
+        "dev:local": "ENV_FILE=.local.env next dev",
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
