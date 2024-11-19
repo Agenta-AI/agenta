@@ -1,10 +1,10 @@
+from typing import Optional
+
 from .utils.preinit import PreInitObject  # always the first import!
 
 import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
 
-from .context import get_contexts, save_context
 from .types import (
-    Context,
     DictInput,
     MultipleChoice,
     FloatParam,
@@ -16,30 +16,49 @@ from .types import (
     MessagesInput,
     FileInputURL,
     BinaryParam,
+    Prompt,
 )
 
-from .tracing.llm_tracing import Tracing
+from .tracing import Tracing, get_tracer
 from .decorators.tracing import instrument
-from .decorators.llm_entrypoint import entrypoint, app, route
+from .tracing.conventions import Reference
+from .decorators.routing import entrypoint, app, route
 from .agenta_init import Config, AgentaSingleton, init as _init
-from .utils.helper.openai_cost import calculate_token_usage
-from .managers.config_manager import ConfigManager
-from .managers.variant_manager import VariantManager
-from .managers.deployment_manager import DeploymentManager
+from .utils.costs import calculate_token_usage
+from .managers.config import ConfigManager
+from .managers.variant import VariantManager
+from .managers.deployment import DeploymentManager
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 
 types = client_types
-tracing = None
+
 api = None
 async_api = None
 
+tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
+tracer = get_tracer(tracing)
 
-def init(*args, **kwargs):
-    global api, async_api, tracing, config
-    _init(*args, **kwargs)
 
-    tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
+def init(
+    host: Optional[str] = None,
+    app_id: Optional[str] = None,
+    api_key: Optional[str] = None,
+    config_fname: Optional[str] = None,
+):
+    global api, async_api, tracing, tracer
+
+    _init(
+        host=host,
+        api_key=api_key,
+        config_fname=config_fname,
+        # DEPRECATING
+        app_id=app_id,
+    )
+
     api = DEFAULT_AGENTA_SINGLETON_INSTANCE.api  # type: ignore
     async_api = DEFAULT_AGENTA_SINGLETON_INSTANCE.async_api  # type: ignore
+
+    tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
+    tracer = get_tracer(tracing)

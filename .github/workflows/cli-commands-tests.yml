@@ -104,6 +104,7 @@ jobs:
               uses: ./.github/actions/check-app-accessibility
               with:
                 log-file: serve_output.log
+                api-key: ${{ secrets.AGENTA_API_KEY }}
               continue-on-error: false
 
             - name: Run agenta variant serve with overwrite

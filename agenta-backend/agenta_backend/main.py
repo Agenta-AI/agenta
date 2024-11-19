@@ -14,6 +14,7 @@ from agenta_backend.routers import (
     bases_router,
     configs_router,
     health_router,
+    permissions_router,
 )
 from agenta_backend.open_api import open_api_tags_metadata
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
@@ -31,6 +32,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from celery import Celery
+
+
+from agenta_backend.dbs.postgres.observability.dao import ObservabilityDAO
+from agenta_backend.core.observability.service import ObservabilityService
+from agenta_backend.apis.fastapi.observability.router import ObservabilityRouter
 
 
 origins = [
@@ -91,6 +97,7 @@ if isCloudEE():
     app, allow_headers = cloud.extend_main(app)
 
 app.include_router(health_router.router, prefix="/health")
+app.include_router(permissions_router.router, prefix="/permissions")
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps", tags=["Apps"])
 app.include_router(variants_router.router, prefix="/variants", tags=["Variants"])
@@ -110,6 +117,22 @@ app.include_router(
 )
 app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
+
+
+observability_legacy_receiver = None
+if isCloudEE():
+    import agenta_backend.cloud.main as cloud
+
+    observability_legacy_receiver = cloud.observability_legacy_receiver
+
+observability = ObservabilityRouter(
+    ObservabilityService(ObservabilityDAO()),
+    observability_legacy_receiver=observability_legacy_receiver,
+)
+
+app.include_router(
+    router=observability.router, prefix="/observability/v1", tags=["Observability [v1]"]
+)
 
 if isCloudEE():
     import agenta_backend.cloud.main as cloud

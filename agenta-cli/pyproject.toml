@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.26.0"
+version = "0.27.4a0"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -36,6 +36,11 @@ httpx = ">=0.24, <0.28"
 pymongo = "^4.6.3"
 cachetools = "^5.3.3"
 pyyaml = "^6.0.2"
+
+opentelemetry-api = "^1.27.0"
+opentelemetry-sdk = "^1.27.0"
+opentelemetry-exporter-otlp = "^1.27.0"
+litellm ="^1.48.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.3"
