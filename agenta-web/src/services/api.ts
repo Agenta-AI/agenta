@@ -1,3 +1,4 @@
+import {getCurrentProject} from "@/contexts/project.context"
 import axios from "@/lib//helpers/axiosConfig"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
@@ -32,9 +33,14 @@ export async function fetchVariants(
     appId: string,
     ignoreAxiosError: boolean = false,
 ): Promise<Variant[]> {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/apps/${appId}/variants/`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/apps/${appId}/variants/?project_id=${projectId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
 
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         return response.data.map((variant: Record<string, any>) => {
@@ -113,9 +119,10 @@ export async function callVariant(
     }
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
+    const {projectId} = getCurrentProject()
 
     return axios
-        .post(`${appContainerURI}/generate`, requestBody, {
+        .post(`${appContainerURI}/generate/?project_id=${projectId}`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
         } as any)
@@ -184,9 +191,10 @@ export const fetchAppContainerURL = async (
         if (!getAgentaApiUrl()) {
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
+        const {projectId} = getCurrentProject()
 
         // Retrieve container URL from backend
-        const url = `${getAgentaApiUrl()}/api/containers/container_url/`
+        const url = `${getAgentaApiUrl()}/api/containers/container_url/?project_id=${projectId}`
         const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
         if (response.status === 200 && response.data && response.data.uri) {
             return response.data.uri
@@ -200,7 +208,9 @@ export const fetchAppContainerURL = async (
 }
 
 export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
-    return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
+    const {projectId} = getCurrentProject()
+
+    return axios.get(`${getAgentaApiUrl()}/api/profile/?project_id=${projectId}`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -209,9 +219,14 @@ export const fetchSingleProfile = async (
     userId: string,
     ignoreAxiosError: boolean = false,
 ): Promise<User> => {
-    const {data} = await axios.get(`${getAgentaApiUrl()}/api/profile?user_id=${userId}`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
+    const {projectId} = getCurrentProject()
+
+    const {data} = await axios.get(
+        `${getAgentaApiUrl()}/api/profile/?project_id=${projectId}&user_id=${userId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
 
     return data
 }

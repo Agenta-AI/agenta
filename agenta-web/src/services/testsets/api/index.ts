@@ -2,6 +2,7 @@ import useSWR from "swr"
 import axios from "@/lib/helpers/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {axiosFetcher} from "@/services/api"
+import {getCurrentProject} from "@/contexts/project.context"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -11,8 +12,13 @@ import {axiosFetcher} from "@/services/api"
 //  - delete: DELETE data from server
 
 export const useLoadTestsetsList = (appId: string) => {
+    const {projectId} = getCurrentProject()
+
     const {data, error, mutate, isLoading} = useSWR(
-        () => (appId ? `${getAgentaApiUrl()}/api/testsets/?app_id=${appId}` : null),
+        () =>
+            appId
+                ? `${getAgentaApiUrl()}/api/testsets/?project_id=${projectId}&app_id=${appId}`
+                : null,
         axiosFetcher,
         {revalidateOnFocus: false, shouldRetryOnError: false},
     )
@@ -26,23 +32,37 @@ export const useLoadTestsetsList = (appId: string) => {
 }
 
 export const fetchTestsets = async (appId: string) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/?app_id=${appId}`)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/testsets/?project_id=${projectId}&app_id=${appId}`,
+    )
     return response.data
 }
 
 export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
-    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/${appId}/`, {
-        name: testsetName,
-        csvdata: testsetData,
-    })
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/testsets/${appId}/?project_id=${projectId}`,
+        {
+            name: testsetName,
+            csvdata: testsetData,
+        },
+    )
     return response
 }
 
 export async function updateTestset(testsetId: String, testsetName: string, testsetData: any) {
-    const response = await axios.put(`${getAgentaApiUrl()}/api/testsets/${testsetId}/`, {
-        name: testsetName,
-        csvdata: testsetData,
-    })
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/api/testsets/${testsetId}/?project_id=${projectId}`,
+        {
+            name: testsetName,
+            csvdata: testsetData,
+        },
+    )
     return response
 }
 
@@ -56,32 +76,50 @@ export const fetchTestset = async (testsetId: string | null) => {
             csvdata: [],
         }
     }
-    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets/${testsetId}/`)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/testsets/${testsetId}/?project_id=${projectId}`,
+    )
     return response.data
 }
 
 export const uploadTestsets = async (formData: FormData) => {
-    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/upload/`, formData, {
-        headers: {
-            "Content-Type": "multipart/form-data",
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/testsets/upload/?project_id=${projectId}`,
+        formData,
+        {
+            headers: {
+                "Content-Type": "multipart/form-data",
+            },
+            //@ts-ignore
+            _ignoreError: true,
         },
-        //@ts-ignore
-        _ignoreError: true,
-    })
+    )
     return response
 }
 
 export const importTestsetsViaEndpoint = async (formData: FormData) => {
-    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets/endpoint/`, formData, {
-        headers: {"Content-Type": "multipart/form-data"},
-    })
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/api/testsets/endpoint/?project_id=${projectId}`,
+        formData,
+        {
+            headers: {"Content-Type": "multipart/form-data"},
+        },
+    )
     return response
 }
 
 export const deleteTestsets = async (ids: string[]) => {
+    const {projectId} = getCurrentProject()
+
     const response = await axios({
         method: "delete",
-        url: `${getAgentaApiUrl()}/api/testsets/`,
+        url: `${getAgentaApiUrl()}/api/testsets/?project_id=${projectId}`,
         data: {testset_ids: ids},
     })
     return response.data
