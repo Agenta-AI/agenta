@@ -95,7 +95,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                 >
                                     <Editor
                                         height="120px"
-                                        defaultLanguage="plaintext"
+                                        language="markdown"
                                         value={value[index]?.content || ""}
                                         options={{
                                             minimap: {enabled: false},
@@ -111,6 +111,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                             glyphMargin: false,
                                             lineNumbersMinChars: 0, // Reduces the space for line numbers
                                             folding: false,
+                                            quickSuggestions: false,
                                         }}
                                         onChange={(newValue) => {
                                             const currentMessages =
@@ -124,7 +125,7 @@ export const Messages: React.FC<MessagesProps> = ({value = [], onChange}) => {
                                         }}
                                         beforeMount={(monaco) => {
                                             // Add custom token provider for highlighting text between curly braces
-                                            monaco.languages.setMonarchTokensProvider("plaintext", {
+                                            monaco.languages.setMonarchTokensProvider("markdown", {
                                                 tokenizer: {
                                                     root: [[/{[^}]*}/, "variable"]],
                                                 },
