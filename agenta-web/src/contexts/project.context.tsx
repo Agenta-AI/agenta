@@ -1,6 +1,6 @@
 import {useSession} from "@/hooks/useSession"
 import {PropsWithChildren, createContext, useState, useContext, useEffect, useCallback} from "react"
-import {fetcAllProjects} from "@/services/project"
+import {fetchAllProjects} from "@/services/project"
 import useStateCallback from "@/hooks/useStateCallback"
 
 const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
@@ -50,7 +50,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const fetcher = useCallback(async (onSuccess?: () => void) => {
         setIsLoading(true)
         try {
-            const data = await fetcAllProjects()
+            const data = await fetchAllProjects()
 
             const _project = data[0] // There is only one project in OSS
 
