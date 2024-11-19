@@ -14,6 +14,7 @@ type Project = {
 type ProjectContextType = {
     project: Project | null
     isProjectId: boolean
+    projectId: string
     isLoading: boolean
     reset: () => void
     refetch: (onSuccess?: () => void) => void
@@ -22,6 +23,7 @@ type ProjectContextType = {
 const initialValues: ProjectContextType = {
     project: null,
     isProjectId: false,
+    projectId: "",
     isLoading: false,
     reset: () => {},
     refetch: () => {},
@@ -41,6 +43,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const {doesSessionExist} = useSession()
 
     const isProjectId = !isLoading && Boolean(project?.project_id)
+    const projectId = project?.project_id as string
 
     const fetcher = useCallback(async (onSuccess?: () => void) => {
         try {
@@ -65,12 +68,14 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     projectContextValues.project = project
     projectContextValues.isProjectId = isProjectId
+    projectContextValues.projectId = projectId
 
     return (
         <ProjectContext.Provider
             value={{
                 project,
                 isProjectId,
+                projectId,
                 isLoading,
                 reset,
                 refetch: fetcher,
