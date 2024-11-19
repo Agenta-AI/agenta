@@ -3,6 +3,8 @@ import {PropsWithChildren, createContext, useState, useContext, useEffect, useCa
 import {fetcAllProjects} from "@/services/project"
 import useStateCallback from "@/hooks/useStateCallback"
 
+const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
+
 type Project = {
     workspace_id: string | null
     workspace_name: string | null
@@ -43,7 +45,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const {doesSessionExist} = useSession()
 
     const isProjectId = !isLoading && Boolean(project?.project_id)
-    const projectId = project?.project_id as string
+    const projectId = project?.project_id as string || DEFAULT_UUID
 
     const fetcher = useCallback(async (onSuccess?: () => void) => {
         try {
