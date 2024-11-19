@@ -1,9 +1,9 @@
 import logging
 import traceback
-from collections import OrderedDict
 from copy import deepcopy
-
 from typing import Any, Dict
+from collections import OrderedDict
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -30,10 +30,10 @@ def _make_spans_id_tree(trace):
     index = {}
 
     def push(span) -> None:
-        if span["parent_span_id"] is None:
+        if span.get("parent_span_id") is None:
             tree[span["id"]] = OrderedDict()
             index[span["id"]] = tree[span["id"]]
-        elif span["parent_span_id"] in index:
+        elif span.get("parent_span_id") in index:
             index[span["parent_span_id"]][span["id"]] = OrderedDict()
             index[span["id"]] = index[span["parent_span_id"]][span["id"]]
         else:
@@ -43,6 +43,126 @@ def _make_spans_id_tree(trace):
         push(span)
 
     return tree
+
+
+def _make_nested_nodes_tree(tree: dict):
+    """
+    Creates a nested tree structure from a flat list of nodes.
+
+    Args:
+        tree: {tree: {nodes: List[Node]}}
+
+    Returns:
+        tree: {[node_id]: tree(node_id)} # recursive
+            e.g. {node_id_0: {node_id_0_0: {}, node_id_0_1: {}}}
+            for:
+                node_id_0
+                    node_id_0_0
+                    node_id_0_1
+    """
+
+    ordered_tree = OrderedDict()
+
+    def add_node(node: dict, parent_tree: dict):
+        """
+        Recursively adds a node and its children to the parent tree.
+        """
+
+        node_id = node["node"]["id"]
+        parent_tree[node_id] = OrderedDict()
+
+        # If there are child nodes, recursively add them
+        if "nodes" in node and node["nodes"] is not None:
+            for child_key, child_node in node["nodes"].items():
+                add_node(child_node, parent_tree[node_id])
+
+    # Process the top-level nodes
+    for node in tree["nodes"]:
+        add_node(node, ordered_tree)
+
+    return ordered_tree
+
+
+def _make_nodes_ids(ordered_dict: OrderedDict):
+    """
+    Recursively converts an OrderedDict to a plain dict.
+
+    Args:
+        ordered_dict (OrderedDict): The OrderedDict to convert.
+
+    Returns:
+        dict: A plain dictionary representation of the OrderedDict.
+    """
+
+    if isinstance(ordered_dict, OrderedDict):
+        return {key: _make_nodes_ids(value) for key, value in ordered_dict.items()}
+    return ordered_dict
+
+
+def _build_nodes_tree(nodes_id: dict, tree_nodes: list):
+    """
+    Recursively builds a dictionary of node keys from a dictionary of nodes.
+
+    Args:
+        nodes_id (dict): The dictionary representing the nodes.
+        tree_nodes (list): List[Node]
+
+    Returns:
+        List[dict]: A list of dictionary of unique node keys with their corresponding details from trace_tree.
+    """
+
+    def gather_nodes(nodes: list):
+        result = {}
+        stack = nodes[:]
+        while stack:
+            current = stack.pop()
+            node_id = current["node"]["id"]
+            result[node_id] = current
+            if "nodes" in current and current["nodes"] is not None:
+                stack.extend(current["nodes"].values())
+        return result
+
+    def extract_node_details(node_id: str, nodes: dict):
+        """
+        Helper function to extract relevant details for a node.
+        """
+
+        node_data = nodes.get(node_id, {})
+        return {
+            "lifecycle": node_data.get("lifecycle", {}),
+            "root": node_data.get("root", {}),
+            "tree": node_data.get("tree", {}),
+            "node": node_data.get("node", {}),
+            "parent": node_data.get("parent", None),
+            "time": node_data.get("time", {}),
+            "status": node_data.get("status"),
+            "exception": node_data.get("exception"),
+            "data": node_data.get("data"),
+            "metrics": node_data.get("metrics"),
+            "meta": node_data.get("meta"),
+            "refs": node_data.get("refs"),
+            "links": node_data.get("links"),
+            "otel": node_data.get("otel"),
+        }
+
+    def recursive_flatten(current_nodes_id: dict, result: dict, nodes: dict):
+        """
+        Recursive function to flatten nodes into an ordered dictionary.
+        """
+
+        for node_id, child_nodes in current_nodes_id.items():
+            # Add the current node details to the result
+            result[node_id] = extract_node_details(node_id, nodes)
+
+            # Recursively process child nodes
+            if child_nodes:
+                recursive_flatten(child_nodes, result, nodes)
+
+    # Initialize the ordered dictionary and start the recursion
+    ordered_result = dict()
+    nodes = gather_nodes(nodes=tree_nodes)
+    recursive_flatten(current_nodes_id=nodes_id, result=ordered_result, nodes=nodes)
+    return list(ordered_result.values())
 
 
 INCLUDED_KEYS = ["start_time", "end_time", "inputs", "internals", "outputs"]
@@ -60,9 +180,11 @@ def _make_spans_tree(spans_id_tree, spans_index):
     Args:
         spans_id_tree: {[span_id]: spans_id_tree(span_id)} # recursive (ids only)
         index: {[span_id]: span}
+
     Returns:
         spans_tree: {[span_id]: spans_tree(span_id)} # recursive (full span)
     """
+
     spans_tree = dict()
     count = dict()
 
@@ -78,7 +200,7 @@ def _make_spans_tree(spans_id_tree, spans_index):
 
             key = spans_index[id]["name"]
 
-            span = {k: spans_index[id][k] for k in INCLUDED_KEYS}
+            span = {k: spans_index[id].get(k, None) for k in INCLUDED_KEYS}
 
             if TRACE_DEFAULT_KEY in span["outputs"]:
                 span["outputs"] = span["outputs"][TRACE_DEFAULT_KEY]
@@ -97,7 +219,7 @@ def _make_spans_tree(spans_id_tree, spans_index):
     return spans_tree
 
 
-def process_distributed_trace_into_trace_tree(trace):
+def process_distributed_trace_into_trace_tree(trace: Any, version: str):
     """
     Creates trace tree from flat trace
 
@@ -108,12 +230,24 @@ def process_distributed_trace_into_trace_tree(trace):
         trace: {trace_id: str, spans: spans_tree}
     """
 
-    spans_id_tree = _make_spans_id_tree(trace)
-    spans_index = {span["id"]: span for span in trace["spans"]}
-    trace = {
-        "trace_id": trace["trace_id"],
-        "spans": _make_spans_tree(deepcopy(spans_id_tree), spans_index),
-    }
+    if version == "3.0":
+        tree = trace  # swap trace name to tree
+        trace_id = tree.get("nodes", [{}])[0].get("root", {}).get("id")
+        spans_id_tree = _make_nested_nodes_tree(tree=tree)
+        nodes_ids = _make_nodes_ids(ordered_dict=spans_id_tree)
+        spans = _build_nodes_tree(nodes_id=nodes_ids, tree_nodes=tree["nodes"])
+
+    elif version == "2.0":
+        trace_id = trace["trace_id"]
+        spans_id_tree = _make_spans_id_tree(trace)
+        spans_index = {span["id"]: span for span in trace["spans"]}
+        spans = _make_spans_tree(deepcopy(spans_id_tree), spans_index)
+
+    else:
+        trace_id = None
+        spans = []
+
+    trace = {"trace_id": trace_id, "spans": spans}
 
     return trace
 
@@ -139,7 +273,27 @@ def _parse_field_part(part):
     return key, idx
 
 
-def get_field_value_from_trace_tree(tree: Dict[str, Any], field: str) -> Dict[str, Any]:
+# --------------------------------------------------------------- #
+# ------- HELPER FUNCTIONS TO GET FIELD VALUE FROM TRACE -------  #
+# --------------------------------------------------------------- #
+
+
+def get_field_value_from_trace_tree(
+    tree: Dict[str, Any], field: str, version: str
+) -> Dict[str, Any]:
+    if version == "2.0":
+        return get_field_value_from_trace_tree_v2(tree=tree, field=field)
+
+    elif version == "3.0":
+        return get_field_value_from_trace_tree_v3(trace_data=tree, key=field)
+
+    return None
+
+
+def get_field_value_from_trace_tree_v2(
+    tree: Dict[str, Any],
+    field: str,
+):
     """
     Retrieve the value of the key from the trace tree.
 
@@ -153,6 +307,7 @@ def get_field_value_from_trace_tree(tree: Dict[str, Any], field: str) -> Dict[st
     Returns:
         Dict[str, Any]: The retrieved value or None if the key does not exist or an error occurs.
     """
+
     separate_by_spans_key = True
 
     parts = field.split(".")
@@ -183,3 +338,80 @@ def get_field_value_from_trace_tree(tree: Dict[str, Any], field: str) -> Dict[st
     except Exception as e:
         logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
+
+
+def get_field_value_from_trace_tree_v3(trace_data: Dict[str, any], key: str):
+    """
+    Retrieves a nested value from the trace data based on a hierarchical key.
+
+    Args:
+        trace_data (dict): A dictionary container the trace_id and a list of node dictionaries in the trace data.
+        key (str): The hierarchical key (e.g., "rag.retriever.internals.prompt").
+
+    Returns:
+        The value associated with the specified key, or None if not found.
+    """
+
+    try:
+        # Parse the hierarchical key
+        key_parts = key.split(".")
+
+        # Start with the root node name
+        current_name = key_parts.pop(0)
+
+        # Find the root node
+        current_node = next(
+            (
+                node
+                for node in trace_data["spans"]
+                if node["node"]["name"] == current_name
+            ),
+            None,
+        )
+        if not current_node:
+            return None
+
+        # Traverse the hierarchy
+        for part in key_parts:
+            if part in current_node:  # If the part is a direct key in the current node
+                current_node = current_node[part]
+            elif (
+                "data" in current_node and part in current_node["data"]
+            ):  # Check inside "data"
+                current_node = current_node["data"][part]
+            elif (
+                "metrics" in current_node and part in current_node["metrics"]
+            ):  # Check inside "metrics"
+                current_node = current_node["metrics"][part]
+            elif (
+                "meta" in current_node
+                and current_node["meta"]
+                and part in current_node["meta"]
+            ):  # Check inside "meta"
+                current_node = current_node["meta"][part]
+            else:  # Traverse to child node if it matches the "name"
+                child_node = next(
+                    (
+                        node
+                        for node in trace_data["spans"]
+                        if node["node"]["name"] == part
+                        and node["parent"]
+                        and node["parent"]["id"] == current_node["node"]["id"]
+                    ),
+                    None,
+                )
+                if not child_node:
+                    return None
+
+                current_node = child_node
+
+        return current_node
+
+    except Exception as e:
+        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
+        return None
+
+
+# ---------------------------------------------------------------------- #
+# ------- END OF HELPER FUNCTIONS TO GET FIELD VALUE FROM TRACE -------  #
+# ---------------------------------------------------------------------- #
