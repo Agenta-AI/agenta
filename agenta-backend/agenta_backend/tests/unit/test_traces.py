@@ -144,7 +144,7 @@ simple_finance_assisstant_trace = {
 simple_rag_trace_for_baseresponse_v3 = {
     "version": "3.0",
     "data": {},
-    "trace": {
+    "tree": {
         "nodes": [
             {
                 "lifecycle": {

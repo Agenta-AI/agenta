@@ -47,10 +47,10 @@ def extract_result_from_response(response: dict):
             if not isinstance(value.get("data"), dict):
                 value["data"] = str(value.get("data"))
 
-            if "trace" in response:
+            if "tree" in response:
                 trace_tree = (
-                    response["trace"][0]
-                    if isinstance(response.get("trace"), list)
+                    response["tree"][0]
+                    if isinstance(response.get("tree"), list)
                     else {}
                 )
                 latency = (
