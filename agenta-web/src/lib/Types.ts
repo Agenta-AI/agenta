@@ -564,7 +564,7 @@ export interface TraceDetailsV3 {
 export type BaseResponse = {
     version?: string | null
     data: string | Record<string, any>
-    trace: TraceDetailsV2 | TraceDetailsV3
+    tree: TraceDetailsV2 | TraceDetailsV3
 }
 
 export type BaseResponseSpans = {
