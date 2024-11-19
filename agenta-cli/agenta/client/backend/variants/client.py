@@ -1104,14 +1104,14 @@ class VariantsClient:
     def configs_delete(
         self,
         *,
-        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        variant_ref: ReferenceRequestModel,
         application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> int:
         """
         Parameters
         ----------
-        variant_ref : typing.Optional[ReferenceRequestModel]
+        variant_ref : ReferenceRequestModel
 
         application_ref : typing.Optional[ReferenceRequestModel]
 
@@ -1125,13 +1125,15 @@ class VariantsClient:
 
         Examples
         --------
-        from agenta import AgentaApi
+        from agenta import AgentaApi, ReferenceRequestModel
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.variants.configs_delete()
+        client.variants.configs_delete(
+            variant_ref=ReferenceRequestModel(),
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "variants/configs/delete",
@@ -1244,14 +1246,14 @@ class VariantsClient:
     def configs_history(
         self,
         *,
-        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        variant_ref: ReferenceRequestModel,
         application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
-        variant_ref : typing.Optional[ReferenceRequestModel]
+        variant_ref : ReferenceRequestModel
 
         application_ref : typing.Optional[ReferenceRequestModel]
 
@@ -1265,13 +1267,15 @@ class VariantsClient:
 
         Examples
         --------
-        from agenta import AgentaApi
+        from agenta import AgentaApi, ReferenceRequestModel
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.variants.configs_history()
+        client.variants.configs_history(
+            variant_ref=ReferenceRequestModel(),
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
             "variants/configs/history",
@@ -2504,14 +2508,14 @@ class AsyncVariantsClient:
     async def configs_delete(
         self,
         *,
-        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        variant_ref: ReferenceRequestModel,
         application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> int:
         """
         Parameters
         ----------
-        variant_ref : typing.Optional[ReferenceRequestModel]
+        variant_ref : ReferenceRequestModel
 
         application_ref : typing.Optional[ReferenceRequestModel]
 
@@ -2527,7 +2531,7 @@ class AsyncVariantsClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi
+        from agenta import AsyncAgentaApi, ReferenceRequestModel
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -2536,7 +2540,9 @@ class AsyncVariantsClient:
 
 
         async def main() -> None:
-            await client.variants.configs_delete()
+            await client.variants.configs_delete(
+                variant_ref=ReferenceRequestModel(),
+            )
 
 
         asyncio.run(main())
@@ -2660,14 +2666,14 @@ class AsyncVariantsClient:
     async def configs_history(
         self,
         *,
-        variant_ref: typing.Optional[ReferenceRequestModel] = OMIT,
+        variant_ref: ReferenceRequestModel,
         application_ref: typing.Optional[ReferenceRequestModel] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[ConfigResponseModel]:
         """
         Parameters
         ----------
-        variant_ref : typing.Optional[ReferenceRequestModel]
+        variant_ref : ReferenceRequestModel
 
         application_ref : typing.Optional[ReferenceRequestModel]
 
@@ -2683,7 +2689,7 @@ class AsyncVariantsClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi
+        from agenta import AsyncAgentaApi, ReferenceRequestModel
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -2692,7 +2698,9 @@ class AsyncVariantsClient:
 
 
         async def main() -> None:
-            await client.variants.configs_history()
+            await client.variants.configs_history(
+                variant_ref=ReferenceRequestModel(),
+            )
 
 
         asyncio.run(main())

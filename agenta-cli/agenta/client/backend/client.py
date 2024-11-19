@@ -13,6 +13,7 @@ from .containers.client import ContainersClient
 from .environments.client import EnvironmentsClient
 from .bases.client import BasesClient
 from .configs.client import ConfigsClient
+from .observability_v_1.client import ObservabilityV1Client
 from .core.request_options import RequestOptions
 from .types.list_api_keys_response import ListApiKeysResponse
 from .core.pydantic_utilities import parse_obj_as
@@ -40,6 +41,7 @@ from .containers.client import AsyncContainersClient
 from .environments.client import AsyncEnvironmentsClient
 from .bases.client import AsyncBasesClient
 from .configs.client import AsyncConfigsClient
+from .observability_v_1.client import AsyncObservabilityV1Client
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -89,17 +91,13 @@ class AgentaApi:
         self._client_wrapper = SyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=(
-                httpx_client
-                if httpx_client is not None
-                else (
-                    httpx.Client(
-                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
-                    )
-                    if follow_redirects is not None
-                    else httpx.Client(timeout=_defaulted_timeout)
-                )
-            ),
+            httpx_client=httpx_client
+            if httpx_client is not None
+            else httpx.Client(
+                timeout=_defaulted_timeout, follow_redirects=follow_redirects
+            )
+            if follow_redirects is not None
+            else httpx.Client(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
         self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
@@ -112,6 +110,9 @@ class AgentaApi:
         self.environments = EnvironmentsClient(client_wrapper=self._client_wrapper)
         self.bases = BasesClient(client_wrapper=self._client_wrapper)
         self.configs = ConfigsClient(client_wrapper=self._client_wrapper)
+        self.observability_v_1 = ObservabilityV1Client(
+            client_wrapper=self._client_wrapper
+        )
 
     def list_api_keys(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -1619,17 +1620,13 @@ class AsyncAgentaApi:
         self._client_wrapper = AsyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=(
-                httpx_client
-                if httpx_client is not None
-                else (
-                    httpx.AsyncClient(
-                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
-                    )
-                    if follow_redirects is not None
-                    else httpx.AsyncClient(timeout=_defaulted_timeout)
-                )
-            ),
+            httpx_client=httpx_client
+            if httpx_client is not None
+            else httpx.AsyncClient(
+                timeout=_defaulted_timeout, follow_redirects=follow_redirects
+            )
+            if follow_redirects is not None
+            else httpx.AsyncClient(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
         self.observability = AsyncObservabilityClient(
@@ -1644,6 +1641,9 @@ class AsyncAgentaApi:
         self.environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
         self.bases = AsyncBasesClient(client_wrapper=self._client_wrapper)
         self.configs = AsyncConfigsClient(client_wrapper=self._client_wrapper)
+        self.observability_v_1 = AsyncObservabilityV1Client(
+            client_wrapper=self._client_wrapper
+        )
 
     async def list_api_keys(
         self, *, request_options: typing.Optional[RequestOptions] = None

@@ -362,7 +362,7 @@ class entrypoint:
         log.info(f"Agenta SDK - exiting with success: 200")
         log.info(f"----------------------------------")
 
-        return BaseResponse(data=data, trace=trace)
+        return BaseResponse(data=data, tree=trace)
 
     def handle_failure(self, error: Exception):
         log.error("--------------------------------------------------")
