@@ -5,5 +5,5 @@ set -e
 docker compose -f docker-compose.yml down
 WEBSITE_DOMAIN_NAME=http://localhost:3000 docker compose -f docker-compose.yml up -d --build --no-deps $(docker compose -f docker-compose.yml config --services | grep -v agenta-web)
 
-# Start agenta-web separately
+cd agenta-web
 npm run dev:local
