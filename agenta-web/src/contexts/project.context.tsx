@@ -50,7 +50,10 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const fetcher = useCallback(async (onSuccess?: () => void) => {
         try {
             const data = await fetcAllProjects()
-            setProject(data[0], onSuccess)
+
+            const _project = data[0] // There is only one project in OSS
+
+            setProject(_project, onSuccess)
         } catch (error) {
             console.error(error)
         } finally {

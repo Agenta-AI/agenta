@@ -208,9 +208,7 @@ export const fetchAppContainerURL = async (
 }
 
 export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
-    const {projectId} = getCurrentProject()
-
-    return axios.get(`${getAgentaApiUrl()}/api/profile?project_id=${projectId}`, {
+    return axios.get(`${getAgentaApiUrl()}/api/profile`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -219,10 +217,8 @@ export const fetchSingleProfile = async (
     userId: string,
     ignoreAxiosError: boolean = false,
 ): Promise<User> => {
-    const {projectId} = getCurrentProject()
-
     const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/profile?project_id=${projectId}&user_id=${userId}`,
+        `${getAgentaApiUrl()}/api/profile?user_id=${userId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
