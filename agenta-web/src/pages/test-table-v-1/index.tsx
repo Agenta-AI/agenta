@@ -1,8 +1,7 @@
 import React, {useState} from "react"
 import {Table} from "antd"
-import {Resizable} from "react-resizable"
 import "react-resizable/css/styles.css"
-import {ResizableTitle, ResizableRow} from "@/components/ServerTable/components"
+import {ResizableTitle} from "@/components/ServerTable/components"
 
 const SynchronizedResizableTables = () => {
     // Shared state for synchronized column widths by index
@@ -12,8 +11,8 @@ const SynchronizedResizableTables = () => {
 
     // Handle resizing and update shared widths
     const handleResize =
-        (index) =>
-        (e, {size}) => {
+        (index: number) =>
+        (e: any, {size}: {size: {width: number}}) => {
             setColumnWidths((prevWidths) => {
                 const newWidths = [...prevWidths]
                 newWidths[index] = size.width
@@ -32,7 +31,7 @@ const SynchronizedResizableTables = () => {
                 onResize: handleResize(0),
             }),
             colSpan: 4, // Set to span 4 columns
-            render: (value) => ({
+            render: (value: any) => ({
                 children: value,
                 props: {colSpan: 4},
             }),
@@ -100,7 +99,6 @@ const SynchronizedResizableTables = () => {
             dataIndex: "company",
             width: columnWidths[5],
             onHeaderCell: () => ({width: columnWidths[5], onResize: handleResize(5)}),
-            
         },
         {
             title: "Role",
@@ -171,7 +169,7 @@ const SynchronizedResizableTables = () => {
                         cell: ResizableTitle,
                     },
                 }}
-                columns={columnsTable1}
+                columns={columnsTable1 as any}
                 dataSource={dataSource1}
                 pagination={false}
             />
@@ -183,7 +181,7 @@ const SynchronizedResizableTables = () => {
                         cell: ResizableTitle,
                     },
                 }}
-                columns={columnsTable2}
+                columns={columnsTable2 as any}
                 dataSource={dataSource2}
                 pagination={false}
             />

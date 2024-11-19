@@ -51,7 +51,7 @@ const SyncTableWithMergingColumnsSize = () => {
                     {
                         field: "country",
                         suppressSizeToFit: true,
-                        colSpan: () => 2
+                        colSpan: () => 2,
                     },
                     {field: "year"},
                 ],
