@@ -8,7 +8,7 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetcAllProjects = async () => {
+export const fetchAllProjects = async () => {
     const response = await axios.get(`${getAgentaApiUrl()}/api/projects`)
     return response.data
 }
