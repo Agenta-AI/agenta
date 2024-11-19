@@ -34,7 +34,14 @@ async def test_batch_invoke_success():
         ]
 
         # Mock the response of invoke_app to always succeed
-        def invoke_app_side_effect(uri, datapoint, parameters, openapi_parameters):
+        def invoke_app_side_effect(
+            uri,
+            datapoint,
+            parameters,
+            openapi_parameters,
+            user_id,
+            project_id,
+        ):
             return InvokationResult(
                 result=Result(type="text", value="Success", error=None),
                 latency=0.1,
@@ -56,7 +63,14 @@ async def test_batch_invoke_success():
             "delay_between_batches": 5,
         }
 
-        results = await batch_invoke(uri, testset_data, parameters, rate_limit_config)
+        results = await batch_invoke(
+            uri,
+            testset_data,
+            parameters,
+            rate_limit_config,
+            user_id="test_user",
+            project_id="test_project",
+        )
 
         assert len(results) == 2
         assert results[0].result.type == "text"
@@ -89,7 +103,14 @@ async def test_batch_invoke_retries_and_failure():
         ]
 
         # Mock the response of invoke_app to always fail
-        def invoke_app_side_effect(uri, datapoint, parameters, openapi_parameters):
+        def invoke_app_side_effect(
+            uri,
+            datapoint,
+            parameters,
+            openapi_parameters,
+            user_id,
+            project_id,
+        ):
             raise aiohttp.ClientError("Test Error")
 
         mock_invoke_app.side_effect = invoke_app_side_effect
@@ -107,7 +128,14 @@ async def test_batch_invoke_retries_and_failure():
             "delay_between_batches": 5,
         }
 
-        results = await batch_invoke(uri, testset_data, parameters, rate_limit_config)
+        results = await batch_invoke(
+            uri,
+            testset_data,
+            parameters,
+            rate_limit_config,
+            user_id="test_user",
+            project_id="test_project",
+        )
 
         assert len(results) == 2
         assert results[0].result.type == "error"
@@ -140,7 +168,14 @@ async def test_batch_invoke_generic_exception():
         ]
 
         # Mock the response of invoke_app to raise a generic exception
-        def invoke_app_side_effect(uri, datapoint, parameters, openapi_parameters):
+        def invoke_app_side_effect(
+            uri,
+            datapoint,
+            parameters,
+            openapi_parameters,
+            user_id,
+            project_id,
+        ):
             raise Exception("Generic Error")
 
         mock_invoke_app.side_effect = invoke_app_side_effect
@@ -155,7 +190,14 @@ async def test_batch_invoke_generic_exception():
             "delay_between_batches": 1,
         }
 
-        results = await batch_invoke(uri, testset_data, parameters, rate_limit_config)
+        results = await batch_invoke(
+            uri,
+            testset_data,
+            parameters,
+            rate_limit_config,
+            user_id="test_user",
+            project_id="test_project",
+        )
 
         assert len(results) == 1
         assert results[0].result.type == "error"
