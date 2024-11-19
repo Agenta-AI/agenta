@@ -76,10 +76,10 @@ export const getNodeById = (
     return null
 }
 
-export const isTraceDetailsV2 = (trace: BaseResponse["trace"]): trace is TraceDetailsV2 => {
+export const isTraceDetailsV2 = (trace: BaseResponse["tree"]): trace is TraceDetailsV2 => {
     return (trace as TraceDetailsV2)?.trace_id !== undefined
 }
 
-export const isTraceDetailsV3 = (trace: BaseResponse["trace"]): trace is TraceDetailsV3 => {
+export const isTraceDetailsV3 = (trace: BaseResponse["tree"]): trace is TraceDetailsV3 => {
     return (trace as TraceDetailsV3)?.nodes !== undefined
 }

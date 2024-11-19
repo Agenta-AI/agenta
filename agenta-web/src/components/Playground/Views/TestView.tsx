@@ -609,19 +609,19 @@ const App: React.FC<TestViewProps> = ({
                 res = result as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
 
-                const {trace, version} = result
+                const {tree, version} = result
 
                 // Main update logic
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    if (version === "2.0" && isTraceDetailsV2(result.trace)) {
+                    if (version === "2.0" && isTraceDetailsV2(tree)) {
                         newDataList[index] = {
-                            cost: result.trace?.cost ?? null,
-                            latency: result.trace?.latency ?? null,
-                            usage: result.trace?.usage?.total_tokens ?? null,
+                            cost: tree?.cost ?? null,
+                            latency: tree?.latency ?? null,
+                            usage: tree?.usage?.total_tokens ?? null,
                         }
-                    } else if (version === "3.0" && isTraceDetailsV3(result.trace)) {
-                        const firstTraceNode = result.trace.nodes[0]
+                    } else if (version === "3.0" && isTraceDetailsV3(tree)) {
+                        const firstTraceNode = tree.nodes[0]
                         newDataList[index] = {
                             cost: firstTraceNode?.metrics?.acc?.costs?.total ?? null,
                             latency: firstTraceNode?.time?.span
@@ -633,8 +633,8 @@ const App: React.FC<TestViewProps> = ({
                     return newDataList
                 })
 
-                if (trace && isDemo()) {
-                    setTraceSpans(trace)
+                if (tree && isDemo()) {
+                    setTraceSpans(tree)
                 }
             } else {
                 console.error("Unknown response type:", result)
