@@ -128,10 +128,11 @@ export async function callVariant(
         } as any)
         .then((res) => {
             return res.data
-        }).catch((error) => {
+        })
+        .catch((error) => {
             console.log("ERROR", error)
         })
-    
+
     return response
 }
 
