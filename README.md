@@ -92,7 +92,7 @@ Agenta is a platform for building production-grade LLM applications. It helps **
 Agenta provides end-to-end tools for the entire LLMOps workflow:  building (**LLM playground**, **evaluation**), deploying (**prompt and configuration management**), and monitoring (**LLM observability and tracing**).
 
 # Features
-- **Prompt Playground**: Experiment, iterate on prompts, and compare outputs from over 50 LLM models side by side ([documentation](https://docs.agenta.ai/prompt-management/using-the-playground?utm_source=github&utm_medium=referral&utm_campaign=readme))
+- **Prompt Playground**: Experiment, iterate on prompts, and compare outputs from over 50 LLM models side by side ([docs](https://docs.agenta.ai/prompt-management/using-the-playground?utm_source=github&utm_medium=referral&utm_campaign=readme))
 - **Custom Workflows**: Build a playground for any custom LLM workflow, such as RAG or agents. Enable all the team to easily iterate on its parameters and evaluate it from the web UI.
 - **LLM evaluation**: Run evaluation suite from the webUI using predefined evaluators like LLM-as-a-judge, RAG evaluators, or custom code evaluators. ([docs](https://docs.agenta.ai/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme))
 - **Human evaluation**: Collaborate with subject matter experts for human annotation evaluation, including A/B testing and annotating golden test sets.
