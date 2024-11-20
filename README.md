@@ -97,7 +97,7 @@ Agenta provides end-to-end tools for the entire LLMOps workflow:  building (**LL
 - **LLM evaluation**: Run evaluation suite from the webUI using predefined evaluators like LLM-as-a-judge, RAG evaluators, or custom code evaluators. ([docs](https://docs.agenta.ai/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme))
 - **Human evaluation**: Collaborate with subject matter experts for human annotation evaluation, including A/B testing and annotating golden test sets.
 - **Prompt Management**: Version your prompts and manage them across different environments ([docs](https://docs.agenta.ai/prompt-management/overview?utm_source=github&utm_medium=referral&utm_campaign=readme), [quick start](https://docs.agenta.ai/prompt-management/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme))
-- **LLM Tracing**: Observe and debug your apps with integrations to most provider and frameworks ([docs](https://docs.agenta.ai/observability/overview?utm_source=github&utm_medium=referral&utm_campaign=readme), [quick start](https://docs.agenta.ai/observability/quickstart?utm_source=github&utm_medium=referral&utm_campaign=readme))
+- **LLM Tracing**: Observe and debug your apps with integrations to most providers and frameworks ([docs](https://docs.agenta.ai/observability/overview?utm_source=github&utm_medium=referral&utm_campaign=readme), [quick start](https://docs.agenta.ai/observability/quickstart?utm_source=github&utm_medium=referral&utm_campaign=readme))
 - **LLM Monitoring**: Track cost and latency and compare different deployments.
 
   
