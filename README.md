@@ -13,8 +13,8 @@
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a>
   </p>
 <div align="center">
-  <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM applications with confidence </h2></strong>
-  The open-source LLM developer platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
+  <strong> <h2> The Open-source LLMOps Platform </h2></strong>
+  Prompt playground, prompt management, evaluation, and observability
 </div>
 </br>
 <p align="center">
@@ -48,21 +48,25 @@
     </a>
 </p>
 
-</br>
-
-<a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
-  <picture>
-  <img src="https://github.com/Agenta-AI/agenta/assets/4510758/d622f268-c295-42d4-a43c-548b611ff6f2" />
-  </picture>
-</a>
-
-<br>
   <br />
-  <br />
-      <div  align="center" >
+<p align="center">
+  <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
-        <img alt="Glamour Shot" src="https://github.com/user-attachments/assets/32e95ddb-e001-4462-b92e-72bf4cc78597" >
+        <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/b8912ecb-c7a0-47bd-8507-29b12382fef6"  >
+        <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/f133dd08-04a3-4b20-b047-22f8f841cfbb"  >
+        <img alt="Try Agenta Live Demo" src="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253" >
       </picture>
+  </a>
+</p>
+
+<br/>
+  <br />
+      <div align="center" >
+        <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
+          <picture >
+            <img alt="Glamour Shot" src="https://github.com/user-attachments/assets/32e95ddb-e001-4462-b92e-72bf4cc78597" >
+          </picture>
+        </a>
     </div>
 </div>
 <br />
