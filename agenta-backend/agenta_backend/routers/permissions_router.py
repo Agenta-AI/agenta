@@ -56,6 +56,7 @@ async def verify_permissions(
 
         if isCloudEE():
             permission = Permission(action)
+            print(f'Permission for action {action}...')
 
             # CHECK PERMISSION 1/2: ACTION
             allow_action = await check_action_access(
@@ -63,6 +64,7 @@ async def verify_permissions(
                 project_id=request.state.project_id,
                 permission=permission,
             )
+            print(f"Is {action} allowed? ", allow_action)
 
             if not allow_action:
                 raise Deny()

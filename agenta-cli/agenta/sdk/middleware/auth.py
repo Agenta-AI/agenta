@@ -101,13 +101,13 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                     )
 
                     if response.status_code != 200:
-                        cache.put(_hash, {"effect": "deny"})
+                        # cache.put(_hash, {"effect": "deny"})
                         return Deny()
 
                     auth = response.json()
 
                     if auth.get("effect") != "allow":
-                        cache.put(_hash, {"effect": "deny"})
+                        # cache.put(_hash, {"effect": "deny"})
                         return Deny()
 
                     cached_policy = {
@@ -115,7 +115,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                         "credentials": auth.get("credentials"),
                     }
 
-                    cache.put(_hash, cached_policy)
+                    # cache.put(_hash, cached_policy)
 
             if cached_policy.get("effect") == "deny":
                 return Deny()
