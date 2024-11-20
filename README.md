@@ -64,7 +64,7 @@
       <div align="center" >
         <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
           <picture >
-            <img alt="Glamour Shot" src="https://github.com/user-attachments/assets/32e95ddb-e001-4462-b92e-72bf4cc78597" >
+            <img width="800" alt="Screenshot Agenta" src="https://github.com/user-attachments/assets/32e95ddb-e001-4462-b92e-72bf4cc78597" >
           </picture>
         </a>
     </div>
@@ -75,42 +75,35 @@
 ---
 
 <h3 align="center">
-  <a href="#quick-start"><b>Quick Start</b></a> &bull;
-  <a href="#features"><b>Features</b></a> &bull;
-  <a href="https://docs.agenta.ai"><b>Documentation</b></a> &bull;
-  <a href="#enterprise-support"><b>Enterprise</b></a> &bull;
-  <a href="https://github.com/orgs/Agenta-AI/projects/13"><b>Roadmap</b></a> &bull;
-  <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"><b>Join Our Slack</b></a> &bull;
-  <a href="#contributing"><b>Contributing</b></a>
+  <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
+  <a href="https://docs.agenta.ai/changelog/main?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Changelog</b></a> &bull;
+  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Website</b></a> &bull;
+  <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Agenta Cloud</b></a>
+
 </h3>
 
 ---
 
 # What is Agenta?
 
-Agenta is a LLM developer platform that helps teams quickly build and refine reliable LLM applications.
+Agenta is a platform for building production-grade LLM applications. It helps **engineering and product teams** create reliable LLM apps faster.
 
-Agenta is end-to-end, it provides all the tools around the LLMOps worfklow: From building (**LLM playground**, **automatic and human evaluation**) to deploying (**prompt and configuration management**) up to monitoring (**LLM Observability and tracing**)
+
+Agenta provides end-to-end tools for the entire LLMOps workflow:  building (**LLM playground**, **evaluation**), deploying (**prompt and configuration management**), and monitoring (**LLM observability and tracing**).
 
 # Features
-- Prompt Playground
-- Custom Workflows
-- LLM evaluation
-- Human evaluation
-- Prompt Management
-- LLM Tracing
-- LLM Monitoring
+- **Prompt Playground**: Experiment, iterate on prompts, and compare outputs from over 50 LLM models side by side ([documentation](https://docs.agenta.ai/prompt-management/using-the-playground?utm_source=github&utm_medium=referral&utm_campaign=readme))
+- **Custom Workflows**: Build a playground for any custom LLM workflow, such as RAG or agents. Enable all the team to easily iterate on its parameters and evaluate it from the web UI.
+- **LLM evaluation**: Run evaluation suite from the webUI using predefined evaluators like LLM-as-a-judge, RAG evaluators, or custom code evaluators. ([documentation](https://docs.agenta.ai/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme))
+- **Human evaluation**: Collaborate with subject matter experts for human annotation evaluation, including A/B testing and annotating golden test sets.
+- **Prompt Management**: Version your prompts and manage them across different environments ([Documentation](https://docs.agenta.ai/prompt-management/overview?utm_source=github&utm_medium=referral&utm_campaign=readme), [Quick start](https://docs.agenta.ai/prompt-management/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme))
+- **LLM Tracing**: Observe and debug your apps with integrations to most provider and frameworks ([Documentation](https://docs.agenta.ai/observability/overview?utm_source=github&utm_medium=referral&utm_campaign=readme), [Quick start](https://docs.agenta.ai/observability/quickstart?utm_source=github&utm_medium=referral&utm_campaign=readme))
+- **LLM Monitoring**: Track cost and latency and compare different deployments.
 
   
-# Why choose Agenta?
-- Strong focus on enabling collaboration between developers and subject matter experts. Subject matter experts are first class citizens. This means a strong playground for prompt engineering 
-- Strong focus on the prompt engineering workflow: we are working to enable the best playground to iterate quickly on the prompts
-- Strong focus on evaluation: Our evalution workflow is best in class. It comes with many evaluators out of the box and strong comparison views
-- Open-telemetry native Observability SDK: means ...
-
 # Getting Started 
 ## Agenta Cloud:
-The easiest way to get started is through Agenta Cloud. It is free to signup, does not require credit card, and comes with a generous free-tier.
+The easiest way to get started is through Agenta Cloud. It is free to signup, and comes with a generous free-tier.
 
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
@@ -126,53 +119,13 @@ mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
 docker compose -f docker-compose.gh.yml up -d
 ```
-### With Agenta, you can:
-
-- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering?utm_source=github&utm_medium=referral&utm_campaign=readme) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
-- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/evaluation/test_sets?utm_source=github&utm_medium=referral&utm_campaign=readme) for evaluation
-- 📈 [**Evaluate** your application](https://docs.agenta.ai/evaluation/automatic_evaluation?utm_source=github&utm_medium=referral&utm_campaign=readme) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/evaluation/custom_evaluator?utm_source=github&utm_medium=referral&utm_campaign=readme)
-- [🔍 **Annotate** and **A/B test**](https://docs.agenta.ai/evaluation/human_evaluation?utm_source=github&utm_medium=referral&utm_campaign=readme) your applications with **human feedback**
-- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/misc/team_management?utm_source=github&utm_medium=referral&utm_campaign=readme) for prompt engineering and evaluation
-- [🚀 **Deploy your application**](https://docs.agenta.ai/prompt_management/deployment?utm_source=github&utm_medium=referral&utm_campaign=readme) in one-click in the UI, through CLI, or through github workflows.
-
-
-# Quick Start
-
-### [Get started for free](https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme)
-
-### [Explore the Docs](https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme)
-
-### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)
-
-### [Create an application using Langchain](https://docs.agenta.ai/guides/tutorials/first-app-with-langchain?utm_source=github&utm_medium=referral&utm_campaign=readme)
-
-### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally?utm_source=github&utm_medium=referral&utm_campaign=readme)
-
-### [Check the Cookbook](https://docs.agenta.ai/guides/cookbooks/evaluations_with_sdk?utm_source=github&utm_medium=referral&utm_campaign=readme)
-
-# Features
-
-| Playground                                                                                                                                                                                                                         | Evaluation                                                                                                                                                                                                                                   |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Compare and version prompts for any LLM app, from single prompt to agents. <br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8b736d2b-7c61-414c-b534-d95efc69134c" controls="controls" style="max-width:100%;"> | Define test sets, then evaluate manually or programmatically your different variants.<br/> <video src="https://github.com/Agenta-AI/agenta/assets/4510758/8c6997c6-da87-46ad-a81f-e15e277263d2" controls="controls" style="max-width:100%;"> |
-| Human annotation                                                                                                                                                                                                                   | Deployment                                                                                                                                                                                                                                   |
-| Use Human annotator to A/B test and score your LLM apps. <br/> <img width="750" alt="Screenshot 2024-01-28 at 12 57 46" src="https://github.com/Agenta-AI/agenta/assets/4510758/bf62a697-bf19-4ba9-850e-742fbfb75424">             | When you are ready, deploy your LLM applications as APIs in one click.<br/>![](https://github.com/Agenta-AI/agenta/blob/main/docs/images/endpoint.gif)                                                                                       |
-
-# Enterprise Support
-
-Contact us here for enterprise support and early access to agenta self-managed enterprise with Kubernetes support. <br/><br/>
-<a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"><img src="https://cal.com/book-with-cal-dark.svg" alt="Book us"></a>
 
 # Disabling Anonymized Tracking
 
-By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information.
-
-To disable anonymized telemetry, follow these steps:
+By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry, follow these steps:
 
 - For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
 - For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
-
-After making this change, restart Agenta Compose.
 
 
 # Contributing
