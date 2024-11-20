@@ -2,6 +2,8 @@ import {useSession} from "@/hooks/useSession"
 import {PropsWithChildren, createContext, useState, useContext, useEffect, useCallback} from "react"
 import {fetchAllProjects} from "@/services/project"
 import useStateCallback from "@/hooks/useStateCallback"
+import {dynamicContext} from "@/lib/helpers/dynamic"
+import {isDemo} from "@/lib/helpers/utils"
 
 const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
 
@@ -41,8 +43,19 @@ export const getCurrentProject = () => projectContextValues
 
 const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [project, setProject] = useStateCallback<Project | null>(null)
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const [isLoading, setIsLoading] = useState(false)
     const {doesSessionExist} = useSession()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
+
+    const {selectedOrg} = useOrgData()
+
+    const workspaceId: string = selectedOrg?.default_workspace.id || DEFAULT_UUID
 
     const isProjectId = !isLoading && Boolean(project?.project_id)
     const projectId = (project?.project_id as string) || DEFAULT_UUID
@@ -52,7 +65,9 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         try {
             const data = await fetchAllProjects()
 
-            const _project = data[0] // There is only one project in OSS
+            const _project = isDemo()
+                ? data.find((p: {workspace_id: string}) => p.workspace_id === workspaceId)
+                : data[0]
 
             setProject(_project, onSuccess)
         } catch (error) {
@@ -66,7 +81,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         if (doesSessionExist) {
             fetcher()
         }
-    }, [doesSessionExist])
+    }, [doesSessionExist, selectedOrg])
 
     const reset = () => {
         setProject(initialValues.project)
