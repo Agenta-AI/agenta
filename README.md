@@ -145,9 +145,6 @@ To disable anonymized telemetry, follow these steps:
 
 After making this change, restart Agenta Compose.
 
-# ⭐️ Join Our Team
-
-- [Founding Product Engineer Frontend](https://agentaai.notion.site/Founding-Product-Engineer-Frontend-b6d26a3e9b254be6b6c2bfffbf0b53c5)
 
 # Contributing
 
