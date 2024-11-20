@@ -1,18 +1,17 @@
-<div align="center" style="margin: 30px">
-  <a href="https://agenta.ai/">
-    <div  align="center" >
+<p align="center">
+  <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
-        <source width="500" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cdddf5ad-2352-4920-b1d9-ae7f8d9d7735"  >
-        <source width="500" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
+        <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cdddf5ad-2352-4920-b1d9-ae7f8d9d7735"  >
+        <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
         <img alt="Shows the logo of agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253" >
       </picture>
-    </div>
   </a>
-  <h4 align="center">
-    <a href="https://agenta.ai">Home Page</a> |
-    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a> |
-    <a href="https://docs.agenta.ai/">Documentation</a>
-  </h4>
+</p>
+  <p align="center">
+    <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">Documentation</a> |
+    <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">Website</a> |
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a>
+  </p>
 <div align="center">
   <strong> <h2> Collaborate on prompts, evaluate, and deploy LLM applications with confidence </h2></strong>
   The open-source LLM developer platform for prompt-engineering, evaluation, human feedback, and deployment of complex LLM apps.
@@ -20,7 +19,7 @@
 </br>
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license." />
-  <a href="https://docs.agenta.ai/">
+  <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
     <img src="https://img.shields.io/badge/Doc-online-green" alt="Doc">
   </a>
 
@@ -51,7 +50,7 @@
 
 </br>
 
-<a href="https://cloud.agenta.ai">
+<a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
   <picture>
   <img src="https://github.com/Agenta-AI/agenta/assets/4510758/d622f268-c295-42d4-a43c-548b611ff6f2" />
   </picture>
@@ -91,12 +90,12 @@ Agenta allows developers and product teams to collaborate in building production
 
 ### With Agenta, you can:
 
-- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
-- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/evaluation/test_sets) for evaluation
-- 📈 [**Evaluate** your application](https://docs.agenta.ai/evaluation/automatic_evaluation) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/evaluation/custom_evaluator)
-- [🔍 **Annotate** and **A/B test**](https://docs.agenta.ai/evaluation/human_evaluation) your applications with **human feedback**
-- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/misc/team_management) for prompt engineering and evaluation
-- [🚀 **Deploy your application**](https://docs.agenta.ai/prompt_management/deployment) in one-click in the UI, through CLI, or through github workflows.
+- [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering?utm_source=github&utm_medium=referral&utm_campaign=readme) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
+- ✍️ Collect and [**annotate golden test sets**](https://docs.agenta.ai/evaluation/test_sets?utm_source=github&utm_medium=referral&utm_campaign=readme) for evaluation
+- 📈 [**Evaluate** your application](https://docs.agenta.ai/evaluation/automatic_evaluation?utm_source=github&utm_medium=referral&utm_campaign=readme) with pre-existing or [**custom evaluators**](https://docs.agenta.ai/evaluation/custom_evaluator?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- [🔍 **Annotate** and **A/B test**](https://docs.agenta.ai/evaluation/human_evaluation?utm_source=github&utm_medium=referral&utm_campaign=readme) your applications with **human feedback**
+- [🤝 **Collaborate with product teams**](https://docs.agenta.ai/misc/team_management?utm_source=github&utm_medium=referral&utm_campaign=readme) for prompt engineering and evaluation
+- [🚀 **Deploy your application**](https://docs.agenta.ai/prompt_management/deployment?utm_source=github&utm_medium=referral&utm_campaign=readme) in one-click in the UI, through CLI, or through github workflows.
 
 ### Works with any LLM app workflow
 
@@ -110,17 +109,17 @@ It works with any framework such as [Langchain](https://www.langchain.com/), [Ll
 
 # Quick Start
 
-### [Get started for free](https://cloud.agenta.ai?utm_source=github&utm_medium=readme&utm_campaign=github)
+### [Get started for free](https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### [Explore the Docs](https://docs.agenta.ai/)
+### [Explore the Docs](https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/quick-start)
+### [Create your first application in one-minute](https://docs.agenta.ai/getting_started/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### [Create an application using Langchain](https://docs.agenta.ai/guides/tutorials/first-app-with-langchain)
+### [Create an application using Langchain](https://docs.agenta.ai/guides/tutorials/first-app-with-langchain?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally)
+### [Self-host agenta](https://docs.agenta.ai/self-host/host-locally?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
-### [Check the Cookbook](https://docs.agenta.ai/guides/cookbooks/evaluations_with_sdk)
+### [Check the Cookbook](https://docs.agenta.ai/guides/cookbooks/evaluations_with_sdk?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 # Features
 
@@ -156,7 +155,7 @@ We warmly welcome contributions to Agenta. Feel free to submit issues, fork the 
 
 We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
 
-Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started) for more information.
+Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme) for more information.
 
 ## Contributors ✨
 
