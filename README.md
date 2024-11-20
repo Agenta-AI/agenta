@@ -86,12 +86,46 @@
 
 ---
 
-# ⭐️ Why Agenta?
+# What is Agenta?
 
-Agenta is an end-to-end LLM developer platform. It provides the tools for **prompt engineering and management**, ⚖️ **evaluation**, **human annotation**, and :rocket: **deployment**. All without imposing any restrictions on your choice of framework, library, or model.
+Agenta is a LLM developer platform that helps teams quickly build and refine reliable LLM applications.
 
-Agenta allows developers and product teams to collaborate in building production-grade LLM-powered applications in less time.
+Agenta is end-to-end, it provides all the tools around the LLMOps worfklow: From building (**LLM playground**, **automatic and human evaluation**) to deploying (**prompt and configuration management**) up to monitoring (**LLM Observability and tracing**)
 
+# Features
+- Prompt Playground
+- Custom Workflows
+- LLM evaluation
+- Human evaluation
+- Prompt Management
+- LLM Tracing
+- LLM Monitoring
+
+  
+# Why choose Agenta?
+- Strong focus on enabling collaboration between developers and subject matter experts. Subject matter experts are first class citizens. This means a strong playground for prompt engineering 
+- Strong focus on the prompt engineering workflow: we are working to enable the best playground to iterate quickly on the prompts
+- Strong focus on evaluation: Our evalution workflow is best in class. It comes with many evaluators out of the box and strong comparison views
+- Open-telemetry native Observability SDK: means ...
+
+# Getting Started 
+## Agenta Cloud:
+The easiest way to get started is through Agenta Cloud. It is free to signup, does not require credit card, and comes with a generous free-tier.
+
+  <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
+      <picture >
+        <source width="160" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/759422d8-01bc-4503-bf3c-b5871c99359a"  >
+        <source width="160" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/ffa9af5f-0981-4e95-9272-cb35eedb6780"  >
+        <img alt="Get Started with Agenta Cloud" src="https://github.com/user-attachments/assets/ffa9af5f-0981-4e95-9272-cb35eedb6780" >
+      </picture>
+  </a>
+  
+## Self-host:
+```
+mkdir agenta && cd agenta
+curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
+docker compose -f docker-compose.gh.yml up -d
+```
 ### With Agenta, you can:
 
 - [🧪 **Experiment** and **compare** prompts](https://docs.agenta.ai/prompt_management/prompt_engineering?utm_source=github&utm_medium=referral&utm_campaign=readme) on [any LLM workflow](https://docs.agenta.ai/prompt_management/setting_up/custom_applications) (chain-of-prompts, Retrieval Augmented Generation (RAG), LLM agents...)
@@ -101,15 +135,6 @@ Agenta allows developers and product teams to collaborate in building production
 - [🤝 **Collaborate with product teams**](https://docs.agenta.ai/misc/team_management?utm_source=github&utm_medium=referral&utm_campaign=readme) for prompt engineering and evaluation
 - [🚀 **Deploy your application**](https://docs.agenta.ai/prompt_management/deployment?utm_source=github&utm_medium=referral&utm_campaign=readme) in one-click in the UI, through CLI, or through github workflows.
 
-### Works with any LLM app workflow
-
-Agenta enables prompt engineering and evaluation on any LLM app architecture:
-
-- Chain of prompts
-- RAG
-- Agents
-
-It works with any framework such as [Langchain](https://www.langchain.com/), [LlamaIndex](https://www.llamaindex.ai/) and any LLM provider (openAI, Cohere, Mistral).
 
 # Quick Start
 
