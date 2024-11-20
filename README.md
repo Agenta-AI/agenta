@@ -13,7 +13,7 @@
     <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a>
   </p>
 <div align="center">
-  <strong> <h2> The Open-source LLMOps Platform </h2></strong>
+  <strong> <h2> The Open source LLMOps Platform </h2></strong>
   Prompt playground, prompt management, evaluation, and observability
 </div>
 </br>
