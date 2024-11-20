@@ -1,4 +1,6 @@
+from typing import List, Tuple, Optional
 from json import dumps, loads
+from datetime import datetime
 
 from agenta_backend.core.shared.dtos import LifecycleDTO
 from agenta_backend.core.observability.dtos import (
@@ -11,6 +13,8 @@ from agenta_backend.core.observability.dtos import (
     ExceptionDTO,
     OTelExtraDTO,
     SpanDTO,
+    MetricsDTO,
+    BucketDTO,
 )
 
 from agenta_backend.dbs.postgres.observability.dbes import NodesDBE
@@ -125,3 +129,56 @@ def map_span_dto_to_dbe(
     )
 
     return span_dbe
+
+
+def map_bucket_dbes_to_dtos(
+    total_bucket_dbes: List[NodesDBE],
+    error_bucket_dbes: List[NodesDBE],
+    window: int,
+    timestamps: Optional[List[datetime]] = None,
+) -> Tuple[List[BucketDTO], int]:
+    total_metrics = {
+        bucket.timestamp: MetricsDTO(
+            count=bucket.count,
+            duration=bucket.duration,
+            cost=bucket.cost,
+            tokens=bucket.tokens,
+        )
+        for bucket in total_bucket_dbes
+    }
+
+    error_metrics = {
+        bucket.timestamp: MetricsDTO(
+            count=bucket.count,
+            duration=bucket.duration,
+            cost=bucket.cost,
+            tokens=bucket.tokens,
+        )
+        for bucket in error_bucket_dbes
+    }
+
+    total_timestamps = timestamps
+    if not total_timestamps:
+        total_timestamps = list(
+            set(list(total_metrics.keys()) + list(error_metrics.keys()))
+        )
+        total_timestamps.sort()
+
+    _total_timestamps = list(
+        set(list(total_metrics.keys()) + list(error_metrics.keys()))
+    )
+    _total_timestamps.sort()
+
+    bucket_dtos = [
+        BucketDTO(
+            timestamp=timestamp,
+            window=window,
+            total=total_metrics.get(timestamp, MetricsDTO()),
+            error=error_metrics.get(timestamp, MetricsDTO()),
+        )
+        for timestamp in total_timestamps
+    ]
+
+    count = len(bucket_dtos)
+
+    return bucket_dtos, count
