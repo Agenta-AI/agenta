@@ -101,7 +101,7 @@ def main(notebook_filename=None, force_overwrite=False):
         if os.path.exists(f"../cookbook/{notebook_filename}"):
             export_notebook(
                 f"../cookbook/{notebook_filename}",
-                f"./docs/guides/cookbooks/{notebook_filename.replace('.ipynb', '.mdx')}",
+                f"./docs/tutorials/cookbooks/{notebook_filename.replace('.ipynb', '.mdx')}",
                 force_overwrite,
             )
         else:

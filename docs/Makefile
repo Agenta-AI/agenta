@@ -1,3 +1,3 @@
 generate_cookbook_docs:
-	mkdir -p ./docs/guides/cookbooks
+	mkdir -p ./docs/tutorials/cookbooks
 	python3 scripts/generate_cookbooks.py $(file)
