@@ -3,18 +3,23 @@ title: "config.register_default()"
 description: "Register the default configuration for your application"
 ---
 
+:::warning
+This page is for the deprecated SDK v2.
+:::
+
 ```python
 agenta.config.register_default(**kwargs)
 #alias
 agenta.config.default(**kwargs)
 ```
-```
 
-Set the default configuration for your variant. For instance if you set 
+````
+
+Set the default configuration for your variant. For instance if you set
 
 ```python
 agenta.config.register_default(prompt = ag.TextParam("Hello world"))
-```
+````
 
 This will set the default value of the prompt to "Hello World". This means that the default configuration (the configuration in the variant variant_name.default) will have the value "Hello World".
 
@@ -33,7 +38,7 @@ Using this configuration will result in:
 2. An API endpoint /generate wich takes the parameters prompt1, prompt2 and temperature as input
 
 You can later use the last parameters from the configuration (from the backend) the following way:
-    
+
 ```python
 agenta.config.prompt1
 ```
