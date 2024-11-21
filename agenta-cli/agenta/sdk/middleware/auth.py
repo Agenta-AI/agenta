@@ -21,6 +21,12 @@ AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
     15 * 60,  # 15 minutes
 )
 
+AGENTA_SDK_AUTH_CACHE = str(environ.get("AGENTA_SDK_AUTH_CACHE", True)).lower() in (
+    "true",
+    "1",
+    "t",
+)
+
 AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = str(
     environ.get("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", False)
 ).lower() in ("true", "1", "t")
@@ -89,9 +95,11 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 sort_keys=True,
             )
 
-            cached_policy = cache.get(_hash)
+            policy = None
+            if AGENTA_SDK_AUTH_CACHE:
+                policy = cache.get(_hash)
 
-            if not cached_policy:
+            if not policy:
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
                         f"{self.host}/api/permissions/verify",
@@ -110,19 +118,17 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                         cache.put(_hash, {"effect": "deny"})
                         return Deny()
 
-                    cached_policy = {
+                    policy = {
                         "effect": "allow",
                         "credentials": auth.get("credentials"),
                     }
 
-                    cache.put(_hash, cached_policy)
+                    cache.put(_hash, policy)
 
-            if cached_policy.get("effect") == "deny":
+            if policy.get("effect") == "deny":
                 return Deny()
 
-            request.state.credentials = cached_policy.get("credentials")
-
-            print(f"credentials: {request.state.credentials}")
+            request.state.credentials = policy.get("credentials")
 
             return await call_next(request)
 
