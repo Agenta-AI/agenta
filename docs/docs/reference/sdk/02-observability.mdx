@@ -1,0 +1,325 @@
+---
+title: Observability SDK
+description: This document provides a detailed reference for the Agenta Observability SDK, which allows you to instrument your application's workflows for monitoring and debugging purposes.
+---
+
+## Tracing Class
+
+The `Tracing` class provides methods for interacting with the current span in a trace. It allows you to store additional data such as internals, references, metadata, and metrics.
+
+### `get_current_span`
+
+`get_current_span()`
+
+Returns the current active span.
+
+```python
+current_span = ag.tracing.get_current_span()
+```
+
+- **Returns:** `CustomSpan` instance representing the current span.
+- **Behavior:** If a span is active and recording, it returns a `CustomSpan` object; otherwise, it returns `None`.
+
+### `store_internals`
+
+`store_internals(attributes, span=None)`
+
+Stores internal data within the current span.
+
+```python
+ag.tracing.store_internals(attributes, span=None)
+```
+
+- **Parameters:**
+  - `attributes` (Dict[str, Any]): Dictionary of internal data to store.
+  - `span` (Optional[Span]): Specific span to store the data in; defaults to the current span.
+- **Behavior:** Adds the provided attributes under the `"internals"` namespace within the span's data. Internals are shown as a collapsible section in the overview section of the tracing drawer.
+
+### `store_refs`
+
+`store_refs(refs, span=None)`
+
+Stores references to Agenta resources in the current span.
+
+```python
+ag.tracing.store_refs(refs, span=None)
+```
+
+- **Parameters:**
+  - `refs` (Dict[str, str]): Dictionary of reference keys and their corresponding values.
+  - `span` (Optional[Span]): Specific span to store the references in; defaults to the current span.
+- **Behavior:** Sets reference attributes in the span and updates the tracer's reference context.
+
+- **Valid Reference Keys:**
+  - `"application.id"`
+  - `"application.slug"`
+  - `"application.version"`
+  - `"variant.id"`
+  - `"variant.slug"`
+  - `"variant.version"`
+  - `"environment.id"`
+  - `"environment.slug"`
+  - `"environment.version"`
+
+### `store_meta`
+
+`store_meta(meta, span=None)`
+
+Stores metadata in the current span.
+
+```python
+ag.tracing.store_meta(meta, span=None)
+```
+
+- **Parameters:**
+  - `meta` (Dict[str, Any]): Dictionary of metadata to store.
+  - `span` (Optional[Span]): Specific span to store the metadata in; defaults to the current span.
+- **Behavior:** Adds the provided metadata under the `"meta"` namespace within the span's attributes.
+
+### `store_metrics`
+
+`store_metrics(metrics, span=None)`
+
+Stores custom metrics in the current span.
+
+```python
+ag.tracing.store_metrics(metrics, span=None)
+```
+
+- **Parameters:**
+  - `metrics` (Dict[str, Any]): Dictionary of metrics to store.
+  - `span` (Optional[Span]): Specific span to store the metrics in; defaults to the current span.
+- **Behavior:** Adds the provided metrics under the `"metrics"` namespace within the span's attributes.
+
+## CustomSpan Class
+
+The `CustomSpan` class extends the functionality of the standard `Span` class in the OpenTelemetry SDK, providing additional methods for setting attributes and recording events.
+
+### `set_status`
+
+`set_status(status, description=None)`
+
+Sets the status of the span.
+
+```python
+span.set_status(status, description=None)
+```
+
+- **Parameters:**
+  - `status` (Union[Status, StatusCode]): Status code or `Status` object.
+  - `description` (Optional[str]): Description of the status.
+- **Behavior:** Updates the span's status with the provided code and description.
+
+### `set_attributes`
+
+`set_attributes(attributes, namespace=None, max_depth=None)`
+
+Sets multiple attributes on the span.
+
+```python
+span.set_attributes(attributes, namespace=None, max_depth=None)
+```
+
+- **Parameters:**
+  - `attributes` (Dict[str, Any]): Dictionary of attributes to set.
+  - `namespace` (Optional[str]): Namespace for the attributes.
+  - `max_depth` (Optional[int]): Maximum depth for nested attributes.
+- **Behavior:** Adds serialized attributes to the span, optionally under a namespace.
+
+### `set_attribute`
+
+`set_attribute(key, value, namespace=None)`
+
+Sets a single attribute on the span.
+
+```python
+span.set_attribute(key, value, namespace=None)
+```
+
+- **Parameters:**
+  - `key` (str): Attribute key.
+  - `value` (Any): Attribute value.
+  - `namespace` (Optional[str]): Namespace for the attribute.
+- **Behavior:** Adds the attribute to the span, optionally under a namespace.
+
+### `add_event`
+
+`add_event(name, attributes=None, timestamp=None, namespace=None)`
+
+Adds an event to the span.
+
+```python
+span.add_event(name, attributes=None, timestamp=None, namespace=None)
+```
+
+- **Parameters:**
+  - `name` (str): Event name.
+  - `attributes` (Optional[Dict[str, Any]]): Event attributes.
+  - `timestamp` (Optional[int]): Event timestamp.
+  - `namespace` (Optional[str]): Namespace for the attributes.
+- **Behavior:** Records an event with the specified name and attributes.
+
+### `add_link`
+
+`add_link(context, attributes=None, namespace=None)`
+
+Adds a link to another span context.
+
+```python
+span.add_link(context, attributes=None, namespace=None)
+```
+
+- **Parameters:**
+  - `context` (SpanContext): The span context to link to.
+  - `attributes` (Optional[Dict[str, Any]]): Link attributes.
+  - `namespace` (Optional[str]): Namespace for the attributes.
+- **Behavior:** Creates a link to another span, useful for associating related traces.
+
+### `record_exception`
+
+`record_exception(exception, attributes=None, timestamp=None, escaped=False, namespace=None)`
+
+Records an exception in the span.
+
+```python
+span.record_exception(exception, attributes=None, timestamp=None, escaped=False, namespace=None)
+```
+
+- **Parameters:**
+  - `exception` (BaseException): The exception to record.
+  - `attributes` (Optional[Dict[str, Any]]): Exception attributes.
+  - `timestamp` (Optional[int]): Timestamp of the exception.
+  - `escaped` (bool): Whether the exception escaped.
+  - `namespace` (Optional[str]): Namespace for the attributes.
+- **Behavior:** Captures exception details in the span for error tracking.
+
+## Reference Enum
+
+The `Reference` enumeration defines valid keys for referencing Agenta resources in spans.
+
+```python
+from enum import Enum
+
+class Reference(str, Enum):
+    VARIANT_ID = "variant.id"
+    VARIANT_SLUG = "variant.slug"
+    VARIANT_VERSION = "variant.version"
+    ENVIRONMENT_ID = "environment.id"
+    ENVIRONMENT_SLUG = "environment.slug"
+    ENVIRONMENT_VERSION = "environment.version"
+    APPLICATION_ID = "application.id"
+    APPLICATION_SLUG = "application.slug"
+```
+
+- **Usage:** Use these keys with `ag.tracing.store_refs()` to link spans to specific resources.
+
+## Utility Functions
+
+### `is_valid_attribute_key`
+
+`is_valid_attribute_key(string)`
+
+Validates whether a string is a valid attribute key.
+
+```python
+from agenta.tracing.utils import is_valid_attribute_key
+
+is_valid = is_valid_attribute_key("attribute_key")
+```
+
+- **Parameters:**
+  - `string` (str): The attribute key to validate.
+- **Returns:** `True` if valid; `False` otherwise.
+- **Behavior:** Checks if the string matches the pattern `[A-Za-z0-9._-]+`.
+
+### `parse_span_kind`
+
+`parse_span_kind(type)`
+
+Parses a string to determine the corresponding `SpanKind`.
+
+```python
+from agenta.tracing.utils import parse_span_kind
+
+span_kind = parse_span_kind("client")
+```
+
+- **Parameters:**
+  - `type` (str): The span kind as a string.
+- **Returns:** `SpanKind` corresponding to the input string.
+- **Valid Inputs:**
+  - `"agent"`, `"chain"`, `"workflow"`: Returns `SpanKind.SERVER`.
+  - `"tool"`, `"embedding"`, `"query"`, `"completion"`, `"chat"`, `"rerank"`: Returns `SpanKind.CLIENT`.
+  - Others: Returns `SpanKind.INTERNAL`.
+
+## Notes
+
+- **Decorator Usage:** The `@ag.instrument()` decorator should be applied directly above the function definition to ensure proper instrumentation.
+- **Span Context:** The `ag.tracing` methods operate on the current span within the execution context.
+- **Error Handling:** The methods are designed to suppress exceptions silently to avoid disrupting the application's flow.
+- **Namespace Usage:** Namespaces in attributes help organize data within spans, preventing key collisions.
+
+## Example Usage
+
+### Instrumenting a Function
+
+```python
+import agenta as ag
+
+@ag.instrument(spankind="workflow")
+def process_data(input_data):
+    # Function implementation
+    result = compute_result(input_data)
+    return result
+```
+
+### Storing Metadata and Internals
+
+```python
+@ag.instrument()
+def compute_result(data):
+    ag.tracing.store_meta({"data_size": len(data)})
+    intermediate = data_processing_step(data)
+    ag.tracing.store_internals({"intermediate_result": intermediate})
+    final_result = finalize(intermediate)
+    return final_result
+```
+
+### Linking to Agenta Resources
+
+```python
+@ag.instrument()
+def execute_task():
+    ag.tracing.store_refs({
+        Reference.APPLICATION_SLUG.value: "my-app",
+        Reference.VARIANT_SLUG.value: "v1",
+        Reference.ENVIRONMENT_SLUG.value: "production",
+    })
+    # Function implementation
+```
+
+### Recording Metrics
+
+```python
+import time
+
+@ag.instrument()
+def perform_operation():
+    start_time = time.time()
+    # Operation logic
+    end_time = time.time()
+    ag.tracing.store_metrics({"execution_time_ms": (end_time - start_time) * 1000})
+```
+
+### Handling Exceptions
+
+```python
+@ag.instrument()
+def risky_function():
+    try:
+        # Risky operation
+        pass
+    except Exception as e:
+        ag.tracing.get_current_span().record_exception(e)
+        raise
+```
