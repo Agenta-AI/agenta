@@ -1,0 +1,244 @@
+---
+title: "Configuration Management"
+description: "Reference to the configuration and prompt management SDK in Agenta"
+---
+
+## Overview
+
+The Configuration Management SDK allows you to manage and version control configurations for your applications. You can create, commit, deploy, and fetch configurations using the SDK. This documentation provides a reference for the various methods available in the SDK.
+
+## Setup
+
+Before using the SDK, you need to initialize it using the ag.init() method.
+
+```python
+import os
+import agenta as ag
+
+# Set your API key (only needed for OSS version)
+os.environ["AGENTA_API_KEY"] = "your-api-key"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # Default value
+# Initialize the SDK
+
+ag.init()
+```
+
+## Defining a Custom Configuration Schema
+
+Define your own configuration schema using Pydantic models:
+
+```python
+from pydantic import BaseModel
+
+class MyConfig(BaseModel):
+    temperature: float = Field(default=0.7)
+    model: str = Field(default="gpt-3.5-turbo")
+    max_tokens: int = Field(default=150)
+    custom_setting: bool = Field(default=True)
+```
+
+## The Prompt Schema
+
+Agenta comes with a built-in `Prompt` for prompts with the following schema:
+
+```python
+class Prompt(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+    prompt_system: str
+    prompt_user: str
+    top_p: float
+    frequency_penalty: float
+    presence_penalty: float
+
+```
+
+## Creating a New Variant
+
+Create a new variant with your custom configuration:
+
+```python
+my_config = MyConfig(
+    temperature=0.7,
+    model="gpt-3.5-turbo",
+    max_tokens=150,
+    custom_setting=True
+)
+
+# Create a new variant
+variant = ag.VariantManager.create(
+    parameters=my_config.dict(),
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug"
+)
+
+print("Created variant:")
+print(variant)
+```
+
+**Parameters:**
+
+- `app_slug`: Slug of your application.
+- `variant_slug`: Slug for the new variant.
+- `parameters`: Dictionary of your configuration parameters.
+
+**Note:** If a variant with the same `slug` exists, an exception will be raised.
+
+## Committing Changes
+
+Commit changes to an existing variant:
+
+```python
+updated_config = MyConfig(
+    temperature=1.0,
+    model="gpt-4",
+    max_tokens=200,
+    custom_setting=False
+)
+
+# Commit changes to the variant
+variant = ag.VariantManager.commit(
+    parameters=updated_config.dict(),
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug"
+)
+
+print("Committed new version of variant:")
+print(variant)
+```
+
+**Note:** Each commit creates a new, immutable version of the variant.
+
+## Deploying to an Environment
+
+Deploy a variant to a specified environment:
+
+```python
+# Deploy to the staging environment
+deployment = ag.DeploymentManager.deploy(
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug",
+    environment_slug="staging"
+)
+
+print("Deployed variant to environment:")
+print(deployment)
+```
+
+**Parameters:**
+
+- `app_slug`: Slug of your application.
+- `variant_slug`: Slug of the variant to deploy.
+- `environment_slug`: Target environment (`development`, `staging`, or `production`).
+- `variant_version`: (Optional) Specific version to deploy; defaults to the latest.
+
+**Warnings:**
+
+- Deploying without specifying `variant_version` uses the latest version.
+- Only predefined environments are supported.
+
+## Fetching Configurations
+
+Fetch configurations from a variant or environment:
+
+### Default Behavior
+
+By default, fetches the latest configuration from the `production` environment:
+
+```python
+config = ag.ConfigManager.get_from_registry(
+    app_slug="your-app-slug"
+)
+
+print("Fetched configuration from production:")
+print(config)
+```
+
+### Fetching by Variant Reference
+
+```python
+config = ag.ConfigManager.get_from_registry(
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug",
+    variant_version=2  # Optional
+)
+
+print("Fetched configuration:")
+print(config)
+```
+
+### Fetching by Environment Reference
+
+```python
+config = ag.ConfigManager.get_from_registry(
+    app_slug="your-app-slug",
+    environment_slug="staging"
+)
+
+print("Fetched configuration from staging:")
+print(config)
+```
+
+## Deleting a Variant
+
+Delete a variant and all its versions:
+
+```python
+ag.VariantManager.delete(
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug"
+)
+
+print("Variant deleted successfully.")
+```
+
+**Warnings:**
+
+- Deleting a variant is irreversible.
+- Cannot delete a variant that is currently deployed.
+
+## Listing All Variants
+
+List all variants of an application:
+
+```python
+variants = ag.VariantManager.list(
+    app_slug="your-app-slug"
+)
+
+print("List of variants:")
+for variant in variants:
+    print(variant)
+```
+
+## Fetching a Variant's History
+
+Retrieve the commit history of a variant:
+
+```python
+versions = ag.VariantManager.history(
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug"
+)
+
+print("Variant history:")
+for version in versions:
+    print(version)
+```
+
+## Asynchronous Operations
+
+Async versions of methods are available by prefixing the method name with `a`:
+
+```python
+# Asynchronous fetching of configuration
+config = await ag.ConfigManager.aget_from_registry(
+    app_slug="your-app-slug",
+    variant_slug="your-variant-slug",
+    variant_version=2
+)
+
+print("Fetched configuration asynchronously:")
+print(config)
+```
