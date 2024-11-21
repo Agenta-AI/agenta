@@ -45,12 +45,13 @@ AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", False)).lower() in (
 )
 
 app = FastAPI()
+log.setLevel("DEBUG")
+
 
 if AGENTA_USE_CORS:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["Authorization"],
     )
@@ -61,7 +62,6 @@ _MIDDLEWARES = True
 app.include_router(router, prefix="")
 
 
-log.setLevel("DEBUG")
 
 
 class PathValidator(BaseModel):
