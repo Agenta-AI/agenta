@@ -151,15 +151,18 @@ async def validate_image(image: Image) -> bool:
     return True
 
 
-def get_deployment_uri(uri: str) -> str:
+def get_deployment_uri(deployment: DeploymentDB) -> str:
     """
-    Replaces localhost with the appropriate hostname in the given URI.
+    Builds a URI allowing the backend to access a given deployment.
+    In the case of a self-hosted setup, we bypass traefik and use the docker generated dns entry instead.
 
     Args:
-        uri (str): The URI to be processed.
+        deployment (DeploymentDB): The deployment to reach.
 
     Returns:
-        str: The processed URI.
+        str: URI leading to the deployment.
     """
-
-    return uri.replace("http://localhost", "http://host.docker.internal")
+    if "localhost" in deployment.uri:
+        # the DNS entry automatically created by docker for the container are the first 12 characters of the container's id
+        return "http://" + deployment.container_id[:12]
+    return deployment.uri
