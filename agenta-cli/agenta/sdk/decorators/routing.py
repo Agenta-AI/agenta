@@ -14,9 +14,10 @@ from os import environ
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
+from agenta.sdk.middleware.auth import AuthorizationMiddleware
 from agenta.sdk.context.routing import routing_context_manager, routing_context
 from agenta.sdk.context.tracing import tracing_context
-from agenta.sdk.router import router as router
+from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
@@ -49,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_MIDDLEWARES = True
+
 
 app.include_router(router, prefix="")
 
@@ -121,6 +125,26 @@ class entrypoint:
         route_path="",
         config_schema: Optional[BaseModel] = None,
     ):
+        ### --- Update Middleware --- #
+        try:
+            global _MIDDLEWARES  # pylint: disable=global-statement
+
+            if _MIDDLEWARES:
+                app.add_middleware(
+                    AuthorizationMiddleware,
+                    host=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host,
+                    resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
+                    resource_type="application",
+                )
+
+                _MIDDLEWARES = False
+
+        except:  # pylint: disable=bare-except
+            log.error("------------------------------------")
+            log.error("Agenta SDK - failed to secure route: %s", route_path)
+            log.error("------------------------------------")
+        ### --- Update Middleware --- #
+
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -330,9 +354,9 @@ class entrypoint:
         *args,
         **func_params,
     ):
-        log.info(f"---------------------------")
+        log.info("---------------------------")
         log.info(f"Agenta SDK - running route: {repr(self.route_path or '/')}")
-        log.info(f"---------------------------")
+        log.info("---------------------------")
 
         tracing_context.set(routing_context.get())
 
