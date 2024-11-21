@@ -140,9 +140,7 @@ class entrypoint:
                 _MIDDLEWARES = False
 
         except:  # pylint: disable=bare-except
-            log.error("------------------------------------")
-            log.error("Agenta SDK - failed to secure route: %s", route_path)
-            log.error("------------------------------------")
+            log.warning("Agenta SDK - failed to secure route: %s", route_path)
         ### --- Update Middleware --- #
 
         DEFAULT_PATH = "generate"
@@ -354,9 +352,7 @@ class entrypoint:
         *args,
         **func_params,
     ):
-        log.info("---------------------------")
-        log.info(f"Agenta SDK - running route: {repr(self.route_path or '/')}")
-        log.info("---------------------------")
+        log.info("Agenta SDK - handling route: %s", repr(self.route_path or "/"))
 
         tracing_context.set(routing_context.get())
 
@@ -382,27 +378,19 @@ class entrypoint:
             if inline_trace:
                 trace = await self.fetch_inline_trace(inline_trace)
 
-        log.info(f"----------------------------------")
-        log.info(f"Agenta SDK - exiting with success: 200")
-        log.info(f"----------------------------------")
-
         return BaseResponse(data=data, trace=trace)
 
     def handle_failure(self, error: Exception):
-        log.error("--------------------------------------------------")
-        log.error("Agenta SDK - handling application exception below:")
-        log.error("--------------------------------------------------")
-        log.error(format_exc().strip("\n"))
-        log.error("--------------------------------------------------")
+        log.warning("--------------------------------------------------")
+        log.warning("Agenta SDK - handling application exception below:")
+        log.warning("--------------------------------------------------")
+        log.warning(format_exc().strip("\n"))
+        log.warning("--------------------------------------------------")
 
         status_code = error.status_code if hasattr(error, "status_code") else 500
         message = str(error)
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
-
-        log.error(f"----------------------------------")
-        log.error(f"Agenta SDK - exiting with failure: {status_code}")
-        log.error(f"----------------------------------")
 
         raise HTTPException(status_code=status_code, detail=detail)
 
@@ -680,44 +668,14 @@ class entrypoint:
 
         loop = get_event_loop()
 
-        with routing_context_manager(
-            config=args_config_params,
-            environment="terminal",
-        ):
-            result = loop.run_until_complete(
+        with routing_context_manager(config=args_config_params):
+            loop.run_until_complete(
                 self.execute_function(
                     func,
                     True,  # inline trace: True
                     **{"params": args_func_params, "config_params": args_config_params},
                 )
             )
-
-        SHOW_DETAILS = True
-        SHOW_DATA = False
-        SHOW_TRACE = False
-
-        if result.trace:
-            log.info("\n========= Result =========\n")
-
-            log.info(f"trace_id: {result.trace['trace_id']}")
-            if SHOW_DETAILS:
-                log.info(f"latency:  {result.trace.get('latency')}")
-                log.info(f"cost:     {result.trace.get('cost')}")
-                log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
-
-            if SHOW_DATA:
-                log.info(" ")
-                log.info(f"data:")
-                log.info(dumps(result.data, indent=2))
-
-            if SHOW_TRACE:
-                log.info(" ")
-                log.info(f"trace:")
-                log.info(f"----------------")
-                log.info(dumps(result.trace.get("spans", []), indent=2))
-                log.info(f"----------------")
-
-            log.info("\n==========================\n")
 
     def override_config_in_schema(
         self,
