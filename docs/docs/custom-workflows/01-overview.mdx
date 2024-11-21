@@ -3,10 +3,16 @@ title: "Overview"
 description: "Learn about custom workflows with Agenta"
 ---
 
-<img
-  src="/images/custom-workflows/custom-workflow-illustration.png"
+```mdx-code-block
+import Image from "@theme/IdealImage";
+
+```
+
+<Image
+  style={{ display: "block", margin: "10 auto", marginBottom: "20px" }}
+  img={require("/images/custom-workflows/custom-workflow-illustration.png")}
   alt="Custom Workflows Overview"
-  width="100%"
+  loading="lazy"
 />
 
 Custom workflows let you build a playground for any custom LLM workflow, such as RAG or agents. This playground replicates the logic of your real application, enabling subject matter experts to easily iterate on its parameters and evaluate it end-to-end from the web UI
