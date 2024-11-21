@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Callable
 from enum import Enum
 
 from httpx import get as check
@@ -32,6 +32,8 @@ class Tracing(metaclass=Singleton):
     def __init__(
         self,
         url: str,
+        redact: Optional[Callable[..., Any]] = None,
+        redact_on_error: Optional[bool] = True,
     ) -> None:
         # ENDPOINT (OTLP)
         self.otlp_url = url
@@ -48,6 +50,10 @@ class Tracing(metaclass=Singleton):
         self.tracer: Optional[Tracer] = None
         # INLINE SPANS for INLINE TRACES (INLINE PROCESSOR)
         self.inline_spans: Dict[str, Any] = dict()
+
+        # REDACT
+        self.redact = redact
+        self.redact_on_error = redact_on_error
 
     # PUBLIC
 
