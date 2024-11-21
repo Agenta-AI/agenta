@@ -127,10 +127,10 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         except:  # pylint: disable=bare-except
-            log.error("------------------------------------------------------")
-            log.error("Agenta SDK - handling auth middleware exception below:")
-            log.error("------------------------------------------------------")
-            log.error(format_exc().strip("\n"))
-            log.error("------------------------------------------------------")
+            log.warning("------------------------------------------------------")
+            log.warning("Agenta SDK - handling auth middleware exception below:")
+            log.warning("------------------------------------------------------")
+            log.warning(format_exc().strip("\n"))
+            log.warning("------------------------------------------------------")
 
             return Deny()

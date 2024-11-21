@@ -91,9 +91,7 @@ class TraceProcessor(BatchSpanProcessor):
         ret = super().force_flush(timeout_millis)
 
         if not ret:
-            log.error("--------------------------------------------")
-            log.error("Agenta SDK - skipping export due to timeout.")
-            log.error("--------------------------------------------")
+            log.warning("Agenta SDK - skipping export due to timeout.")
 
     def is_ready(
         self,
