@@ -1,41 +1,27 @@
 ---
 title: "Quick Start"
-description: "Learn how to use your custom application with Agenta"
+description: "How to build a workflow with a chain of prompts using Agenta"
 ---
 
-This guide will show you how to create a custom workflow that consists of a chain of two prompts, add it to Agenta, and then run evaluations on it.
+In this tutorial, you'll learn how to create a custom workflow with two prompts. By the end, you'll have a playground where you can edit and run the chain of prompts and evaluate the overall output.
 
-## How to create a custom application in Agenta?
+:::tip
+You can find the complete code for this tutorial [here](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/chain_of_prompts/).
+:::
 
-To add your custom application in Agenta, you need to write the application code, then add the application to Agenta using the CLI.
+## Custom workflows in Agenta
 
-The [Agenta SDK](/reference/sdk/quick_start) takes care of specifying the configuration of your application (prompts, model parameters, chunk size, etc.) and integrates it with Agenta. The [Agenta CLI](/reference/cli/quick-usage) takes care of building the application image, deploying it, and exposing it to Agenta.
+Custom workflows are Python programs you can add to Agenta. Once added, you can use Agenta's playground to interact with them, run evaluations, deploy them, and monitor their performance, all through the Agenta webUI.
+
+You can create custom workflows by writing Python code and deploying them using the Agenta Command Line Interface (CLI).
 
 ## 1. Writing the application
 
-We are creating a chain of prompt application. Let's first write the simple code without making use of Agenta. The application will take a blog post, the first prompt will summarize it, and the second prompt will write a tweet based on the summary.
-
-```python chain-of-prompt before adding agenta
-from openai import OpenAI
-client = OpenAI()
-prompt1 = "Summarize the following blog post: {blog_post}"
-prompt2 = "Write a tweet based on this: {output_1}"
-
-def generate(blog_post: str):
-    formatted_prompt1 = prompt1.format(blog_post=blog_post)
-    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt1}])
-    output_1 = completion.choices[0].message.content
-    formatted_prompt2 = prompt2.format(output_1=output_1)
-    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt2}])
-    return completion.choices[0].message.content
-```
-
-## 2. Adding Agenta
-
-Now, let's add the necessary lines to make this application usable in Agenta. We will go through it step by step.
+We are creating a chain of prompt application. The application will take a blog post, the first prompt will summarize it, and the second prompt will write a tweet based on the summary. The highlighted lines are the ones related to Agenta.
 
 ```python
 from openai import OpenAI
+from pydantic import BaseModel, Field
 # highlight-start
 import agenta as ag
 
@@ -47,7 +33,7 @@ prompt1 = "Summarize the following blog post: {blog_post}"
 prompt2 = "Write a tweet based on this: {output_1}"
 
 # highlight-start
-class CoPConfig(BaseName):
+class CoPConfig(BaseModel):
     prompt1: str = Field(default=prompt1)
     prompt2: str = Field(default=prompt2)
 # highlight-end
@@ -65,79 +51,109 @@ def generate(blog_post: str):
     return completion.choices[0].message.content
 ```
 
-### 1. Define workflow configuration
+Let's take a look at the different parts of the code:
 
-In this example, we have two prompts in the workflow, and these will be part of the configuration.
-To define a configuration, we create a Pydantic object with two prompts (for simplicity, the model, temperature, top-k, etc. are fixed).
+### Initialization
 
 ```python
-class CoPConfig(BaseName):
+import agenta as ag
+
+ag.init()
+```
+
+Here, we initialize the Agenta SDK. `ag.init()` takes the environment variables `AGENTA_API_KEY` and `AGENTA_HOST` as arguments, which Agenta provides automatically when serving the application.
+
+### Workflow configuration
+
+```python
+class CoPConfig(BaseModel):
     prompt1: str = Field(default=prompt1)
     prompt2: str = Field(default=prompt2)
 ```
 
-### 2. Specify the entry points
+Each workflow has a configuration, which you can iterate on in the playground and version. In this case, the configuration includes the two prompts.
 
-We use Agenta decorators to expose the entry point functions to Agenta. Adding entry points will create endpoints that Agenta can use to communicate with the code.
+Configurations are defined using [Pydantic](https://docs.pydantic.dev/) models. Each field in the model requires a default value. String fields are shown as text areas in the playground. You can also add other field types, such as integers, floats and booleans (which are shown in the playground as sliders and checkboxes).
+
+:::note
+For simplicity, we're using a simple Pydantic model with two prompts. In practice, you can use a more complex model that includes other parameters (model, temperature, top-k, etc.).
+:::
+
+### Specifying entry points
 
 ```python
-@ag.route("/")
+@ag.route("/", config_schema=CoPConfig)
 def generate(blog_post: str):
 ```
 
-### 3. Use the configuration from the endpoint
+Agenta uses the concept of entry points. Entry points are the functions Agenta uses to communicate with the code. Agenta creates an HTTP API for each entry point, which the playground and evaluation use to communicate with the code.
 
-Finally, we modify the function to use the configuration provided by the endpoint.
+The `schema` argument to the `@ag.route` decorator specifies the configuration the entry point expects. In this case, it expects a configuration with two prompts.
+
+### Using the configuration in the code
 
 ```python
-@ag.route("/", schema=CoPConfig)
-def generate(blog_post: str):
-    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+config = ag.ConfigManager.get_from_route(schema=CoPConfig)
 ```
 
-## Setting up the folder structure
+Finally, we modify the function to use the configuration provided by the endpoint. `ag.ConfigManager.get_from_route(schema=CoPConfig)` returns the configuration passed to the endpoint, which is provided by the playground or an evaluation.
 
-Before serving the application in Agenta using the CLI, we need to add the application's requirements to the `requirements.txt` file.
+## 2. Deploying the Application
+
+### Setting up the folder structure
+
+Before serving the application in Agenta using the CLI, set up the folder structure.
+
+Create a `requirement.txt` file containing all the requirements. In this case, we need to add the Agenta and OpenAI SDKs.
 
 ```python requirements.txt
 agenta
 openai
 ```
 
-Additionally, we need to add a `.env` file with any required environment variables. In this case, we need to add the OpenAI API key.
+Add a `.env` file with any required environment variables. In this case, add the OpenAI API key.
+
+:::info
+We don't need to set the `AGENTA_API_KEY` environment variable since it's provided by Agenta automatically when serving the application.
+:::
+:::info
+We don't need to explicitly load the environment variables from the `.env` file. The Agenta SDK automatically loads the contents of the `.env` file.
+:::
 
 ```bash .env
 OPENAI_API_KEY=sk-...
 ```
 
-The Agenta SDK will automatically load the environment variables from the `.env` file.
-
 Both these files need to be in the same folder as the application code.
 
-## Serving the application
+### Serving the application
 
-To serve the application, we first need to initialize the project in Agenta. Run the following command in the folder containing the application code and the other necessary files.
+To serve the application, initialize the project in Agenta. Run the following command in the folder containing the application code and necessary files.
 
 ```bash
 agenta init
 ```
 
-This command will prompt you for the name of the application, the host for Agenta (Agenta Cloud), and whether to start from a blank project (select "yes" since we wrote the code) or to populate the folder with a template application (select "no" in this case).
+This command prompts for the application name, Agenta host (Agenta Cloud), and whether to start from a blank project (select "yes" since we wrote the code) or populate the folder with a template application (select "no" in this case).
 
-After running this command, you should see a new `config.toml` file containing the application's configuration in the folder. Additionally, you should see a new empty project in the Agenta web UI.
+After running this command, a new `config.toml` file containing the application's configuration is created in the folder. Additionally, a new empty application is created in the Agenta web UI.
 
-Now, serve the application by running the following command:
+Serve the application by running:
 
 ```bash
 agenta variant serve myapp.py
 ```
 
-This command will serve the application in Agenta. The application is now added to the Agenta web interface and can be used from there.
+This command serves the application in Agenta. The application is now added to the Agenta web interface and can be used from there.
 
 :::info
-Under the hood, this command will build an image for the application, deploy a container with the image, and expose a REST API to the application that Agenta uses to communicate.
+Under the hood, this command builds an image for the application, deploys a container with the image, and exposes a REST API that Agenta uses to communicate.
+:::
+
+:::note
+When serving an application, all the files within the folder will be compressed and sent to the backend. You can create an `.agentaignore` file to ignore files and folders from being sent to the backend.
 :::
 
 ## Using the application in Agenta
 
-The application should now be visible in Agenta. A new application variant is always created under the name `<filename>.default`. Variants are always named in the format `<filename>.<variant_name>`. This allows you to determine which source code was used to create the application (`<filename>`). When first created, we always generate a 'default' configuration. This is the configuration specified in the code (when using `register_default`).
+The application should now be visible in Agenta. A new application variant is always created under the name `<filename>.default`. Variants are always named in the format `<filename>.<variant_name>`, allowing you to determine which source code was used to create the application (`<filename>`). When first created, we always generate a 'default' configuration.
