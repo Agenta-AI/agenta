@@ -37,19 +37,23 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
+
+AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", False)).lower() in (
+    "true",
+    "1",
+    "t",
+)
+
 app = FastAPI()
 
-origins = [
-    "*",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if AGENTA_USE_CORS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["Authorization"],
+    )
 
 _MIDDLEWARES = True
 

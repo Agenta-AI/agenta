@@ -165,6 +165,7 @@ export const fetchVariantParametersFromOpenAPI = async (
         _ignoreError: ignoreAxiosError,
         headers: {
             Authorization: `Bearer ${jwt}`,
+            Traceparent: 'vscode'
         },
     } as any)
     const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
