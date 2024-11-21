@@ -388,12 +388,15 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
             and span.meta
             and span.metrics
         ):
+            model = span.meta.get("response.model")
+            prompt_tokens = span.metrics.get("unit.tokens.prompt", 0.0)
+            completion_tokens = span.metrics.get("unit.tokens.completion", 0.0)
+
             try:
                 costs = cost_calculator.cost_per_token(
-                    model=span.meta.get("response.model"),
-                    prompt_tokens=span.metrics.get("unit.tokens.prompt", 0.0),
-                    completion_tokens=span.metrics.get("unit.tokens.completion", 0.0),
-                    call_type=span.node.type.name.lower(),
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                 )
 
                 if not costs:
@@ -406,5 +409,8 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.completion"] = completion_cost
                 span.metrics["unit.costs.total"] = total_cost
 
-            except:  # pylint: disable=W0702:bare-except
-                pass
+            except:  # pylint: disable=bare-except
+                print("Failed to calculate costs:")
+                print(
+                    f"model={model}, prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}"
+                )
