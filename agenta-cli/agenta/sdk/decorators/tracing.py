@@ -19,6 +19,8 @@ class instrument:  # pylint: disable=invalid-name
         config: Optional[Dict[str, Any]] = None,
         ignore_inputs: Optional[bool] = None,
         ignore_outputs: Optional[bool] = None,
+        redact: Optional[Callable[..., Any]] = None,
+        redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,
         # DEPRECATING
         kind: str = "task",
@@ -29,6 +31,8 @@ class instrument:  # pylint: disable=invalid-name
         self.config = config
         self.ignore_inputs = ignore_inputs
         self.ignore_outputs = ignore_outputs
+        self.redact = redact
+        self.redact_on_error = redact_on_error
         self.max_depth = max_depth
 
     def __call__(self, func: Callable[..., Any]):
@@ -109,12 +113,10 @@ class instrument:  # pylint: disable=invalid-name
                 )
 
             _inputs = self._redact(
-                self._parse(
-                    func,
-                    *args,
-                    **kwargs,
-                ),
-                self.ignore_inputs,
+                name=span.name,
+                field="inputs",
+                io=self._parse(func, *args, **kwargs),
+                ignore=self.ignore_inputs,
             )
             span.set_attributes(
                 attributes={"inputs": _inputs},
@@ -153,7 +155,12 @@ class instrument:  # pylint: disable=invalid-name
                 namespace="metrics.unit.tokens",
             )
 
-            _outputs = self._redact(self._patch(result), self.ignore_outputs)
+            _outputs = self._redact(
+                name=span.name,
+                field="outputs",
+                io=self._patch(result),
+                ignore=self.ignore_outputs,
+            )
             span.set_attributes(
                 attributes={"outputs": _outputs},
                 namespace="data",
@@ -192,6 +199,9 @@ class instrument:  # pylint: disable=invalid-name
 
     def _redact(
         self,
+        *,
+        name: str,
+        field: str,
         io: Dict[str, Any],
         ignore: Union[List[str], bool] = False,
     ) -> Dict[str, Any]:
@@ -219,6 +229,20 @@ class instrument:  # pylint: disable=invalid-name
                 else []
             )
         }
+
+        if self.redact is not None:
+            try:
+                io = self.redact(name, field, io)
+            except:  # pylint: disable=bare-except
+                if self.redact_on_error:
+                    io = {}
+
+        if ag.tracing.redact is not None:
+            try:
+                io = ag.tracing.redact(name, field, io)
+            except:  # pylint: disable=bare-except
+                if ag.tracing.redact_on_error:
+                    io = {}
 
         return io
 
