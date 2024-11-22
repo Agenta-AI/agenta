@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Callable, Any
 
 from .utils.preinit import PreInitObject  # always the first import!
 
@@ -45,17 +45,21 @@ tracer = get_tracer(tracing)
 
 def init(
     host: Optional[str] = None,
-    app_id: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
+    redact: Optional[Callable[..., Any]] = None,
+    redact_on_error: Optional[bool] = True,
+    # DEPRECATING
+    app_id: Optional[str] = None,
 ):
-    global api, async_api, tracing, tracer
+    global api, async_api, tracing, tracer  # pylint: disable=global-statement
 
     _init(
         host=host,
         api_key=api_key,
         config_fname=config_fname,
-        # DEPRECATING
+        redact=redact,
+        redact_on_error=redact_on_error,
         app_id=app_id,
     )
 

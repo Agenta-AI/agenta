@@ -37,27 +37,21 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
-app = FastAPI()
 
-origins = [
-    "*",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", "true")).lower() in (
+    "true",
+    "1",
+    "t",
 )
+
+app = FastAPI()
+log.setLevel("DEBUG")
+
 
 _MIDDLEWARES = True
 
 
 app.include_router(router, prefix="")
-
-
-log.setLevel("DEBUG")
 
 
 class PathValidator(BaseModel):
@@ -136,6 +130,15 @@ class entrypoint:
                     resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
                     resource_type="application",
                 )
+
+                if AGENTA_USE_CORS:
+                    app.add_middleware(
+                        CORSMiddleware,
+                        allow_origins=["*"],
+                        allow_methods=["*"],
+                        allow_headers=["*"],
+                        allow_credentials=True,
+                    )
 
                 _MIDDLEWARES = False
 

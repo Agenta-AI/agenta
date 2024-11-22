@@ -27,8 +27,8 @@ class LLMTokenUsage(BaseModel):
 
 class BaseResponse(BaseModel):
     version: Optional[str] = "3.0"
-    data: Optional[Union[str, Dict[str, Any]]]
-    tree: AgentaNodesResponse
+    data: Optional[Union[str, Dict[str, Any]]] = None
+    tree: Optional[AgentaNodesResponse] = None
 
 
 class DictInput(dict):

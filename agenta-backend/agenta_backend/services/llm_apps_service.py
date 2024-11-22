@@ -3,7 +3,7 @@ import logging
 import asyncio
 import traceback
 import aiohttp
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 from agenta_backend.models.shared_models import InvokationResult, Result, Error
@@ -362,7 +362,17 @@ async def batch_invoke(
     list_of_app_outputs: List[
         InvokationResult
     ] = []  # Outputs after running all batches
-    openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
+
+    headers = None
+    if isCloudEE():
+        secret_token = await sign_secret_token(user_id, project_id, None)
+
+        headers = {"Authorization": f"Secret {secret_token}"}
+
+    openapi_parameters = await get_parameters_from_openapi(
+        uri + "/openapi.json",
+        headers,
+    )
 
     async def run_batch(start_idx: int):
         tasks = []
@@ -402,7 +412,10 @@ async def batch_invoke(
     return list_of_app_outputs
 
 
-async def get_parameters_from_openapi(uri: str) -> List[Dict]:
+async def get_parameters_from_openapi(
+    uri: str,
+    headers: Optional[Dict[str, str]],
+) -> List[Dict]:
     """
     Parse the OpenAI schema of an LLM app to return list of parameters that it takes with their type as determined by the x-parameter
     Args:
@@ -417,7 +430,7 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 
     """
 
-    schema = await _get_openai_json_from_uri(uri)
+    schema = await _get_openai_json_from_uri(uri, headers)
 
     try:
         body_schema_name = (
@@ -447,9 +460,12 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
     return parameters
 
 
-async def _get_openai_json_from_uri(uri):
+async def _get_openai_json_from_uri(
+    uri: str,
+    headers: Optional[Dict[str, str]],
+):
     async with aiohttp.ClientSession() as client:
-        resp = await client.get(uri, timeout=5)
+        resp = await client.get(uri, headers=headers, timeout=5)
         resp_text = await resp.text()
         json_data = json.loads(resp_text)
         return json_data
