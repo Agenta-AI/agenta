@@ -1,7 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
 import {useEffect, useState} from "react"
 import {
@@ -41,7 +41,6 @@ export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId, apps} = useAppsData()
-    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
 
@@ -80,7 +79,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
-            title: capitalizedAppName,
+            title: currentApp?.app_name || "",
             icon: <></>,
             header: true,
         },
