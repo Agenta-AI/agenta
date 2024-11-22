@@ -1,11 +1,11 @@
 ---
 id: delete-traces
-title: "Delete Traces"
-description: "Delete Traces"
-sidebar_label: "Delete Traces"
+title: "Delete traces"
+description: "Delete trace."
+sidebar_label: "Delete traces"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVd9v2jAQ/lciPzPCqj3labRFKlqnVi3bC0LVJTnAbRJ7ttOVofzvu7MTQsqYNh7APt+Pz993Z/bCwcaKZCnuUovmFVJZSLcTq5FQGg04qap5LhKRY4EOn5yBDK0YCYM/arTuUuU7kexFpiqHleMlaF3IzEfGz1ZVbLPZFkvglXRYWl64nUbKa52R1UY0o84AxsCOCjjpCt7PcyuapgkVpUEC40yN3mC1qiz6dBeTCf/kaDMjNRen2Mc6I7R2XRfRQ+tMmf8Za4soVapAqI4wdcmia89KtAisNB7np4uLUyTfoZC5rxPNjFHmf2Bow1I4GS6aowNZDKgcOhQqG5xCtbtbk8KnlB8skpBs0IhmdV6HWxUAslSl3ZxK2Lt+Jc5hg72o5109GdGCT5u+tkqfMXPiWPOlv1co3fqt+jQ9vYHd89e4DvT9qVjncrNY3J8kDNoORR2qT9jQbVU/LGTR4La0j9XxcMVhiGI6Zysa69WpDakqts5pm8RxVqg6HxOLlYMxyBi0FO/rT/1pdMWupB2ny2rD48v5pvfzL7i7QchJ2WS5OnZ45OYK7TJ0OyhF9chMJSsoeT+t6W5G/go9MKKWYbAhipnhtn3o34TZG5Sa2Vx2mq84Zq18iZboFv8lZC9Y5ZSUuQhXm4w/jifnLtwGRAS9nSPI/Bx1WL0bHQ0pPZBJJzRaPETCIZSf+wO+iVbWlVAd5Xuv8wDUgTGHby7WBUg/Ir70vm2ApRg0APdal4t52VJFdtrvU7D4zRRNw2Yi07CUtHwFIyH1fPKIbjtR9+KFRErEVXhLPvhBYveiDiK+e1d45kPElF5G7f7quzrq6OvZ7WwxI/e0ffBLlXOUgZ88pvSdCMH/GRzv+8rb6DWCalPzY5CIkJU/vwFC6TWB
+api: eJydVU1v2zAM/SuGzkGcFDvltKwN0GLdWqxZL0FQMLaSqJUtVZKDZYb/+0jJn0nbYTslEh/Jx0eRLpmDnWWzFbvbWG4OsBFSuGO0OkzXbD1iKbeJEdoJlbMZu+KSOx45AwkfsxFTmhsg202K1tRbn7zVolWDgQxvDMUvWY4HROUq5U8iRbugkK8FN0c8GP5aCMMxzhak5SNmkz3PgM1K5o6aHK0zIt8hdKtMBg5visLHccJJAnzHyBEyqarRaTb77+nAGCCkcDyzf6dRnfGwSGRNmaxWueU+xsVkQj9DVR+KBAWz20JGP2owhk9U7njuCA5aS5F4oeNnSz5lj6821AYnQoYDyi0C5JRww++xhiBl68AVb1bXgB8CoqL6AkRtnnniBhqu2rRtyHUX4lJJiR4hUlthVVHMTxcX54I8ghSpLzdaGKPM/6uRcgdC0r+2jUOAVMnACvnxbuuf61AQelL1jUAmO25Yte40aR5LU/KtCgRJ48zuPhL4G7Yedpy1wd6HejGiJVn/1g+qK6Sucb1+dPIGdd8v4yrI91ayBnK9XN6fBQy9xdnfq24x+I3g9niOVX/XxIdp3O4Mum8WRmGwc2zvnLazOE6kKtIxKpU7GIOIQQt2up/m3hpdEpTR8FmeFAZz+Hjz+5uv/HjNIcXuzVbrPuCBHlB4EkNYtw+0wGtMWW+WeYHVGfE79LleL/vgRdWLfKu8ey1Uze0LJC88p7XVTiqbjKfjyXvF1A4R0qrnABI/Bw0PD0PTUK5WKLTgaNAQMMch+9wZiKVW1mWQ9+L1d7w9JVV2g3j2Mah1cvyXi7UE4R+/J1XWjV+xQeNJgyk5hlTYjT2yIVhZbsDyn0ZWFV2HpU0tTIWFjeyt7RdsSf+bcgBZEAs/sB+j7QC+poMRhPdvY9T0ktIGvzmuae16XmebiKK0r/5qcbtYLlDlP+Vbgp8=
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -28,20 +28,20 @@ import TabItem from "@theme/TabItem";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Delete Traces"}
+  children={"Delete traces"}
 >
 </Heading>
 
 <MethodEndpoint
   method={"delete"}
-  path={"/observability/traces/"}
+  path={"/observability/v1/traces"}
 >
   
 </MethodEndpoint>
 
 
 
-Delete Traces
+Delete trace.
 
 <Heading
   id={"request"}
@@ -51,68 +51,36 @@ Delete Traces
 >
 </Heading>
 
-<MimeTabs
-  className={"openapi-tabs__mime"}
+<details
+  style={{"marginBottom":"1rem"}}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
 >
-  <TabItem
-    label={"application/json"}
-    value={"application/json-schema"}
+  <summary
+    style={{}}
   >
-    <details
-      style={{}}
-      className={"openapi-markdown__details mime"}
-      data-collapsed={false}
-      open={true}
+    <h3
+      className={"openapi-markdown__details-summary-header-params"}
     >
-      <summary
-        style={{}}
-        className={"openapi-markdown__details-summary-mime"}
-      >
-        <h3
-          className={"openapi-markdown__details-summary-header-body"}
-        >
-          Body
-        </h3><span
-          style={{"opacity":"0.6"}}
-        >
-           array
-        </span><strong
-          className={"openapi-schema__required"}
-        >
-          required
-        </strong>
-      </summary><div
-        style={{"textAlign":"left","marginLeft":"1rem"}}
+      Query Parameters
+    </h3>
+  </summary><div>
+    <ul>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{"name":"node_id","in":"query","required":false,"schema":{"type":"string","format":"uuid","title":"Node Id"}}}
       >
         
-      </div><ul
-        style={{"marginLeft":"1rem"}}
+      </ParamsItem><ParamsItem
+        className={"paramsItem"}
+        param={{"name":"node_ids","in":"query","required":false,"schema":{"type":"array","items":{"type":"string","format":"uuid"},"title":"Node Ids"}}}
       >
-        <li>
-          <div
-            style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
-          >
-            Array [
-          </div>
-        </li><div
-          style={{"marginTop":".5rem","marginBottom":".5rem"}}
-        >
-          
-          
-          string
-          
-          
-        </div><li>
-          <div
-            style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
-          >
-            ]
-          </div>
-        </li>
-      </ul>
-    </details>
-  </TabItem>
-</MimeTabs><div>
+        
+      </ParamsItem>
+    </ul>
+  </div>
+</details><div>
   <div>
     <ApiTabs
       label={undefined}
@@ -164,17 +132,37 @@ Delete Traces
                     </div><ul
                       style={{"marginLeft":"1rem"}}
                     >
-                      <div
-                        style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                      <SchemaItem
+                        collapsible={false}
+                        name={"version"}
+                        required={true}
+                        schemaName={"Version (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Version"}}
                       >
                         
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"status"}
+                        required={true}
+                        schemaName={"Status (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Status"}}
+                      >
                         
-                        boolean
-                        
-                        
-                      </div>
+                      </SchemaItem>
                     </ul>
                   </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"{\n  \"version\": \"string\",\n  \"status\": \"string\"\n}"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
                 </TabItem>
               </SchemaTabs>
             </TabItem>
