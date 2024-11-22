@@ -3,7 +3,7 @@ title: "Fetch prompts"
 description: "How to fetch the deployed version of your prompt using the Agenta SDK."
 ---
 
-This guide shows you how to fetch the deployed version of your prompt in your code. You can do this using the Agenta SDK (Python).
+This guide shows you how to fetch the deployed version of your prompt in your code using the Agenta SDK.
 
 ## Fetching prompts with the Agenta SDK
 
@@ -14,32 +14,34 @@ Make sure to install the latest version of the agenta Python SDK (`pip -U instal
 - Set up environment variables:
   - `AGENTA_API_KEY` for cloud users.
   - `AGENTA_HOST` set to `http://localhost` if you are self-hosting.
-  - `AGENTA_PROJECT_ID` set to the project ID.
 
 ### Step 2: Fetch the prompt
 
 ```python
-from agenta import Agenta
-agenta = Agenta()
-config = agenta.get_config(base_id="xxxxx", environment="production", cache_timeout=200) # Fetches the configuration with caching
+import agenta as ag
 
+ag.init()
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app",
+    environment_slug="staging" # choose production, staging, or development
+)
+
+print("Fetched configuration from staging:")
+print(config)
 ```
 
-The response object is an instance of `GetConfigResponse` from `agenta.client.backend.types.get_config_response`. It contains the following attributes:
-
-- `config_name: 'default'`
-- `current_version: 1`
-- `parameters: This dictionary contains the configuration of the application, for instance:
+**Sample Output:**
 
 ```python
-{'temperature': 1.0,
-'model': 'gpt-3.5-turbo',
-'max_tokens': -1,
-'prompt_system': 'You are an expert in geography.',
-'prompt_user': 'What is the capital of {country}?',
-'top_p': 1.0,
-'frequence_penalty': 0.0,
-'presence_penalty': 0.0,
-'force_json': 0}
-
+Fetched configuration from staging:
+{
+    'temperature': 0.7,
+    'model': 'gpt-3.5-turbo',
+    'max_tokens': 150,
+    'prompt_system': 'You are an assistant that provides concise answers.',
+    'prompt_user': 'Explain {topic} in simple terms.',
+    'top_p': 1.0,
+    'frequency_penalty': 0.0,
+    'presence_penalty': 0.0
+}
 ```
