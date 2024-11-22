@@ -3,11 +3,16 @@ title: "config.pull()"
 description: "Pull a configuration from the backend"
 ---
 
+:::warning
+This page is for the deprecated SDK v2.
+:::
+
 `agenta.config.pull(config_name: str = "default", environment_name: str = None)`
 
-This function pulls the configuration from the backend and save them in the config object. The configuration contains all the parameters for the variant. 
+This function pulls the configuration from the backend and save them in the config object. The configuration contains all the parameters for the variant.
 
 The configuration can be pulled by name. For instance
+
 ```python
 agenta.config.pull("my_config")
 ```
