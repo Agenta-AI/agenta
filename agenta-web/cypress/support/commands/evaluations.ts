@@ -49,7 +49,7 @@ Cypress.Commands.add("createVariant", () => {
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
-    cy.visit("/apps/testsets")
+    cy.visit("/testsets")
     cy.url().should("include", "/testsets")
     cy.get('[data-cy="create-testset-modal-button"]').click()
     cy.get(".ant-modal-content").should("exist")
@@ -60,8 +60,17 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.clickLinkAndWait('[data-cy="create-new-testset-button"]')
     cy.wrap(testsetName).as("testsetName")
 
-    cy.get(".ag-row").should("have.length", 3)
+    cy.get(".ag-row").should("have.length", 1)
+    cy.get('[data-cy="testset-header-column-edit-button"]').eq(0).click()
+    cy.get('[data-cy="testset-header-column-edit-input"]').clear()
+    cy.get('[data-cy="testset-header-column-edit-input"]').type("country")
+    cy.get('[data-cy="testset-header-column-save-button"]').click()
+
     countries.forEach((country, index) => {
+        if (index !== 0) {
+            cy.get('[data-cy="add-new-testset-row"]').click()
+        }
+
         cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`).within(() => {
             cy.get(".ag-cell").eq(1).type(country.country)
             cy.get(".ag-cell")

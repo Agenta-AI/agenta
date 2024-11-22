@@ -8,7 +8,7 @@ import {dynamicContext} from "@/lib/helpers/dynamic"
 import {HookAPI} from "antd/es/modal/useModal"
 import {useLocalStorage} from "usehooks-ts"
 import {useProfileData} from "./profile.context"
-import {useProjectData} from "./project.context"
+import {useProjectData, DEFAULT_UUID} from "./project.context"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -42,13 +42,15 @@ const useApps = () => {
         })
     }, [])
 
+    const isMockProjectId = projectId === DEFAULT_UUID
+
     const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
         !!user
-            ? `${getAgentaApiUrl()}/api/apps?project_id=${projectId}` +
-                  (isDemo()
-                      ? `&org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
-                      : "")
+            ? `${getAgentaApiUrl()}/api/apps?` +
+                  (!isMockProjectId ? `project_id=${projectId}&` : "") +
+                  (isDemo() ? `workspace_id=${selectedOrg?.default_workspace.id}&` : "") +
+                  (isDemo() ? `org_id=${selectedOrg?.id}&` : "")
             : null,
         !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
         {

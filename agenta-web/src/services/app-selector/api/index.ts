@@ -14,11 +14,7 @@ import {waitForAppToStart} from "@/services/api"
 //  - delete: DELETE data from server
 
 export const fetchAllTemplates = async () => {
-    const {projectId} = getCurrentProject()
-
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/api/containers/templates?project_id=${projectId}`,
-    )
+    const response = await axios.get(`${getAgentaApiUrl()}/api/containers/templates`)
     return response.data
 }
 

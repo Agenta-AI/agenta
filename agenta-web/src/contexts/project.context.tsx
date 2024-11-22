@@ -5,7 +5,7 @@ import useStateCallback from "@/hooks/useStateCallback"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import {isDemo} from "@/lib/helpers/utils"
 
-const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
+export const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
 
 type Project = {
     workspace_id: string | null

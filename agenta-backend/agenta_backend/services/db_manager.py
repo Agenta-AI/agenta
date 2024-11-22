@@ -1892,38 +1892,6 @@ async def remove_testsets(testset_ids: List[str]):
         await session.commit()
 
 
-async def remove_app_testsets(app_id: str):
-    """Returns a list of testsets owned by an app.
-
-    Args:
-        app_id (str): The name of the app
-
-    Returns:
-        int: The number of testsets deleted
-    """
-
-    # Find testsets owned by the app
-    deleted_count: int = 0
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(TestSetDB).filter_by(app_id=uuid.UUID(app_id))
-        )
-        testsets = result.scalars().all()
-
-        if len(testsets) == 0:
-            logger.info(f"No testsets found for app {app_id}")
-            return 0
-
-        for testset in testsets:
-            await session.delete(testset)
-            deleted_count += 1
-            logger.info(f"{deleted_count} testset(s) deleted for app {app_id}")
-
-        await session.commit()
-        return deleted_count
-
-
 async def remove_base_from_db(base_id: str):
     """
     Remove a base from the database.
@@ -2086,7 +2054,7 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
         return testset
 
 
-async def create_testset(app: AppDB, project_id: str, testset_data: Dict[str, Any]):
+async def create_testset(project_id: str, testset_data: Dict[str, Any]):
     """
     Creates a testset.
 
