@@ -24,8 +24,8 @@ class LLMTokenUsage(BaseModel):
 
 class BaseResponse(BaseModel):
     version: Optional[str] = "2.0"
-    data: Optional[Union[str, Dict[str, Any]]]
-    trace: Optional[Dict[str, Any]]
+    data: Optional[Union[str, Dict[str, Any]]] = None
+    trace: Optional[Dict[str, Any]] = None
 
 
 class DictInput(dict):
