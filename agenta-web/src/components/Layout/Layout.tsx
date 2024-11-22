@@ -3,7 +3,7 @@ import {Breadcrumb, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
-import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
@@ -84,7 +84,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
     const {currentApp} = useAppsData()
-    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
@@ -190,7 +189,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                                         </div>
                                                     ),
                                                 },
-                                                {title: capitalizedAppName},
+                                                {title: currentApp?.app_name || ""},
                                             ]}
                                         />
                                         <div className={classes.topRightBar}>
