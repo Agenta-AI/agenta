@@ -84,6 +84,12 @@ class Tracing(metaclass=Singleton):
         self.tracer_provider.add_span_processor(self.inline)
         # TRACE PROCESSORS -- OTLP
         try:
+            log.info("--------------------------------------------")
+            log.info(
+                "Agenta SDK - connecting to otlp receiver at: %s",
+                self.otlp_url,
+            )
+            log.info("--------------------------------------------")
             check(
                 self.otlp_url,
                 headers=self.headers,
@@ -99,7 +105,8 @@ class Tracing(metaclass=Singleton):
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-
+            log.info("Success: traces will be exported.")
+            log.info("--------------------------------------------")
         except:  # pylint: disable=bare-except
             log.warning("Agenta SDK - traces will not be exported.")
 
