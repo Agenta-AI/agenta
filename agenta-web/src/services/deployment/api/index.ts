@@ -1,3 +1,4 @@
+import {getCurrentProject} from "@/contexts/project.context"
 import {Environment} from "@/lib/Types"
 import axios from "@/lib/helpers/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
@@ -11,7 +12,11 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 export const fetchEnvironments = async (appId: string): Promise<Environment[]> => {
     try {
-        const response = await axios.get(`${getAgentaApiUrl()}/api/apps/${appId}/environments/`)
+        const {projectId} = getCurrentProject()
+
+        const response = await axios.get(
+            `${getAgentaApiUrl()}/api/apps/${appId}/environments?project_id=${projectId}`,
+        )
         return response.data
     } catch (error) {
         throw new Error("Failed to fetch environments")
@@ -19,7 +24,9 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
 }
 
 export const createPublishVariant = async (variantId: string, environmentName: string) => {
-    await axios.post(`${getAgentaApiUrl()}/api/environments/deploy/`, {
+    const {projectId} = getCurrentProject()
+
+    await axios.post(`${getAgentaApiUrl()}/api/environments/deploy?project_id=${projectId}`, {
         environment_name: environmentName,
         variant_id: variantId,
     })
