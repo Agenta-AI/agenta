@@ -44,24 +44,16 @@ AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", False)).lower() in (
     "t",
 )
 
+AGENTA_USE_CORS = True
+
 app = FastAPI()
 log.setLevel("DEBUG")
 
-
-if AGENTA_USE_CORS:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["Authorization"],
-    )
 
 _MIDDLEWARES = True
 
 
 app.include_router(router, prefix="")
-
-
 
 
 class PathValidator(BaseModel):
@@ -140,6 +132,15 @@ class entrypoint:
                     resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
                     resource_type="application",
                 )
+
+                if AGENTA_USE_CORS:
+                    app.add_middleware(
+                        CORSMiddleware,
+                        allow_origins=["*"],
+                        allow_methods=["*"],
+                        allow_headers=["*"],
+                        allow_credentials=True,
+                    )
 
                 _MIDDLEWARES = False
 
