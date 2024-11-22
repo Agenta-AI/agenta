@@ -125,7 +125,7 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
 
                     cache.put(_hash, policy)
 
-            if policy.get("effect") == "deny":
+            if not policy or policy.get("effect") == "deny":
                 return Deny()
 
             request.state.credentials = policy.get("credentials")

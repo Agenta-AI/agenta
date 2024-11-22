@@ -121,7 +121,7 @@ export async function callVariant(
             signal,
             _ignoreError: ignoreAxiosError,
             headers: {
-                Authorization: `Bearer ${jwt}`,
+                Authorization: jwt && `Bearer ${jwt}`,
             },
         } as any)
         .then((res) => {
@@ -133,12 +133,14 @@ export async function callVariant(
  * Get the JWT from SuperTokens
  */
 const getJWT = async () => {
-    if (await Session.doesSessionExist()) {
-        let jwt = await Session.getAccessToken()
+    try {
+        if (await Session.doesSessionExist()) {
+            let jwt = await Session.getAccessToken()
 
-        return jwt
-    }
-
+            return jwt
+        }
+    } catch (error) {}
+    
     return undefined
 }
 
@@ -160,7 +162,7 @@ export const fetchVariantParametersFromOpenAPI = async (
     const response = await axios.get(url, {
         _ignoreError: ignoreAxiosError,
         headers: {
-            Authorization: `Bearer ${jwt}`,
+            Authorization: jwt && `Bearer ${jwt}`,
         },
     } as any)
     const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
