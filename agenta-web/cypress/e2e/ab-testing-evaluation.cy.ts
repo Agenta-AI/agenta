@@ -85,8 +85,6 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.wait(1000)
             cy.get('[data-cy="abTesting-run-all-button"]').click()
 
-            cy.wait("@generateRequest")
-
             cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(0).click()
             cy.get('[data-cy="evaluation-vote-panel-comparison-vote-button"]').eq(1).click()
             cy.get(

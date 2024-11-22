@@ -27,6 +27,7 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import VariantPopover from "../variants/VariantPopover"
+import {getCurrentProject} from "@/contexts/project.context"
 import {useAppsData} from "@/contexts/app.context"
 
 const DeploymentHistoryModal: any = dynamicComponent(
@@ -130,6 +131,7 @@ const DeploymentDrawer = ({
     const [uri, setURI] = useState<string | null>(null)
     const [variant, setVariant] = useState<Variant | null>(null)
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+    const {projectId} = getCurrentProject()
 
     useEffect(() => {
         loadURL(selectedEnvironment)
@@ -147,7 +149,7 @@ const DeploymentDrawer = ({
     const loadURL = async (environment: Environment) => {
         if (environment.deployed_app_variant_id) {
             const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
-            setURI(`${url}/generate_deployed`)
+            setURI(`${url}/generate_deployed?project_id=${projectId}`)
         }
     }
 

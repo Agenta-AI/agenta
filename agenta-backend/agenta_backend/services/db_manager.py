@@ -96,6 +96,25 @@ logger.setLevel(logging.DEBUG)
 PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 
+async def fetch_project_by_id(
+    project_id: str,
+) -> ProjectDB:
+    async with engine.session() as session:
+        project = (
+            (
+                await session.execute(
+                    select(ProjectDB).filter_by(
+                        id=uuid.UUID(project_id),
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+        return project
+
+
 async def add_testset_to_app_variant(
     template_name: str, app_name: str, project_id: str
 ):
