@@ -38,13 +38,11 @@ from agenta.sdk.types import (
 import agenta as ag
 
 
-AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", False)).lower() in (
+AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", True)).lower() in (
     "true",
     "1",
     "t",
 )
-
-AGENTA_USE_CORS = True
 
 app = FastAPI()
 log.setLevel("DEBUG")
