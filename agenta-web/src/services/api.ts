@@ -140,7 +140,7 @@ const getJWT = async () => {
             return jwt
         }
     } catch (error) {}
-    
+
     return undefined
 }
 
