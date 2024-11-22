@@ -45,10 +45,10 @@ const useApps = () => {
     const {selectedOrg, loading} = useOrgData()
     const {data, error, isLoading, mutate} = useSWR(
         !!user
-            ? `${getAgentaApiUrl()}/api/apps?project_id=${projectId}` +
-                  (isDemo()
-                      ? `&org_id=${selectedOrg?.id}&workspace_id=${selectedOrg?.default_workspace.id}`
-                      : "")
+            ? `${getAgentaApiUrl()}/api/apps?` +
+                  (!!projectId ? `project_id=${projectId}&` : "") +
+                  (isDemo() ? `workspace_id=${selectedOrg?.default_workspace.id}&` : "") +
+                  (isDemo() ? `org_id=${selectedOrg?.id}&` : "")
             : null,
         !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
         {
