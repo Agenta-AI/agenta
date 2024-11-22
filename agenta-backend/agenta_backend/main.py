@@ -14,6 +14,8 @@ from agenta_backend.routers import (
     bases_router,
     configs_router,
     health_router,
+    permissions_router,
+    projects_router,
 )
 from agenta_backend.open_api import open_api_tags_metadata
 from agenta_backend.utils.common import isEE, isCloudProd, isCloudDev, isOss, isCloudEE
@@ -96,6 +98,16 @@ if isCloudEE():
     app, allow_headers = cloud.extend_main(app)
 
 app.include_router(health_router.router, prefix="/health")
+app.include_router(
+    permissions_router.router,
+    prefix="/permissions",
+    tags=["Access Control"],
+)
+app.include_router(
+    projects_router.router,
+    prefix="/projects",
+    tags=["Scopes"],
+)
 app.include_router(user_profile.router, prefix="/profile")
 app.include_router(app_router.router, prefix="/apps", tags=["Apps"])
 app.include_router(variants_router.router, prefix="/variants", tags=["Variants"])

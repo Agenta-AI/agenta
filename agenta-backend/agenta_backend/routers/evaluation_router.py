@@ -130,7 +130,8 @@ async def create_evaluation(
 
             evaluate.delay(
                 app_id=payload.app_id,
-                project_id=str(app.project_id),
+                user_id=str(request.state.user_id),
+                project_id=str(request.state.project_id),
                 variant_id=variant_id,
                 evaluators_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,

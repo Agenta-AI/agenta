@@ -1,3 +1,4 @@
+import {getCurrentProject} from "@/contexts/project.context"
 import {Parameter} from "@/lib/Types"
 import axios from "@/lib/helpers/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
@@ -10,21 +11,33 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
 //  - delete: DELETE data from server
 
 export function restartAppVariantContainer(variantId: string) {
-    return axios.post(`${getAgentaApiUrl()}/api/containers/restart_container/`, {
-        variant_id: variantId,
-    })
+    const {projectId} = getCurrentProject()
+
+    return axios.post(
+        `${getAgentaApiUrl()}/api/containers/restart_container?project_id=${projectId}`,
+        {
+            variant_id: variantId,
+        },
+    )
 }
 
 export async function deleteSingleVariant(variantId: string) {
-    await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}/`)
+    const {projectId} = getCurrentProject()
+
+    await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}?project_id=${projectId}`)
 }
 
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
-    await axios.put(`${getAgentaApiUrl()}/api/variants/${variantId}/parameters/`, {
-        parameters: parameters.reduce((acc, param) => {
-            return {...acc, [param.name]: param.default}
-        }, {}),
-    })
+    const {projectId} = getCurrentProject()
+
+    await axios.put(
+        `${getAgentaApiUrl()}/api/variants/${variantId}/parameters?project_id=${projectId}`,
+        {
+            parameters: parameters.reduce((acc, param) => {
+                return {...acc, [param.name]: param.default}
+            }, {}),
+        },
+    )
 }
 
 /**
@@ -36,7 +49,9 @@ export async function createNewVariant(
     newConfigName: string,
     parameters: Parameter[],
 ) {
-    await axios.post(`${getAgentaApiUrl()}/api/variants/from-base/`, {
+    const {projectId} = getCurrentProject()
+
+    await axios.post(`${getAgentaApiUrl()}/api/variants/from-base?project_id=${projectId}`, {
         base_id: baseId,
         new_variant_name: newVariantName,
         new_config_name: newConfigName,
@@ -47,8 +62,13 @@ export async function createNewVariant(
 }
 
 export const fetchVariantLogs = async (variantId: string, ignoreAxiosError: boolean = false) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/variants/${variantId}/logs`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/variants/${variantId}/logs?project_id=${projectId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
     return response.data
 }

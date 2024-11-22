@@ -5,7 +5,7 @@ description: "Get all testsets."
 sidebar_label: "Get Testsets"
 hide_title: true
 hide_table_of_contents: true
-api: eJzNVU1T2zAQ/SsandqZkKQMp5yaUgaYfsBA2ktgQNibRGBLRlpT0kz+e3cl27GBpNNbT5lo367evn0rrySquZejqZyARw/o5XVPpuATpwvU1siRPAYUKssEVoj+lbkyF4ClM350ZfbEWGTao7CzGiLs3T0kNVJpDxF4ezKZnB89JxBK34pfGhfCo8LSi8SmIA6GB0LPhLHNZUI5EDNbmrQve9IW4BTnnqZEbA54U+MoWCinckBw3M9KOngstQMCoiuhJ32ygFzJ0UrisgBK9+i0mVMiasz4YFwUggqve9JQITpQRXGjU0Jo1uGxBLeUa9LHgS+soa642v5wyD9dzS7LJAHvZ2UmLiowlUmsQTDIcCqd6ST0Mrj3nLNqMdQIeSheOG4ZdbyKyezg3yG/Hfad44RLHCiE9EbhW+iZdTlHZEqgPdQ5tEocxlQxRrmmSlVunLrstaSfyihg4NS58npTja13CXhWYlFiI9emrnJOLVu31xDBzmx8u14zlYP9/dfT+KkynQatxZFz1v3LKLoTSAGVznaMKLNJJ6rM8mwW/NgVeN1rTjQxmYMjZ21v+auNBFmV3M93jfcb+U7NW/pthwYxxISjfxsj9xWvrnCt+W3kjepub+NzlO+ty2oIPxGvCsbZ0nIvbLX4Yd9xQX8GrSfAg3uq9790NCe5QCz8aDBIMlumfdLFoOorPVCFli8funGIikOGhj33kJRO4zLUG5+ffoHlCaiUZjWaXrcBl2yXaIAurNGe7qNj2Twt45J6cfp3nGr1wixiFveqzcyG9Pptitw+qeQBDG8U9xlpD/sf+sNtzVQJgmhVrldJcH3NI8Ao1JWrEYoitAhseYmg8o+bALMsrMdcmVa9zkq+4LTabN3/9FGpJoTwjIMiUzosWZBjVXlsKrH1dVxQ03y2Wt0pDz9ctl7zcfw8sFNS7dVdxnszU5mHHSq8u6hW7L3YRuSBXNP6Ej2prGRQ8OeTcppvCnbs1fZhCjFrnLAqraxXTx1Xadbq+GhCU/0DHinB9A==
+api: eJzNVU1z2jAQ/SsandoZCjSTE6fSNJNk+pFMQnohTKLICygxkiKt01CP/3u1kg04FNreegJLb6W3b9+uSo5i5vlgzEfg0QN6PunwDLx0yqIymg/4CSATec6wRnRv9I2+BCyc9oMb/Y4NWa48MjNtIMzcP4BskEJ5SMC709Ho4vhFQjz6jv1QOGceBRaeSZMBO+wfMjVl2qwuY8IBm5pCZ13e4caCExR7lgViM8DbBhc2rXBiAQiO8im5Dh8BJKy9VVnYVpTLUwFuGT4cPBXKQTgFXQEd7uUcFoIPSo5LS2EendKzgESFOS0MrWXh1qqaULS3RoesKOCg36eftmZXhZTg/bTI2WUNDmdJoxE0EjzQypWMufQePMWU2ySEc4LYKoRFvMs6UgBVupny2sM40u3UOuyGfaP9gJMOBEJ2K3Af+iih2BApprDZX8RcJ1SMCUE1LHmkVYsxT6WKlFuMWldN1keTa68Azwu0Ba6UrtaAZo2Ri1ceryoicnhwsF257yJXWawLO3bOuH8pW7s8GaBQOf3bUb/cyNau0MvzafRuW8mqs1pRgckMHK8mayEblzQpfzGJIMmw8LN9lfkaPCpmSbAI2Q2NYrAR7f6piJRXurrGbRRsLW9Sd3can5J8v7usgdA42Tow1TYMgrmph0ScDTgPH72NceHBPTezonChTnyOaP2g15O5KbJu0EWj6ArVE1bx10NxGHfZEUE5zQQPsnAKl/G84cXZZ1iegshCrQbjySbgiuySDNCGrdveqrDc9EG4qwi5OPUzVbWeZPMURbkqPTUxvBlVidtHIR9BUz9Rnol2v/u+29+VTB3AAq3a9UJG1zc8Iox6sSXXSqiwExqBLM8RxOLDeoNYWuNxIfTGea2WfMWpXHfd//QA1RVCeMGezYWKTRblKGuPjTluvKTzkDStleW98HDt8qqi5fQMkVMy5cV9Tn0zFbmHPSq8uaxb7C3bReQxuGbjxXsWeUGg6M9n4RTdFO3YaexDFFLUUJIqG1Fbo45OWbXVyfEoVPUXFhbREg==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -75,7 +75,7 @@ Raises:
     <ul>
       <ParamsItem
         className={"paramsItem"}
-        param={{"required":true,"schema":{"type":"string","title":"App Id"},"name":"app_id","in":"query"}}
+        param={{"name":"app_id","in":"query","required":true,"schema":{"type":"string","title":"App Id"}}}
       >
         
       </ParamsItem>
@@ -161,9 +161,18 @@ Raises:
                         collapsible={false}
                         name={"created_at"}
                         required={true}
-                        schemaName={"date-time"}
+                        schemaName={"Created At (string)"}
                         qualifierMessage={undefined}
-                        schema={{"type":"string","format":"date-time","title":"Created At"}}
+                        schema={{"type":"string","title":"Created At"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"updated_at"}
+                        required={true}
+                        schemaName={"Updated At (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Updated At"}}
                       >
                         
                       </SchemaItem><li>
@@ -180,7 +189,7 @@ Raises:
                   value={"Example (from schema)"}
                 >
                   <ResponseSamples
-                    responseExample={"[\n  {\n    \"_id\": \"string\",\n    \"name\": \"string\",\n    \"created_at\": \"2024-08-19T07:55:04.524Z\"\n  }\n]"}
+                    responseExample={"[\n  {\n    \"_id\": \"string\",\n    \"name\": \"string\",\n    \"created_at\": \"string\",\n    \"updated_at\": \"string\"\n  }\n]"}
                     language={"json"}
                   >
                     

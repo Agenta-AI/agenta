@@ -41,7 +41,7 @@ def _is_uuid_key(key: str) -> bool:
         "root.id",
         "tree.id",
         "node.id",
-        "parend.id",
+        "parent.id",
     )
 
 
@@ -152,6 +152,7 @@ def parse_ingest_value(
         attributes[key] = to_type(attributes[key])
     except ValueError:
         print_exc()
+        print(f"key='{key}' attribute='{attributes[key]}' type='{to_type}'")
 
         del attributes[key]
 
@@ -167,7 +168,7 @@ def parse_ingest(
         }
         for field, attributes in typecheck.items():
             if attributes is not None:
-                for key in attributes.keys():
+                for key in list(attributes.keys()):
                     scoped_key = f"{field}.{key}"
                     if _is_uuid_key(scoped_key):
                         parse_ingest_value(attributes, UUID, key)

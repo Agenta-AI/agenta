@@ -43,8 +43,6 @@ describe("Single Model Test workflow", () => {
 
             cy.wait(1000)
             cy.get('[data-cy="single-model-run-all-button"]').click()
-
-            cy.wait("@generateRequest")
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').type("100")
         })
 
