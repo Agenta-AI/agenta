@@ -1,5 +1,6 @@
 import {getCurrentProject} from "@/contexts/project.context"
 import axios from "@/lib//helpers/axiosConfig"
+import Session from "supertokens-auth-react/recipe/session"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
     detectChatVariantFromOpenAISchema,
@@ -120,15 +121,34 @@ export async function callVariant(
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
     const {projectId} = getCurrentProject()
+    const jwt = await getJWT()
 
     return axios
         .post(`${appContainerURI}/generate?project_id=${projectId}`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
+            headers: {
+                Authorization: jwt && `Bearer ${jwt}`,
+            },
         } as any)
         .then((res) => {
             return res.data
         })
+}
+
+/**
+ * Get the JWT from SuperTokens
+ */
+const getJWT = async () => {
+    try {
+        if (await Session.doesSessionExist()) {
+            let jwt = await Session.getAccessToken()
+
+            return jwt
+        }
+    } catch (error) {}
+
+    return undefined
 }
 
 /**
@@ -145,7 +165,13 @@ export const fetchVariantParametersFromOpenAPI = async (
 ) => {
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
     const url = `${appContainerURI}/openapi.json`
-    const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
+    const jwt = await getJWT()
+    const response = await axios.get(url, {
+        _ignoreError: ignoreAxiosError,
+        headers: {
+            Authorization: jwt && `Bearer ${jwt}`,
+        },
+    } as any)
     const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
     let APIParams = openAISchemaToParameters(response.data)
 
