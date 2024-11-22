@@ -349,7 +349,7 @@ const ObservabilityDashboard = () => {
                     "Trace ID": trace.key,
                     Name: trace.node.name,
                     "Span type": trace.node.type || "N/A",
-                    Inputs: convertToStringOrJson(trace?.data?.inputs?.topic) || "N/A",
+                    Inputs: convertToStringOrJson(trace?.data?.inputs) || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
                     Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
                     Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
