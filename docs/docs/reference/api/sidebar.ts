@@ -22,9 +22,9 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/get-variant",
-          label: "Get Variant",
-          className: "api-method get",
+          id: "reference/api/remove-variant",
+          label: "Remove Variant",
+          className: "api-method delete",
         },
         {
           type: "doc",
@@ -34,9 +34,9 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/remove-variant",
-          label: "Remove Variant",
-          className: "api-method delete",
+          id: "reference/api/get-variant",
+          label: "Get Variant",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -68,6 +68,54 @@ const sidebar: SidebarsConfig = {
           label: "Get Variant Revision",
           className: "api-method get",
         },
+        {
+          type: "doc",
+          id: "reference/api/configs-add",
+          label: "Configs Add",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-fetch",
+          label: "Configs Fetch",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-fork",
+          label: "Configs Fork",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-commit",
+          label: "Configs Commit",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-deploy",
+          label: "Configs Deploy",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-delete",
+          label: "Configs Delete",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-list",
+          label: "Configs List",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/configs-history",
+          label: "Configs History",
+          className: "api-method post",
+        },
       ],
     },
     {
@@ -86,15 +134,15 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/fetch-list-evaluations-evaluations-get",
-          label: "Fetch List Evaluations",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/create-evaluation",
           label: "Create Evaluation",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-list-evaluations-evaluations-get",
+          label: "Fetch List Evaluations",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -128,12 +176,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/webhook-example-fake",
-          label: "Webhook Example Fake",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
           id: "reference/api/fetch-evaluation-scenarios-evaluations-evaluation-scenarios-comparison-results-get",
           label: "Fetch Evaluation Scenarios",
           className: "api-method get",
@@ -153,6 +195,18 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/get-evaluators-endpoint-evaluators-get",
           label: "Get Evaluators Endpoint",
           className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/evaluator-data-map-evaluators-map-post",
+          label: "Evaluator Data Map",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/evaluator-run-evaluators-evaluator-key-run-post",
+          label: "Evaluator Run",
+          className: "api-method post",
         },
         {
           type: "doc",
@@ -208,27 +262,33 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/list-apps",
-          label: "List Apps",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/create-app",
           label: "Create App",
           className: "api-method post",
         },
         {
           type: "doc",
-          id: "reference/api/add-variant-from-image",
-          label: "Add Variant From Image",
-          className: "api-method post",
+          id: "reference/api/list-apps",
+          label: "List Apps",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/update-app",
+          label: "Update App",
+          className: "api-method patch",
         },
         {
           type: "doc",
           id: "reference/api/remove-app",
           label: "Remove App",
           className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/add-variant-from-image",
+          label: "Add Variant From Image",
+          className: "api-method post",
         },
         {
           type: "doc",
@@ -260,15 +320,15 @@ const sidebar: SidebarsConfig = {
       items: [
         {
           type: "doc",
-          id: "reference/api/fetch-list-human-evaluations-human-evaluations-get",
-          label: "Fetch List Human Evaluations",
-          className: "api-method get",
+          id: "reference/api/create-human-evaluation",
+          label: "Create Human Evaluation",
+          className: "api-method post",
         },
         {
           type: "doc",
-          id: "reference/api/create-evaluation",
-          label: "Create Evaluation",
-          className: "api-method post",
+          id: "reference/api/fetch-list-human-evaluations-human-evaluations-get",
+          label: "Fetch List Human Evaluations",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -290,8 +350,8 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/fetch-evaluation-scenarios",
-          label: "Fetch Evaluation Scenarios",
+          id: "reference/api/fetch-human-evaluation-scenarios",
+          label: "Fetch Human Evaluation Scenarios",
           className: "api-method get",
         },
         {
@@ -348,15 +408,15 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/get-single-testset",
-          label: "Get Single Testset",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/update-testset",
           label: "Update Testset",
           className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "reference/api/get-single-testset",
+          label: "Get Single Testset",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -450,7 +510,7 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/delete-traces",
+          id: "reference/api/delete-traces-legacy",
           label: "Delete Traces",
           className: "api-method delete",
         },
@@ -506,15 +566,15 @@ const sidebar: SidebarsConfig = {
       items: [
         {
           type: "doc",
-          id: "reference/api/get-config",
-          label: "Get Config",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/save-config",
           label: "Save Config",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/get-config",
+          label: "Get Config",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -527,6 +587,36 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/revert-deployment-revision",
           label: "Revert Deployment Revision",
           className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Observability [v1]",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/otlp-status",
+          label: "Status of OTLP endpoint",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/otlp-receiver",
+          label: "Receive traces via OTLP",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-traces",
+          label: "Query traces, with optional grouping, windowing, filtering, and pagination.",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-traces",
+          label: "Delete traces",
+          className: "api-method delete",
         },
       ],
     },
@@ -656,7 +746,7 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/user-profile",
+          id: "reference/api/fetch-user-profile",
           label: "User Profile",
           className: "api-method get",
         },
