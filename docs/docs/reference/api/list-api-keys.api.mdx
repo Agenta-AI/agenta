@@ -5,7 +5,7 @@ description: "List all API keys associated with the authenticated user."
 sidebar_label: "List Api Keys"
 hide_title: true
 hide_table_of_contents: true
-api: eJzdVE1v2zAM/SuCThvQJdmOOc3riq1oD0U/TkkQsDYTq7UlVaK7ZIb/+0jZSZNuPWzH5eDIIvn0+PjkVhcY82A8GWf1VF+aSAqqSmVX5+oRt1FBjC43QFioH4ZKRSUqaPhpyeRpu4kYRnM7t1lYx+ncKv4FfGqQod5d94v3U3XLhcbmrjZ2vY+7+wfMKVVfIzXB7gCEyEweTOSCeVxj9M5GXExVpiph6VaJ5MVbJBMtfaKdxwDS3nnBDUrpErxZSnMcDQNu1NNWf5pM5O9YkpsmzzHGVVOpHQmuy50llkDSwftKpOD08UOUmlbHvMQaZGUI6wTugzAhg8MbrsxGVrT1yMdECiwMI5OhSjau+oyOzwoorS2B/pS/cqGWiC446QOZGg9ATvtSlZEAVcDNsy7/BHXJxeou7sFw400v7FLS/xrvbF+vvkp9x5gDQO+KNJ2nxgTkwc12ih3JsTig97tX9AsihADbg8N3KclnKvMm+Yg5dEKjRiqduGWNwsIDlfwyHizDvnrGwFOctboJFUdKIh+n43FeuaYYwZqNASMwY/YZ5x/bKUtRdSqpulsIXN4EQ9uE13fwHaHAwBuLw4Qb8VTvnuO0vfB8Hm/zkRZqec/4nrpgfiaVedsIgbKvkj6NXblUPqgycPsC+SPaggukz572ZPRxNHmrmaFA7uNwNSBPBtvxSGkcOpZrLxRH+LYYiRFC/fklICy9i1SDPcA7HtorUu3L3fwfP2fDqAk3NPYV8Ei7Qdd2MOpMJ6Oyc0pWTt7b9h4i3oWq62SbuQaxGy+fIRi4l+Gz10523hAnMoZMjr99Xu7AM1RNb7FXHztx6P6+fDu75ZH9AsCXLOs=
+api: eJzdVMlu2zAQ/RVCpxYIbLdHnaomQRskQIMsJ9swJtTYYkKRDEmlcQX9e2coyUuK9NBjfZBFzvbmzRu1WYlBeuWisibLsysVogCtRXF9IZ5wGwSEYKWCiKX4qWIlYoUCGnqaqGS6bgL6ycIsTOE3IV8YQT+Pzw1Sqg83/cvHXNxRoDLS1spsdnb78IgypugbjI03YwIGMucHAbkkHDcYnDUBl7kohGaUdp1AXr4HMsHKTjLr0AO3d1FSgxy6AqdW3BxZ/ZA3ZHmbfZ7N+O+YkttGSgxh3WgxgqA4aU0kCtgdnNNMBblPHwPHtFmQFdbAb3HrkLKA97ClOBWxTrWcZ2BR4XDCtXo98A/RE08UEFXUfHHde3RU2iN3uoL4N//T3ksUkWM0UNvEyBgFZvtjneXzt/Hdye7GNFpn3XKf8YpyiPuwy4mvTvXMrkoq9a9pz3dpxBmn6Sj14NurI03puVEeaYDzkaojHg5R/qkZBjuax7skMFE4lQRERTuuW2OsLMtkg1zWQazoMB20QoJ6QR9Sf43XZKlidCGfTqW2TTmBDSkCJqCmJDDyP9ZRkazilF0TAQFl41Xcpnw95O8IJXq6WB463LKYep0cu+3V5RRdU0kDNZ8LWlDr1a9EK6uOAVR9FPepzNqm8IGVAdtXkE9oSgrgPnvYs8mnyey9ZoYAXsRhJ0AmfY04khuZjunaEUUWWhPFtohQf9kbGKWzIdZgDvIdD+0NqHa/lP/jd2wYdcTXOHUaaKTdwGs7CHWeJaGScipijs9t+wAB773uOr4mrJ7lRq8v4BU88PBJayejNliJlIMnRx89xzvwArrpJfbmK8cK3e3Lt/M7Gtlv2cwrNA==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -120,29 +120,101 @@ Returns:
                         collapsible={false}
                         name={"created_at"}
                         required={true}
-                        schemaName={"date-time"}
+                        schemaName={"Created At (string)"}
                         qualifierMessage={undefined}
-                        schema={{"type":"string","format":"date-time","title":"Created At"}}
+                        schema={{"type":"string","title":"Created At"}}
                       >
                         
                       </SchemaItem><SchemaItem
-                        collapsible={false}
-                        name={"last_used_at"}
-                        required={false}
-                        schemaName={"date-time"}
-                        qualifierMessage={undefined}
-                        schema={{"type":"string","format":"date-time","title":"Last Used At"}}
+                        collapsible={true}
+                        className={"schemaItem"}
                       >
-                        
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary
+                            style={{}}
+                          >
+                            <strong>
+                              last_used_at
+                            </strong><span
+                              style={{"opacity":"0.6"}}
+                            >
+                               object
+                            </span>
+                          </summary><div
+                            style={{"marginLeft":"1rem"}}
+                          >
+                            
+                          </div><div>
+                            <span
+                              className={"badge badge--info"}
+                            >
+                              anyOf
+                            </span><SchemaTabs>
+                              <TabItem
+                                label={"MOD1"}
+                                value={"0-item-properties"}
+                              >
+                                <div
+                                  style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                >
+                                  
+                                  
+                                  string
+                                  
+                                  
+                                </div>
+                              </TabItem>
+                            </SchemaTabs>
+                          </div>
+                        </details>
                       </SchemaItem><SchemaItem
-                        collapsible={false}
-                        name={"expiration_date"}
-                        required={false}
-                        schemaName={"date-time"}
-                        qualifierMessage={undefined}
-                        schema={{"type":"string","format":"date-time","title":"Expiration Date"}}
+                        collapsible={true}
+                        className={"schemaItem"}
                       >
-                        
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary
+                            style={{}}
+                          >
+                            <strong>
+                              expiration_date
+                            </strong><span
+                              style={{"opacity":"0.6"}}
+                            >
+                               object
+                            </span>
+                          </summary><div
+                            style={{"marginLeft":"1rem"}}
+                          >
+                            
+                          </div><div>
+                            <span
+                              className={"badge badge--info"}
+                            >
+                              anyOf
+                            </span><SchemaTabs>
+                              <TabItem
+                                label={"MOD1"}
+                                value={"0-item-properties"}
+                              >
+                                <div
+                                  style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                >
+                                  
+                                  
+                                  string
+                                  
+                                  
+                                </div>
+                              </TabItem>
+                            </SchemaTabs>
+                          </div>
+                        </details>
                       </SchemaItem><li>
                         <div
                           style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
@@ -157,7 +229,7 @@ Returns:
                   value={"Example (from schema)"}
                 >
                   <ResponseSamples
-                    responseExample={"[\n  {\n    \"prefix\": \"string\",\n    \"created_at\": \"2024-08-19T07:55:03.636Z\",\n    \"last_used_at\": \"2024-08-19T07:55:03.636Z\",\n    \"expiration_date\": \"2024-08-19T07:55:03.636Z\"\n  }\n]"}
+                    responseExample={"[\n  {\n    \"prefix\": \"string\",\n    \"created_at\": \"string\",\n    \"last_used_at\": \"string\",\n    \"expiration_date\": \"string\"\n  }\n]"}
                     language={"json"}
                   >
                     
