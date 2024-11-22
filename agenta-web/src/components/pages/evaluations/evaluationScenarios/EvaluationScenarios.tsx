@@ -356,7 +356,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     <Space>
                         <Typography.Text strong>Variant:</Typography.Text>
                         <Typography.Link
-                            href={`/apps/${appId}/playground/?variant=${evalaution?.variants[0].variantName}`}
+                            href={`/apps/${appId}/playground?variant=${evalaution?.variants[0].variantName}`}
                         >
                             {variantNameWithRev({
                                 variant_name: evalaution?.variants[0].variantName ?? "",

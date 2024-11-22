@@ -1,3 +1,4 @@
+import {getCurrentProject} from "@/contexts/project.context"
 import {AppTemplate} from "@/lib/Types"
 import axios from "@/lib/helpers/axiosConfig"
 import {dynamicContext} from "@/lib/helpers/dynamic"
@@ -13,12 +14,18 @@ import {waitForAppToStart} from "@/services/api"
 //  - delete: DELETE data from server
 
 export const fetchAllTemplates = async () => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/containers/templates/`)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/containers/templates?project_id=${projectId}`,
+    )
     return response.data
 }
 
 export async function deleteApp(appId: string) {
-    await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}/`, {
+    const {projectId} = getCurrentProject()
+
+    await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`, {
         data: {app_id: appId},
     })
 }
@@ -27,8 +34,10 @@ export const createAppFromTemplate = async (
     templateObj: AppTemplate,
     ignoreAxiosError: boolean = false,
 ) => {
+    const {projectId} = getCurrentProject()
+
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/apps/app_and_variant_from_template/`,
+        `${getAgentaApiUrl()}/api/apps/app_and_variant_from_template?project_id=${projectId}`,
         templateObj,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -40,8 +49,10 @@ export const updateAppName = async (
     appName: string,
     ignoreAxiosError: boolean = false,
 ) => {
+    const {projectId} = getCurrentProject()
+
     const response = await axios.patch(
-        `${getAgentaApiUrl()}/api/apps/${appId}`,
+        `${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`,
         {app_name: appName},
         {_ignoreError: ignoreAxiosError} as any,
     )
