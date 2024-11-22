@@ -72,7 +72,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
             : [],
     )
     const [sort, setSort] = useState<SortResult>({} as SortResult)
-    const [pagination, setPagination] = useState({page: 1, size: 10})
+    const [pagination, setPagination] = useState({page: 1, size: 50})
 
     const fetchTraces = async () => {
         try {
