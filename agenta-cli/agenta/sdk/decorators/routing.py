@@ -57,9 +57,6 @@ _MIDDLEWARES = True
 app.include_router(router, prefix="")
 
 
-log.setLevel("DEBUG")
-
-
 class PathValidator(BaseModel):
     url: HttpUrl
 
@@ -669,13 +666,33 @@ class entrypoint:
         loop = get_event_loop()
 
         with routing_context_manager(config=args_config_params):
-            loop.run_until_complete(
+            result = loop.run_until_complete(
                 self.execute_function(
                     func,
                     True,  # inline trace: True
                     **{"params": args_func_params, "config_params": args_config_params},
                 )
             )
+
+        if result.trace:
+            log.info("\n========= Result =========\n")
+
+            log.info(f"trace_id: {result.trace['trace_id']}")
+            log.info(f"latency:  {result.trace.get('latency')}")
+            log.info(f"cost:     {result.trace.get('cost')}")
+            log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
+
+            log.info(" ")
+            log.info("data:")
+            log.info(dumps(result.data, indent=2))
+
+            log.info(" ")
+            log.info("trace:")
+            log.info("----------------")
+            log.info(dumps(result.trace.get("spans", []), indent=2))
+            log.info("----------------")
+
+            log.info("\n==========================\n")
 
     def override_config_in_schema(
         self,
