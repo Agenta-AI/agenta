@@ -65,3 +65,18 @@ class HumanEvaluationScenarioOutput(BaseModel):
 class TemplateType(enum.Enum):
     IMAGE = "image"
     ZIP = "zip"
+
+
+class AppType(str, enum.Enum):
+    CHAT_TEMPLATE = "TEMPLATE:simple_chat"
+    COMPLETION_TEMPLATE = "TEMPLATE:simple_completion"
+    CUSTOM = "CUSTOM"
+
+    @classmethod
+    def friendly_tag(cls, app_type: str):
+        mappings = {
+            cls.CHAT_TEMPLATE: "chat",
+            cls.COMPLETION_TEMPLATE: "completion",
+            cls.CUSTOM: "custom",
+        }
+        return mappings.get(app_type, None)

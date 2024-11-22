@@ -527,31 +527,32 @@ async def create_app_and_variant_from_template(
             )
 
         logger.debug(
-            "Step 5: Creating new app and initializing environments"
+            "Step 5: Retrieve template from db"
             if isCloudEE()
-            else "Step 2: Creating new app and initializing environments"
+            else "Step 2: Retrieve template from db"
+        )
+        template_db = await db_manager.get_template(payload.template_id)
+
+        logger.debug(
+            "Step 6: Creating new app and initializing environments"
+            if isCloudEE()
+            else "Step 3: Creating new app and initializing environments"
         )
         if app is None:
             app = await db_manager.create_app_and_envs(
-                app_name,
+                app_name=app_name,
+                template_id=str(template_db.id),
                 project_id=payload.project_id or request.state.project_id,
                 workspace_id=payload.workspace_id,
             )
-
-        logger.debug(
-            "Step 6: Retrieve template from db"
-            if isCloudEE()
-            else "Step 3: Retrieve template from db"
-        )
-        template_db = await db_manager.get_template(payload.template_id)
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
-        image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
             "Step 7: Creating image instance and adding variant based on image"
             if isCloudEE()
             else "Step 4: Creating image instance and adding variant based on image"
         )
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+        image_name = f"{repo_name}:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             project_id=str(app.project_id),

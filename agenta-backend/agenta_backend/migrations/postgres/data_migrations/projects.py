@@ -8,9 +8,9 @@ from sqlalchemy.future import select
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from agenta_backend.models.deprecated_models import ProjectScopedAppDB as AppDB
 from agenta_backend.models.db_models import (
     ProjectDB,
-    AppDB,
     AppVariantDB,
     AppVariantRevisionsDB,
     VariantBaseDB,
