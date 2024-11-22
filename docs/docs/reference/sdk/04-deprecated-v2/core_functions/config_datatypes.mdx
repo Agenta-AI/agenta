@@ -3,6 +3,10 @@ title: "Config Data Types"
 description: "Data types allow you to configure the playground"
 ---
 
+:::warning
+This page is for the deprecated SDK v2.
+:::
+
 ## Data types for parameters
 
 There are multiple data types that can be used for the parameters in the configuration. Each data type translates into an element in the playground.
@@ -53,9 +57,10 @@ agenta.config.register_default(temperature = ag.IntParam(default=0.5, minval=0, 
 ```
 
 :::note
-  {" "}
-  For now the binary parameter is always initialized with `False` and can only be changed from the playground{" "}
+{" "}
+For now the binary parameter is always initialized with `False` and can only be changed from the playground{" "}
 :::
+
 ## Data types for inputs
 
 Inputs in contrast to parameters are given as argument to the function decorated with `@agenta.entrypoint`. They are not part of the configuration but instead are the input in the call to the LLM app.
