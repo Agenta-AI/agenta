@@ -11,7 +11,7 @@ import {getCurrentProject} from "@/contexts/project.context"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const useLoadTestsetsList = (appId: string) => {
+export const useLoadTestsetsList = () => {
     const {projectId} = getCurrentProject()
 
     const {data, error, mutate, isLoading} = useSWR(
