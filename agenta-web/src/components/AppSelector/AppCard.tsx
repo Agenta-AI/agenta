@@ -135,7 +135,7 @@ const AppCard: React.FC<{
                 <div data-cy="app-card-link" className={classes.app_card_link}>
                     <div>
                         <Text>Type</Text>
-                        <Tag className="mr-0">Template</Tag>
+                        <Tag className="mr-0">{app.app_type}</Tag>
                     </div>
                     <div>
                         <Text>Last modified:</Text>
