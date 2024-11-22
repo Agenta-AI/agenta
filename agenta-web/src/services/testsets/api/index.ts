@@ -31,9 +31,7 @@ export const useLoadTestsetsList = (appId: string) => {
 export const fetchTestsets = async () => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`,
-    )
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`)
 
     return response.data
 }
@@ -41,14 +39,11 @@ export const fetchTestsets = async () => {
 export async function createNewTestset(testsetName: string, testsetData: any) {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`,
-        {
-            name: testsetName,
-            csvdata: testsetData || [{input: null, correct_answer: null}],
-        },
-    )
-    
+    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`, {
+        name: testsetName,
+        csvdata: testsetData || [{input: null, correct_answer: null}],
+    })
+
     return response
 }
 
