@@ -2,7 +2,12 @@ from typing import List, Optional, Tuple
 from uuid import UUID
 
 from agenta_backend.core.observability.interfaces import ObservabilityDAOInterface
-from agenta_backend.core.observability.dtos import QueryDTO, SpanDTO
+from agenta_backend.core.observability.dtos import (
+    QueryDTO,
+    AnalyticsDTO,
+    SpanDTO,
+    BucketDTO,
+)
 from agenta_backend.core.observability.utils import (
     parse_span_dtos_to_span_idx,
     parse_span_idx_to_span_id_tree,
@@ -48,6 +53,22 @@ class ObservabilityService:
             ]
 
         return span_dtos, count
+
+    async def analytics(
+        self,
+        *,
+        project_id: UUID,
+        analytics_dto: AnalyticsDTO,
+    ) -> Tuple[List[BucketDTO], Optional[int]]:
+        if analytics_dto.filtering:
+            parse_filtering(analytics_dto.filtering)
+
+        bucket_dtos, count = await self.observability_dao.analytics(
+            project_id=project_id,
+            analytics_dto=analytics_dto,
+        )
+
+        return bucket_dtos, count
 
     async def ingest(
         self,

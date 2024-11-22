@@ -89,16 +89,20 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            result = kwargs.get("complete_streaming_response")
+            try:
+                result = []
+                for choice in response_obj.choices:
+                    message = choice.message.__dict__
+                    result.append(message)
 
-            outputs = (
-                {"__default__": result} if not isinstance(result, dict) else result
-            )
+                outputs = {"completion": result}
+                self.span.set_attributes(
+                    attributes={"outputs": outputs},
+                    namespace="data",
+                )
 
-            self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
+            except Exception as e:
+                pass
 
             self.span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},
@@ -194,16 +198,20 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            result = kwargs.get("complete_streaming_response")
+            try:
+                result = []
+                for choice in response_obj.choices:
+                    message = choice.message.__dict__
+                    result.append(message)
 
-            outputs = (
-                {"__default__": result} if not isinstance(result, dict) else result
-            )
+                outputs = {"completion": result}
+                self.span.set_attributes(
+                    attributes={"outputs": outputs},
+                    namespace="data",
+                )
 
-            self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
+            except Exception as e:
+                pass
 
             self.span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},
@@ -236,17 +244,20 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            # result = kwargs.get("complete_streaming_response")
-            result = response_obj.choices[0].message.content
+            try:
+                result = []
+                for choice in response_obj.choices:
+                    message = choice.message.__dict__
+                    result.append(message)
 
-            outputs = (
-                {"__default__": result} if not isinstance(result, dict) else result
-            )
+                outputs = {"completion": result}
+                self.span.set_attributes(
+                    attributes={"outputs": outputs},
+                    namespace="data",
+                )
 
-            self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
+            except Exception as e:
+                pass
 
             self.span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},

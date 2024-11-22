@@ -1,4 +1,6 @@
 from typing import List, Optional
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from agenta_backend.apis.fastapi.shared.models import VersionedModel
@@ -8,6 +10,7 @@ from agenta_backend.core.observability.dtos import (
     SpanDTO,
     TreeDTO,
     RootDTO,
+    BucketDTO,
 )
 
 
@@ -58,3 +61,31 @@ class AgentaTreesResponse(VersionedModel, AgentaTreesDTO):
 
 class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
     count: Optional[int] = None
+
+
+class LegacySummary(BaseModel):
+    total_count: int
+    failure_rate: float
+    total_cost: float
+    avg_cost: float
+    avg_latency: float
+    total_tokens: int
+    avg_tokens: float
+
+
+class LegacyDataPoint(BaseModel):
+    timestamp: datetime
+    success_count: int
+    failure_count: int
+    cost: float
+    latency: float
+    total_tokens: int
+
+
+class LegacyAnalyticsResponse(LegacySummary):
+    data: List[LegacyDataPoint]
+
+
+class AnalyticsResponse(VersionedModel):
+    count: Optional[int] = None
+    buckets: List[BucketDTO]

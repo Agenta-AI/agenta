@@ -1,12 +1,12 @@
 ---
-id: webhook-example-fake
-title: "Webhook Example Fake"
-description: "Returns a fake score response for example webhook evaluation"
-sidebar_label: "Webhook Example Fake"
+id: otlp-status
+title: "Status of OTLP endpoint"
+description: "Status of OTLP endpoint."
+sidebar_label: "Status of OTLP endpoint"
 hide_title: true
 hide_table_of_contents: true
-api: eJy1U01v2zAM/SuCzkGc7ZjTsqFDix1WNBt2SIOAkZlajW2p+siaGf7vI2UlTor1uORgfTw+ko9PnQzw5OV8JW8OUEcI2rRerieyRK+ctryXc/mAIbrWCxA72KPwyjgUDr0lNIqdcQJfobE1it+4rYzZCzzTPdI/x88fW0G/zQX5Rk6ksegS9K6kXJlhkxk3nJFAp2xUbCc/zmb8uS5yGZVC73exFg8ZTHHKtAHbwHCwttYqZSqePcd00qsKG+CVdVxH0EOG1CIvwtHSV7ax2aIjvqBDzQfLBOj7yQlhts+oQqr0JWqHJas60KzHsFHmX0OfRNEzS4OhMty/NZ5ZLISKdsUopC/ekcajO6DjKXYyupqiqhCsnxeFqk0sp/BEAsAUdAFWy7ezXaRb8YWhsl8znYpOh2PiW9zffcPjLUJJ3c9X60vAkrUb5LqGnVWjfHRMKVtoeL+I1KTTf1I/dKy5gGqIYhF0uzMpPKuVa/sMao9tSQHc51D2bPphOnuvmRwgqKxsAVDJAqc6EoyuruU6C0U35ArNdwGh+TRecJU8oQbaC748S3GTX8HXYTBXtXWjFf/ze8riB3wNha2BRO5zp1221Upe2Ioi/mksmnTFXiR0123B409X9z0fv0R0bA9aHsBp2PKwyBuT0yzZOXsaPClNb9KynznfYIk3j5AddTb//fflD9L4L3w+mXU=
-sidebar_class_name: "post api-method"
+api: eJx9U01v2zAM/SuGzkGc7JhTs2JYixVosXa7BMHAyEysVrFUiTaWGf7vI2XH+QBaX2yLj3zk41OrCHZRLVbqcRMxNLAx1tAhWzXztVpPVIFRB+PJuEot1DMB1TFz2+zx5eEpw6rwzlQ0VRPlPAYQ2H3BQEfW/4kJzbGA0bsqIvO06stsJq+rwrXWGOO2ttnPAcx52lWEFQkcvLdGJ4L8NUpOq6IucQ/y5YPQk+kZGgzR9BA6eOTykYKpdlyRDFk5+D1AuokauvwE3E+tOgYPELd5RU1psvfaBCxEwCPtWHJ9KnHrrOWMvtI4YSfPRO2RSieq7VBqeqCSf3J3vpC8meciak4BWCkh4SAzMnOr6mA5oyTycZHn2rq6mMKOpYMpmBy8UdebXKZoditQ1a2lnK4DE6V6y6f7H3i4Qygw8MH6HPAsqvdCX8JGAZmPj5mygr38L2ueL5h/aXt8bKSBss+S+U21dSl9EGvo7SvoN3YYJ4wLVbPpfDr7aJghIeO2BvOATuY59pFgHLqUaxSKI+wnIzFC2N+cAtKld5H2UJ3V++A2XLfXnnz82QUaxCP8S7m3YJI5U6ftYImVurCECDOXm8e2kPzeGLypkjsVdNtuIOKvYLtOjt9rDLJe/mwgGNiI2LzbyXEXsvk3XhwrxbfRyyAN2Lpf6dX1E0eMvv3+7YUl+g+HQnfm
+sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
@@ -28,23 +28,20 @@ import TabItem from "@theme/TabItem";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Webhook Example Fake"}
+  children={"Status of OTLP endpoint"}
 >
 </Heading>
 
 <MethodEndpoint
-  method={"post"}
-  path={"/evaluations/webhook_example_fake"}
+  method={"get"}
+  path={"/observability/v1/otlp/traces"}
 >
   
 </MethodEndpoint>
 
 
 
-Returns a fake score response for example webhook evaluation
-
-Returns:
-    _description_
+Status of OTLP endpoint.
 
 <div>
   <div>
@@ -100,11 +97,20 @@ Returns:
                     >
                       <SchemaItem
                         collapsible={false}
-                        name={"score"}
+                        name={"version"}
                         required={true}
-                        schemaName={"Score (number)"}
+                        schemaName={"Version (string)"}
                         qualifierMessage={undefined}
-                        schema={{"type":"number","title":"Score"}}
+                        schema={{"type":"string","title":"Version"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"status"}
+                        required={true}
+                        schemaName={"Status (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Status"}}
                       >
                         
                       </SchemaItem>
@@ -115,7 +121,7 @@ Returns:
                   value={"Example (from schema)"}
                 >
                   <ResponseSamples
-                    responseExample={"{\n  \"score\": 0\n}"}
+                    responseExample={"{\n  \"version\": \"string\",\n  \"status\": \"string\"\n}"}
                     language={"json"}
                   >
                     
