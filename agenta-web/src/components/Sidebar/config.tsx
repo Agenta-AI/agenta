@@ -59,15 +59,13 @@ export const useSidebarConfig = () => {
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined />,
-            divider: apps.length === 0 ? true : false,
         },
         {
             key: "app-testsets-link",
             title: "Test Sets",
             tooltip: "Create and manage testsets for evaluation purposes.",
-            link: `/apps/testsets`,
+            link: `/testsets`,
             icon: <DatabaseOutlined />,
-            isHidden: apps.length === 0,
         },
         {
             key: "app-observability-link",
@@ -75,7 +73,6 @@ export const useSidebarConfig = () => {
             link: `/observability`,
             icon: <ChartLineUp />,
             divider: true,
-            isHidden: apps.length === 0,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,

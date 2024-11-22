@@ -29,34 +29,29 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_create_testset():
-    async with engine.session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name="app_variant_test")
-        )
-        app = result.scalars().first()
-
-        payload = {
-            "name": "create_testset_main",
-            "csvdata": [
-                {
-                    "country": "Comoros",
-                    "correct_answer": "The capital of Comoros is Moroni",
-                },
-                {
-                    "country": "Kyrgyzstan",
-                    "correct_answer": "The capital of Kyrgyzstan is Bishkek",
-                },
-                {
-                    "country": "Azerbaijan",
-                    "correct_answer": "The capital of Azerbaijan is Baku",
-                },
-            ],
-        }
-        response = await test_client.post(
-            f"{BACKEND_API_HOST}/testsets/{str(app.id)}/", json=payload
-        )
-        assert response.status_code == 200
-        assert response.json()["name"] == payload["name"]
+    payload = {
+        "name": "create_testset_main",
+        "csvdata": [
+            {
+                "country": "Comoros",
+                "correct_answer": "The capital of Comoros is Moroni",
+            },
+            {
+                "country": "Kyrgyzstan",
+                "correct_answer": "The capital of Kyrgyzstan is Bishkek",
+            },
+            {
+                "country": "Azerbaijan",
+                "correct_answer": "The capital of Azerbaijan is Baku",
+            },
+        ],
+    }
+    response = await test_client.post(
+        f"{BACKEND_API_HOST}/testsets",
+        json=payload,
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == payload["name"]
 
 
 @pytest.mark.asyncio
@@ -101,18 +96,10 @@ async def test_update_testset():
 
 @pytest.mark.asyncio
 async def test_get_testsets():
-    async with engine.session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name="app_variant_test")
-        )
-        app = result.scalars().first()
+    response = await test_client.get(f"{BACKEND_API_HOST}/testsets")
 
-        response = await test_client.get(
-            f"{BACKEND_API_HOST}/testsets/?app_id={str(app.id)}"
-        )
-
-        assert response.status_code == 200
-        assert len(response.json()) == 2
+    assert response.status_code == 200
+    assert len(response.json()) == 2
 
 
 @pytest.mark.asyncio()

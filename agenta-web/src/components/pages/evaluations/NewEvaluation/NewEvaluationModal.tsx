@@ -83,7 +83,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     useEffect(() => {
         setFetching(true)
         form.resetFields()
-        Promise.all([fetchTestsets(appId), fetchVariants(appId)])
+        Promise.all([fetchTestsets(), fetchVariants(appId)])
             .then(([testSets, variants]) => {
                 setTestSets(testSets)
                 setVariants(variants)

@@ -11,14 +11,11 @@ import {getCurrentProject} from "@/contexts/project.context"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const useLoadTestsetsList = (appId: string) => {
+export const useLoadTestsetsList = () => {
     const {projectId} = getCurrentProject()
 
     const {data, error, mutate, isLoading} = useSWR(
-        () =>
-            appId
-                ? `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}&app_id=${appId}`
-                : null,
+        `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`,
         axiosFetcher,
         {revalidateOnFocus: false, shouldRetryOnError: false},
     )
@@ -31,25 +28,22 @@ export const useLoadTestsetsList = (appId: string) => {
     }
 }
 
-export const fetchTestsets = async (appId: string) => {
+export const fetchTestsets = async () => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}&app_id=${appId}`,
-    )
+    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`)
+
     return response.data
 }
 
-export async function createNewTestset(appId: string, testsetName: string, testsetData: any) {
+export async function createNewTestset(testsetName: string, testsetData: any) {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets/${appId}?project_id=${projectId}`,
-        {
-            name: testsetName,
-            csvdata: testsetData,
-        },
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`, {
+        name: testsetName,
+        csvdata: testsetData || [{input: null, correct_answer: null}],
+    })
+
     return response
 }
 
