@@ -38,7 +38,7 @@ from agenta.sdk.types import (
 import agenta as ag
 
 
-AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", True)).lower() in (
+AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", "true")).lower() in (
     "true",
     "1",
     "t",
