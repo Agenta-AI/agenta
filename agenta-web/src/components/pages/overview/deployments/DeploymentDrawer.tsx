@@ -27,6 +27,7 @@ import {useVariant} from "@/lib/hooks/useVariant"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import VariantPopover from "../variants/VariantPopover"
+import {useAppsData} from "@/contexts/app.context"
 
 const DeploymentHistoryModal: any = dynamicComponent(
     "pages/overview/deployments/DeploymentHistoryModal",
@@ -124,6 +125,7 @@ const DeploymentDrawer = ({
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
+    const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
     const [uri, setURI] = useState<string | null>(null)
     const [variant, setVariant] = useState<Variant | null>(null)
@@ -165,9 +167,9 @@ const DeploymentDrawer = ({
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode(variant?.baseId!, selectedEnvironment?.name!),
-        bash: fetchConfigcURLCode(variant?.baseId!, selectedEnvironment?.name!),
-        typescript: fetchConfigtsCode(variant?.baseId!, selectedEnvironment?.name!),
+        python: fetchConfigpythonCode(currentApp?.app_name as string, selectedEnvironment?.name!),
+        bash: fetchConfigcURLCode(currentApp?.app_name as string, selectedEnvironment?.name!),
+        typescript: fetchConfigtsCode(currentApp?.app_name as string, selectedEnvironment?.name!),
     }
 
     return (

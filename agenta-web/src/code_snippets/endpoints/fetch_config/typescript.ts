@@ -1,18 +1,18 @@
 import {js as beautify} from "js-beautify"
 
-export default function tsCode(baseId: string, env_name: string): string {
+export default function tsCode(appName: string, env_name: string): string {
     const codeString = `
     import axios from 'axios';
-
-    const getConfig = async (baseId: string, environmentName: string) => {
+    
+    const getConfig = async (appName: string, environmentSlug: string) => {
         try {
             const baseUrl = '${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api';
             const params = {
-                base_id: baseId,
-                environment_name: environmentName
+                app_name: appName,
+                environment_slug: environmentSlug
             };
-
-            const response = await axios.get(baseUrl + "/configs", {
+    
+            const response = await axios.get(baseUrl + "/variants/configs/fetch", {
                 params: params,
                 headers: {
                     'Authorization': "Bearer YOUR_API_KEY",
@@ -20,7 +20,7 @@ export default function tsCode(baseId: string, env_name: string): string {
                 },
                 timeout: 60000
             });
-
+    
             if (response.status >= 200 && response.status < 300) {
                 return response.data;
             } else if (response.status === 422) {
@@ -37,8 +37,8 @@ export default function tsCode(baseId: string, env_name: string): string {
             throw error;
         }
     };
-
-    getConfig('${baseId}', '${env_name}').then(console.log).catch(console.error);
+    
+    getConfig('${appName}', '${env_name}').then(console.log).catch(console.error);
     `
 
     const formattedCodeString = beautify(codeString)
