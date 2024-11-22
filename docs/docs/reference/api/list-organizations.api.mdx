@@ -5,7 +5,7 @@ description: "Returns a list of organizations associated with the user's session
 sidebar_label: "List Organizations"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVE1z2jAQ/SsaXdrOZID26FNpmmmYfiST0BMwmUVesBJbciSZhHr4792VDbGTkkunt/oAtvbt26+3qmWKXjldBm2NTOQVhsoZL0Dk2gdhV8K6NRj9CxhA595bpSFgKh50yETIUFQe3RsvPHpPmMHczM3YrX0yN4IeH+wdmpvWKt5eNy+n1gTQBt27RExfkIjoFKnajFo2zmp20UlpkYjx3+V6BZo+W/7z6fTy7FFh7EciJiv2cig00RmBzlknHAancaPNOlL2g66cLeJxCgGW4HEgT6Qt0UX7JKUec7Y3PS+COPQlvaGXSS0/jEb81x/NdaUUpb2qcnHVgslPUR/RBIZDWeZaRcbhrWefWnqVYQH8pgMWkbx0nE7QTSid8m/YlkghPBVm1sQadMj5gPLdnUgDBb6G+sF2wvXyPQ7/3IGRVwM7Dp/yOeHsA6nlNeBFBBCywGKJzveq7jsdwkpwDrYdku+tLyG02ejQDqhDddx30nFgf39TwpbDPcVfWpsjmK6TF5cNavfEbJe3qEKUxX2lHdKQZs0Y9n1YdOruSOmVyvaiEd94Wy56+tvxw40LmWWJrpGDlxAy+hg+1yrt0Cb2d1bLyuUEyUIofTIcqtxW6QDWpEgYgB5CqeUzXchxtIpThsrdgulU5XTYRr7x5eQrbs8RUh72bNEFXLOYG9n2YYf2Ujw6lnvJynFFBbl9b3iknGzjtYsjXtno3vaoze0TKLp+UnLgOpu0R4P3g9GxYloHQWm1Owkq7uQ+jwgjU79dh0aRhdZUsy0gFB+fDJxlaX0owHT4/jDCF+t3uBn+X+r/5FJvJRfwMQzLnMrm3YvzrdvNmcn+5pCUMxolG+qaaX66fLfj4/sKHeufXjfgNCxZjST+k71YeTXuSNkkJcWFsDQhrxrNP7v2eWUOm/zlbEoa+g0Uy8K2
+api: eJztVU1z2jAQ/SsaX9rOMEB79Kk0zTRMP8gkdHogmcwiFlBiS44kk1LG/727skxsknBop7dyAKN9+/Zp9VbeJQt00qrCK6OTNLlAX1rtBIhMOS/MUhi7Aq1+AQNo3TkjFXhciAfl18KvUZQO7SsnHDpHmP6VvtIju3LplRb0cd7cob6JUfH6sn44MdqD0mjfpGL6hESEpEAVFUU2VjWbtCRdp2L0d1ovQNHfyH82nZ6f/pQY+pGK8ZKzLApFdFqgtcYKi94q3Ci9CpTdoktr8rC8AA9zcNhPeokp0Ib4eEE9ZrU3nSyCWHQFPaFL0l3ybjjkn+7RXJZSkuxlmYmLCKY8SX1E7RkORZEpGRgHt45zdomTa8yBn5THPJAXluV4VZdSC/722wKphKON6RWxeuUzXiC9VS/RkOMx1DeOE66j92X4xxaMsmoYydfbyTJJZ4eJVW+/osssS6rrR6oprxOHeSAnHas5CQBCPhh75wqQcfdNUw5LNgtgLWxbPD8e0wmUYz5H+2dMX2MuIZTeKB+d0KJ6OXfcSuB8d1PAlss918a5MRmCPtrHsRPnNUP1WNXMb1H64M37Ulkkp8zYL9EQ3fNuzqBF2h7TI41ozCy+8BRPOnNR8Yf77NeGR2eFrKcAv6Y/g8MZotnehOOgzZc2I8ja+8Klg4HMTLnow4omBfqgBlCoA/1pMgpRccLQ0ByHsrTKbwPf6Hz8GbdnCAs22uy6DbjkIasN1YXtG071aLnpHNUqaUO26Q07gMXWWVVwxNKE9NijqO0DSLoW+QR4n7XsYf9tf/jSZmKCIFnxrgAZ7opGR4BRqNuufaMoQteH4phHyN8/BlhlYZzPQbf4njnCJ9fC/sb6/7L5Jy+baDmPP/2gyGjbPHvhfHdxcmZJd3LIyms6Sg7sdkzz3WZVxcv3JVr2Pz1uwCqYsxvJ/L3GrDwad+RsspLkjbA1IStrzx+8jnhk9pP86XRKHvoNNwT2uw==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -113,7 +113,7 @@ Raises:
                       </li><SchemaItem
                         collapsible={false}
                         name={"id"}
-                        required={false}
+                        required={true}
                         schemaName={"Id (string)"}
                         qualifierMessage={undefined}
                         schema={{"type":"string","title":"Id"}}
@@ -131,21 +131,57 @@ Raises:
                       </SchemaItem><SchemaItem
                         collapsible={false}
                         name={"description"}
-                        required={false}
+                        required={true}
                         schemaName={"Description (string)"}
                         qualifierMessage={undefined}
                         schema={{"type":"string","title":"Description"}}
                       >
                         
                       </SchemaItem><SchemaItem
-                        collapsible={false}
-                        name={"type"}
-                        required={false}
-                        schemaName={"Type (string)"}
-                        qualifierMessage={undefined}
-                        schema={{"type":"string","title":"Type"}}
+                        collapsible={true}
+                        className={"schemaItem"}
                       >
-                        
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary
+                            style={{}}
+                          >
+                            <strong>
+                              type
+                            </strong><span
+                              style={{"opacity":"0.6"}}
+                            >
+                               object
+                            </span>
+                          </summary><div
+                            style={{"marginLeft":"1rem"}}
+                          >
+                            
+                          </div><div>
+                            <span
+                              className={"badge badge--info"}
+                            >
+                              anyOf
+                            </span><SchemaTabs>
+                              <TabItem
+                                label={"MOD1"}
+                                value={"0-item-properties"}
+                              >
+                                <div
+                                  style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                >
+                                  
+                                  
+                                  string
+                                  
+                                  
+                                </div>
+                              </TabItem>
+                            </SchemaTabs>
+                          </div>
+                        </details>
                       </SchemaItem><SchemaItem
                         collapsible={false}
                         name={"owner"}
@@ -153,6 +189,15 @@ Raises:
                         schemaName={"Owner (string)"}
                         qualifierMessage={undefined}
                         schema={{"type":"string","title":"Owner"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"workspaces"}
+                        required={false}
+                        schemaName={"string[]"}
+                        qualifierMessage={undefined}
+                        schema={{"items":{"type":"string"},"type":"array","title":"Workspaces"}}
                       >
                         
                       </SchemaItem><SchemaItem
@@ -174,14 +219,50 @@ Raises:
                       >
                         
                       </SchemaItem><SchemaItem
-                        collapsible={false}
-                        name={"is_paying"}
-                        required={false}
-                        schemaName={"Is Paying (boolean)"}
-                        qualifierMessage={undefined}
-                        schema={{"type":"boolean","title":"Is Paying"}}
+                        collapsible={true}
+                        className={"schemaItem"}
                       >
-                        
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary
+                            style={{}}
+                          >
+                            <strong>
+                              is_paying
+                            </strong><span
+                              style={{"opacity":"0.6"}}
+                            >
+                               object
+                            </span>
+                          </summary><div
+                            style={{"marginLeft":"1rem"}}
+                          >
+                            
+                          </div><div>
+                            <span
+                              className={"badge badge--info"}
+                            >
+                              anyOf
+                            </span><SchemaTabs>
+                              <TabItem
+                                label={"MOD1"}
+                                value={"0-item-properties"}
+                              >
+                                <div
+                                  style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                >
+                                  
+                                  
+                                  boolean
+                                  
+                                  
+                                </div>
+                              </TabItem>
+                            </SchemaTabs>
+                          </div>
+                        </details>
                       </SchemaItem><li>
                         <div
                           style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
@@ -196,7 +277,7 @@ Raises:
                   value={"Example (from schema)"}
                 >
                   <ResponseSamples
-                    responseExample={"[\n  {\n    \"id\": \"string\",\n    \"name\": \"string\",\n    \"description\": \"string\",\n    \"type\": \"string\",\n    \"owner\": \"string\",\n    \"members\": [\n      \"string\"\n    ],\n    \"invitations\": [\n      null\n    ],\n    \"is_paying\": true\n  }\n]"}
+                    responseExample={"[\n  {\n    \"id\": \"string\",\n    \"name\": \"string\",\n    \"description\": \"string\",\n    \"type\": \"string\",\n    \"owner\": \"string\",\n    \"workspaces\": [\n      \"string\"\n    ],\n    \"members\": [\n      \"string\"\n    ],\n    \"invitations\": [\n      null\n    ],\n    \"is_paying\": true\n  }\n]"}
                     language={"json"}
                   >
                     

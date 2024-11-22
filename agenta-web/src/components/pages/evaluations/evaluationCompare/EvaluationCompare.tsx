@@ -496,7 +496,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                                         }
                                     >
                                         <Link
-                                            href={`/apps/${appId}/playground/?variant=${v.variants[0].variantName}`}
+                                            href={`/apps/${appId}/playground?variant=${v.variants[0].variantName}`}
                                         >
                                             {variantNameWithRev({
                                                 variant_name: v.variants[0].variantName ?? "",

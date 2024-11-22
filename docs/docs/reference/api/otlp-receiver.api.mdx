@@ -1,12 +1,12 @@
 ---
-id: user-profile
-title: "User Profile"
-description: "User Profile"
-sidebar_label: "User Profile"
+id: otlp-receiver
+title: "Receive traces via OTLP"
+description: "Receive traces via OTLP."
+sidebar_label: "Receive traces via OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1Uk1PwzAM/StVztNaOO7EQAgmLhNjp2lCXuqtYWkT8jExqv537Lb7qkQvTWw/+/m91MJYdBCUqWa5mIjo0X1aZ7ZKoxgJh96ayqMXk1rcZxn/cvTSKcsQAiyilOj9NurkvS8mnDRVwCpwOVirlWwnpF+eMbXwssAS6NTwNxq0XBKHZH7mUGIoDHPbYaCrhVDQJb2QpPIDOqK4qkV0mpJFCNZP0lRqE/Mx7IgKjEGlYJUYTpu22eSJS0Wz5nYyOhWObb/pfPaGx1eEHB0F1tcFC96ik+a2rBbhaJF60zwK08gKSr5PI63i1G+rBoUVEyg6FOugqq1p4SpovHB7BLnHKicA79nRzsZ34+y/ZXpAQrR6M0C2Zpx4tGWUupXrLBRlyB/FuYBQPlwSzNIaH0qorvoNHLvhdBYj4E9IrQZauukn172bK3Fyk+QtqD2H6noDHpdONw2HvyM69oSOB3AKNqwQGTI6Cch27UltWo+epOW3cgAdOx8Gb5BtPL+rl+cP2usPRpMI0Q==
-sidebar_class_name: "get api-method"
+api: eJx9U01vozAQ/SvI5ygkPea02V626kqJmraXKFpNzDS4Ndi1B7RZxH/fGSDkQ2q5AJ43H37vTaMIDlEttmq1jxhq2Btr6Jhs6/lO7SYqw6iD8WRcqRbqCTWaGhMKoDEmtYFk9fx7PVUT5TwGENhDxkBH1v8JPTpwNGD0rozInRp1N7uT13XpTaW5ZHyrbPI0gDlPu5KwJIGD99borkX6HiWnUVHnWIB8+SADkOk7cNNoeggdPXL5SMGUB65IhqwcvA6QdsIxoCp+B970iJbBA8Tt31FTd7PPygTMhMJT27Hk7lzi3lnLGX2l8YatPBNVIOVOePMuSlEPlPNf6i41Set5KrymPfvShYPckls3qgqWM3IiHxdpqq2rsikcmDuYgknBG3Ur5rKLJvcCVe1OyukqcKOu3nL98IjHXwgZC7jY7i4BG6G9Z/oaNjLI/fiYW5ZQyP+y4gsG86+Tj4+NDJD3WUKAKd9clz6wNcz2E/QHlhknjIqq2XQ+nX11mSEh4bEG94Du3HOao4Nx6JqukSiOsKGMxAih+HEOyJSiTgHlRb0vFuJ2vOZs5O92aCCP8C+l3oLp3NlN2gyW2KorSwgxc1k+toXk98ZgpXLxEaObZg8RX4JtWzn+rDCIvPxZQzCwF7JZ28lJC1H+g4VjpngdvXixBlv1kt7snzhiNO56tXlmjv4D1pt45g==
+sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
@@ -28,20 +28,20 @@ import TabItem from "@theme/TabItem";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"User Profile"}
+  children={"Receive traces via OTLP"}
 >
 </Heading>
 
 <MethodEndpoint
-  method={"get"}
-  path={"/profile"}
+  method={"post"}
+  path={"/observability/v1/otlp/traces"}
 >
   
 </MethodEndpoint>
 
 
 
-User Profile
+Receive traces via OTLP.
 
 <div>
   <div>
@@ -50,8 +50,8 @@ User Profile
       id={undefined}
     >
       <TabItem
-        label={"200"}
-        value={"200"}
+        label={"202"}
+        value={"202"}
       >
         <div>
           
@@ -95,9 +95,37 @@ User Profile
                     </div><ul
                       style={{"marginLeft":"1rem"}}
                     >
-                      any
+                      <SchemaItem
+                        collapsible={false}
+                        name={"version"}
+                        required={true}
+                        schemaName={"Version (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Version"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"status"}
+                        required={true}
+                        schemaName={"Status (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Status"}}
+                      >
+                        
+                      </SchemaItem>
                     </ul>
                   </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"{\n  \"version\": \"string\",\n  \"status\": \"string\"\n}"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
                 </TabItem>
               </SchemaTabs>
             </TabItem>

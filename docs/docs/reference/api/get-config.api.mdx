@@ -5,7 +5,7 @@ description: "Get Config"
 sidebar_label: "Get Config"
 hide_title: true
 hide_table_of_contents: true
-api: eJytVdtuGjEQ/ZWVn1oJAUV94qmERknUW5TQvEQocrwDONn1OrYXla723ztjL3uDpKjqE6x95nbOzLhgjq8tm96zeaZWEv8uByzTYLiTmbqK2ZStwT0If8kGTHPDU3BgyKZgBl5yaQBhzuQwYFZsIOVsWjC304DG1hmpyNBJl9DBGbcQod9ywBR6wpNHPHmQMWKkws+XHMwOr9vOVzyxJ3kPRUTfyXMTIWT/4L/+R5RztZUmUyko1w8FzdWxeEiuAaszZcFShMl4TD8xWGGkJsoRe5sLAdau8iS6qcDoBotw6JXgXOtECq/Q6MmSTdHKWhvSz8kQoV376cSJ3BgqYYtCyxCgspSYxRpM2zRgo7sKW3a7pLbMHp9AuJbhdYMq0agPa4S57ynYz64TcNkEuAAX6qppLEuK9HEyOWT9jicy9pxG58Zk5t8pj8FxmdA/6SC1h4AkE51brnY/Vn6euvJQe/ZoL5cNU9wYvmvx+TULCZICqV2/Jfc37C++9lIHyBvNTmREC7r9m0pUVwhd4VpaNPQGdl8v43Og71iwPeRysbg+cBi07YqKHRDN97sLG2STVRvN94zb4MdIVIsPJx/Mdr/ZcoMKso1z2k5HI5FkeTxExpTjQy5HXEvWjzXzt9GcoH7SLWCjSrfz/mbXV19gdwk8RhWn98s24JYaKbRGF1argvHwmNVrZpZjKUb+DnpXO2YTrIgFqVaZN68Iq3I74+IZFK3aerDZePhhOH6tmMogwrSqeeDCz8M+Dw/Dqy5dNVF4gyNCw8Ac8PRTc0FZ6sy6lKuWv45enYxqKhz8ciOdcOn73MctKi33e8IvgQ06p6OioAfmp0nKko7DIiZFYmn5Y9Ja/L149fSzdzdVk7+P2OB4Hs+oTvsp2/IkJ5Sf4YNIAd1daqdYHHldGrMlfRhJdr7BBvuGoGKD/QwfFu1aVgdrjbzUc3JxvkCd/gD3B8Xf
+api: eJy9Vclu2zAQ/RWBpxYwbNfoyac6bpAE3YLEzSUwAkYa20woSiEpo66gf+8MSW1e0qCHnmxyljd8b2ZUMsvXhk3v2TxTK4F/lwOW5aC5FZm6StiUrcE+xM7IBiznmqdgQVNMyRQe0OWRG3gQCdqFwuNLAXqHBw0vhdCASawuYMBMvIGUs2nJ7C6nOGO1UJTWCivp4gwTRYhaVYMmucd+cKeTACsuTQ+Bq92Plauxj0WJw40qpGTVskX3FETfCalbAait0JlKQdn/UcZ5C1fXsiQQk2fKgKG0k/GYfhIwsRY5SYVxt0UcgzGrQkY3wRmLQ/osZnLF5LkUsVN29GQopuyUmmvS3QqP0GX9FcF6lCFYoTWxtMUGER4gRAqsYg26G+p9o7vgW/W7q4nMHp8gtp3A69YLVTpwa9W43+ud/ep6gB0BLsD6dzU0VhUhfZxMDlm/41IkjtPoXOtM/zvlCVguJP0TFlJz6CCzuGd9Q3PVtFfLlimuNd91+Pya+QJJgdSsX5P7G/YXXzupvctpV0dGtCDr31Sid3no4NfRoqXXs3v6GZ89fcfAapfLxeL6IKHXti8qdkA0r3ceNsgmC5vQ9Yzd4GEUh4WJ4w56W2/EQqOCbGNtbqajUSyzIhkiY8ryIRcjngu2jzVz1mhOrm4PGMBGFXbn8s2ur77A7hJ4gipO75ddh1tqJN8afbdGFcTDa4QMm2xW4FO0+O31Dmts46OIBaFWmQsPhIXaznj8DIr2ezPYbDz8MByfekwIiLCsMA88dvNQ1+Hc0NSnqyEKLTgiNAzMAk8/tQaqMs+MTbnq5Ovp1auoocLCLzvKJReuzx1uGbSs94RbAhtMTldlSV+1n1pWFV37XU+KJMLwR9nZ9nt4zfSzdzehyd9HbHC8jmdUp/v93HJZkJeb4QMk791fam+JOPIBa8OWdNCC4lyDDeqGoMf6+Bl+WHLbiTpYa5SlmZOL8wXq9AcGZdj7
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -69,17 +69,17 @@ Get Config
     <ul>
       <ParamsItem
         className={"paramsItem"}
-        param={{"required":true,"schema":{"type":"string","title":"Base Id"},"name":"base_id","in":"query"}}
+        param={{"name":"base_id","in":"query","required":true,"schema":{"type":"string","title":"Base Id"}}}
       >
         
       </ParamsItem><ParamsItem
         className={"paramsItem"}
-        param={{"required":false,"schema":{"type":"string","title":"Config Name"},"name":"config_name","in":"query"}}
+        param={{"name":"config_name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Config Name"}}}
       >
         
       </ParamsItem><ParamsItem
         className={"paramsItem"}
-        param={{"required":false,"schema":{"type":"string","title":"Environment Name"},"name":"environment_name","in":"query"}}
+        param={{"name":"environment_name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Environment Name"}}}
       >
         
       </ParamsItem>
