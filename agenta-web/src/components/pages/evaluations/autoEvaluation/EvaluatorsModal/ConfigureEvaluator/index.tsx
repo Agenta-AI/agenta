@@ -64,10 +64,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     formContainer: {
         display: "flex",
         flexDirection: "column",
-        maxWidth: 552,
         gap: theme.padding,
-        overflowY: "auto",
-        maxHeight: 580,
+        height: "100%",
         "& .ant-form-item": {
             marginBottom: 0,
         },
@@ -202,7 +200,7 @@ const ConfigureEvaluator = ({
                 <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
             </div>
 
-            <Flex gap={16} className="h-full">
+            <Flex gap={16} className="h-full overflow-y-hidden">
                 <div className="flex-1 flex flex-col gap-4">
                     <Space direction="vertical">
                         <Flex justify="space-between">
@@ -242,7 +240,7 @@ const ConfigureEvaluator = ({
                         </Typography.Text>
                     </Space>
 
-                    <div className="flex-1">
+                    <div className="flex-1 overflow-y-hidden">
                         <Form
                             requiredMark={false}
                             form={form}
@@ -267,7 +265,11 @@ const ConfigureEvaluator = ({
                             </Space>
 
                             {basicSettingsFields.length ? (
-                                <Space direction="vertical" size={4}>
+                                <Space
+                                    direction="vertical"
+                                    size={4}
+                                    className="flex-1 overflow-y-auto"
+                                >
                                     <Typography.Text className={classes.formTitleText}>
                                         Parameters
                                     </Typography.Text>

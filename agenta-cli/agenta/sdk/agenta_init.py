@@ -1,7 +1,7 @@
 import logging
 import toml
 from os import getenv
-from typing import Optional
+from typing import Optional, Callable, Any
 from importlib.metadata import version
 
 from agenta.sdk.utils.logging import log
@@ -36,6 +36,8 @@ class AgentaSingleton:
         host: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
+        redact: Optional[Callable[..., Any]] = None,
+        redact_on_error: Optional[bool] = True,
         # DEPRECATING
         app_id: Optional[str] = None,
     ) -> None:
@@ -91,6 +93,8 @@ class AgentaSingleton:
 
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/otlp/traces",  # type: ignore
+            redact=redact,
+            redact_on_error=redact_on_error,
         )
 
         self.tracing.configure(
@@ -258,7 +262,9 @@ def init(
     host: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
-    # DEPRECATED
+    redact: Optional[Callable[..., Any]] = None,
+    redact_on_error: Optional[bool] = True,
+    # DEPRECATING
     app_id: Optional[str] = None,
 ):
     """Main function to initialize the agenta sdk.
@@ -289,7 +295,8 @@ def init(
         host=host,
         api_key=api_key,
         config_fname=config_fname,
-        # DEPRECATED
+        redact=redact,
+        redact_on_error=redact_on_error,
         app_id=app_id,
     )
 

@@ -29,8 +29,8 @@ class Allow(JSONResponse):
 class Deny(HTTPException):
     def __init__(self) -> None:
         super().__init__(
-            status_code=401,
-            detail="Unauthorized",
+            status_code=403,
+            detail="Forbidden",
         )
 
 
