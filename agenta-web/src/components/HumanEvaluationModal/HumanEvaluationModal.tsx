@@ -150,7 +150,7 @@ const HumanEvaluationModal = ({
 
     const appId = router.query.app_id?.toString() || ""
 
-    const {testsets, isTestsetsLoadingError} = useLoadTestsetsList(appId)
+    const {testsets, isTestsetsLoadingError} = useLoadTestsetsList()
 
     const [variantsInputs, setVariantsInputs] = useState<Record<string, string[]>>({})
 
@@ -340,7 +340,7 @@ const HumanEvaluationModal = ({
                 setError({
                     message: getErrorMessage(err),
                     btnText: "Go to Test sets",
-                    endpoint: `/apps/${appId}/testsets`,
+                    endpoint: `/testsets`,
                 })
             }
         })

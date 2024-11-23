@@ -370,7 +370,7 @@ const AutomaticEvalOverview = () => {
                                     icon: <Database size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/testsets/${record.testset.id}`)
+                                        router.push(`/testsets/${record.testset.id}`)
                                     },
                                 },
                                 {type: "divider"},

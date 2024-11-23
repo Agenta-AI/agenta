@@ -8,7 +8,6 @@ import VariantsOverview from "@/components/pages/overview/variants/VariantsOverv
 import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {deleteApp} from "@/services/app-selector/api"
@@ -44,7 +43,6 @@ export default function Overview() {
     const appId = useAppId()
     const classes = useStyles()
     const {currentApp} = useAppsData()
-    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [variants, setVariants] = useState<Variant[]>([])
     const [isVariantLoading, setIsVariantLoading] = useState(false)
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
@@ -118,7 +116,7 @@ export default function Overview() {
         <>
             <div className={classes.container}>
                 <Space className="justify-between">
-                    <Title>{capitalizedAppName}</Title>
+                    <Title>{currentApp?.app_name || ""}</Title>
 
                     <Dropdown
                         trigger={["click"]}

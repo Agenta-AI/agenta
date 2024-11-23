@@ -1,0 +1,352 @@
+---
+title: "Configuration Management SDK"
+description: "Reference to the configuration and prompt management SDK in Agenta"
+sidebar_position: 1
+---
+
+This document provides a detailed reference for the Configuration Management SDK, which allows users to manage application configurations, variants, versions, and deployments using custom Pydantic models.
+
+## ConfigManager
+
+The `ConfigManager` class provides methods to retrieve and load configuration parameters for applications and variants.
+
+### `get_from_registry`
+
+`get_from_registry(schema=None, *, app_id=None, app_slug=None, variant_id=None, variant_slug=None, variant_version=None, environment_id=None, environment_slug=None, environment_version=None)`
+
+Pulls configuration parameters from the server registry.
+
+- **Parameters:**
+
+  - `schema` (Optional[Type[T]]): A Pydantic model class defining the configuration structure.
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+  - `variant_id` (Optional[str]): The unique identifier of the variant.
+  - `variant_slug` (Optional[str]): The slug of the variant.
+  - `variant_version` (Optional[int]): The version number of the variant.
+  - `environment_id` (Optional[str]): The unique identifier of the environment.
+  - `environment_slug` (Optional[str]): The slug of the environment.
+  - `environment_version` (Optional[int]): The version number of the environment.
+
+- **Returns:** An instance of the specified `schema` populated with configuration data, or a dictionary if no schema is provided.
+
+### `get_from_route`
+
+`get_from_route(schema=None)`
+Retrieves configuration from the route context.
+
+- **Parameters:**
+
+  - `schema` (Optional[Type[T]]): A Pydantic model class defining the configuration structure.
+
+- **Returns:** An instance of the specified `schema` populated with configuration data, or a dictionary if no schema is provided.
+
+### `get_from_yaml`
+
+`get_from_yaml(filename, schema=None)`
+
+Loads configuration from a YAML file.
+
+- **Parameters:**
+
+  - `filename` (str): The path to the YAML file.
+  - `schema` (Optional[Type[T]]): A Pydantic model class defining the configuration structure.
+
+- **Returns:** An instance of the specified `schema` populated with configuration data, or a dictionary if no schema is provided.
+
+### `get_from_json`
+
+`get_from_json(filename, schema=None)`
+
+Loads configuration from a JSON file.
+
+- **Parameters:**
+
+  - `filename` (str): The path to the JSON file.
+  - `schema` (Optional[Type[T]]): A Pydantic model class defining the configuration structure.
+
+- **Returns:** An instance of the specified `schema` populated with configuration data, or a dictionary if no schema is provided.
+
+### `aget_from_registry`
+
+`aget_from_registry(schema=None, *, app_id=None, app_slug=None, variant_id=None, variant_slug=None, variant_version=None, environment_id=None, environment_slug=None, environment_version=None)`
+
+Asynchronously pulls configuration parameters from the server registry.
+
+- **Parameters:** Same as `get_from_registry()`.
+
+- **Returns:** An instance of the specified `schema` populated with configuration data, or a dictionary if no schema is provided.
+
+### `aget_from_route`
+
+`aget_from_route(schema=None)`
+
+Asynchronously retrieves configuration from the route context.
+
+- **Parameters:** Same as `get_from_route()`.
+
+- **Returns:** An instance of the specified `schema` populated with configuration data, or a dictionary if no schema is provided.
+
+## VariantManager
+
+The `VariantManager` class provides methods to manage application variants, including creation, committing changes, deletion, and listing.
+
+### `create`
+
+`create(*, parameters, variant_slug, app_id=None, app_slug=None)`
+
+Creates a new variant and commits the initial parameters.
+
+- **Parameters:**
+
+  - `parameters` (dict): A dictionary containing the initial configuration parameters.
+  - `variant_slug` (str): The slug of the new variant.
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+
+- **Returns:** A variant object containing details of the created variant.
+
+### `commit`
+
+`commit(*, parameters, variant_slug, app_id=None, app_slug=None)`
+
+Commits changes to an existing variant, creating a new version.
+
+- **Parameters:**
+
+  - `parameters` (dict): A dictionary containing the configuration parameters to commit.
+  - `variant_slug` (str): The slug of the variant.
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+
+- **Returns:** A variant object containing details of the committed version.
+
+### `delete`
+
+`delete(*, variant_slug, app_id=None, app_slug=None)`
+
+Deletes a variant and all its versions.
+
+- **Parameters:**
+
+  - `variant_slug` (str): The slug of the variant to delete.
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+
+- **Returns:** A message confirming deletion.
+
+- **Note:** Deletion is irreversible and will fail if the variant is deployed to an environment.
+
+### `list`
+
+`list(*, app_id=None, app_slug=None)`
+
+Lists all variants of an application.
+
+- **Parameters:**
+
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+
+- **Returns:** A list of variant objects.
+
+### `history`
+
+`history(*, variant_slug, app_id=None, app_slug=None)`
+
+Retrieves the version history of a variant.
+
+- **Parameters:**
+
+  - `variant_slug` (str): The slug of the variant.
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+
+- **Returns:** A list of variant version objects.
+
+### `acreate`
+
+`acreate(*, parameters, variant_slug, app_id=None, app_slug=None)`
+
+Asynchronously creates a new variant and commits the initial parameters.
+
+- **Parameters:** Same as `create()`.
+
+- **Returns:** A variant object containing details of the created variant.
+
+### `acommit`
+
+`acommit(*, parameters, variant_slug, app_id=None, app_slug=None)`
+
+Asynchronously commits changes to an existing variant.
+
+- **Parameters:** Same as `commit()`.
+
+- **Returns:** A variant object containing details of the committed version.
+
+### `adelete`
+
+`adelete(*, variant_slug, app_id=None, app_slug=None)`
+
+Asynchronously deletes a variant.
+
+- **Parameters:** Same as `delete()`.
+
+- **Returns:** A message confirming deletion.
+
+### `alist`
+
+`alist(*, app_id=None, app_slug=None)`
+
+Asynchronously lists all variants of an application.
+
+- **Parameters:** Same as `list()`.
+
+- **Returns:** A list of variant objects.
+
+### `ahistory`
+
+`ahistory(*, variant_slug, app_id=None, app_slug=None)`
+
+Asynchronously retrieves the version history of a variant.
+
+- **Parameters:** Same as `history()`.
+
+- **Returns:** A list of variant version objects.
+
+## DeploymentManager
+
+The `DeploymentManager` class provides methods to deploy variants to environments.
+
+### `deploy`
+
+`deploy(*, variant_slug, environment_slug, app_id=None, app_slug=None, variant_version=None)`
+
+Deploys a variant to a specified environment.
+
+- **Parameters:**
+
+  - `variant_slug` (str): The slug of the variant to deploy.
+  - `environment_slug` (str): The slug of the environment (`development`, `staging`, or `production`).
+  - `app_id` (Optional[str]): The unique identifier of the application.
+  - `app_slug` (Optional[str]): The slug of the application.
+  - `variant_version` (Optional[int]): The version number of the variant to deploy; if not provided, deploys the latest version.
+
+- **Returns:** A deployment object containing details of the deployment.
+
+- **Note:** Only predefined environments (`development`, `staging`, `production`) are supported.
+
+### `adeploy`
+
+`adeploy(*, variant_slug, environment_slug, app_id=None, app_slug=None, variant_version=None)`
+
+Asynchronously deploys a variant to a specified environment.
+
+- **Parameters:** Same as `deploy()`.
+
+- **Returns:** A deployment object containing details of the deployment.
+
+## Available Environments
+
+A list of available environment slugs.
+
+```python
+AVAILABLE_ENVIRONMENTS = ["development", "production", "staging"]
+```
+
+## Notes
+
+- **Variant Immutability:** Each commit to a variant creates a new, immutable version.
+- **Error Handling:** Methods may raise exceptions if resources are not found or if operations fail.
+- **Asynchronous Methods:** Asynchronous versions of methods are provided (prefixed with `a`) for integration with async applications.
+- **Identifiers:** Either `app_id` or `app_slug` must be provided where required; similarly for `variant_id` and `variant_slug`.
+- **Environment Restrictions:** Deployment is limited to the predefined environments.
+
+## Examples
+
+### Creating a Variant
+
+```python
+from pydantic import BaseModel
+import agenta as ag
+
+class MyConfig(BaseModel):
+    temperature: float
+    model: str
+    max_tokens: int
+
+config = MyConfig(
+    temperature=0.7,
+    model="gpt-3.5-turbo",
+    max_tokens=150
+)
+
+variant = ag.VariantManager.create(
+    parameters=config.dict(),
+    app_slug="my-app",
+    variant_slug="my-variant"
+)
+```
+
+### Committing Changes to a Variant
+
+```python
+updated_config = MyConfig(
+    temperature=1.0,
+    model="gpt-4",
+    max_tokens=200
+)
+
+variant = ag.VariantManager.commit(
+    parameters=updated_config.dict(),
+    app_slug="my-app",
+    variant_slug="my-variant"
+)
+```
+
+### Deploying a Variant
+
+```python
+deployment = ag.DeploymentManager.deploy(
+    app_slug="my-app",
+    variant_slug="my-variant",
+    environment_slug="staging"
+)
+```
+
+### Fetching Configuration
+
+```python
+config = ag.ConfigManager.get_from_registry(
+    schema=MyConfig,
+    app_slug="my-app",
+    variant_slug="my-variant",
+    variant_version=2
+)
+```
+
+### Deleting a Variant
+
+```python
+ag.VariantManager.delete(
+    app_slug="my-app",
+    variant_slug="obsolete-variant"
+)
+```
+
+### Listing Variants
+
+```python
+variants = ag.VariantManager.list(
+    app_slug="my-app"
+)
+```
+
+### Retrieving Variant History
+
+```python
+history = ag.VariantManager.history(
+    app_slug="my-app",
+    variant_slug="my-variant"
+)
+```

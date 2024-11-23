@@ -2,7 +2,6 @@ import {Card, Dropdown, Button, Typography, Tag} from "antd"
 import {MoreOutlined} from "@ant-design/icons"
 import {deleteApp} from "@/services/app-selector/api"
 import {useState} from "react"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, ListAppsItem} from "@/lib/Types"
 import {useAppsData} from "@/contexts/app.context"
@@ -83,7 +82,7 @@ const AppCard: React.FC<{
         <>
             <Card
                 className={classes.card}
-                title={renameVariablesCapitalizeAll(app.app_name)}
+                title={app.app_name}
                 onClick={() => router.push(`/apps/${app.app_id}/overview`)}
                 extra={
                     <Dropdown
@@ -135,7 +134,7 @@ const AppCard: React.FC<{
                 <div data-cy="app-card-link" className={classes.app_card_link}>
                     <div>
                         <Text>Type</Text>
-                        <Tag className="mr-0">Template</Tag>
+                        <Tag className="mr-0">{app.app_type}</Tag>
                     </div>
                     <div>
                         <Text>Last modified:</Text>
