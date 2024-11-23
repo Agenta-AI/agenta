@@ -2,14 +2,13 @@
 """
 
 import uuid
-import json
 import logging
 from typing import List, Tuple, Any
 
 from agenta_backend.services import db_manager
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.models.api.user_models import User
-from agenta_backend.models.shared_models import ConfigDB
+from agenta_backend.models.shared_models import ConfigDB, AppType
 from agenta_backend.models.api.evaluation_model import (
     CorrectAnswer,
     Evaluation,
@@ -433,6 +432,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
     return App(
         app_name=app_db.app_name,
         app_id=str(app_db.id),
+        app_type=AppType.friendly_tag(app_db.app_type),
         updated_at=str(app_db.updated_at),
     )
 

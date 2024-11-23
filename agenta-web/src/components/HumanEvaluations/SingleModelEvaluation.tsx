@@ -257,7 +257,7 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                                     icon: <Database size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/testsets/${record.testset._id}`)
+                                        router.push(`/testsets/${record.testset._id}`)
                                     },
                                 },
                                 {type: "divider"},

@@ -349,14 +349,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Link href={`/apps/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>
                     <Space>
                         <Typography.Text strong>Variant:</Typography.Text>
                         <Typography.Link
-                            href={`/apps/${appId}/playground/?variant=${evalaution?.variants[0].variantName}`}
+                            href={`/apps/${appId}/playground?variant=${evalaution?.variants[0].variantName}`}
                         >
                             {variantNameWithRev({
                                 variant_name: evalaution?.variants[0].variantName ?? "",

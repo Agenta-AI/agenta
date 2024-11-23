@@ -33,7 +33,6 @@ type Props = {
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
-    appId: string
 }
 
 const CreateTestsetFromScratch: React.FC<Props> = ({
@@ -43,7 +42,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
     setEditTestsetValues,
     setCurrent,
     onCancel,
-    appId,
 }) => {
     const classes = useStyles()
     const router = useRouter()
@@ -51,25 +49,15 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
-    const {mutate} = useLoadTestsetsList(appId)
-
-    const generateInitialRowData = async (): Promise<KeyValuePair[]> => {
-        const backendVariants = await fetchVariants(appId)
-        const variant = backendVariants[0]
-        const inputParams = await getVariantInputParameters(appId, variant)
-        const fields = [...inputParams.map((param) => param.name), "correct_answer"]
-        return Array(3)
-            .fill({})
-            .map(() => fields.reduce((acc, field) => ({...acc, [field]: ""}), {}))
-    }
+    const {mutate} = useLoadTestsetsList()
 
     const handleCreateTestset = async (data?: KeyValuePair[]) => {
         setIsLoading(true)
         try {
-            const rowData = data || (await generateInitialRowData())
-            const response = await createNewTestset(appId, testsetName, rowData)
+            const rowData = data
+            const response = await createNewTestset(testsetName, rowData)
             message.success("Test set created successfully")
-            router.push(`/apps/testsets/${response.data.id}`)
+            router.push(`/testsets/${response.data.id}`)
         } catch (error) {
             console.error("Error saving test set:", error)
             message.error("Failed to create Test set. Please try again!")

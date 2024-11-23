@@ -5,7 +5,6 @@ import {JSSTheme} from "@/lib/Types"
 import {PythonOutlined} from "@ant-design/icons"
 import {ArrowLeft, FileCode, FileTs} from "@phosphor-icons/react"
 import {Button, Radio, Tabs, Typography} from "antd"
-import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import pythonCode from "@/code_snippets/testsets/create_with_json/python"
 import cURLCode from "@/code_snippets/testsets/create_with_json/curl"
@@ -43,7 +42,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
-    appId: string
 }
 type LanguageCodeBlockProps = {
     selectedLang: string
@@ -68,14 +66,13 @@ const LanguageCodeBlock = ({selectedLang, codeSnippets}: LanguageCodeBlockProps)
     )
 }
 
-const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
+const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
-    const router = useRouter()
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
     const [selectedLang, setSelectedLang] = useState("python")
 
     const uploadURI = `${getAgentaApiUrl()}/api/testsets/upload`
-    const jsonURI = `${getAgentaApiUrl()}/api/testsets/${appId}`
+    const jsonURI = `${getAgentaApiUrl()}/api/testsets`
 
     const params = `{
     "name": "testset_name",}`
@@ -87,9 +84,9 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel, appId}) =>
     }
 
     const csvCodeSnippets: Record<string, string> = {
-        python: pythonCodeUpload(uploadURI, appId),
-        bash: cURLCodeUpload(uploadURI, appId),
-        typescript: tsCodeUpload(uploadURI, appId),
+        python: pythonCodeUpload(uploadURI),
+        bash: cURLCodeUpload(uploadURI),
+        typescript: tsCodeUpload(uploadURI),
     }
 
     const codeSnippets = uploadType === "csv" ? csvCodeSnippets : jsonCodeSnippets

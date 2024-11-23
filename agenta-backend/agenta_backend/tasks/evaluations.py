@@ -6,6 +6,10 @@ from typing import Any, Dict, List
 from celery import shared_task, states
 
 from agenta_backend.utils.common import isCloudEE
+
+if isCloudEE():
+    from agenta_backend.cloud.services.auth_helper import sign_secret_token
+
 from agenta_backend.services import (
     evaluators_service,
     llm_apps_service,
@@ -143,8 +147,20 @@ def evaluate(
         )
 
         # 4. Evaluate the app outputs
+        secret_token = None
+        headers = None
+        if isCloudEE():
+            secret_token = loop.run_until_complete(
+                sign_secret_token(user_id, project_id, None)
+            )
+            if secret_token:
+                headers = {"Authorization": f"Secret {secret_token}"}
+
         openapi_parameters = loop.run_until_complete(
-            llm_apps_service.get_parameters_from_openapi(uri + "/openapi.json")
+            llm_apps_service.get_parameters_from_openapi(
+                uri + "/openapi.json",
+                headers,
+            ),
         )
 
         for data_point, app_output in zip(testset_db.csvdata, app_outputs):  # type: ignore
