@@ -1,5 +1,4 @@
 import {_AgentaRootsResponse, AgentaNodeDTO, AgentaTreeDTO} from "@/services/observability/types"
-import {BaseResponse, TraceDetailsV2, TraceDetailsV3} from "../Types"
 
 export const observabilityTransformer = (
     item: AgentaTreeDTO | AgentaNodeDTO,
@@ -74,12 +73,4 @@ export const getNodeById = (
         }
     }
     return null
-}
-
-export const isTraceDetailsV2 = (trace: BaseResponse["tree"]): trace is TraceDetailsV2 => {
-    return (trace as TraceDetailsV2)?.trace_id !== undefined
-}
-
-export const isTraceDetailsV3 = (trace: BaseResponse["tree"]): trace is TraceDetailsV3 => {
-    return (trace as TraceDetailsV3)?.nodes !== undefined
 }

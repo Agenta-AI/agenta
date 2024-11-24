@@ -564,8 +564,7 @@ export interface TraceDetailsV3 {
 export type BaseResponse = {
     version?: string | null
     data: string | Record<string, any>
-    tree: TraceDetailsV2 | TraceDetailsV3
-}
+} & Partial<{tree: TraceDetailsV3} & {trace: TraceDetailsV2}>
 
 export type BaseResponseSpans = {
     id: string

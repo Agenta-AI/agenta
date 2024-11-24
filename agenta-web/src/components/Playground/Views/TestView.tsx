@@ -37,7 +37,6 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/for
 import {dynamicService} from "@/lib/helpers/dynamic"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 import {AgentaNodeDTO} from "@/services/observability/types"
-import {isTraceDetailsV2, isTraceDetailsV3} from "@/lib/helpers/observability_helpers"
 import GenericDrawer from "@/components/GenericDrawer"
 import TraceHeader from "@/components/pages/observability/drawer/TraceHeader"
 import TraceTree from "@/components/pages/observability/drawer/TraceTree"
@@ -193,7 +192,7 @@ interface BoxComponentProps {
     isChatVariant?: boolean
     variant: Variant
     onCancel: () => void
-    traceSpans: TraceDetailsV2 | TraceDetailsV3 | undefined
+    traceSpans: TraceDetailsV3 | undefined
 }
 
 const BoxComponent: React.FC<BoxComponentProps> = ({
@@ -213,7 +212,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
 
     const traces = useMemo(() => {
-        if (traceSpans && isTraceDetailsV3(traceSpans)) {
+        if (traceSpans && traceSpans) {
             return traceSpans.nodes
                 .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
                 .flatMap((item: any) => observabilityTransformer(item))
@@ -360,7 +359,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
                     <span>Tokens: {formatTokenUsage(additionalData?.usage)}</span>
                     <span>Cost: {formatCurrency(additionalData?.cost)}</span>
                     <span>Latency: {formatLatency(additionalData?.latency)}</span>
-                    {traceSpans && isTraceDetailsV3(traceSpans) && (
+                    {traceSpans && (
                         <Button
                             type="link"
                             className={classes.viewTracesBtn}
@@ -433,7 +432,7 @@ const App: React.FC<TestViewProps> = ({
             usage: number | null
         }>
     >(testList.map(() => ({cost: null, latency: null, usage: null})))
-    const [traceSpans, setTraceSpans] = useState<TraceDetailsV2 | TraceDetailsV3>()
+    const [traceSpans, setTraceSpans] = useState<TraceDetailsV3>()
     const [revisionNum] = useQueryParam("revision")
 
     useEffect(() => {
@@ -609,18 +608,18 @@ const App: React.FC<TestViewProps> = ({
                 res = result as BaseResponse
                 setResultForIndex(getStringOrJson(res.data), index)
 
-                const {tree, version} = result
+                const {tree, trace, version} = result
 
                 // Main update logic
                 setAdditionalDataList((prev) => {
                     const newDataList = [...prev]
-                    if (version === "2.0" && isTraceDetailsV2(tree)) {
+                    if (version === "2.0" && trace) {
                         newDataList[index] = {
-                            cost: tree?.cost ?? null,
-                            latency: tree?.latency ?? null,
-                            usage: tree?.usage?.total_tokens ?? null,
+                            cost: trace?.cost ?? null,
+                            latency: trace?.latency ?? null,
+                            usage: trace?.usage?.total_tokens ?? null,
                         }
-                    } else if (version === "3.0" && isTraceDetailsV3(tree)) {
+                    } else if (version === "3.0" && tree) {
                         const firstTraceNode = tree.nodes[0]
                         newDataList[index] = {
                             cost: firstTraceNode?.metrics?.acc?.costs?.total ?? null,
