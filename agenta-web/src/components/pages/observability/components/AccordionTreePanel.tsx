@@ -94,7 +94,7 @@ const AccordionTreePanel = ({
     }, [segmentedValue, value])
 
     useEffect(() => {
-        setEditorHeight(editorRef.current?.clientHeight || 200)
+        setEditorHeight(Math.min(editorRef.current?.clientHeight || 200, 800))
     }, [value, label, segmentedValue, yamlOutput])
 
     return (
@@ -108,7 +108,11 @@ const AccordionTreePanel = ({
                     children: (
                         <div
                             ref={editorRef}
-                            style={{height: fullEditorHeight ? "100%" : `${editorHeight}px`}}
+                            style={{
+                                height: fullEditorHeight ? "100%" : `${editorHeight}px`,
+                                maxHeight: fullEditorHeight ? "none" : 800,
+                                overflow: "auto",
+                            }}
                         >
                             <Editor
                                 className={classes.editor}
