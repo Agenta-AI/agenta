@@ -26,7 +26,6 @@ class EvaluationsClient:
     def fetch_evaluation_ids(
         self,
         *,
-        app_id: str,
         resource_type: str,
         resource_ids: typing.Optional[typing.Union[str, typing.Sequence[str]]] = None,
         request_options: typing.Optional[RequestOptions] = None,
@@ -35,7 +34,6 @@ class EvaluationsClient:
         Fetches evaluation ids for a given resource type and id.
 
         Arguments:
-        app_id (str): The ID of the app for which to fetch evaluations.
         resource_type (str): The type of resource for which to fetch evaluations.
         resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
@@ -47,8 +45,6 @@ class EvaluationsClient:
 
         Parameters
         ----------
-        app_id : str
-
         resource_type : str
 
         resource_ids : typing.Optional[typing.Union[str, typing.Sequence[str]]]
@@ -70,7 +66,6 @@ class EvaluationsClient:
             base_url="https://yourhost.com/path/to/api",
         )
         client.evaluations.fetch_evaluation_ids(
-            app_id="app_id",
             resource_type="resource_type",
         )
         """
@@ -78,7 +73,6 @@ class EvaluationsClient:
             "evaluations/by_resource",
             method="GET",
             params={
-                "app_id": app_id,
                 "resource_type": resource_type,
                 "resource_ids": resource_ids,
             },
@@ -714,7 +708,6 @@ class AsyncEvaluationsClient:
     async def fetch_evaluation_ids(
         self,
         *,
-        app_id: str,
         resource_type: str,
         resource_ids: typing.Optional[typing.Union[str, typing.Sequence[str]]] = None,
         request_options: typing.Optional[RequestOptions] = None,
@@ -723,7 +716,6 @@ class AsyncEvaluationsClient:
         Fetches evaluation ids for a given resource type and id.
 
         Arguments:
-        app_id (str): The ID of the app for which to fetch evaluations.
         resource_type (str): The type of resource for which to fetch evaluations.
         resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
@@ -735,7 +727,6 @@ class AsyncEvaluationsClient:
 
         Parameters
         ----------
-        app_id : str
 
         resource_type : str
 
@@ -763,7 +754,6 @@ class AsyncEvaluationsClient:
 
         async def main() -> None:
             await client.evaluations.fetch_evaluation_ids(
-                app_id="app_id",
                 resource_type="resource_type",
             )
 
@@ -774,7 +764,6 @@ class AsyncEvaluationsClient:
             "evaluations/by_resource",
             method="GET",
             params={
-                "app_id": app_id,
                 "resource_type": resource_type,
                 "resource_ids": resource_ids,
             },

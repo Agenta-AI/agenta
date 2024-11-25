@@ -233,7 +233,6 @@ const config: Config = {
       },
     },
   },
-
   plugins: [
     async function myPlugin(context, options) {
       return {
@@ -273,6 +272,31 @@ const config: Config = {
         api_host: "https://app.posthog.com",
       },
     ],
+    [
+      "@docusaurus/plugin-client-redirects", 
+      {
+      redirects: [
+      {
+      from: "/prompt-management/creating-a-custom-template",
+      to: "/custom-workflows/quick-start",
+      },
+      {
+        from: "/reference/sdk/quick_start",
+        to: "/reference/sdk/deprecated-v2/quick_start",
+      },
+      ],
+        createRedirects(existingPath) {
+          if (existingPath.includes('/reference/sdk/core_functions')) {
+            return [
+              existingPath.replace('reference/sdk/core_functions', 'reference/sdk/deprecated-v2/core_functions'),
+            ];
+          }
+          return undefined;
+        },
+
+    },
+    ],
+
     [
       "@docusaurus/plugin-ideal-image",
       {

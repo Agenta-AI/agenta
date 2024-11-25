@@ -1,7 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
 import {useEffect, useState} from "react"
 import {
@@ -41,7 +41,6 @@ export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId, apps} = useAppsData()
-    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const isOss = !isDemo()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
 
@@ -60,15 +59,13 @@ export const useSidebarConfig = () => {
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined />,
-            divider: apps.length === 0 ? true : false,
         },
         {
             key: "app-testsets-link",
             title: "Test Sets",
             tooltip: "Create and manage testsets for evaluation purposes.",
-            link: `/apps/testsets`,
+            link: `/testsets`,
             icon: <DatabaseOutlined />,
-            isHidden: apps.length === 0,
         },
         {
             key: "app-observability-link",
@@ -76,11 +73,10 @@ export const useSidebarConfig = () => {
             link: `/observability`,
             icon: <ChartLineUp />,
             divider: true,
-            isHidden: apps.length === 0,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
-            title: capitalizedAppName,
+            title: currentApp?.app_name || "",
             icon: <></>,
             header: true,
         },
