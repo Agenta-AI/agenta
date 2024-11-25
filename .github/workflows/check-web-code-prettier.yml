@@ -22,5 +22,7 @@ jobs:
         working-directory: agenta-web
 
       - name: Run Prettier
-        run: npx prettier --check .
-        working-directory: agenta-web
+        run: |
+          npx prettier -v
+          npx prettier --check .
+        working-directory: core/agenta-web
