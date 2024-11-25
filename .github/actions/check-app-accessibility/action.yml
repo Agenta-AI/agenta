@@ -7,6 +7,7 @@ inputs:
   api-key:
     description: 'The API key for accessing the app'
     required: false
+
 runs:
   using: "composite"
   steps:

@@ -14,11 +14,11 @@ def tracing_context_manager():
     token = tracing_context.set(_tracing_context)
     try:
         yield
-    except Exception as e:
-        log.error("----------------------------------------------")
-        log.error("Agenta SDK - handling tracing exception below:")
-        log.error("----------------------------------------------")
-        log.error(format_exc().strip("\n"))
-        log.error("----------------------------------------------")
+    except:  # pylint: disable=bare-except
+        log.warning("----------------------------------------------")
+        log.warning("Agenta SDK - handling tracing exception below:")
+        log.warning("----------------------------------------------")
+        log.warning(format_exc().strip("\n"))
+        log.warning("----------------------------------------------")
     finally:
         tracing_context.reset(token)
