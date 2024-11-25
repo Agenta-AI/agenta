@@ -20,22 +20,23 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def extract_result_from_response(response: dict):
-    def get_nested_value(d: dict, keys: list, default=None):
-        """
-        Helper function to safely retrieve nested values.
-        """
-        try:
-            for key in keys:
-                if isinstance(d, dict):
-                    d = d.get(key, default)
-                else:
-                    return default
-            return d
-        except Exception as e:
-            print(f"Error accessing nested value: {e}")
-            return default
+def get_nested_value(d: dict, keys: list, default=None):
+    """
+    Helper function to safely retrieve nested values.
+    """
+    try:
+        for key in keys:
+            if isinstance(d, dict):
+                d = d.get(key, default)
+            else:
+                return default
+        return d
+    except Exception as e:
+        print(f"Error accessing nested value: {e}")
+        return default
 
+
+def extract_result_from_response(response: dict):
     # Initialize default values
     value = None
     latency = None
