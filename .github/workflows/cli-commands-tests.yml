@@ -30,19 +30,19 @@ jobs:
             - name: Create .env file
               run: |
                   echo "OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" > .env
-              working-directory: examples/baby_name_generator
+              working-directory: examples/deprecated_sdk_v2/baby_name_generator
 
             - name: Run agenta init
               run: |
                   APP_NAME="gh-cli-$(date +'%d-%m-%y_%H-%M-%S')"
-                  cd examples/baby_name_generator
+                  cd examples/deprecated_sdk_v2/baby_name_generator
                   agenta init --app-name $APP_NAME --backend-host ${{ secrets.BACKEND_HOST }}
               shell: bash
               continue-on-error: false
 
             - name: Run agenta variant serve
               run: |
-                  cd examples/baby_name_generator
+                  cd examples/deprecated_sdk_v2/baby_name_generator
                   agenta variant serve --file_name app.py 2>&1 | tee ../../serve_output.log
               shell: bash
               continue-on-error: false
@@ -55,7 +55,7 @@ jobs:
 
             - name: Run agenta variant serve with overwrite
               run: |
-                  cd examples/baby_name_generator
+                  cd examples/deprecated_sdk_v2/baby_name_generator
                   agenta variant serve --file_name app.py --overwrite
               shell: bash
               continue-on-error: false
@@ -83,19 +83,19 @@ jobs:
             - name: Create .env file
               run: |
                   echo "OPENAI_API_KEY=${{ secrets.NEXT_PUBLIC_OPENAI_API_KEY }}" > .env
-              working-directory: examples/baby_name_generator
+              working-directory: examples/deprecated_sdk_v2/baby_name_generator
 
             - name: Run agenta init
               run: |
                   APP_NAME="gh-cli-$(date +'%d-%m-%y_%H-%M-%S')"
-                  cd examples/baby_name_generator
+                  cd examples/deprecated_sdk_v2/baby_name_generator
                   AGENTA_API_KEY=${{ secrets.AGENTA_API_KEY }} agenta init --app-name $APP_NAME --backend-host https://cloud.agenta.ai --organisation-name team
               shell: bash
               continue-on-error: false
 
             - name: Run agenta variant serve
               run: |
-                  cd examples/baby_name_generator
+                  cd examples/deprecated_sdk_v2/baby_name_generator
                   agenta variant serve --file_name app.py 2>&1 | tee ../../serve_output.log
               shell: bash
               continue-on-error: false
@@ -109,7 +109,7 @@ jobs:
 
             - name: Run agenta variant serve with overwrite
               run: |
-                  cd examples/baby_name_generator
+                  cd examples/deprecated_sdk_v2/baby_name_generator
                   agenta variant serve --file_name app.py --overwrite
               shell: bash
               continue-on-error: false
