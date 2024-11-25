@@ -10,6 +10,7 @@ import {EvaluationType} from "./enums"
 import {formatDay} from "./helpers/dateTimeHelper"
 import {snakeToCamel} from "./helpers/utils"
 import {TraceSpan} from "@/lib/Types"
+import {AgentaNodeDTO} from "@/services/observability/types"
 
 export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType) => {
     const variants: Variant[] = item.variant_ids.map((variantId: string, ix) => {
@@ -295,4 +296,28 @@ export const generatePaths = (obj: Record<string, any>, currentPath = "") => {
     }
 
     return paths
+}
+
+export const buildNodeTreeV3 = (node: AgentaNodeDTO): Record<string, any> => {
+    const nodeMap: Record<string, any> = {
+        [node.node.name]: {...node.data},
+    }
+
+    if (node.nodes) {
+        Object.entries(node.nodes).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                if (!nodeMap[node.node.name][key]) {
+                    nodeMap[node.node.name][key] = []
+                }
+
+                value.forEach((childNode) => {
+                    nodeMap[node.node.name][key].push(...Object.values(buildNodeTreeV3(childNode)))
+                })
+            } else {
+                Object.assign(nodeMap[node.node.name], buildNodeTreeV3(value))
+            }
+        })
+    }
+
+    return nodeMap
 }

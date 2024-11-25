@@ -381,7 +381,11 @@ class entrypoint:
             if inline_trace:
                 trace = await self.fetch_inline_trace(inline_trace)
 
-        return BaseResponse(data=data, trace=trace)
+        log.info(f"----------------------------------")
+        log.info(f"Agenta SDK - exiting with success: 200")
+        log.info(f"----------------------------------")
+
+        return BaseResponse(data=data, tree=trace)
 
     def handle_failure(self, error: Exception):
         log.warning("--------------------------------------------------")
