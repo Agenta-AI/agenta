@@ -1,4 +1,3 @@
-import logging
 import toml
 from os import getenv
 from typing import Optional, Callable, Any
@@ -9,10 +8,6 @@ from agenta.sdk.utils.globals import set_global
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.tracing import Tracing
 from agenta.client.exceptions import APIRequestError
-
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class AgentaSingleton:
@@ -164,7 +159,7 @@ class Config:
         try:
             self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
-            logger.warning(
+            log.warning(
                 "Unable to push the default configuration to the server. %s", str(ex)
             )
 
@@ -185,7 +180,7 @@ class Config:
                 overwrite=overwrite,
             )
         except Exception as ex:
-            logger.warning(
+            log.warning(
                 "Failed to push the configuration to the server with error: %s", ex
             )
 
@@ -212,14 +207,14 @@ class Config:
                         config_name=config_name,
                     )
             except Exception as ex:
-                logger.warning(
+                log.warning(
                     "Failed to pull the configuration from the server with error: %s",
                     str(ex),
                 )
         try:
             self.set(**{"current_version": config.current_version, **config.parameters})
         except Exception as ex:
-            logger.warning("Failed to set the configuration with error: %s", str(ex))
+            log.warning("Failed to set the configuration with error: %s", str(ex))
 
     def all(self):
         """Returns all the parameters for the app variant"""
