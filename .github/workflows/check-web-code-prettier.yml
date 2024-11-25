@@ -25,4 +25,4 @@ jobs:
         run: |
           npx prettier -v
           npx prettier --check .
-        working-directory: core/agenta-web
+        working-directory: agenta-web
