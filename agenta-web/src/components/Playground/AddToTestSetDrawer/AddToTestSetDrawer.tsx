@@ -22,7 +22,6 @@ import {
     Tooltip,
     message,
 } from "antd"
-import {useRouter} from "next/router"
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
@@ -99,14 +98,9 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     >(null)
     const [shouldRender, setShouldRender] = useState(false)
     const dirty = useRef(false)
-    const router = useRouter()
-    const appId = router.query.app_id as string
-    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
-    const storedValue = localStorage.getItem(`selectedTestset_${appId}`)?.replace(/"/g, "")
-    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(
-        `selectedTestset_${appId}`,
-        "",
-    )
+    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList()
+    const storedValue = localStorage.getItem(`selectedTestset`)?.replace(/"/g, "")
+    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(`selectedTestset`, "")
 
     useEffect(() => {
         if (storedValue && testsets.some((testset: testset) => testset._id === storedValue)) {
@@ -177,7 +171,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
             })
 
             const promise = isNew
-                ? createNewTestset(appId, name, newRows)
+                ? createNewTestset(name, newRows)
                 : updateTestset(selectedTestset!, name, [...csvdata, ...newRows])
             promise
                 .then(() => {

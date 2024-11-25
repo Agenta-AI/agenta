@@ -45,7 +45,7 @@ describe("Evaluation Comparison Test", function () {
 
         it("Should create 2 new Evaluations", () => {
             cy.request({
-                url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
+                url: `${Cypress.env().baseApiURL}/evaluations?app_id=${app_id}`,
                 method: "GET",
             }).then((resp) => {
                 cy.get('[data-cy="new-evaluation-button"]').click()

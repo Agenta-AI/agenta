@@ -16,7 +16,7 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/for
 import {getNodeById} from "@/lib/helpers/observability_helpers"
 import {Filter, FilterConditions, JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {SwapOutlined} from "@ant-design/icons"
+import {ReloadOutlined, SwapOutlined} from "@ant-design/icons"
 import {
     Button,
     Input,
@@ -71,6 +71,7 @@ const ObservabilityDashboard = () => {
         setSort,
         pagination,
         setPagination,
+        fetchTraces,
     } = useObservabilityData()
     const appId = useAppId()
     const router = useRouter()
@@ -256,6 +257,12 @@ const ObservabilityDashboard = () => {
         }
     }, [activeTrace, selected])
 
+    useEffect(() => {
+        const interval = setInterval(fetchTraces, 300000)
+
+        return () => clearInterval(interval)
+    }, [])
+
     const selectedItem = useMemo(
         () => (traces?.length ? getNodeById(traces, selected) : null),
         [selected, traces],
@@ -355,7 +362,7 @@ const ObservabilityDashboard = () => {
                     "Trace ID": trace.key,
                     Name: trace.node.name,
                     "Span type": trace.node.type || "N/A",
-                    Inputs: convertToStringOrJson(trace?.data?.inputs?.topic) || "N/A",
+                    Inputs: convertToStringOrJson(trace?.data?.inputs) || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
                     Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
                     Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
@@ -486,6 +493,14 @@ const ObservabilityDashboard = () => {
 
             <div className="flex justify-between gap-2 flex-col 2xl:flex-row 2xl:items-center">
                 <Space>
+                    <Button
+                        icon={<ReloadOutlined />}
+                        onClick={() => {
+                            fetchTraces()
+                        }}
+                    >
+                        Reload
+                    </Button>
                     <Input.Search
                         placeholder="Search"
                         value={searchQuery}
