@@ -20,9 +20,8 @@ const getConfig = async (appName: string, environmentSlug: string) => {
             },
         }, {
             headers: {
-                'Authorization': "Bearer YOUR_API_KEY",
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
+                'Content-Type': 'application/json',    
+                'Authorization': "ApiKey x.xxxxxxxx", // Add your API key here, when using cloud
             },
         });
 

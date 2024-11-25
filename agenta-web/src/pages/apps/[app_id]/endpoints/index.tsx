@@ -18,7 +18,6 @@ import {useRouter} from "next/router"
 import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useQueryParam} from "@/hooks/useQuery"
-import {getCurrentProject} from "@/contexts/project.context"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
 
@@ -79,14 +78,13 @@ export default function VariantEndpoint() {
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
     const isOss = !isDemo()
-    const {projectId} = getCurrentProject()
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
     const loadURL = async (environment: Environment) => {
         if (environment.deployed_app_variant_id) {
             const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
-            setURI(`${url}/generate_deployed?project_id=${projectId}`)
+            setURI(`${url}/generate_deployed`)
         }
     }
 
