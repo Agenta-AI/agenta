@@ -379,7 +379,7 @@ async def auto_ai_critique(
         output = validate_string_output("ai_critique", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
-            "prompt_user": app_params.get("prompt_user", "").format(**data_point),
+            "prompt_user": app_params.get("prompt_user", ""),
             "prediction": output,
             "ground_truth": correct_answer,
             **data_point,

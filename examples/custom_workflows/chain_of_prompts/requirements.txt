@@ -1,0 +1,3 @@
+openai
+agenta
+opentelemetry.instrumentation.openai

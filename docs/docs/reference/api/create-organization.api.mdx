@@ -5,7 +5,7 @@ description: "Create Organization"
 sidebar_label: "Create Organization"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVU1v2zAM/SuBzl2SFTvltPQDaLGPFG22SxAMjMzGam1Jk+S2WeD/PlJyYzttsy6H2KEeSfE9ktkKY9FBUEZfZmIipEMI+Mu4NWj1J9rFkXD4u0IfTky2EZOtkEYH1IFfwdpCyYgb3XkCk83LHEvgN+s4elDo+ZeGEvkZNpaewgen9JqiBxUKNnzn8/pIZOilUzbmPgA/68DIK8Hehs/ZTjjzqNEdAs4ioN6FFGZ1hzI0NCiHxNMiFbNsvU4jcbMubzXHaH2CqzAavDXaJ0qOx2N+9CoWN5WU6P1tVQyuGzAlfy/pdUz76fj4ZeCfUKgsug3OnTPuP6LuSZlhAFXwmwpY+peAwsjeKejN7JZ426e9PtpZFN1kzcwvW+rBOdh0tPlqJDwLXvr1IRm/EYWwxve0RiRjkBrkH7JzXSl1g+u0QEtvYvftMs4Sfa8le4ZczOdXLwImbfuipsYbzPoTW2LIDQ+0NZ7DWgg5/Rp1B9uT3aN7QOejMpUjRUUegvWT0UgWpsqGxKAOMAQ1AqvEfu5pPB2cMpR043CycipsYrzp1eUX3FwgZDxwi2UXcMONlVqlD9upRPnITCnT2hDTiipybYWKL5AnL2aFW/a63VPnT1DaAtu908rer6Hthr3uaBZF26mU8tbEGzYaNeWfgLxHnZELU5mijocfh+O3+GocBlR5M4IgQ+emCUZHfUV2WtAJTSXPnwgI5ef2gIlgxUvQnXivt8jrazbgUxjZAlScsXiBbdM9C9HvHpIz5+6ig+12BR5/uKKu2UwqOO4Ben0Ap2DFdC14rvPnbtiKe1KX7pYW0Ic4fQwvqqT+3jLiRZE8prQdbTiIXXYG4Gp2MyfwqvnvKk3GPg4eebLpeyJYa5tKIkC00QIDva54f0xEismfv4zhdys=
+api: eJydVdty2jAQ/RVGzynQTJ94KrnMJNMLmYT2hWE6i7zBSmxJleQklPG/d1cy2CaXScsDNqujlfacs8tWGIsOgjL6MhMTIR1CwF/GrUGrPzEujoTD3xX6cGKyjZhshTQ6oA78CtYWSkbc6M4TmGJe5lgCv1nH2YNCz780lMjPsLH0FD44pdeUPahQcOA7r9dHwjxqdG8BZxFAyAy9dMrGW/Jl9GZ2KyaLw5310T6iq6IQ9bLNddZJQRkT7P9SzTle75MIs7pDGRr6lEPid5FI2NXY2XwaiZ91ea85V7s3uApjwFujfaL0eDzmR48HcVNJid7fVsXgugHTie8VrY7Hfjo+fp74JxQqi9sG584Z9w9ZD6yQYQBV8JsKWPrngMLI3uo79FB0kzX7YtlKAM7BpuOcr0bCTurSr98y2TeiENbYNcVr0EjG4F3yc13p6AbXsUBLb2L39TLOEn0vHbaDXMznV88SJm37oibjDWb9ji8x5IYHgjWe01oIOf0adQeDp7hH94DOR2UqR4qKPATrJ6ORLEyVDYlBHWAIagRWicOzp3F1cMrQ2EoeZeVU2MR806vLL7i5QMh4HCyWXcANGytZpQ/bq0TnUZiOTGNHTCuqyLUVKr5AnnYxK2zZ63bOnT9BaQts51YrezOf2kC/qNYeB06lI29NvGGjUVP+Cch71BntYCpTkvHw43D8Gl/NhgFV3rQgyNC5aYLRUl+RvRa0Ql3J/ScCQvm5XWAiWPESdCffyxY5GL5NtQGfwsgWoGKPxQtsG/csRN89JGfO7qKF7XYFHn+4oq45TCo49gC9PoBTsGK6FtzX+c4NW3FP6tLd0gD6ELuP4UWV1D8YRjwo0o4pTUcb3sQuOw1wNbuZE3jV/PeVJuM9Dh65s+l7ItgSNpVEgBijAQZ6XfH8mIiUkz9/AdKIjOI=
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -95,31 +95,103 @@ Create Organization
           
         </SchemaItem><SchemaItem
           collapsible={false}
-          name={"description"}
-          required={false}
-          schemaName={"Description (string)"}
-          qualifierMessage={undefined}
-          schema={{"type":"string","title":"Description"}}
-        >
-          
-        </SchemaItem><SchemaItem
-          collapsible={false}
-          name={"type"}
-          required={false}
-          schemaName={"Type (string)"}
-          qualifierMessage={undefined}
-          schema={{"type":"string","title":"Type"}}
-        >
-          
-        </SchemaItem><SchemaItem
-          collapsible={false}
           name={"owner"}
-          required={false}
+          required={true}
           schemaName={"Owner (string)"}
           qualifierMessage={undefined}
           schema={{"type":"string","title":"Owner"}}
         >
           
+        </SchemaItem><SchemaItem
+          collapsible={true}
+          className={"schemaItem"}
+        >
+          <details
+            style={{}}
+            className={"openapi-markdown__details"}
+          >
+            <summary
+              style={{}}
+            >
+              <strong>
+                description
+              </strong><span
+                style={{"opacity":"0.6"}}
+              >
+                 object
+              </span>
+            </summary><div
+              style={{"marginLeft":"1rem"}}
+            >
+              
+            </div><div>
+              <span
+                className={"badge badge--info"}
+              >
+                anyOf
+              </span><SchemaTabs>
+                <TabItem
+                  label={"MOD1"}
+                  value={"0-item-properties"}
+                >
+                  <div
+                    style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                  >
+                    
+                    
+                    string
+                    
+                    
+                  </div>
+                </TabItem>
+              </SchemaTabs>
+            </div>
+          </details>
+        </SchemaItem><SchemaItem
+          collapsible={true}
+          className={"schemaItem"}
+        >
+          <details
+            style={{}}
+            className={"openapi-markdown__details"}
+          >
+            <summary
+              style={{}}
+            >
+              <strong>
+                type
+              </strong><span
+                style={{"opacity":"0.6"}}
+              >
+                 object
+              </span>
+            </summary><div
+              style={{"marginLeft":"1rem"}}
+            >
+              
+            </div><div>
+              <span
+                className={"badge badge--info"}
+              >
+                anyOf
+              </span><SchemaTabs>
+                <TabItem
+                  label={"MOD1"}
+                  value={"0-item-properties"}
+                >
+                  <div
+                    style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                  >
+                    
+                    
+                    string
+                    
+                    
+                  </div>
+                </TabItem>
+              </SchemaTabs>
+            </div>
+          </details>
         </SchemaItem>
       </ul>
     </details>

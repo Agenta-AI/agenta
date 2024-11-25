@@ -15,6 +15,23 @@ from sqlalchemy.ext.declarative import declarative_base
 DeprecatedBase = declarative_base()
 
 
+class ProjectScopedAppDB(DeprecatedBase):
+    __tablename__ = "app_db"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_name = Column(String)
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
+
+
 class DeprecatedAppDB(DeprecatedBase):
     __tablename__ = "app_db"
     __table_args__ = {"extend_existing": True}
