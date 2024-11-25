@@ -957,9 +957,13 @@ async def rag_faithfulness(
         trace = process_distributed_trace_into_trace_tree(trace, version)
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
-        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(
+            trace, question_key, version
+        )
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
+        contexts_val: Any = get_field_value_from_trace_tree(
+            trace, contexts_key, version
+        )
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
@@ -1065,9 +1069,13 @@ async def rag_context_relevancy(
         trace = process_distributed_trace_into_trace_tree(trace, version)
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
-        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(
+            trace, question_key, version
+        )
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
+        contexts_val: Any = get_field_value_from_trace_tree(
+            trace, contexts_key, version
+        )
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
