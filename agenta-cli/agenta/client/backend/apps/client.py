@@ -176,19 +176,17 @@ class AppsClient:
         self,
         *,
         app_name: typing.Optional[str] = None,
-        workspace_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[App]:
         """
-        Retrieve a list of apps filtered by app_name and org_id.
+        Retrieve a list of apps filtered by app_name.
 
         Args:
         app_name (Optional[str]): The name of the app to filter by.
-        org_id (Optional[str]): The ID of the organization to filter by.
         stoken_session (SessionContainer): The session container.
 
         Returns:
-        List[App]: A list of apps filtered by app_name and org_id.
+        List[App]: A list of apps filtered by app_name.
 
         Raises:
         HTTPException: If there was an error retrieving the list of apps.
@@ -196,8 +194,6 @@ class AppsClient:
         Parameters
         ----------
         app_name : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -220,10 +216,7 @@ class AppsClient:
         _response = self._client_wrapper.httpx_client.request(
             "apps",
             method="GET",
-            params={
-                "app_name": app_name,
-                "workspace_id": workspace_id,
-            },
+            params={"app_name": app_name},
             request_options=request_options,
         )
         try:
@@ -255,15 +248,13 @@ class AppsClient:
         *,
         app_name: str,
         project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
         """
-        Create a new app for a user or organization.
+        Create a new app for a user.
 
         Args:
-        payload (CreateApp): The payload containing the app name and organization ID (optional).
+        payload (CreateApp): The payload containing the app name.
         stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
@@ -277,10 +268,6 @@ class AppsClient:
         app_name : str
 
         project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -308,8 +295,6 @@ class AppsClient:
             json={
                 "app_name": app_name,
                 "project_id": project_id,
-                "workspace_id": workspace_id,
-                "organization_id": organization_id,
             },
             request_options=request_options,
             omit=OMIT,
@@ -408,7 +393,7 @@ class AppsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> UpdateAppOutput:
         """
-        Update an app for a user or organization.
+        Update an app for a user.
 
         Args:
         app_id (str): The ID of the app.
@@ -587,8 +572,6 @@ class AppsClient:
         template_id: str,
         env_vars: typing.Dict[str, str],
         project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
@@ -613,10 +596,6 @@ class AppsClient:
         env_vars : typing.Dict[str, str]
 
         project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -647,9 +626,7 @@ class AppsClient:
                 "app_name": app_name,
                 "template_id": template_id,
                 "project_id": project_id,
-                "workspace_id": workspace_id,
                 "env_vars": env_vars,
-                "organization_id": organization_id,
             },
             request_options=request_options,
             omit=OMIT,
@@ -980,19 +957,17 @@ class AsyncAppsClient:
         self,
         *,
         app_name: typing.Optional[str] = None,
-        workspace_id: typing.Optional[str] = None,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.List[App]:
         """
-        Retrieve a list of apps filtered by app_name and org_id.
+        Retrieve a list of apps filtered by app_name.
 
         Args:
         app_name (Optional[str]): The name of the app to filter by.
-        org_id (Optional[str]): The ID of the organization to filter by.
         stoken_session (SessionContainer): The session container.
 
         Returns:
-        List[App]: A list of apps filtered by app_name and org_id.
+        List[App]: A list of apps filtered by app_name.
 
         Raises:
         HTTPException: If there was an error retrieving the list of apps.
@@ -1000,8 +975,6 @@ class AsyncAppsClient:
         Parameters
         ----------
         app_name : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1032,10 +1005,7 @@ class AsyncAppsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "apps",
             method="GET",
-            params={
-                "app_name": app_name,
-                "workspace_id": workspace_id,
-            },
+            params={"app_name": app_name},
             request_options=request_options,
         )
         try:
@@ -1067,15 +1037,13 @@ class AsyncAppsClient:
         *,
         app_name: str,
         project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
         """
-        Create a new app for a user or organization.
+        Create a new app for a user.
 
         Args:
-        payload (CreateApp): The payload containing the app name and organization ID (optional).
+        payload (CreateApp): The payload containing the app name.
         stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
@@ -1089,10 +1057,6 @@ class AsyncAppsClient:
         app_name : str
 
         project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1128,8 +1092,6 @@ class AsyncAppsClient:
             json={
                 "app_name": app_name,
                 "project_id": project_id,
-                "workspace_id": workspace_id,
-                "organization_id": organization_id,
             },
             request_options=request_options,
             omit=OMIT,
@@ -1236,7 +1198,7 @@ class AsyncAppsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> UpdateAppOutput:
         """
-        Update an app for a user or organization.
+        Update an app for a user.
 
         Args:
         app_id (str): The ID of the app.
@@ -1431,8 +1393,6 @@ class AsyncAppsClient:
         template_id: str,
         env_vars: typing.Dict[str, str],
         project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
@@ -1457,10 +1417,6 @@ class AsyncAppsClient:
         env_vars : typing.Dict[str, str]
 
         project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1499,9 +1455,7 @@ class AsyncAppsClient:
                 "app_name": app_name,
                 "template_id": template_id,
                 "project_id": project_id,
-                "workspace_id": workspace_id,
                 "env_vars": env_vars,
-                "organization_id": organization_id,
             },
             request_options=request_options,
             omit=OMIT,

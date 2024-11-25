@@ -730,7 +730,6 @@ async def create_app_and_envs(
     app_name: str,
     template_id: Optional[str] = None,
     project_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -746,10 +745,6 @@ async def create_app_and_envs(
     Raises:
         ValueError: If an app with the same name already exists.
     """
-
-    if isCloudEE():
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        project_id = str(project.id)
 
     app = await fetch_app_by_name_and_parameters(
         app_name=app_name, project_id=project_id
@@ -1213,7 +1208,6 @@ async def list_apps(
     project_id: str,
     user_uid: str,
     app_name: Optional[str] = None,
-    workspace_id: Optional[str] = None,
 ):
     """
     Lists all the unique app names and their IDs from the database
@@ -1233,13 +1227,10 @@ async def list_apps(
 
     elif isCloudEE():
         if isCloudEE():
-            project = await db_manager_ee.get_project_by_workspace(
-                workspace_id=workspace_id
-            )
             user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)  # type: ignore
             has_permission = await check_rbac_permission(  # type: ignore
                 user_org_workspace_data=user_org_workspace_data,
-                project_id=str(project.id),
+                project_id=project_id,
                 permission=Permission.VIEW_APPLICATION,  # type: ignore
             )
             logger.debug(f"User has Permission to list apps: {has_permission}")
@@ -1251,7 +1242,7 @@ async def list_apps(
 
             async with engine.session() as session:
                 result = await session.execute(
-                    select(AppDB).filter_by(project_id=project.id)
+                    select(AppDB).filter_by(project_id=project_id)
                 )
                 apps = result.unique().scalars().all()
                 return [converters.app_db_to_pydantic(app) for app in apps]
@@ -2785,26 +2776,19 @@ async def update_app_variant(
 
 async def fetch_app_by_name_and_parameters(
     app_name: str,
-    workspace_id: Optional[str] = None,
     project_id: Optional[str] = None,
 ):
     """Fetch an app by its name and project identifier.
 
     Args:
         app_name (str): The name of the app
-        workspace_id (str, optional): The ID of the workspace. Defaults to None.
         project_id (str, optional): The ID of the project. Defaults to None.
 
     Returns:
         AppDB: the instance of the app
     """
-
-    if not project_id and (isCloudEE() and workspace_id is not None):
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        project_id = str(project.id) if project else None
-
     if project_id is None:
-        raise ValueError("Either workspace_id or project_id must be provided.")
+        raise ValueError("project_id must be provided.")
 
     async with engine.session() as session:
         query = select(AppDB).filter_by(
