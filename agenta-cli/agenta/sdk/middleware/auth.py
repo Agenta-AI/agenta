@@ -27,6 +27,8 @@ AGENTA_SDK_AUTH_CACHE = str(environ.get("AGENTA_SDK_AUTH_CACHE", True)).lower() 
     "t",
 )
 
+AGENTA_SDK_AUTH_CACHE = False
+
 AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = str(
     environ.get("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", False)
 ).lower() in ("true", "1", "t")
