@@ -20,6 +20,7 @@ const nextConfig = {
         "rc-pagination",
         "rc-picker",
         "rc-tree",
+        "rc-input",
         "rc-table",
         "@ant-design/icons",
         "@ant-design/icons-svg",
