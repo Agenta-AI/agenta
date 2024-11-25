@@ -80,15 +80,10 @@ def cli():
 @click.command()
 @click.option("--app-name", "--app_name", default=None)
 @click.option("--backend-host", "backend_host", default=None)
-@click.option(
-    "--organisation-name",
-    "organisation_name",
-    default=None,
-    help="The name of the organisation",
-)
-def init(app_name: str, backend_host: str, organisation_name: str):
-    init_option = "Blank App" if backend_host != "" and app_name != "" else ""
+def init(app_name: str, backend_host: str):
     """Initialize a new Agenta app with the template files."""
+
+    init_option = "Blank App" if backend_host != "" and app_name != "" else ""
 
     api_key = os.getenv("AGENTA_API_KEY")
 
@@ -151,51 +146,9 @@ def init(app_name: str, backend_host: str, organisation_name: str):
             api_key=api_key if where_question == "On agenta cloud" else "",
         )
 
-        # list of user organizations
-        user_organizations = []
-
-        # validate the api key if it is provided
-        if where_question == "On agenta cloud":
-            try:
-                key_prefix = api_key.split(".")[0]
-                client.validate_api_key(key_prefix=key_prefix)
-            except Exception as ex:
-                click.echo(
-                    click.style(
-                        f"Error: Unable to validate API key.\nError: {ex}", fg="red"
-                    )
-                )
-                sys.exit(1)
-            # Make request to fetch user organizations after api key validation
-            try:
-                organizations = client.list_organizations()
-                if len(organizations) >= 1:
-                    user_organizations = organizations
-            except Exception as ex:
-                click.echo(click.style(f"Error: {ex}", fg="red"))
-                sys.exit(1)
-
-        organization = None
-        organization_choices = {}
-        if where_question == "On agenta cloud":
-            if not organisation_name:
-                organization_choices = {
-                    f"{org.name}": org for org in user_organizations
-                }
-                which_organization = questionary.select(
-                    "Which organization do you want to create the app for?",
-                    choices=list(organization_choices.keys()),
-                ).ask()
-                organisation_name = which_organization
-
-            organization = organization_choices.get(organisation_name)
-
         # Get app_id after creating new app in the backend server
         try:
-            app_id = client.apps.create_app(
-                app_name=app_name,
-                organization_id=organization.id if organization else None,
-            ).app_id
+            app_id = client.apps.create_app(app_name=app_name).app_id
         except Exception as ex:
             click.echo(click.style(f"Error: {ex}", fg="red"))
             sys.exit(1)
