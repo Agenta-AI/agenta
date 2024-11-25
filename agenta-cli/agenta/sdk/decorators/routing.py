@@ -373,7 +373,7 @@ class entrypoint:
 
     async def handle_success(self, result: Any, inline_trace: bool):
         data = None
-        trace = dict()
+        trace = None
 
         with suppress():
             data = self.patch_result(result)
