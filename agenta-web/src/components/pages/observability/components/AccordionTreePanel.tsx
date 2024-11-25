@@ -2,7 +2,7 @@ import CopyButton from "@/components/CopyButton/CopyButton"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"
 import {Collapse, Radio, Space} from "antd"
-import React, {useState, useMemo} from "react"
+import React, {useState, useMemo, useRef, useEffect} from "react"
 import {createUseStyles} from "react-jss"
 import yaml from "js-yaml"
 import {Editor} from "@monaco-editor/react"
@@ -36,7 +36,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "& .ant-collapse-content": {
             borderTop: `1px solid ${theme.colorBorder} !important`,
-            padding: theme.padding,
+            padding: `${theme.padding}px 0`,
             lineHeight: theme.lineHeight,
             backgroundColor: `${bgColor || theme.colorBgContainer} !important`,
             borderBottomLeftRadius: theme.borderRadius,
@@ -77,6 +77,8 @@ const AccordionTreePanel = ({
     const classes = useStyles({bgColor})
     const {appTheme} = useAppTheme()
     const [segmentedValue, setSegmentedValue] = useState("JSON")
+    const editorRef = useRef<HTMLDivElement>(null)
+    const [editorHeight, setEditorHeight] = useState(200)
 
     const yamlOutput = useMemo(() => {
         if (segmentedValue === "YAML" && value && Object.keys(value).length) {
@@ -91,6 +93,10 @@ const AccordionTreePanel = ({
         return ""
     }, [segmentedValue, value])
 
+    useEffect(() => {
+        setEditorHeight(Math.min(editorRef.current?.clientHeight || 200, 800))
+    }, [value, label, segmentedValue, yamlOutput])
+
     return (
         <Collapse
             {...props}
@@ -100,30 +106,54 @@ const AccordionTreePanel = ({
                     key: label,
                     label,
                     children: (
-                        <Editor
-                            className={classes.editor}
-                            height={fullEditorHeight ? "100%" : 200}
-                            language={
-                                typeof value === "string"
-                                    ? "markdown"
-                                    : segmentedValue === "JSON"
-                                      ? "json"
-                                      : "yaml"
-                            }
-                            theme={`vs-${appTheme}`}
-                            value={segmentedValue === "JSON" ? getStringOrJson(value) : yamlOutput}
-                            options={{
-                                wordWrap: "on",
-                                minimap: {enabled: false},
-                                readOnly: true,
-                                lineNumbers: "off",
-                                lineDecorationsWidth: 0,
-                                scrollbar: {
-                                    verticalScrollbarSize: 8,
-                                    horizontalScrollbarSize: 8,
-                                },
+                        <div
+                            ref={editorRef}
+                            style={{
+                                height: fullEditorHeight ? "100%" : `${editorHeight}px`,
+                                maxHeight: fullEditorHeight ? "none" : 800,
+                                overflow: "auto",
                             }}
-                        />
+                        >
+                            <Editor
+                                className={classes.editor}
+                                height={fullEditorHeight ? "100%" : `${editorHeight}px`}
+                                language={
+                                    typeof value === "string"
+                                        ? "markdown"
+                                        : segmentedValue === "JSON"
+                                          ? "json"
+                                          : "yaml"
+                                }
+                                theme={`vs-${appTheme}`}
+                                value={
+                                    segmentedValue === "JSON" ? getStringOrJson(value) : yamlOutput
+                                }
+                                options={{
+                                    wordWrap: "on",
+                                    minimap: {enabled: false},
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    readOnly: true,
+                                    lineNumbers: "off",
+                                    lineDecorationsWidth: 0,
+                                    scrollbar: {
+                                        verticalScrollbarSize: 8,
+                                        horizontalScrollbarSize: 8,
+                                    },
+                                }}
+                                onMount={(editor) => {
+                                    const model = editor.getModel()
+                                    if (model) {
+                                        const updateHeight = () => {
+                                            const contentHeight = editor.getContentHeight()
+                                            setEditorHeight(contentHeight)
+                                        }
+                                        editor.onDidContentSizeChange(updateHeight)
+                                        updateHeight()
+                                    }
+                                }}
+                            />
+                        </div>
                     ),
                     extra: (
                         <Space size={12}>

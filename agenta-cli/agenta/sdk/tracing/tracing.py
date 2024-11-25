@@ -90,7 +90,6 @@ class Tracing(metaclass=Singleton):
                 self.otlp_url,
             )
             log.info("--------------------------------------------")
-
             check(
                 self.otlp_url,
                 headers=self.headers,
@@ -106,13 +105,10 @@ class Tracing(metaclass=Singleton):
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-
             log.info("Success: traces will be exported.")
             log.info("--------------------------------------------")
-
         except:  # pylint: disable=bare-except
-            log.warning("Failure: traces will not be exported.")
-            log.warning("--------------------------------------------")
+            log.warning("Agenta SDK - traces will not be exported.")
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)

@@ -60,7 +60,7 @@ def litellm_handler():
             )
 
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():
@@ -90,7 +90,7 @@ def litellm_handler():
             end_time,
         ):
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():
@@ -107,7 +107,7 @@ def litellm_handler():
                 return
 
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():
@@ -156,7 +156,7 @@ def litellm_handler():
             end_time,
         ):
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():
@@ -176,7 +176,7 @@ def litellm_handler():
             end_time,
         ):
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():
@@ -190,7 +190,7 @@ def litellm_handler():
             end_time,
         ):
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():
@@ -239,7 +239,7 @@ def litellm_handler():
             end_time,
         ):
             if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
             if not self.span.is_recording():

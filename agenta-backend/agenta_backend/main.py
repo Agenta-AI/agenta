@@ -78,14 +78,6 @@ app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
 
 allow_headers = ["Content-Type"]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex="https://.*\.vercel\.app",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=allow_headers,
-)
 
 if not isCloudEE():
     from agenta_backend.services.auth_helper import authentication_middleware
@@ -96,6 +88,15 @@ if isCloudEE():
     import agenta_backend.cloud.main as cloud
 
     app, allow_headers = cloud.extend_main(app)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_origin_regex="https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=allow_headers,
+)
 
 app.include_router(health_router.router, prefix="/health")
 app.include_router(
