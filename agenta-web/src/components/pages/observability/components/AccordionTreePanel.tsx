@@ -78,7 +78,7 @@ const AccordionTreePanel = ({
     const {appTheme} = useAppTheme()
     const [segmentedValue, setSegmentedValue] = useState("JSON")
     const editorRef = useRef<HTMLDivElement>(null)
-    const [editorHeight, setEditorHeight] = useState(0)
+    const [editorHeight, setEditorHeight] = useState(200)
 
     const yamlOutput = useMemo(() => {
         if (segmentedValue === "YAML" && value && Object.keys(value).length) {
@@ -93,14 +93,8 @@ const AccordionTreePanel = ({
         return ""
     }, [segmentedValue, value])
 
-    const calculateEditorHeight = (content: string) => {
-        const lineCount = content.split("\n").length
-        return Math.min(lineCount * 18, 200)
-    }
-
     useEffect(() => {
-        const content = segmentedValue === "JSON" ? getStringOrJson(value) : yamlOutput
-        setEditorHeight(calculateEditorHeight(content))
+        setEditorHeight(editorRef.current?.clientHeight || 200)
     }, [value, label, segmentedValue, yamlOutput])
 
     return (
@@ -114,11 +108,11 @@ const AccordionTreePanel = ({
                     children: (
                         <div
                             ref={editorRef}
-                            style={{height: fullEditorHeight ? "100%" : editorHeight}}
+                            style={{height: fullEditorHeight ? "100%" : `${editorHeight}px`}}
                         >
                             <Editor
                                 className={classes.editor}
-                                height={fullEditorHeight ? "100%" : editorHeight}
+                                height={fullEditorHeight ? "100%" : `${editorHeight}px`}
                                 language={
                                     typeof value === "string"
                                         ? "markdown"
@@ -143,11 +137,17 @@ const AccordionTreePanel = ({
                                         horizontalScrollbarSize: 8,
                                     },
                                 }}
-                                onMount={(editor) =>
-                                    setEditorHeight(
-                                        calculateEditorHeight(editor.getModel()?.getValue() || ""),
-                                    )
-                                }
+                                onMount={(editor) => {
+                                    const model = editor.getModel()
+                                    if (model) {
+                                        const updateHeight = () => {
+                                            const contentHeight = editor.getContentHeight()
+                                            setEditorHeight(contentHeight)
+                                        }
+                                        editor.onDidContentSizeChange(updateHeight)
+                                        updateHeight()
+                                    }
+                                }}
                             />
                         </div>
                     ),
