@@ -50,7 +50,7 @@ jobs:
             - name: Check if app is running
               uses: ./.github/actions/check-app-accessibility
               with:
-                log-file: serve_output.log
+                log-file: examples/deprecated_sdk_v2/baby_name_generator/serve_output.log
               continue-on-error: false
 
             - name: Run agenta variant serve with overwrite
@@ -103,7 +103,7 @@ jobs:
             - name: Check if app is running
               uses: ./.github/actions/check-app-accessibility
               with:
-                log-file: serve_output.log
+                log-file: examples/deprecated_sdk_v2/baby_name_generator/serve_output.log
                 api-key: ${{ secrets.AGENTA_API_KEY }}
               continue-on-error: false
 
