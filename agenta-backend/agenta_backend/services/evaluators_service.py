@@ -947,7 +947,14 @@ async def rag_faithfulness(
             )
 
         # Turn distributed trace into trace tree
-        trace = process_distributed_trace_into_trace_tree(output["trace"])
+        trace = {}
+        version = output.get("version")
+        if version == "3.0":
+            trace = output.get("tree", {})
+        elif version == "2.0":
+            trace = output.get("trace", {})
+
+        trace = process_distributed_trace_into_trace_tree(trace, version)
 
         # Get value of required keys for rag evaluator
         question_val: Any = get_field_value_from_trace_tree(trace, question_key)
@@ -1048,7 +1055,14 @@ async def rag_context_relevancy(
             )
 
         # Turn distributed trace into trace tree
-        trace = process_distributed_trace_into_trace_tree(output["trace"])
+        trace = {}
+        version = output.get("version")
+        if version == "3.0":
+            trace = output.get("tree", {})
+        elif version == "2.0":
+            trace = output.get("trace", {})
+
+        trace = process_distributed_trace_into_trace_tree(trace, version)
 
         # Get value of required keys for rag evaluator
         question_val: Any = get_field_value_from_trace_tree(trace, question_key)
