@@ -65,7 +65,7 @@ csvdata = [
         {"country": "Germany", "capital": "Berlin"}
     ]
 
-response = client.testsets.create_testset(app_id=app_id, request=NewTestset(name="test set", csvdata=csvdata))
+response = client.testsets.create_testset(request=NewTestset(name="test set", csvdata=csvdata))
 test_set_id = response.id
 
 ```

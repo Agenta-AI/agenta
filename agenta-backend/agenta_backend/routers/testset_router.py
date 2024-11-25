@@ -53,7 +53,6 @@ async def upload_file(
     upload_type: str = Form(None),
     file: UploadFile = File(...),
     testset_name: Optional[str] = File(None),
-    app_id: str = Form(None),
 ):
     """
     Uploads a CSV or JSON file and saves its data to MongoDB.
@@ -67,11 +66,10 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to upload Testset: {has_permission}")
@@ -114,7 +112,8 @@ async def upload_file(
 
     try:
         testset = await db_manager.create_testset(
-            app=app, project_id=str(app.project_id), testset_data=document
+            project_id=request.state.project_id,
+            testset_data=document,
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -132,7 +131,6 @@ async def import_testset(
     request: Request,
     endpoint: str = Form(None),
     testset_name: str = Form(None),
-    app_id: str = Form(None),
 ):
     """
     Import JSON testset data from an endpoint and save it to MongoDB.
@@ -145,11 +143,10 @@ async def import_testset(
         dict: The result of the import process.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to import Testset: {has_permission}")
@@ -180,7 +177,8 @@ async def import_testset(
             document["csvdata"].append(row)
 
         testset = await db_manager.create_testset(
-            app=app, project_id=str(app.project_id), testset_data=document
+            project_id=request.state.project_id,
+            testset_data=document,
         )
         return TestSetSimpleResponse(
             id=str(testset.id),
@@ -204,30 +202,30 @@ async def import_testset(
 
 
 @router.post(
-    "/{app_id}/", response_model=TestSetSimpleResponse, operation_id="create_testset"
+    "/{app_id}",
+    response_model=TestSetSimpleResponse,
+    operation_id="deprecating_create_testset",
 )
+@router.post("/", response_model=TestSetSimpleResponse, operation_id="create_testset")
 async def create_testset(
-    app_id: str,
     csvdata: NewTestset,
     request: Request,
 ):
     """
-    Create a testset with given name and app_name, save the testset to MongoDB.
+    Create a testset with given name, save the testset to MongoDB.
 
     Args:
     name (str): name of the test set.
-    app_name (str): name of the application.
     testset (Dict[str, str]): test set data.
 
     Returns:
     str: The id of the test set created.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
         logger.debug(f"User has Permission to create Testset: {has_permission}")
@@ -245,7 +243,8 @@ async def create_testset(
             "csvdata": csvdata.csvdata,
         }
         testset_instance = await db_manager.create_testset(
-            app=app, project_id=str(app.project_id), testset_data=testset_data
+            project_id=request.state.project_id,
+            testset_data=testset_data,
         )
         if testset_instance is not None:
             return TestSetSimpleResponse(
@@ -315,7 +314,6 @@ async def update_testset(
 
 @router.get("/", operation_id="get_testsets")
 async def get_testsets(
-    app_id: str,
     request: Request,
 ) -> List[TestSetOutputResponse]:
     """
@@ -328,34 +326,52 @@ async def get_testsets(
     - `HTTPException` with status code 404 if no testsets are found.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id=app_id)
-    if isCloudEE():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=str(app.project_id),
-            permission=Permission.VIEW_TESTSET,
-        )
-        logger.debug(f"User has Permission to view Testsets: {has_permission}")
-        if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+    try:
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_TESTSET,
             )
 
-    testsets = await db_manager.fetch_testsets_by_project_id(
-        project_id=str(app.project_id)
-    )
-    return [
-        TestSetOutputResponse(
-            _id=str(testset.id),  # type: ignore
-            name=testset.name,
-            created_at=str(testset.created_at),
-            updated_at=str(testset.updated_at),
+            logger.debug(
+                "User has Permission to view Testsets: %s",
+                has_permission,
+            )
+
+            if not has_permission:
+                error_msg = (
+                    "You do not have permission to perform this action. "
+                    + "Please contact your organization admin."
+                )
+                logger.error(error_msg)
+
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": error_msg},
+                )
+
+        testsets = await db_manager.fetch_testsets_by_project_id(
+            project_id=request.state.project_id,
         )
-        for testset in testsets
-    ]
+
+        return [
+            TestSetOutputResponse(
+                _id=str(testset.id),  # type: ignore
+                name=testset.name,
+                created_at=str(testset.created_at),
+                updated_at=str(testset.updated_at),
+            )
+            for testset in testsets
+        ]
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
 
 
 @router.get("/{testset_id}/", operation_id="get_single_testset")

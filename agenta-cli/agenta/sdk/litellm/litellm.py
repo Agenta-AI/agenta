@@ -63,6 +63,10 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
+            if not self.span.is_recording():
+                log.error("Agenta SDK - litellm span not recording.")
+                return
+
             self.span.set_attributes(
                 attributes={"inputs": {"prompt": kwargs["messages"]}},
                 namespace="data",
@@ -89,40 +93,8 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            try:
-                result = []
-                for choice in response_obj.choices:
-                    message = choice.message.__dict__
-                    result.append(message)
-
-                outputs = {"completion": result}
-                self.span.set_attributes(
-                    attributes={"outputs": outputs},
-                    namespace="data",
-                )
-
-            except Exception as e:
-                pass
-
-            self.span.set_attributes(
-                attributes={"total": kwargs.get("response_cost")},
-                namespace="metrics.unit.costs",
-            )
-
-            self.span.set_attributes(
-                attributes=(
-                    {
-                        "prompt": response_obj.usage.prompt_tokens,
-                        "completion": response_obj.usage.completion_tokens,
-                        "total": response_obj.usage.total_tokens,
-                    }
-                ),
-                namespace="metrics.unit.tokens",
-            )
-
-            self.span.set_status(status="OK")
-
-            self.span.end()
+            if not self.span.is_recording():
+                return
 
         def log_success_event(
             self,
@@ -131,8 +103,14 @@ def litellm_handler():
             start_time,
             end_time,
         ):
+            if kwargs.get("stream"):
+                return
+
             if not self.span:
                 log.error("LiteLLM callback error: span not found.")
+                return
+
+            if not self.span.is_recording():
                 return
 
             try:
@@ -181,6 +159,9 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
+            if not self.span.is_recording():
+                return
+
             self.span.record_exception(kwargs["exception"])
 
             self.span.set_status(status="ERROR")
@@ -198,40 +179,8 @@ def litellm_handler():
                 log.error("LiteLLM callback error: span not found.")
                 return
 
-            try:
-                result = []
-                for choice in response_obj.choices:
-                    message = choice.message.__dict__
-                    result.append(message)
-
-                outputs = {"completion": result}
-                self.span.set_attributes(
-                    attributes={"outputs": outputs},
-                    namespace="data",
-                )
-
-            except Exception as e:
-                pass
-
-            self.span.set_attributes(
-                attributes={"total": kwargs.get("response_cost")},
-                namespace="metrics.unit.costs",
-            )
-
-            self.span.set_attributes(
-                attributes=(
-                    {
-                        "prompt": response_obj.usage.prompt_tokens,
-                        "completion": response_obj.usage.completion_tokens,
-                        "total": response_obj.usage.total_tokens,
-                    }
-                ),
-                namespace="metrics.unit.tokens",
-            )
-
-            self.span.set_status(status="OK")
-
-            self.span.end()
+            if not self.span.is_recording():
+                return
 
         async def async_log_success_event(
             self,
@@ -242,6 +191,9 @@ def litellm_handler():
         ):
             if not self.span:
                 log.error("LiteLLM callback error: span not found.")
+                return
+
+            if not self.span.is_recording():
                 return
 
             try:
@@ -288,6 +240,9 @@ def litellm_handler():
         ):
             if not self.span:
                 log.error("LiteLLM callback error: span not found.")
+                return
+
+            if not self.span.is_recording():
                 return
 
             self.span.record_exception(kwargs["exception"])

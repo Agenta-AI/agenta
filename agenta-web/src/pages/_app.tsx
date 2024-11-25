@@ -11,6 +11,7 @@ import Layout from "@/components/Layout/Layout"
 import ThemeContextProvider from "@/components/Layout/ThemeContextProvider"
 import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
+import ProjectContextProvider from "@/contexts/project.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
@@ -55,11 +56,13 @@ export default function App({Component, pageProps}: AppProps) {
                 <PostHogProvider client={posthog}>
                     <ThemeContextProvider>
                         <ProfileContextProvider>
-                            <AppContextProvider>
-                                <Layout>
-                                    <Component {...pageProps} />
-                                </Layout>
-                            </AppContextProvider>
+                            <ProjectContextProvider>
+                                <AppContextProvider>
+                                    <Layout>
+                                        <Component {...pageProps} />
+                                    </Layout>
+                                </AppContextProvider>
+                            </ProjectContextProvider>
                         </ProfileContextProvider>
                     </ThemeContextProvider>
                 </PostHogProvider>

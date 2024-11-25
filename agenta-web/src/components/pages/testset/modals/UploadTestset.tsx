@@ -49,10 +49,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 type Props = {
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     onCancel: () => void
-    appId: string
 }
 
-const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
+const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const classes = useStyles()
     const router = useRouter()
     const [form] = Form.useForm()
@@ -61,7 +60,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
     const [testsetName, setTestsetName] = useState("")
     const [uploadLoading, setUploadLoading] = useState(false)
     const [fileProgress, setFileProgress] = useState<UploadFile>({} as UploadFile)
-    const {mutate} = useLoadTestsetsList(appId)
+    const {mutate} = useLoadTestsetsList()
 
     const onFinish = async (values: any) => {
         const {file} = values
@@ -83,7 +82,6 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel, appId}) => {
             if (testsetName && testsetName.trim() !== "") {
                 formData.append("testset_name", testsetName)
             }
-            formData.append("app_id", appId)
 
             try {
                 setUploadLoading(true)

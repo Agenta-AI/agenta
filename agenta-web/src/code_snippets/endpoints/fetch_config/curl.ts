@@ -1,8 +1,19 @@
-export default function cURLCode(baseId: string, env_name: string): string {
-    return `
-    curl -X GET "${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/configs?base_id=${baseId}&environment_name=${env_name}" \\
-    -H "Authorization: Bearer YOUR_API_KEY" \\
-    -H "Content-Type: application/json" \\
-    --connect-timeout 60
-    `
+export default function cURLCode(appName: string, env_name: string): string {
+    return `curl -L '${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/configs/fetch' \\
+-H "Authorization: Bearer YOUR_API_KEY" \\
+-H 'Content-Type: application/json' \\
+-H 'Accept: application/json' \\
+-d '{
+    "environment_ref": {
+        "slug": "${env_name}",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "${appName}",
+        "version": null,
+        "id": null
+    }
+}'
+`
 }
