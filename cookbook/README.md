@@ -38,5 +38,7 @@ make generate_cookbook_docs file=example.ipynb
 
 ## Notes
 
- The output markdown files will include an optional note with links to the original Jupyter notebook on GitHub.
+- If a file already exists, it will be skipped during generations. To override this, simply add `force=true` at the end of the command.
+
+-  The output markdown files will include an optional note with links to the original Jupyter notebook on GitHub.
   
