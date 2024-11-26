@@ -44,7 +44,7 @@ export const getCurrentProject = () => projectContextValues
 const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [project, setProject] = useStateCallback<Project | null>(null)
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
-    const [isLoading, setIsLoading] = useState(true)
+    const [isLoading, setIsLoading] = useState(false)
     const {doesSessionExist} = useSession()
 
     useEffect(() => {
@@ -103,7 +103,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 refetch: fetcher,
             }}
         >
-            {isProjectId ? children : null}
+            {children}
         </ProjectContext.Provider>
     )
 }
