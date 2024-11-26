@@ -142,28 +142,32 @@ export async function callVariant(
     const secure_url = `${base_url}?project_id=${projectId}`
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
-    let response = await axios.post(base_url, requestBody, {
-        signal,
-        _ignoreError: ignoreAxiosError,
-    } as any)
-
-    if (response.status === 200) {
-        //
-    } else if (response.status === 401) {
-        response = await axios.post(secure_url, requestBody, {
+    let response = await axios
+        .post(base_url, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
-            headers: secure_headers,
         } as any)
+        .then((response) => {
+            return response
+        })
+        .catch(async (error) => {
+            console.log("Secure call to LLM App failed:", error?.status)
 
-        if (response.status === 200) {
-            //
-        } else {
-            // throw new Error("Failed to run /generate")
-        }
-    } else {
-        // throw new Error("Failed to run /generate")
-    }
+            let response = await axios
+                .post(secure_url, requestBody, {
+                    signal,
+                    _ignoreError: ignoreAxiosError,
+                    headers: secure_headers,
+                } as any)
+                .then((response) => {
+                    return response
+                })
+                .catch((error) => {
+                    console.log("Secure call to LLM App failed:", error?.status)
+                })
+
+            return response
+        })
 
     return response?.data
 }
@@ -193,13 +197,10 @@ export const fetchVariantParametersFromOpenAPI = async (
             _ignoreError: ignoreAxiosError,
         } as any)
         .then((response) => {
-            console.log("unsecure, 200")
-
             return response
         })
         .catch(async (error) => {
-            console.log(error)
-            console.log("unsecure, 401")
+            console.log("Secure call to LLM App failed:", error?.status)
 
             let response = await axios
                 .get(secure_url, {
@@ -207,13 +208,10 @@ export const fetchVariantParametersFromOpenAPI = async (
                     headers: secure_headers,
                 } as any)
                 .then((response) => {
-                    console.log("secure, 200")
-
                     return response
                 })
                 .catch((error) => {
-                    console.log(error)
-                    console.log("secure, 401")
+                    console.log("Secure call to LLM App failed:", error?.status)
                 })
 
             return response
