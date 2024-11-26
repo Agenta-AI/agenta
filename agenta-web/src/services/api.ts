@@ -159,10 +159,10 @@ export async function callVariant(
         if (response.status === 200) {
             //
         } else {
-            throw new Error("Failed to run /generate")
+            // throw new Error("Failed to run /generate")
         }
     } else {
-        throw new Error("Failed to run /generate")
+        // throw new Error("Failed to run /generate")
     }
 
     return response?.data
@@ -207,11 +207,11 @@ export const fetchVariantParametersFromOpenAPI = async (
             //
         } else {
             console.log("secure, all failed")
-            throw new Error("Failed to fetch openapi.json")
+            // throw new Error("Failed to fetch openapi.json")
         }
     } else {
         console.log("unsecure, all failed except 401")
-        throw new Error("Failed to fetch openapi.json")
+        // throw new Error("Failed to fetch openapi.json")
     }
 
     const isChatVariant = detectChatVariantFromOpenAISchema(response?.data)
