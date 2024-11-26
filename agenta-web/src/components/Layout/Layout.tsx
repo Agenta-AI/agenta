@@ -17,6 +17,7 @@ import {ThemeProvider} from "react-jss"
 import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
+import {useProjectData} from "@/contexts/project.context"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -85,6 +86,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {appTheme} = useAppTheme()
     const {currentApp} = useAppsData()
     const [footerRef, {height: footerHeight}] = useElementSize()
+    const {isProjectId} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
     const appId = router.query.app_id as string
@@ -157,6 +159,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
             body.classList.add("light-mode")
         }
     }, [appTheme])
+
+    if (!isProjectId) return null
 
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && (!appId || !currentApp)) return null
