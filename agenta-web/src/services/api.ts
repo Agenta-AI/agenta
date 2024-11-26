@@ -219,10 +219,6 @@ export const fetchVariantParametersFromOpenAPI = async (
             return response
         })
 
-    if (response === undefined) {
-        return
-    }
-
     const isChatVariant = detectChatVariantFromOpenAISchema(response?.data)
     let APIParams = openAISchemaToParameters(response?.data)
 
