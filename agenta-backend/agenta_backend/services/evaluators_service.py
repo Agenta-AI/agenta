@@ -21,6 +21,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluatorMappingOutputInterface,
 )
 from agenta_backend.utils.traces import (
+    remove_trace_prefix,
     process_distributed_trace_into_trace_tree,
     get_field_value_from_trace_tree,
 )
@@ -934,9 +935,10 @@ async def rag_faithfulness(
             )
 
         # Get required keys for rag evaluator
-        question_key: Union[str, None] = settings_values.get("question_key", None)
-        answer_key: Union[str, None] = settings_values.get("answer_key", None)
-        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
+        mapping_keys = remove_trace_prefix(settings_values=settings_values)
+        question_key: Union[str, None] = mapping_keys.get("question_key", None)
+        answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
+        contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
             logging.error(
@@ -1046,9 +1048,10 @@ async def rag_context_relevancy(
             )
 
         # Get required keys for rag evaluator
-        question_key: Union[str, None] = settings_values.get("question_key", None)
-        answer_key: Union[str, None] = settings_values.get("answer_key", None)
-        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
+        mapping_keys = remove_trace_prefix(settings_values=settings_values)
+        question_key: Union[str, None] = mapping_keys.get("question_key", None)
+        answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
+        contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
             logging.error(
