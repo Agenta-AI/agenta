@@ -373,19 +373,19 @@ class entrypoint:
 
     async def handle_success(self, result: Any, inline_trace: bool):
         data = None
-        trace = dict()
+        tree = None
 
         with suppress():
             data = self.patch_result(result)
 
             if inline_trace:
-                trace = await self.fetch_inline_trace(inline_trace)
+                tree = await self.fetch_inline_trace(inline_trace)
 
         log.info(f"----------------------------------")
         log.info(f"Agenta SDK - exiting with success: 200")
         log.info(f"----------------------------------")
 
-        return BaseResponse(data=data, tree=trace)
+        return BaseResponse(data=data, tree=tree)
 
     def handle_failure(self, error: Exception):
         log.warning("--------------------------------------------------")

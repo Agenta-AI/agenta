@@ -48,9 +48,7 @@ const useApps = () => {
     const {data, error, isLoading, mutate} = useSWR(
         !!user
             ? `${getAgentaApiUrl()}/api/apps?` +
-                  (!isMockProjectId ? `project_id=${projectId}&` : "") +
-                  (isDemo() ? `workspace_id=${selectedOrg?.default_workspace.id}&` : "") +
-                  (isDemo() ? `org_id=${selectedOrg?.id}&` : "")
+                  (!isMockProjectId ? `project_id=${projectId}&` : "")
             : null,
         !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
         {

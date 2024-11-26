@@ -120,11 +120,10 @@ export async function callVariant(
     }
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
-    const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
     return axios
-        .post(`${appContainerURI}/generate?project_id=${projectId}`, requestBody, {
+        .post(`${appContainerURI}/generate`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
             headers: {
