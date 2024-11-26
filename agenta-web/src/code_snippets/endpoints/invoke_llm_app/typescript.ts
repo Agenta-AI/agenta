@@ -4,12 +4,19 @@ export default function tsCode(uri: string, params: string): string {
     const codeString = `import axios from 'axios';
 
 const generate = async () => {
-    const response = await axios.post('${uri}', ${params});
-
-    console.log(response.data);
+    const url = '${uri}';
+    const data = ${params};
+    const headers = {
+        "Content-Type": "application/json",
+        "Authorization": "ApiKey x.xxxxxxxx" // Add your API key here, when using cloud
     };
 
-    generate().catch(console.error);
+    const response = await axios.post(url, data, { headers });
+    
+    console.log(response.data);
+};
+
+generate().catch(console.error);
 `
 
     const formattedCodeString = beautify(codeString)
