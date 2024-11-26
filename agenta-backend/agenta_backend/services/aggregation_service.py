@@ -72,7 +72,7 @@ def aggregate_float(results: List[Result]) -> Result:
     """
 
     try:
-        average_value = sum(result.value for result in results) / len(results)
+        average_value = sum(result.value or 0.0 for result in results) / len(results)
         return Result(type="number", value=average_value)
     except Exception as exc:
         return Result(
@@ -90,7 +90,7 @@ def aggregate_float_from_llm_app_response(
             raise ValueError("Key is required to aggregate InvokationResult objects.")
 
         values = [
-            getattr(inv_result, key)
+            getattr(inv_result, key) or 0.0
             for inv_result in invocation_results
             if hasattr(inv_result, key) and getattr(inv_result, key) is not None
         ]
@@ -116,7 +116,7 @@ def sum_float_from_llm_app_response(
             raise ValueError("Key is required to aggregate InvokationResult objects.")
 
         values = [
-            getattr(inv_result, key)
+            getattr(inv_result, key) or 0.0
             for inv_result in invocation_results
             if hasattr(inv_result, key) and getattr(inv_result, key) is not None
         ]
@@ -124,7 +124,10 @@ def sum_float_from_llm_app_response(
         if not values:
             raise ValueError(f"No valid values found for {key} sum aggregation.")
 
-        total_value = sum(values)
+        total_value = sum(
+            values
+        )  # sum([3.453, None]) -> TypeError: unsupported operand type(s) for +: 'float' and 'NoneType'
+
         return Result(type=key, value=total_value)
     except Exception as exc:
         return Result(
