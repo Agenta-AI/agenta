@@ -170,7 +170,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
                 <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
-                    {isAuthRoute || !isProjectId ? (
+                    {isAuthRoute ? (
                         <Layout className={classes.layout}>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}
