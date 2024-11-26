@@ -177,7 +177,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 {contextHolder}
                             </ErrorBoundary>
                         </Layout>
-                    ) : ( // !isAuthRoute && isProjectId
+                    ) : (
+                        // !isAuthRoute && isProjectId
                         <Layout hasSider className={classes.layout}>
                             <Sidebar />
                             <Layout className={classes.layout}>
