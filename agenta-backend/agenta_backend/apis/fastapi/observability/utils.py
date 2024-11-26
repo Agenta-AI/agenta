@@ -909,11 +909,11 @@ def parse_legacy_analytics(
     for bucket_dto in bucket_dtos:
         data_point = LegacyDataPoint(
             timestamp=bucket_dto.timestamp,
-            success_count=bucket_dto.total.count - bucket_dto.error.count,
-            failure_count=bucket_dto.error.count,
-            cost=bucket_dto.total.cost,
-            latency=bucket_dto.total.duration,
-            total_tokens=bucket_dto.total.tokens,
+            success_count=(bucket_dto.total.count or 0) - (bucket_dto.error.count or 0),
+            failure_count=bucket_dto.error.count or 0,
+            cost=bucket_dto.total.cost or 0.0,
+            latency=bucket_dto.total.duration or 0.0,
+            total_tokens=bucket_dto.total.tokens or 0,
         )
 
         data_points.append(data_point)
