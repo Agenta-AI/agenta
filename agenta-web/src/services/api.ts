@@ -188,30 +188,39 @@ export const fetchVariantParametersFromOpenAPI = async (
     const secure_url = `${base_url}?project_id=${projectId}`
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
-    let response = await axios.get(base_url, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-
-    if (response.status === 200) {
-        console.log("unsecure, 200")
-    } else if (response.status === 401) {
-        console.log("unsecure, 401")
-
-        response = await axios.get(secure_url, {
+    let response = await axios
+        .get(base_url, {
             _ignoreError: ignoreAxiosError,
-            headers: secure_headers,
         } as any)
+        .then((response) => {
+            console.log("unsecure, 200")
 
-        if (response.status === 200) {
-            console.log("secure, 200")
-            //
-        } else {
-            console.log("secure, all failed")
-            // throw new Error("Failed to fetch openapi.json")
-        }
-    } else {
-        console.log("unsecure, all failed except 401")
-        // throw new Error("Failed to fetch openapi.json")
+            return response
+        })
+        .catch(async (error) => {
+            console.log(error)
+            console.log("unsecure, 401")
+
+            let response = await axios
+                .get(secure_url, {
+                    _ignoreError: ignoreAxiosError,
+                    headers: secure_headers,
+                } as any)
+                .then((response) => {
+                    console.log("secure, 200")
+
+                    return response
+                })
+                .catch((error) => {
+                    console.log(error)
+                    console.log("secure, 401")
+                })
+
+            return response
+        })
+
+    if (response === undefined) {
+        return
     }
 
     const isChatVariant = detectChatVariantFromOpenAISchema(response?.data)
