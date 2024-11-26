@@ -193,19 +193,24 @@ export const fetchVariantParametersFromOpenAPI = async (
     } as any)
 
     if (response.status === 200) {
-        //
+        console.log("unsecure, 200")
     } else if (response.status === 401) {
+        console.log("unsecure, 401")
+
         response = await axios.get(secure_url, {
             _ignoreError: ignoreAxiosError,
             headers: secure_headers,
         } as any)
 
         if (response.status === 200) {
+            console.log("secure, 200")
             //
         } else {
+            console.log("secure, all failed")
             throw new Error("Failed to fetch openapi.json")
         }
     } else {
+        console.log("unsecure, all failed except 401")
         throw new Error("Failed to fetch openapi.json")
     }
 
