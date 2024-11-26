@@ -120,10 +120,11 @@ export async function callVariant(
     }
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
+    const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
     return axios
-        .post(`${appContainerURI}/generate`, requestBody, {
+        .post(`${appContainerURI}/generate?project_id=${projectId}`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
             headers: {
@@ -163,8 +164,10 @@ export const fetchVariantParametersFromOpenAPI = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
-    const url = `${appContainerURI}/openapi.json`
+    const {projectId} = getCurrentProject()
     const jwt = await getJWT()
+
+    const url = `${appContainerURI}/openapi.json?project_id=${projectId}`
     const response = await axios.get(url, {
         _ignoreError: ignoreAxiosError,
         headers: {
