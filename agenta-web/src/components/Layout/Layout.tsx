@@ -160,24 +160,24 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
-    if (!isProjectId) return null
-
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && (!appId || !currentApp)) return null
+
+    const isAuthRoute =
+        router.pathname.includes("/auth") || router.pathname.includes("/post-signup")
 
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
                 <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
-                    {router.pathname.includes("/auth") ||
-                    router.pathname.includes("/post-signup") ? (
+                    {isAuthRoute || !isProjectId ? (
                         <Layout className={classes.layout}>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}
                                 {contextHolder}
                             </ErrorBoundary>
                         </Layout>
-                    ) : (
+                    ) : ( // !isAuthRoute && isProjectId
                         <Layout hasSider className={classes.layout}>
                             <Sidebar />
                             <Layout className={classes.layout}>
