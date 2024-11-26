@@ -37,26 +37,6 @@ def get_nested_value(d: dict, keys: list, default=None):
         return default
 
 
-def compute_latency(start_time_str: str, end_time_str: str) -> float:
-    try:
-        # Define the format to parse the time strings
-        time_format = "%Y-%m-%dT%H:%M:%S.%f"
-
-        # Convert the strings to datetime objects
-        start_datetime = datetime.strptime(start_time_str, time_format)
-        end_datetime = datetime.strptime(end_time_str, time_format)
-
-        # Calculate the difference in seconds
-        time_difference = (end_datetime - start_datetime).total_seconds()
-        return time_difference
-    except Exception as e:
-        print(f"Error computing latency from invoking an app. Defaulting to None.")
-        print(" ------------------- Exception ------------------------")
-        print(str(e))
-        print(" ------------------- End Exception ------------------------")
-        return None
-
-
 def extract_result_from_response(response: dict):
     # Initialize default values
     value = None
@@ -78,17 +58,12 @@ def extract_result_from_response(response: dict):
             if "tree" in response:
                 trace_tree = response.get("tree", {}).get("nodes", [])[0]
 
-                start_time_str = (
-                    get_nested_value(trace_tree, ["time", "start"])
-                    if trace_tree
-                    else None
+                latency = (
+                    get_nested_value(
+                        trace_tree, ["metrics", "acc", "duration", "total"]
+                    )
+                    / 1000
                 )
-                end_time_str = (
-                    get_nested_value(trace_tree, ["time", "end"])
-                    if trace_tree
-                    else None
-                )
-                latency = compute_latency(start_time_str, end_time_str)
                 cost = get_nested_value(
                     trace_tree, ["metrics", "acc", "costs", "total"]
                 )
@@ -384,9 +359,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[
-        InvokationResult
-    ] = []  # Outputs after running all batches
+    list_of_app_outputs: List[InvokationResult] = (
+        []
+    )  # Outputs after running all batches
 
     headers = None
     if isCloudEE():
