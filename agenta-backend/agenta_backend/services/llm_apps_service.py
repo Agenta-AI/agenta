@@ -105,8 +105,6 @@ def extract_result_from_response(response: dict):
         value = {"error": f"Unexpected error: {e}"}
         kind = "error"
 
-    print("Cost: ", cost)
-    print("Latency: ", latency)
     return value, kind, cost, latency
 
 
