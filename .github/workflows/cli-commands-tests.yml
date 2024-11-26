@@ -42,6 +42,7 @@ jobs:
 
             - name: Run agenta variant serve
               run: |
+                  APP_NAME=$(cat app_name.txt)
                   agenta variant serve --file_name app.py 2>&1 | tee serve_output.log
               working-directory: examples/deprecated_sdk_v2/baby_name_generator
               shell: bash
@@ -56,6 +57,21 @@ jobs:
             - name: Run agenta variant serve with overwrite
               run: |
                   agenta variant serve --file_name app.py --overwrite
+              working-directory: examples/deprecated_sdk_v2/baby_name_generator
+              shell: bash
+              continue-on-error: false
+
+            - name: Remove variant using backend API
+              run: |
+                  APP_NAME=$(cat app_name.txt)
+                  VARIANT_NAME="app.py"
+                  BACKEND_URL="${{ secrets.BACKEND_HOST }}"
+                  
+                  # Get the variant ID using the app name and variant name
+                  VARIANT_ID=$(curl -s "${BACKEND_URL}/api/variants/by-name/${APP_NAME}/${VARIANT_NAME}" | jq -r '.id')
+                  
+                  # Remove the variant using the backend API
+                  curl -X DELETE "${BACKEND_URL}/api/variants/${VARIANT_ID}/"
               working-directory: examples/deprecated_sdk_v2/baby_name_generator
               shell: bash
               continue-on-error: false
@@ -95,6 +111,7 @@ jobs:
 
             - name: Run agenta variant serve
               run: |
+                  APP_NAME=$(cat app_name.txt)
                   agenta variant serve --file_name app.py 2>&1 | tee serve_output.log
               working-directory: examples/deprecated_sdk_v2/baby_name_generator
               shell: bash
@@ -110,6 +127,22 @@ jobs:
             - name: Run agenta variant serve with overwrite
               run: |
                   agenta variant serve --file_name app.py --overwrite
+              working-directory: examples/deprecated_sdk_v2/baby_name_generator
+              shell: bash
+              continue-on-error: false
+
+            - name: Remove variant using backend API
+              run: |
+                  APP_NAME=$(cat app_name.txt)
+                  VARIANT_NAME="app.py"
+                  BACKEND_URL="https://cloud.agenta.ai"
+                  API_KEY="${{ secrets.AGENTA_API_KEY }}"
+                  
+                  # Get the variant ID using the app name and variant name
+                  VARIANT_ID=$(curl -s -H "Authorization: ApiKey ${API_KEY}" "${BACKEND_URL}/api/variants/by-name/${APP_NAME}/${VARIANT_NAME}" | jq -r '.id')
+                  
+                  # Remove the variant using the backend API
+                  curl -X DELETE -H "Authorization: ApiKey ${API_KEY}" "${BACKEND_URL}/api/variants/${VARIANT_ID}/"
               working-directory: examples/deprecated_sdk_v2/baby_name_generator
               shell: bash
               continue-on-error: false
