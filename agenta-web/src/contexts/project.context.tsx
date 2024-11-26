@@ -44,7 +44,7 @@ export const getCurrentProject = () => projectContextValues
 const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [project, setProject] = useStateCallback<Project | null>(null)
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
-    const [isLoading, setIsLoading] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
     const {doesSessionExist} = useSession()
 
     useEffect(() => {
@@ -57,7 +57,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     const workspaceId: string = selectedOrg?.default_workspace.id || DEFAULT_UUID
 
-    const isProjectId = !isLoading && Boolean(project?.project_id)
+    const isProjectId = !isLoading && !!project?.project_id
     const projectId = (project?.project_id as string) || DEFAULT_UUID
 
     const fetcher = async (onSuccess?: () => void) => {
@@ -103,7 +103,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 refetch: fetcher,
             }}
         >
-            {children}
+            {isProjectId ? children : null}
         </ProjectContext.Provider>
     )
 }
