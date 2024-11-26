@@ -151,7 +151,7 @@ export async function callVariant(
             return response
         })
         .catch(async (error) => {
-            console.log("Secure call to LLM App failed:", error?.status)
+            console.log("Unsecure call to LLM App failed:", error?.status)
 
             let response = await axios
                 .post(secure_url, requestBody, {
@@ -200,7 +200,7 @@ export const fetchVariantParametersFromOpenAPI = async (
             return response
         })
         .catch(async (error) => {
-            console.log("Secure call to LLM App failed:", error?.status)
+            console.log("Unsecure call to LLM App failed:", error?.status)
 
             let response = await axios
                 .get(secure_url, {
