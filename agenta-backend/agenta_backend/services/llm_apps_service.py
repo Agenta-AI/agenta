@@ -3,6 +3,7 @@ import logging
 import asyncio
 import traceback
 import aiohttp
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 
@@ -36,6 +37,26 @@ def get_nested_value(d: dict, keys: list, default=None):
         return default
 
 
+def compute_latency(start_time_str: str, end_time_str: str) -> float:
+    try:
+        # Define the format to parse the time strings
+        time_format = "%Y-%m-%dT%H:%M:%S.%f"
+
+        # Convert the strings to datetime objects
+        start_datetime = datetime.strptime(start_time_str, time_format)
+        end_datetime = datetime.strptime(end_time_str, time_format)
+
+        # Calculate the difference in seconds
+        time_difference = (end_datetime - start_datetime).total_seconds()
+        return time_difference
+    except Exception as e:
+        print(f"Error computing latency from invoking an app. Defaulting to None.")
+        print(" ------------------- Exception ------------------------")
+        print(str(e))
+        print(" ------------------- End Exception ------------------------")
+        return None
+
+
 def extract_result_from_response(response: dict):
     # Initialize default values
     value = None
@@ -57,11 +78,17 @@ def extract_result_from_response(response: dict):
             if "tree" in response:
                 trace_tree = response.get("tree", {}).get("nodes", [])[0]
 
-                latency = (
-                    get_nested_value(trace_tree, ["time", "span"]) / 1_000_000
+                start_time_str = (
+                    get_nested_value(trace_tree, ["time", "start"])
                     if trace_tree
                     else None
                 )
+                end_time_str = (
+                    get_nested_value(trace_tree, ["time", "end"])
+                    if trace_tree
+                    else None
+                )
+                latency = compute_latency(start_time_str, end_time_str)
                 cost = get_nested_value(
                     trace_tree, ["metrics", "acc", "costs", "total"]
                 )
