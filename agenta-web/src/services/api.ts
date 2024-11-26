@@ -1,5 +1,6 @@
 import {getCurrentProject} from "@/contexts/project.context"
 import axios from "@/lib//helpers/axiosConfig"
+import Session from "supertokens-auth-react/recipe/session"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
     detectChatVariantFromOpenAISchema,
@@ -67,6 +68,21 @@ export async function fetchVariants(
 }
 
 /**
+ * Get the JWT from SuperTokens
+ */
+const getJWT = async () => {
+    try {
+        if (await Session.doesSessionExist()) {
+            let jwt = await Session.getAccessToken()
+
+            return jwt
+        }
+    } catch (error) {}
+
+    return undefined
+}
+
+/**
  * Calls the variant endpoint with the input parameters and the optional parameters and returns the response.
  * @param inputParametersDict A dictionary of the input parameters to be passed to the variant endpoint
  * @param inputParamDefinition A list of the parameters that are defined in the openapi.json (these are only part of the input params, the rest is defined by the user in the optparms)
@@ -119,15 +135,37 @@ export async function callVariant(
     }
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
+    const {projectId} = getCurrentProject()
+    const jwt = await getJWT()
 
-    return axios
-        .post(`${appContainerURI}/generate`, requestBody, {
+    const base_url = `${appContainerURI}/generate`
+    const secure_url = `${base_url}?project_id=${projectId}`
+    const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
+
+    let response = await axios.post(base_url, requestBody, {
+        signal,
+        _ignoreError: ignoreAxiosError,
+    } as any)
+
+    if (response.status === 200) {
+        //
+    } else if (response.status === 401) {
+        response = await axios.post(secure_url, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
+            headers: secure_headers,
         } as any)
-        .then((res) => {
-            return res.data
-        })
+
+        if (response.status === 200) {
+            //
+        } else {
+            throw new Error("Failed to run /generate")
+        }
+    } else {
+        throw new Error("Failed to run /generate")
+    }
+
+    return response?.data
 }
 
 /**
@@ -143,12 +181,36 @@ export const fetchVariantParametersFromOpenAPI = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
+    const {projectId} = getCurrentProject()
+    const jwt = await getJWT()
 
-    const response = await axios.get(`${appContainerURI}/openapi.json`, {
+    const base_url = `${appContainerURI}/openapi.json`
+    const secure_url = `${base_url}?project_id=${projectId}`
+    const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
+
+    let response = await axios.get(base_url, {
         _ignoreError: ignoreAxiosError,
     } as any)
-    const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
-    let APIParams = openAISchemaToParameters(response.data)
+
+    if (response.status === 200) {
+        //
+    } else if (response.status === 401) {
+        response = await axios.get(secure_url, {
+            _ignoreError: ignoreAxiosError,
+            headers: secure_headers,
+        } as any)
+
+        if (response.status === 200) {
+            //
+        } else {
+            throw new Error("Failed to fetch openapi.json")
+        }
+    } else {
+        throw new Error("Failed to fetch openapi.json")
+    }
+
+    const isChatVariant = detectChatVariantFromOpenAISchema(response?.data)
+    let APIParams = openAISchemaToParameters(response?.data)
 
     // we create a new param for DictInput that will contain the name of the inputs
     APIParams = APIParams.map((param) => {
