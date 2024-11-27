@@ -11,6 +11,7 @@ interface GetStartedSectionProps {
     setIsMaxAppModalOpen: (value: SetStateAction<boolean>) => void
     setIsAddAppFromTemplatedModal: (value: SetStateAction<boolean>) => void
     setIsWriteOwnAppModal: Dispatch<SetStateAction<boolean>>
+    setIsSetupTracingModal: Dispatch<SetStateAction<boolean>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -59,6 +60,7 @@ const GetStartedSection = ({
     setIsAddAppFromTemplatedModal,
     setIsMaxAppModalOpen,
     setIsWriteOwnAppModal,
+    setIsSetupTracingModal,
 }: GetStartedSectionProps) => {
     const classes = useStyles()
 
@@ -85,7 +87,11 @@ const GetStartedSection = ({
                     </div>
                 </Card>
 
-                <Card title={<TreeView size={24} />} className={classes.getStartedCard}>
+                <Card
+                    title={<TreeView size={24} />}
+                    className={classes.getStartedCard}
+                    onClick={() => setIsSetupTracingModal(true)}
+                >
                     <div className="flex items-center justify-between">
                         <Text>Set Up Tracing</Text>
 
