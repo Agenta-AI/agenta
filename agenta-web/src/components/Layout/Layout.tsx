@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo} from "react"
-import {Breadcrumb, Layout, Modal, Space, Typography, theme} from "antd"
+import {Breadcrumb, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -198,7 +198,16 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                     </div>
                                     <Content className={classes.content}>
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                            {children}
+                                            <ConfigProvider
+                                                theme={{
+                                                    algorithm:
+                                                        appTheme === "dark"
+                                                            ? theme.darkAlgorithm
+                                                            : theme.defaultAlgorithm,
+                                                }}
+                                            >
+                                                {children}
+                                            </ConfigProvider>
                                             {contextHolder}
                                         </ErrorBoundary>
                                     </Content>
