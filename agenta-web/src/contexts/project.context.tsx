@@ -57,7 +57,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     const workspaceId: string = selectedOrg?.default_workspace.id || DEFAULT_UUID
 
-    const isProjectId = !isLoading && Boolean(project?.project_id)
+    const isProjectId = !isLoading && !!project?.project_id
     const projectId = (project?.project_id as string) || DEFAULT_UUID
 
     const fetcher = async (onSuccess?: () => void) => {
