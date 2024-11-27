@@ -8,6 +8,7 @@
     "scripts": {
         "dev": "next dev",
         "dev:local": "ENV_FILE=.local.env next dev",
+        "dev:turbo": "ENV_FILE=.local.env next dev --turbo",
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
