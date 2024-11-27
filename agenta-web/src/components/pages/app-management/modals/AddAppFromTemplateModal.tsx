@@ -1,4 +1,4 @@
-import {Typography, Input, Card, Radio, Space, Button, Flex} from "antd"
+import {Typography, Input, Card, Radio, Space, Button, Flex, Modal, notification} from "antd"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, Template} from "@/lib/Types"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
@@ -6,6 +6,16 @@ import {isAppNameInputValid} from "@/lib/helpers/utils"
 const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
+    modalContainer: {
+        transition: "width 0.3s ease",
+        "& .ant-modal-content": {
+            overflow: "hidden",
+            borderRadius: 16,
+            "& > .ant-modal-close": {
+                top: 16,
+            },
+        },
+    },
     modal: {
         display: "flex",
         flexDirection: "column",
@@ -70,9 +80,10 @@ type Props = {
     noTemplateMessage: string
     onCardClick: (template: Template) => void
     appNameExist: boolean
-    handleCreateApp: () => void
     templateId: string | undefined
-}
+    handleTemplateCardClick: (template_id: string) => Promise<void>
+    fetchingTemplate: boolean
+} & React.ComponentProps<typeof Modal>
 
 const AddAppFromTemplatedModal = ({
     newApp,
@@ -81,8 +92,10 @@ const AddAppFromTemplatedModal = ({
     noTemplateMessage,
     onCardClick,
     appNameExist,
-    handleCreateApp,
     templateId,
+    handleTemplateCardClick,
+    fetchingTemplate,
+    ...props
 }: Props) => {
     const classes = useStyles()
 
@@ -94,79 +107,115 @@ const AddAppFromTemplatedModal = ({
         }
     }
 
+    const handleCreateApp = () => {
+        if (appNameExist) {
+            notification.warning({
+                message: "Template Selection",
+                description: "App name already exists. Please choose a different name.",
+                duration: 3,
+            })
+        } else if (fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
+            notification.info({
+                message: "Template Selection",
+                description: "The template image is currently being fetched. Please wait...",
+                duration: 3,
+            })
+        } else if (!fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
+            handleTemplateCardClick(templateId as string)
+        } else {
+            notification.warning({
+                message: "Template Selection",
+                description: "Please provide a valid app name to choose a template.",
+                duration: 3,
+            })
+        }
+    }
+
     return (
-        <section className={classes.modal}>
-            <Space className={classes.headerText}>
-                <Typography.Text>Start with a template</Typography.Text>
-            </Space>
+        <Modal
+            destroyOnClose
+            footer={null}
+            title={null}
+            className={classes.modalContainer}
+            width={480}
+            centered
+            {...props}
+        >
+            <section className={classes.modal}>
+                <Space className={classes.headerText}>
+                    <Typography.Text>Start with a template</Typography.Text>
+                </Space>
 
-            <Text>Create a an application using our preset LLM configuration.</Text>
+                <Text>Create a an application using our preset LLM configuration.</Text>
 
-            <div className="space-y-2">
-                <Text className={classes.label}>Provide the name of the application</Text>
-                <Input
-                    placeholder="Enter a name"
-                    data-cy="enter-app-name-input"
-                    value={newApp}
-                    onChange={(e) => setNewApp(e.target.value)}
-                    onKeyDown={handleEnterKeyPress}
-                    className={`${isError && classes.inputName}`}
-                    allowClear
-                />
+                <div className="space-y-2">
+                    <Text className={classes.label}>Provide the name of the application</Text>
+                    <Input
+                        placeholder="Enter a name"
+                        data-cy="enter-app-name-input"
+                        value={newApp}
+                        onChange={(e) => setNewApp(e.target.value)}
+                        onKeyDown={handleEnterKeyPress}
+                        className={`${isError && classes.inputName}`}
+                        allowClear
+                    />
 
-                {appNameExist && (
-                    <Typography.Text className={classes.modalError}>
-                        App name already exists
-                    </Typography.Text>
-                )}
-                {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                    <Typography.Text
-                        className={classes.modalError}
-                        data-cy="enter-app-name-modal-text-warning"
-                    >
-                        App name must contain only letters, numbers, underscore, or dash without any
-                        spaces.
-                    </Typography.Text>
-                )}
-            </div>
-
-            <div className="space-y-2">
-                <Text className={classes.label}>Choose your template</Text>
-                <Flex gap={16}>
-                    {noTemplateMessage ? (
-                        <Card title="No Templates Available" className={classes.card}>
-                            <Text>{noTemplateMessage}</Text>
-                        </Card>
-                    ) : (
-                        templates.map((temp) => (
-                            <Card
-                                key={temp.id}
-                                data-cy="app-template-card"
-                                title={temp.image.title}
-                                extra={<Radio checked={temp.id?.includes(templateId as string)} />}
-                                className={classes.card}
-                                onClick={() => {
-                                    onCardClick(temp)
-                                }}
-                            >
-                                <Text>{temp.image.description}</Text>
-                            </Card>
-                        ))
+                    {appNameExist && (
+                        <Typography.Text className={classes.modalError}>
+                            App name already exists
+                        </Typography.Text>
                     )}
-                </Flex>
-            </div>
+                    {newApp.length > 0 && !isAppNameInputValid(newApp) && (
+                        <Typography.Text
+                            className={classes.modalError}
+                            data-cy="enter-app-name-modal-text-warning"
+                        >
+                            App name must contain only letters, numbers, underscore, or dash without
+                            any spaces.
+                        </Typography.Text>
+                    )}
+                </div>
 
-            <div className="flex justify-end">
-                <Button
-                    type="primary"
-                    disabled={!newApp || isError || !templateId}
-                    data-cy="create-app-from-template-button"
-                    onClick={handleCreateApp}
-                >
-                    Create new app
-                </Button>
-            </div>
-        </section>
+                <div className="space-y-2">
+                    <Text className={classes.label}>Choose your template</Text>
+                    <Flex gap={16}>
+                        {noTemplateMessage ? (
+                            <Card title="No Templates Available" className={classes.card}>
+                                <Text>{noTemplateMessage}</Text>
+                            </Card>
+                        ) : (
+                            templates.map((temp) => (
+                                <Card
+                                    key={temp.id}
+                                    data-cy="app-template-card"
+                                    title={temp.image.title}
+                                    extra={
+                                        <Radio checked={temp.id?.includes(templateId as string)} />
+                                    }
+                                    className={classes.card}
+                                    onClick={() => {
+                                        onCardClick(temp)
+                                    }}
+                                >
+                                    <Text>{temp.image.description}</Text>
+                                </Card>
+                            ))
+                        )}
+                    </Flex>
+                </div>
+
+                <div className="flex justify-end">
+                    <Button
+                        type="primary"
+                        disabled={!newApp || isError || !templateId}
+                        data-cy="create-app-from-template-button"
+                        onClick={handleCreateApp}
+                    >
+                        Create new app
+                    </Button>
+                </div>
+            </section>
+        </Modal>
     )
 }
 

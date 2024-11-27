@@ -1,4 +1,4 @@
-import {Typography, Space, Button} from "antd"
+import {Typography, Space, Button, Modal} from "antd"
 import {Check, Copy, Play} from "@phosphor-icons/react"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
@@ -9,6 +9,16 @@ import {useState} from "react"
 const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
+    modalContainer: {
+        transition: "width 0.3s ease",
+        "& .ant-modal-content": {
+            overflow: "hidden",
+            borderRadius: 16,
+            "& > .ant-modal-close": {
+                top: 16,
+            },
+        },
+    },
     modal: {
         display: "flex",
         flexDirection: "column",
@@ -44,9 +54,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-type Props = {}
+type Props = {} & React.ComponentProps<typeof Modal>
 
-const WriteOwnAppModal = ({}: Props) => {
+const WriteOwnAppModal = ({...props}: Props) => {
     const classes = useStyles()
     const router = useRouter()
     const [isCopied, setIsCopied] = useState<number | null>(null)
@@ -88,62 +98,79 @@ const WriteOwnAppModal = ({}: Props) => {
         },
     ]
     return (
-        <section className={classes.modal}>
-            <div className="flex items-center justify-between">
-                <Space className={classes.headerText}>
-                    <Typography.Text>Write your own app</Typography.Text>
-                </Space>
+        <Modal
+            footer={null}
+            title={null}
+            className={classes.modalContainer}
+            width={480}
+            centered
+            destroyOnClose
+            {...props}
+        >
+            <section className={classes.modal}>
+                <div className="flex items-center justify-between">
+                    <Space className={classes.headerText}>
+                        <Typography.Text>Write your own app</Typography.Text>
+                    </Space>
 
-                <Typography.Link href="https://www.youtube.com/watch?v=nggaRwDZM-0" target="_blank">
-                    <Button icon={<Play size={14} className="mt-[2px]" />} className="mr-6">
-                        Tutorial
-                    </Button>
-                </Typography.Link>
-            </div>
-
-            <Text>
-                Create your own complex application using any framework. To learn more about how to
-                write your own LLM app here,{" "}
-                <a
-                    href="https://docs.agenta.ai/guides/tutorials/a-more-complicated-tutorial-draft"
-                    target="_blank"
-                    className="!underline !underline-offset-2"
-                >
-                    Click here
-                </a>
-            </Text>
-
-            {listOfCommands.map((item, ind) => (
-                <div className="grid gap-4" key={ind}>
-                    <div className="space-y-2">
-                        <Text className={classes.label}>
-                            Step {ind + 1}: {item.title}
-                        </Text>
-
-                        {item.title.includes("API Key") ? (
-                            <Button
-                                className="block"
-                                onClick={() => router.push("/settings?tab=apiKeys")}
-                            >
-                                Get an API key
-                            </Button>
-                        ) : (
-                            <div className="flex items-center justify-between gap-2">
-                                <div className={classes.command}>{item.code}</div>
-
-                                <Button
-                                    onClick={() => onCopyCode(item.code, ind)}
-                                    icon={
-                                        isCopied !== ind ? <Copy size={14} /> : <Check size={14} />
-                                    }
-                                    className={classes.copyBtn}
-                                />
-                            </div>
-                        )}
-                    </div>
+                    <Typography.Link
+                        href="https://www.youtube.com/watch?v=nggaRwDZM-0"
+                        target="_blank"
+                    >
+                        <Button icon={<Play size={14} className="mt-[2px]" />} className="mr-6">
+                            Tutorial
+                        </Button>
+                    </Typography.Link>
                 </div>
-            ))}
-        </section>
+
+                <Text>
+                    Create your own complex application using any framework. To learn more about how
+                    to write your own LLM app here,{" "}
+                    <a
+                        href="https://docs.agenta.ai/guides/tutorials/a-more-complicated-tutorial-draft"
+                        target="_blank"
+                        className="!underline !underline-offset-2"
+                    >
+                        Click here
+                    </a>
+                </Text>
+
+                {listOfCommands.map((item, ind) => (
+                    <div className="grid gap-4" key={ind}>
+                        <div className="space-y-2">
+                            <Text className={classes.label}>
+                                Step {ind + 1}: {item.title}
+                            </Text>
+
+                            {item.title.includes("API Key") ? (
+                                <Button
+                                    className="block"
+                                    onClick={() => router.push("/settings?tab=apiKeys")}
+                                >
+                                    Get an API key
+                                </Button>
+                            ) : (
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className={classes.command}>{item.code}</div>
+
+                                    <Button
+                                        onClick={() => onCopyCode(item.code, ind)}
+                                        icon={
+                                            isCopied !== ind ? (
+                                                <Copy size={14} />
+                                            ) : (
+                                                <Check size={14} />
+                                            )
+                                        }
+                                        className={classes.copyBtn}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </section>
+        </Modal>
     )
 }
 
