@@ -13,7 +13,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
-import {dynamicContext} from "@/lib/helpers/dynamic"
+import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
 import dayjs from "dayjs"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
@@ -21,6 +21,10 @@ import DemoApplicationsSection from "./components/DemoApplicationsSection"
 import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import SetupTracingModal from "./modals/SetupTracingModal"
+
+const ObservabilityDashboardSection: any = dynamicComponent(
+    "pages/app-management/components/ObservabilityDashboardSection",
+)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
@@ -185,6 +189,8 @@ const AppManagement: React.FC = () => {
                     setIsWriteOwnAppModal={setIsWriteOwnAppModal}
                     setIsSetupTracingModal={setIsSetupTracingModal}
                 />
+
+                <ObservabilityDashboardSection />
 
                 <ApplicationManagementSection
                     selectedOrg={selectedOrg}
