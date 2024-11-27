@@ -63,7 +63,6 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
         call_next: Callable,
-        project_id: Optional[UUID] = None,
     ):
         if AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED:
             return await call_next(request)
@@ -84,6 +83,8 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 "resource_type": self.resource_type,
                 "resource_id": self.resource_id,
             }
+
+            project_id = request.query_params.get("project_id")
 
             if project_id:
                 params["project_id"] = project_id
