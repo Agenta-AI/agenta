@@ -1,5 +1,3 @@
-import DeleteAppModal from "@/components/AppSelector/modals/DeleteAppModal"
-import EditAppModal from "@/components/AppSelector/modals/EditAppModal"
 import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
@@ -18,6 +16,8 @@ import {Button, Dropdown, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import DeleteAppModal from "@/components/pages/app-management/modals/DeleteAppModal"
+import EditAppModal from "@/components/pages/app-management/modals/EditAppModal"
 
 const ObservabilityOverview: any = dynamicComponent(
     "pages/overview/observability/ObservabilityOverview",
