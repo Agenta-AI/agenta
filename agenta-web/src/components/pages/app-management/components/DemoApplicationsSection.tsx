@@ -45,7 +45,14 @@ const DemoApplicationsSection = () => {
             <div>
                 <Card
                     className={classes.demoAppCard}
-                    cover={<Image src={RagDemoImage} alt="rag_demo_application_image" priority />}
+                    cover={
+                        <Image
+                            src={RagDemoImage}
+                            alt="rag_demo_application_image"
+                            height={200}
+                            priority
+                        />
+                    }
                 >
                     <Space direction="vertical" size={24}>
                         <Space direction="vertical">
