@@ -54,12 +54,12 @@ class EvaluationScenarioOutput(BaseModel):
 
 class HumanEvaluationScenarioInput(BaseModel):
     input_name: str
-    input_value: str
+    input_value: Any
 
 
 class HumanEvaluationScenarioOutput(BaseModel):
     variant_id: str
-    variant_output: str
+    variant_output: Any
 
 
 class TemplateType(enum.Enum):
