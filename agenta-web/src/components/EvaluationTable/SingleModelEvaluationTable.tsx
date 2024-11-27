@@ -340,6 +340,8 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         variantData[idx].isChatVariant
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
+                        undefined,
+                        true,
                     )
 
                     let res: BaseResponse | undefined
