@@ -20,6 +20,7 @@ import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import DemoApplicationsSection from "./components/DemoApplicationsSection"
 import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
+import SetupTracingModal from "./modals/SetupTracingModal"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: ({themeMode}: StyleProps) => ({
@@ -58,6 +59,7 @@ const AppManagement: React.FC = () => {
     const [templateId, setTemplateId] = useState<string | undefined>(undefined)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isWriteOwnAppModal, setIsWriteOwnAppModal] = useState(false)
+    const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
@@ -181,6 +183,7 @@ const AppManagement: React.FC = () => {
                     setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
                     setIsMaxAppModalOpen={setIsMaxAppModalOpen}
                     setIsWriteOwnAppModal={setIsWriteOwnAppModal}
+                    setIsSetupTracingModal={setIsSetupTracingModal}
                 />
 
                 <ApplicationManagementSection
@@ -202,6 +205,11 @@ const AppManagement: React.FC = () => {
             <WriteOwnAppModal
                 open={isWriteOwnAppModal}
                 onCancel={() => setIsWriteOwnAppModal(false)}
+            />
+
+            <SetupTracingModal
+                open={isSetupTracingModal}
+                onCancel={() => setIsSetupTracingModal(false)}
             />
 
             <AddAppFromTemplatedModal
