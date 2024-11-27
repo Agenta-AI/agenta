@@ -43,7 +43,7 @@ class CorrectAnswer(BaseModel):
 class EvaluationScenarioInput(BaseModel):
     name: str
     type: str
-    value: str
+    value: Any
 
 
 class EvaluationScenarioOutput(BaseModel):

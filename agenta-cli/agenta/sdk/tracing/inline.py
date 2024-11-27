@@ -41,7 +41,6 @@ from uuid import UUID
 class TimeDTO(BaseModel):
     start: datetime
     end: datetime
-    span: int
 
 
 class StatusCode(Enum):
@@ -846,12 +845,9 @@ def parse_from_otel_span_dto(
         else None
     )
 
-    duration = (otel_span_dto.end_time - otel_span_dto.start_time).total_seconds()
-
     time = TimeDTO(
         start=otel_span_dto.start_time,
         end=otel_span_dto.end_time,
-        span=round(duration * 1_000_000),  # microseconds
     )
 
     status = StatusDTO(
@@ -862,6 +858,13 @@ def parse_from_otel_span_dto(
     links = _parse_from_links(otel_span_dto)
 
     data, metrics, meta, tags, refs = _parse_from_attributes(otel_span_dto)
+
+    duration = (otel_span_dto.end_time - otel_span_dto.start_time).total_seconds()
+
+    if metrics is None:
+        metrics = dict()
+
+    metrics["acc.duration.total"] = round(duration * 1_000, 3)  # milliseconds
 
     root_id = str(tree_id)
     if refs is not None:

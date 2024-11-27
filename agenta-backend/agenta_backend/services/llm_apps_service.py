@@ -3,6 +3,7 @@ import logging
 import asyncio
 import traceback
 import aiohttp
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 
@@ -55,15 +56,13 @@ def extract_result_from_response(response: dict):
                 value["data"] = str(value.get("data"))
 
             if "tree" in response:
-                trace_tree = (
-                    response["tree"][0]
-                    if isinstance(response.get("tree"), list)
-                    else {}
-                )
+                trace_tree = response.get("tree", {}).get("nodes", [])[0]
+
                 latency = (
-                    get_nested_value(trace_tree, ["time", "span"]) * 1_000_000
-                    if trace_tree
-                    else None
+                    get_nested_value(
+                        trace_tree, ["metrics", "acc", "duration", "total"]
+                    )
+                    / 1000
                 )
                 cost = get_nested_value(
                     trace_tree, ["metrics", "acc", "costs", "total"]
