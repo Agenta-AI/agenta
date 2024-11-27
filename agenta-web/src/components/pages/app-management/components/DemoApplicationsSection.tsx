@@ -3,7 +3,7 @@ import {Button, Card, Flex, Space, Typography} from "antd"
 import React from "react"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
-import RagDemoImage from "@/media/rag-demo-app.png"
+import RagDemoImage from "@/media/rag-demo-app.jpg"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     demoAppCard: {
