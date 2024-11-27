@@ -67,6 +67,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: theme.paddingXS,
         backgroundColor: theme.colorBgContainerDisabled,
         borderRadius: theme.borderRadius,
+        "& pre": {
+            fontFamily: ibm_plex_mono.style.fontFamily,
+        },
     },
 
     tabs: {
@@ -116,7 +119,7 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
                             </Space>
                         </Flex>
 
-                        <div className={`${classes.command} ${ibm_plex_mono.className}`}>
+                        <div className={`${classes.command}`}>
                             <pre className="m-0">{`pip install -U langchain langchain-openai`}</pre>
                         </div>
                     </div>
@@ -132,7 +135,7 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
                                 <CopyButton buttonText={""} icon text="Hello" />
                             </Space>
                         </Flex>
-                        <div className={`${classes.command} ${ibm_plex_mono.className}`}>
+                        <div className={`${classes.command}`}>
                             <pre className="m-0">
                                 {`LANGCHAIN_TRACING_V2=true\nLANGCHAIN_ENDPOINT="https://api.smith.langchain.com"\nLANGCHAIN_API_KEY="<your-api-key>"\nLANGCHAIN_PROJECT="pr-terrible-junk-60"`}
                             </pre>
@@ -153,7 +156,7 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
                                 <CopyButton buttonText={""} icon text="Hello" />
                             </Space>
                         </Flex>
-                        <div className={`${classes.command} ${ibm_plex_mono.className}`}>
+                        <div className={`${classes.command}`}>
                             <pre className="m-0">
                                 {`from langchain_openai import ChatOpenAI\nllm = ChatOpenAI()\n\nllm.invoke("Hello, world!")`}
                             </pre>
