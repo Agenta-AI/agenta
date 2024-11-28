@@ -182,8 +182,8 @@ const ObservabilityDashboard = () => {
                 <div>
                     {formatLatency(
                         record?.metrics?.acc?.duration?.total
-                            ? record?.metrics?.acc?.duration?.total
-                            : record?.metrics?.acc?.tokens?.total / 1000,
+                            ? record?.metrics?.acc?.duration?.total / 1000
+                            : null,
                     )}
                 </div>
             ),
