@@ -1,14 +1,18 @@
 ---
-title: "AI-powered code reviews"
+title: "AI-powered Code Reviews"
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
 
-Ever wanted your own AI assistant to review pull requests? In this tutorial, we'll build one from scratch and take it all the way to production. We'll create an agent that can analyze PR diffs and provide meaningful code reviews—all while following LLMOps best practices.
+:::info Open in Github
+The code for this tutorial is available [here](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/ai-code-reviewer).
+:::
 
-You can try out the final product here. Just provide the URL to a public PR and receive a review from our agent.
+Ever wanted your own AI assistant to review pull requests? In this tutorial, we'll build one from scratch and take it to production. We'll create an AI assistant that can analyze PR diffs and provide meaningful code reviews—all while following LLMOps best practices.
+
+[You can try out the final product here](https://7acthbzemz2hgvi8l7us455b6tcigd8s.vercel.app/). Just provide the URL to a public PR and receive a review from our AI assistant.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -17,23 +21,23 @@ You can try out the final product here. Just provide the URL to a public PR and 
   loading="lazy"
 />
 
-## What We'll Build
+## What we'll build
 
-This tutorial walks through creating a production-ready AI agent. Here's what we'll cover:
+This tutorial walks through creating a production-ready AI assistant. Here's what we'll cover:
 
-- Writing the Code: Fetching the PR diff from GitHub and interacting with an LLM using LiteLLM.
-- Adding Observability: Implementing observability with Agenta to debug and monitor the agent.
-- Prompt Engineering: Refining prompts and comparing different models using Agenta's playground.
-- LLM Evaluation: Using LLM-as-a-judge to evaluate prompts and select the optimal model.
-- Deployment: Deploying the agent as an API and building a simple UI with v0.dev.
+- **Writing the Code:** Fetching the PR diff from GitHub and calling an LLM using [LiteLLM](https://www.litellm.ai/).
+- **Adding Observability:** Instrumenting the code with Agenta to debug and monitor our app.
+- **Prompt Engineering:** Refining prompts and comparing different models using Agenta's playground.
+- **LLM Evaluation:** Using LLM-as-a-judge to evaluate prompts and select the best model.
+- **Deployment:** Deploying the app as an API and building a simple UI with [v0.dev](https://v0.dev).
 
 Let's get started!
 
-# Writing the Core Logic
+## Writing the core logic
 
-Our agent's workflow is straightforward: When given a PR URL, it fetches the diff from GitHub and passes it to an LLM for review. Let's break this down step by step.
+Our AI assistant's workflow is straightforward: When given a PR URL, it fetches the diff from GitHub and passes it to an LLM for review. Let's break this down step by step.
 
-First, we'll fetch the PR diff. GitHub conveniently provides this in an easily accessible format:
+First, we'll fetch the PR diff. GitHub provides this in an easily accessible format:
 
 ```
 https://patch-diff.githubusercontent.com/raw/{owner}/{repo}/pull/{pr_number}.diff
@@ -51,10 +55,6 @@ def get_pr_diff(pr_url):
 
     Returns:
         str: The PR diff text
-
-    Raises:
-        ValueError: If the URL is invalid
-        requests.RequestException: If the API request fails
     """
     pattern = r"github\.com/([^/]+)/([^/]+)/pull/(\d+)"
     match = re.search(pattern, pr_url)
@@ -77,7 +77,7 @@ def get_pr_diff(pr_url):
     return response.text
 ```
 
-Next, we'll use LiteLLM to handle our interactions with language models. LiteLLM provides a unified interface for working with various LLM providers—making it easy to experiment with different models later:
+Next, we'll use LiteLLM to handle our interactions with language models. [LiteLLM](https://github.com/BerriAI/litellm) provides a unified interface for working with various LLM providers—making it easy to experiment with different models later:
 
 ```python
 prompt_system = """
@@ -103,13 +103,11 @@ def generate_critique(pr_url: str):
     return response.choices[0].message.content
 ```
 
-## Adding Observability
+## Adding observability
 
-Observability is crucial for understanding and improving LLM applications. It helps you track inputs, outputs, and the flow of information, making debugging easier.
+Observability is crucial for understanding and improving LLM applications. It helps you track inputs, outputs, and the information flow, making debugging easier. We'll use Agenta for this purpose.
 
-We'll use Agenta, an open-source LLM developer platform that provides tools for observability, prompt engineering, and evaluation.
-
-First, we initialize Agenta and set up LiteLLM callbacks:
+First, we initialize Agenta and set up LiteLLM callbacks. The callback automatically instruments all the LiteLLM calls:
 
 ```python
 import agenta as ag
@@ -118,7 +116,7 @@ ag.init()
 litellm.callbacks = [ag.callbacks.litellm_handler()]
 ```
 
-Then we add instrumentation to track our function's inputs and outputs:
+Then we add instrumentation decorators to both functions (`generate_critique` and `get_pr_diff`) to capture their inputs and outputs. Here's how it looks for the `generate_critique` function:
 
 ```python
 @ag.instrument()
@@ -135,12 +133,9 @@ def generate_critique(pr_url: str):
     return response.choices[0].message.content
 ```
 
-To complete the setup:
+To set up Agenta, we need to set the environment variable `AGENTA_API_KEY` (which you can find [here](https://cloud.agenta.ai/settings?tab=apiKeys)) and optionally `AGENTA_HOST` if we're self-hosting.
 
-Create a free account at https://cloud.agenta.ai
-Generate an API key at https://cloud.agenta.ai/settings?tab=apiKeys
-
-Once running, you'll see detailed traces of your agent's activity in Agenta's dashboard for each request.
+We can now run the app and see the traces in Agenta.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -149,18 +144,75 @@ Once running, you'll see detailed traces of your agent's activity in Agenta's da
   loading="lazy"
 />
 
-## Creating an LLM Playground
+## Creating an LLM playground
 
-Agenta custom workflow features provides a playground to experiment with prompts and configurations, allowing you to fine-tune your agent.
+Now that we have our POC, we need to iterate on it and make it production-ready. This means experimenting with different prompts and models, setting up evaluations, and versioning our configuration.
 
-### Defining the Configuration Schema
+Agenta custom workflow feature lets us create an IDE-like playground for our AI-assistant workflow.
 
-We'll use Pydantic to define a configuration schema:
+We'll add a few lines of code to create an LLM playground for our application. This will enable us to version the configuration, run end-to-end evaluations, and deploy the last versions in one click.
+
+Here's the modified code:
+
+```python
+import requests
+import re
+import sys
+from urllib.parse import urlparse
+from pydantic import BaseModel, Field
+from typing import Annotated
+import agenta as ag
+import litellm
+from agenta.sdk.assets import supported_llm_models
+
+ag.init()
+
+litellm.drop_params = True
+litellm.callbacks = [ag.callbacks.litellm_handler()]
+
+prompt_system = """
+You are an expert Python developer performing a file-by-file review of a pull request. You have access to the full diff of the file to understand the overall context and structure. However, focus on reviewing only the specific hunk provided.
+"""
+
+prompt_user = """
+Here is the diff for the file:
+{diff}
+
+Please provide a critique of the changes made in this file.
+"""
+
+# highlight-start
+class Config(BaseModel):
+    system_prompt: str = prompt_system
+    user_prompt: str = prompt_user
+    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(default="gpt-3.5-turbo")
+# highlight-end
+
+# highlight-next-line
+@ag.route("/", config_schema=Config)
+@ag.instrument()
+def generate_critique(pr_url:str):
+    diff = get_pr_diff(pr_url)
+    # highlight-next-line
+    config = ag.ConfigManager.get_from_route(schema=Config)
+    response = litellm.completion(
+        model=config.model,
+        messages=[
+            {"content": config.system_prompt, "role": "system"},
+            {"content": config.user_prompt.format(diff=diff), "role": "user"},
+        ],
+    )
+    return response.choices[0].message.content
+
+```
+
+Let's break it down:
+
+### Defining the configuration and the layout of the playground
 
 ```python
 from pydantic import BaseModel, Field
 from typing import Annotated
-import agenta as ag
 from agenta.sdk.assets import supported_llm_models
 
 class Config(BaseModel):
@@ -169,17 +221,21 @@ class Config(BaseModel):
     model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(default="gpt-3.5-turbo")
 ```
 
-This schema lets us modify prompts and select different models directly from the playground.
+To integrate our code in Agenta, we first define the configuration schema. This helps Agenta understand the inputs and outputs of our function and create a playground for it. The configuration defines the playground's layout: the system and user prompts (str) appear as text areas, and the model appears as a multi-select dropdown (note that supported_llm_models is variable in the Agenta SDK that contains a dictionary of providers and their supported models).
 
-### Updating the Generate Critique Function
+### Creating the entrypoint
 
-We'll adjust our function to use the configuration:
+We'll adjust our function to use the configuration. `@ag.route` creates an API endpoint for our function with the configuration schema we defined. This endpoint will be used by Agenta's playground, evaluation, and the deployed API to interact with our application.
+
+`ag.ConfigManager.get_from_route(schema=Config)` fetches the configuration from the request sent to that API endpoint.
 
 ```python
+# highlight-next-line
 @ag.route("/", config_schema=Config)
 @ag.instrument()
 def generate_critique(pr_url: str):
     diff = get_pr_diff(pr_url)
+    # highlight-next-line
     config = ag.ConfigManager.get_from_route(schema=Config)
     response = litellm.completion(
         model=config.model,
@@ -191,14 +247,14 @@ def generate_critique(pr_url: str):
     return response.choices[0].message.content
 ```
 
-## Serving the Application with Agenta
+## Serving the application with Agenta
 
-To set up the playground:
+We can now add the application to Agenta. Here's what we need to do:
 
-1. Run `agenta init` to specify your app name and API key
-2. Run `agenta variant serve app.py` to create a container and connect it to Agenta
+1. Run `agenta init` and specify our app name and API key
+2. Run `agenta variant serve app.py`
 
-This builds and serves your application, making it accessible through Agenta's playground.
+The last command builds and serves your application, making it accessible through Agenta's playground. There, you can run the application end-to-end by giving it a PR URL and getting the review generated by our LLM.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -207,15 +263,15 @@ This builds and serves your application, making it accessible through Agenta's p
   loading="lazy"
 />
 
-## Evaluating Using LLM-as-a-Judge
+## Evaluating using LLM-as-a-judge
 
-To evaluate the quality of our agents review and compare promps and models, we need to set up evaluation.
+To evaluate the quality of our AI assistant's reviews and compare prompts and models, we need to set up evaluation.
 
-We will first create a small tests set with publicly evailable PR.
+First, we'll create a small test set with publicly available PRs.
 
-Next, we will set up an LLM-as-a-judge to evaluate the quality of the reviews.
+Next, we'll set up an LLM-as-a-judge to evaluate the quality of the reviews.
 
-For this, we need to go to the evaluation view, click on "Configure evaluators", then "Create new evaluator" and select "LLM-as-a-judge".
+To do this, navigate to the evaluation view, click on "Configure evaluators", then "Create new evaluator" and select "LLM-as-a-judge".
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -224,7 +280,7 @@ For this, we need to go to the evaluation view, click on "Configure evaluators",
   loading="lazy"
 />
 
-We will get a playground where we can test different prompts and models for our human evaluator. We use the following system prompt:
+We'll get a playground where we can test different prompts and models for our human evaluator. We use the following system prompt:
 
 ```You are an evaluator grading the quality of a PR review.
 CRITERIA:
@@ -249,13 +305,13 @@ A score of 0 means that the answer does not any of of the criteria. This is the 
 ANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER
 ```
 
-For the user prompt, we will use the following:
+For the user prompt, we'll use the following:
 
 ```
 LLM APP OUTPUT: {prediction}
 ```
 
-Note that the evaluator has access to the output of the LLM app through the `{prediction}` variable.
+Note that the evaluator accesses the LLM app's output through the `{prediction}` variable. We can iterate on the prompt and test different models in the evaluator test view.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -264,7 +320,7 @@ Note that the evaluator has access to the output of the LLM app through the `{pr
   loading="lazy"
 />
 
-With our playground set up, we can systematically evaluate different prompts and models using LLM-as-a-judge. Agenta allow sus to select multiple variants and run batch evaluations on them.
+With our evaluator set up, we can run experiments and compare different prompts and models. In the playground, we can create multiple variants and run batch evaluations using the `pr-review-quality` LLM-as-a-judge.
 
 <Image
   style={{ display: "block", margin: "10 auto" }}
@@ -273,9 +329,9 @@ With our playground set up, we can systematically evaluate different prompts and
   loading="lazy"
 />
 
-After running comparisons between models, we found similar performance across the board. Given this, we opted for GPT-3.5-turbo as it offers the best balance of speed and cost.
+After comparing models, we found similar performance across the board. Given this, we chose GPT-3.5-turbo for its optimal balance of speed and cost.
 
-## Deploying to Production
+## Deploying to production
 
 Deployment is straightforward with Agenta:
 
@@ -300,37 +356,26 @@ This gives you an API endpoint ready to use in your application.
 />
 
 :::info
-Agenta works both in proxy mode and prompt mangement mode. You have the option either to use Agenta's endpoint or deploy your own app and use the Agenta SDK to fetch the configuration deployed in production.
+Agenta works in both proxy mode and prompt management mode. You can either use Agenta's endpoint or deploy your own app and use the Agenta SDK to fetch the production configuration.
 :::
 
-## Building the Frontend
+## Building the frontend
 
-For the frontend, we used v0.dev to quickly generate a clean interface. After providing our API endpoint and authentication requirements, we had a working UI in minutes.
-Try it yourself: PR Review Assistant
+For the frontend, we used [v0.dev](https://v0.dev) to quickly generate a UI. After providing our API endpoint and authentication requirements, we had a working UI in minutes. You can try it yourself: [PR Review Assistant](https://7acthbzemz2hgvi8l7us455b6tcigd8s.vercel.app/).
 
-## Observability and Iteration
+## What's next?
 
-With your agent in production, Agenta continues to provide observability tools:
-
-- Monitor Requests: See all interactions with your agent.
-- Collect Data: Use real user inputs to expand your test set.
-- Iterate: Continuously improve your prompts and configurations.
-
-## What's Next?
-
-There are many ways to enhance your PR assistant:
+With our AI assistant in production, Agenta continues to provide observability tools. We can continue enhancing it by:
 
 - Refine the Prompt: Improve the language to get more precise critiques.
 - Add More Context: Include the full code of changed files, not just the diffs.
 - Handle Large Diffs: Break down extensive changes and process them in parts.
 
-Before making major changes, ensure you have a solid test set and evaluation metrics to measure improvements effectively.
-
 ## Conclusion
 
 In this tutorial, we've:
 
-- Built an AI agent that reviews pull requests.
+- Built an AI assistant that reviews pull requests.
 - Implemented observability and prompt engineering using Agenta.
-- Evaluated our agent with LLM-as-a-judge.
-- Deployed the agent and connected it to a frontend.
+- Evaluated our assistant with LLM-as-a-judge.
+- Deployed the assistant and connected it to a frontend.
