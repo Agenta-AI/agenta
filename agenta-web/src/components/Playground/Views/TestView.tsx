@@ -219,7 +219,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         }
     }, [traceSpans])
 
-    const activeTrace = useMemo(() => (traces ? traces[0] ?? null : null), [traces])
+    const activeTrace = useMemo(() => (traces ? (traces[0] ?? null) : null), [traces])
     const [selected, setSelected] = useState("")
 
     useEffect(() => {
@@ -623,7 +623,7 @@ const App: React.FC<TestViewProps> = ({
                         const firstTraceNode = tree.nodes[0]
                         newDataList[index] = {
                             cost: firstTraceNode?.metrics?.acc?.costs?.total ?? null,
-                            latency: firstTraceNode?.metrics?.acc?.duration?.total / 1000 ?? null,
+                            latency: firstTraceNode?.metrics?.acc?.duration?.total / 1000 || null,
                             usage: firstTraceNode?.metrics?.acc?.tokens?.total ?? null,
                         }
                     }
