@@ -21,6 +21,7 @@ import DemoApplicationsSection from "./components/DemoApplicationsSection"
 import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import SetupTracingModal from "./modals/SetupTracingModal"
+import ResultComponent from "@/components/ResultComponent/ResultComponent"
 
 const ObservabilityDashboardSection: any = dynamicComponent(
     "pages/app-management/components/ObservabilityDashboardSection",
@@ -179,33 +180,39 @@ const AppManagement: React.FC = () => {
     return (
         <>
             <div className={classes.container}>
-                <Title>App Management</Title>
+                {isLoading || (!apps && !error) ? (
+                    <ResultComponent status={"info"} title="Loading..." spinner={true} />
+                ) : error ? (
+                    <ResultComponent status={"error"} title="Failed to load" />
+                ) : (
+                    <>
+                        <Title>App Management</Title>
 
-                <GetStartedSection
-                    selectedOrg={selectedOrg}
-                    apps={apps}
-                    setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
-                    setIsMaxAppModalOpen={setIsMaxAppModalOpen}
-                    setIsWriteOwnAppModal={setIsWriteOwnAppModal}
-                    setIsSetupTracingModal={setIsSetupTracingModal}
-                />
+                        <GetStartedSection
+                            selectedOrg={selectedOrg}
+                            apps={apps}
+                            setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
+                            setIsMaxAppModalOpen={setIsMaxAppModalOpen}
+                            setIsWriteOwnAppModal={setIsWriteOwnAppModal}
+                            setIsSetupTracingModal={setIsSetupTracingModal}
+                        />
 
-                <ObservabilityDashboardSection />
+                        <ObservabilityDashboardSection />
 
-                <ApplicationManagementSection
-                    selectedOrg={selectedOrg}
-                    apps={apps}
-                    setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
-                    setIsMaxAppModalOpen={setIsMaxAppModalOpen}
-                    filteredApps={filteredApps}
-                    setSearchTerm={setSearchTerm}
-                    isLoading={isLoading}
-                    error={error}
-                />
+                        <ApplicationManagementSection
+                            selectedOrg={selectedOrg}
+                            apps={apps}
+                            setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
+                            setIsMaxAppModalOpen={setIsMaxAppModalOpen}
+                            filteredApps={filteredApps}
+                            setSearchTerm={setSearchTerm}
+                        />
 
-                <DemoApplicationsSection />
+                        <DemoApplicationsSection />
 
-                <HelpAndSupportSection />
+                        <HelpAndSupportSection />
+                    </>
+                )}
             </div>
 
             <WriteOwnAppModal
