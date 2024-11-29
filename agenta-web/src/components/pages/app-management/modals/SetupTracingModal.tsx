@@ -6,6 +6,7 @@ import {Button, Flex, Modal, Radio, Space, Tabs, TabsProps, Typography} from "an
 import React from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
+import {isDemo} from "@/lib/helpers/utils"
 
 const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
 
@@ -86,6 +87,32 @@ const {Text, Title} = Typography
 const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
     const classes = useStyles()
 
+    const listOfCommands = [
+        ...(isDemo()
+            ? [
+                  {
+                      title: "Generate API Key",
+                      button: {
+                          onClick: () => {},
+                      },
+                  },
+              ]
+            : []),
+        {
+            title: "Install dependencies",
+            code: `pip install -U langchain langchain-openai`,
+            radio: true,
+        },
+        {
+            title: "Configure environment to langsmith",
+            code: `LANGCHAIN_TRACING_V2=true\nLANGCHAIN_ENDPOINT="https://api.smith.langchain.com"\nLANGCHAIN_API_KEY="<your-api-key>"\nLANGCHAIN_PROJECT="pr-terrible-junk-60"`,
+        },
+        {
+            title: "Run LLM, Chat model, or chain. Its trace will be sent to this project",
+            code: `from langchain_openai import ChatOpenAI\nllm = ChatOpenAI()\n\nllm.invoke("Hello, world!")`,
+        },
+    ]
+
     const items: TabsProps["items"] = [
         {
             key: "openai",
@@ -93,75 +120,45 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             icon: <PythonOutlined />,
             children: (
                 <div className="flex flex-col gap-6">
-                    <Space>
-                        <Text>1.</Text>
-                        <Button type="primary">Generate API Key</Button>
-                    </Space>
-
-                    <div className="flex flex-col gap-2">
-                        <Flex align="center" justify="space-between">
-                            <Space>
-                                <Text>2.</Text>
-                                <Text>Install dependencies</Text>
+                    {listOfCommands.map((command, index) =>
+                        command.button ? (
+                            <Space key={index}>
+                                <Text>{index + 1}.</Text>
+                                <Button type="primary" onClick={command.button.onClick}>
+                                    Generate API Key
+                                </Button>
                             </Space>
+                        ) : (
+                            <div className="flex flex-col gap-2" key={index}>
+                                <Flex align="center" justify="space-between">
+                                    <Space>
+                                        <Text>{index + 1}.</Text>
+                                        <Text>Install dependencies</Text>
+                                    </Space>
 
-                            <Space>
-                                <Radio.Group
-                                    defaultValue={"python"}
-                                    // defaultValue={appMsgDisplay}
-                                    // onChange={(e) => setAppMsgDisplay(e.target.value)}
-                                >
-                                    <Radio.Button value="python">Python</Radio.Button>
-                                    <Radio.Button value="typescript">TypeScript</Radio.Button>
-                                </Radio.Group>
+                                    <Space>
+                                        {command.radio && (
+                                            <Radio.Group
+                                                defaultValue={"python"}
+                                                // defaultValue={appMsgDisplay}
+                                                // onChange={(e) => setAppMsgDisplay(e.target.value)}
+                                            >
+                                                <Radio.Button value="python">Python</Radio.Button>
+                                                <Radio.Button value="typescript">
+                                                    TypeScript
+                                                </Radio.Button>
+                                            </Radio.Group>
+                                        )}
+                                        <CopyButton buttonText={""} icon text={command.code} />
+                                    </Space>
+                                </Flex>
 
-                                <CopyButton buttonText={""} icon text="Hello" />
-                            </Space>
-                        </Flex>
-
-                        <div className={`${classes.command}`}>
-                            <pre className="m-0">{`pip install -U langchain langchain-openai`}</pre>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                        <Flex align="center" justify="space-between">
-                            <Space>
-                                <Text>3.</Text>
-                                <Text>Configure environment to langsmith</Text>
-                            </Space>
-
-                            <Space>
-                                <CopyButton buttonText={""} icon text="Hello" />
-                            </Space>
-                        </Flex>
-                        <div className={`${classes.command}`}>
-                            <pre className="m-0">
-                                {`LANGCHAIN_TRACING_V2=true\nLANGCHAIN_ENDPOINT="https://api.smith.langchain.com"\nLANGCHAIN_API_KEY="<your-api-key>"\nLANGCHAIN_PROJECT="pr-terrible-junk-60"`}
-                            </pre>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                        <Flex align="center" justify="space-between">
-                            <Space>
-                                <Text>4.</Text>
-                                <Text>
-                                    Run LLM, Chat model, or chain. Its trace will be sent to this
-                                    project
-                                </Text>
-                            </Space>
-
-                            <Space>
-                                <CopyButton buttonText={""} icon text="Hello" />
-                            </Space>
-                        </Flex>
-                        <div className={`${classes.command}`}>
-                            <pre className="m-0">
-                                {`from langchain_openai import ChatOpenAI\nllm = ChatOpenAI()\n\nllm.invoke("Hello, world!")`}
-                            </pre>
-                        </div>
-                    </div>
+                                <div className={`${classes.command}`}>
+                                    <pre className="m-0">{command.code}</pre>
+                                </div>
+                            </div>
+                        ),
+                    )}
                 </div>
             ),
         },
