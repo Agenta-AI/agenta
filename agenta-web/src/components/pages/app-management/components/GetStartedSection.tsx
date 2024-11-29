@@ -1,7 +1,7 @@
 import {isDemo} from "@/lib/helpers/utils"
 import {JSSTheme, ListAppsItem} from "@/lib/Types"
 import {Code, Info, Rocket, TreeView} from "@phosphor-icons/react"
-import {Card, Typography} from "antd"
+import {Card, Tooltip, Typography} from "antd"
 import React, {Dispatch, SetStateAction} from "react"
 import {createUseStyles} from "react-jss"
 
@@ -83,7 +83,9 @@ const GetStartedSection = ({
                     <div className="flex items-center justify-between">
                         <Text>Create New Prompt</Text>
 
-                        <Info size={16} />
+                        <Tooltip title="Create New Prompt.">
+                            <Info size={16} />
+                        </Tooltip>
                     </div>
                 </Card>
 
@@ -95,7 +97,9 @@ const GetStartedSection = ({
                     <div className="flex items-center justify-between">
                         <Text>Set Up Tracing</Text>
 
-                        <Info size={16} />
+                        <Tooltip title="Set Up Tracing.">
+                            <Info size={16} />
+                        </Tooltip>
                     </div>
                 </Card>
 
@@ -107,7 +111,9 @@ const GetStartedSection = ({
                     <div className="flex items-center justify-between">
                         <Text>Create Custom Workflow</Text>
 
-                        <Info size={16} />
+                        <Tooltip title="Create Custom Workflow.">
+                            <Info size={16} />
+                        </Tooltip>
                     </div>
                 </Card>
             </div>
