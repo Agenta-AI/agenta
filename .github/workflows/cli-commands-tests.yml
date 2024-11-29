@@ -88,7 +88,7 @@ jobs:
             - name: Run agenta init
               run: |
                   APP_NAME="gh-cli-$(date +'%d-%m-%y_%H-%M-%S')"
-                  AGENTA_API_KEY=${{ secrets.AGENTA_API_KEY }} agenta init --app-name $APP_NAME --backend-host https://cloud.agenta.ai --organisation-name team
+                  AGENTA_API_KEY=${{ secrets.AGENTA_API_KEY }} agenta init --app-name $APP_NAME --backend-host https://cloud.agenta.ai
               working-directory: examples/deprecated_sdk_v2/baby_name_generator
               shell: bash
               continue-on-error: false
