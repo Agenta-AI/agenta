@@ -1,11 +1,12 @@
 import GenericDrawer from "@/components/GenericDrawer"
 import {ArrowRight, Copy, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Checkbox, Divider, DrawerProps, Input, Radio, Select, Table, Typography} from "antd"
+import {Button, Checkbox, Divider, Input, Radio, Select, Table, Typography} from "antd"
 import React, {useState} from "react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Editor} from "@monaco-editor/react"
 import {createUseStyles} from "react-jss"
-import {JSSTheme} from "@/lib/Types"
+import {JSSTheme, KeyValuePair, testset} from "@/lib/Types"
+import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     editor: {
@@ -34,14 +35,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const TestsetDrawer = ({open, setOpen}: any) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
+    // testset
+    const {testsets, isTestsetsLoading} = useLoadTestsetsList()
     const [isNewTestset, setIsNewTestset] = useState(false)
-    const [testset, setTestset] = useState("")
+    const [testset, setTestset] = useState({name: "", id: ""})
     const [testsetName, setTestsetName] = useState("")
+    // table
+    const [tableColumns, setTableColumns] = useState([])
+    const [tableRows, setTableRows] = useState<KeyValuePair[]>([])
+    const [isShowlastFiveRows, setIsShowlastFiveRows] = useState(false)
+    // others
     const [formatType, setFormatType] = useState("json")
-
-    const onClose = () => {
-        setOpen(false)
-    }
 
     // predifind options
     const customSelectOptions = [
@@ -56,20 +60,25 @@ const TestsetDrawer = ({open, setOpen}: any) => {
 
     const handleChange = (value: string) => {}
 
-    const onTestsetOptionChange = (value: string) => {
-        if (value === "create") {
+    const onTestsetOptionChange = async (option: any) => {
+        if (option.value === "create") {
             setIsNewTestset(true)
         } else {
             setIsNewTestset(false)
         }
-        setTestset(value)
-    }
 
-    const testsetOptions = [
-        ...customSelectOptions,
-        {value: "jack", label: "Jack"},
-        {value: "lucy", label: "Lucy"},
-    ]
+        setTestset({name: option.lable, id: option.value})
+
+        if (option.value && option.value !== "create") {
+            // fetch testset detailes and assign the columns and rows
+            const data = await fetchTestset(option.value)
+
+            if (data) {
+                setTableColumns(Object.keys(data.csvdata[0]) as any)
+                setTableRows(data.csvdata.slice(-5))
+            }
+        }
+    }
 
     const Content = () => {
         return (
@@ -82,11 +91,20 @@ const TestsetDrawer = ({open, setOpen}: any) => {
                     <Typography.Text className={classes.label}>Test set</Typography.Text>
                     <div className="flex gap-2">
                         <Select
+                            showSearch
+                            labelInValue
                             style={{width: 200}}
                             placeholder="Select Test set"
-                            value={testset}
+                            value={{lable: testset.name, value: testset.id}}
                             onChange={onTestsetOptionChange}
-                            options={testsetOptions}
+                            options={[
+                                ...customSelectOptions,
+                                ...testsets.map((item: testset) => ({
+                                    value: item._id,
+                                    label: item.name,
+                                })),
+                            ]}
+                            loading={isTestsetsLoading}
                         />
 
                         {isNewTestset && (
@@ -154,8 +172,8 @@ const TestsetDrawer = ({open, setOpen}: any) => {
                 <div className={classes.container}>
                     <Typography.Text className={classes.label}>Mapping</Typography.Text>
                     <div className="flex flex-col gap-2">
-                        {[1, 2].map(() => (
-                            <div className="flex items-center justify-between gap-2">
+                        {[1, 2].map((_, idx) => (
+                            <div key={idx} className="flex items-center justify-between gap-2">
                                 <Select
                                     style={{width: 200}}
                                     onChange={handleChange}
@@ -168,10 +186,10 @@ const TestsetDrawer = ({open, setOpen}: any) => {
                                 <Select
                                     style={{width: 320}}
                                     onChange={handleChange}
-                                    options={[
-                                        {value: "jack", label: "Jack"},
-                                        {value: "lucy", label: "Lucy"},
-                                    ]}
+                                    options={tableColumns?.map((column) => ({
+                                        value: column,
+                                        lable: column,
+                                    }))}
                                 />
                                 <Button icon={<Trash />} />
                             </div>
@@ -185,54 +203,48 @@ const TestsetDrawer = ({open, setOpen}: any) => {
 
                 <div className={classes.container}>
                     <Typography.Text className={classes.label}>Preview</Typography.Text>
-                    <div className="flex items-center gap-4 mb-2">
-                        <Select
-                            style={{width: 200}}
-                            onChange={handleChange}
-                            options={[
-                                {value: "jack", label: "Jack"},
-                                {value: "lucy", label: "Lucy"},
-                            ]}
-                        />
-                        <Checkbox>Show last 5 test set entries</Checkbox>
-                    </div>
+                    {tableColumns ? (
+                        <>
+                            <div className="flex items-center gap-4 mb-2">
+                                <Select
+                                    style={{width: 200}}
+                                    onChange={handleChange}
+                                    options={[
+                                        {value: "jack", label: "Jack"},
+                                        {value: "lucy", label: "Lucy"},
+                                    ]}
+                                />
+                                <Checkbox
+                                    onChange={() => setIsShowlastFiveRows(!isShowlastFiveRows)}
+                                    checked={isShowlastFiveRows}
+                                >
+                                    Show last 5 test set entries
+                                </Checkbox>
+                            </div>
 
-                    <div>
-                        <Table
-                            className="ph-no-capture"
-                            columns={[
-                                {
-                                    title: "country",
-                                    dataIndex: "country",
-                                    key: "country",
-                                    onHeaderCell: () => ({
-                                        style: {minWidth: 160},
-                                    }),
-                                },
-                                {
-                                    title: "ground_truth",
-                                    dataIndex: "ground_truth",
-                                    key: "ground_truth",
-                                    onHeaderCell: () => ({
-                                        style: {minWidth: 160},
-                                    }),
-                                },
-
-                                {
-                                    title: "flag",
-                                    dataIndex: "flag",
-                                    key: "flag",
-                                    onHeaderCell: () => ({
-                                        style: {minWidth: 160},
-                                    }),
-                                },
-                            ]}
-                            // dataSource={evaluationsList}
-                            scroll={{x: true}}
-                            bordered
-                            pagination={false}
-                        />
-                    </div>
+                            <div>
+                                <Table
+                                    className="ph-no-capture"
+                                    columns={tableColumns.map((column, idx) => ({
+                                        title: column,
+                                        dataIndex: column,
+                                        key: idx,
+                                        onHeaderCell: () => ({
+                                            style: {minWidth: 160},
+                                        }),
+                                    }))}
+                                    dataSource={isShowlastFiveRows ? tableRows : []}
+                                    scroll={{x: true}}
+                                    bordered
+                                    pagination={false}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <Typography.Text>
+                            Please select test set to view test set preview.
+                        </Typography.Text>
+                    )}
                 </div>
             </section>
         )
@@ -241,7 +253,7 @@ const TestsetDrawer = ({open, setOpen}: any) => {
         <>
             <GenericDrawer
                 open={open}
-                onClose={onClose}
+                onClose={() => setOpen(false)}
                 expandable
                 drawerWidth={640}
                 headerExtra="Add to test set"
