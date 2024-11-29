@@ -4,19 +4,24 @@ import {GearSix, Note, PencilLine, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
-import React, {useState} from "react"
-import {useAppsData} from "@/contexts/app.context"
+import React from "react"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
+import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 
 type AppTableProps = {
     filteredApps: ListAppsItem[]
-    isLoading: boolean
-} & React.ComponentProps<typeof Table>
+    setSelectedApp: React.Dispatch<React.SetStateAction<ListAppsItem | null>>
+    setIsDeleteAppModalOpen: (value: React.SetStateAction<boolean>) => void
+    setIsEditAppModalOpen: (value: React.SetStateAction<boolean>) => void
+}
 
-const AppTable = ({filteredApps, isLoading, ...props}: AppTableProps) => {
+const AppTable = ({
+    filteredApps,
+    setIsDeleteAppModalOpen,
+    setIsEditAppModalOpen,
+    setSelectedApp,
+}: AppTableProps) => {
     const router = useRouter()
-    const [selectedApp, setSelectedApp] = useState<ListAppsItem | null>(null)
-    const {mutate} = useAppsData()
 
     const columns: ColumnsType<ListAppsItem> = [
         {
@@ -72,6 +77,8 @@ const AppTable = ({filteredApps, isLoading, ...props}: AppTableProps) => {
                                     icon: <PencilLine size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        setSelectedApp(record)
+                                        setIsEditAppModalOpen(true)
                                     },
                                 },
                                 {
@@ -81,6 +88,8 @@ const AppTable = ({filteredApps, isLoading, ...props}: AppTableProps) => {
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        setSelectedApp(record)
+                                        setIsDeleteAppModalOpen(true)
                                     },
                                 },
                             ],
@@ -103,7 +112,6 @@ const AppTable = ({filteredApps, isLoading, ...props}: AppTableProps) => {
             <Table
                 rowKey={"app_id"}
                 className="ph-no-capture"
-                loading={isLoading}
                 columns={columns}
                 dataSource={filteredApps}
                 scroll={{x: true}}
@@ -112,8 +120,9 @@ const AppTable = ({filteredApps, isLoading, ...props}: AppTableProps) => {
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
                     "data-cy": "apps-list",
-                    onClick: () => {},
+                    onClick: () => router.push(`/apps/${record.app_id}/overview`),
                 })}
+                locale={{emptyText: <NoResultsFound />}}
             />
         </>
     )

@@ -1,15 +1,10 @@
 import {Card, Dropdown, Button, Typography, Tag} from "antd"
 import {MoreOutlined} from "@ant-design/icons"
-import {deleteApp} from "@/services/app-selector/api"
-import {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, ListAppsItem} from "@/lib/Types"
-import {useAppsData} from "@/contexts/app.context"
 import {Note, PencilLine, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
-import DeleteAppModal from "../modals/DeleteAppModal"
-import EditAppModal from "../modals/EditAppModal"
 
 const {Text} = Typography
 
@@ -54,30 +49,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AppCard: React.FC<{
     app: ListAppsItem
-}> = ({app}) => {
-    const [visibleDelete, setVisibleDelete] = useState(false)
-    const [confirmLoading, setConfirmLoading] = useState(false)
-    const {mutate} = useAppsData()
+    setSelectedApp: React.Dispatch<React.SetStateAction<ListAppsItem | null>>
+    setIsDeleteAppModalOpen: (value: React.SetStateAction<boolean>) => void
+    setIsEditAppModalOpen: (value: React.SetStateAction<boolean>) => void
+}> = ({app, setSelectedApp, setIsDeleteAppModalOpen, setIsEditAppModalOpen}) => {
     const router = useRouter()
-    const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
-
-    const handleDeleteOk = async () => {
-        setConfirmLoading(true)
-        try {
-            await deleteApp(app.app_id)
-            mutate()
-        } catch (error) {
-            console.error(error)
-        } finally {
-            // remove variant tabs position index from LS
-            localStorage.removeItem(`tabIndex_${app.app_id}`)
-            setVisibleDelete(false)
-            setConfirmLoading(false)
-        }
-    }
-    const handleDeleteCancel = () => {
-        setVisibleDelete(false)
-    }
 
     const classes = useStyles()
 
@@ -109,6 +85,7 @@ const AppCard: React.FC<{
                                     icon: <PencilLine size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
+                                        setSelectedApp(app)
                                         setIsEditAppModalOpen(true)
                                     },
                                 },
@@ -119,7 +96,8 @@ const AppCard: React.FC<{
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        setVisibleDelete(true)
+                                        setSelectedApp(app)
+                                        setIsDeleteAppModalOpen(true)
                                     },
                                 },
                             ],
@@ -145,20 +123,6 @@ const AppCard: React.FC<{
                     </div>
                 </div>
             </Card>
-
-            <DeleteAppModal
-                open={visibleDelete}
-                onOk={handleDeleteOk}
-                onCancel={handleDeleteCancel}
-                appName={app.app_name}
-                confirmLoading={confirmLoading}
-            />
-
-            <EditAppModal
-                open={isEditAppModalOpen}
-                onCancel={() => setIsEditAppModalOpen(false)}
-                appDetails={app}
-            />
         </>
     )
 }
