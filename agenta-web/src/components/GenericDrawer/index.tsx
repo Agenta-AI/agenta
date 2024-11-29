@@ -7,10 +7,12 @@ type GenericDrawerProps = {
     headerExtra?: ReactNode
     mainContent: ReactNode
     sideContent?: ReactNode
+    drawerWidth?: number
 } & React.ComponentProps<typeof Drawer>
 
 const GenericDrawer = ({...props}: GenericDrawerProps) => {
-    const [drawerWidth, setDrawerWidth] = useState(1200)
+    const initialWidth = props.drawerWidth || 1200
+    const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     return (
         <Drawer
@@ -28,15 +30,15 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
                     {props.expandable && (
                         <Button
                             onClick={() => {
-                                if (drawerWidth === 1200) {
+                                if (drawerWidth === initialWidth) {
                                     setDrawerWidth(1920)
                                 } else {
-                                    setDrawerWidth(1200)
+                                    setDrawerWidth(initialWidth)
                                 }
                             }}
                             type="text"
                             icon={
-                                drawerWidth === 1200 ? (
+                                drawerWidth === initialWidth ? (
                                     <FullscreenOutlined />
                                 ) : (
                                     <FullscreenExitOutlined />

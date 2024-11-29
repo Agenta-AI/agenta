@@ -35,12 +35,13 @@ import dayjs from "dayjs"
 import {useRouter} from "next/router"
 import React, {useCallback, useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {Export} from "@phosphor-icons/react"
+import {Database, Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
+import TestsetDrawer from "./drawer/TestsetDrawer"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -79,6 +80,7 @@ const ObservabilityDashboard = () => {
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -536,6 +538,13 @@ const ObservabilityDashboard = () => {
                         >
                             Export as CSV
                         </Button>
+                        <Button
+                            onClick={() => setIsTestsetDrawerOpen(true)}
+                            icon={<Database size={14} />}
+                            disabled={traces.length === 0}
+                        >
+                            Add test set
+                        </Button>
                         <EditColumns
                             isOpen={isFilterColsDropdownOpen}
                             handleOpenChange={setIsFilterColsDropdownOpen}
@@ -614,6 +623,8 @@ const ObservabilityDashboard = () => {
                     onChange={onPaginationChange}
                 />
             </div>
+
+            <TestsetDrawer open={isTestsetDrawerOpen} setOpen={setIsTestsetDrawerOpen} />
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer
