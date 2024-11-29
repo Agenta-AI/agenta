@@ -173,7 +173,7 @@ export default function Overview() {
                     onOk={handleDeleteOk}
                     onCancel={() => setIsDeleteAppModalOpen(false)}
                     confirmLoading={isDelAppLoading}
-                    appName={currentApp?.app_name}
+                    appDetails={currentApp}
                 />
             )}
 
