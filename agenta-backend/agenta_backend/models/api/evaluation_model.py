@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any, Union
 
 from pydantic import BaseModel, Field, model_validator
 
+from agenta_backend.utils import traces
 from agenta_backend.models.api.api_models import Result
 
 
@@ -97,6 +98,15 @@ class EvaluatorOutputInterface(BaseModel):
 class EvaluatorMappingInputInterface(BaseModel):
     inputs: Dict[str, Any]
     mapping: Dict[str, Any]
+
+    @model_validator(mode="before")
+    def remove_trace_prefix(cls, values: Dict) -> Dict:
+        mapping = values.get("mapping", {})
+        updated_mapping = traces.remove_trace_prefix(mapping_dict=mapping)
+
+        # Set the modified mapping back to the values
+        values["mapping"] = updated_mapping
+        return values
 
 
 class EvaluatorMappingOutputInterface(BaseModel):
