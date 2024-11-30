@@ -1,6 +1,6 @@
 {
     "name": "agenta",
-    "version": "0.27.3",
+    "version": "0.28.0",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -8,6 +8,7 @@
     "scripts": {
         "dev": "next dev",
         "dev:local": "ENV_FILE=.local.env next dev",
+        "dev:turbo": "ENV_FILE=.local.env next dev --turbo",
         "build": "next build",
         "start": "next start",
         "lint": "next lint",

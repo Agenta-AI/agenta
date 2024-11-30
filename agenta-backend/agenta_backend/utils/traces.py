@@ -1,12 +1,57 @@
 import logging
 import traceback
 from copy import deepcopy
-from typing import Any, Dict
 from collections import OrderedDict
+from typing import Any, Dict, Union, Optional
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def remove_trace_prefix(
+    mapping_dict: Optional[Dict] = None, settings_values: Optional[Dict] = None
+) -> Dict:
+    """
+    Modify the values of the mapping dictionary to remove 'trace.' prefix if it exists.
+
+    Args:
+        mapping_dict (Optional[Dict]): A dictionary containing the mapping values.
+        settings_values (Optional[Dict]): A dictionary with keys like "answer_key",
+                                          "contexts_key", "question_key" to override
+                                          specific mapping values.
+
+    Returns:
+        Dict: A dictionary with the 'trace.' prefix removed from any string values.
+
+    Raises:
+        ValueError: If neither `mapping_dict` nor `settings_values` is provided.
+
+    """
+
+    if mapping_dict is None and settings_values is None:
+        raise ValueError("No mapping dictionary or settings values provided")
+
+    # Determine which dictionary to use
+    if settings_values:
+        mapping_values = {
+            "answer_key": settings_values.get("answer_key"),
+            "contexts_key": settings_values.get("contexts_key"),
+            "question_key": settings_values.get("question_key"),
+        }
+    elif mapping_dict:
+        mapping_values = mapping_dict
+    else:
+        mapping_values = {}
+
+    # Update the mapping by removing the 'trace.' prefix from string values
+    updated_mapping_dict = {
+        key: value.replace("trace.", "") if isinstance(value, str) else value
+        for key, value in mapping_values.items()
+        if value is not None
+    }
+
+    return updated_mapping_dict
 
 
 def _make_spans_id_tree(trace):
@@ -63,18 +108,31 @@ def _make_nested_nodes_tree(tree: dict):
 
     ordered_tree = OrderedDict()
 
-    def add_node(node: dict, parent_tree: dict):
+    def add_node(node: Union[dict, list], parent_tree: dict):
         """
         Recursively adds a node and its children to the parent tree.
         """
+        if isinstance(node, list):
+            # If node is a list, process each item as a child node
+            for child_node in node:
+                add_node(child_node, parent_tree)
+            return
 
+        # If the node is a dictionary, proceed with its normal structure
         node_id = node["node"]["id"]
         parent_tree[node_id] = OrderedDict()
 
         # If there are child nodes, recursively add them
-        if "nodes" in node and node["nodes"] is not None:
-            for child_key, child_node in node["nodes"].items():
-                add_node(child_node, parent_tree[node_id])
+        if "nodes" in node and node["nodes"]:
+            child_nodes = node["nodes"]
+            if isinstance(child_nodes, list):
+                # If child nodes are a list, iterate over each one
+                for child_node in child_nodes:
+                    add_node(child_node, parent_tree[node_id])
+            elif isinstance(child_nodes, dict):
+                # If child nodes are a dictionary, add them recursively
+                for child_key, child_node in child_nodes.items():
+                    add_node(child_node, parent_tree[node_id])
 
     # Process the top-level nodes
     for node in tree["nodes"]:
@@ -116,10 +174,24 @@ def _build_nodes_tree(nodes_id: dict, tree_nodes: list):
         stack = nodes[:]
         while stack:
             current = stack.pop()
+            if isinstance(current, list):
+                # If current is a list, process each item as a child node
+                stack.extend(current)  # Add each item of the list to the stack
+                continue  # Skip the rest of the logic for this item since it's a list
+
             node_id = current["node"]["id"]
             result[node_id] = current
             if "nodes" in current and current["nodes"] is not None:
-                stack.extend(current["nodes"].values())
+                # If there are child nodes, add them to the stack for further processing
+                child_nodes = current["nodes"]
+                if isinstance(child_nodes, list):
+                    stack.extend(
+                        child_nodes
+                    )  # If the child nodes are a list, add each to the stack
+                elif isinstance(child_nodes, dict):
+                    stack.extend(
+                        child_nodes.values()
+                    )  # If child nodes are a dict, add the values to the stack
         return result
 
     def extract_node_details(node_id: str, nodes: dict):
@@ -135,14 +207,9 @@ def _build_nodes_tree(nodes_id: dict, tree_nodes: list):
             "node": node_data.get("node", {}),
             "parent": node_data.get("parent", None),
             "time": node_data.get("time", {}),
-            "status": node_data.get("status"),
-            "exception": node_data.get("exception"),
             "data": node_data.get("data"),
             "metrics": node_data.get("metrics"),
             "meta": node_data.get("meta"),
-            "refs": node_data.get("refs"),
-            "links": node_data.get("links"),
-            "otel": node_data.get("otel"),
         }
 
     def recursive_flatten(current_nodes_id: dict, result: dict, nodes: dict):
@@ -156,12 +223,19 @@ def _build_nodes_tree(nodes_id: dict, tree_nodes: list):
 
             # Recursively process child nodes
             if child_nodes:
-                recursive_flatten(child_nodes, result, nodes)
+                if isinstance(child_nodes, list):
+                    for child_node in child_nodes:
+                        recursive_flatten(
+                            {child_node["node"]["id"]: child_node}, result, nodes
+                        )
+                elif isinstance(child_nodes, dict):
+                    recursive_flatten(child_nodes, result, nodes)
 
     # Initialize the ordered dictionary and start the recursion
     ordered_result = dict()
     nodes = gather_nodes(nodes=tree_nodes)
     recursive_flatten(current_nodes_id=nodes_id, result=ordered_result, nodes=nodes)
+
     return list(ordered_result.values())
 
 
