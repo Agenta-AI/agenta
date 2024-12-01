@@ -2,11 +2,13 @@ import CopyButton from "@/components/CopyButton/CopyButton"
 import {JSSTheme} from "@/lib/Types"
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
 import {CodeBlock, FileTs, Play} from "@phosphor-icons/react"
-import {Button, Flex, Modal, Radio, Space, Tabs, TabsProps, Typography} from "antd"
-import React from "react"
+import {Button, Flex, Input, Modal, message, Radio, Space, Tabs, TabsProps, Typography} from "antd"
+import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
 import {isDemo} from "@/lib/helpers/utils"
+import {dynamicContext, dynamicService} from "@/lib/helpers/dynamic"
+import ApiKeyInput from "../components/ApiKeyInput"
 
 const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
 
@@ -68,6 +70,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: theme.paddingXS,
         backgroundColor: theme.colorBgContainerDisabled,
         borderRadius: theme.borderRadius,
+        overflow: "auto",
         "& pre": {
             fontFamily: ibm_plex_mono.style.fontFamily,
         },
@@ -86,18 +89,9 @@ const {Text, Title} = Typography
 
 const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
     const classes = useStyles()
+    const [apiKeyValue, setApiKeyValue] = useState("")
 
     const listOfCommands = [
-        ...(isDemo()
-            ? [
-                  {
-                      title: "Generate API Key",
-                      button: {
-                          onClick: () => {},
-                      },
-                  },
-              ]
-            : []),
         {
             title: "Install dependencies",
             code: `pip install -U langchain langchain-openai`,
@@ -105,7 +99,7 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
         },
         {
             title: "Configure environment to langsmith",
-            code: `LANGCHAIN_TRACING_V2=true\nLANGCHAIN_ENDPOINT="https://api.smith.langchain.com"\nLANGCHAIN_API_KEY="<your-api-key>"\nLANGCHAIN_PROJECT="pr-terrible-junk-60"`,
+            code: `LANGCHAIN_TRACING_V2=true\nLANGCHAIN_ENDPOINT="https://api.smith.langchain.com"\nLANGCHAIN_API_KEY="${apiKeyValue || "<your-api-key>"}"\nLANGCHAIN_PROJECT="pr-terrible-junk-60"`,
         },
         {
             title: "Run LLM, Chat model, or chain. Its trace will be sent to this project",
@@ -120,45 +114,38 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             icon: <PythonOutlined />,
             children: (
                 <div className="flex flex-col gap-6">
-                    {listOfCommands.map((command, index) =>
-                        command.button ? (
-                            <Space key={index}>
-                                <Text>{index + 1}.</Text>
-                                <Button type="primary" onClick={command.button.onClick}>
-                                    Generate API Key
-                                </Button>
-                            </Space>
-                        ) : (
-                            <div className="flex flex-col gap-2" key={index}>
-                                <Flex align="center" justify="space-between">
-                                    <Space>
-                                        <Text>{index + 1}.</Text>
-                                        <Text>Install dependencies</Text>
-                                    </Space>
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
-                                    <Space>
-                                        {command.radio && (
-                                            <Radio.Group
-                                                defaultValue={"python"}
-                                                // defaultValue={appMsgDisplay}
-                                                // onChange={(e) => setAppMsgDisplay(e.target.value)}
-                                            >
-                                                <Radio.Button value="python">Python</Radio.Button>
-                                                <Radio.Button value="typescript">
-                                                    TypeScript
-                                                </Radio.Button>
-                                            </Radio.Group>
-                                        )}
-                                        <CopyButton buttonText={""} icon text={command.code} />
-                                    </Space>
-                                </Flex>
+                    {listOfCommands.map((command, index) => (
+                        <div className="flex flex-col gap-2" key={index}>
+                            <Flex align="center" justify="space-between">
+                                <Space>
+                                    <Text>{index + 1}.</Text>
+                                    <Text>Install dependencies</Text>
+                                </Space>
 
-                                <div className={`${classes.command}`}>
-                                    <pre className="m-0">{command.code}</pre>
-                                </div>
+                                <Space>
+                                    {command.radio && (
+                                        <Radio.Group
+                                            defaultValue={"python"}
+                                            // defaultValue={appMsgDisplay}
+                                            // onChange={(e) => setAppMsgDisplay(e.target.value)}
+                                        >
+                                            <Radio.Button value="python">Python</Radio.Button>
+                                            <Radio.Button value="typescript">
+                                                TypeScript
+                                            </Radio.Button>
+                                        </Radio.Group>
+                                    )}
+                                    <CopyButton buttonText={""} icon text={command.code} />
+                                </Space>
+                            </Flex>
+
+                            <div className={`${classes.command}`}>
+                                <pre className="m-0">{command.code}</pre>
                             </div>
-                        ),
-                    )}
+                        </div>
+                    ))}
                 </div>
             ),
         },
@@ -166,19 +153,37 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             key: "liteLLM",
             label: "LiteLLM",
             icon: <FileTs />,
-            children: <div>Overview</div>,
+            children: (
+                <div className="flex flex-col gap-6">
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+
+                    <div>LiteLLM</div>
+                </div>
+            ),
         },
         {
             key: "langChain",
             label: "LangChain",
             icon: <CodeBlock />,
-            children: <div>Overview</div>,
+            children: (
+                <div className="flex flex-col gap-6">
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+
+                    <div>LangChain</div>
+                </div>
+            ),
         },
         {
             key: "instructor",
             label: "Instructor",
             icon: <CodeBlock />,
-            children: <div>Overview</div>,
+            children: (
+                <div className="flex flex-col gap-6">
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+
+                    <div>Instructor</div>
+                </div>
+            ),
         },
     ]
 
