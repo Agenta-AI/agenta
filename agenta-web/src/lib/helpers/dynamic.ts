@@ -9,7 +9,7 @@ export function dynamicComponent<T>(path: string, fallback: any = () => null) {
 
 export async function dynamicContext(path: string, fallback?: any) {
     try {
-        return await import(`@/contexts/${path}`)
+        return await import(`@/ee/contexts/${path}`)
     } catch (error) {
         return fallback
     }
@@ -17,7 +17,7 @@ export async function dynamicContext(path: string, fallback?: any) {
 
 export async function dynamicHook(path: string, fallback: any = () => null) {
     try {
-        return await import(`@/hooks/${path}`)
+        return await import(`@/ee/hooks/${path}`)
     } catch (error) {
         return fallback
     }
@@ -25,7 +25,7 @@ export async function dynamicHook(path: string, fallback: any = () => null) {
 
 export async function dynamicService(path: string, fallback?: any) {
     try {
-        return await import(`@/services/${path}`)
+        return await import(`@/ee/services/${path}`)
     } catch (error) {
         return fallback
     }
