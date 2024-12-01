@@ -81,6 +81,7 @@ const ObservabilityDashboard = () => {
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -264,6 +265,12 @@ const ObservabilityDashboard = () => {
 
         return () => clearInterval(interval)
     }, [])
+
+    const rowSelection = {
+        onChange: (selectedRowKeys: React.Key[]) => {
+            setSelectedRowKeys(selectedRowKeys)
+        },
+    }
 
     const selectedItem = useMemo(
         () => (traces?.length ? getNodeById(traces, selected) : null),
@@ -541,7 +548,7 @@ const ObservabilityDashboard = () => {
                         <Button
                             onClick={() => setIsTestsetDrawerOpen(true)}
                             icon={<Database size={14} />}
-                            disabled={traces.length === 0}
+                            disabled={traces.length === 0 || selectedRowKeys.length === 0}
                         >
                             Add test set
                         </Button>
@@ -558,6 +565,12 @@ const ObservabilityDashboard = () => {
 
             <div className="flex flex-col gap-2">
                 <Table
+                    rowSelection={{
+                        type: "checkbox",
+                        columnWidth: 48,
+                        selectedRowKeys,
+                        ...rowSelection,
+                    }}
                     loading={isLoading}
                     columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
                     dataSource={traces}
