@@ -1,12 +1,18 @@
 import GenericDrawer from "@/components/GenericDrawer"
 import {ArrowRight, Copy, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Checkbox, Divider, Input, Radio, Select, Table, Typography} from "antd"
+import {Button, Checkbox, Divider, Input, message, Radio, Select, Table, Typography} from "antd"
 import React, {useState} from "react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Editor} from "@monaco-editor/react"
 import {createUseStyles} from "react-jss"
 import {JSSTheme, KeyValuePair, testset} from "@/lib/Types"
-import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
+import {
+    createNewTestset,
+    fetchTestset,
+    updateTestset,
+    useLoadTestsetsList,
+} from "@/services/testsets/api"
+import {getStringOrJson} from "@/lib/helpers/utils"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     editor: {
@@ -46,6 +52,7 @@ const TestsetDrawer = ({open, setOpen}: any) => {
     const [isShowlastFiveRows, setIsShowlastFiveRows] = useState(false)
     // others
     const [formatType, setFormatType] = useState("json")
+    const [isLoading, setIsLoading] = useState(false)
 
     // predifind options
     const customSelectOptions = [
@@ -63,11 +70,18 @@ const TestsetDrawer = ({open, setOpen}: any) => {
     const onTestsetOptionChange = async (option: any) => {
         if (option.value === "create") {
             setIsNewTestset(true)
+
+            // reset previous test set data if bing selected
+            if (tableColumns) {
+                setTableColumns([])
+                setTableRows([])
+                setIsShowlastFiveRows(false)
+            }
         } else {
             setIsNewTestset(false)
         }
 
-        setTestset({name: option.lable, id: option.value})
+        setTestset({name: option.label, id: option.value})
 
         if (option.value && option.value !== "create") {
             // fetch testset detailes and assign the columns and rows
@@ -75,8 +89,35 @@ const TestsetDrawer = ({open, setOpen}: any) => {
 
             if (data) {
                 setTableColumns(Object.keys(data.csvdata[0]) as any)
-                setTableRows(data.csvdata.slice(-5))
+                setTableRows(data.csvdata)
             }
+        }
+    }
+
+    const onSaveTestset = async () => {
+        try {
+            setIsLoading(true)
+
+            if (testset.id === "create") {
+                if (!testsetName) {
+                    message.error("Please add a Test set name before saving it")
+                    return
+                }
+
+                await createNewTestset(testsetName, [{input: null, correct_answer: null}])
+                message.success("Test set created successfully")
+            } else {
+                await updateTestset(testset.id as string, testset.name, tableRows)
+
+                message.success("Test set updated successfully")
+            }
+
+            setOpen(false)
+        } catch (error) {
+            console.log(error)
+            message.error("Something went wrong. Please try again later")
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -203,7 +244,7 @@ const TestsetDrawer = ({open, setOpen}: any) => {
 
                 <div className={classes.container}>
                     <Typography.Text className={classes.label}>Preview</Typography.Text>
-                    {tableColumns ? (
+                    {tableColumns.length > 0 ? (
                         <>
                             <div className="flex items-center gap-4 mb-2">
                                 <Select
@@ -249,15 +290,30 @@ const TestsetDrawer = ({open, setOpen}: any) => {
             </section>
         )
     }
+
     return (
         <>
             <GenericDrawer
                 open={open}
+                destroyOnClose
                 onClose={() => setOpen(false)}
                 expandable
                 drawerWidth={640}
                 headerExtra="Add to test set"
                 mainContent={<Content />}
+                footer={
+                    <div className="flex justify-end items-center gap-2 py-2 px-3">
+                        <Button onClick={() => setOpen(false)}>Cancel</Button>
+                        <Button
+                            type="primary"
+                            loading={isLoading || isTestsetsLoading}
+                            onClick={onSaveTestset}
+                            disabled={!testset.name}
+                        >
+                            Save
+                        </Button>
+                    </div>
+                }
             />
         </>
     )
