@@ -15,14 +15,6 @@ export async function dynamicContext(path: string, fallback?: any) {
     }
 }
 
-export async function dynamicHook(path: string, fallback: any = () => null) {
-    try {
-        return await import(`@/ee/hooks/${path}`)
-    } catch (error) {
-        return fallback
-    }
-}
-
 export async function dynamicService(path: string, fallback?: any) {
     try {
         return await import(`@/ee/services/${path}`)

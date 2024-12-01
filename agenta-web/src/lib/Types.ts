@@ -705,3 +705,83 @@ export type FilterConditions =
     | "is_not"
     | "btwn"
     | ""
+
+
+export enum GenerationStatus {
+    UNSET = "UNSET",
+    OK = "OK",
+    ERROR = "ERROR",
+}
+
+export enum GenerationKind {
+    TOOL = "TOOL",
+    CHAIN = "CHAIN",
+    LLM = "LLM",
+    WORKFLOW = "WORKFLOW",
+    RETRIEVER = "RETRIEVER",
+    EMBEDDING = "EMBEDDING",
+    AGENT = "AGENT",
+    UNKNOWN = "UNKNOWN",
+}
+
+export interface Generation {
+    id: string
+    created_at: string
+    variant: {
+        variant_id: string
+        variant_name: string
+        revision: number
+    }
+    environment: string | null
+    status: GenerationStatus
+    error?: string
+    spankind: GenerationKind
+    metadata?: RequestMetadata
+    user_id?: string
+    children?: []
+    parent_span_id?: string
+    name?: string
+    content: {
+        inputs: Record<string, any>
+        internals: Record<string, any>
+        outputs: string[] | Record<string, any>
+    }
+}
+
+export interface GenerationTreeNode {
+    title: React.ReactElement
+    key: string
+    children?: GenerationTreeNode[]
+}
+
+export interface GenerationDetails extends Generation {
+    config: GenericObject
+}
+
+export interface GenerationDashboardData {
+    data: {
+        timestamp: number | string
+        success_count: number
+        failure_count: number
+        cost: number
+        latency: number
+        total_tokens: number
+        prompt_tokens: number
+        completion_tokens: number
+        enviornment: string
+        variant: string
+    }[]
+    total_count: number
+    failure_rate: number
+    total_cost: number
+    avg_cost: number
+    avg_latency: number
+    total_tokens: number
+    avg_tokens: number
+}
+
+export interface Trace extends Generation {}
+
+export interface TraceDetails extends GenerationDetails {
+    spans: Generation[]
+}
