@@ -642,7 +642,7 @@ const App: React.FC<TestViewProps> = ({
                     `❌ ${getErrorMessage(e?.response?.data?.error || e?.response?.data, e)}`,
                     index,
                 )
-                if (e.response.status === 401) {
+                if (e?.response?.status === 401) {
                     setIsLLMProviderMissingModalOpen(true)
                 }
             } else {
