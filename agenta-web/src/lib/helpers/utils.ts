@@ -359,3 +359,20 @@ export const filterVariantParameters = ({
 export const formatVariantIdWithHash = (variantId: string) => {
     return `# ${variantId.split("-")[0]}`
 }
+
+export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
+    const paths: string[] = []
+
+    for (const [key, value] of Object.entries(obj)) {
+        const fullPath = prefix ? `${prefix}.${key}` : key
+
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+            const nestedPaths = collectKeyPathsFromObject(value, fullPath)
+            paths.push(...nestedPaths)
+        } else {
+            paths.push(fullPath)
+        }
+    }
+
+    return paths
+}
