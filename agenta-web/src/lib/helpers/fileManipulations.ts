@@ -22,8 +22,13 @@ export const downloadCsv = (csvContent: string, filename: string): void => {
 export const isValidCSVFile = (file: File) => {
     return new Promise((res) => {
         Papa.parse(file, {
+            skipEmptyLines: true,
             complete: (results) => {
-                res(results.errors.length === 0)
+                if (results.data && results.data.length > 0) {
+                    res(true)
+                } else {
+                    res(false)
+                }
             },
             error: () => {
                 res(false)
