@@ -15,18 +15,7 @@ Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
 
-    // Check if there are app variants present
-    cy.request({
-        url: `${Cypress.env().baseApiURL}/apps`,
-        method: "GET",
-    }).then((resp) => {
-        if (resp.body.length) {
-            cy.get('[data-cy="create-new-app-button"]').click()
-            cy.get('[data-cy="create-from-template"]').click()
-        } else {
-            cy.get('[data-cy="create-from-template"]').click()
-        }
-    })
+    cy.get('[data-cy="create-from-template"]').click()
 
     const appName = randString(5)
     cy.task("log", `App name: ${appName}`)
