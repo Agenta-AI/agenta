@@ -82,6 +82,9 @@ const ObservabilityDashboard = () => {
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [testsetDrawerData, setTestsetDrawerData] = useState<
+        {key: string; data: Record<string, any>}[]
+    >([])
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -496,6 +499,60 @@ const ObservabilityDashboard = () => {
         setSort({type, sorted, customRange})
     }, [])
 
+    const getMatchingTracesByDataKeys = () => {
+        if (!traces?.length) return []
+
+        // step 1: extract data from the trace - skiped children for now
+        // TODO: get the traces children nodes as well
+        const extractData = traces
+            .filter((trace) => selectedRowKeys.includes(trace.key))
+            .flatMap((trace) => {
+                const {data, key, ...rest} = trace
+                return {data, key}
+            })
+
+        // step 2: compare each array keys with each other to check similarities
+        const similarObjects = findSimilarObjects(extractData)
+        if (similarObjects.length > 0) {
+            setTestsetDrawerData(similarObjects as any)
+            setIsTestsetDrawerOpen(true)
+        }
+    }
+
+    const findSimilarObjects = (array: any[]): any[][] => {
+        const getKeySignature = (obj: any): string => {
+            // Function to extract nested keys
+            const extractKeys = (obj: any, prefix = ""): string[] =>
+                Object.keys(obj).flatMap((key) => {
+                    const fullPath = prefix ? `${prefix}.${key}` : key
+
+                    return typeof obj[key] === "object" &&
+                        obj[key] !== null &&
+                        !Array.isArray(obj[key])
+                        ? extractKeys(obj[key], fullPath)
+                        : fullPath
+                })
+
+            // Return the normalized keys as a string
+            return extractKeys(obj).sort().join(",")
+        }
+
+        // Group objects by their key structure and return groups with more than one item
+        const groups = array.reduce<Record<string, any[]>>((acc, item) => {
+            const keySignature = getKeySignature(item)
+            acc[keySignature] = acc[keySignature] || []
+            acc[keySignature].push(item)
+            return acc
+        }, {})
+
+        const mostSimilarGroup = Object.values(groups).reduce(
+            (maxGroup, currentGroup) =>
+                currentGroup.length > maxGroup.length ? currentGroup : maxGroup,
+            [],
+        )
+        return mostSimilarGroup
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
@@ -546,7 +603,7 @@ const ObservabilityDashboard = () => {
                             Export as CSV
                         </Button>
                         <Button
-                            onClick={() => setIsTestsetDrawerOpen(true)}
+                            onClick={() => getMatchingTracesByDataKeys()}
                             icon={<Database size={14} />}
                             disabled={traces.length === 0 || selectedRowKeys.length === 0}
                         >
@@ -637,7 +694,17 @@ const ObservabilityDashboard = () => {
                 />
             </div>
 
-            <TestsetDrawer open={isTestsetDrawerOpen} setOpen={setIsTestsetDrawerOpen} />
+            {isTestsetDrawerOpen && (
+                <TestsetDrawer
+                    open={isTestsetDrawerOpen}
+                    data={testsetDrawerData}
+                    onClose={() => {
+                        setIsTestsetDrawerOpen(false)
+                        setSelectedRowKeys([])
+                        setTestsetDrawerData([])
+                    }}
+                />
+            )}
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer
