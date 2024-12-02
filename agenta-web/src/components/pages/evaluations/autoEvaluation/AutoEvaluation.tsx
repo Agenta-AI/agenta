@@ -407,9 +407,15 @@ const AutoEvaluation = () => {
                                     icon: <Note size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(
-                                            `/apps/${appId}/evaluations/results/${record.id}`,
-                                        )
+                                        if (
+                                            record.status.value === EvaluationStatus.FINISHED ||
+                                            record.status.value ===
+                                                EvaluationStatus.FINISHED_WITH_ERRORS
+                                        ) {
+                                            router.push(
+                                                `/apps/${appId}/evaluations/results/${record.id}`,
+                                            )
+                                        }
                                     },
                                 },
                                 {
@@ -605,7 +611,14 @@ const AutoEvaluation = () => {
                 pagination={false}
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    onClick: () => router.push(`/apps/${appId}/evaluations/results/${record.id}`),
+                    onClick: () => {
+                        if (
+                            record.status.value === EvaluationStatus.FINISHED ||
+                            record.status.value === EvaluationStatus.FINISHED_WITH_ERRORS
+                        ) {
+                            router.push(`/apps/${appId}/evaluations/results/${record.id}`)
+                        }
+                    },
                 })}
             />
 
