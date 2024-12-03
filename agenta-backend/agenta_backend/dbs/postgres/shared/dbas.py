@@ -1,4 +1,5 @@
-from sqlalchemy import Column, UUID, TIMESTAMP, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, String, UUID, TIMESTAMP, func, Integer
 
 
 class ProjectScopeDBA:
@@ -27,3 +28,30 @@ class LifecycleDBA:
         UUID(as_uuid=True),
         nullable=True,
     )
+
+
+class UniversionalDBA:
+    __abstract__ = True
+
+    slug = Column(String, nullable=False)
+
+
+class HeaderDBA:
+    __abstract__ = True
+
+    name = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+
+
+class VersionedDBA(LifecycleDBA):
+    __abstract__ = True
+
+    slug = Column(String, nullable=False)
+    version = Column(Integer, nullable=False)
+    id = Column(UUID(as_uuid=True), nullable=False)
+
+
+class TagsDBA:
+    __abstract__ = True
+
+    tags = Column(JSONB(none_as_null=True), nullable=True)
