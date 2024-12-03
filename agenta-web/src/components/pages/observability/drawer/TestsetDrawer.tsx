@@ -117,6 +117,15 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                     setTableRows(data.csvdata)
                 }
             }
+
+            if (mappingOptions.length > 0 && value) {
+                setMappingData((prevMappingData) =>
+                    mappingOptions.map((item, index) => ({
+                        ...prevMappingData[index],
+                        data: item.value,
+                    })),
+                )
+            }
         } catch (error) {
             message.error("Failed to laod Test sets!")
         }
@@ -168,18 +177,6 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
 
         return Array.from(uniquePaths).map((item) => ({value: item}))
     }, [data])
-
-    useEffect(() => {
-        // auto render mapping component with data
-        if (mappingOptions.length > 0) {
-            setMappingData((prevMappingData) =>
-                mappingOptions.map((item, index) => ({
-                    ...prevMappingData[index],
-                    data: item.value,
-                })),
-            )
-        }
-    }, [mappingOptions])
 
     const columnOptions = useMemo(() => {
         const selectedColumns = mappingData
@@ -435,99 +432,111 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
 
                         <div className={classes.container}>
                             <Typography.Text className={classes.label}>Mapping</Typography.Text>
-                            <div className="flex flex-col gap-2">
-                                {mappingData.map((data, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="flex items-center justify-between gap-2"
-                                    >
-                                        <Select
-                                            style={{width: elementWidth}}
-                                            value={data.data}
-                                            onChange={(value) =>
-                                                onMappingOptionChange({
-                                                    pathName: "data",
-                                                    value,
-                                                    idx,
-                                                })
-                                            }
-                                            options={mappingOptions}
-                                        />
-                                        <ArrowRight size={16} />
-                                        <div className="flex-1 flex gap-2 items-center">
-                                            {!isNewTestset && (
+                            {testset.id ? (
+                                <>
+                                    <div className="flex flex-col gap-2">
+                                        {mappingData.map((data, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="flex items-center justify-between gap-2"
+                                            >
                                                 <Select
-                                                    style={{width: "100%"}}
-                                                    value={data.column}
+                                                    style={{width: elementWidth}}
+                                                    value={data.data}
                                                     onChange={(value) =>
                                                         onMappingOptionChange({
-                                                            pathName: "column",
+                                                            pathName: "data",
                                                             value,
                                                             idx,
                                                         })
                                                     }
-                                                    options={[
-                                                        ...(testset.id ? customSelectOptions : []),
-                                                        ...columnOptions?.map((column) => ({
-                                                            value: column,
-                                                            lable: column,
-                                                        })),
-                                                    ]}
+                                                    options={mappingOptions}
                                                 />
-                                            )}
+                                                <ArrowRight size={16} />
+                                                <div className="flex-1 flex gap-2 items-center">
+                                                    {!isNewTestset && (
+                                                        <Select
+                                                            style={{width: "100%"}}
+                                                            value={data.column}
+                                                            onChange={(value) =>
+                                                                onMappingOptionChange({
+                                                                    pathName: "column",
+                                                                    value,
+                                                                    idx,
+                                                                })
+                                                            }
+                                                            options={[
+                                                                ...(testset.id
+                                                                    ? customSelectOptions
+                                                                    : []),
+                                                                ...columnOptions?.map((column) => ({
+                                                                    value: column,
+                                                                    lable: column,
+                                                                })),
+                                                            ]}
+                                                        />
+                                                    )}
 
-                                            {data.column === "create" || isNewTestset ? (
-                                                <div className="w-full relative">
-                                                    <Input
-                                                        style={{width: "100%"}}
-                                                        value={data.newColumn || ""}
-                                                        onChange={(e) =>
-                                                            onMappingOptionChange({
-                                                                pathName: "newColumn",
-                                                                value: e.target.value,
-                                                                idx,
-                                                            })
-                                                        }
-                                                        placeholder="Column name"
-                                                    />
-                                                    <PencilSimple
-                                                        size={14}
-                                                        className="absolute top-[8px] right-2"
-                                                    />
+                                                    {data.column === "create" || isNewTestset ? (
+                                                        <div className="w-full relative">
+                                                            <Input
+                                                                style={{width: "100%"}}
+                                                                value={data.newColumn || ""}
+                                                                onChange={(e) =>
+                                                                    onMappingOptionChange({
+                                                                        pathName: "newColumn",
+                                                                        value: e.target.value,
+                                                                        idx,
+                                                                    })
+                                                                }
+                                                                placeholder="Column name"
+                                                            />
+                                                            <PencilSimple
+                                                                size={14}
+                                                                className="absolute top-[8px] right-2"
+                                                            />
+                                                        </div>
+                                                    ) : null}
                                                 </div>
-                                            ) : null}
-                                        </div>
 
-                                        <Button
-                                            icon={<Trash />}
-                                            onClick={() =>
-                                                setMappingData(
-                                                    mappingData.filter((_, index) => index !== idx),
-                                                )
-                                            }
-                                        />
+                                                <Button
+                                                    icon={<Trash />}
+                                                    onClick={() =>
+                                                        setMappingData(
+                                                            mappingData.filter(
+                                                                (_, index) => index !== idx,
+                                                            ),
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
 
-                            <Button
-                                type="dashed"
-                                className="mt-1"
-                                style={{width: elementWidth}}
-                                icon={<Plus />}
-                                onClick={() =>
-                                    setMappingData([
-                                        ...mappingData,
-                                        {
-                                            data: "",
-                                            column: isNewTestset ? "create" : "",
-                                            newColumn: "",
-                                        },
-                                    ])
-                                }
-                            >
-                                Add field
-                            </Button>
+                                    <Button
+                                        type="dashed"
+                                        className="mt-1"
+                                        style={{width: elementWidth}}
+                                        icon={<Plus />}
+                                        onClick={() =>
+                                            setMappingData([
+                                                ...mappingData,
+                                                {
+                                                    data: "",
+                                                    column: isNewTestset ? "create" : "",
+                                                    newColumn: "",
+                                                },
+                                            ])
+                                        }
+                                    >
+                                        Add field
+                                    </Button>
+                                </>
+                            ) : (
+                                <Typography.Text>
+                                    Please select a test set to create mappings
+                                </Typography.Text>
+                            )}
                         </div>
 
                         <div className={classes.container}>
