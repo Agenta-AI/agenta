@@ -14,7 +14,7 @@ import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
-import {Filter, FilterConditions, JSSTheme} from "@/lib/Types"
+import {Filter, FilterConditions, JSSTheme, KeyValuePair} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import {ReloadOutlined, SwapOutlined} from "@ant-design/icons"
 import {
@@ -83,7 +83,7 @@ const ObservabilityDashboard = () => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [testsetDrawerData, setTestsetDrawerData] = useState<
-        {key: string; data: Record<string, any>}[]
+        {key: string; data: KeyValuePair; id: number}[]
     >([])
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
@@ -504,7 +504,7 @@ const ObservabilityDashboard = () => {
 
         const extractData = traces
             .filter((trace) => selectedRowKeys.includes(trace.key))
-            .flatMap((trace) => ({data: trace.data, key: trace.key}))
+            .flatMap((trace, idx) => ({data: trace.data, key: trace.key, id: idx + 1}))
 
         if (extractData.length > 0) {
             setTestsetDrawerData(extractData as any)
