@@ -27,7 +27,7 @@ import {
 import {collectKeyPathsFromObject, getStringOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
 import {useUpdateEffect} from "usehooks-ts"
-import {ResizableTitle} from "@/components/ServerTable/components"
+
 import useResizeObserver from "@/hooks/useResizeObserver"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -82,6 +82,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     const [rowDataPreview, setRowDataPreview] = useState(traceData[0]?.key || "")
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
+    const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
@@ -217,7 +218,10 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     }
 
     useUpdateEffect(() => {
-        if (isMapColumnExist) {
+        const duplicatesExist = hasDuplicateColumnNames()
+        setHasDuplicateColumns(duplicatesExist)
+
+        if (!duplicatesExist && isMapColumnExist) {
             onPreviewOptionChange(preview.key)
         }
     }, [mappingData])
@@ -289,6 +293,20 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         }
     }
 
+    const hasDuplicateColumnNames = () => {
+        const seenValues = new Set<string>()
+
+        return mappingData.some((item) => {
+            const columnValues = [item.column, item.newColumn].filter(Boolean)
+
+            return columnValues.some((value) => {
+                if (seenValues.has(value as string)) return true
+                seenValues.add(value as string)
+                return false
+            })
+        })
+    }
+
     return (
         <>
             <GenericDrawer
@@ -305,7 +323,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                             type="primary"
                             loading={isLoading || isTestsetsLoading}
                             onClick={onSaveTestset}
-                            disabled={!testset.name || !isMapColumnExist}
+                            disabled={!testset.name || !isMapColumnExist || hasDuplicateColumns}
                         >
                             Save
                         </Button>
@@ -435,7 +453,18 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                         </div>
 
                         <div className={classes.container}>
-                            <Typography.Text className={classes.label}>Mapping</Typography.Text>
+                            <Typography.Text
+                                className={classes.label}
+                                type={hasDuplicateColumns ? "danger" : "secondary"}
+                            >
+                                Mapping
+                            </Typography.Text>
+                            {hasDuplicateColumns && (
+                                <Typography.Text type="danger">
+                                    Duplicate columns detected. Ensure each column is unique
+                                </Typography.Text>
+                            )}
+
                             {testset.id ? (
                                 <>
                                     <div className="flex flex-col gap-2">
@@ -612,11 +641,6 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                                     }
                                                 }
                                                 return ""
-                                            }}
-                                            components={{
-                                                header: {
-                                                    cell: ResizableTitle,
-                                                },
                                             }}
                                             scroll={{x: "max-content"}}
                                             bordered
