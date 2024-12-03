@@ -28,6 +28,7 @@ import {collectKeyPathsFromObject, getStringOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
 import {useUpdateEffect} from "usehooks-ts"
 import {ResizableTitle} from "@/components/ServerTable/components"
+import useResizeObserver from "@/hooks/useResizeObserver"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     editor: {
@@ -54,7 +55,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Mapping = {data: string; column: string; newColumn?: string}
-type TraceData = {key: string; data: Record<string, any>}
+type TraceData = {key: string; data: KeyValuePair; id: number}
+type Preview = {key: string; data: KeyValuePair[]}
 type Props = {
     onClose: () => void
     data: TraceData[]
@@ -64,7 +66,11 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {testsets: listOfTestsets, isTestsetsLoading} = useLoadTestsetsList()
+    const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
+        setIsDrawerExtended(rect.width > 640)
+    })
 
+    const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [traceData, setTraceData] = useState(data.length > 0 ? data : [])
     const [testset, setTestset] = useState({name: "", id: ""})
@@ -75,15 +81,13 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
     const [dataPreview, setDataPreview] = useState(traceData[0]?.key || "")
     const [mappingData, setMappingData] = useState<Mapping[]>([])
-    const [preview, setPreview] = useState<{key: string; data: KeyValuePair[]}>({
-        key: traceData[0]?.key || "",
-        data: [],
-    })
+    const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
 
-    const isMapColumnExist = mappingData.some((mapping) =>
-        mapping.column === "create" ? !!mapping?.newColumn : !!mapping.column,
-    )
     const isNewTestset = testset.id === "create"
+    const elementWidth = isDrawerExtended ? 200 * 2 : 200
+    const isMapColumnExist = mappingData.some((mapping) =>
+        mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
+    )
 
     // predefind options
     const customSelectOptions = useMemo(
@@ -103,13 +107,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         const {value, label} = option
 
         try {
-            if (value === "create" && tableColumns.length > 0) {
-                setTableColumns([])
-                setTableRows([])
-                setShowLastFiveRows(false)
-                setMappingData((prev) => prev.map((item) => ({...item, column: ""})))
-            }
-
+            resetStates()
             setTestset({name: label, id: value})
 
             if (value && value !== "create") {
@@ -135,6 +133,10 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 removeTrace[currentIndex] || removeTrace[currentIndex - 1] || removeTrace[0]
 
             setDataPreview(nextPreview.key)
+
+            if (dataPreview === preview.key) {
+                onPreviewOptionChange(nextPreview.key)
+            }
         } else {
             setDataPreview("")
         }
@@ -157,19 +159,29 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     }, [editorFormat, traceData, dataPreview])
 
     const mappingOptions = useMemo(() => {
-        const traceKeys = collectKeyPathsFromObject({data: traceData[0]?.data})
+        const uniquePaths = new Set<string>()
 
-        return traceKeys.map((item) => ({value: item, label: item}))
-    }, [traceData])
+        traceData.forEach((traceItem) => {
+            const traceKeys = collectKeyPathsFromObject(traceItem?.data, "data")
+            traceKeys.forEach((key) => uniquePaths.add(key))
+        })
+
+        return Array.from(uniquePaths).map((item) => ({value: item}))
+    }, [data])
 
     useEffect(() => {
         // auto render mapping component with data
         if (mappingOptions.length > 0) {
-            setMappingData(mappingOptions.map((item) => ({data: item.value, column: ""})))
+            setMappingData((prevMappingData) =>
+                mappingOptions.map((item, index) => ({
+                    ...prevMappingData[index],
+                    data: item.value,
+                })),
+            )
         }
     }, [mappingOptions])
 
-    const filteredColumnOptions = useMemo(() => {
+    const columnOptions = useMemo(() => {
         const selectedColumns = mappingData
             .map((item) => item.column)
             .filter((col) => col !== "create")
@@ -193,8 +205,13 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     }
 
     const onPreviewOptionChange = (value: string) => {
-        const selectedTraceData = traceData.filter((trace) => trace.key === value)
-        const newTestsetData = mapAndConvertDataInCsvFormat(selectedTraceData)
+        let newTestsetData
+        if (value === "all") {
+            newTestsetData = mapAndConvertDataInCsvFormat(traceData)
+        } else {
+            const selectedTraceData = traceData.filter((trace) => trace.key === value)
+            newTestsetData = mapAndConvertDataInCsvFormat(selectedTraceData)
+        }
 
         setPreview({key: value, data: newTestsetData})
     }
@@ -205,6 +222,15 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         }
     }, [mappingData])
 
+    const resetStates = () => {
+        setTableColumns([])
+        setTableRows([])
+        setShowLastFiveRows(false)
+        setMappingData((prev) => prev.map((item) => ({...item, column: "", newColumn: ""})))
+        setPreview({key: traceData[0]?.key || "", data: []})
+        setTestsetName("")
+    }
+
     const mapAndConvertDataInCsvFormat = (traceData: TraceData[]) => {
         return traceData.map((item) => {
             const formattedItem: Record<string, any> = {}
@@ -213,11 +239,18 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 const keys = mapping.data.split(".")
                 let value = keys.reduce((acc: any, key) => acc?.[key], item)
 
-                const targetKey = mapping.column === "create" ? mapping.newColumn : mapping.column
+                const targetKey =
+                    mapping.column === "create" || !mapping.column
+                        ? mapping.newColumn
+                        : mapping.column
 
                 if (targetKey) {
                     formattedItem[targetKey] =
-                        typeof value === "string" ? value : JSON.stringify(value)
+                        value === undefined || value === null
+                            ? ""
+                            : typeof value === "string"
+                              ? value
+                              : JSON.stringify(value)
                 }
             }
 
@@ -263,7 +296,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 destroyOnClose
                 onClose={onClose}
                 expandable
-                drawerWidth={640}
+                initialWidth={640}
                 headerExtra="Add to test set"
                 footer={
                     <div className="flex justify-end items-center gap-2 py-2 px-3">
@@ -279,19 +312,18 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                     </div>
                 }
                 mainContent={
-                    <section className="w-full flex flex-col gap-6">
+                    <section ref={elemRef} className="w-full flex flex-col gap-6">
                         <Typography.Text className={classes.drawerHeading}>
                             Spans selected {traceData.length}
                         </Typography.Text>
 
-                        {/******* testset completed ✅ *******/}
                         <div className={classes.container}>
                             <Typography.Text className={classes.label}>Test set</Typography.Text>
                             <div className="flex gap-2">
                                 <Select
                                     showSearch
                                     labelInValue
-                                    style={{width: 200}}
+                                    style={{width: elementWidth}}
                                     placeholder="Select Test set"
                                     value={
                                         testset.id
@@ -318,7 +350,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                 {isNewTestset && (
                                     <div className="relative">
                                         <Input
-                                            style={{width: 200}}
+                                            style={{width: elementWidth}}
                                             value={testsetName}
                                             onChange={(e) => setTestsetName(e.target.value)}
                                             placeholder="Test set name"
@@ -332,7 +364,6 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                             </div>
                         </div>
 
-                        {/******* data-preview completed ✅ *******/}
                         <div className={classes.container}>
                             <Typography.Text className={classes.label}>
                                 Data preview
@@ -340,25 +371,30 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
 
                             <div className="flex justify-between items-center mb-2">
                                 <Select
-                                    style={{width: 200}}
+                                    style={{width: elementWidth}}
                                     value={dataPreview}
                                     onChange={(value) => setDataPreview(value)}
-                                    options={traceData.map((trace, idx) => ({
+                                    options={traceData.map((trace) => ({
                                         value: trace?.key,
-                                        label: `Span ${idx + 1}`,
+                                        label: `Span ${trace.id}`,
                                     }))}
                                 />
                                 <div className="flex justify-between items-center gap-2">
-                                    <Button
-                                        variant="text"
-                                        color="danger"
-                                        icon={<Trash size={14} />}
-                                        onClick={onRemoveTraceData}
-                                    >
-                                        Remove span{" "}
-                                        {traceData.findIndex((trace) => trace.key === dataPreview) +
-                                            1}
-                                    </Button>
+                                    {traceData.length > 1 && (
+                                        <Button
+                                            variant="text"
+                                            color="danger"
+                                            icon={<Trash size={14} />}
+                                            onClick={onRemoveTraceData}
+                                        >
+                                            Remove span{" "}
+                                            {
+                                                traceData.find((trace) => trace.key === dataPreview)
+                                                    ?.id
+                                            }
+                                        </Button>
+                                    )}
+
                                     <Radio.Group
                                         options={[
                                             {label: "JSON", value: "JSON"},
@@ -397,17 +433,16 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                             />
                         </div>
 
-                        {/******* mapping almost completed ✔️ *******/}
                         <div className={classes.container}>
                             <Typography.Text className={classes.label}>Mapping</Typography.Text>
                             <div className="flex flex-col gap-2">
                                 {mappingData.map((data, idx) => (
                                     <div
-                                        key={`mapping-item-${idx}`}
+                                        key={idx}
                                         className="flex items-center justify-between gap-2"
                                     >
                                         <Select
-                                            style={{width: 200}}
+                                            style={{width: elementWidth}}
                                             value={data.data}
                                             onChange={(value) =>
                                                 onMappingOptionChange({
@@ -420,32 +455,31 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                         />
                                         <ArrowRight size={16} />
                                         <div className="flex-1 flex gap-2 items-center">
-                                            <Select
-                                                style={{flex: 1}}
-                                                value={data.column}
-                                                onChange={(value) =>
-                                                    onMappingOptionChange({
-                                                        pathName: "column",
-                                                        value,
-                                                        idx,
-                                                    })
-                                                }
-                                                options={[
-                                                    ...(isNewTestset
-                                                        ? [customSelectOptions[0]]
-                                                        : testset.id
-                                                          ? customSelectOptions
-                                                          : []),
-                                                    ...filteredColumnOptions?.map((column) => ({
-                                                        value: column,
-                                                        lable: column,
-                                                    })),
-                                                ]}
-                                            />
-                                            {data.column === "create" && (
-                                                <div className="relative">
+                                            {!isNewTestset && (
+                                                <Select
+                                                    style={{width: "100%"}}
+                                                    value={data.column}
+                                                    onChange={(value) =>
+                                                        onMappingOptionChange({
+                                                            pathName: "column",
+                                                            value,
+                                                            idx,
+                                                        })
+                                                    }
+                                                    options={[
+                                                        ...(testset.id ? customSelectOptions : []),
+                                                        ...columnOptions?.map((column) => ({
+                                                            value: column,
+                                                            lable: column,
+                                                        })),
+                                                    ]}
+                                                />
+                                            )}
+
+                                            {data.column === "create" || isNewTestset ? (
+                                                <div className="w-full relative">
                                                     <Input
-                                                        style={{flex: 1}}
+                                                        style={{width: "100%"}}
                                                         value={data.newColumn || ""}
                                                         onChange={(e) =>
                                                             onMappingOptionChange({
@@ -454,14 +488,14 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                                                 idx,
                                                             })
                                                         }
-                                                        placeholder="Test set name"
+                                                        placeholder="Column name"
                                                     />
                                                     <PencilSimple
                                                         size={14}
                                                         className="absolute top-[8px] right-2"
                                                     />
                                                 </div>
-                                            )}
+                                            ) : null}
                                         </div>
 
                                         <Button
@@ -479,40 +513,50 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                             <Button
                                 type="dashed"
                                 className="mt-1"
-                                style={{width: 200}}
+                                style={{width: elementWidth}}
                                 icon={<Plus />}
                                 onClick={() =>
-                                    setMappingData([...mappingData, {data: "", column: ""}])
+                                    setMappingData([
+                                        ...mappingData,
+                                        {
+                                            data: "",
+                                            column: isNewTestset ? "create" : "",
+                                            newColumn: "",
+                                        },
+                                    ])
                                 }
                             >
                                 Add field
                             </Button>
                         </div>
 
-                        {/******* preview almost completed ✔️ *******/}
                         <div className={classes.container}>
                             <Typography.Text className={classes.label}>Preview</Typography.Text>
                             {isMapColumnExist ? (
                                 <>
                                     <div className="flex items-center gap-4 mb-2">
                                         <Select
-                                            style={{width: 200}}
+                                            style={{width: elementWidth}}
                                             value={preview.key}
                                             onChange={onPreviewOptionChange}
-                                            options={traceData.map((trace, idx) => ({
-                                                value: trace?.key,
-                                                label: `Span ${idx + 1}`,
-                                            }))}
+                                            options={[
+                                                {value: "all", label: "Show All Spans"},
+                                                ...traceData.map((trace, idx) => ({
+                                                    value: trace?.key,
+                                                    label: `Span ${trace.id}`,
+                                                })),
+                                            ]}
                                         />
 
                                         {!isNewTestset && (
                                             <Checkbox
+                                                checked={showLastFiveRows}
                                                 onChange={() =>
                                                     setShowLastFiveRows(!showLastFiveRows)
                                                 }
-                                                checked={showLastFiveRows}
                                             >
-                                                Show last 5 test set entries
+                                                Show last {tableRows.slice(-5).length} test cases in
+                                                test set
                                             </Checkbox>
                                         )}
                                     </div>
@@ -520,30 +564,46 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                     <div>
                                         <Table
                                             className="ph-no-capture"
-                                            columns={mappingData.map((data, idx) => ({
-                                                title:
-                                                    data.column === "create"
+                                            columns={mappingData.map((data, idx) => {
+                                                const columnData =
+                                                    data.column === "create" || !data.column
                                                         ? data.newColumn
-                                                        : data.column,
-                                                dataIndex:
-                                                    data.column === "create"
-                                                        ? data.newColumn
-                                                        : data.column,
-                                                key: idx,
-                                                onHeaderCell: () => ({
-                                                    style: {minWidth: 160},
-                                                }),
-                                            }))}
+                                                        : data.column
+                                                return {
+                                                    title: columnData,
+                                                    dataIndex: columnData,
+                                                    key: idx,
+                                                    width: 250,
+                                                    onHeaderCell: () => ({
+                                                        style: {minWidth: 200},
+                                                    }),
+                                                }
+                                            })}
                                             dataSource={[
                                                 ...preview.data,
                                                 ...(showLastFiveRows ? tableRows.slice(-5) : []),
                                             ]}
+                                            rowClassName={(_, index) => {
+                                                if (showLastFiveRows) {
+                                                    const totalRows =
+                                                        preview.data.length +
+                                                        tableRows.slice(-5).length
+
+                                                    if (
+                                                        index >=
+                                                        totalRows - tableRows.slice(-5).length
+                                                    ) {
+                                                        return "!bg-[#fafafa]"
+                                                    }
+                                                }
+                                                return ""
+                                            }}
                                             components={{
                                                 header: {
                                                     cell: ResizableTitle,
                                                 },
                                             }}
-                                            scroll={{x: true}}
+                                            scroll={{x: "max-content"}}
                                             bordered
                                             pagination={false}
                                         />

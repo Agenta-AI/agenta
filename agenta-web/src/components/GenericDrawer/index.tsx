@@ -7,11 +7,11 @@ type GenericDrawerProps = {
     headerExtra?: ReactNode
     mainContent: ReactNode
     sideContent?: ReactNode
-    drawerWidth?: number
+    initialWidth?: number
 } & React.ComponentProps<typeof Drawer>
 
 const GenericDrawer = ({...props}: GenericDrawerProps) => {
-    const initialWidth = props.drawerWidth || 1200
+    const initialWidth = props.initialWidth || 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     return (
