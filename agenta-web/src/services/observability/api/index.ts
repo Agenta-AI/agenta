@@ -5,7 +5,7 @@ import {
     GenerationDetails,
     Trace,
     TraceDetails,
-} from "@/lib/types_ee"
+} from "@/ee/lib/types_ee"
 import {GenericObject, WithPagination} from "@/lib/Types"
 import dayjs from "dayjs"
 import {TableParams} from "@/components/ServerTable/components"
