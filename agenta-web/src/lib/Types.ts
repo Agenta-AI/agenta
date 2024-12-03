@@ -706,7 +706,6 @@ export type FilterConditions =
     | "btwn"
     | ""
 
-
 export enum GenerationStatus {
     UNSET = "UNSET",
     OK = "OK",

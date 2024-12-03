@@ -1,5 +1,10 @@
 import {randNum} from "@/lib/helpers/utils"
-import {Generation, GenerationKind, GenerationDashboardData, GenerationStatus} from "@/ee/lib/types_ee"
+import {
+    Generation,
+    GenerationKind,
+    GenerationDashboardData,
+    GenerationStatus,
+} from "@/ee/lib/types_ee"
 import dayjs from "dayjs"
 
 const generations: Generation[] = [
