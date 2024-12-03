@@ -11,6 +11,7 @@ import {statusMapper} from "../components/AvatarTreeContent"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import StatusRenderer from "../components/StatusRenderer"
 import AccordionTreePanel from "../components/AccordionTreePanel"
+import TestsetDrawer from "./TestsetDrawer"
 
 interface TraceContentProps {
     activeTrace: _AgentaRootsResponse
@@ -85,6 +86,11 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
+    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
+
+    const testsetDrawerData = () => {
+        return [{data: activeTrace.data, key: activeTrace.key, id: 1}]
+    }
 
     const transformDataInputs = (data: any) => {
         return Object.keys(data).reduce((acc, curr) => {
@@ -260,8 +266,8 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             {activeTrace.node.name}
                         </Typography.Text>
 
-                        {/* <Space>
-                            {!activeTrace.parent && activeTrace.refs?.application?.id && (
+                        <Space>
+                            {/* {!activeTrace.parent && activeTrace.refs?.application?.id && (
                                 <Button
                                     className="flex items-center"
                                     href={`/apps/${activeTrace.refs.application?.id}/playground`}
@@ -269,12 +275,15 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                     <Rocket size={14} />
                                     Open in playground
                                 </Button>
-                            )}
-                            <Button className="flex items-center">
+                            )} */}
+                            <Button
+                                className="flex items-center"
+                                onClick={() => setIsTestsetDrawerOpen(true)}
+                            >
                                 <Database size={14} />
                                 Add to testset
                             </Button>
-                        </Space> */}
+                        </Space>
                     </div>
                     <Divider className="m-0" />
                 </div>
@@ -356,6 +365,13 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     />
                 </div>
             </div>
+            {isTestsetDrawerOpen && (
+                <TestsetDrawer
+                    open={isTestsetDrawerOpen}
+                    data={testsetDrawerData() as any}
+                    onClose={() => setIsTestsetDrawerOpen(false)}
+                />
+            )}
             {/* <Divider type="vertical" className="h-full m-0" />
             <div className="w-[320px] p-4 flex flex-col gap-4">
                 <Typography.Text className={classes.title}>Evaluation</Typography.Text>
