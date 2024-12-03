@@ -41,7 +41,7 @@ import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
-import TestsetDrawer from "./drawer/TestsetDrawer"
+import TestsetDrawer, {TestsetTraceData} from "./drawer/TestsetDrawer"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -80,11 +80,8 @@ const ObservabilityDashboard = () => {
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [testsetDrawerData, setTestsetDrawerData] = useState<
-        {key: string; data: KeyValuePair; id: number}[]
-    >([])
+    const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -499,16 +496,18 @@ const ObservabilityDashboard = () => {
         setSort({type, sorted, customRange})
     }, [])
 
-    const getMatchingTracesByDataKeys = () => {
+    const getTestsetTraceData = () => {
         if (!traces?.length) return []
 
-        const extractData = traces
-            .filter((trace) => selectedRowKeys.includes(trace.key))
-            .flatMap((trace, idx) => ({data: trace.data, key: trace.key, id: idx + 1}))
+        const extractData = traces.reduce<TestsetTraceData[]>((acc, trace, idx) => {
+            if (selectedRowKeys.includes(trace.key)) {
+                acc.push({data: trace.data as KeyValuePair, key: trace.key, id: idx + 1})
+            }
+            return acc
+        }, [])
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData as any)
-            setIsTestsetDrawerOpen(true)
+            setTestsetDrawerData(extractData)
         }
     }
 
@@ -562,7 +561,7 @@ const ObservabilityDashboard = () => {
                             Export as CSV
                         </Button>
                         <Button
-                            onClick={() => getMatchingTracesByDataKeys()}
+                            onClick={() => getTestsetTraceData()}
                             icon={<Database size={14} />}
                             disabled={traces.length === 0 || selectedRowKeys.length === 0}
                         >
@@ -653,14 +652,13 @@ const ObservabilityDashboard = () => {
                 />
             </div>
 
-            {isTestsetDrawerOpen && (
+            {testsetDrawerData.length > 0 && (
                 <TestsetDrawer
-                    open={isTestsetDrawerOpen}
+                    open={testsetDrawerData.length > 0}
                     data={testsetDrawerData}
                     onClose={() => {
-                        setSelectedRowKeys([])
                         setTestsetDrawerData([])
-                        setIsTestsetDrawerOpen(false)
+                        setSelectedRowKeys([])
                     }}
                 />
             )}
