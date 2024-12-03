@@ -1,5 +1,5 @@
 import ResultTag from "@/components/ResultTag/ResultTag"
-import {JSSTheme} from "@/lib/Types"
+import {JSSTheme, KeyValuePair} from "@/lib/Types"
 import {ArrowRight, Database, PlusCircle, Rocket, Timer} from "@phosphor-icons/react"
 import {Button, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import React, {useState} from "react"
@@ -87,10 +87,6 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
     const [tab, setTab] = useState("overview")
     const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
-
-    const testsetDrawerData = () => {
-        return [{data: activeTrace.data, key: activeTrace.key, id: 1}]
-    }
 
     const transformDataInputs = (data: any) => {
         return Object.keys(data).reduce((acc, curr) => {
@@ -279,6 +275,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             <Button
                                 className="flex items-center"
                                 onClick={() => setIsTestsetDrawerOpen(true)}
+                                disabled={!activeTrace.key}
                             >
                                 <Database size={14} />
                                 Add to testset
@@ -368,7 +365,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
             {isTestsetDrawerOpen && (
                 <TestsetDrawer
                     open={isTestsetDrawerOpen}
-                    data={testsetDrawerData() as any}
+                    data={[{data: activeTrace.data as KeyValuePair, key: activeTrace.key, id: 1}]}
                     onClose={() => setIsTestsetDrawerOpen(false)}
                 />
             )}

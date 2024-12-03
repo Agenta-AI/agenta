@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
 import {ArrowRight, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {
@@ -55,11 +55,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 type Mapping = {data: string; column: string; newColumn?: string}
-type TraceData = {key: string; data: KeyValuePair; id: number}
 type Preview = {key: string; data: KeyValuePair[]}
+export type TestsetTraceData = {key: string; data: KeyValuePair; id: number}
 type Props = {
     onClose: () => void
-    data: TraceData[]
+    data: TestsetTraceData[]
 } & React.ComponentProps<typeof Drawer>
 
 const TestsetDrawer = ({onClose, data, ...props}: Props) => {
@@ -74,17 +74,18 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     const [isLoading, setIsLoading] = useState(false)
     const [traceData, setTraceData] = useState(data.length > 0 ? data : [])
     const [testset, setTestset] = useState({name: "", id: ""})
-    const [testsetName, setTestsetName] = useState("")
+    const [newTestsetName, setNewTestsetName] = useState("")
     const [editorFormat, setEditorFormat] = useState("JSON")
-    const [tableColumns, setTableColumns] = useState<string[]>([])
-    const [tableRows, setTableRows] = useState<KeyValuePair[]>([])
+    const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<string[]>([])
+    const [selectedTestsetRows, setSelectedTestsetRows] = useState<KeyValuePair[]>([])
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
-    const [dataPreview, setDataPreview] = useState(traceData[0]?.key || "")
+    const [rowDataPreview, setRowDataPreview] = useState(traceData[0]?.key || "")
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
+    const selectedTestsetTestCases = selectedTestsetRows.slice(-5)
     const isMapColumnExist = mappingData.some((mapping) =>
         mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
     )
@@ -113,8 +114,8 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
             if (value && value !== "create") {
                 const data = await fetchTestset(value)
                 if (data?.csvdata?.length) {
-                    setTableColumns(Object.keys(data.csvdata[0]))
-                    setTableRows(data.csvdata)
+                    setSelectedTestsetColumns(Object.keys(data.csvdata[0]))
+                    setSelectedTestsetRows(data.csvdata)
                 }
             }
 
@@ -132,22 +133,22 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     }
 
     const onRemoveTraceData = () => {
-        const removeTrace = traceData.filter((trace) => trace.key !== dataPreview)
+        const removeTrace = traceData.filter((trace) => trace.key !== rowDataPreview)
         setTraceData(removeTrace)
 
         if (removeTrace.length > 0) {
-            const currentIndex = traceData.findIndex((trace) => trace.key === dataPreview)
+            const currentIndex = traceData.findIndex((trace) => trace.key === rowDataPreview)
             // [currentIndex]: Next option in list | [currentIndex - 1]: Previous option if next doesn't exist | [0]: Default to first option
             const nextPreview =
                 removeTrace[currentIndex] || removeTrace[currentIndex - 1] || removeTrace[0]
 
-            setDataPreview(nextPreview.key)
+            setRowDataPreview(nextPreview.key)
 
-            if (dataPreview === preview.key) {
+            if (rowDataPreview === preview.key) {
                 onPreviewOptionChange(nextPreview.key)
             }
         } else {
-            setDataPreview("")
+            setRowDataPreview("")
         }
     }
 
@@ -155,7 +156,9 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         if (!traceData?.length) return ""
 
         const jsonObject = {
-            data: traceData.find((trace) => trace?.key === dataPreview)?.data || traceData[0]?.data,
+            data:
+                traceData.find((trace) => trace?.key === rowDataPreview)?.data ||
+                traceData[0]?.data,
         }
         if (!jsonObject) return ""
 
@@ -165,7 +168,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
             message.error("Failed to convert JSON to YAML. Please ensure the data is valid.")
             return getStringOrJson(jsonObject)
         }
-    }, [editorFormat, traceData, dataPreview])
+    }, [editorFormat, traceData, rowDataPreview])
 
     const mappingOptions = useMemo(() => {
         const uniquePaths = new Set<string>()
@@ -176,14 +179,14 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         })
 
         return Array.from(uniquePaths).map((item) => ({value: item}))
-    }, [data])
+    }, [traceData])
 
     const columnOptions = useMemo(() => {
         const selectedColumns = mappingData
             .map((item) => item.column)
             .filter((col) => col !== "create")
-        return tableColumns.filter((column) => !selectedColumns.includes(column))
-    }, [mappingData, tableColumns])
+        return selectedTestsetColumns.filter((column) => !selectedColumns.includes(column))
+    }, [mappingData, selectedTestsetColumns])
 
     const onMappingOptionChange = ({
         pathName,
@@ -220,15 +223,15 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     }, [mappingData])
 
     const resetStates = () => {
-        setTableColumns([])
-        setTableRows([])
+        setSelectedTestsetColumns([])
+        setSelectedTestsetRows([])
         setShowLastFiveRows(false)
         setMappingData((prev) => prev.map((item) => ({...item, column: "", newColumn: ""})))
         setPreview({key: traceData[0]?.key || "", data: []})
-        setTestsetName("")
+        setNewTestsetName("")
     }
 
-    const mapAndConvertDataInCsvFormat = (traceData: TraceData[]) => {
+    const mapAndConvertDataInCsvFormat = (traceData: TestsetTraceData[]) => {
         return traceData.map((item) => {
             const formattedItem: Record<string, any> = {}
 
@@ -262,17 +265,17 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
             const newTestsetData = mapAndConvertDataInCsvFormat(traceData)
 
             if (isNewTestset) {
-                if (!testsetName) {
+                if (!newTestsetName) {
                     message.error("Please add a Test set name before saving it")
                     return
                 }
 
-                await createNewTestset(testsetName, newTestsetData)
+                await createNewTestset(newTestsetName, newTestsetData)
                 message.success("Test set created successfully")
             } else {
                 await updateTestset(testset.id as string, testset.name, [
                     ...newTestsetData,
-                    ...tableRows,
+                    ...selectedTestsetRows,
                 ])
                 message.success("Test set updated successfully")
             }
@@ -348,8 +351,8 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                     <div className="relative">
                                         <Input
                                             style={{width: elementWidth}}
-                                            value={testsetName}
-                                            onChange={(e) => setTestsetName(e.target.value)}
+                                            value={newTestsetName}
+                                            onChange={(e) => setNewTestsetName(e.target.value)}
                                             placeholder="Test set name"
                                         />
                                         <PencilSimple
@@ -369,8 +372,8 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                             <div className="flex justify-between items-center mb-2">
                                 <Select
                                     style={{width: elementWidth}}
-                                    value={dataPreview}
-                                    onChange={(value) => setDataPreview(value)}
+                                    value={rowDataPreview}
+                                    onChange={(value) => setRowDataPreview(value)}
                                     options={traceData.map((trace) => ({
                                         value: trace?.key,
                                         label: `Span ${trace.id}`,
@@ -386,8 +389,9 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                         >
                                             Remove span{" "}
                                             {
-                                                traceData.find((trace) => trace.key === dataPreview)
-                                                    ?.id
+                                                traceData.find(
+                                                    (trace) => trace.key === rowDataPreview,
+                                                )?.id
                                             }
                                         </Button>
                                     )}
@@ -564,8 +568,8 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                                     setShowLastFiveRows(!showLastFiveRows)
                                                 }
                                             >
-                                                Show last {tableRows.slice(-5).length} test cases in
-                                                test set
+                                                Show last {selectedTestsetTestCases.length} test
+                                                cases in test set
                                             </Checkbox>
                                         )}
                                     </div>
@@ -590,17 +594,19 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                             })}
                                             dataSource={[
                                                 ...preview.data,
-                                                ...(showLastFiveRows ? tableRows.slice(-5) : []),
+                                                ...(showLastFiveRows
+                                                    ? selectedTestsetTestCases
+                                                    : []),
                                             ]}
                                             rowClassName={(_, index) => {
                                                 if (showLastFiveRows) {
                                                     const totalRows =
                                                         preview.data.length +
-                                                        tableRows.slice(-5).length
+                                                        selectedTestsetTestCases.length
 
                                                     if (
                                                         index >=
-                                                        totalRows - tableRows.slice(-5).length
+                                                        totalRows - selectedTestsetTestCases.length
                                                     ) {
                                                         return "!bg-[#fafafa]"
                                                     }
