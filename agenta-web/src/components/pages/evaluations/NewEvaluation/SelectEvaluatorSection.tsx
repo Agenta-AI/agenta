@@ -1,21 +1,25 @@
 import {Evaluator, EvaluatorConfig} from "@/lib/Types"
 import {CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Collapse, Input, Space, Table, Tag} from "antd"
+import {Button, Collapse, Input, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useMemo, useState} from "react"
 
 type SelectEvaluatorSectionProps = {
     evaluatorConfigs: EvaluatorConfig[]
     evaluators: Evaluator[]
+    selectedEvalConfigs: string[]
+    setSelectedEvalConfigs: React.Dispatch<React.SetStateAction<string[]>>
 } & React.ComponentProps<typeof Collapse>
 
 const SelectEvaluatorSection = ({
     evaluatorConfigs,
     evaluators,
+    selectedEvalConfigs,
+    setSelectedEvalConfigs,
     ...props
 }: SelectEvaluatorSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [selectedRows, setSelectedRows] = useState<EvaluatorConfig[]>([])
 
     const columns: ColumnsType<EvaluatorConfig> = [
         // {
@@ -52,6 +56,13 @@ const SelectEvaluatorSection = ({
         )
     }, [searchTerm, evaluatorConfigs])
 
+    const handleRemoveEvalConfig = (configId: string) => {
+        const filterEvalConfig = selectedRows.filter((config) => configId !== config.id)
+
+        setSelectedEvalConfigs(filterEvalConfig.map((e) => e.id))
+        setSelectedRows(filterEvalConfig)
+    }
+
     return (
         <Collapse
             defaultActiveKey={["1"]}
@@ -60,15 +71,34 @@ const SelectEvaluatorSection = ({
                 {
                     key: "1",
                     label: (
-                        <Space>
+                        <div className="flex items-center gap-2">
                             <div>Select Evaluator</div>
-                            <Tag closeIcon={<CloseCircleOutlined />} onClose={() => {}}>
-                                {"<evaluator_name>"}
-                            </Tag>
-                            <Button icon={<PlusOutlined />} size="small">
-                                Create new
-                            </Button>
-                        </Space>
+                            <div className="flex items-center gap-2 flex-1 flex-wrap">
+                                {selectedRows.length
+                                    ? selectedRows.map((config) => (
+                                          <Tag
+                                              key={config.id}
+                                              closeIcon={<CloseCircleOutlined />}
+                                              onClose={() => handleRemoveEvalConfig(config.id)}
+                                              color={config.color}
+                                              className="mr-0"
+                                          >
+                                              {config.name}
+                                          </Tag>
+                                      ))
+                                    : null}
+
+                                <Button
+                                    icon={<PlusOutlined />}
+                                    size="small"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                    }}
+                                >
+                                    Create new
+                                </Button>
+                            </div>
+                        </div>
                     ),
                     extra: (
                         <Input.Search
@@ -87,8 +117,10 @@ const SelectEvaluatorSection = ({
                             rowSelection={{
                                 type: "checkbox",
                                 columnWidth: 48,
-                                onChange: (selectedRowKeys: React.Key[]) => {
-                                    setSelectedRowKeys(selectedRowKeys)
+                                selectedRowKeys: selectedEvalConfigs,
+                                onChange: (selectedRowKeys, selectedRows) => {
+                                    setSelectedRows(selectedRows)
+                                    setSelectedEvalConfigs(selectedRowKeys as string[])
                                 },
                             }}
                             className="ph-no-capture"

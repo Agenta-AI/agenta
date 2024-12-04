@@ -1,37 +1,13 @@
 import {useAppId} from "@/hooks/useAppId"
-import {
-    JSSTheme,
-    LLMRunRateLimit,
-    TestSet,
-    testset,
-    TestsetCreationMode,
-    Variant,
-} from "@/lib/Types"
+import {JSSTheme, LLMRunRateLimit, testset, Variant} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchSingleProfile, fetchVariants} from "@/services/api"
-import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations/api"
+import {createEvalutaiton} from "@/services/evaluations/api"
 import {fetchTestsets} from "@/services/testsets/api"
-import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
-import {
-    Divider,
-    Form,
-    Modal,
-    Select,
-    Spin,
-    Tag,
-    Typography,
-    InputNumber,
-    Input,
-    Row,
-    Col,
-    Switch,
-    Tooltip,
-    Space,
-} from "antd"
-import dayjs from "dayjs"
+import {PlusOutlined} from "@ant-design/icons"
+import {Form, Modal, Spin, Space, message} from "antd"
 import {useAtom} from "jotai"
-import Image from "next/image"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import SelectTestsetSection from "./SelectTestsetSection"
@@ -47,47 +23,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "& .ant-modal-content": {
             height: "100%",
+            display: "flex",
+            flexDirection: "column",
             "& .ant-modal-body": {
-                height: "100%",
                 overflowY: "auto",
+                flex: 1,
                 paddingTop: theme.padding,
                 paddingBottom: theme.padding,
             },
         },
-    },
-    spinContainer: {
-        display: "grid",
-        placeItems: "center",
-        height: "100%",
-    },
-    selector: {
-        width: 300,
-    },
-    evaluationImg: {
-        width: 20,
-        height: 20,
-        marginRight: 12,
-        filter: theme.isDark ? "invert(1)" : "none",
-    },
-    configRow: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    configRowContent: {
-        display: "flex",
-        alignItems: "center",
-    },
-    date: {
-        fontSize: "0.75rem",
-        color: "#8c8c8c",
-    },
-    tag: {
-        transform: "scale(0.8)",
-    },
-    divider: {
-        margin: "1rem -1.5rem",
-        width: "unset",
     },
     collapseContainer: {
         "& .ant-collapse-header": {
@@ -178,8 +122,19 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         setCorrectAnswerColumn(value)
     }
 
-    const onSubmit = () => {
-        // redirect if no llm keys and an AI Critique config is selected
+    const validateForm = () => {
+        if (!selectedTestsetId) {
+            message.error("Please select a test set")
+            return false
+        }
+        if (selectedVariantIds.length === 0) {
+            message.error("Please select app variant")
+            return false
+        }
+        if (selectedEvalConfigs.length === 0) {
+            message.error("Please select evaluator configuration")
+            return false
+        }
         if (
             selectedEvalConfigs.some(
                 (id) =>
@@ -187,8 +142,16 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     "auto_ai_critique",
             ) &&
             redirectIfNoLLMKeys()
-        )
-            return
+        ) {
+            message.error("LLM keys are required for AI Critique configuration")
+            return false
+        }
+        return true
+    }
+
+    const onSubmit = () => {
+        if (!validateForm()) return
+
         setSubmitLoading(true)
         createEvalutaiton(appId, {
             testset_id: selectedTestsetId,
@@ -206,7 +169,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     return (
         <Modal
             title="New Evaluation"
-            onOk={form.submit}
+            onOk={onSubmit}
             okText="Create"
             centered
             width={1200}
@@ -231,6 +194,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     <SelectEvaluatorSection
                         evaluators={evaluators}
                         evaluatorConfigs={evaluatorConfigs}
+                        selectedEvalConfigs={selectedEvalConfigs}
+                        setSelectedEvalConfigs={setSelectedEvalConfigs}
                         className={classes.collapseContainer}
                     />
                 </Space>
