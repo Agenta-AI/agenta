@@ -475,7 +475,8 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                             >
                                                 <Select
                                                     style={{width: elementWidth}}
-                                                    value={data.data}
+                                                    placeholder="Select a mapped data key"
+                                                    value={data.data || undefined}
                                                     onChange={(value) =>
                                                         onMappingOptionChange({
                                                             pathName: "data",
@@ -490,7 +491,8 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                                     {!isNewTestset && (
                                                         <Select
                                                             style={{width: "100%"}}
-                                                            value={data.column}
+                                                            placeholder="Select a column"
+                                                            value={data.column || undefined}
                                                             onChange={(value) =>
                                                                 onMappingOptionChange({
                                                                     pathName: "column",
