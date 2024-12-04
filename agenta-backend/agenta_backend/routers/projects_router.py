@@ -21,6 +21,7 @@ class ProjectsResponse(BaseModel):
     project_name: str
     # is_default_project: bool
     user_role: Optional[str] = None
+    is_demo: Optional[bool] = False
 
 
 router = APIRouter()
@@ -69,6 +70,7 @@ async def get_projects(
                     project_id=project_membership.project.id,
                     project_name=project_membership.project.project_name,
                     user_role=project_membership.role,
+                    is_demo=project_membership.is_demo,
                 )
                 for project_membership in _project_memberships
             ]
