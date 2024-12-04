@@ -3610,13 +3610,13 @@ full = ["httpx (>=0.22.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.7
 
 [[package]]
 name = "supertokens-python"
-version = "0.26.0"
+version = "0.26.1"
 description = "SuperTokens SDK for Python"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "supertokens_python-0.26.0-py3-none-any.whl", hash = "sha256:c7728d8ac1535427dda11ac38bddb3218363e2d2784f11f2e1183c7d53f7c790"},
-    {file = "supertokens_python-0.26.0.tar.gz", hash = "sha256:226c3b1b4c2bf88b01c85ada021c4a0c1fae804f2dc9a3b10cbae99021997c84"},
+    {file = "supertokens_python-0.26.1-py3-none-any.whl", hash = "sha256:e474564b2a05b311847a9887d7716e5a2ded2ead5072b3a5269109629f4c2187"},
+    {file = "supertokens_python-0.26.1.tar.gz", hash = "sha256:c33a82a5a1b8b9e0ac8b5639c7e43fff819bf62952abf23b266512a14c08be90"},
 ]
 
 [package.dependencies]
@@ -4250,4 +4250,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0"
-content-hash = "7d9bbdb39aab6061e60f61e8c0ff9f605a4f6b68b0cf5291a6a89c39802fd8fa"
+content-hash = "f92ef5ed2de1805d0ba8be7f70cf6fcb39d4f30a2e1cf8fb001ebe1b5cf8e439"
