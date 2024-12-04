@@ -16,7 +16,7 @@ const SelectTestsetSection = ({
     setSelectedTestsetId,
     ...props
 }: SelectTestsetSectionProps) => {
-    const [selectedRow, setSelectedRow] = useState<testset | null>(null)
+    const [selectedRows, setSelectedRows] = useState<testset | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
 
     const columns: ColumnsType<testset> = [
@@ -67,7 +67,7 @@ const SelectTestsetSection = ({
 
     const handleRemoveTestset = () => {
         setSelectedTestsetId("")
-        setSelectedRow(null)
+        setSelectedRows(null)
     }
 
     return (
@@ -80,12 +80,12 @@ const SelectTestsetSection = ({
                     label: (
                         <Space>
                             <div>Select Testset</div>
-                            {selectedRow && (
+                            {selectedRows && (
                                 <Tag
                                     closeIcon={<CloseCircleOutlined />}
                                     onClose={handleRemoveTestset}
                                 >
-                                    {selectedRow.name}
+                                    {selectedRows.name}
                                 </Tag>
                             )}
                         </Space>
@@ -107,10 +107,10 @@ const SelectTestsetSection = ({
                             rowSelection={{
                                 type: "radio",
                                 columnWidth: 48,
-                                selectedRowKeys: [selectedRow?._id as React.Key],
-                                onChange: (_, selectedRow) => {
-                                    setSelectedTestsetId(selectedRow[0]._id)
-                                    setSelectedRow(selectedRow[0])
+                                selectedRowKeys: [selectedRows?._id as React.Key],
+                                onChange: (_, selectedRows) => {
+                                    setSelectedTestsetId(selectedRows[0]._id)
+                                    setSelectedRows(selectedRows[0])
                                 },
                             }}
                             data-cy="app-testset-list"
