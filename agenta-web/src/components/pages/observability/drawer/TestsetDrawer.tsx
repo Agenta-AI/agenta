@@ -92,18 +92,21 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     )
 
     // predefind options
-    const customSelectOptions = useMemo(
-        () => [
+    const customSelectOptions = (divider = true) => {
+        return [
             {value: "create", label: "Create New"},
-            {
-                value: "divider",
-                label: <Divider className="!my-1" />,
-                className: "!p-0 !m-0 !min-h-0.5 !cursor-default",
-                disabled: true,
-            },
-        ],
-        [],
-    )
+            ...(divider
+                ? [
+                      {
+                          value: "divider",
+                          label: <Divider className="!my-1" />,
+                          className: "!p-0 !m-0 !min-h-0.5 !cursor-default",
+                          disabled: true,
+                      },
+                  ]
+                : []),
+        ]
+    }
 
     const onTestsetOptionChange = async (option: {label: string; value: string}) => {
         const {value, label} = option
@@ -406,7 +409,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                     }
                                     onChange={onTestsetOptionChange}
                                     options={[
-                                        ...customSelectOptions,
+                                        ...customSelectOptions(listOfTestsets.length > 0),
                                         ...listOfTestsets.map((item: testset) => ({
                                             value: item._id,
                                             label: item.name,
@@ -558,7 +561,9 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                                             }
                                                             options={[
                                                                 ...(testset.id
-                                                                    ? customSelectOptions
+                                                                    ? customSelectOptions(
+                                                                          columnOptions.length > 0,
+                                                                      )
                                                                     : []),
                                                                 ...columnOptions?.map((column) => ({
                                                                     value: column,
