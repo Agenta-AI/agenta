@@ -208,10 +208,10 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
     const onPreviewOptionChange = (value: string) => {
         let newTestsetData
         if (value === "all") {
-            newTestsetData = mapAndConvertDataInCsvFormat(traceData)
+            newTestsetData = mapAndConvertDataInCsvFormat(traceData, "preview")
         } else {
             const selectedTraceData = traceData.filter((trace) => trace.key === value)
-            newTestsetData = mapAndConvertDataInCsvFormat(selectedTraceData)
+            newTestsetData = mapAndConvertDataInCsvFormat(selectedTraceData, "preview")
         }
 
         setPreview({key: value, data: newTestsetData})
@@ -235,8 +235,11 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         setNewTestsetName("")
     }
 
-    const mapAndConvertDataInCsvFormat = (traceData: TestsetTraceData[]) => {
-        return traceData.map((item) => {
+    const mapAndConvertDataInCsvFormat = (
+        traceData: TestsetTraceData[],
+        type: "preview" | "export",
+    ) => {
+        const formattedData = traceData.map((item) => {
             const formattedItem: Record<string, any> = {}
 
             for (const mapping of mappingData) {
@@ -258,15 +261,37 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 }
             }
 
+            for (const column of selectedTestsetColumns) {
+                if (!(column in formattedItem)) {
+                    formattedItem[column] = ""
+                }
+            }
+
             return formattedItem
         })
+
+        if (type === "export" && !isNewTestset) {
+            // add all previous test cases
+            const allKeys = Array.from(new Set(formattedData.flatMap((item) => Object.keys(item))))
+
+            selectedTestsetRows.forEach((row) => {
+                const formattedRow: Record<string, any> = {}
+                for (const key of allKeys) {
+                    formattedRow[key] = row[key] ?? ""
+                }
+
+                formattedData.push(formattedRow)
+            })
+        }
+
+        return formattedData
     }
 
     const onSaveTestset = async () => {
         try {
             setIsLoading(true)
 
-            const newTestsetData = mapAndConvertDataInCsvFormat(traceData)
+            const newTestsetData = mapAndConvertDataInCsvFormat(traceData, "export")
 
             if (isNewTestset) {
                 if (!newTestsetName) {
@@ -277,10 +302,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 await createNewTestset(newTestsetName, newTestsetData)
                 message.success("Test set created successfully")
             } else {
-                await updateTestset(testset.id as string, testset.name, [
-                    ...newTestsetData,
-                    ...selectedTestsetRows,
-                ])
+                await updateTestset(testset.id as string, testset.name, newTestsetData)
                 message.success("Test set updated successfully")
             }
 
@@ -308,6 +330,38 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
             })
         })
     }
+
+    const tableColumns = useMemo(() => {
+        const mappedColumns = mappingData.map((data, idx) => {
+            const columnData =
+                data.column === "create" || !data.column ? data.newColumn : data.column
+
+            return {
+                title: columnData,
+                dataIndex: columnData,
+                key: idx,
+                width: 250,
+                onHeaderCell: () => ({style: {minWidth: 200}}),
+            }
+        })
+
+        const testsetColumns = showLastFiveRows
+            ? selectedTestsetColumns.map((item) => ({
+                  title: item,
+                  dataIndex: item,
+                  key: item,
+                  width: 250,
+                  onHeaderCell: () => ({style: {minWidth: 200}}),
+              }))
+            : []
+
+        // Remove duplicate columns and filter out columns without dataIndex
+        return [...mappedColumns, ...testsetColumns].filter(
+            (column, index, self) =>
+                column.dataIndex &&
+                self.findIndex((c) => c.dataIndex === column.dataIndex) === index,
+        )
+    }, [mappingData, selectedTestsetColumns, showLastFiveRows])
 
     return (
         <>
@@ -610,21 +664,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                     <div>
                                         <Table
                                             className="ph-no-capture"
-                                            columns={mappingData.map((data, idx) => {
-                                                const columnData =
-                                                    data.column === "create" || !data.column
-                                                        ? data.newColumn
-                                                        : data.column
-                                                return {
-                                                    title: columnData,
-                                                    dataIndex: columnData,
-                                                    key: idx,
-                                                    width: 250,
-                                                    onHeaderCell: () => ({
-                                                        style: {minWidth: 200},
-                                                    }),
-                                                }
-                                            })}
+                                            columns={tableColumns}
                                             dataSource={[
                                                 ...preview.data,
                                                 ...(showLastFiveRows
