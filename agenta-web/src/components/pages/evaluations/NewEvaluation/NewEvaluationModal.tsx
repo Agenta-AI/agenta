@@ -224,6 +224,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     <SelectVariantSection
                         variants={variants}
                         usernames={usernames}
+                        selectedVariantIds={selectedVariantIds}
+                        setSelectedVariantIds={setSelectedVariantIds}
                         className={classes.collapseContainer}
                     />
                     <SelectEvaluatorSection
