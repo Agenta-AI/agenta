@@ -9,6 +9,7 @@ type SelectEvaluatorSectionProps = {
     evaluators: Evaluator[]
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: React.Dispatch<React.SetStateAction<string[]>>
+    setIsConfigEvaluatorModalOpen: (val: string) => void
 } & React.ComponentProps<typeof Collapse>
 
 const SelectEvaluatorSection = ({
@@ -16,10 +17,10 @@ const SelectEvaluatorSection = ({
     evaluators,
     selectedEvalConfigs,
     setSelectedEvalConfigs,
+    setIsConfigEvaluatorModalOpen,
     ...props
 }: SelectEvaluatorSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedRows, setSelectedRows] = useState<EvaluatorConfig[]>([])
 
     const columns: ColumnsType<EvaluatorConfig> = [
         // {
@@ -56,11 +57,14 @@ const SelectEvaluatorSection = ({
         )
     }, [searchTerm, evaluatorConfigs])
 
-    const handleRemoveEvalConfig = (configId: string) => {
-        const filterEvalConfig = selectedRows.filter((config) => configId !== config.id)
+    const selectedEvalConfig = useMemo(
+        () => evaluatorConfigs.filter((config) => selectedEvalConfigs.includes(config.id)),
+        [evaluatorConfigs, selectedEvalConfigs],
+    )
 
-        setSelectedEvalConfigs(filterEvalConfig.map((e) => e.id))
-        setSelectedRows(filterEvalConfig)
+    const handleRemoveEvalConfig = (configId: string) => {
+        const filterEvalConfig = selectedEvalConfigs.filter((id) => configId !== id)
+        setSelectedEvalConfigs(filterEvalConfig)
     }
 
     return (
@@ -74,8 +78,8 @@ const SelectEvaluatorSection = ({
                         <div className="flex items-center gap-2">
                             <div>Select Evaluator</div>
                             <div className="flex items-center gap-2 flex-1 flex-wrap">
-                                {selectedRows.length
-                                    ? selectedRows.map((config) => (
+                                {selectedEvalConfig.length
+                                    ? selectedEvalConfig.map((config) => (
                                           <Tag
                                               key={config.id}
                                               closeIcon={<CloseCircleOutlined />}
@@ -93,6 +97,7 @@ const SelectEvaluatorSection = ({
                                     size="small"
                                     onClick={(e) => {
                                         e.stopPropagation()
+                                        setIsConfigEvaluatorModalOpen("open")
                                     }}
                                 >
                                     Create new
@@ -118,8 +123,7 @@ const SelectEvaluatorSection = ({
                                 type: "checkbox",
                                 columnWidth: 48,
                                 selectedRowKeys: selectedEvalConfigs,
-                                onChange: (selectedRowKeys, selectedRows) => {
-                                    setSelectedRows(selectedRows)
+                                onChange: (selectedRowKeys) => {
                                     setSelectedEvalConfigs(selectedRowKeys as string[])
                                 },
                             }}
@@ -130,10 +134,6 @@ const SelectEvaluatorSection = ({
                             scroll={{x: true}}
                             bordered
                             pagination={false}
-                            onRow={(record) => ({
-                                "data-cy": "evaluator-list",
-                                onClick: () => {},
-                            })}
                         />
                     ),
                 },
