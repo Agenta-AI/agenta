@@ -10,3 +10,17 @@ class LifecycleDTO(BaseModel):
     updated_at: Optional[datetime] = None
 
     updated_by_id: Optional[UUID] = None
+
+
+class ProjectDTO(BaseModel):
+    project_id: UUID
+
+
+class UniversionalDTO(BaseModel):
+    id: UUID
+    slug: Optional[str] = None
+
+
+class HeaderDTO(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None

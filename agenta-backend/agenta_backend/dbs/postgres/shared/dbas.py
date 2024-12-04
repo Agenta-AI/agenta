@@ -33,6 +33,7 @@ class LifecycleDBA:
 class UniversionalDBA:
     __abstract__ = True
 
+    id = Column(UUID(as_uuid=True), nullable=False, primary_key=True, default=uuid.uuid4)  # type: ignore
     slug = Column(String, nullable=False)
 
 
