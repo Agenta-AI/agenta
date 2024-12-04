@@ -297,7 +297,9 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         const seenValues = new Set<string>()
 
         return mappingData.some((item) => {
-            const columnValues = [item.column, item.newColumn].filter(Boolean)
+            const columnValues = [item.column, item.newColumn]
+                .filter(Boolean)
+                .filter((value) => value !== "create")
 
             return columnValues.some((value) => {
                 if (seenValues.has(value as string)) return true
