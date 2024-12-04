@@ -1,28 +1,23 @@
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {JSSTheme, testset} from "@/lib/Types"
+import {testset} from "@/lib/Types"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Tag} from "antd"
 import Table, {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useMemo, useState} from "react"
-import {createUseStyles} from "react-jss"
 
 type SelectTestsetSectionProps = {
     testSets: testset[]
+    setSelectedTestsetId: React.Dispatch<React.SetStateAction<string>>
 } & React.ComponentProps<typeof Collapse>
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({}))
-
-const SelectTestsetSection = ({testSets, ...props}: SelectTestsetSectionProps) => {
-    const classes = useStyles()
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+const SelectTestsetSection = ({
+    testSets,
+    setSelectedTestsetId,
+    ...props
+}: SelectTestsetSectionProps) => {
+    const [selectedRow, setSelectedRow] = useState<testset | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
-
-    const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[]) => {
-            setSelectedRowKeys(selectedRowKeys)
-        },
-    }
 
     const columns: ColumnsType<testset> = [
         {
@@ -70,6 +65,11 @@ const SelectTestsetSection = ({testSets, ...props}: SelectTestsetSectionProps) =
         return allTestsets
     }, [searchTerm, testSets])
 
+    const handleRemoveTestset = () => {
+        setSelectedTestsetId("")
+        setSelectedRow(null)
+    }
+
     return (
         <Collapse
             defaultActiveKey={["1"]}
@@ -80,9 +80,14 @@ const SelectTestsetSection = ({testSets, ...props}: SelectTestsetSectionProps) =
                     label: (
                         <Space>
                             <div>Select Testset</div>
-                            <Tag closeIcon={<CloseCircleOutlined />} onClose={() => {}}>
-                                {"<testset_name>"}
-                            </Tag>
+                            {selectedRow && (
+                                <Tag
+                                    closeIcon={<CloseCircleOutlined />}
+                                    onClose={handleRemoveTestset}
+                                >
+                                    {selectedRow.name}
+                                </Tag>
+                            )}
                         </Space>
                     ),
                     extra: (
@@ -102,7 +107,11 @@ const SelectTestsetSection = ({testSets, ...props}: SelectTestsetSectionProps) =
                             rowSelection={{
                                 type: "radio",
                                 columnWidth: 48,
-                                ...rowSelection,
+                                selectedRowKeys: [selectedRow?._id as React.Key],
+                                onChange: (_, selectedRow) => {
+                                    setSelectedTestsetId(selectedRow[0]._id)
+                                    setSelectedRow(selectedRow[0])
+                                },
                             }}
                             data-cy="app-testset-list"
                             className={`ph-no-capture`}

@@ -119,6 +119,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [submitLoading, setSubmitLoading] = useState(false)
     const [showAdvancedConfig, setshowAdvancedConfig] = useState(false)
     const [form] = Form.useForm()
+    const [selectedTestsetId, setSelectedTestsetId] = useState("")
+    const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
+    const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
 
     useEffect(() => {
         const fetchData = async () => {
@@ -175,10 +178,10 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         setCorrectAnswerColumn(value)
     }
 
-    const onSubmit = (values: CreateEvaluationData) => {
+    const onSubmit = () => {
         // redirect if no llm keys and an AI Critique config is selected
         if (
-            values.evaluators_configs.some(
+            selectedEvalConfigs.some(
                 (id) =>
                     evaluatorConfigs.find((config) => config.id === id)?.evaluator_key ===
                     "auto_ai_critique",
@@ -188,9 +191,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             return
         setSubmitLoading(true)
         createEvalutaiton(appId, {
-            testset_id: values.testset_id,
-            variant_ids: values.variant_ids,
-            evaluators_configs: values.evaluators_configs,
+            testset_id: selectedTestsetId,
+            variant_ids: selectedVariantIds,
+            evaluators_configs: selectedEvalConfigs,
             rate_limit: rateLimitValues,
             lm_providers_keys: apiKeyObject(),
             correct_answer_column: correctAnswerColumn,
@@ -215,6 +218,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                 <Space direction="vertical" size={16} className="w-full">
                     <SelectTestsetSection
                         testSets={testSets}
+                        setSelectedTestsetId={setSelectedTestsetId}
                         className={classes.collapseContainer}
                     />
                     <SelectVariantSection
