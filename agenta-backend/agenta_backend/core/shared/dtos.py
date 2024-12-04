@@ -6,19 +6,18 @@ from pydantic import BaseModel
 
 
 class LifecycleDTO(BaseModel):
-    created_at: datetime
+    created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
     updated_by_id: Optional[UUID] = None
 
 
-class ProjectDTO(BaseModel):
-    project_id: UUID
-
-
-class UniversionalDTO(BaseModel):
+class IdentifierDTO(BaseModel):
     id: UUID
-    slug: Optional[str] = None
+
+
+class SlugDTO(BaseModel):
+    slug: str
 
 
 class HeaderDTO(BaseModel):

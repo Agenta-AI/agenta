@@ -30,10 +30,15 @@ class LifecycleDBA:
     )
 
 
-class UniversionalDBA:
+class IdentifierDBA:
     __abstract__ = True
 
-    id = Column(UUID(as_uuid=True), nullable=False, primary_key=True, default=uuid.uuid4)  # type: ignore
+    id = Column(UUID(as_uuid=True), nullable=False)
+
+
+class SlugDBA:
+    __abstract__ = True
+
     slug = Column(String, nullable=False)
 
 
@@ -44,7 +49,7 @@ class HeaderDBA:
     description = Column(String, nullable=True)
 
 
-class VersionedDBA(LifecycleDBA):
+class VersionedDBA:
     __abstract__ = True
 
     slug = Column(String, nullable=False)
