@@ -20,7 +20,6 @@ const SelectVariantSection = ({
     ...props
 }: SelectVariantSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedRows, setSelectedRows] = useState<Variant[]>([])
 
     const columns: ColumnsType<Variant> = [
         {
@@ -104,11 +103,14 @@ const SelectVariantSection = ({
         )
     }, [searchTerm, variants])
 
-    const handleRemoveVariant = (variantId: string) => {
-        const filterVariant = selectedRows.filter((variant) => variantId !== variant.variantId)
+    const selectedVariants = useMemo(
+        () => variants.filter((variant) => selectedVariantIds.includes(variant.variantId)),
+        [variants, selectedVariantIds],
+    )
 
-        setSelectedVariantIds(filterVariant.map((v) => v.variantId))
-        setSelectedRows(filterVariant)
+    const handleRemoveVariant = (variantId: string) => {
+        const filterVariant = selectedVariantIds.filter((id) => variantId !== id)
+        setSelectedVariantIds(filterVariant)
     }
 
     return (
@@ -122,8 +124,8 @@ const SelectVariantSection = ({
                         <Space>
                             <div>Select Variant</div>
                             <Space size={0}>
-                                {selectedRows.length
-                                    ? selectedRows.map((variant) => (
+                                {selectedVariants.length
+                                    ? selectedVariants.map((variant) => (
                                           <Tag
                                               key={variant.variantId}
                                               closeIcon={<CloseCircleOutlined />}
@@ -154,8 +156,7 @@ const SelectVariantSection = ({
                                 type: "checkbox",
                                 columnWidth: 48,
                                 selectedRowKeys: selectedVariantIds,
-                                onChange: (selectedRowKeys, selectedRows) => {
-                                    setSelectedRows(selectedRows)
+                                onChange: (selectedRowKeys) => {
                                     setSelectedVariantIds(selectedRowKeys as string[])
                                 },
                             }}

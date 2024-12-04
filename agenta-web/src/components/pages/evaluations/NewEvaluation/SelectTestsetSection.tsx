@@ -8,15 +8,16 @@ import React, {useMemo, useState} from "react"
 
 type SelectTestsetSectionProps = {
     testSets: testset[]
+    selectedTestsetId: string
     setSelectedTestsetId: React.Dispatch<React.SetStateAction<string>>
 } & React.ComponentProps<typeof Collapse>
 
 const SelectTestsetSection = ({
     testSets,
+    selectedTestsetId,
     setSelectedTestsetId,
     ...props
 }: SelectTestsetSectionProps) => {
-    const [selectedRows, setSelectedRows] = useState<testset | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
 
     const columns: ColumnsType<testset> = [
@@ -67,8 +68,12 @@ const SelectTestsetSection = ({
 
     const handleRemoveTestset = () => {
         setSelectedTestsetId("")
-        setSelectedRows(null)
     }
+
+    const selectedTestset = useMemo(
+        () => testSets.find((testset) => testset._id === selectedTestsetId) || null,
+        [selectedTestsetId, testSets],
+    )
 
     return (
         <Collapse
@@ -80,14 +85,15 @@ const SelectTestsetSection = ({
                     label: (
                         <Space>
                             <div>Select Testset</div>
-                            {selectedRows && (
+                            {selectedTestset && (
                                 <Tag
                                     closeIcon={<CloseCircleOutlined />}
                                     onClose={handleRemoveTestset}
                                 >
-                                    {selectedRows.name}
+                                    {selectedTestset.name}
                                 </Tag>
                             )}
+                            {}
                         </Space>
                     ),
                     extra: (
@@ -107,10 +113,9 @@ const SelectTestsetSection = ({
                             rowSelection={{
                                 type: "radio",
                                 columnWidth: 48,
-                                selectedRowKeys: [selectedRows?._id as React.Key],
-                                onChange: (_, selectedRows) => {
-                                    setSelectedTestsetId(selectedRows[0]._id)
-                                    setSelectedRows(selectedRows[0])
+                                selectedRowKeys: [selectedTestset?._id as React.Key],
+                                onChange: (selectedRowKeys) => {
+                                    setSelectedTestsetId(selectedRowKeys[0] as string)
                                 },
                             }}
                             data-cy="app-testset-list"
