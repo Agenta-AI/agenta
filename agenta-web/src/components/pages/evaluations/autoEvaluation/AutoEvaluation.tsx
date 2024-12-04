@@ -631,6 +631,7 @@ const AutoEvaluation = () => {
                     setNewEvalModalOpen(false)
                     fetchEvaluations()
                 }}
+                setIsConfigEvaluatorModalOpen={setIsConfigEvaluatorModalOpen}
             />
 
             {isConfigEvaluatorModalOpen === "open" && (
