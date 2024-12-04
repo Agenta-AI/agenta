@@ -6,7 +6,7 @@ import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {createEvalutaiton} from "@/services/evaluations/api"
 import {fetchTestsets} from "@/services/testsets/api"
 import {PlusOutlined} from "@ant-design/icons"
-import {Form, Modal, Spin, Space, message} from "antd"
+import {Modal, Spin, Space, message} from "antd"
 import {useAtom} from "jotai"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -49,9 +49,14 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     onSuccess?: () => void
+    setIsConfigEvaluatorModalOpen: (val: string) => void
 } & React.ComponentProps<typeof Modal>
 
-const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
+const NewEvaluationModal: React.FC<Props> = ({
+    onSuccess,
+    setIsConfigEvaluatorModalOpen,
+    ...props
+}) => {
     const classes = useStyles()
     const appId = useAppId()
     const [fetching, setFetching] = useState(false)
@@ -62,7 +67,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [showAdvancedConfig, setshowAdvancedConfig] = useState(false)
-    const [form] = Form.useForm()
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
@@ -70,7 +74,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     useEffect(() => {
         const fetchData = async () => {
             setFetching(true)
-            form.resetFields()
+            setSelectedEvalConfigs([])
+            setSelectedTestsetId("")
+            setSelectedVariantIds([])
 
             try {
                 const [testSets, variants] = await Promise.all([
@@ -122,7 +128,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         setCorrectAnswerColumn(value)
     }
 
-    const validateForm = () => {
+    const validateSubmission = () => {
         if (!selectedTestsetId) {
             message.error("Please select a test set")
             return false
@@ -150,7 +156,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     }
 
     const onSubmit = () => {
-        if (!validateForm()) return
+        if (!validateSubmission()) return
 
         setSubmitLoading(true)
         createEvalutaiton(appId, {
@@ -181,6 +187,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                 <Space direction="vertical" size={16} className="w-full">
                     <SelectTestsetSection
                         testSets={testSets}
+                        selectedTestsetId={selectedTestsetId}
                         setSelectedTestsetId={setSelectedTestsetId}
                         className={classes.collapseContainer}
                     />
@@ -197,6 +204,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         selectedEvalConfigs={selectedEvalConfigs}
                         setSelectedEvalConfigs={setSelectedEvalConfigs}
                         className={classes.collapseContainer}
+                        setIsConfigEvaluatorModalOpen={setIsConfigEvaluatorModalOpen}
                     />
                 </Space>
             </Spin>
