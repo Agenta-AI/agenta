@@ -263,15 +263,6 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Typography.Text>
 
                         <Space>
-                            {/* {!activeTrace.parent && activeTrace.refs?.application?.id && (
-                                <Button
-                                    className="flex items-center"
-                                    href={`/apps/${activeTrace.refs.application?.id}/playground`}
-                                >
-                                    <Rocket size={14} />
-                                    Open in playground
-                                </Button>
-                            )} */}
                             <Button
                                 className="flex items-center"
                                 onClick={() => setIsTestsetDrawerOpen(true)}
@@ -369,14 +360,6 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     onClose={() => setIsTestsetDrawerOpen(false)}
                 />
             )}
-            {/* <Divider type="vertical" className="h-full m-0" />
-            <div className="w-[320px] p-4 flex flex-col gap-4">
-                <Typography.Text className={classes.title}>Evaluation</Typography.Text>
-
-                <Space direction="vertical">
-                    <ResultTag value1="Evaluator Name" value2={"70"} />
-                </Space>
-            </div> */}
         </div>
     )
 }
