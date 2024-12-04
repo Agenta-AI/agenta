@@ -8,11 +8,19 @@ import React, {useMemo, useState} from "react"
 type SelectVariantSectionProps = {
     variants: Variant[]
     usernames: Record<string, string>
+    selectedVariantIds: string[]
+    setSelectedVariantIds: React.Dispatch<React.SetStateAction<string[]>>
 } & React.ComponentProps<typeof Collapse>
 
-const SelectVariantSection = ({variants, usernames, ...props}: SelectVariantSectionProps) => {
+const SelectVariantSection = ({
+    variants,
+    usernames,
+    selectedVariantIds,
+    setSelectedVariantIds,
+    ...props
+}: SelectVariantSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [selectedRows, setSelectedRows] = useState<Variant[]>([])
 
     const columns: ColumnsType<Variant> = [
         {
@@ -96,6 +104,13 @@ const SelectVariantSection = ({variants, usernames, ...props}: SelectVariantSect
         )
     }, [searchTerm, variants])
 
+    const handleRemoveVariant = (variantId: string) => {
+        const filterVariant = selectedRows.filter((variant) => variantId !== variant.variantId)
+
+        setSelectedVariantIds(filterVariant.map((v) => v.variantId))
+        setSelectedRows(filterVariant)
+    }
+
     return (
         <Collapse
             defaultActiveKey={["1"]}
@@ -106,9 +121,19 @@ const SelectVariantSection = ({variants, usernames, ...props}: SelectVariantSect
                     label: (
                         <Space>
                             <div>Select Variant</div>
-                            <Tag closeIcon={<CloseCircleOutlined />} onClose={() => {}}>
-                                {"<variant_name>"}
-                            </Tag>
+                            <Space size={0}>
+                                {selectedRows.length
+                                    ? selectedRows.map((variant) => (
+                                          <Tag
+                                              key={variant.variantId}
+                                              closeIcon={<CloseCircleOutlined />}
+                                              onClose={() => handleRemoveVariant(variant.variantId)}
+                                          >
+                                              {variant.variantName}
+                                          </Tag>
+                                      ))
+                                    : null}
+                            </Space>
                         </Space>
                     ),
                     extra: (
@@ -128,8 +153,10 @@ const SelectVariantSection = ({variants, usernames, ...props}: SelectVariantSect
                             rowSelection={{
                                 type: "checkbox",
                                 columnWidth: 48,
-                                onChange: (selectedRowKeys: React.Key[]) => {
-                                    setSelectedRowKeys(selectedRowKeys)
+                                selectedRowKeys: selectedVariantIds,
+                                onChange: (selectedRowKeys, selectedRows) => {
+                                    setSelectedRows(selectedRows)
+                                    setSelectedVariantIds(selectedRowKeys as string[])
                                 },
                             }}
                             className="ph-no-capture"
