@@ -1,26 +1,27 @@
 import {useLayoutEffect, useRef} from "react"
 
-function useResizeObserver<T extends HTMLDivElement>(
-    callback: (entry: ResizeObserverEntry["contentRect"]) => void,
-) {
+const useResizeObserver = <T extends HTMLDivElement>(
+    callback?: (entry: ResizeObserverEntry["contentRect"]) => void,
+    element?: HTMLElement,
+ ) => {
     const ref = useRef<T>(null)
 
     useLayoutEffect(() => {
-        const element = ref?.current
+        const _element = ref?.current || element
 
-        if (!element) {
+        if (!_element) {
             return
         }
 
         const observer = new ResizeObserver((entries) => {
-            callback(entries[0].contentRect)
+            callback?.(entries[0].contentRect)
         })
 
-        observer.observe(element)
+        observer.observe(_element)
         return () => {
             observer.disconnect()
         }
-    }, [callback, ref])
+    }, [callback, element, ref])
 
     return ref
 }
