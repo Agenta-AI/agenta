@@ -49,7 +49,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     onSuccess?: () => void
-    setIsConfigEvaluatorModalOpen: (val: string) => void
+    setIsConfigEvaluatorModalOpen?: (val: string) => void
 } & React.ComponentProps<typeof Modal>
 
 const NewEvaluationModal: React.FC<Props> = ({

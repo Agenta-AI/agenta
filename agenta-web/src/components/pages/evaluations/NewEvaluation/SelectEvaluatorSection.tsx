@@ -9,7 +9,7 @@ type SelectEvaluatorSectionProps = {
     evaluators: Evaluator[]
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: React.Dispatch<React.SetStateAction<string[]>>
-    setIsConfigEvaluatorModalOpen: (val: string) => void
+    setIsConfigEvaluatorModalOpen?: (val: string) => void
 } & React.ComponentProps<typeof Collapse>
 
 const SelectEvaluatorSection = ({
@@ -97,7 +97,7 @@ const SelectEvaluatorSection = ({
                                     size="small"
                                     onClick={(e) => {
                                         e.stopPropagation()
-                                        setIsConfigEvaluatorModalOpen("open")
+                                        setIsConfigEvaluatorModalOpen?.("open")
                                     }}
                                 >
                                     Create new
