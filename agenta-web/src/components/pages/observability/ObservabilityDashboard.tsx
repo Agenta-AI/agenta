@@ -499,15 +499,13 @@ const ObservabilityDashboard = () => {
     const getTestsetTraceData = () => {
         if (!traces?.length) return []
 
-        const extractData = traces.reduce<TestsetTraceData[]>((acc, trace, idx) => {
-            if (selectedRowKeys.includes(trace.key)) {
-                acc.push({data: trace.data as KeyValuePair, key: trace.key, id: idx + 1})
-            }
-            return acc
-        }, [])
+        const extractData = selectedRowKeys.map((key, idx) => {
+            const node = getNodeById(traces, key as string)
+            return {data: node?.data as KeyValuePair, key: node?.key, id: idx + 1}
+        })
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData)
+            setTestsetDrawerData(extractData as TestsetTraceData[])
         }
     }
 
