@@ -6,20 +6,13 @@ import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
 import {Transition} from "@headlessui/react"
 import {useRouter} from "next/router"
+import { MOBILE_UNOPTIMIZED_APP_ROUTES } from "./assets/constants"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     overlay: {
         background: `${theme.colorBgContainer}`,
     },
 }))
-
-// List of routes where the component should be displayed
-const APP_ROUTES = [
-    "/apps",
-    "/observability",
-    "/settings",
-    "/testsets"
-]
 
 const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
     const [dismissed, setDismissed] = useState(false)
@@ -28,9 +21,9 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
     const {pathname} = useRouter()
 
     const observerCallback = useCallback((bounds: DOMRectReadOnly) => {
-        setShouldDisplay((prevShouldDisplay) => {
+        setShouldDisplay(() => {
             if (dismissed) return false // keep hidden if already dismissed by the user
-            if (!APP_ROUTES.some((route) => pathname.startsWith(route))) return false
+            if (!MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) => pathname.startsWith(route))) return false
             
             return bounds.width < 768
         })
