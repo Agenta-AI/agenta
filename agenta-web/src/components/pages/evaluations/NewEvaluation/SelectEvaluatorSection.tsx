@@ -175,7 +175,7 @@ const SelectEvaluatorSection = ({
                 onCancel={() => setIsEvaluatorsModalOpen(false)}
                 current={current}
                 setCurrent={setCurrent}
-                fromNewEvaluationModalFlag={true}
+                openedFromNewEvaluation={true}
             />
         </>
     )
