@@ -7,7 +7,9 @@ import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
 import {isDemo} from "@/lib/helpers/utils"
-import ApiKeyInput from "../components/ApiKeyInput"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const ApiKeyInput: any = dynamicComponent("pages/app-management/components/ApiKeyInput")
 
 const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
 
@@ -243,9 +245,7 @@ print(response["choices"][0]["message"]["content"])`,
             icon: <PythonOutlined />,
             children: (
                 <div className="flex flex-col gap-6">
-                    {isDemo() && (
-                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
-                    )}
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
                     {openaiCodeBlock.map((command, index) => (
                         <TracingCodeComponent key={index} command={command} index={index} />
@@ -259,9 +259,7 @@ print(response["choices"][0]["message"]["content"])`,
             icon: <FileTs />,
             children: (
                 <div className="flex flex-col gap-6">
-                    {isDemo() && (
-                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
-                    )}
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
                     {litellmCodeBlock.map((command, index) => (
                         <TracingCodeComponent key={index} command={command} index={index} />
@@ -275,9 +273,7 @@ print(response["choices"][0]["message"]["content"])`,
             icon: <CodeBlock />,
             children: (
                 <div className="flex flex-col gap-6">
-                    {isDemo() && (
-                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
-                    )}
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
                     {langChainCodeBlock.map((command, index) => (
                         <TracingCodeComponent key={index} command={command} index={index} />
@@ -291,9 +287,7 @@ print(response["choices"][0]["message"]["content"])`,
             icon: <CodeBlock />,
             children: (
                 <div className="flex flex-col gap-6">
-                    {isDemo() && (
-                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
-                    )}
+                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
 
                     {instructorCodeBlock.map((command, index) => (
                         <TracingCodeComponent key={index} command={command} index={index} />
