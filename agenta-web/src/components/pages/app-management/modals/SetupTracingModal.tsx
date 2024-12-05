@@ -2,12 +2,11 @@ import CopyButton from "@/components/CopyButton/CopyButton"
 import {JSSTheme} from "@/lib/Types"
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
 import {CodeBlock, FileTs, Play} from "@phosphor-icons/react"
-import {Button, Flex, Input, Modal, message, Radio, Space, Tabs, TabsProps, Typography} from "antd"
-import React, {useEffect, useState} from "react"
+import {Button, Flex, Modal, Space, Tabs, TabsProps, Typography} from "antd"
+import React, {useState} from "react"
 import {createUseStyles} from "react-jss"
 import {IBM_Plex_Mono} from "next/font/google"
 import {isDemo} from "@/lib/helpers/utils"
-import {dynamicContext, dynamicService} from "@/lib/helpers/dynamic"
 import ApiKeyInput from "../components/ApiKeyInput"
 
 const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
@@ -30,10 +29,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             lineHeight: theme.lineHeightLG,
         },
         "& .ant-modal-content": {
-            overflow: "hidden",
+            height: "100%",
+            overflowY: "hidden",
             borderRadius: 16,
             padding: 0,
-            height: "100%",
             "& .ant-modal-body": {
                 height: "100%",
             },
@@ -53,10 +52,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     modalBody: {
-        padding: theme.paddingLG,
+        padding: `${theme.paddingSM}px ${theme.paddingLG}px`,
         display: "flex",
         height: "100%",
         flexDirection: "column",
+        overflowY: "auto",
         gap: 24,
         "& .ant-tabs-tab-btn": {
             display: "flex",
@@ -87,23 +87,152 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const {Text, Title} = Typography
 
+const TracingCodeComponent = ({
+    command,
+    index,
+}: {
+    command: {
+        title: string
+        code: string
+    }
+    index: number
+}) => {
+    const classes = useStyles()
+
+    return (
+        <div className="flex flex-col gap-2">
+            <Flex align="center" justify="space-between">
+                <Space>
+                    <Text>{index + 1}.</Text>
+                    <Text>{command.title}</Text>
+                </Space>
+
+                <Space>
+                    <CopyButton buttonText={""} icon text={command.code} />
+                </Space>
+            </Flex>
+
+            <div className={`${classes.command}`}>
+                <pre className="m-0">{command.code}</pre>
+            </div>
+        </div>
+    )
+}
+
 const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
     const classes = useStyles()
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    const listOfCommands = [
+    const openaiCodeBlock = [
         {
-            title: "Install dependencies",
-            code: `pip install -U langchain langchain-openai`,
-            radio: true,
+            title: "Install the required packages:",
+            code: `pip install -U agenta openai opentelemetry-instrumentation-openai`,
         },
         {
-            title: "Configure environment to langsmith",
-            code: `LANGCHAIN_TRACING_V2=true\nLANGCHAIN_ENDPOINT="https://api.smith.langchain.com"\nLANGCHAIN_API_KEY="${apiKeyValue || "<your-api-key>"}"\nLANGCHAIN_PROJECT="pr-terrible-junk-60"`,
+            title: "Initialize Agenta and Instrument OpenAI",
+            code: `import os
+import agenta as ag
+import openai
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+
+os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = ${apiKeyValue || "{API_KEY}"}` : ""}
+
+ag.init()
+OpenAIInstrumentor().instrument()
+
+response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Write a short story about AI."
+)
+
+print(response.choices[0].message.content)`,
+        },
+    ]
+
+    const langChainCodeBlock = [
+        {
+            title: "Install the required packages:",
+            code: `pip install -U agenta openai opentelemetry-instrumentation-langchain langchain langchain_community`,
         },
         {
-            title: "Run LLM, Chat model, or chain. Its trace will be sent to this project",
-            code: `from langchain_openai import ChatOpenAI\nllm = ChatOpenAI()\n\nllm.invoke("Hello, world!")`,
+            title: "Initialize Agenta and Instrument LangChain",
+            code: `import os
+import agenta as ag
+from langchain_community.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
+from opentelemetry.instrumentation.langchain import LangchainInstrumentor
+
+os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = ${apiKeyValue || "{API_KEY}"}` : ""}
+
+ag.init()
+LangchainInstrumentor().instrument()
+
+chat = ChatOpenAI(model="gpt-3.5-turbo")
+
+response = chat([HumanMessage(content="Write a short story about AI.")])
+
+print(response.content)`,
+        },
+    ]
+
+    const litellmCodeBlock = [
+        {
+            title: "Install the required packages:",
+            code: `pip install -U agenta litellm`,
+        },
+        {
+            title: "Initialize Agenta and Instrument LiteLLM",
+            code: `import os
+import agenta as ag
+import litellm
+import asyncio
+
+os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = ${apiKeyValue || "{API_KEY}"}` : ""}
+
+ag.init()
+litellm.callbacks = [ag.callbacks.litellm_handler()]
+
+asyncio.run(
+    litellm.acompletion(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Write a short story about AI."}],
+    )
+)
+
+print(response["choices"][0]["message"]["content"])`,
+        },
+    ]
+
+    const instructorCodeBlock = [
+        {
+            title: "Install the required packages:",
+            code: `pip install -U agenta openai opentelemetry-instrumentation-openai instructor`,
+        },
+        {
+            title: "Initialize Agenta and Instrument LiteLLM",
+            code: `import os
+import agenta as ag
+import openai
+import instructor
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+
+os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""}
+
+ag.init()
+OpenAIInstrumentor().instrument()
+
+client = instructor.from_openai(openai.OpenAI())
+
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Write a short story about AI."}],
+)
+
+print(response["choices"][0]["message"]["content"])`,
         },
     ]
 
@@ -114,37 +243,12 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             icon: <PythonOutlined />,
             children: (
                 <div className="flex flex-col gap-6">
-                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    {isDemo() && (
+                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    )}
 
-                    {listOfCommands.map((command, index) => (
-                        <div className="flex flex-col gap-2" key={index}>
-                            <Flex align="center" justify="space-between">
-                                <Space>
-                                    <Text>{index + 1}.</Text>
-                                    <Text>Install dependencies</Text>
-                                </Space>
-
-                                <Space>
-                                    {command.radio && (
-                                        <Radio.Group
-                                            defaultValue={"python"}
-                                            // defaultValue={appMsgDisplay}
-                                            // onChange={(e) => setAppMsgDisplay(e.target.value)}
-                                        >
-                                            <Radio.Button value="python">Python</Radio.Button>
-                                            <Radio.Button value="typescript">
-                                                TypeScript
-                                            </Radio.Button>
-                                        </Radio.Group>
-                                    )}
-                                    <CopyButton buttonText={""} icon text={command.code} />
-                                </Space>
-                            </Flex>
-
-                            <div className={`${classes.command}`}>
-                                <pre className="m-0">{command.code}</pre>
-                            </div>
-                        </div>
+                    {openaiCodeBlock.map((command, index) => (
+                        <TracingCodeComponent key={index} command={command} index={index} />
                     ))}
                 </div>
             ),
@@ -155,9 +259,13 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             icon: <FileTs />,
             children: (
                 <div className="flex flex-col gap-6">
-                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    {isDemo() && (
+                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    )}
 
-                    <div>LiteLLM</div>
+                    {litellmCodeBlock.map((command, index) => (
+                        <TracingCodeComponent key={index} command={command} index={index} />
+                    ))}
                 </div>
             ),
         },
@@ -167,9 +275,13 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             icon: <CodeBlock />,
             children: (
                 <div className="flex flex-col gap-6">
-                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    {isDemo() && (
+                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    )}
 
-                    <div>LangChain</div>
+                    {langChainCodeBlock.map((command, index) => (
+                        <TracingCodeComponent key={index} command={command} index={index} />
+                    ))}
                 </div>
             ),
         },
@@ -179,9 +291,13 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             icon: <CodeBlock />,
             children: (
                 <div className="flex flex-col gap-6">
-                    <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    {isDemo() && (
+                        <ApiKeyInput apiKeyValue={apiKeyValue} onApiKeyChange={setApiKeyValue} />
+                    )}
 
-                    <div>Instructor</div>
+                    {instructorCodeBlock.map((command, index) => (
+                        <TracingCodeComponent key={index} command={command} index={index} />
+                    ))}
                 </div>
             ),
         },
@@ -199,7 +315,7 @@ const SetupTracingModal = ({...props}: SetupTracingModalProps) => {
             closeIcon={null}
             {...props}
         >
-            <div className="h-full">
+            <div className="h-full flex flex-col">
                 <div className={classes.modalHeader}>
                     <Button
                         onClick={() => props.onCancel?.({} as any)}
