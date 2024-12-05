@@ -1,5 +1,5 @@
 import {type PropsWithChildren, useState, useCallback} from "react"
-import {Typography, Button} from "antd"
+import {Typography, Button, theme} from "antd"
 import clsx from "clsx"
 import useResizeObserver from "@/hooks/useResizeObserver"
 import {createUseStyles} from "react-jss"
@@ -14,20 +14,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+const {useToken} = theme
+
 const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
     const [dismissed, setDismissed] = useState(false)
     const [shouldDisplay, setShouldDisplay] = useState(false)
     const {overlay} = useStyles()
     const {pathname} = useRouter()
+    const {token} = useToken()
 
     const observerCallback = useCallback((bounds: DOMRectReadOnly) => {
         setShouldDisplay(() => {
             if (dismissed) return false // keep hidden if already dismissed by the user
             if (!MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) => pathname.startsWith(route))) return false
             
-            return bounds.width < 768
+            return bounds.width < token.screenMD
         })
-    }, [dismissed, pathname])
+    }, [dismissed, pathname, token.screenMD])
     
     useResizeObserver(
         observerCallback,
