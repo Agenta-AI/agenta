@@ -49,7 +49,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                             size="small"
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
-                            href={`/apps/${appId}/playground?variant=${env.deployed_variant_name}`}
+                            href={`/apps/${appId}/playground?variant=${env.deployed_variant_name}&revision=${env.revision}`}
                         />
                     </div>
                     {selectedDeployedVariant && (

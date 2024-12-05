@@ -131,7 +131,7 @@ const DeploymentOverview = ({
                                                     e.domEvent.stopPropagation()
                                                     if (env.deployed_variant_name) {
                                                         router.push(
-                                                            `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
+                                                            `/apps/${appId}/playground?variant=${env.deployed_variant_name}&revision=${env.revision}`,
                                                         )
                                                     } else {
                                                         router.push(`/apps/${appId}/playground`)
