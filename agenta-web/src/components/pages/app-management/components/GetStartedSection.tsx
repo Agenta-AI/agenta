@@ -84,7 +84,7 @@ const GetStartedSection = ({
                     <div className="flex items-center justify-between">
                         <Text>Create New Prompt</Text>
 
-                        <Tooltip title="Create New Prompt.">
+                        <Tooltip title="Create new prompt and edit it in the playground">
                             <Info size={16} />
                         </Tooltip>
                     </div>
@@ -98,7 +98,7 @@ const GetStartedSection = ({
                     <div className="flex items-center justify-between">
                         <Text>Set Up Tracing</Text>
 
-                        <Tooltip title="Set Up Tracing.">
+                        <Tooltip title="Start instrumenting your LLM application">
                             <Info size={16} />
                         </Tooltip>
                     </div>
@@ -112,7 +112,7 @@ const GetStartedSection = ({
                     <div className="flex items-center justify-between">
                         <Text>Create Custom Workflow</Text>
 
-                        <Tooltip title="Create Custom Workflow.">
+                        <Tooltip title="Create a playground for your custom workflows (RAG, agents..)">
                             <Info size={16} />
                         </Tooltip>
                     </div>
