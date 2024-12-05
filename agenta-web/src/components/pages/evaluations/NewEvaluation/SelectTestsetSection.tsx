@@ -100,7 +100,6 @@ const SelectTestsetSection = ({
                         <Input.Search
                             placeholder="Search"
                             className="w-[300px] mx-6"
-                            allowClear
                             onClick={(event) => {
                                 event.stopPropagation()
                             }}
