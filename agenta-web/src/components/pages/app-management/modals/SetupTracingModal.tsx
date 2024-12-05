@@ -317,7 +317,10 @@ print(response["choices"][0]["message"]["content"])`,
                         icon={<CloseOutlined />}
                     />
                     <Text>Set up tracing</Text>
-                    <Button>
+                    <Button
+                        target="_blank"
+                        href="https://docs.agenta.ai/observability/observability-sdk"
+                    >
                         <Play />
                         Tutorial
                     </Button>
