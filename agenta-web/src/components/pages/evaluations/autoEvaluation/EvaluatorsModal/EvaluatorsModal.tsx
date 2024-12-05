@@ -16,7 +16,7 @@ import {useLocalStorage} from "usehooks-ts"
 type EvaluatorsModalProps = {
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-    fromNewEvaluationModalFlag?: boolean
+    openedFromNewEvaluation?: boolean
 } & React.ComponentProps<typeof Modal>
 
 const useStyles = createUseStyles(() => ({
@@ -43,7 +43,7 @@ const useStyles = createUseStyles(() => ({
 const EvaluatorsModal = ({
     current,
     setCurrent,
-    fromNewEvaluationModalFlag = false,
+    openedFromNewEvaluation = false,
     ...props
 }: EvaluatorsModalProps) => {
     const appId = useAppId()
@@ -152,7 +152,7 @@ const EvaluatorsModal = ({
                     onSuccess={() => {
                         evalConfigFetcher()
                         setEditMode(false)
-                        if (fromNewEvaluationModalFlag) {
+                        if (openedFromNewEvaluation) {
                             props.onCancel?.({} as any)
                         } else {
                             setCurrent(0)
