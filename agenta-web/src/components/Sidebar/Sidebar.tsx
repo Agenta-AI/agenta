@@ -381,21 +381,18 @@ const Sidebar: React.FC = () => {
                                         {
                                             key: "logout",
                                             label: (
-                                                <div
-                                                    className="flex items-center gap-2"
-                                                    onClick={() => {
-                                                        AlertPopup({
-                                                            title: "Logout",
-                                                            message:
-                                                                "Are you sure you want to logout?",
-                                                            onOk: logout,
-                                                        })
-                                                    }}
-                                                >
+                                                <div className="flex items-center gap-2">
                                                     <SignOut size={16} />
                                                     <Text>Logout</Text>
                                                 </div>
                                             ),
+                                            onClick: () => {
+                                                AlertPopup({
+                                                    title: "Logout",
+                                                    message: "Are you sure you want to logout?",
+                                                    onOk: logout,
+                                                })
+                                            },
                                         },
                                     ],
                                     selectedKeys: [selectedOrg.id],
