@@ -46,7 +46,7 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
-import {debounce} from "lodash"
+import debounce from "lodash/debounce"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 
