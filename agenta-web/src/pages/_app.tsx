@@ -9,6 +9,7 @@ import {PostHogProvider} from "posthog-js/react"
 
 import "@/styles/globals.css"
 import Layout from "@/components/Layout/Layout"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import ThemeContextProvider from "@/components/Layout/ThemeContextProvider"
 import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
@@ -17,12 +18,7 @@ import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
 
-const NoMobilePageWrapper = dynamic(
-    () => import("@/components/NoMobilePageWrapper/NoMobilePageWrapper"),
-    {
-        ssr: false,
-    },
-)
+const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 
 const inter = Inter({
     subsets: ["latin"],
