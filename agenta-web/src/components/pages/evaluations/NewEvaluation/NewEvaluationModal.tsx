@@ -49,14 +49,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 type Props = {
     onSuccess?: () => void
-    setIsConfigEvaluatorModalOpen?: (val: string) => void
 } & React.ComponentProps<typeof Modal>
 
-const NewEvaluationModal: React.FC<Props> = ({
-    onSuccess,
-    setIsConfigEvaluatorModalOpen,
-    ...props
-}) => {
+const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const classes = useStyles()
     const appId = useAppId()
     const [fetching, setFetching] = useState(false)
@@ -204,7 +199,6 @@ const NewEvaluationModal: React.FC<Props> = ({
                         selectedEvalConfigs={selectedEvalConfigs}
                         setSelectedEvalConfigs={setSelectedEvalConfigs}
                         className={classes.collapseContainer}
-                        setIsConfigEvaluatorModalOpen={setIsConfigEvaluatorModalOpen}
                     />
                 </Space>
             </Spin>

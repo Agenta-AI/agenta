@@ -142,7 +142,6 @@ const SelectVariantSection = ({
                         <Input.Search
                             placeholder="Search"
                             className="w-[300px] mx-6"
-                            allowClear
                             onClick={(event) => {
                                 event.stopPropagation()
                             }}
@@ -157,7 +156,17 @@ const SelectVariantSection = ({
                                 columnWidth: 48,
                                 selectedRowKeys: selectedVariantIds,
                                 onChange: (selectedRowKeys) => {
-                                    setSelectedVariantIds(selectedRowKeys as string[])
+                                    const currentSelected = new Set(selectedVariantIds)
+
+                                    filteredVariant.forEach((item) => {
+                                        if (selectedRowKeys.includes(item.variantId)) {
+                                            currentSelected.add(item.variantId)
+                                        } else {
+                                            currentSelected.delete(item.variantId)
+                                        }
+                                    })
+
+                                    setSelectedVariantIds(Array.from(currentSelected))
                                 },
                             }}
                             className="ph-no-capture"
