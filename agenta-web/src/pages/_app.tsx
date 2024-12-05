@@ -17,9 +17,12 @@ import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
 
-const NoMobilePageWrapper = dynamic(() => import("@/components/NoMobilePageWrapper/NoMobilePageWrapper"), {
-    ssr: false
-})
+const NoMobilePageWrapper = dynamic(
+    () => import("@/components/NoMobilePageWrapper/NoMobilePageWrapper"),
+    {
+        ssr: false,
+    },
+)
 
 const inter = Inter({
     subsets: ["latin"],

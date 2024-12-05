@@ -6,7 +6,7 @@ import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
 import {Transition} from "@headlessui/react"
 import {useRouter} from "next/router"
-import { MOBILE_UNOPTIMIZED_APP_ROUTES } from "./assets/constants"
+import {MOBILE_UNOPTIMIZED_APP_ROUTES} from "./assets/constants"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     overlay: {
@@ -23,19 +23,20 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
     const {pathname} = useRouter()
     const {token} = useToken()
 
-    const observerCallback = useCallback((bounds: DOMRectReadOnly) => {
-        setShouldDisplay(() => {
-            if (dismissed) return false // keep hidden if already dismissed by the user
-            if (!MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) => pathname.startsWith(route))) return false
-            
-            return bounds.width < token.screenMD
-        })
-    }, [dismissed, pathname, token.screenMD])
-    
-    useResizeObserver(
-        observerCallback,
-        typeof window !== "undefined" ? document.body : undefined,
+    const observerCallback = useCallback(
+        (bounds: DOMRectReadOnly) => {
+            setShouldDisplay(() => {
+                if (dismissed) return false // keep hidden if already dismissed by the user
+                if (!MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) => pathname.startsWith(route)))
+                    return false
+
+                return bounds.width < token.screenMD
+            })
+        },
+        [dismissed, pathname, token.screenMD],
     )
+
+    useResizeObserver(observerCallback, typeof window !== "undefined" ? document.body : undefined)
 
     const handleDismiss = () => {
         setDismissed(true)
