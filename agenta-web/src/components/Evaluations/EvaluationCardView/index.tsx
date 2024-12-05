@@ -16,7 +16,7 @@ import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestin
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 import {useLocalStorage} from "usehooks-ts"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
-import {debounce} from "lodash"
+import debounce from "lodash/debounce"
 import {EvaluationType} from "@/lib/enums"
 import ParamsForm from "@/components/Playground/ParamsForm/ParamsForm"
 import {useVariants} from "@/lib/hooks/useVariant"

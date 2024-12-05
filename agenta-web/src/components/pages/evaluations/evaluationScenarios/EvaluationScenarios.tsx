@@ -31,7 +31,7 @@ import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
-import _ from "lodash"
+import uniqBy from "lodash/uniqBy"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
@@ -85,7 +85,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         }
     }
 
-    const uniqueCorrectAnswers: CorrectAnswer[] = _.uniqBy(
+    const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(
         scenarios[0]?.correct_answers || [],
         "key",
     )
