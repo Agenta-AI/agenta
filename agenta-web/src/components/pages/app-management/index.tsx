@@ -17,7 +17,6 @@ import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
 import dayjs from "dayjs"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
-import DemoApplicationsSection from "./components/DemoApplicationsSection"
 import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import SetupTracingModal from "./modals/SetupTracingModal"
@@ -25,6 +24,9 @@ import ResultComponent from "@/components/ResultComponent/ResultComponent"
 
 const ObservabilityDashboardSection: any = dynamicComponent(
     "pages/app-management/components/ObservabilityDashboardSection",
+)
+const DemoApplicationsSection: any = dynamicComponent(
+    "pages/app-management/components/DemoApplicationsSection",
 )
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
