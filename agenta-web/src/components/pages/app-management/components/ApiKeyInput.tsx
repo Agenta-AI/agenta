@@ -46,7 +46,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
 
     return (
         <Space direction="vertical">
-            <Text>Use any of your api keys {isDemo() ? "or generate a new one" : ""}</Text>
+            <Text>Use any of your api keys or generate a new one</Text>
             <Space>
                 <Input
                     className="w-[300px]"
@@ -54,11 +54,10 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                     value={apiKeyValue}
                     onChange={(e) => onApiKeyChange(e.target.value)}
                 />
-                {isDemo() && (
-                    <Button type="primary" loading={isLoadingApiKey} onClick={handleGenerateApiKey}>
-                        Generate API Key
-                    </Button>
-                )}
+
+                <Button type="primary" loading={isLoadingApiKey} onClick={handleGenerateApiKey}>
+                    Generate API Key
+                </Button>
             </Space>
         </Space>
     )
