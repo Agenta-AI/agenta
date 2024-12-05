@@ -173,6 +173,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             onOk={onSubmit}
             okText="Create"
             centered
+            destroyOnClose
             width={1200}
             className={classes.modalContainer}
             okButtonProps={{icon: <PlusOutlined />, loading: submitLoading}}
