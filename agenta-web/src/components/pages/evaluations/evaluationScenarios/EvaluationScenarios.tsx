@@ -85,10 +85,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         }
     }
 
-    const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(
-        scenarios[0]?.correct_answers || [],
-        "key",
-    )
+    const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(scenarios[0]?.correct_answers || [], "key")
     const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
