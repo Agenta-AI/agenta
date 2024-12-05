@@ -3,7 +3,7 @@ import {useLayoutEffect, useRef} from "react"
 const useResizeObserver = <T extends HTMLDivElement>(
     callback?: (entry: ResizeObserverEntry["contentRect"]) => void,
     element?: HTMLElement,
- ) => {
+) => {
     const ref = useRef<T>(null)
 
     useLayoutEffect(() => {
