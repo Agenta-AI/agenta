@@ -45,9 +45,13 @@ const HelpAndSupportSection = () => {
             </Space>
 
             <div className="flex items-center w-full gap-4">
-                <Link href="https://docs.agenta.ai/" target="_blank" className={classes.helperCard}>
+                <Link
+                    href="https://docs.agenta.ai/prompt-management/quick-start"
+                    target="_blank"
+                    className={classes.helperCard}
+                >
                     <Code size={24} />
-                    <Text>Learn how to create a prompt</Text>
+                    <Text>Learn how to manage prompts</Text>
                     <ArrowRight size={18} />
                 </Link>
                 <Link className={classes.helperCard} href="https://docs.agenta.ai/" target="_blank">
