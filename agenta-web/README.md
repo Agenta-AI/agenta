@@ -2,4 +2,177 @@
 
 This directory contains the code source for the web app for Agenta AI.
 
+## Installation
+
 Please see the Readme.md in the main dir for installation and usage instructions.
+
+## Configuration for Better Development Experience
+
+### Visual Studio Code Users
+
+To have a better experience while working on the client application, you can configure certain plugins in your workspace `settings.json`.
+
+#### ESLint
+
+To ensure ESLint functions properly, add the following configuration:
+
+```json
+{
+    "eslint.workingDirectories": [
+        {
+            "mode": "auto"
+        }
+    ]
+}
+```
+
+#### Prettier
+
+To ensure Prettier functions properly, add the following configuration:
+
+```json
+{
+    "prettier.prettierPath": "./agenta-web/node_modules/prettier"
+}
+```
+
+## Contribution Guidelines
+
+### Folder Structure
+
+Below is the folder structure of the `./agenta-web/src` directory:
+
+```text
+agenta-web/src
+├── assets
+│   ├── constants.ts
+│   ├── utils.ts
+│   ├── UIElement1.tsx
+├── components
+│   ├── Component1
+│   │   ├── assets
+│   │   │   ├── constants.ts
+│   │   │   ├── utils.ts
+│   │   │   ├── Component1UIElement.tsx
+│   │   ├── Component.tsx
+│   ├── hooks
+│   │   ├── useComponent1Hook.ts
+│   │   ├── types.d.ts
+├── hooks
+│   ├── useSharedHook1.ts
+│   ├── useSharedHook2.ts
+├── pages
+│   ├── Home
+│   ├── About
+│   ├── Contact
+├── utils
+├── store
+│   ├── atoms
+│   │   ├── globalAtoms.ts
+│   ├── context
+│   │   ├── GlobalContext.tsx
+├── modules
+│   ├── Module1
+│   │   ├── assets
+│   │   │   ├── constants.ts
+│   │   │   ├── Module1UIElement.tsx
+│   │   ├── store
+│   │   │   ├── atoms
+│   │   │   │   ├── moduleAtoms.ts
+│   │   │   ├── context
+│   │   │   │   ├── ModuleContext.tsx
+│   ├── components
+│   │   │   ├── ModuleComponent1
+│   │   │   │   ├── assets
+│   │   │   │   │   ├── constants.ts
+│   │   │   │   │   ├── utils.ts
+│   │   │   │   │   ├── ModuleComponent1UIElement.tsx
+│   │   │   │   ├── Component.tsx
+│   │   │   │   ├── hooks
+│   │   │   │   │   ├── useModuleComponent1Hook.ts
+│   │   │   │   │   ├── types.d.ts
+│   │   │   ├── ModuleComponent2.tsx
+│   │   ├── hooks
+│   │   │   ├── useModuleHook1.ts
+│   │   │   ├── useModuleHook2.ts
+│   │   ├── Module.tsx
+│   │   ├── types.d.ts
+│   ├── Module2
+│   │   ├── assets
+│   │   │   ├── constants.ts
+│   │   │   ├── utils.ts
+│   │   │   ├── Module2UIElement.tsx
+│   │   ├── components
+│   │   │   ├── ModuleComponent1.tsx
+│   │   ├── hooks
+│   │   │   ├── useModuleHook1.ts
+│   │   ├── Module.tsx
+│   │   ├── types.d.ts
+└── global.d.ts
+```
+
+### Architecture Overview
+
+Our folder structure follows a module-based architecture that prioritizes maintainability, reusability, and clear separation of concerns.
+
+#### Core Principles
+
+1. **Modular Organization**
+   - Modules represent distinct feature areas (similar to pages)
+   - Each module is self-contained with its own components, hooks, and assets
+   - Shared functionality is elevated to appropriate hierarchy levels
+
+2. **Component Structure**
+   - Components are organized by their scope of use
+   - Each component may contain:
+     - Presentational logic (`Component.tsx`)
+     - UI-only subcomponents (`assets/*.tsx`)
+     - Component-specific hooks (`hooks/*.ts`)
+     - Local constants and utilities (`assets/*.ts`)
+     - Type definitions (`types.d.ts`)
+
+3. **Code Movement Guidelines**
+   The following rules determine where code should live:
+   - Module-specific code stays within the module
+   - Components used across multiple modules move to root `/components`
+   - Hooks used across multiple modules move to root `/hooks`
+   - UI elements, constants, or utilities used across modules move to root `/assets`
+   - Types used across modules move to root `types.d.ts`
+
+#### State Management
+
+1. **Store Organization**
+   - Each module can have its own `store` folder containing:
+     - Jotai atoms for reactive state
+     - Context providers for complex state/dependency injection
+   - Global store at root level for cross-module state
+
+2. **State Movement Guidelines**
+   - State used only within a component stays as local state
+   - State shared between components in a module uses module-level store
+   - State shared across modules moves to root `/store`
+   - Consider these factors when choosing state location:
+     - Scope of state usage
+     - Frequency of updates
+     - Performance implications
+     - Data persistence requirements
+
+3. **State Management Tools**
+   - Prefer Jotai atoms for simple reactive state
+   - Use Context for complex state with multiple consumers
+   - Local component state for UI-only concerns
+
+#### Implementation Strategy
+
+- **Current Approach**: Gradual adoption during regular development
+- **Migration**: Update components to follow this structure as they are modified
+- **No Big Bang**: Avoid large-scale refactoring
+- **Progressive Enhancement**: Easy to implement incrementally
+
+This structure supports:
+
+- Clear ownership and responsibility
+- Easy code review and modification
+- Identification of reusable patterns
+- Natural code organization based on usage
+- Scalable architecture that grows with the application
