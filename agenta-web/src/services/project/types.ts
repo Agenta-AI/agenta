@@ -5,4 +5,6 @@ export interface ProjectsResponse {
     project_name: string
     user_role?: string | null
     is_demo?: boolean | null
+    organization_id?: string | null
+    organization_name?: string | null
 }

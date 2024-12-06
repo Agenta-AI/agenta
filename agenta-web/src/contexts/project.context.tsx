@@ -10,6 +10,7 @@ export const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
 
 type ProjectContextType = {
     project: ProjectsResponse | null
+    projects: ProjectsResponse[]
     isProjectId: boolean
     projectId: string
     isLoading: boolean
@@ -19,6 +20,7 @@ type ProjectContextType = {
 
 const initialValues: ProjectContextType = {
     project: null,
+    projects: [],
     isProjectId: false,
     projectId: "",
     isLoading: false,
@@ -36,6 +38,7 @@ export const getCurrentProject = () => projectContextValues
 
 const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [project, setProject] = useStateCallback<ProjectsResponse | null>(null)
+    const [projects, setProjects] = useState<ProjectsResponse[]>([])
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const [isLoading, setIsLoading] = useState(false)
     const {doesSessionExist} = useSession()
@@ -63,6 +66,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 : data[0] || null
 
             setProject(_project, onSuccess)
+            setProjects(data)
         } catch (error) {
             console.error(error)
             setProject(null)
@@ -82,6 +86,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     }
 
     projectContextValues.project = project
+    projectContextValues.projects = projects
     projectContextValues.isLoading = isLoading
     projectContextValues.isProjectId = isProjectId
     projectContextValues.projectId = projectId
@@ -90,6 +95,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         <ProjectContext.Provider
             value={{
                 project,
+                projects,
                 isProjectId,
                 projectId,
                 isLoading,
