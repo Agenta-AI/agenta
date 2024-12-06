@@ -2,7 +2,7 @@ from enum import Enum
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 from agenta_backend.utils import traces
 from agenta_backend.models.api.api_models import Result
@@ -293,8 +293,14 @@ class NewEvaluation(BaseModel):
     evaluators_configs: List[str]
     testset_id: str
     rate_limit: LLMRunRateLimit
-    lm_providers_keys: Optional[Dict[LMProvidersEnum, str]] = None
+    lm_providers_keys: Optional[Dict[str, str]] = None
     correct_answer_column: Optional[str] = None
+
+    @field_validator("lm_providers_keys", mode="after")
+    def validate_lm_providers_keys(cls, value):
+        if value is not None:
+            return {LMProvidersEnum(key): v for key, v in value.items()}
+        return value
 
 
 class NewEvaluatorConfig(BaseModel):
