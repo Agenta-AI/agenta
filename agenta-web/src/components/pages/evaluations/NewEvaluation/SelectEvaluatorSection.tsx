@@ -130,6 +130,7 @@ const SelectEvaluatorSection = ({
                             <Input.Search
                                 placeholder="Search"
                                 className="w-[300px]"
+                                data-cy="evaluation-search-evaluator"
                                 onClick={(event) => {
                                     event.stopPropagation()
                                 }}
@@ -158,6 +159,7 @@ const SelectEvaluatorSection = ({
                                     },
                                 }}
                                 className="ph-no-capture"
+                                data-cy="evaluation-evaluator-table"
                                 columns={columns}
                                 rowKey={"id"}
                                 dataSource={filteredEvalConfigs}

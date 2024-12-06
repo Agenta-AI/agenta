@@ -117,7 +117,7 @@ const SelectTestsetSection = ({
                                     setSelectedTestsetId(selectedRowKeys[0] as string)
                                 },
                             }}
-                            data-cy="app-testset-list"
+                            data-cy="evaluation-testset-table"
                             className={`ph-no-capture`}
                             columns={columns}
                             dataSource={filteredTestset}

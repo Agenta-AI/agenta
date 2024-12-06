@@ -171,6 +171,7 @@ const SelectVariantSection = ({
                             }}
                             className="ph-no-capture"
                             rowKey={"variantId"}
+                            data-cy="evaluation-variant-table"
                             columns={columns}
                             dataSource={filteredVariant}
                             scroll={{x: true}}
