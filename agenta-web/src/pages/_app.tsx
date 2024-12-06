@@ -2,12 +2,14 @@ import {useEffect} from "react"
 import type {AppProps} from "next/app"
 import {useRouter} from "next/router"
 import Head from "next/head"
+import dynamic from "next/dynamic"
 
 import posthog from "posthog-js"
 import {PostHogProvider} from "posthog-js/react"
 
 import "@/styles/globals.css"
 import Layout from "@/components/Layout/Layout"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import ThemeContextProvider from "@/components/Layout/ThemeContextProvider"
 import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
@@ -15,6 +17,8 @@ import ProjectContextProvider from "@/contexts/project.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
+
+const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 
 const inter = Inter({
     subsets: ["latin"],
@@ -60,6 +64,7 @@ export default function App({Component, pageProps}: AppProps) {
                                 <AppContextProvider>
                                     <Layout>
                                         <Component {...pageProps} />
+                                        <NoMobilePageWrapper />
                                     </Layout>
                                 </AppContextProvider>
                             </ProjectContextProvider>
