@@ -99,7 +99,7 @@ const SelectTestsetSection = ({
                     extra: (
                         <Input.Search
                             placeholder="Search"
-                            className="w-[300px] mx-6"
+                            className="w-[300px]"
                             onClick={(event) => {
                                 event.stopPropagation()
                             }}
