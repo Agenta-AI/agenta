@@ -1,5 +1,5 @@
-import React, {useEffect, useMemo} from "react"
-import {Breadcrumb, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
+import React, {useEffect, useMemo, useState} from "react"
+import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -18,6 +18,7 @@ import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
 import {useProjectData} from "@/contexts/project.context"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -90,8 +91,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontSize: 12,
         lineHeight: "20px",
         fontWeight: 500,
-        "& span": {
+        "& .ant-btn": {
             fontWeight: 600,
+            color: "#fff",
+            padding: 0,
         },
     },
 }))
@@ -105,13 +108,22 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {appTheme} = useAppTheme()
     const {currentApp} = useAppsData()
     const [footerRef, {height: footerHeight}] = useElementSize()
-    const {project} = useProjectData()
+    const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
     const [modal, contextHolder] = Modal.useModal()
+
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {changeSelectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -185,6 +197,13 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const isAuthRoute =
         router.pathname.includes("/auth") || router.pathname.includes("/post-signup")
 
+    const handleBackToWorkspaceSwitch = () => {
+        const project = projects.find((p) => p.user_role === "owner")
+        if (project && !project.is_demo) {
+            changeSelectedOrg(project.organization_id)
+        }
+    }
+
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
@@ -202,7 +221,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             {project?.is_demo && (
                                 <div className={classes.banner}>
                                     You are viewing demo workspace. To go back to your workspace,{" "}
-                                    <span>Click here.</span>
+                                    <Button type="link" onClick={handleBackToWorkspaceSwitch}>
+                                        Click here.
+                                    </Button>
                                 </div>
                             )}
                             <Layout hasSider className={classes.layout}>
