@@ -151,7 +151,11 @@ export async function callVariant(
             return response
         })
         .catch(async (error) => {
-            console.log("Unsecure call to LLM App failed:", error?.status)
+            console.log("Unsecure call to LLM App failed:", error)
+
+            if (error?.response?.status !== 401) {
+                throw error
+            }
 
             let response = await axios
                 .post(secure_url, requestBody, {
@@ -163,7 +167,9 @@ export async function callVariant(
                     return response
                 })
                 .catch((error) => {
-                    console.log("Secure call to LLM App failed:", error?.status)
+                    console.log("Secure call to LLM App failed:", error)
+
+                    throw error
                 })
 
             return response
@@ -200,7 +206,11 @@ export const fetchVariantParametersFromOpenAPI = async (
             return response
         })
         .catch(async (error) => {
-            console.log("Unsecure call to LLM App failed:", error?.status)
+            console.log("Unsecure call to LLM App failed:", error)
+
+            if (error?.response?.status !== 401) {
+                throw error
+            }
 
             let response = await axios
                 .get(secure_url, {
@@ -211,7 +221,9 @@ export const fetchVariantParametersFromOpenAPI = async (
                     return response
                 })
                 .catch((error) => {
-                    console.log("Secure call to LLM App failed:", error?.status)
+                    console.log("Secure call to LLM App failed:", error)
+
+                    throw error
                 })
 
             return response
