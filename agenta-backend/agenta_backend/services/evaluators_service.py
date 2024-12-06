@@ -815,7 +815,7 @@ def compare_jsons(
         llm_app_output_value = flattened_app_output.get(key, None)
 
         key_score = 0.0
-        if ground_truth_value and llm_app_output_value:
+        if ground_truth_value is not None and llm_app_output_value is not None:
             key_score = diff(
                 {key: ground_truth_value},
                 {key: llm_app_output_value},
