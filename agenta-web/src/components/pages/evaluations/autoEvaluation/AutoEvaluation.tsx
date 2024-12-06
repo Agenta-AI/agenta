@@ -39,7 +39,7 @@ import {runningStatuses, statusMapper} from "../../evaluations/cellRenderers/cel
 import {useUpdateEffect} from "usehooks-ts"
 import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./Filters/SearchFilter"
-import {uniqBy} from "lodash"
+import uniqBy from "lodash/uniqBy"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 import dayjs from "dayjs"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"

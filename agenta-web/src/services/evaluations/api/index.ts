@@ -21,7 +21,7 @@ import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
 import {fetchTestset} from "@/services/testsets/api"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
-import _ from "lodash"
+import uniqBy from "lodash/uniqBy"
 import {getCurrentProject} from "@/contexts/project.context"
 
 //Prefix convention:
@@ -214,7 +214,7 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const inputNames = Array.from(inputsNameSet)
     const inputValuesSet = new Set<string>()
     const variants = scenarioGroups.map((group) => group[0].evaluation.variants[0])
-    const correctAnswers = _.uniqBy(
+    const correctAnswers = uniqBy(
         scenarioGroups.map((group) => group[0].correct_answers).flat(),
         "key",
     )
