@@ -14,6 +14,9 @@ if isCloudEE():
 
 
 class ProjectsResponse(BaseModel):
+    organization_id: Optional[UUID] = None
+    organization_name: Optional[str] = None
+    # is_default_organization: Optional[bool] = None
     workspace_id: Optional[UUID] = None
     workspace_name: Optional[str] = None
     # is_default_workspace: Optional[bool] = None
@@ -21,7 +24,7 @@ class ProjectsResponse(BaseModel):
     project_name: str
     # is_default_project: bool
     user_role: Optional[str] = None
-    is_demo: Optional[bool] = False
+    is_demo: Optional[bool] = None
 
 
 router = APIRouter()
@@ -65,6 +68,8 @@ async def get_projects(
 
             projects = [
                 ProjectsResponse(
+                    organization_id=project_membership.project.organization.id,
+                    organization_name=project_membership.project.organization.name,
                     workspace_id=project_membership.project.workspace.id,
                     workspace_name=project_membership.project.workspace.name,
                     project_id=project_membership.project.id,
