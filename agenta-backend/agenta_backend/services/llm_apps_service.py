@@ -58,7 +58,9 @@ def extract_result_from_response(response: dict):
             if "tree" in response:
                 trace_tree = response.get("tree", {}).get("nodes", [])[0]
 
-                duration_ms = get_nested_value(trace_tree, ["metrics", "acc", "duration", "total"])
+                duration_ms = get_nested_value(
+                    trace_tree, ["metrics", "acc", "duration", "total"]
+                )
                 if duration_ms:
                     duration_seconds = duration_ms / 1000
                 else:
@@ -66,7 +68,10 @@ def extract_result_from_response(response: dict):
                     end_time = get_nested_value(trace_tree, ["time", "end"])
 
                     if start_time and end_time:
-                        duration_seconds = (datetime(end_time) - datetime(start_time)).total_seconds()
+                        duration_seconds = (
+                            datetime.fromisoformat(end_time)
+                            - datetime.fromisoformat(start_time)
+                        ).total_seconds()
                     else:
                         duration_seconds = None
 
