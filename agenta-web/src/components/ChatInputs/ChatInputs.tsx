@@ -1,7 +1,7 @@
 import {ChatMessage, ChatRole, JSSTheme} from "@/lib/Types"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Space, Tooltip} from "antd"
-import {cloneDeep} from "lodash"
+import cloneDeep from "lodash/cloneDeep"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
