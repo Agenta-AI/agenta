@@ -21,6 +21,7 @@ import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import SetupTracingModal from "./modals/SetupTracingModal"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
+import {useProjectData} from "@/contexts/project.context"
 
 const ObservabilityDashboardSection: any = dynamicComponent(
     "pages/app-management/components/ObservabilityDashboardSection",
@@ -78,6 +79,7 @@ const AppManagement: React.FC = () => {
         appId: undefined,
     })
 
+    const {project} = useProjectData()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg} = useOrgData()
 
@@ -210,7 +212,7 @@ const AppManagement: React.FC = () => {
                             setSearchTerm={setSearchTerm}
                         />
 
-                        <DemoApplicationsSection />
+                        {!project?.is_demo && <DemoApplicationsSection />}
 
                         <HelpAndSupportSection />
                     </>

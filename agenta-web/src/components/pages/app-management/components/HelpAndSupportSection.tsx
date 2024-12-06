@@ -45,21 +45,20 @@ const HelpAndSupportSection = () => {
             </Space>
 
             <div className="flex items-center w-full gap-4">
-                <Link
-                    href="https://docs.agenta.ai/prompt-management/quick-start"
-                    target="_blank"
-                    className={classes.helperCard}
-                >
-                    <Code size={24} />
-                    <Text>Learn how to manage prompts</Text>
-                    <ArrowRight size={18} />
-                </Link>
                 <Link className={classes.helperCard} href="https://docs.agenta.ai/" target="_blank">
                     <BookOpen size={24} />
                     <Text>Check out docs</Text>
                     <ArrowRight size={18} />
                 </Link>
-
+                <Link
+                    href="https://github.com/Agenta-AI/agenta/discussions"
+                    target="_blank"
+                    className={classes.helperCard}
+                >
+                    <Code size={24} />
+                    <Text>Create a discussion in Github</Text>
+                    <ArrowRight size={18} />
+                </Link>
                 <Link
                     href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
                     target="_blank"
