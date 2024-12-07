@@ -139,9 +139,7 @@ Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/gett
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-
-[![All Contributors](https://img.shields.io/badge/all_contributors-48-orange.svg?style=flat-square)](#contributors-)
-
+[![All Contributors](https://img.shields.io/badge/all_contributors-49-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -212,6 +210,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://ashrafchowdury.me"><img src="https://avatars.githubusercontent.com/u/87828904?v=4?s=100" width="100px;" alt="Ashraf Chowdury"/><br /><sub><b>Ashraf Chowdury</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aashrafchowdury" title="Bug reports">🐛</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=ashrafchowdury" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/jp-agenta"><img src="https://avatars.githubusercontent.com/u/174311389?v=4?s=100" width="100px;" alt="jp-agenta"/><br /><sub><b>jp-agenta</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=jp-agenta" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Ajp-agenta" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://mrunhap.github.io"><img src="https://avatars.githubusercontent.com/u/24653356?v=4?s=100" width="100px;" alt="Mr Unhappy"/><br /><sub><b>Mr Unhappy</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amrunhap" title="Bug reports">🐛</a> <a href="#infra-mrunhap" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/morenobonaventura"><img src="https://avatars.githubusercontent.com/u/2118854?v=4?s=100" width="100px;" alt="Moreno Bonaventura"/><br /><sub><b>Moreno Bonaventura</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amorenobonaventura" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>
