@@ -16,12 +16,12 @@ import {Button, Dropdown, Space, Typography} from "antd"
 import {useRouter} from "next/router"
 import {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
-import DeleteAppModal from "@/components/pages/app-management/modals/DeleteAppModal"
-import EditAppModal from "@/components/pages/app-management/modals/EditAppModal"
 
 const ObservabilityOverview: any = dynamicComponent(
     "pages/overview/observability/ObservabilityOverview",
 )
+const DeleteAppModal: any = dynamicComponent("pages/app-management/modals/DeleteAppModal")
+const EditAppModal: any = dynamicComponent("pages/app-management/modals/EditAppModal")
 
 const {Title} = Typography
 
