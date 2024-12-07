@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
+import {Breadcrumb, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -86,15 +86,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 8,
+        gap: 6,
         color: "#fff",
         fontSize: 12,
         lineHeight: "20px",
         fontWeight: 500,
-        "& .ant-btn": {
+        "& span": {
             fontWeight: 600,
-            color: "#fff",
-            padding: 0,
         },
     },
 }))
@@ -220,10 +218,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         <div>
                             {project?.is_demo && (
                                 <div className={classes.banner}>
-                                    You are viewing demo workspace. To go back to your workspace,{" "}
-                                    <Button type="link" onClick={handleBackToWorkspaceSwitch}>
-                                        Click here.
-                                    </Button>
+                                    You are in <span>a view-only</span> demo workspace. To go back
+                                    to your workspace{" "}
+                                    <span
+                                        className="cursor-pointer"
+                                        onClick={handleBackToWorkspaceSwitch}
+                                    >
+                                        click here
+                                    </span>
                                 </div>
                             )}
                             <Layout hasSider className={classes.layout}>
