@@ -4,13 +4,9 @@ import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
 import {isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {createAndStartTemplate, fetchAllTemplates, deleteApp} from "@/services/app-selector/api"
 import {waitForAppToStart} from "@/services/api"
-import AddAppFromTemplatedModal from "./modals/AddAppFromTemplateModal"
-import MaxAppModal from "./modals/MaxAppModal"
-import WriteOwnAppModal from "./modals/WriteOwnAppModal"
 import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
-import CreateAppStatusModal from "./modals/CreateAppStatusModal"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
 import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
@@ -19,9 +15,18 @@ import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
-import SetupTracingModal from "./modals/SetupTracingModal"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
 import {useProjectData} from "@/contexts/project.context"
+
+const CreateAppStatusModal: any = dynamicComponent(
+    "pages/app-management/modals/CreateAppStatusModal",
+)
+const AddAppFromTemplatedModal: any = dynamicComponent(
+    "pages/app-management/modals/AddAppFromTemplatedModal",
+)
+const MaxAppModal: any = dynamicComponent("pages/app-management/modals/MaxAppModal")
+const WriteOwnAppModal: any = dynamicComponent("pages/app-management/modals/WriteOwnAppModal")
+const SetupTracingModal: any = dynamicComponent("pages/app-management/modals/SetupTracingModal")
 
 const ObservabilityDashboardSection: any = dynamicComponent(
     "pages/app-management/components/ObservabilityDashboardSection",
@@ -238,7 +243,7 @@ const AppManagement: React.FC = () => {
                 templateId={templateId}
                 appNameExist={appNameExist}
                 setNewApp={setNewApp}
-                onCardClick={(template) => {
+                onCardClick={(template: Template) => {
                     setTemplateId(template.id)
                 }}
                 handleTemplateCardClick={handleTemplateCardClick}

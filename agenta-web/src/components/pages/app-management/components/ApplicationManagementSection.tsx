@@ -11,8 +11,10 @@ import {createUseStyles} from "react-jss"
 import usePagination from "@/hooks/usePagination"
 import EmptyAppView from "./EmptyAppView"
 import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
-import DeleteAppModal from "../modals/DeleteAppModal"
-import EditAppModal from "../modals/EditAppModal"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const DeleteAppModal: any = dynamicComponent("pages/app-management/modals/DeleteAppModal")
+const EditAppModal: any = dynamicComponent("pages/app-management/modals/EditAppModal")
 
 interface ApplicationManagementSectionProps {
     selectedOrg: any
