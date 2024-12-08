@@ -1,9 +1,10 @@
 import {filterVariantParameters, isDemo} from "@/lib/helpers/utils"
-import {Variant} from "@/lib/Types"
+import {JSSTheme, Variant} from "@/lib/Types"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useMemo, useState} from "react"
+import {createUseStyles} from "react-jss"
 
 type SelectVariantSectionProps = {
     variants: Variant[]
@@ -12,7 +13,26 @@ type SelectVariantSectionProps = {
     setSelectedVariantIds: React.Dispatch<React.SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
-} & React.ComponentProps<typeof Collapse>
+}
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    collapseContainer: {
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+        },
+        "& .ant-collapse-content": {
+            maxHeight: 400,
+            height: "100%",
+            overflowY: "auto",
+            "& .ant-collapse-content-box": {
+                padding: 0,
+            },
+        },
+        "& .ant-input-group-addon button": {
+            height: 30,
+        },
+    },
+}))
 
 const SelectVariantSection = ({
     variants,
@@ -21,8 +41,8 @@ const SelectVariantSection = ({
     setSelectedVariantIds,
     activePanel,
     handlePanelChange,
-    ...props
 }: SelectVariantSectionProps) => {
+    const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
 
     const columns: ColumnsType<Variant> = [
@@ -66,12 +86,6 @@ const SelectVariantSection = ({
     }
 
     columns.push(
-        // {
-        //     title: "Tags",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 160},
-        //     }),
-        // },
         {
             title: "Model",
             dataIndex: "parameters",
@@ -119,9 +133,9 @@ const SelectVariantSection = ({
 
     return (
         <Collapse
+            className={classes.collapseContainer}
             activeKey={activePanel === "variantPanel" ? "variantPanel" : undefined}
             onChange={() => handlePanelChange("variantPanel")}
-            {...props}
             items={[
                 {
                     key: "variantPanel",

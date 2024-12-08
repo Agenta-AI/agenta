@@ -38,22 +38,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             },
         },
     },
-    collapseContainer: {
-        "& .ant-collapse-header": {
-            alignItems: "center !important",
-        },
-        "& .ant-collapse-content": {
-            maxHeight: 400,
-            height: "100%",
-            overflowY: "auto",
-            "& .ant-collapse-content-box": {
-                padding: 0,
-            },
-        },
-        "& .ant-input-group-addon button": {
-            height: 30,
-        },
-    },
 }))
 
 type Props = {
@@ -196,6 +180,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             centered
             closeIcon={null}
             destroyOnClose
+            maskClosable={false}
             width={1200}
             className={classes.modalContainer}
             okButtonProps={{icon: <PlusOutlined />, loading: submitLoading}}
@@ -209,7 +194,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         testSets={testSets}
                         selectedTestsetId={selectedTestsetId}
                         setSelectedTestsetId={setSelectedTestsetId}
-                        className={classes.collapseContainer}
                     />
                     <SelectVariantSection
                         activePanel={activePanel}
@@ -218,7 +202,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         usernames={usernames}
                         selectedVariantIds={selectedVariantIds}
                         setSelectedVariantIds={setSelectedVariantIds}
-                        className={classes.collapseContainer}
                     />
                     <SelectEvaluatorSection
                         activePanel={activePanel}
@@ -227,7 +210,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         evaluatorConfigs={evaluatorConfigs}
                         selectedEvalConfigs={selectedEvalConfigs}
                         setSelectedEvalConfigs={setSelectedEvalConfigs}
-                        className={classes.collapseContainer}
                     />
                 </Space>
             </Spin>
