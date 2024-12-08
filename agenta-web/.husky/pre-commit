@@ -1,33 +1,40 @@
-# Navigate to the frontend directory
-cd agenta-web || exit
+# Check if there are staged changes in the frontend directory
+if git diff --cached --name-only | grep -q '^agenta-web/'; then
+    echo '🔍 Changes detected in the agenta-web directory. Running checks...'
 
-# Run ESLint check
-if ! npm run lint; then
-    echo '❌ ESLint issues detected. Please fix them before committing.'
-    exit 1
+    # Navigate to the frontend directory
+    cd agenta-web || exit
+
+    # Run ESLint check
+    if ! npm run lint; then
+        echo '❌ ESLint issues detected. Please fix them before committing.'
+        exit 1
+    else
+        echo '✅ ESLint check passed.'
+    fi
+
+    # Run TypeScript type check
+    if ! npm run types:check; then
+        echo '❌ TypeScript type errors detected. Please fix them before committing.'
+        exit 1
+    else
+        echo '✅ TypeScript type check passed.'
+    fi
+
+    # Run Prettier check
+    if ! npm run format; then
+        echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
+        npm run format-fix
+
+        # Stage the fixed files
+        git add .
+
+        echo '✅ Formatting issues fixed and changes staged. Proceeding with further checks...'
+    else
+        echo '✅ Prettier check passed.'
+    fi
+
+    echo '🎉 All checks passed. Ready to commit!'
 else
-    echo '✅ ESLint check passed.'
+    echo '✅ No changes in the agenta-web directory. Skipping frontend checks.'
 fi
-
-# Run TypeScript type check
-if ! npm run types:check; then
-    echo '❌ TypeScript type errors detected. Please fix them before committing.'
-    exit 1
-else
-    echo '✅ TypeScript type check passed.'
-fi
-
-# Run Prettier check
-if ! npm run format; then
-    echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
-    npm run format-fix
-
-    # Stage the fixed files
-    git add .
-
-    echo '✅ Formatting issues fixed and changes staged. Proceeding with further checks...'
-else
-    echo '✅ Prettier check passed. Proceeding with further checks...'
-fi
-
-echo '🎉 All checks passed. Ready to commit!'
