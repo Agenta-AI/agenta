@@ -394,7 +394,7 @@ class entrypoint:
         log.warning(format_exc().strip("\n"))
         log.warning("--------------------------------------------------")
 
-        status_code = error.status_code if hasattr(error, "status_code") else 500
+        status_code = 500
         message = str(error)
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
