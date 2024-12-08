@@ -1,0 +1,75 @@
+# Check if there are staged changes in the frontend directory
+if git diff --cached --name-only | grep -q '^agenta-web/'; then
+    echo '🔍 Changes detected in the agenta-web directory. Running checks...'
+
+    # Navigate to the frontend directory
+    cd agenta-web || exit
+
+    # Run ESLint check
+    if ! npm run lint; then
+        echo '❌ ESLint issues detected. Please fix them before committing.'
+        exit 1
+    else
+        echo '✅ ESLint check passed.'
+    fi
+
+    # Run TypeScript type check
+    if ! npm run types:check; then
+        echo '❌ TypeScript type errors detected. Please fix them before committing.'
+        exit 1
+    else
+        echo '✅ TypeScript type check passed.'
+    fi
+
+    # Run Prettier check
+    if ! npm run format; then
+        echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
+        npm run format-fix
+
+        # Stage the fixed files
+        git add .
+
+        echo '✅ Formatting issues fixed and changes staged. Proceeding with further checks...'
+    else
+        echo '✅ Prettier check passed.'
+    fi
+
+    echo '🎉 All checks passed. Ready to commit!'
+else
+    echo '✅ No changes in the agenta-web directory. Skipping frontend checks.'
+fi
+
+# Check for changes in backend directory
+if git diff --cached --name-only | grep -q '^agenta-backend/'; then
+    echo '🔍 Changes detected in the backend directory. Running checks...'
+
+    # Navigate to the backend directory
+    cd agenta-backend || exit
+
+    # Run pylint for linting
+    echo '🔍 Running pylint...'
+    if ! pylint $(git diff --cached --name-only | grep '\.py$'); then
+        echo '❌ pylint issues detected. Please fix them before committing.'
+        exit 1
+    else
+        echo '✅ pylint check passed.'
+    fi
+
+    # Run black for formatting
+    echo '🔍 Running black...'
+    if ! black --check .; then
+        echo '⚠️ Formatting issues detected. Running black to fix them...'
+        black .
+
+        # Stage the fixed files
+        git add .
+
+        echo '✅ Formatting issues fixed and changes staged. Proceeding with further checks...'
+    else
+        echo '✅ black formatting check passed.'
+    fi
+
+    echo '🎉 Backend checks passed. Ready to commit!'
+else
+    echo '✅ No changes in the backend directory. Skipping backend checks.'
+fi

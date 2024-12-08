@@ -18,7 +18,8 @@
         "format": "prettier --check .",
         "format-fix": "prettier --write .",
         "types:check": "tsc",
-        "types:watch": "tsc -w"
+        "types:watch": "tsc -w",
+        "prepare": "cd .. && husky agenta-web/.husky"
     },
     "dependencies": {
         "@ant-design/colors": "^7.0.0",
@@ -97,6 +98,7 @@
         "@swc/core": "^1.4.15",
         "@types/node": "^20.8.10",
         "cypress": "^13.15.0",
+        "husky": "^9.1.7",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.2.5"
     }
