@@ -13,10 +13,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "center",
         padding: "80px 0px",
         gap: 16,
-        "& > span": {
+        "& > span.ant-typography": {
             lineHeight: theme.lineHeightHeading4,
             fontSize: theme.fontSizeHeading4,
             fontWeight: theme.fontWeightMedium,
+            color: theme.colorText,
         },
     },
 }))

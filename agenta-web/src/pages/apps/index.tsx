@@ -1,10 +1,10 @@
-import AppSelector from "@/components/AppSelector/AppSelector"
+import AppManagement from "@/components/pages/app-management"
 import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
 
 export default function Apps() {
     return (
         <ProtectedRoute>
-            <AppSelector />
+            <AppManagement />
         </ProtectedRoute>
     )
 }

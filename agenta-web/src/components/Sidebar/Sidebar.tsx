@@ -16,6 +16,7 @@ import {CaretDown, Gear, SignOut} from "@phosphor-icons/react"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import Avatar from "@/components/Avatar/Avatar"
+import {useProjectData} from "@/contexts/project.context"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -285,6 +286,7 @@ const Sidebar: React.FC = () => {
     const menu = useSidebarConfig()
     const {user} = useProfileData()
     const {logout} = useSession()
+    const {project} = useProjectData()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
 
@@ -366,7 +368,7 @@ const Sidebar: React.FC = () => {
                                             ),
                                         })),
                                         {type: "divider"},
-                                        {
+                                        !project?.is_demo && {
                                             key: "settings",
                                             label: (
                                                 <Link
