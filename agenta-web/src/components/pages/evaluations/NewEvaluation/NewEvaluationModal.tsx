@@ -5,14 +5,19 @@ import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {createEvalutaiton} from "@/services/evaluations/api"
 import {fetchTestsets} from "@/services/testsets/api"
-import {PlusOutlined} from "@ant-design/icons"
-import {Modal, Spin, Space, message} from "antd"
+import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
+import {Modal, Spin, Space, message, Button} from "antd"
 import {useAtom} from "jotai"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import SelectTestsetSection from "./SelectTestsetSection"
 import SelectVariantSection from "./SelectVariantSection"
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const AdvancedSettingsPopover: any = dynamicComponent(
+    "pages/evaluations/NewEvaluation/AdvancedSettingsPopover",
+)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modalContainer: {
@@ -61,7 +66,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
-    const [showAdvancedConfig, setshowAdvancedConfig] = useState(false)
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
@@ -113,15 +117,6 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         delay_between_batches: 5,
     })
     const [correctAnswerColumn, setCorrectAnswerColumn] = useState<string>("correct_answer")
-    const onRateLimitInputChange = (field: keyof LLMRunRateLimit, value: number) => {
-        setRateLimitValues((prevValues: any) => ({...prevValues, [field]: value}))
-    }
-    const onAdvanceConfigSwitchChange = (checked: boolean) => {
-        setshowAdvancedConfig(checked)
-    }
-    const onCorrectAnswerColumnChange = (value: string) => {
-        setCorrectAnswerColumn(value)
-    }
 
     const validateSubmission = () => {
         if (!selectedTestsetId) {
@@ -169,10 +164,28 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
 
     return (
         <Modal
-            title="New Evaluation"
+            title={
+                <div className="w-full flex items-center justify-between">
+                    <div>New Evaluation</div>
+                    <Space>
+                        <AdvancedSettingsPopover
+                            correctAnswerColumn={correctAnswerColumn}
+                            setCorrectAnswerColumn={setCorrectAnswerColumn}
+                            setRateLimitValues={setRateLimitValues}
+                            rateLimitValues={rateLimitValues}
+                        />
+                        <Button
+                            type="text"
+                            onClick={() => props.onCancel?.({} as any)}
+                            icon={<CloseOutlined />}
+                        />
+                    </Space>
+                </div>
+            }
             onOk={onSubmit}
             okText="Create"
             centered
+            closeIcon={null}
             destroyOnClose
             width={1200}
             className={classes.modalContainer}
