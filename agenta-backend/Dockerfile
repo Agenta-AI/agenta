@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Install git and clone the necessary repository
 RUN apt-get update -y \
-    && apt-get install -y git
+    && apt-get install -y git curl
 
 # Ensure pip and poetry are up to date
 RUN pip install --upgrade pip \
