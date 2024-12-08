@@ -104,10 +104,10 @@ agenta-web/src
 │   │   │   ├── Module2UIElement.tsx
 │   │   ├── components
 │   │   │   ├── ModuleComponent1.tsx
-│   │   ├── hooks
+│   ├── hooks
 │   │   │   ├── useModuleHook1.ts
-│   │   ├── Module.tsx
-│   │   ├── types.d.ts
+│   ├── Module.tsx
+│   ├── types.d.ts
 └── global.d.ts
 ```
 
@@ -176,3 +176,80 @@ This structure supports:
 - Identification of reusable patterns
 - Natural code organization based on usage
 - Scalable architecture that grows with the application
+
+### Data Fetching Best Practices
+
+We recommend using SWR with Axios for data fetching instead of useEffect patterns. This helps achieve cleaner code while simplifying management of fetch states.
+
+#### Example: Converting useEffect Data Fetching to SWR with Axios
+
+❌ **Avoid this pattern:**
+
+```javascript
+useEffect(() => {
+  fetchData1().then(data1 => {
+    setData1(data1);
+  }).catch(error => {
+    setError1(error);
+  });
+
+  fetchData2().then(data2 => {
+    setData2(data2);
+  }).catch(error => {
+    setError2(error);
+  });
+}, []);
+```
+
+✅ **Use this pattern:**
+
+We configure SWR globally with our pre-configured Axios instance:
+
+```javascript
+// src/utils/swrConfig.js
+import axios from '@/lib/helpers/axios';
+import useSWR from 'swr';
+
+const fetcher = url => axios.get(url).then(res => res.data);
+
+export const swrConfig = {
+  fetcher,
+};
+```
+
+To ensure SWR configuration is applied globally, wrap your application with SWRConfig in `_app.tsx`:
+
+```javascript
+// src/pages/_app.tsx
+import { SWRConfig } from 'swr';
+import { swrConfig } from '../utils/swrConfig';
+
+function MyApp({ Component, pageProps }) {
+  return (
+    <SWRConfig value={swrConfig}>
+      <Component {...pageProps} />
+    </SWRConfig>
+  );
+}
+
+export default MyApp;
+```
+
+```javascript
+import useSWR from 'swr';
+
+function Component() {
+  const { data: data1, error: error1, loading: loadingData1 } = useSWR('/api/data1');
+  const { data: data2, error: error2, loading: loadingData2 } = useSWR('/api/data2');
+
+  if (error1 || error2) return <div>Error loading data</div>;
+  if (!data1 || !data2) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <div>Data 1: {data1}</div>
+      <div>Data 2: {data2}</div>
+    </div>
+  );
+}
+```
