@@ -277,12 +277,16 @@ const config: Config = {
       {
       redirects: [
       {
-      from: "/prompt-management/creating-a-custom-template",
-      to: "/custom-workflows/quick-start",
+        from: "/prompt-management/creating-a-custom-template",
+        to: "/custom-workflows/quick-start",
       },
       {
         from: "/reference/sdk/quick_start",
         to: "/reference/sdk/deprecated-v2/quick_start",
+      },
+      {
+        from: "/reference/cli/quick-usage",
+        to: "/reference/cli/cli-reference",
       },
       ],
         createRedirects(existingPath) {
