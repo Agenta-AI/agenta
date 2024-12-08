@@ -1,9 +1,9 @@
 services:
     reverse-proxy:
         image: traefik:v2.10
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
         ports:
-            - "80:80"
+            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
             - "8080:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -28,6 +28,7 @@ services:
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
+            - AGENTA_PORT=${AGENTA_PORT:-80}
         command:
             [
                 "uvicorn",
@@ -95,6 +96,7 @@ services:
             - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}
             - NEXT_PUBLIC_FF=oss
             - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=true
+            - AGENTA_PORT=${AGENTA_PORT:-80}
         restart: always
 
     redis:

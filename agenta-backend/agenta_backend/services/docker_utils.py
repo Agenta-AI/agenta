@@ -124,7 +124,7 @@ def start_container(
             logs = container.logs().decode("utf-8")
             raise Exception(f"Container exited immediately. Docker Logs: {logs}")
         return {
-            "uri": f"{os.environ['DOMAIN_NAME']}/{uri_path}",
+            "uri": f"{os.environ['DOMAIN_NAME']}{':' + os.environ['AGENTA_PORT'] if os.environ.get('AGENTA_PORT') else ''}/{uri_path}",
             "container_id": container.id,
             "container_name": container_name,
         }
