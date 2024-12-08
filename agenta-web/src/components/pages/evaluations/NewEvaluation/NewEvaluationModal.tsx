@@ -43,11 +43,15 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             alignItems: "center !important",
         },
         "& .ant-collapse-content": {
-            height: 500,
+            maxHeight: 400,
+            height: "100%",
             overflowY: "auto",
             "& .ant-collapse-content-box": {
                 padding: 0,
             },
+        },
+        "& .ant-input-group-addon button": {
+            height: 30,
         },
     },
 }))
@@ -69,6 +73,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
+
+    const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
+    const handlePanelChange = (key: string | string[]) => {
+        setActivePanel((prevKey) => (prevKey === key ? null : (key as string)))
+    }
 
     useEffect(() => {
         const fetchData = async () => {
@@ -195,12 +204,16 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             <Spin spinning={fetching} className="w-full">
                 <Space direction="vertical" size={16} className="w-full">
                     <SelectTestsetSection
+                        activePanel={activePanel}
+                        handlePanelChange={handlePanelChange}
                         testSets={testSets}
                         selectedTestsetId={selectedTestsetId}
                         setSelectedTestsetId={setSelectedTestsetId}
                         className={classes.collapseContainer}
                     />
                     <SelectVariantSection
+                        activePanel={activePanel}
+                        handlePanelChange={handlePanelChange}
                         variants={variants}
                         usernames={usernames}
                         selectedVariantIds={selectedVariantIds}
@@ -208,6 +221,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         className={classes.collapseContainer}
                     />
                     <SelectEvaluatorSection
+                        activePanel={activePanel}
+                        handlePanelChange={handlePanelChange}
                         evaluators={evaluators}
                         evaluatorConfigs={evaluatorConfigs}
                         selectedEvalConfigs={selectedEvalConfigs}

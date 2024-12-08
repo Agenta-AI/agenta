@@ -10,6 +10,8 @@ type SelectEvaluatorSectionProps = {
     evaluators: Evaluator[]
     selectedEvalConfigs: string[]
     setSelectedEvalConfigs: React.Dispatch<React.SetStateAction<string[]>>
+    handlePanelChange: (key: string | string[]) => void
+    activePanel: string | null
 } & React.ComponentProps<typeof Collapse>
 
 const SelectEvaluatorSection = ({
@@ -17,6 +19,8 @@ const SelectEvaluatorSection = ({
     evaluators,
     selectedEvalConfigs,
     setSelectedEvalConfigs,
+    activePanel,
+    handlePanelChange,
     ...props
 }: SelectEvaluatorSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
@@ -89,11 +93,12 @@ const SelectEvaluatorSection = ({
     return (
         <>
             <Collapse
-                defaultActiveKey={["1"]}
+                activeKey={activePanel === "evaluatorPanel" ? "evaluatorPanel" : undefined}
+                onChange={() => handlePanelChange("evaluatorPanel")}
                 {...props}
                 items={[
                     {
-                        key: "1",
+                        key: "evaluatorPanel",
                         label: (
                             <div className="flex items-center gap-2">
                                 <div>Select Evaluator</div>
