@@ -219,7 +219,7 @@ const BoxComponent: React.FC<BoxComponentProps> = ({
         }
     }, [traceSpans])
 
-    const activeTrace = useMemo(() => (traces ? traces[0] ?? null : null), [traces])
+    const activeTrace = useMemo(() => (traces ? (traces[0] ?? null) : null), [traces])
     const [selected, setSelected] = useState("")
 
     useEffect(() => {
