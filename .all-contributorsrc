@@ -457,6 +457,15 @@
         "bug",
         "infra"
       ]
+    },
+    {
+      "login": "morenobonaventura",
+      "name": "Moreno Bonaventura",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2118854?v=4",
+      "profile": "https://github.com/morenobonaventura",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
