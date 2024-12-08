@@ -1,0 +1,15 @@
+# Navigate to the frontend directory
+cd agenta-web || exit
+
+# Run Prettier check
+if ! npm run format; then
+    echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
+    npm run format-fix
+
+    # Stage the fixed files
+    git add .
+
+    echo '✅ Formatting issues fixed and changes staged. Proceeding with commit...'
+else
+    echo '✅ Prettier check passed. Everything looks good!'
+fi
