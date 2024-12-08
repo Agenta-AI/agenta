@@ -1,6 +1,22 @@
 # Navigate to the frontend directory
 cd agenta-web || exit
 
+# Run ESLint check
+if ! npm run lint; then
+    echo '❌ ESLint issues detected. Please fix them before committing.'
+    exit 1
+else
+    echo '✅ ESLint check passed.'
+fi
+
+# Run TypeScript type check
+if ! npm run types:check; then
+    echo '❌ TypeScript type errors detected. Please fix them before committing.'
+    exit 1
+else
+    echo '✅ TypeScript type check passed.'
+fi
+
 # Run Prettier check
 if ! npm run format; then
     echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
@@ -9,7 +25,9 @@ if ! npm run format; then
     # Stage the fixed files
     git add .
 
-    echo '✅ Formatting issues fixed and changes staged. Proceeding with commit...'
+    echo '✅ Formatting issues fixed and changes staged. Proceeding with further checks...'
 else
-    echo '✅ Prettier check passed. Everything looks good!'
+    echo '✅ Prettier check passed. Proceeding with further checks...'
 fi
+
+echo '🎉 All checks passed. Ready to commit!'
