@@ -10,6 +10,8 @@ type SelectVariantSectionProps = {
     usernames: Record<string, string>
     selectedVariantIds: string[]
     setSelectedVariantIds: React.Dispatch<React.SetStateAction<string[]>>
+    handlePanelChange: (key: string | string[]) => void
+    activePanel: string | null
 } & React.ComponentProps<typeof Collapse>
 
 const SelectVariantSection = ({
@@ -17,6 +19,8 @@ const SelectVariantSection = ({
     usernames,
     selectedVariantIds,
     setSelectedVariantIds,
+    activePanel,
+    handlePanelChange,
     ...props
 }: SelectVariantSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
@@ -115,11 +119,12 @@ const SelectVariantSection = ({
 
     return (
         <Collapse
-            defaultActiveKey={["1"]}
+            activeKey={activePanel === "variantPanel" ? "variantPanel" : undefined}
+            onChange={() => handlePanelChange("variantPanel")}
             {...props}
             items={[
                 {
-                    key: "1",
+                    key: "variantPanel",
                     label: (
                         <Space>
                             <div>Select Variant</div>

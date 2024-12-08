@@ -10,12 +10,16 @@ type SelectTestsetSectionProps = {
     testSets: testset[]
     selectedTestsetId: string
     setSelectedTestsetId: React.Dispatch<React.SetStateAction<string>>
+    handlePanelChange: (key: string | string[]) => void
+    activePanel: string | null
 } & React.ComponentProps<typeof Collapse>
 
 const SelectTestsetSection = ({
     testSets,
     selectedTestsetId,
     setSelectedTestsetId,
+    activePanel,
+    handlePanelChange,
     ...props
 }: SelectTestsetSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
@@ -77,11 +81,12 @@ const SelectTestsetSection = ({
 
     return (
         <Collapse
-            defaultActiveKey={["1"]}
+            activeKey={activePanel === "testsetPanel" ? "testsetPanel" : undefined}
+            onChange={() => handlePanelChange("testsetPanel")}
             {...props}
             items={[
                 {
-                    key: "1",
+                    key: "testsetPanel",
                     label: (
                         <Space>
                             <div>Select Testset</div>
@@ -115,6 +120,7 @@ const SelectTestsetSection = ({
                                 selectedRowKeys: [selectedTestset?._id as React.Key],
                                 onChange: (selectedRowKeys) => {
                                     setSelectedTestsetId(selectedRowKeys[0] as string)
+                                    handlePanelChange("variantPanel")
                                 },
                             }}
                             data-cy="evaluation-testset-table"
