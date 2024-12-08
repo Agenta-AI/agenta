@@ -13,7 +13,11 @@ import NewEvaluator from "./NewEvaluator"
 import Evaluators from "./Evaluators"
 import {useLocalStorage} from "usehooks-ts"
 
-type EvaluatorsModalProps = {} & React.ComponentProps<typeof Modal>
+type EvaluatorsModalProps = {
+    current: number
+    setCurrent: React.Dispatch<React.SetStateAction<number>>
+    openedFromNewEvaluation?: boolean
+} & React.ComponentProps<typeof Modal>
 
 const useStyles = createUseStyles(() => ({
     modalWrapper: ({current, debugEvaluator}: {current: number; debugEvaluator: boolean}) => ({
@@ -36,9 +40,13 @@ const useStyles = createUseStyles(() => ({
     }),
 }))
 
-const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
+const EvaluatorsModal = ({
+    current,
+    setCurrent,
+    openedFromNewEvaluation = false,
+    ...props
+}: EvaluatorsModalProps) => {
     const appId = useAppId()
-    const [current, setCurrent] = useState(0)
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const classes = useStyles({current, debugEvaluator})
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
@@ -143,8 +151,12 @@ const EvaluatorsModal = ({...props}: EvaluatorsModalProps) => {
                     testsets={testsets}
                     onSuccess={() => {
                         evalConfigFetcher()
-                        setCurrent(0)
                         setEditMode(false)
+                        if (openedFromNewEvaluation) {
+                            props.onCancel?.({} as any)
+                        } else {
+                            setCurrent(0)
+                        }
                     }}
                     selectedTestcase={selectedTestcase}
                     selectedVariant={selectedVariant}
