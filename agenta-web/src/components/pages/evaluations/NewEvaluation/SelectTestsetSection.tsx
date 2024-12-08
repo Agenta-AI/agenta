@@ -1,10 +1,11 @@
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {testset} from "@/lib/Types"
+import {JSSTheme, testset} from "@/lib/Types"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Tag} from "antd"
 import Table, {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useMemo, useState} from "react"
+import {createUseStyles} from "react-jss"
 
 type SelectTestsetSectionProps = {
     testSets: testset[]
@@ -12,7 +13,26 @@ type SelectTestsetSectionProps = {
     setSelectedTestsetId: React.Dispatch<React.SetStateAction<string>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
-} & React.ComponentProps<typeof Collapse>
+}
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    collapseContainer: {
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+        },
+        "& .ant-collapse-content": {
+            maxHeight: 400,
+            height: "100%",
+            overflowY: "auto",
+            "& .ant-collapse-content-box": {
+                padding: 0,
+            },
+        },
+        "& .ant-input-group-addon button": {
+            height: 30,
+        },
+    },
+}))
 
 const SelectTestsetSection = ({
     testSets,
@@ -20,8 +40,8 @@ const SelectTestsetSection = ({
     setSelectedTestsetId,
     activePanel,
     handlePanelChange,
-    ...props
 }: SelectTestsetSectionProps) => {
+    const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
 
     const columns: ColumnsType<testset> = [
@@ -81,9 +101,9 @@ const SelectTestsetSection = ({
 
     return (
         <Collapse
+            className={classes.collapseContainer}
             activeKey={activePanel === "testsetPanel" ? "testsetPanel" : undefined}
             onChange={() => handlePanelChange("testsetPanel")}
-            {...props}
             items={[
                 {
                     key: "testsetPanel",

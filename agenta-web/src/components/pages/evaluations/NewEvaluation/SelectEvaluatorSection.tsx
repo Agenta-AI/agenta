@@ -1,9 +1,10 @@
-import {Evaluator, EvaluatorConfig} from "@/lib/Types"
+import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Collapse, Input, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import EvaluatorsModal from "../autoEvaluation/EvaluatorsModal/EvaluatorsModal"
+import {createUseStyles} from "react-jss"
 
 type SelectEvaluatorSectionProps = {
     evaluatorConfigs: EvaluatorConfig[]
@@ -12,7 +13,26 @@ type SelectEvaluatorSectionProps = {
     setSelectedEvalConfigs: React.Dispatch<React.SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
-} & React.ComponentProps<typeof Collapse>
+}
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    collapseContainer: {
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+        },
+        "& .ant-collapse-content": {
+            maxHeight: 400,
+            height: "100%",
+            overflowY: "auto",
+            "& .ant-collapse-content-box": {
+                padding: 0,
+            },
+        },
+        "& .ant-input-group-addon button": {
+            height: 30,
+        },
+    },
+}))
 
 const SelectEvaluatorSection = ({
     evaluatorConfigs,
@@ -21,8 +41,8 @@ const SelectEvaluatorSection = ({
     setSelectedEvalConfigs,
     activePanel,
     handlePanelChange,
-    ...props
 }: SelectEvaluatorSectionProps) => {
+    const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
     const [isEvaluatorsModalOpen, setIsEvaluatorsModalOpen] = useState(false)
     const [current, setCurrent] = useState(0)
@@ -46,14 +66,6 @@ const SelectEvaluatorSection = ({
     }, [evaluatorConfigs, setSelectedEvalConfigs])
 
     const columns: ColumnsType<EvaluatorConfig> = [
-        // {
-        //     title: "Version",
-        //     dataIndex: "version",
-        //     key: "version",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 80},
-        //     }),
-        // },
         {
             title: "Name",
             dataIndex: "name",
@@ -93,9 +105,9 @@ const SelectEvaluatorSection = ({
     return (
         <>
             <Collapse
+                className={classes.collapseContainer}
                 activeKey={activePanel === "evaluatorPanel" ? "evaluatorPanel" : undefined}
                 onChange={() => handlePanelChange("evaluatorPanel")}
-                {...props}
                 items={[
                     {
                         key: "evaluatorPanel",
