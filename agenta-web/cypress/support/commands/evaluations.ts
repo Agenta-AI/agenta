@@ -115,8 +115,10 @@ Cypress.Commands.add("createNewEvaluation", (evaluatorName = "Exact Match") => {
 
     cy.get('[data-cy="evaluation-testset-table"]').find('input[type="radio"]').eq(0).check()
 
+    cy.get('[data-cy="evaluation-variant-collapse-header"]').click()
     cy.get('[data-cy="evaluation-variant-table"]').find('input[type="checkbox"]').eq(0).check()
 
+    cy.get('[data-cy="evaluation-evaluator-collapse-header"]').click()
     cy.get('[data-cy="evaluation-search-evaluator"]')
         .type(evaluatorName)
         .should("have.value", evaluatorName)

@@ -112,7 +112,10 @@ const SelectEvaluatorSection = ({
                     {
                         key: "evaluatorPanel",
                         label: (
-                            <div className="flex items-center gap-2">
+                            <div
+                                className="flex items-center gap-2"
+                                data-cy="evaluation-evaluator-collapse-header"
+                            >
                                 <div>Select Evaluator</div>
                                 <div className="flex items-center gap-2 flex-1 flex-wrap">
                                     {selectedEvalConfig.length
