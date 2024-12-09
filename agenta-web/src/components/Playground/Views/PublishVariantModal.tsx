@@ -1,4 +1,4 @@
-import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import {Environment, Variant} from "@/lib/Types"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {fetchEnvironments, createPublishVariant} from "@/services/deployment/api"

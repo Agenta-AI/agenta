@@ -1,4 +1,4 @@
-import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import {useSession} from "@/hooks/useSession"
 import useStateCallback from "@/hooks/useStateCallback"
 import {isDemo} from "@/lib/helpers/utils"
