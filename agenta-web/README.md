@@ -292,3 +292,47 @@ function App() {
   )
 }
 ```
+
+### React Best Practices
+
+#### Avoiding Inline Array Props
+
+Passing inline arrays of objects with heavy content such as JSX is considered a bad practice in React. This is because it can lead to unnecessary re-renders and performance issues. When you pass an inline array, a new array is created every time the component renders, causing React to think that the prop has changed even if the content is the same.
+
+For example, in the `AccordionTreePanel` component, the `items` prop is passed an inline array of objects with JSX content:
+
+❌ **Avoid this pattern:**
+
+```javascript
+<AccordionTreePanel
+  items={[
+    {
+      title: 'Item 1',
+      content: <div>Content 1</div>,
+    },
+    {
+      title: 'Item 2',
+      content: <div>Content 2</div>,
+    },
+  ]}
+/>
+```
+
+✅ **Use this pattern:**
+
+```javascript
+import { useMemo } from 'react';
+
+const items = useMemo(() => [
+  {
+    title: 'Item 1',
+    content: <div>Content 1</div>,
+  },
+  {
+    title: 'Item 2',
+    content: <div>Content 2</div>,
+  },
+], []);
+
+<AccordionTreePanel items={items} />
+```
