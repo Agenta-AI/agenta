@@ -43,8 +43,6 @@ class TraceProcessor(BatchSpanProcessor):
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
-        # ADD LINKS FROM CONTEXT, HERE
-
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
 
