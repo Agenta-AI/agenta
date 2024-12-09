@@ -40,7 +40,7 @@ import {
     getStringOrJson,
 } from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
-import {debounce} from "lodash"
+import debounce from "lodash/debounce"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
