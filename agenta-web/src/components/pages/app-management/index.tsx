@@ -22,7 +22,7 @@ const CreateAppStatusModal: any = dynamicComponent(
     "pages/app-management/modals/CreateAppStatusModal",
 )
 const AddAppFromTemplatedModal: any = dynamicComponent(
-    "pages/app-management/modals/AddAppFromTemplatedModal",
+    "pages/app-management/modals/AddAppFromTemplateModal",
 )
 const MaxAppModal: any = dynamicComponent("pages/app-management/modals/MaxAppModal")
 const WriteOwnAppModal: any = dynamicComponent("pages/app-management/modals/WriteOwnAppModal")
