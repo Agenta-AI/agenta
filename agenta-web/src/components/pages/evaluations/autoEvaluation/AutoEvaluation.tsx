@@ -75,6 +75,7 @@ const AutoEvaluation = () => {
         "",
     )
     const stoppers = useRef<Function>()
+    const [current, setCurrent] = useState(0)
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -637,6 +638,8 @@ const AutoEvaluation = () => {
                 <EvaluatorsModal
                     open={isConfigEvaluatorModalOpen === "open"}
                     onCancel={() => setIsConfigEvaluatorModalOpen("")}
+                    current={current}
+                    setCurrent={setCurrent}
                 />
             )}
 

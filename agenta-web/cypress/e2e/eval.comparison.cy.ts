@@ -44,28 +44,7 @@ describe("Evaluation Comparison Test", function () {
         })
 
         it("Should create 2 new Evaluations", () => {
-            cy.request({
-                url: `${Cypress.env().baseApiURL}/evaluations?app_id=${app_id}`,
-                method: "GET",
-            }).then((resp) => {
-                cy.get('[data-cy="new-evaluation-button"]').click()
-            })
-            cy.get(".ant-modal-content").should("exist")
-
-            cy.get('[data-cy="select-testset-group"]').click()
-            cy.get('[data-cy="select-testset-option"]').eq(0).click()
-
-            cy.get('[data-cy="select-variant-group"]').click()
-            cy.get('[data-cy="select-variant-option"]').eq(0).click()
-            cy.get('[data-cy="select-variant-option"]').eq(1).click()
-            cy.get('[data-cy="select-variant-group"]').click()
-
-            cy.get('[data-cy="select-evaluators-group"]').click()
-            cy.get('[data-cy="select-evaluators-option"]').eq(0).click()
-            cy.get('[data-cy="select-evaluators-group"]').click()
-
-            cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
-            cy.wait(1000)
+            cy.createNewEvaluation()
         })
 
         it("Should verify that there are completed evaluations in the list", () => {
