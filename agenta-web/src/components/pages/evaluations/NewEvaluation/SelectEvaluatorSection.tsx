@@ -1,10 +1,9 @@
-import {Evaluator, EvaluatorConfig, JSSTheme} from "@/lib/Types"
+import {Evaluator, EvaluatorConfig} from "@/lib/Types"
 import {CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Collapse, Input, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import EvaluatorsModal from "../autoEvaluation/EvaluatorsModal/EvaluatorsModal"
-import {createUseStyles} from "react-jss"
 
 type SelectEvaluatorSectionProps = {
     evaluatorConfigs: EvaluatorConfig[]
@@ -13,26 +12,7 @@ type SelectEvaluatorSectionProps = {
     setSelectedEvalConfigs: React.Dispatch<React.SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
-}
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    collapseContainer: {
-        "& .ant-collapse-header": {
-            alignItems: "center !important",
-        },
-        "& .ant-collapse-content": {
-            maxHeight: 400,
-            height: "100%",
-            overflowY: "auto",
-            "& .ant-collapse-content-box": {
-                padding: 0,
-            },
-        },
-        "& .ant-input-group-addon button": {
-            height: 30,
-        },
-    },
-}))
+} & React.ComponentProps<typeof Collapse>
 
 const SelectEvaluatorSection = ({
     evaluatorConfigs,
@@ -41,8 +21,8 @@ const SelectEvaluatorSection = ({
     setSelectedEvalConfigs,
     activePanel,
     handlePanelChange,
+    ...props
 }: SelectEvaluatorSectionProps) => {
-    const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
     const [isEvaluatorsModalOpen, setIsEvaluatorsModalOpen] = useState(false)
     const [current, setCurrent] = useState(0)
@@ -102,94 +82,105 @@ const SelectEvaluatorSection = ({
         setSelectedEvalConfigs(filterEvalConfig)
     }
 
+    const evaluatorItems = useMemo(
+        () => [
+            {
+                key: "evaluatorPanel",
+                label: (
+                    <div
+                        className="flex items-center gap-2"
+                        data-cy="evaluation-evaluator-collapse-header"
+                    >
+                        <div>Select Evaluator</div>
+                        <div className="flex items-center gap-2 flex-1 flex-wrap">
+                            {selectedEvalConfig.length
+                                ? selectedEvalConfig.map((config) => (
+                                      <Tag
+                                          key={config.id}
+                                          closeIcon={<CloseCircleOutlined />}
+                                          onClose={() => handleRemoveEvalConfig(config.id)}
+                                          color={config.color}
+                                          className="mr-0"
+                                      >
+                                          {config.name}
+                                      </Tag>
+                                  ))
+                                : null}
+
+                            <Button
+                                icon={<PlusOutlined />}
+                                size="small"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setCurrent(1)
+                                    setIsEvaluatorsModalOpen(true)
+                                }}
+                            >
+                                Create new
+                            </Button>
+                        </div>
+                    </div>
+                ),
+                extra: (
+                    <Input.Search
+                        placeholder="Search"
+                        className="w-[300px]"
+                        data-cy="evaluation-search-evaluator"
+                        onClick={(event) => {
+                            event.stopPropagation()
+                        }}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                ),
+                children: (
+                    <Table
+                        rowSelection={{
+                            type: "checkbox",
+                            columnWidth: 48,
+                            selectedRowKeys: selectedEvalConfigs,
+                            onChange: (selectedRowKeys) => {
+                                const currentSelected = new Set(selectedEvalConfigs)
+
+                                filteredEvalConfigs.forEach((item) => {
+                                    if (selectedRowKeys.includes(item.id)) {
+                                        currentSelected.add(item.id)
+                                    } else {
+                                        currentSelected.delete(item.id)
+                                    }
+                                })
+
+                                setSelectedEvalConfigs(Array.from(currentSelected))
+                            },
+                        }}
+                        className="ph-no-capture"
+                        data-cy="evaluation-evaluator-table"
+                        columns={columns}
+                        rowKey={"id"}
+                        dataSource={filteredEvalConfigs}
+                        scroll={{x: true}}
+                        bordered
+                        pagination={false}
+                    />
+                ),
+            },
+        ],
+        [
+            evaluatorConfigs,
+            evaluators,
+            handleRemoveEvalConfig,
+            selectedEvalConfigs,
+            selectedEvalConfigs,
+        ],
+    )
+
     return (
         <>
             <Collapse
-                className={classes.collapseContainer}
                 activeKey={activePanel === "evaluatorPanel" ? "evaluatorPanel" : undefined}
                 onChange={() => handlePanelChange("evaluatorPanel")}
-                items={[
-                    {
-                        key: "evaluatorPanel",
-                        label: (
-                            <div
-                                className="flex items-center gap-2"
-                                data-cy="evaluation-evaluator-collapse-header"
-                            >
-                                <div>Select Evaluator</div>
-                                <div className="flex items-center gap-2 flex-1 flex-wrap">
-                                    {selectedEvalConfig.length
-                                        ? selectedEvalConfig.map((config) => (
-                                              <Tag
-                                                  key={config.id}
-                                                  closeIcon={<CloseCircleOutlined />}
-                                                  onClose={() => handleRemoveEvalConfig(config.id)}
-                                                  color={config.color}
-                                                  className="mr-0"
-                                              >
-                                                  {config.name}
-                                              </Tag>
-                                          ))
-                                        : null}
-
-                                    <Button
-                                        icon={<PlusOutlined />}
-                                        size="small"
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setCurrent(1)
-                                            setIsEvaluatorsModalOpen(true)
-                                        }}
-                                    >
-                                        Create new
-                                    </Button>
-                                </div>
-                            </div>
-                        ),
-                        extra: (
-                            <Input.Search
-                                placeholder="Search"
-                                className="w-[300px]"
-                                data-cy="evaluation-search-evaluator"
-                                onClick={(event) => {
-                                    event.stopPropagation()
-                                }}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        ),
-                        children: (
-                            <Table
-                                rowSelection={{
-                                    type: "checkbox",
-                                    columnWidth: 48,
-                                    selectedRowKeys: selectedEvalConfigs,
-                                    onChange: (selectedRowKeys) => {
-                                        const currentSelected = new Set(selectedEvalConfigs)
-
-                                        filteredEvalConfigs.forEach((item) => {
-                                            if (selectedRowKeys.includes(item.id)) {
-                                                currentSelected.add(item.id)
-                                            } else {
-                                                currentSelected.delete(item.id)
-                                            }
-                                        })
-
-                                        setSelectedEvalConfigs(Array.from(currentSelected))
-                                    },
-                                }}
-                                className="ph-no-capture"
-                                data-cy="evaluation-evaluator-table"
-                                columns={columns}
-                                rowKey={"id"}
-                                dataSource={filteredEvalConfigs}
-                                scroll={{x: true}}
-                                bordered
-                                pagination={false}
-                            />
-                        ),
-                    },
-                ]}
+                items={evaluatorItems}
+                {...props}
             />
 
             <EvaluatorsModal

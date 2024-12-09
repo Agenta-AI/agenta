@@ -1,11 +1,10 @@
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {JSSTheme, testset} from "@/lib/Types"
+import {testset} from "@/lib/Types"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Tag} from "antd"
 import Table, {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import React, {useMemo, useState} from "react"
-import {createUseStyles} from "react-jss"
 
 type SelectTestsetSectionProps = {
     testSets: testset[]
@@ -13,26 +12,7 @@ type SelectTestsetSectionProps = {
     setSelectedTestsetId: React.Dispatch<React.SetStateAction<string>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
-}
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    collapseContainer: {
-        "& .ant-collapse-header": {
-            alignItems: "center !important",
-        },
-        "& .ant-collapse-content": {
-            maxHeight: 400,
-            height: "100%",
-            overflowY: "auto",
-            "& .ant-collapse-content-box": {
-                padding: 0,
-            },
-        },
-        "& .ant-input-group-addon button": {
-            height: 30,
-        },
-    },
-}))
+} & React.ComponentProps<typeof Collapse>
 
 const SelectTestsetSection = ({
     testSets,
@@ -40,8 +20,8 @@ const SelectTestsetSection = ({
     setSelectedTestsetId,
     activePanel,
     handlePanelChange,
+    ...props
 }: SelectTestsetSectionProps) => {
-    const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
 
     const columns: ColumnsType<testset> = [
@@ -99,61 +79,63 @@ const SelectTestsetSection = ({
         [selectedTestsetId, testSets],
     )
 
+    const testsetItems = useMemo(
+        () => [
+            {
+                key: "testsetPanel",
+                label: (
+                    <Space data-cy="evaluation-testset-collapse-header">
+                        <div>Select Testset</div>
+                        {selectedTestset && (
+                            <Tag closeIcon={<CloseCircleOutlined />} onClose={handleRemoveTestset}>
+                                {selectedTestset.name}
+                            </Tag>
+                        )}
+                        {}
+                    </Space>
+                ),
+                extra: (
+                    <Input.Search
+                        placeholder="Search"
+                        className="w-[300px]"
+                        onClick={(event) => {
+                            event.stopPropagation()
+                        }}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                ),
+                children: (
+                    <Table
+                        rowSelection={{
+                            type: "radio",
+                            columnWidth: 48,
+                            selectedRowKeys: [selectedTestset?._id as React.Key],
+                            onChange: (selectedRowKeys) => {
+                                setSelectedTestsetId(selectedRowKeys[0] as string)
+                                handlePanelChange("variantPanel")
+                            },
+                        }}
+                        data-cy="evaluation-testset-table"
+                        className={`ph-no-capture`}
+                        columns={columns}
+                        dataSource={filteredTestset}
+                        rowKey="_id"
+                        scroll={{x: true}}
+                        pagination={false}
+                    />
+                ),
+            },
+        ],
+        [filteredTestset, selectedTestsetId, handleRemoveTestset, selectedTestset],
+    )
+
     return (
         <Collapse
-            className={classes.collapseContainer}
             activeKey={activePanel === "testsetPanel" ? "testsetPanel" : undefined}
             onChange={() => handlePanelChange("testsetPanel")}
-            items={[
-                {
-                    key: "testsetPanel",
-                    label: (
-                        <Space data-cy="evaluation-testset-collapse-header">
-                            <div>Select Testset</div>
-                            {selectedTestset && (
-                                <Tag
-                                    closeIcon={<CloseCircleOutlined />}
-                                    onClose={handleRemoveTestset}
-                                >
-                                    {selectedTestset.name}
-                                </Tag>
-                            )}
-                            {}
-                        </Space>
-                    ),
-                    extra: (
-                        <Input.Search
-                            placeholder="Search"
-                            className="w-[300px]"
-                            onClick={(event) => {
-                                event.stopPropagation()
-                            }}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    ),
-                    children: (
-                        <Table
-                            rowSelection={{
-                                type: "radio",
-                                columnWidth: 48,
-                                selectedRowKeys: [selectedTestset?._id as React.Key],
-                                onChange: (selectedRowKeys) => {
-                                    setSelectedTestsetId(selectedRowKeys[0] as string)
-                                    handlePanelChange("variantPanel")
-                                },
-                            }}
-                            data-cy="evaluation-testset-table"
-                            className={`ph-no-capture`}
-                            columns={columns}
-                            dataSource={filteredTestset}
-                            rowKey="_id"
-                            scroll={{x: true}}
-                            pagination={false}
-                        />
-                    ),
-                },
-            ]}
+            items={testsetItems}
+            {...props}
         />
     )
 }
