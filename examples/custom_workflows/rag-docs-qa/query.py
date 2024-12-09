@@ -3,10 +3,11 @@ from typing import List, Dict
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 import litellm
-from litellm import embedding, completion
+from litellm import embedding, completion, rerank
 import agenta as ag
 from pydantic import BaseModel, Field
 from typing import Annotated
+from agenta.sdk.assets import supported_llm_models
 
 system_prompt = """
     You are a helpful assistant that answers questions based on the documentation.
@@ -29,8 +30,13 @@ qdrant_client = QdrantClient(
 class Config(BaseModel):
     system_prompt: str = Field(default=system_prompt)
     user_prompt: str = Field(default=user_prompt)
-    model: Annotated[str, ag.MultipleChoice(["openai", "cohere"])] = Field(default="openai")
-    top_k: int = Field(default=10)
+    embedding_model: Annotated[str, ag.MultipleChoice(["openai", "cohere"])] = Field(default="openai")
+    llm_model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
+        default="gpt-3.5-turbo"
+    )
+    top_k: int = Field(default=10, ge=1, le=25)
+    rerank_top_k: int = Field(default=3, ge=1, le=10)
+    use_rerank: bool = Field(default=True)
 
 def get_embeddings(text: str, model: str) -> Dict[str, List[float]]:
     """Get embeddings using both OpenAI and Cohere models via LiteLLM."""
@@ -72,8 +78,8 @@ def search_docs(
     # Search using both embeddings
     results = qdrant_client.query_points(
         collection_name=collection_name,
-        query=get_embeddings(query, config.model),
-        using=config.model,
+        query=get_embeddings(query, config.embedding_model),
+        using=config.embedding_model,
         limit=config.top_k
     )
     # Format results
@@ -94,11 +100,11 @@ def search_docs(
 @ag.instrument()
 def llm(query: str, results: List[Dict]):
     
-    
     config = ag.ConfigManager.get_from_route(Config)
     context = []
     for i, result in enumerate(results, 1):
-        item = f"Result {i} (Score: {result['metadata']['score']:.3f})\n"
+        score = result['metadata'].get('rerank_score', result['metadata']['score'])
+        item = f"Result {i} (Score: {score:.3f})\n"
         item += f"Title: {result['metadata']['title']}\n"
         item += f"URL: {result['metadata']['url']}\n"
         item += f"Content: {result['content']}\n"
@@ -107,7 +113,7 @@ def llm(query: str, results: List[Dict]):
     
     ag.tracing.store_internals({"context": context})
     response = completion(
-        model="gpt-3.5-turbo",
+        model=config.llm_model,
         messages=[
             {"role": "system", "content": config.system_prompt},
             {"role": "user", "content": config.user_prompt.format(query=query, context="".join(context))},
@@ -115,8 +121,40 @@ def llm(query: str, results: List[Dict]):
     )
     return response.choices[0].message.content
 
+@ag.instrument()
+def rerank_results(query: str, results: List[Dict]) -> List[Dict]:
+    """Rerank the search results using Cohere's reranker."""
+    config = ag.ConfigManager.get_from_route(Config)
+    # Format documents for reranking
+    documents = [result['content'] for result in results]
+    
+    # Perform reranking
+    reranked = rerank(
+        model="cohere/rerank-english-v3.0",
+        query=query,
+        documents=documents,
+        top_n=config.rerank_top_k
+    )
+    # Reorder the original results based on reranking
+    reranked_results = []
+    for item in reranked.results:
+        # The rerank function returns dictionaries with 'document' and 'index' keys
+        reranked_results.append(results[item['index']])
+        # Add rerank score to metadata
+        reranked_results[-1]['metadata']['rerank_score'] = item['relevance_score']
+    
+    return reranked_results
+
 @ag.route("/", config_schema=Config)
 @ag.instrument()
-def generate(query:str):
+def generate(query: str):
+    if os.getenv("AGENTA_ENV", False):
+        config = ag.ConfigManager.get_from_route(Config)
+    else:
+        config = Config()
     results = search_docs(query)
-    return llm(query, results)
+    if config.use_rerank:
+        reranked_results = rerank_results(query, results)
+        return llm(query, reranked_results)
+    else:
+        return llm(query, results)
