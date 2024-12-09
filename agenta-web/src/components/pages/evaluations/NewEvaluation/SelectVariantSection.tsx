@@ -140,7 +140,7 @@ const SelectVariantSection = ({
                 {
                     key: "variantPanel",
                     label: (
-                        <Space>
+                        <Space data-cy="evaluation-variant-collapse-header">
                             <div>Select Variant</div>
                             <Space size={0}>
                                 {selectedVariants.length

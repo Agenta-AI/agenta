@@ -108,7 +108,7 @@ const SelectTestsetSection = ({
                 {
                     key: "testsetPanel",
                     label: (
-                        <Space>
+                        <Space data-cy="evaluation-testset-collapse-header">
                             <div>Select Testset</div>
                             {selectedTestset && (
                                 <Tag
