@@ -27,7 +27,7 @@ import {v4 as uuidv4} from "uuid"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import ParamsForm from "../ParamsForm/ParamsForm"
 import {TestContext} from "../TestContextProvider"
-import {isEqual} from "lodash"
+import isEqual from "lodash/isEqual"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
@@ -623,7 +623,7 @@ const App: React.FC<TestViewProps> = ({
                         const firstTraceNode = tree.nodes[0]
                         newDataList[index] = {
                             cost: firstTraceNode?.metrics?.acc?.costs?.total ?? null,
-                            latency: firstTraceNode?.metrics?.acc?.duration?.total / 1000 ?? null,
+                            latency: firstTraceNode?.metrics?.acc?.duration?.total / 1000 || null,
                             usage: firstTraceNode?.metrics?.acc?.tokens?.total ?? null,
                         }
                     }
