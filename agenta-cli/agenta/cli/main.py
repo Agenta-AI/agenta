@@ -47,9 +47,9 @@ def check_latest_version() -> Union[str, None]:
 
 
 def notify_update(available_version: str):
-    import pkg_resources
+    import importlib.metadata
 
-    installed_version = pkg_resources.get_distribution("agenta").version
+    installed_version = importlib.metadata.version("agenta")
     if available_version > installed_version:
         click.echo(
             click.style(
