@@ -96,7 +96,7 @@ const SelectVariantSection = ({
             render: (_, record) => {
                 return record.parameters &&
                     Object.keys(record.parameters).length &&
-                    record.hasOwnProperty("model")
+                    record.parameters.hasOwnProperty("model")
                     ? Object.values(
                           filterVariantParameters({record: record.parameters, key: "model"}),
                       ).map((value, index) => (value ? <Tag key={index}>{value}</Tag> : "-"))
