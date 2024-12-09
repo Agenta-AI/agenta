@@ -4,7 +4,7 @@ import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Form} from "antd"
 import Editor from "@monaco-editor/react"
 import {createUseStyles} from "react-jss"
-import {isEqual} from "lodash"
+import isEqual from "lodash/isEqual"
 
 const {TextArea} = Input
 
