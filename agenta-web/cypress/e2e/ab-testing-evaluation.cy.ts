@@ -48,25 +48,14 @@ describe("A/B Testing Evaluation workflow", () => {
             cy.clickLinkAndWait('[data-cy="new-human-eval-modal-button"]')
 
             cy.get(".ant-modal-content").should("exist")
-            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseover")
-            cy.get(".ant-dropdown")
-                .eq(0)
-                .within(() => {
-                    cy.get('[data-cy="variant-0"]').contains("app.default").click()
-                })
-            cy.get('[data-cy="variants-dropdown-0"]').trigger("mouseout")
+            cy.get('[data-cy="variants-dropdown-0"]').click()
+            cy.get('[data-cy="variant-0"]').contains("app.default").click()
 
-            cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseover")
-            cy.get(".ant-dropdown")
-                .eq(1)
-                .within(() => {
-                    cy.get('[data-cy="variant-1"]').contains(`app.${app_v2}`).click()
-                })
-            cy.get('[data-cy="variants-dropdown-1"]').trigger("mouseout")
+            cy.get('[data-cy="variants-dropdown-1"]').click()
+            cy.get('[data-cy="variant-1"]').contains(`app.${app_v2}`).click()
 
-            cy.get('[data-cy="selected-testset"]').trigger("mouseover")
+            cy.get('[data-cy="selected-testset"]').click()
             cy.get('[data-cy^="testset"]').contains(testset_name).click()
-            cy.get('[data-cy="selected-testset"]').trigger("mouseout")
 
             cy.clickLinkAndWait('[data-cy="start-new-evaluation-button"]')
             cy.url().should("include", "/human_a_b_testing")

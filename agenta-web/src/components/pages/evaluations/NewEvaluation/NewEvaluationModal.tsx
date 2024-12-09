@@ -156,11 +156,22 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         label="Which testset do you want to use?"
                         rules={[{required: true, message: "This field is required"}]}
                     >
-                        <Select placeholder="Select testset" data-cy="select-testset-group">
+                        <Select
+                            showSearch
+                            placeholder="Select testset"
+                            data-cy="select-testset-group"
+                            filterOption={(input, option) =>
+                                (option?.label ?? "")
+                                    .toString()
+                                    .toLowerCase()
+                                    .includes(input.toLowerCase())
+                            }
+                        >
                             {testSets.map((testSet) => (
                                 <Select.Option
                                     key={testSet._id}
                                     value={testSet._id}
+                                    label={testSet.name}
                                     data-cy="select-testset-option"
                                 >
                                     {testSet.name}
@@ -178,11 +189,18 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                             mode="multiple"
                             placeholder="Select variants"
                             data-cy="select-variant-group"
+                            filterOption={(input, option) =>
+                                (option?.label ?? "")
+                                    .toString()
+                                    .toLowerCase()
+                                    .includes(input.toLowerCase())
+                            }
                         >
                             {variants.map((variant) => (
                                 <Select.Option
                                     key={variant.variantId}
                                     value={variant.variantId}
+                                    label={variant.variantName}
                                     data-cy="select-variant-option"
                                 >
                                     {variant.variantName}
