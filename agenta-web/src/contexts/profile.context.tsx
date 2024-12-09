@@ -38,7 +38,7 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         setLoading(true)
         fetchProfile()
             .then((profile) => {
-                posthog.identify()
+                posthog?.identify?.()
                 setUser(profile.data, onSuccess)
             })
             .catch((error) => {

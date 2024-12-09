@@ -130,7 +130,7 @@ const AppManagement: React.FC = () => {
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
-                    posthog.capture("app_deployment", {
+                    posthog?.capture?.("app_deployment", {
                         properties: {
                             app_id: appId,
                             environment: "UI",

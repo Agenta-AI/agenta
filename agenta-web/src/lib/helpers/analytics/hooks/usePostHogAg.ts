@@ -5,7 +5,12 @@ import {useAtom} from "jotai"
 import {posthogAtom} from "../store/atoms"
 import {type PostHog} from "posthog-js"
 
-export const usePostHogAg = () => {
+interface ExtendedPostHog extends PostHog {
+    identify: PostHog["identify"]
+    capture: PostHog["capture"]
+}
+
+export const usePostHogAg = (): ExtendedPostHog | null => {
     const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
@@ -19,7 +24,6 @@ export const usePostHogAg = () => {
     }
     const identify: PostHog["identify"] = (id, ...args) => {
         if (trackingEnabled && user?.id) {
-            console.log("POSTHOG: identify")
             posthog?.identify?.(_id !== undefined ? _id : id, ...args)
         }
     }
@@ -37,5 +41,11 @@ export const usePostHogAg = () => {
         if (posthog.get_distinct_id() !== _id) identify()
     }, [posthog, _id])
 
-    return {...posthog, identify, capture}
+    return posthog
+        ? ({
+              ...posthog,
+              identify,
+              capture,
+          } as ExtendedPostHog)
+        : null
 }
