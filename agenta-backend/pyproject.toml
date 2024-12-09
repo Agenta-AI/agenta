@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta_backend"
-version = "0.28.0"
+version = "0.28.1"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
@@ -41,7 +41,7 @@ tqdm = "^4.66.6"
 alembic = "^1.13.2"
 numpy = "1.26.3"
 autoevals = "^0.0.83"
-supertokens-python = "^0.24.2"
+supertokens-python = "^0.26.1"
 protobuf = "^4.25.4"
 litellm ="^1.48.0"
 
