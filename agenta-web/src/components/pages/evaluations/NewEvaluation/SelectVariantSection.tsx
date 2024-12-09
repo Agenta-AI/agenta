@@ -1,10 +1,9 @@
 import {filterVariantParameters, isDemo} from "@/lib/helpers/utils"
-import {JSSTheme, Variant} from "@/lib/Types"
+import {Variant} from "@/lib/Types"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import React, {useMemo, useState} from "react"
-import {createUseStyles} from "react-jss"
 
 type SelectVariantSectionProps = {
     variants: Variant[]
@@ -13,26 +12,7 @@ type SelectVariantSectionProps = {
     setSelectedVariantIds: React.Dispatch<React.SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
-}
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    collapseContainer: {
-        "& .ant-collapse-header": {
-            alignItems: "center !important",
-        },
-        "& .ant-collapse-content": {
-            maxHeight: 400,
-            height: "100%",
-            overflowY: "auto",
-            "& .ant-collapse-content-box": {
-                padding: 0,
-            },
-        },
-        "& .ant-input-group-addon button": {
-            height: 30,
-        },
-    },
-}))
+} & React.ComponentProps<typeof Collapse>
 
 const SelectVariantSection = ({
     variants,
@@ -41,8 +21,8 @@ const SelectVariantSection = ({
     setSelectedVariantIds,
     activePanel,
     handlePanelChange,
+    ...props
 }: SelectVariantSectionProps) => {
-    const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
 
     const columns: ColumnsType<Variant> = [
@@ -133,75 +113,80 @@ const SelectVariantSection = ({
         setSelectedVariantIds(filterVariant)
     }
 
+    const variantItems = useMemo(
+        () => [
+            {
+                key: "variantPanel",
+                label: (
+                    <Space data-cy="evaluation-variant-collapse-header">
+                        <div>Select Variant</div>
+                        <Space size={0}>
+                            {selectedVariants.length
+                                ? selectedVariants.map((variant) => (
+                                      <Tag
+                                          key={variant.variantId}
+                                          closeIcon={<CloseCircleOutlined />}
+                                          onClose={() => handleRemoveVariant(variant.variantId)}
+                                      >
+                                          {variant.variantName}
+                                      </Tag>
+                                  ))
+                                : null}
+                        </Space>
+                    </Space>
+                ),
+                extra: (
+                    <Input.Search
+                        placeholder="Search"
+                        className="w-[300px]"
+                        onClick={(event) => {
+                            event.stopPropagation()
+                        }}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                ),
+                children: (
+                    <Table
+                        rowSelection={{
+                            type: "checkbox",
+                            columnWidth: 48,
+                            selectedRowKeys: selectedVariantIds,
+                            onChange: (selectedRowKeys) => {
+                                const currentSelected = new Set(selectedVariantIds)
+
+                                filteredVariant.forEach((item) => {
+                                    if (selectedRowKeys.includes(item.variantId)) {
+                                        currentSelected.add(item.variantId)
+                                    } else {
+                                        currentSelected.delete(item.variantId)
+                                    }
+                                })
+
+                                setSelectedVariantIds(Array.from(currentSelected))
+                            },
+                        }}
+                        className="ph-no-capture"
+                        rowKey={"variantId"}
+                        data-cy="evaluation-variant-table"
+                        columns={columns}
+                        dataSource={filteredVariant}
+                        scroll={{x: true}}
+                        bordered
+                        pagination={false}
+                    />
+                ),
+            },
+        ],
+        [filteredVariant, selectedVariantIds, handleRemoveVariant, selectedVariants],
+    )
+
     return (
         <Collapse
-            className={classes.collapseContainer}
             activeKey={activePanel === "variantPanel" ? "variantPanel" : undefined}
             onChange={() => handlePanelChange("variantPanel")}
-            items={[
-                {
-                    key: "variantPanel",
-                    label: (
-                        <Space data-cy="evaluation-variant-collapse-header">
-                            <div>Select Variant</div>
-                            <Space size={0}>
-                                {selectedVariants.length
-                                    ? selectedVariants.map((variant) => (
-                                          <Tag
-                                              key={variant.variantId}
-                                              closeIcon={<CloseCircleOutlined />}
-                                              onClose={() => handleRemoveVariant(variant.variantId)}
-                                          >
-                                              {variant.variantName}
-                                          </Tag>
-                                      ))
-                                    : null}
-                            </Space>
-                        </Space>
-                    ),
-                    extra: (
-                        <Input.Search
-                            placeholder="Search"
-                            className="w-[300px]"
-                            onClick={(event) => {
-                                event.stopPropagation()
-                            }}
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    ),
-                    children: (
-                        <Table
-                            rowSelection={{
-                                type: "checkbox",
-                                columnWidth: 48,
-                                selectedRowKeys: selectedVariantIds,
-                                onChange: (selectedRowKeys) => {
-                                    const currentSelected = new Set(selectedVariantIds)
-
-                                    filteredVariant.forEach((item) => {
-                                        if (selectedRowKeys.includes(item.variantId)) {
-                                            currentSelected.add(item.variantId)
-                                        } else {
-                                            currentSelected.delete(item.variantId)
-                                        }
-                                    })
-
-                                    setSelectedVariantIds(Array.from(currentSelected))
-                                },
-                            }}
-                            className="ph-no-capture"
-                            rowKey={"variantId"}
-                            data-cy="evaluation-variant-table"
-                            columns={columns}
-                            dataSource={filteredVariant}
-                            scroll={{x: true}}
-                            bordered
-                            pagination={false}
-                        />
-                    ),
-                },
-            ]}
+            items={variantItems}
+            {...props}
         />
     )
 }
