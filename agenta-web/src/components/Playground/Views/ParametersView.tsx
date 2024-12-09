@@ -128,7 +128,7 @@ const ParametersView: React.FC<Props> = ({
                 onStateChange(false)
                 res(true)
             })
-            posthog.capture("variant_saved", {variant_id: variant.variantId})
+            posthog?.capture?.("variant_saved", {variant_id: variant.variantId})
         })
     }
 
