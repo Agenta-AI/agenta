@@ -44,71 +44,136 @@ Below is the folder structure of the `./agenta-web/src` directory:
 
 ```text
 agenta-web/src
-├── assets
-│   ├── constants.ts
-│   ├── utils.ts
-│   ├── UIElement1.tsx
-├── components
-│   ├── Component1
-│   │   ├── assets
-│   │   │   ├── constants.ts
-│   │   │   ├── utils.ts
-│   │   │   ├── Component1UIElement.tsx
+├── Common
+│   ├── assets
+│   │   ├── constants.ts
+│   │   ├── utils.ts
+│   │   ├── UIElement1.tsx
+│   ├── components
+│   │   ├── Component1
+│   │   │   ├── assets
+│   │   │   │   ├── constants.ts
+│   │   │   │   ├── utils.ts
+│   │   │   │   ├── Component1UIElement.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useComponent1Hook.ts
+│   │   │   │   ├── types.d.ts
 │   │   ├── Component.tsx
 │   ├── hooks
-│   │   ├── useComponent1Hook.ts
-│   │   ├── types.d.ts
-├── hooks
-│   ├── useSharedHook1.ts
-│   ├── useSharedHook2.ts
-├── pages
-│   ├── Home
-│   ├── About
-│   ├── Contact
-├── utils
-├── store
-│   ├── atoms
-│   │   ├── globalAtoms.ts
-│   ├── context
-│   │   ├── GlobalContext.tsx
-├── modules
-│   ├── Module1
-│   │   ├── assets
-│   │   │   ├── constants.ts
-│   │   │   ├── Module1UIElement.tsx
-│   │   ├── store
-│   │   │   ├── atoms
-│   │   │   │   ├── moduleAtoms.ts
+│   │   ├── useSharedHook1.ts
+│   │   ├── useSharedHook2.ts
+│   ├── pages
+│   │   ├── Home
+│   │   ├── About
+│   │   ├── Contact
+│   ├── utils
+│   ├── store
+│   │   ├── atoms
+│   │   │   ├── globalAtoms.ts
+│   │   ├── context
+│   │   │   ├── GlobalContext.tsx
+│   ├── modules
+│   │   ├── Module1
+│   │   │   ├── assets
+│   │   │   │   ├── constants.ts
+│   │   │   │   ├── Module1UIElement.tsx
+│   │   │   ├── store
+│   │   │   │   ├── atoms
+│   │   │   │   │   ├── moduleAtoms.ts
 │   │   │   ├── context
 │   │   │   │   ├── ModuleContext.tsx
-│   ├── components
-│   │   │   ├── ModuleComponent1
-│   │   │   │   ├── assets
-│   │   │   │   │   ├── constants.ts
-│   │   │   │   │   ├── utils.ts
-│   │   │   │   │   ├── ModuleComponent1UIElement.tsx
-│   │   │   │   ├── Component.tsx
-│   │   │   │   ├── hooks
-│   │   │   │   │   ├── useModuleComponent1Hook.ts
-│   │   │   │   │   ├── types.d.ts
-│   │   │   ├── ModuleComponent2.tsx
-│   │   ├── hooks
-│   │   │   ├── useModuleHook1.ts
-│   │   │   ├── useModuleHook2.ts
-│   │   ├── Module.tsx
-│   │   ├── types.d.ts
-│   ├── Module2
-│   │   ├── assets
-│   │   │   ├── constants.ts
-│   │   │   ├── utils.ts
-│   │   │   ├── Module2UIElement.tsx
+│   │   │   ├── components
+│   │   │   │   ├── ModuleComponent1
+│   │   │   │   │   ├── assets
+│   │   │   │   │   │   ├── constants.ts
+│   │   │   │   │   │   ├── utils.ts
+│   │   │   │   │   │   ├── ModuleComponent1UIElement.tsx
+│   │   │   │   │   ├── Component.tsx
+│   │   │   │   │   ├── hooks
+│   │   │   │   │   │   ├── useModuleComponent1Hook.ts
+│   │   │   │   │   │   ├── types.d.ts
+│   │   │   │   ├── ModuleComponent2.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useModuleHook1.ts
+│   │   │   │   ├── useModuleHook2.ts
+│   │   │   ├── Module.tsx
+│   │   │   ├── types.d.ts
+│   │   ├── Module2
+│   │   │   ├── assets
+│   │   │   │   ├── constants.ts
+│   │   │   │   ├── utils.ts
+│   │   │   │   ├── Module2UIElement.tsx
 │   │   ├── components
 │   │   │   ├── ModuleComponent1.tsx
 │   ├── hooks
 │   │   │   ├── useModuleHook1.ts
 │   ├── Module.tsx
 │   ├── types.d.ts
-└── global.d.ts
+│   └── global.d.ts
+├── EE
+│   ├── assets
+│   │   ├── constants.ts
+│   │   ├── utils.ts
+│   │   ├── UIElement1.tsx
+│   ├── components
+│   │   ├── Component1
+│   │   │   ├── assets
+│   │   │   │   ├── constants.ts
+│   │   │   │   ├── utils.ts
+│   │   │   │   ├── Component1UIElement.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useComponent1Hook.ts
+│   │   │   │   ├── types.d.ts
+│   │   ├── Component.tsx
+│   ├── hooks
+│   │   ├── useSharedHook1.ts
+│   │   ├── useSharedHook2.ts
+│   ├── pages
+│   │   ├── EEPage
+│   ├── utils
+│   ├── store
+│   │   ├── atoms
+│   │   │   ├── eeAtoms.ts
+│   │   ├── context
+│   │   │   ├── EEContext.tsx
+│   ├── modules
+│   │   ├── Module1
+│   │   │   ├── assets
+│   │   │   │   ├── constants.ts
+│   │   │   │   ├── Module1UIElement.tsx
+│   │   │   ├── store
+│   │   │   │   ├── atoms
+│   │   │   │   │   ├── moduleAtoms.ts
+│   │   │   ├── context
+│   │   │   │   ├── ModuleContext.tsx
+│   │   │   ├── components
+│   │   │   │   ├── ModuleComponent1
+│   │   │   │   │   ├── assets
+│   │   │   │   │   │   ├── constants.ts
+│   │   │   │   │   │   ├── utils.ts
+│   │   │   │   │   │   ├── ModuleComponent1UIElement.tsx
+│   │   │   │   │   ├── Component.tsx
+│   │   │   │   │   ├── hooks
+│   │   │   │   │   │   ├── useModuleComponent1Hook.ts
+│   │   │   │   │   │   ├── types.d.ts
+│   │   │   │   ├── ModuleComponent2.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── useModuleHook1.ts
+│   │   │   │   ├── useModuleHook2.ts
+│   │   │   ├── Module.tsx
+│   │   │   ├── types.d.ts
+│   │   ├── Module2
+│   │   │   ├── assets
+│   │   │   │   ├── constants.ts
+│   │   │   │   ├── utils.ts
+│   │   │   │   ├── Module2UIElement.tsx
+│   │   ├── components
+│   │   │   ├── ModuleComponent1.tsx
+│   ├── hooks
+│   │   │   ├── useModuleHook1.ts
+│   ├── Module.tsx
+│   ├── types.d.ts
+│   └── global.d.ts
 ```
 
 ### Architecture Overview
