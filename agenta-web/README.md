@@ -179,7 +179,12 @@ This structure supports:
 
 ### Data Fetching Best Practices
 
-We recommend using SWR with Axios for data fetching instead of useEffect patterns. This helps achieve cleaner code while simplifying management of fetch states.
+We recommend using SWR with Axios for data fetching instead of useEffect patterns. This helps achieve cleaner code while,
+
+- simplifying management of fetch states.
+- handling cache better
+- having a more interactive UI by revalidating in background
+- utilizing optimistic mutations.
 
 #### Example: Converting useEffect Data Fetching to SWR with Axios
 
@@ -235,6 +240,8 @@ function MyApp({ Component, pageProps }) {
 export default MyApp;
 ```
 
+and data can be then be fetched in a way that fits react mental model inside the component:
+
 ```javascript
 import useSWR from 'swr';
 
@@ -251,5 +258,37 @@ function Component() {
       <div>Data 2: {data2}</div>
     </div>
   );
+}
+```
+
+Mutations can be triggered via Swr in the following way
+
+```javascript
+import useSWRMutation from 'swr/mutation'
+ 
+async function sendRequest(url, { arg }: { arg: { username: string }}) {
+  return fetch(url, {
+    method: 'POST',
+    body: JSON.stringify(arg)
+  }).then(res => res.json())
+}
+ 
+function App() {
+  const { trigger, isMutating } = useSWRMutation('/api/user', sendRequest, /* options */)
+ 
+  return (
+    <button
+      disabled={isMutating}
+      onClick={async () => {
+        try {
+          const result = await trigger({ username: 'johndoe' }, /* options */)
+        } catch (e) {
+          // error handling
+        }
+      }}
+    >
+      Create User
+    </button>
+  )
 }
 ```
