@@ -1,5 +1,3 @@
-import DeleteAppModal from "@/components/AppSelector/modals/DeleteAppModal"
-import EditAppModal from "@/components/AppSelector/modals/EditAppModal"
 import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
@@ -22,6 +20,8 @@ import {createUseStyles} from "react-jss"
 const ObservabilityOverview: any = dynamicComponent(
     "pages/overview/observability/ObservabilityOverview",
 )
+const DeleteAppModal: any = dynamicComponent("pages/app-management/modals/DeleteAppModal")
+const EditAppModal: any = dynamicComponent("pages/app-management/modals/EditAppModal")
 
 const {Title} = Typography
 
@@ -173,7 +173,7 @@ export default function Overview() {
                     onOk={handleDeleteOk}
                     onCancel={() => setIsDeleteAppModalOpen(false)}
                     confirmLoading={isDelAppLoading}
-                    appName={currentApp?.app_name}
+                    appDetails={currentApp}
                 />
             )}
 

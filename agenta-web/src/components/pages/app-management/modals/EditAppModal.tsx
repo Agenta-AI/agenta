@@ -32,7 +32,7 @@ const EditAppModal = ({appDetails, ...props}: EditAppModalProps) => {
 
     useUpdateEffect(() => {
         setAppNameInput(appDetails.app_name)
-    }, [apps])
+    }, [apps, appDetails])
 
     const appNameExist = useMemo(
         () =>
