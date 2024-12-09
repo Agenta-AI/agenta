@@ -7,7 +7,7 @@ import {ModelParameters, ObjectParameters, StringParameters} from "./ParametersC
 import PublishVariantModal from "./PublishVariantModal"
 import {deleteSingleVariant} from "@/services/playground/api"
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"
-import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import {isDemo} from "@/lib/helpers/utils"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent, dynamicService} from "@/lib/helpers/dynamic"
@@ -128,7 +128,7 @@ const ParametersView: React.FC<Props> = ({
                 onStateChange(false)
                 res(true)
             })
-            posthog.capture("variant_saved", {variant_id: variant.variantId})
+            posthog?.capture?.("variant_saved", {variant_id: variant.variantId})
         })
     }
 
