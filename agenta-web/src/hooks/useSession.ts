@@ -2,7 +2,7 @@ import {useProfileData} from "@/contexts/profile.context"
 import {isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
-import {signOut} from "supertokens-auth-react/recipe/session/signOut"
+import {signOut} from "supertokens-auth-react/recipe/session"
 
 export const useSession: () => {loading: boolean; doesSessionExist: boolean; logout: () => void} =
     isDemo()
