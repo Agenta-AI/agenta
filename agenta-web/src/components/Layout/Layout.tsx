@@ -19,7 +19,6 @@ import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
 import {useProjectData} from "@/contexts/project.context"
 import {dynamicContext} from "@/lib/helpers/dynamic"
-import NoResultsFound from "../NoResultsFound/NoResultsFound"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
