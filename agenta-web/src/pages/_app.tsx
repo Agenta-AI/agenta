@@ -29,7 +29,11 @@ export default function App({Component, pageProps}: AppProps) {
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
             <main className={`${inter.variable} font-sans`}>
-                <CustomPosthogProvider>
+                <CustomPosthogProvider
+                    config={{
+                        persistence: "localStorage+cookie",
+                    }}
+                >
                     <ThemeContextProvider>
                         <ProfileContextProvider>
                             <ProjectContextProvider>

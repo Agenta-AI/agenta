@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useRef} from "react"
 import {useRouter} from "next/router"
 import {useAtom} from "jotai"
-import {posthogAtom} from "./store/atoms"
+import {posthogAtom, type PostHogConfig} from "./store/atoms"
+import {CustomPosthogProviderType} from "./types"
 
-const CustomPosthogProvider = ({children}: {children: React.ReactNode}) => {
+const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) => {
     const router = useRouter()
     const loadingPosthog = useRef(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
@@ -24,9 +25,9 @@ const CustomPosthogProvider = ({children}: {children: React.ReactNode}) => {
                 if (process.env.NODE_ENV === "development") posthog.debug()
             },
             capture_pageview: false,
-            persistence: "localStorage+cookie",
+            ...config,
         })
-    }, [posthogClient, setPosthogClient])
+    }, [config, posthogClient, setPosthogClient])
 
     useEffect(() => {
         initPosthog()
