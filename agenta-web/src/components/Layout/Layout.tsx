@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
+import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
@@ -19,6 +19,7 @@ import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
 import {useProjectData} from "@/contexts/project.context"
 import {dynamicContext} from "@/lib/helpers/dynamic"
+import NoResultsFound from "../NoResultsFound/NoResultsFound"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -93,6 +94,21 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontWeight: 500,
         "& span": {
             fontWeight: 600,
+        },
+    },
+    notFoundContainer: {
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        alignItems: "center",
+        justifyContent: "center",
+        "& h1": {
+            fontSize: 24,
+            fontWeight: 600,
+        },
+        "& p": {
+            fontSize: 14,
+            marginTop: 8,
         },
     },
 }))
@@ -190,7 +206,19 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [appTheme])
 
     // wait unitl we have the app id, if its an app route
-    if (isAppRoute && (!appId || !currentApp)) return null
+    if (isAppRoute && !appId) return null
+
+    if (appId && !currentApp)
+        return (
+            <div className={classes.notFoundContainer}>
+                <h1>404 - Page Not Found</h1>
+                <p>This page could not be found.</p>
+
+                <Button type="primary" onClick={() => router.push("/apps")}>
+                    Back To Apps
+                </Button>
+            </div>
+        )
 
     const isAuthRoute =
         router.pathname.includes("/auth") || router.pathname.includes("/post-signup")
