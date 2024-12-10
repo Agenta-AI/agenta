@@ -1,5 +1,5 @@
 import {getCurrentProject} from "@/contexts/project.context"
-import axios from "@/lib//helpers/axiosConfig"
+import axios from "@/lib/api/assets/axiosConfig"
 import Session from "supertokens-auth-react/recipe/session"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
