@@ -22,7 +22,20 @@ if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | gre
     cd agenta-backend || exit
 
     # Run backend checks
-    if ! pylint $(git diff --cached --name-only | grep '\.py$'); then
+    if ! pylint --recursive=y --errors-only .; then
+        echo '❌ pylint issues detected. Please fix them before pushing the code.'
+        exit 1
+    fi
+
+    echo '🎉 Backend checks passed. Ready to push!'
+fi
+
+# Check cli changes
+if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q '^agenta-cli/'; then
+    cd agenta-cli || exit
+
+    # Run backend checks
+    if ! pylint --recursive=y --errors-only .; then
         echo '❌ pylint issues detected. Please fix them before pushing the code.'
         exit 1
     fi
