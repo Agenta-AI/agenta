@@ -1,4 +1,4 @@
-import axios from "@/lib/helpers/axiosConfig"
+import axios from "@/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {ProjectsResponse} from "./types"
 

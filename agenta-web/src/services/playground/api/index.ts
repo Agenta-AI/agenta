@@ -1,6 +1,6 @@
 import {getCurrentProject} from "@/contexts/project.context"
 import {Parameter} from "@/lib/Types"
-import axios from "@/lib/helpers/axiosConfig"
+import axios from "@/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 //Prefix convention:
