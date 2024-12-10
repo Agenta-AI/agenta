@@ -5,3 +5,4 @@ export default function cURLCode(uri: string, params: string): string {
 -d '${params}'
 `
 }
+// any this
