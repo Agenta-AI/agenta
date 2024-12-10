@@ -19,7 +19,7 @@ user_prompt = """
     """
 ag.init()
 
-litellm.callbacks = [ag.callbacks.litellm_handler()]
+# litellm.callbacks = [ag.callbacks.litellm_handler()]
 
 # Initialize Qdrant client
 qdrant_client = QdrantClient(
@@ -156,10 +156,7 @@ def rerank_results(query: str, results: List[Dict]) -> List[Dict]:
 @ag.route("/", config_schema=Config)
 @ag.instrument()
 def generate(query: str):
-    if os.getenv("AGENTA_ENV", False):
-        config = ag.ConfigManager.get_from_route(Config)
-    else:
-        config = Config()
+    config = ag.ConfigManager.get_from_route(Config)
     results = search_docs(query)
     if config.use_rerank:
         reranked_results = rerank_results(query, results)
