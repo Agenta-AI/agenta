@@ -1,3 +1,4 @@
+// this is fe
 export default function cURLCode(appName: string, env_name: string): string {
     return `curl -L '${process.env.NEXT_PUBLIC_AGENTA_API_URL}/api/variants/configs/fetch' \\
 -H 'Content-Type: application/json' \\
