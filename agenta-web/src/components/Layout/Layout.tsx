@@ -101,11 +101,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         minHeight: "100vh",
         alignItems: "center",
         justifyContent: "center",
-        "& h1": {
+        "& .ant-typography:nth-of-type(1)": {
             fontSize: 24,
             fontWeight: 600,
         },
-        "& p": {
+        "& .ant-typography:nth-of-type(2)": {
             fontSize: 14,
             marginTop: 8,
         },
@@ -210,8 +210,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
     if (appId && !currentApp)
         return (
             <div className={classes.notFoundContainer}>
-                <h1>404 - Page Not Found</h1>
-                <p>This page could not be found.</p>
+                <Typography.Text>404 - Page Not Found</Typography.Text>
+                <Typography.Text>This page could not be found.</Typography.Text>
 
                 <Button type="primary" onClick={() => router.push("/apps")}>
                     Back To Apps
