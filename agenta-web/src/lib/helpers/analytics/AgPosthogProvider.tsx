@@ -20,7 +20,6 @@ const CustomPosthogProvider = ({children}: {children: React.ReactNode}) => {
             api_host: "https://app.posthog.com",
             // Enable debug mode in development
             loaded: (posthog) => {
-                console.log("initialized posthog", process.env.NEXT_PUBLIC_POSTHOG_API_KEY)
                 setPosthogClient(posthog)
                 if (process.env.NODE_ENV === "development") posthog.debug()
             },
