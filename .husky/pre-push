@@ -1,23 +1,26 @@
+git fetch origin
 # Check for changes in the frontend directory (agenta-web/) in the files being pushed
-cd agenta-web || exit
+if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q '^agenta-web/'; then
+    cd agenta-web || exit
 
-# Run ESLint check
-if ! npm run lint; then
-    echo '❌ ESLint issues detected. Please fix them before committing.'
-    exit 1
-else
-    echo '✅ ESLint check passed.'
+    # Run ESLint check
+    if ! npm run lint; then
+        echo '❌ ESLint issues detected. Please fix them before committing.'
+        exit 1
+    else
+        echo '✅ ESLint check passed.'
+    fi
+
+    # Run TypeScript type check
+    if ! npm run types:check; then
+        echo '❌ TypeScript type errors detected. Please fix them before pushing the code.'
+        exit 1
+    else
+        echo '✅ TypeScript type check passed.'
+    fi
+
+    echo '🎉 All checks passed. Ready to push!'
 fi
-
-# Run TypeScript type check
-if ! npm run types:check; then
-    echo '❌ TypeScript type errors detected. Please fix them before pushing the code.'
-    exit 1
-else
-    echo '✅ TypeScript type check passed.'
-fi
-
-echo '🎉 All checks passed. Ready to push!'
 
 # Check for changes in the frontend directory (agenta-backend/) in the files being pushed
 if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q '^agenta-backend/'; then
