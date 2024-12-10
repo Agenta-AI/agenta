@@ -1,0 +1,47 @@
+# Check for changes in frontend directory
+if git diff --cached --name-only | grep -q '^agenta-web/'; then
+    cd agenta-web || exit
+
+    # Run Prettier check
+    if ! npm run format; then
+        echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
+        npm run format-fix
+
+        # Stage the fixed files
+        git add .
+
+        echo '✅ Formatting issues fixed and changes staged.'
+    fi
+fi
+
+# Check for changes in backend directory
+if git diff --cached --name-only | grep -q '^agenta-backend/'; then
+    cd agenta-backend || exit
+
+    # Run black for formatting
+    if ! black --check .; then
+        echo '⚠️ Formatting issues detected. Running black to fix them...'
+        black .
+
+        # Stage the fixed files
+        git add .
+
+        echo '✅ Formatting issues fixed and changes staged.'
+    fi
+fi
+
+# Check for changes in cli directory
+if git diff --cached --name-only | grep -q '^agenta-cli/'; then
+    cd agenta-cli || exit
+
+    # Run black for formatting
+    if ! black --check .; then
+        echo '⚠️ Formatting issues detected. Running black to fix them...'
+        black .
+
+        # Stage the fixed files
+        git add .
+
+        echo '✅ Formatting issues fixed and changes staged.'
+    fi
+fi
