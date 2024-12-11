@@ -15,8 +15,6 @@ type NewEvaluatorProps = {
     setSelectedEvaluator: React.Dispatch<React.SetStateAction<Evaluator | null>>
     setEvaluatorsDisplay: any
     evaluatorsDisplay: string
-    setSelectedEvaluatorCategory: React.Dispatch<React.SetStateAction<string>>
-    selectedEvaluatorCategory: string
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -62,12 +60,11 @@ const NewEvaluator = ({
     setSelectedEvaluator,
     setEvaluatorsDisplay,
     evaluatorsDisplay,
-    selectedEvaluatorCategory,
-    setSelectedEvaluatorCategory,
 }: NewEvaluatorProps) => {
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState("")
     const evaluatorTags = getEvaluatorTags()
+    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
 
     const filteredEvaluators = useMemo(() => {
         let filtered = evaluators
@@ -103,7 +100,7 @@ const NewEvaluator = ({
                 <div>
                     <div className="flex items-center justify-between">
                         <Radio.Group
-                            defaultValue={"view_all"}
+                            defaultValue={selectedEvaluatorCategory}
                             className={classes.radioBtnContainer}
                             onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
                         >
