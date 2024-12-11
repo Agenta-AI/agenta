@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic"
+import {type AgGridReact as AgGridReactType} from "@ag-grid-community/react"
 
 const AgGridReact = dynamic(
     async () => {
@@ -19,4 +20,6 @@ const AgGridReact = dynamic(
     },
 )
 
-export default AgGridReact
+export type {AgGridReactType}
+
+export default AgGridReact as typeof AgGridReactType
