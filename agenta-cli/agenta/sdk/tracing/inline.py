@@ -1143,7 +1143,4 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.total"] = total_cost
 
             except:  # pylint: disable=bare-except
-                print("Failed to calculate costs:")
-                print(
-                    f"model={model}, prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}"
-                )
+                pass
