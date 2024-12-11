@@ -59,9 +59,7 @@ class AgentaSingleton:
             ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
         """
 
-        log.info("---------------------------")
-        log.info("Agenta SDK - using version: %s", version("agenta"))
-        log.info("---------------------------")
+        log.info("Agenta - SDK version: %s", version("agenta"))
 
         config = {}
         if config_fname:
@@ -86,6 +84,13 @@ class AgentaSingleton:
 
         self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
 
+        self.base_id = getenv("AGENTA_BASE_ID")
+
+        self.service_id = getenv("AGENTA_SERVICE_ID") or self.base_id
+
+        log.info("Agenta - Service ID: %s", self.service_id)
+        log.info("Agenta - Application ID: %s", self.app_id)
+
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/otlp/traces",  # type: ignore
             redact=redact,
@@ -94,6 +99,7 @@ class AgentaSingleton:
 
         self.tracing.configure(
             api_key=self.api_key,
+            service_id=self.service_id,
             # DEPRECATING
             app_id=self.app_id,
         )
@@ -107,8 +113,6 @@ class AgentaSingleton:
             base_url=self.host + "/api",
             api_key=self.api_key if self.api_key else "",
         )
-
-        self.base_id = getenv("AGENTA_BASE_ID")
 
         self.config = Config(
             host=self.host,

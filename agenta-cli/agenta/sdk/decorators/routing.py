@@ -1,7 +1,6 @@
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List
 from annotated_types import Ge, Le, Gt, Lt
 from pydantic import BaseModel, HttpUrl, ValidationError
-from json import dumps
 from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
 from argparse import ArgumentParser
 from functools import wraps
@@ -9,16 +8,27 @@ from asyncio import sleep, get_event_loop
 from traceback import format_exc, format_exception
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from os import environ
 
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Body, FastAPI, UploadFile, HTTPException
 
-from agenta.sdk.middleware.auth import AuthorizationMiddleware
-from agenta.sdk.context.routing import routing_context_manager, routing_context
-from agenta.sdk.context.tracing import tracing_context
+from fastapi import Body, FastAPI, UploadFile, HTTPException, Request
+
+from agenta.sdk.middleware.auth import AuthMiddleware
+from agenta.sdk.middleware.otel import OTelMiddleware
+from agenta.sdk.middleware.config import ConfigMiddleware
+from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.middleware.cors import CORSMiddleware
+
+from agenta.sdk.context.routing import (
+    routing_context_manager,
+    routing_context,
+    RoutingContext,
+)
+from agenta.sdk.context.tracing import (
+    tracing_context_manager,
+    tracing_context,
+    TracingContext,
+)
 from agenta.sdk.router import router
-from agenta.sdk.utils import helpers
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
@@ -39,17 +49,8 @@ from agenta.sdk.types import (
 import agenta as ag
 
 
-AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", "true")).lower() in (
-    "true",
-    "1",
-    "t",
-)
-
 app = FastAPI()
 log.setLevel("DEBUG")
-
-
-_MIDDLEWARES = True
 
 
 app.include_router(router, prefix="")
@@ -65,7 +66,11 @@ class route:
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
     # routes without altering the main workflow entrypoint. This helps in modularizing the services
     # and provides flexibility in how we expose different functionalities as APIs.
-    def __init__(self, path, config_schema: BaseModel):
+    def __init__(
+        self,
+        path: Optional[str] = "/",
+        config_schema: Optional[BaseModel] = None,
+    ):
         self.config_schema: BaseModel = config_schema
         path = "/" + path.strip("/").strip()
         path = "" if path == "/" else path
@@ -73,9 +78,13 @@ class route:
 
         self.route_path = path
 
+        self.e = None
+
     def __call__(self, f):
         self.e = entrypoint(
-            f, route_path=self.route_path, config_schema=self.config_schema
+            f,
+            route_path=self.route_path,
+            config_schema=self.config_schema,
         )
 
         return f
@@ -113,232 +122,202 @@ class entrypoint:
     """
 
     routes = list()
+    _middleware = False
+    _run_path = "/run"
+    _test_path = "/test"
+    # LEGACY
+    _legacy_playground_run_path = "/playground/run"
+    _legacy_generate_path = "/generate"
+    _legacy_generate_deployed_path = "/generate_deployed"
 
     def __init__(
         self,
         func: Callable[..., Any],
-        route_path="",
+        route_path: str = "",
         config_schema: Optional[BaseModel] = None,
     ):
-        ### --- Update Middleware --- #
-        try:
-            global _MIDDLEWARES  # pylint: disable=global-statement
-
-            if _MIDDLEWARES:
-                app.add_middleware(
-                    AuthorizationMiddleware,
-                    host=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host,
-                    resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
-                    resource_type="application",
-                )
-
-                if AGENTA_USE_CORS:
-                    app.add_middleware(
-                        CORSMiddleware,
-                        allow_origins=["*"],
-                        allow_methods=["*"],
-                        allow_headers=["*"],
-                        allow_credentials=True,
-                    )
-
-                _MIDDLEWARES = False
-
-        except:  # pylint: disable=bare-except
-            log.warning("Agenta SDK - failed to secure route: %s", route_path)
-        ### --- Update Middleware --- #
-
-        DEFAULT_PATH = "generate"
-        PLAYGROUND_PATH = "/playground"
-        RUN_PATH = "/run"
-        func_signature = signature(func)
-        try:
-            config = (
-                config_schema() if config_schema else None
-            )  # we initialize the config object to be able to use it
-        except ValidationError as e:
-            raise ValueError(
-                f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
-            ) from e
-        except Exception as e:
-            raise ValueError(
-                f"Unexpected error initializing config_schema: {str(e)}"
-            ) from e
-
-        config_params = config.dict() if config else ag.config.all()
-        ingestible_files = self.extract_ingestible_files(func_signature)
-
+        self.func = func
         self.route_path = route_path
+        self.config_schema = config_schema
 
-        ### --- Playground  --- #
+        signature_parameters = signature(func).parameters
+        ingestible_files = self.extract_ingestible_files()
+        config, default_parameters = self.parse_config()
+
+        ### --- Middleware --- #
+        if not entrypoint._middleware:
+            entrypoint._middleware = True
+
+            app.add_middleware(VaultMiddleware)
+            app.add_middleware(ConfigMiddleware)
+            app.add_middleware(AuthMiddleware)
+            app.add_middleware(OTelMiddleware)
+            app.add_middleware(CORSMiddleware)
+        ### ------------------ #
+
+        ### --- Run --- #
         @wraps(func)
-        async def wrapper(*args, **kwargs) -> Any:
-            func_params, api_config_params = self.split_kwargs(kwargs, config_params)
-            self.ingest_files(func_params, ingestible_files)
-            if not config_schema:
-                ag.config.set(**api_config_params)
-
-            with routing_context_manager(
-                config=api_config_params,
-            ):
-                entrypoint_result = await self.execute_function(
-                    func,
-                    True,  # inline trace: True
-                    *args,
-                    params=func_params,
-                    config_params=config_params,
-                )
-
-            return entrypoint_result
-
-        self.update_function_signature(
-            wrapper=wrapper,
-            func_signature=func_signature,
-            config_class=config,
-            config_dict=config_params,
-            ingestible_files=ingestible_files,
-        )
-
-        #
-        if route_path == "":
-            route = f"/{DEFAULT_PATH}"
-            app.post(route, response_model=BaseResponse)(wrapper)
-            entrypoint.routes.append(
-                {
-                    "func": func.__name__,
-                    "endpoint": route,
-                    "params": (
-                        {**config_params, **func_signature.parameters}
-                        if not config
-                        else func_signature.parameters
-                    ),
-                    "config": config,
-                }
-            )
-
-        route = f"{PLAYGROUND_PATH}{RUN_PATH}{route_path}"
-        app.post(route, response_model=BaseResponse)(wrapper)
-        entrypoint.routes.append(
-            {
-                "func": func.__name__,
-                "endpoint": route,
-                "params": (
-                    {**config_params, **func_signature.parameters}
-                    if not config
-                    else func_signature.parameters
-                ),
-                "config": config,
-            }
-        )
-        ### ---------------------------- #
-
-        ### --- Deployed --- #
-        @wraps(func)
-        async def wrapper_deployed(*args, **kwargs) -> Any:
-            func_params = {
+        async def run_wrapper(request: Request, *args, **kwargs) -> Any:
+            arguments = {
                 k: v
                 for k, v in kwargs.items()
                 if k not in ["config", "environment", "app"]
             }
-            if not config_schema:
-                if "environment" in kwargs and kwargs["environment"] is not None:
-                    ag.config.pull(environment_name=kwargs["environment"])
-                elif "config" in kwargs and kwargs["config"] is not None:
-                    ag.config.pull(config_name=kwargs["config"])
-                else:
-                    ag.config.pull(config_name="default")
 
-            app_id = environ.get("AGENTA_APP_ID")
-
-            with routing_context_manager(
-                application={
-                    "id": app_id,
-                    "slug": kwargs.get("app"),
-                },
-                variant={
-                    "slug": kwargs.get("config"),
-                },
-                environment={
-                    "slug": kwargs.get("environment"),
-                },
-            ):
-                entrypoint_result = await self.execute_function(
-                    func,
-                    False,  # inline trace: False
-                    *args,
-                    params=func_params,
-                    config_params=config_params,
-                )
-
-            return entrypoint_result
+            return await self.execute_wrapper(
+                request,
+                False,
+                *args,
+                **arguments,
+            )
 
         self.update_deployed_function_signature(
-            wrapper_deployed,
-            func_signature,
+            run_wrapper,
             ingestible_files,
         )
+
+        run_route = f"{entrypoint._run_path}{route_path}"
+        app.post(run_route, response_model=BaseResponse)(run_wrapper)
+
+        # LEGACY
         if route_path == "":
-            route_deployed = f"/{DEFAULT_PATH}_deployed"
-            app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
+            run_route = entrypoint._legacy_generate_deployed_path
+            app.post(run_route, response_model=BaseResponse)(run_wrapper)
+        # LEGACY
+        ### ----------- #
 
-        route_deployed = f"{RUN_PATH}{route_path}"
-        app.post(route_deployed, response_model=BaseResponse)(wrapper_deployed)
-        ### ---------------- #
-
-        ### --- Update OpenAPI --- #
-        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
-        openapi_schema = app.openapi()
-
-        # Inject the current version of the SDK into the openapi_schema
-        openapi_schema["agenta_sdk"] = {"version": helpers.get_current_version()}
-
-        for route in entrypoint.routes:
-            self.override_schema(
-                openapi_schema=openapi_schema,
-                func_name=route["func"],
-                endpoint=route["endpoint"],
-                params=route["params"],
+        ### --- Test --- #
+        @wraps(func)
+        async def test_wrapper(request: Request, *args, **kwargs) -> Any:
+            arguments, _ = self.split_kwargs(
+                kwargs,
+                default_parameters,
             )
-            if route["config"] is not None:  # new SDK version
-                self.override_config_in_schema(
-                    openapi_schema=openapi_schema,
-                    func_name=route["func"],
-                    endpoint=route["endpoint"],
-                    config=route["config"],
-                )
 
-        if self.is_main_script(func) and route_path == "":
-            self.handle_terminal_run(
-                func,
-                func_signature.parameters,  # type: ignore
-                config_params,
+            self.ingest_files(
+                arguments,
                 ingestible_files,
             )
 
-    def extract_ingestible_files(
-        self,
-        func_signature: Signature,
-    ) -> Dict[str, Parameter]:
+            return await self.execute_wrapper(
+                request,
+                True,
+                *args,
+                **arguments,
+            )
+
+        self.update_test_wrapper_signature(
+            wrapper=test_wrapper,
+            config_class=config,
+            config_dict=default_parameters,
+            ingestible_files=ingestible_files,
+        )
+
+        test_route = f"{entrypoint._test_path}{route_path}"
+        app.post(test_route, response_model=BaseResponse)(test_wrapper)
+
+        # LEGACY
+        if route_path == "":
+            test_route = entrypoint._legacy_generate_path
+            app.post(test_route, response_model=BaseResponse)(test_wrapper)
+        # LEGACY
+        ### ------------ #
+
+        ### --- OpenAPI --- #
+        test_route = f"{entrypoint._test_path}{route_path}"
+        entrypoint.routes.append(
+            {
+                "func": func.__name__,
+                "endpoint": test_route,
+                "params": (
+                    {**default_parameters, **signature_parameters}
+                    if not config
+                    else signature_parameters
+                ),
+                "config": config,
+            }
+        )
+
+        # LEGACY
+        if route_path == "":
+            test_route = entrypoint._legacy_generate_path
+            entrypoint.routes.append(
+                {
+                    "func": func.__name__,
+                    "endpoint": test_route,
+                    "params": (
+                        {**default_parameters, **signature_parameters}
+                        if not config
+                        else signature_parameters
+                    ),
+                    "config": config,
+                }
+            )
+        # LEGACY
+
+        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
+        openapi_schema = app.openapi()
+
+        for _route in entrypoint.routes:
+            self.override_schema(
+                openapi_schema=openapi_schema,
+                func_name=_route["func"],
+                endpoint=_route["endpoint"],
+                params=_route["params"],
+            )
+
+            if _route["config"] is not None:  # new SDK version
+                self.override_config_in_schema(
+                    openapi_schema=openapi_schema,
+                    func_name=_route["func"],
+                    endpoint=_route["endpoint"],
+                    config=_route["config"],
+                )
+        ### --------------- #
+
+    def extract_ingestible_files(self) -> Dict[str, Parameter]:
         """Extract parameters annotated as InFile from function signature."""
 
         return {
             name: param
-            for name, param in func_signature.parameters.items()
+            for name, param in signature(self.func).parameters.items()
             if param.annotation is InFile
         }
 
+    def parse_config(self) -> Dict[str, Any]:
+        config = None
+        default_parameters = ag.config.all()
+
+        if self.config_schema:
+            try:
+                config = self.config_schema() if self.config_schema else None
+                default_parameters = config.dict() if config else default_parameters
+            except ValidationError as e:
+                raise ValueError(
+                    f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
+                ) from e
+            except Exception as e:
+                raise ValueError(
+                    f"Unexpected error initializing config_schema: {str(e)}"
+                ) from e
+
+        return config, default_parameters
+
     def split_kwargs(
-        self, kwargs: Dict[str, Any], config_params: Dict[str, Any]
+        self, kwargs: Dict[str, Any], default_parameters: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Split keyword arguments into function parameters and API configuration parameters."""
 
-        func_params = {k: v for k, v in kwargs.items() if k not in config_params}
-        api_config_params = {k: v for k, v in kwargs.items() if k in config_params}
+        func_params = {k: v for k, v in kwargs.items() if k not in default_parameters}
+        api_config_params = {k: v for k, v in kwargs.items() if k in default_parameters}
+
         return func_params, api_config_params
 
     def ingest_file(self, upfile: UploadFile):
         temp_file = NamedTemporaryFile(delete=False)
         temp_file.write(upfile.file.read())
         temp_file.close()
+
         return InFile(file_name=upfile.filename, file_path=temp_file.name)
 
     def ingest_files(
@@ -352,51 +331,80 @@ class entrypoint:
             if name in func_params and func_params[name] is not None:
                 func_params[name] = self.ingest_file(func_params[name])
 
+    async def execute_wrapper(
+        self,
+        request: Request,
+        inline: bool,
+        *args,
+        **kwargs,
+    ):
+        if not request:
+            raise HTTPException(status_code=500, detail="Missing 'request'.")
+
+        state = request.state
+        credentials = state.auth.get("credentials") if state.auth else None
+        parameters = state.config.get("parameters") if state.config else None
+        references = state.config.get("references") if state.config else None
+        secrets = state.vault.get("secrets") if state.vault else None
+
+        with routing_context_manager(
+            context=RoutingContext(
+                parameters=parameters,
+                secrets=secrets,
+            )
+        ):
+            with tracing_context_manager(
+                context=TracingContext(
+                    credentials=credentials,
+                    parameters=parameters,
+                    references=references,
+                )
+            ):
+                result = await self.execute_function(inline, *args, **kwargs)
+
+        return result
+
     async def execute_function(
         self,
-        func: Callable[..., Any],
-        inline_trace,
+        inline: bool,
         *args,
-        **func_params,
+        **kwargs,
     ):
-        log.info("Agenta SDK - handling route: %s", repr(self.route_path or "/"))
-
-        tracing_context.set(routing_context.get())
+        log.info("Agenta - Handling: '%s'", repr(self.route_path or "/"))
 
         try:
             result = (
-                await func(*args, **func_params["params"])
-                if iscoroutinefunction(func)
-                else func(*args, **func_params["params"])
+                await self.func(*args, **kwargs)
+                if iscoroutinefunction(self.func)
+                else self.func(*args, **kwargs)
             )
 
-            return await self.handle_success(result, inline_trace)
+            return await self.handle_success(result, inline)
 
-        except Exception as error:
+        except Exception as error:  # pylint: disable=broad-except
             self.handle_failure(error)
 
-    async def handle_success(self, result: Any, inline_trace: bool):
+    async def handle_success(self, result: Any, inline: bool):
         data = None
         tree = None
 
         with suppress():
             data = self.patch_result(result)
 
-            if inline_trace:
-                tree = await self.fetch_inline_trace(inline_trace)
+            if inline:
+                tree = await self.fetch_inline_trace(inline)
 
-        log.info(f"----------------------------------")
-        log.info(f"Agenta SDK - exiting with success: 200")
-        log.info(f"----------------------------------")
-
-        return BaseResponse(data=data, tree=tree)
+        try:
+            return BaseResponse(data=data, tree=tree)
+        except:
+            return BaseResponse(data=data)
 
     def handle_failure(self, error: Exception):
-        log.warning("--------------------------------------------------")
-        log.warning("Agenta SDK - handling application exception below:")
-        log.warning("--------------------------------------------------")
+        log.warning("-------------------------------")
+        log.warning("Agenta - Application Exception:")
+        log.warning("-------------------------------")
         log.warning(format_exc().strip("\n"))
-        log.warning("--------------------------------------------------")
+        log.warning("-------------------------------")
 
         status_code = 500
         message = str(error)
@@ -442,7 +450,7 @@ class entrypoint:
 
         return data
 
-    async def fetch_inline_trace(self, inline_trace):
+    async def fetch_inline_trace(self, inline):
         WAIT_FOR_SPANS = True
         TIMEOUT = 1
         TIMESTEP = 0.1
@@ -451,12 +459,14 @@ class entrypoint:
 
         trace = None
 
-        root_context: Dict[str, Any] = tracing_context.get().get("root")
+        context = tracing_context.get()
 
-        trace_id = root_context.get("trace_id") if root_context else None
+        link = context.link
+
+        trace_id = link.get("tree_id") if link else None
 
         if trace_id is not None:
-            if inline_trace:
+            if inline:
                 if WAIT_FOR_SPANS:
                     remaining_steps = NOFSTEPS
 
@@ -476,6 +486,27 @@ class entrypoint:
 
         return trace
 
+    # --- OpenAPI --- #
+
+    def add_request_to_signature(
+        self,
+        wrapper: Callable[..., Any],
+    ):
+        original_sig = signature(wrapper)
+        parameters = [
+            Parameter(
+                "request",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Request,
+            ),
+            *original_sig.parameters.values(),
+        ]
+        new_sig = Signature(
+            parameters,
+            return_annotation=original_sig.return_annotation,
+        )
+        wrapper.__signature__ = new_sig
+
     def update_wrapper_signature(
         self, wrapper: Callable[..., Any], updated_params: List
     ):
@@ -492,10 +523,9 @@ class entrypoint:
         wrapper_signature = wrapper_signature.replace(parameters=updated_params)
         wrapper.__signature__ = wrapper_signature  # type: ignore
 
-    def update_function_signature(
+    def update_test_wrapper_signature(
         self,
         wrapper: Callable[..., Any],
-        func_signature: Signature,
         config_class: Type[BaseModel],  # TODO: change to our type
         config_dict: Dict[str, Any],
         ingestible_files: Dict[str, Parameter],
@@ -507,19 +537,19 @@ class entrypoint:
             self.add_config_params_to_parser(updated_params, config_class)
         else:
             self.deprecated_add_config_params_to_parser(updated_params, config_dict)
-        self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
+        self.add_func_params_to_parser(updated_params, ingestible_files)
         self.update_wrapper_signature(wrapper, updated_params)
+        self.add_request_to_signature(wrapper)
 
     def update_deployed_function_signature(
         self,
         wrapper: Callable[..., Any],
-        func_signature: Signature,
         ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[Parameter] = []
-        self.add_func_params_to_parser(updated_params, func_signature, ingestible_files)
+        self.add_func_params_to_parser(updated_params, ingestible_files)
         for param in [
             "config",
             "environment",
@@ -533,6 +563,7 @@ class entrypoint:
                 )
             )
         self.update_wrapper_signature(wrapper, updated_params)
+        self.add_request_to_signature(wrapper)
 
     def add_config_params_to_parser(
         self, updated_params: list, config_class: Type[BaseModel]
@@ -573,11 +604,10 @@ class entrypoint:
     def add_func_params_to_parser(
         self,
         updated_params: list,
-        func_signature: Signature,
         ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Add function parameters to function signature."""
-        for name, param in func_signature.parameters.items():
+        for name, param in signature(self.func).parameters.items():
             if name in ingestible_files:
                 updated_params.append(
                     Parameter(name, param.kind, annotation=UploadFile)
@@ -598,115 +628,6 @@ class entrypoint:
                         # thus, why we are accessing the first item.
                     )
                 )
-
-    def is_main_script(self, func: Callable) -> bool:
-        """
-        Check if the script containing the function is the main script being run.
-
-        Args:
-            func (Callable): The function object to check.
-
-        Returns:
-            bool: True if the script containing the function is the main script, False otherwise.
-
-        Example:
-            if is_main_script(my_function):
-                print("This is the main script.")
-        """
-        return func.__module__ == "__main__"
-
-    def handle_terminal_run(
-        self,
-        func: Callable,
-        func_params: Dict[str, Parameter],
-        config_params: Dict[str, Any],
-        ingestible_files: Dict,
-    ):
-        """
-        Parses command line arguments and sets configuration when script is run from the terminal.
-
-        Args:
-            func_params (dict): A dictionary containing the function parameters and their annotations.
-            config_params (dict): A dictionary containing the configuration parameters.
-            ingestible_files (dict): A dictionary containing the files that should be ingested.
-        """
-
-        # For required parameters, we add them as arguments
-        parser = ArgumentParser()
-        for name, param in func_params.items():
-            if name in ingestible_files:
-                parser.add_argument(name, type=str)
-            else:
-                parser.add_argument(name, type=param.annotation)
-
-        for name, param in config_params.items():
-            if type(param) is MultipleChoiceParam:
-                parser.add_argument(
-                    f"--{name}",
-                    type=str,
-                    default=param.default,
-                    choices=param.choices,  # type: ignore
-                )
-            else:
-                parser.add_argument(
-                    f"--{name}",
-                    type=type(param),
-                    default=param,
-                )
-
-        args = parser.parse_args()
-
-        # split the arg list into the arg in the app_param and
-        # the args from the sig.parameter
-        args_config_params = {k: v for k, v in vars(args).items() if k in config_params}
-        args_func_params = {
-            k: v for k, v in vars(args).items() if k not in config_params
-        }
-        for name in ingestible_files:
-            args_func_params[name] = InFile(
-                file_name=Path(args_func_params[name]).stem,
-                file_path=args_func_params[name],
-            )
-
-        # Update args_config_params with default values from config_params if not provided in command line arguments
-        args_config_params.update(
-            {
-                key: value
-                for key, value in config_params.items()
-                if key not in args_config_params
-            }
-        )
-
-        loop = get_event_loop()
-
-        with routing_context_manager(config=args_config_params):
-            result = loop.run_until_complete(
-                self.execute_function(
-                    func,
-                    True,  # inline trace: True
-                    **{"params": args_func_params, "config_params": args_config_params},
-                )
-            )
-
-        if result.trace:
-            log.info("\n========= Result =========\n")
-
-            log.info(f"trace_id: {result.trace['trace_id']}")
-            log.info(f"latency:  {result.trace.get('latency')}")
-            log.info(f"cost:     {result.trace.get('cost')}")
-            log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
-
-            log.info(" ")
-            log.info("data:")
-            log.info(dumps(result.data, indent=2))
-
-            log.info(" ")
-            log.info("trace:")
-            log.info("----------------")
-            log.info(dumps(result.trace.get("spans", []), indent=2))
-            log.info("----------------")
-
-            log.info("\n==========================\n")
 
     def override_config_in_schema(
         self,

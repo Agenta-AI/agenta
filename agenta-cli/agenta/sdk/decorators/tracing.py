@@ -1,7 +1,11 @@
 from typing import Callable, Optional, Any, Dict, List, Union
+
 from functools import wraps
 from itertools import chain
 from inspect import iscoroutinefunction, getfullargspec
+
+from opentelemetry import baggage as baggage
+from opentelemetry.context import attach, detach
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.context.tracing import tracing_context
@@ -39,9 +43,11 @@ class instrument:  # pylint: disable=invalid-name
         is_coroutine_function = iscoroutinefunction(func)
 
         @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            async def _async_auto_instrumented(*args, **kwargs):
+        async def awrapper(*args, **kwargs):
+            async def aauto_instrumented(*args, **kwargs):
                 self._parse_type_and_kind()
+
+                token = self._attach_baggage()
 
                 with ag.tracer.start_as_current_span(func.__name__, kind=self.kind):
                     self._pre_instrument(func, *args, **kwargs)
@@ -52,12 +58,16 @@ class instrument:  # pylint: disable=invalid-name
 
                     return result
 
-            return await _async_auto_instrumented(*args, **kwargs)
+                self._detach_baggage(token)
+
+            return await aauto_instrumented(*args, **kwargs)
 
         @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            def _sync_auto_instrumented(*args, **kwargs):
+        def wrapper(*args, **kwargs):
+            def auto_instrumented(*args, **kwargs):
                 self._parse_type_and_kind()
+
+                token = self._attach_baggage()
 
                 with ag.tracer.start_as_current_span(func.__name__, kind=self.kind):
                     self._pre_instrument(func, *args, **kwargs)
@@ -68,15 +78,36 @@ class instrument:  # pylint: disable=invalid-name
 
                     return result
 
-            return _sync_auto_instrumented(*args, **kwargs)
+                self._detach_baggage(token)
 
-        return async_wrapper if is_coroutine_function else sync_wrapper
+            return auto_instrumented(*args, **kwargs)
+
+        return awrapper if is_coroutine_function else wrapper
 
     def _parse_type_and_kind(self):
         if not ag.tracing.get_current_span().is_recording():
             self.type = "workflow"
 
         self.kind = parse_span_kind(self.type)
+
+    def _attach_baggage(self):
+        context = tracing_context.get()
+
+        references = context.references
+
+        token = None
+        if references:
+            for k, v in references:
+                token = attach(baggage.set_baggage(f"ag.refs.{k}", v))
+
+        return token
+
+    def _detach_baggage(
+        self,
+        token,
+    ):
+        if token:
+            detach(token)
 
     def _pre_instrument(
         self,
@@ -86,29 +117,21 @@ class instrument:  # pylint: disable=invalid-name
     ):
         span = ag.tracing.get_current_span()
 
+        context = tracing_context.get()
+
         with suppress():
+            trace_id = span.context.trace_id
+
+            ag.tracing.credentials[trace_id] = context.credentials
+
             span.set_attributes(
                 attributes={"node": self.type},
                 namespace="type",
             )
 
             if span.parent is None:
-                rctx = tracing_context.get()
-
                 span.set_attributes(
-                    attributes={"configuration": rctx.get("config", {})},
-                    namespace="meta",
-                )
-                span.set_attributes(
-                    attributes={"environment": rctx.get("environment", {})},
-                    namespace="meta",
-                )
-                span.set_attributes(
-                    attributes={"version": rctx.get("version", {})},
-                    namespace="meta",
-                )
-                span.set_attributes(
-                    attributes={"variant": rctx.get("variant", {})},
+                    attributes={"configuration": context.parameters or {}},
                     namespace="meta",
                 )
 
@@ -118,6 +141,7 @@ class instrument:  # pylint: disable=invalid-name
                 io=self._parse(func, *args, **kwargs),
                 ignore=self.ignore_inputs,
             )
+
             span.set_attributes(
                 attributes={"inputs": _inputs},
                 namespace="data",
@@ -161,6 +185,7 @@ class instrument:  # pylint: disable=invalid-name
                 io=self._patch(result),
                 ignore=self.ignore_outputs,
             )
+
             span.set_attributes(
                 attributes={"outputs": _outputs},
                 namespace="data",
@@ -171,15 +196,12 @@ class instrument:  # pylint: disable=invalid-name
 
         with suppress():
             if hasattr(span, "parent") and span.parent is None:
-                tracing_context.set(
-                    tracing_context.get()
-                    | {
-                        "root": {
-                            "trace_id": span.get_span_context().trace_id,
-                            "span_id": span.get_span_context().span_id,
-                        }
-                    }
-                )
+                context = tracing_context.get()
+                context.link = {
+                    "tree_id": span.get_span_context().trace_id,
+                    "node_id": span.get_span_context().span_id,
+                }
+                tracing_context.set(context)
 
     def _parse(
         self,
@@ -224,9 +246,7 @@ class instrument:  # pylint: disable=invalid-name
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys()
-                if ignore is True
-                else []
+                else io.keys() if ignore is True else []
             )
         }
 
