@@ -19,6 +19,8 @@ if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | gre
     fi
 
     echo '🎉 All checks passed. Ready to push!'
+
+    cd "$ORIGINAL_DIR" || exit
 fi
 
 # Check for changes in backend directory
