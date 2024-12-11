@@ -1,6 +1,6 @@
 import React, {useState, useRef, useEffect, ReactNode} from "react"
-import {AgGridReact} from "ag-grid-react"
-import {IHeaderParams} from "ag-grid-community"
+
+import {type IHeaderParams} from "@ag-grid-community/core"
 import {createUseStyles} from "react-jss"
 import {Button, Input, Typography, message} from "antd"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
@@ -17,6 +17,7 @@ import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
+import AgGridReact from "@/lib/helpers/agGrid"
 
 type TestsetTableProps = {
     mode: "edit"

@@ -8,9 +8,8 @@ import {
     _Evaluation,
     _EvaluationScenario,
 } from "@/lib/Types"
-import {ColDef, ICellRendererParams} from "ag-grid-community"
+import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {fetchAllComparisonResults} from "@/services/evaluations/api"
-import {AgGridReact} from "ag-grid-react"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import React, {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
@@ -33,6 +32,7 @@ import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import {getStringOrJson} from "@/lib/helpers/utils"
+import AgGridReact from "@/lib/helpers/agGrid"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
