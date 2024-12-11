@@ -1,3 +1,7 @@
+# Define the directories to check
+DIRECTORIES=("agenta-backend" "agenta-cli")
+ORIGINAL_DIR=$(pwd)
+
 # Check frontend changes
 if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q '^agenta-web/'; then
     cd agenta-web || exit
@@ -17,28 +21,19 @@ if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | gre
     echo '🎉 All checks passed. Ready to push!'
 fi
 
-# Check backend changes
-if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q '^agenta-backend/'; then
-    cd agenta-backend || exit
+# Check for changes in backend directory
+for DIR in "${DIRECTORIES[@]}"; do
+    if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q "^$DIR/"; then
+        cd "$DIR" || exit
 
-    # Run backend checks
-    if ! pylint --recursive=y --errors-only .; then
-        echo '❌ pylint issues detected. Please fix them before pushing the code.'
-        exit 1
+        # Run pylint checks
+        if ! pylint --recursive=y --errors-only .; then
+            echo "❌ pylint issues detected in $DIR. Please fix them before pushing the code."
+            exit 1
+        fi
+
+        echo '🎉 Backend checks passed. Ready to push!'
+
+        cd "$ORIGINAL_DIR" || exit
     fi
-
-    echo '🎉 Backend checks passed. Ready to push!'
-fi
-
-# Check cli changes
-if git diff --name-only --cached origin/$(git rev-parse --abbrev-ref HEAD) | grep -q '^agenta-cli/'; then
-    cd agenta-cli || exit
-
-    # Run backend checks
-    if ! pylint --recursive=y --errors-only .; then
-        echo '❌ pylint issues detected. Please fix them before pushing the code.'
-        exit 1
-    fi
-
-    echo '🎉 Backend checks passed. Ready to push!'
-fi
+done
