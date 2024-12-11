@@ -1,9 +1,9 @@
-import {useLayoutEffect} from "react"
 import {isDemo, generateOrRetrieveDistinctId} from "@/lib/helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 import {useAtom} from "jotai"
 import {posthogAtom} from "../store/atoms"
 import {type PostHog} from "posthog-js"
+import useIsomorphicLayoutEffect from "@/hooks/useIsomorphicLayoutEffect"
 
 interface ExtendedPostHog extends PostHog {
     identify: PostHog["identify"]
@@ -27,7 +27,7 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
             posthog?.identify?.(_id !== undefined ? _id : id, ...args)
         }
     }
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
         if (!posthog) return
 
         if (!trackingEnabled) {
@@ -36,7 +36,7 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         }
     }, [posthog, trackingEnabled])
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
         if (!posthog) return
         if (posthog.get_distinct_id() !== _id) identify()
     }, [posthog, _id])
