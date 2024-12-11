@@ -51,6 +51,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             justifyContent: "space-between",
             flexDirection: "column",
             flex: 1,
+            overflowY: "auto",
         },
         "& .ant-menu-submenu-title": {
             display: "flex",
