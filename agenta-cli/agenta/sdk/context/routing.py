@@ -1,24 +1,24 @@
-from contextlib import contextmanager
-from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
-routing_context = ContextVar("routing_context", default={})
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+from pydantic import BaseModel
+
+
+class RoutingContext(BaseModel):
+    parameters: Optional[Dict[str, Any]] = None
+    secrets: Optional[Dict[str, Any]] = None
+
+
+routing_context = ContextVar("routing_context", default=RoutingContext())
 
 
 @contextmanager
 def routing_context_manager(
     *,
-    config: Optional[Dict[str, Any]] = None,
-    application: Optional[Dict[str, Any]] = None,
-    variant: Optional[Dict[str, Any]] = None,
-    environment: Optional[Dict[str, Any]] = None,
+    context: Optional[RoutingContext] = None,
 ):
-    context = {
-        "config": config,
-        "application": application,
-        "variant": variant,
-        "environment": environment,
-    }
     token = routing_context.set(context)
     try:
         yield

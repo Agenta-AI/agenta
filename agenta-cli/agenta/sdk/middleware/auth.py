@@ -1,82 +1,86 @@
-from typing import Callable, Optional
-from os import environ
-from uuid import UUID
-from json import dumps
+from typing import Callable, Dict, Optional
+
+from os import getenv
 from traceback import format_exc
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
 
 from agenta.sdk.utils.logging import log
-from agenta.sdk.middleware.cache import TTLLRUCache
 
-AGENTA_SDK_AUTH_CACHE_CAPACITY = environ.get(
-    "AGENTA_SDK_AUTH_CACHE_CAPACITY",
-    512,
-)
+import agenta as ag
 
-AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
-    "AGENTA_SDK_AUTH_CACHE_TTL",
-    15 * 60,  # 15 minutes
-)
-
-AGENTA_SDK_AUTH_CACHE = str(environ.get("AGENTA_SDK_AUTH_CACHE", True)).lower() in (
-    "true",
-    "1",
-    "t",
-)
-
-AGENTA_SDK_AUTH_CACHE = False
-
-AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = str(
-    environ.get("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", False)
-).lower() in ("true", "1", "t")
-
-
-class Deny(Response):
-    def __init__(self) -> None:
-        super().__init__(status_code=401, content="Unauthorized")
-
-
-cache = TTLLRUCache(
-    capacity=AGENTA_SDK_AUTH_CACHE_CAPACITY,
-    ttl=AGENTA_SDK_AUTH_CACHE_TTL,
+_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+_ALLOW_UNAUTHORIZED = (
+    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in _TRUTHY
 )
 
 
-class AuthorizationMiddleware(BaseHTTPMiddleware):
+class DenyResponse(JSONResponse):
+
     def __init__(
         self,
-        app: FastAPI,
-        host: str,
-        resource_id: UUID,
-        resource_type: str,
-    ):
+        status_code: int = 401,
+        detail: str = "Unauthorized",
+    ) -> None:
+        super().__init__(
+            status_code=status_code,
+            content={"detail": detail},
+        )
+
+
+class DenyException(Exception):
+    def __init__(
+        self,
+        status_code: int = 401,
+        content: str = "Unauthorized",
+    ) -> None:
+        super().__init__()
+
+        self.status_code = status_code
+        self.content = content
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: FastAPI):
         super().__init__(app)
 
-        self.host = host
-        self.resource_id = resource_id
-        self.resource_type = resource_type
+        self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+        self.resource_id = (
+            # STATELESS
+            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
+            # LEGACY OR STATEFUL
+            or ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id
+        )
+        self.resource_type = "application"
 
     async def dispatch(
         self,
         request: Request,
         call_next: Callable,
     ):
-        if AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED:
+        print("--- agenta/sdk/middleware/auth.py ---")
+        request.state.auth = None
+
+        if _ALLOW_UNAUTHORIZED:
             return await call_next(request)
 
         try:
-            authorization = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
+            authorization = request.headers.get("Authorization", None)
 
             headers = {"Authorization": authorization} if authorization else None
 
-            cookies = {"sAccessToken": request.cookies.get("sAccessToken")}
+            baggage = request.state.otel.get("baggage") if request.state.otel else {}
+
+            project_id = (
+                # CLEANEST
+                baggage.get("project_id")
+                # ALTERNATIVE
+                or request.query_params.get("project_id")
+            )
 
             params = {
                 "action": "run_service",
@@ -84,62 +88,107 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 "resource_id": self.resource_id,
             }
 
-            project_id = request.query_params.get("project_id")
-
             if project_id:
                 params["project_id"] = project_id
 
-            _hash = dumps(
-                {
-                    "headers": headers,
-                    "cookies": cookies,
-                    "params": params,
-                },
-                sort_keys=True,
+            credentials = await self._get_credentials(
+                # credentials = await self._mock_get_credentials(
+                params=params,
+                headers=headers,
             )
 
-            policy = None
-            if AGENTA_SDK_AUTH_CACHE:
-                policy = cache.get(_hash)
+            request.state.auth = {"credentials": credentials}
 
-            if not policy:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{self.host}/api/permissions/verify",
-                        headers=headers,
-                        cookies=cookies,
-                        params=params,
-                    )
-
-                    if response.status_code != 200:
-                        cache.put(_hash, {"effect": "deny"})
-                        return Deny()
-
-                    auth = response.json()
-
-                    if auth.get("effect") != "allow":
-                        cache.put(_hash, {"effect": "deny"})
-                        return Deny()
-
-                    policy = {
-                        "effect": "allow",
-                        "credentials": auth.get("credentials"),
-                    }
-
-                    cache.put(_hash, policy)
-
-            if not policy or policy.get("effect") == "deny":
-                return Deny()
-
-            request.state.credentials = policy.get("credentials")
+            print(request.state.auth)
 
             return await call_next(request)
 
-        except:  # pylint: disable=bare-except
-            log.warning("------------------------------------------------------")
-            log.warning("Agenta SDK - handling auth middleware exception below:")
-            log.warning("------------------------------------------------------")
+        except DenyException as deny:
+            log.warning("-----------------------------------")
+            log.warning("Agenta - Auth Middleware Exception:")
+            log.warning("-----------------------------------")
             log.warning(format_exc().strip("\n"))
-            log.warning("------------------------------------------------------")
+            log.warning("-----------------------------------")
 
-            return Deny()
+            return DenyResponse(
+                status_code=deny.status_code,
+                detail=deny.content,
+            )
+
+        except:  # pylint: disable=bare-except
+            log.warning("-----------------------------------")
+            log.warning("Agenta - Auth Middleware Exception:")
+            log.warning("-----------------------------------")
+            log.warning(format_exc().strip("\n"))
+            log.warning("-----------------------------------")
+
+            return DenyResponse(
+                status_code=500,
+                detail="Internal Server Error: auth middleware.",
+            )
+
+    async def _mock_get_credentials(
+        self,
+        params: Dict[str, str],
+        headers: Dict[str, str],
+    ):
+        if not headers:
+            raise DenyException(content="Missing 'authorization' header.")
+
+        return headers.get("Authorization")
+
+    async def _get_credentials(
+        self,
+        params: Optional[Dict[str, str]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ):
+        if not headers:
+            raise DenyException(content="Missing 'authorization' header.")
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.host}/api/permissions/verify",
+                    headers=headers,
+                    params=params,
+                )
+
+                if response.status_code == 401:
+                    raise DenyException(
+                        status_code=401, content="Invalid 'authorization' header."
+                    )
+                elif response.status_code == 403:
+                    raise DenyException(
+                        status_code=403, content="Service execution not allowed."
+                    )
+                elif response.status_code != 200:
+                    raise DenyException(
+                        status_code=400,
+                        content="Internal Server Error: auth middleware.",
+                    )
+
+                auth = response.json()
+
+                if auth.get("effect") != "allow":
+                    raise DenyException(
+                        status_code=403, content="Service execution not allowed."
+                    )
+
+                credentials = auth.get("credentials")
+                # --- #
+
+                return credentials
+
+        except DenyException as deny:
+            raise deny
+
+        except Exception as exc:  # pylint: disable=bare-except
+            log.warning("------------------------------------------------")
+            log.warning("Agenta - Auth Middleware Exception (suppressed):")
+            log.warning("------------------------------------------------")
+            log.warning(format_exc().strip("\n"))
+            log.warning("------------------------------------------------")
+
+            raise DenyException(
+                status_code=500, content="Internal Server Error: auth middleware."
+            ) from exc

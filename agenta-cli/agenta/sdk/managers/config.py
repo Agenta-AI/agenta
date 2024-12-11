@@ -20,7 +20,7 @@ class ConfigManager:
     @staticmethod
     def get_from_route(
         schema: Optional[Type[T]] = None,
-    ) -> Union[Dict[str, Any], T]:
+    ) -> Optional[Union[Dict[str, Any], T]]:
         """
         Retrieves the configuration from the route context and returns a config object.
 
@@ -47,125 +47,15 @@ class ConfigManager:
 
         context = routing_context.get()
 
-        parameters = None
+        parameters = context.parameters
 
-        if "config" in context and context["config"]:
-            parameters = context["config"]
+        if not parameters:
+            return None
 
-        else:
-            app_id: Optional[str] = None
-            app_slug: Optional[str] = None
-            variant_id: Optional[str] = None
-            variant_slug: Optional[str] = None
-            variant_version: Optional[int] = None
-            environment_id: Optional[str] = None
-            environment_slug: Optional[str] = None
-            environment_version: Optional[int] = None
+        if not schema:
+            return parameters
 
-            if "application" in context:
-                app_id = context["application"].get("id")
-                app_slug = context["application"].get("slug")
-
-            if "variant" in context:
-                variant_id = context["variant"].get("id")
-                variant_slug = context["variant"].get("slug")
-                variant_version = context["variant"].get("version")
-
-            if "environment" in context:
-                environment_id = context["environment"].get("id")
-                environment_slug = context["environment"].get("slug")
-                environment_version = context["environment"].get("version")
-
-            parameters = ConfigManager.get_from_registry(
-                app_id=app_id,
-                app_slug=app_slug,
-                variant_id=variant_id,
-                variant_slug=variant_slug,
-                variant_version=variant_version,
-                environment_id=environment_id,
-                environment_slug=environment_slug,
-                environment_version=environment_version,
-            )
-
-        if schema:
-            return schema(**parameters)
-
-        return parameters
-
-    @staticmethod
-    async def aget_from_route(
-        schema: Optional[Type[T]] = None,
-    ) -> Union[Dict[str, Any], T]:
-        """
-        Asynchronously retrieves the configuration from the route context and returns a config object.
-
-        This method checks the route context for configuration information and returns
-        an instance of the specified schema based on the available context data.
-
-        Args:
-            schema (Type[T]): A Pydantic model class that defines the structure of the configuration.
-
-        Returns:
-            T: An instance of the specified schema populated with the configuration data.
-
-        Raises:
-            ValueError: If conflicting configuration sources are provided or if no valid
-                        configuration source is found in the context.
-
-        Note:
-            The method prioritizes the inputs in the following way:
-            1. 'config' (i.e. when called explicitly from the playground)
-            2. 'environment'
-            3. 'variant'
-            Only one of these should be provided.
-        """
-
-        context = routing_context.get()
-
-        parameters = None
-
-        if "config" in context and context["config"]:
-            parameters = context["config"]
-
-        else:
-            app_id: Optional[str] = None
-            app_slug: Optional[str] = None
-            variant_id: Optional[str] = None
-            variant_slug: Optional[str] = None
-            variant_version: Optional[int] = None
-            environment_id: Optional[str] = None
-            environment_slug: Optional[str] = None
-            environment_version: Optional[int] = None
-
-            if "application" in context:
-                app_id = context["application"].get("id")
-                app_slug = context["application"].get("slug")
-
-            if "variant" in context:
-                variant_id = context["variant"].get("id")
-                variant_slug = context["variant"].get("slug")
-                variant_version = context["variant"].get("version")
-
-            if "environment" in context:
-                environment_id = context["environment"].get("id")
-                environment_slug = context["environment"].get("slug")
-                environment_version = context["environment"].get("version")
-
-            parameters = await ConfigManager.async_get_from_registry(
-                app_id=app_id,
-                app_slug=app_slug,
-                variant_id=variant_id,
-                variant_slug=variant_slug,
-                variant_version=variant_version,
-                environment_id=environment_id,
-                environment_slug=environment_slug,
-                environment_version=environment_version,
-            )
-
-        if schema:
-            return schema(**parameters)
-
-        return parameters
+        return schema(**parameters)
 
     @staticmethod
     def get_from_registry(

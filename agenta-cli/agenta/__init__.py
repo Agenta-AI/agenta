@@ -28,6 +28,7 @@ from .sdk.agenta_init import Config, AgentaSingleton, init as _init
 from .sdk.utils.costs import calculate_token_usage
 from .sdk.client import Agenta
 from .sdk.litellm import litellm as callbacks
+from .sdk.managers.vault import VaultManager
 from .sdk.managers.config import ConfigManager
 from .sdk.managers.variant import VariantManager
 from .sdk.managers.deployment import DeploymentManager
