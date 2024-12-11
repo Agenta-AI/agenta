@@ -1,7 +1,7 @@
 import {isDemo} from "@/lib/helpers/utils"
 import {js as beautify} from "js-beautify"
 
-export default function tsCode(uri: string, appId: string): string {
+export default function tsCode(uri: string): string {
     const codeString = `import axios from 'axios';
     const fs = require('fs');
     const FormData = require('form-data');
@@ -9,12 +9,10 @@ export default function tsCode(uri: string, appId: string): string {
     const url = '${uri}';
     const filePath = './cypress/data/countries-genders.csv';
     const testsetName = 'tribalafa';
-    const appId = '${appId}';
 
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));
     formData.append('testset_name', testsetName);
-    formData.append('app_id', appId);
 
     const config = {
         headers: {

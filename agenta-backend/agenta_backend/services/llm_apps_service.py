@@ -3,37 +3,121 @@ import logging
 import asyncio
 import traceback
 import aiohttp
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 
 from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
+
+from agenta_backend.utils.common import isCloudEE
+
+if isCloudEE():
+    from agenta_backend.cloud.services.auth_helper import sign_secret_token
+
 
 # Set logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-def extract_result_from_response(response):
+def get_nested_value(d: dict, keys: list, default=None):
+    """
+    Helper function to safely retrieve nested values.
+    """
+    try:
+        for key in keys:
+            if isinstance(d, dict):
+                d = d.get(key, default)
+            else:
+                return default
+        return d
+    except Exception as e:
+        print(f"Error accessing nested value: {e}")
+        return default
+
+
+def extract_result_from_response(response: dict):
+    # Initialize default values
     value = None
     latency = None
     cost = None
 
-    if response.get("version", None) == "2.0":
-        value = response
+    try:
+        # Validate input
+        if not isinstance(response, dict):
+            raise ValueError("The response must be a dictionary.")
 
-        if not isinstance(value["data"], dict):
-            value["data"] = str(value["data"])
+        # Handle version 3.0 response
+        if response.get("version") == "3.0":
+            value = response
+            # Ensure 'data' is a dictionary or convert it to a string
+            if not isinstance(value.get("data"), dict):
+                value["data"] = str(value.get("data"))
 
-        if "trace" in response:
-            latency = response["trace"].get("latency", None)
-            cost = response["trace"].get("cost", None)
-    else:
-        value = {"data": str(response["message"])}
-        latency = response.get("latency", None)
-        cost = response.get("cost", None)
+            if "tree" in response:
+                trace_tree = response.get("tree", {}).get("nodes", [])[0]
 
-    kind = "text" if isinstance(value, str) else "object"
+                duration_ms = get_nested_value(
+                    trace_tree, ["metrics", "acc", "duration", "total"]
+                )
+                if duration_ms:
+                    duration_seconds = duration_ms / 1000
+                else:
+                    start_time = get_nested_value(trace_tree, ["time", "start"])
+                    end_time = get_nested_value(trace_tree, ["time", "end"])
+
+                    if start_time and end_time:
+                        duration_seconds = (
+                            datetime.fromisoformat(end_time)
+                            - datetime.fromisoformat(start_time)
+                        ).total_seconds()
+                    else:
+                        duration_seconds = None
+
+                latency = duration_seconds
+                cost = get_nested_value(
+                    trace_tree, ["metrics", "acc", "costs", "total"]
+                )
+
+        # Handle version 2.0 response
+        elif response.get("version") == "2.0":
+            value = response
+            if not isinstance(value.get("data"), dict):
+                value["data"] = str(value.get("data"))
+
+            if "trace" in response:
+                latency = response["trace"].get("latency")
+                cost = response["trace"].get("cost")
+
+        # Handle generic response (neither 2.0 nor 3.0)
+        else:
+            value = {"data": str(response.get("message", ""))}
+            latency = response.get("latency")
+            cost = response.get("cost")
+
+        # Determine the type of 'value' (either 'text' or 'object')
+        kind = "text" if isinstance(value, str) else "object"
+
+    except ValueError as ve:
+        print(f"Input validation error: {ve}")
+        value = {"error": str(ve)}
+        kind = "error"
+
+    except KeyError as ke:
+        print(f"Missing key: {ke}")
+        value = {"error": f"Missing key: {ke}"}
+        kind = "error"
+
+    except TypeError as te:
+        print(f"Type error: {te}")
+        value = {"error": f"Type error: {te}"}
+        kind = "error"
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        value = {"error": f"Unexpected error: {e}"}
+        kind = "error"
 
     return value, kind, cost, latency
 
@@ -85,7 +169,12 @@ async def make_payload(
 
 
 async def invoke_app(
-    uri: str, datapoint: Any, parameters: Dict, openapi_parameters: List[Dict]
+    uri: str,
+    datapoint: Any,
+    parameters: Dict,
+    openapi_parameters: List[Dict],
+    user_id: str,
+    project_id: str,
 ) -> InvokationResult:
     """
     Invokes an app for one datapoint using the openapi_parameters to determine
@@ -105,12 +194,25 @@ async def invoke_app(
     """
     url = f"{uri}/generate"
     payload = await make_payload(datapoint, parameters, openapi_parameters)
+
+    headers = None
+
+    if isCloudEE():
+        secret_token = await sign_secret_token(user_id, project_id, None)
+
+        headers = {"Authorization": f"Secret {secret_token}"}
+
     async with aiohttp.ClientSession() as client:
         app_response = {}
 
         try:
             logger.debug(f"Invoking app {uri} with payload {payload}")
-            response = await client.post(url, json=payload, timeout=900)
+            response = await client.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=900,
+            )
             app_response = await response.json()
             response.raise_for_status()
 
@@ -174,6 +276,8 @@ async def run_with_retry(
     max_retry_count: int,
     retry_delay: int,
     openapi_parameters: List[Dict],
+    user_id: str,
+    project_id: str,
 ) -> InvokationResult:
     """
     Runs the specified app with retry mechanism.
@@ -195,7 +299,14 @@ async def run_with_retry(
     last_exception = None
     while retries < max_retry_count:
         try:
-            result = await invoke_app(uri, input_data, parameters, openapi_parameters)
+            result = await invoke_app(
+                uri,
+                input_data,
+                parameters,
+                openapi_parameters,
+                user_id,
+                project_id,
+            )
             return result
         except aiohttp.ClientError as e:
             last_exception = e
@@ -228,7 +339,12 @@ async def run_with_retry(
 
 
 async def batch_invoke(
-    uri: str, testset_data: List[Dict], parameters: Dict, rate_limit_config: Dict
+    uri: str,
+    testset_data: List[Dict],
+    parameters: Dict,
+    rate_limit_config: Dict,
+    user_id: str,
+    project_id: str,
 ) -> List[InvokationResult]:
     """
     Invokes the LLm apps in batches, processing the testset data.
@@ -258,7 +374,17 @@ async def batch_invoke(
     list_of_app_outputs: List[
         InvokationResult
     ] = []  # Outputs after running all batches
-    openapi_parameters = await get_parameters_from_openapi(uri + "/openapi.json")
+
+    headers = None
+    if isCloudEE():
+        secret_token = await sign_secret_token(user_id, project_id, None)
+
+        headers = {"Authorization": f"Secret {secret_token}"}
+
+    openapi_parameters = await get_parameters_from_openapi(
+        uri + "/openapi.json",
+        headers,
+    )
 
     async def run_batch(start_idx: int):
         tasks = []
@@ -273,6 +399,8 @@ async def batch_invoke(
                     max_retries,
                     retry_delay,
                     openapi_parameters,
+                    user_id,
+                    project_id,
                 )
             )
             tasks.append(task)
@@ -296,7 +424,10 @@ async def batch_invoke(
     return list_of_app_outputs
 
 
-async def get_parameters_from_openapi(uri: str) -> List[Dict]:
+async def get_parameters_from_openapi(
+    uri: str,
+    headers: Optional[Dict[str, str]],
+) -> List[Dict]:
     """
     Parse the OpenAI schema of an LLM app to return list of parameters that it takes with their type as determined by the x-parameter
     Args:
@@ -311,7 +442,7 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
 
     """
 
-    schema = await _get_openai_json_from_uri(uri)
+    schema = await _get_openai_json_from_uri(uri, headers)
 
     try:
         body_schema_name = (
@@ -341,9 +472,12 @@ async def get_parameters_from_openapi(uri: str) -> List[Dict]:
     return parameters
 
 
-async def _get_openai_json_from_uri(uri):
+async def _get_openai_json_from_uri(
+    uri: str,
+    headers: Optional[Dict[str, str]],
+):
     async with aiohttp.ClientSession() as client:
-        resp = await client.get(uri, timeout=5)
+        resp = await client.get(uri, headers=headers, timeout=5)
         resp_text = await resp.text()
         json_data = json.loads(resp_text)
         return json_data

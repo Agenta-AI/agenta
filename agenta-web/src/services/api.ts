@@ -1,4 +1,6 @@
+import {getCurrentProject} from "@/contexts/project.context"
 import axios from "@/lib//helpers/axiosConfig"
+import Session from "supertokens-auth-react/recipe/session"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import {
     detectChatVariantFromOpenAISchema,
@@ -32,9 +34,14 @@ export async function fetchVariants(
     appId: string,
     ignoreAxiosError: boolean = false,
 ): Promise<Variant[]> {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/apps/${appId}/variants/`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/api/apps/${appId}/variants?project_id=${projectId}`,
+        {
+            _ignoreError: ignoreAxiosError,
+        } as any,
+    )
 
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         return response.data.map((variant: Record<string, any>) => {
@@ -58,6 +65,21 @@ export async function fetchVariants(
     }
 
     return []
+}
+
+/**
+ * Get the JWT from SuperTokens
+ */
+const getJWT = async () => {
+    try {
+        if (await Session.doesSessionExist()) {
+            let jwt = await Session.getAccessToken()
+
+            return jwt
+        }
+    } catch (error) {}
+
+    return undefined
 }
 
 /**
@@ -113,15 +135,47 @@ export async function callVariant(
     }
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
+    const {projectId} = getCurrentProject()
+    const jwt = await getJWT()
 
-    return axios
-        .post(`${appContainerURI}/generate`, requestBody, {
+    const base_url = `${appContainerURI}/generate`
+    const secure_url = `${base_url}?project_id=${projectId}`
+    const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
+
+    let response = await axios
+        .post(base_url, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
         } as any)
-        .then((res) => {
-            return res.data
+        .then((response) => {
+            return response
         })
+        .catch(async (error) => {
+            console.log("Unsecure call to LLM App failed:", error)
+
+            if (error?.response?.status !== 401) {
+                throw error
+            }
+
+            let response = await axios
+                .post(secure_url, requestBody, {
+                    signal,
+                    _ignoreError: ignoreAxiosError,
+                    headers: secure_headers,
+                } as any)
+                .then((response) => {
+                    return response
+                })
+                .catch((error) => {
+                    console.log("Secure call to LLM App failed:", error)
+
+                    throw error
+                })
+
+            return response
+        })
+
+    return response?.data
 }
 
 /**
@@ -137,10 +191,46 @@ export const fetchVariantParametersFromOpenAPI = async (
     ignoreAxiosError: boolean = false,
 ) => {
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
-    const url = `${appContainerURI}/openapi.json`
-    const response = await axios.get(url, {_ignoreError: ignoreAxiosError} as any)
-    const isChatVariant = detectChatVariantFromOpenAISchema(response.data)
-    let APIParams = openAISchemaToParameters(response.data)
+    const {projectId} = getCurrentProject()
+    const jwt = await getJWT()
+
+    const base_url = `${appContainerURI}/openapi.json`
+    const secure_url = `${base_url}?project_id=${projectId}`
+    const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
+
+    let response = await axios
+        .get(base_url, {
+            _ignoreError: ignoreAxiosError,
+        } as any)
+        .then((response) => {
+            return response
+        })
+        .catch(async (error) => {
+            console.log("Unsecure call to LLM App failed:", error)
+
+            if (error?.response?.status !== 401) {
+                throw error
+            }
+
+            let response = await axios
+                .get(secure_url, {
+                    _ignoreError: ignoreAxiosError,
+                    headers: secure_headers,
+                } as any)
+                .then((response) => {
+                    return response
+                })
+                .catch((error) => {
+                    console.log("Secure call to LLM App failed:", error)
+
+                    throw error
+                })
+
+            return response
+        })
+
+    const isChatVariant = detectChatVariantFromOpenAISchema(response?.data)
+    let APIParams = openAISchemaToParameters(response?.data)
 
     // we create a new param for DictInput that will contain the name of the inputs
     APIParams = APIParams.map((param) => {
@@ -184,9 +274,10 @@ export const fetchAppContainerURL = async (
         if (!getAgentaApiUrl()) {
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
+        const {projectId} = getCurrentProject()
 
         // Retrieve container URL from backend
-        const url = `${getAgentaApiUrl()}/api/containers/container_url/`
+        const url = `${getAgentaApiUrl()}/api/containers/container_url?project_id=${projectId}`
         const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
         if (response.status === 200 && response.data && response.data.uri) {
             return response.data.uri
@@ -200,7 +291,7 @@ export const fetchAppContainerURL = async (
 }
 
 export const fetchProfile = async (ignoreAxiosError: boolean = false) => {
-    return axios.get(`${getAgentaApiUrl()}/api/profile/`, {
+    return axios.get(`${getAgentaApiUrl()}/api/profile`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }

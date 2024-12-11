@@ -17,7 +17,6 @@ import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
-import {useAppsData} from "@/contexts/app.context"
 
 type TestsetTableProps = {
     mode: "edit"
@@ -92,9 +91,6 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
 
-    const {apps, isLoading: isAppsLoading} = useAppsData()
-
-    const appId = apps[0]?.app_id
     const {testset_id} = router.query
 
     useBlockNavigation(unSavedChanges, {
@@ -115,13 +111,6 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         }
     }, [rowData, testsetName, columnDefs, inputValues])
 
-    useUpdateEffect(() => {
-        if ((apps.length === 0 || !apps) && !isAppsLoading) {
-            message.warning("To view the test set, you first need to create an app.")
-            router.push("/apps")
-        }
-    }, [isAppsLoading])
-
     useEffect(() => {
         async function applyColData(colData: {field: string}[] = []) {
             const newColDefs = createNewColDefs(colData)
@@ -132,15 +121,17 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         if (writeMode === "edit" && testset_id) {
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
-                setRowData(data.csvdata)
-                applyColData(
-                    Object.keys(data.csvdata[0]).map((key) => ({
-                        field: key,
-                    })),
-                )
+                if (data.csvdata.length > 0) {
+                    applyColData(
+                        Object.keys(data.csvdata[0]).map((key) => ({
+                            field: key,
+                        })),
+                    )
+                    setRowData(data.csvdata)
+                }
             })
         }
-    }, [writeMode, testset_id, appId])
+    }, [writeMode, testset_id])
 
     const handleExportClick = () => {
         const csvData = convertToCsv(
@@ -368,7 +359,9 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
 
             {selectedRow && (
                 <div className={classes.btnContainer}>
-                    <Button onClick={onAddRow}>Add Row</Button>
+                    <Button onClick={onAddRow} data-cy="add-new-testset-row">
+                        Add Row
+                    </Button>
                     <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
                         Delete Row{selectedRow.length > 1 && "s"}
                     </Button>

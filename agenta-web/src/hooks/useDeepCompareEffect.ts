@@ -1,4 +1,4 @@
-import {isEqual} from "lodash"
+import isEqual from "lodash/isEqual"
 import React, {useEffect, useRef} from "react"
 import {useUpdateEffect} from "usehooks-ts"
 

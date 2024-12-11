@@ -46,7 +46,7 @@ import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
 import {ParamsFormWithRun} from "./SingleModelEvaluationTable"
-import {debounce} from "lodash"
+import debounce from "lodash/debounce"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
 
@@ -307,6 +307,8 @@ const ABTestingEvaluationTable: React.FC<EvaluationTableProps> = ({
                         variantData[idx].isChatVariant
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
+                        undefined,
+                        true,
                     )
 
                     let res: BaseResponse | undefined

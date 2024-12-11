@@ -21,7 +21,8 @@ import codeImg from "@/media/browser.png"
 import bracketCurlyImg from "@/media/bracket-curly.png"
 import {fetchTestset} from "@/services/testsets/api"
 import {calcEvalDuration} from "@/lib/helpers/evaluate"
-import _ from "lodash"
+import uniqBy from "lodash/uniqBy"
+import {getCurrentProject} from "@/contexts/project.context"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -48,8 +49,9 @@ const evaluatorIconsMap = {
 //Evaluators
 export const fetchAllEvaluators = async () => {
     const tagColors = getTagColors()
+    const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`/api/evaluators/`)
+    const response = await axios.get(`/api/evaluators?project_id=${projectId}`)
     const evaluators = (response.data || [])
         .filter((item: Evaluator) => !item.key.startsWith("human"))
         .filter((item: Evaluator) => isDemo() || item.oss)
@@ -65,8 +67,11 @@ export const fetchAllEvaluators = async () => {
 // Evaluator Configs
 export const fetchAllEvaluatorConfigs = async (appId: string) => {
     const tagColors = getTagColors()
+    const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`/api/evaluators/configs/`, {params: {app_id: appId}})
+    const response = await axios.get(`/api/evaluators/configs?project_id=${projectId}`, {
+        params: {app_id: appId},
+    })
     const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
         ...item,
         icon_url: evaluatorIconsMap[item.evaluator_key as keyof typeof evaluatorIconsMap],
@@ -77,18 +82,27 @@ export const fetchAllEvaluatorConfigs = async (appId: string) => {
 
 export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
 export const createEvaluatorConfig = async (appId: string, config: CreateEvaluationConfigData) => {
-    return axios.post(`/api/evaluators/configs/`, {...config, app_id: appId})
+    const {projectId} = getCurrentProject()
+
+    return axios.post(`/api/evaluators/configs?project_id=${projectId}`, {
+        ...config,
+        app_id: appId,
+    })
 }
 
 export const updateEvaluatorConfig = async (
     configId: string,
     config: Partial<CreateEvaluationConfigData>,
 ) => {
-    return axios.put(`/api/evaluators/configs/${configId}/`, config)
+    const {projectId} = getCurrentProject()
+
+    return axios.put(`/api/evaluators/configs/${configId}?project_id=${projectId}`, config)
 }
 
 export const deleteEvaluatorConfig = async (configId: string) => {
-    return axios.delete(`/api/evaluators/configs/${configId}/`)
+    const {projectId} = getCurrentProject()
+
+    return axios.delete(`/api/evaluators/configs/${configId}?project_id=${projectId}`)
 }
 
 // Evaluations
@@ -120,17 +134,27 @@ const evaluationTransformer = (item: any) => ({
     average_latency: item.average_latency,
 })
 export const fetchAllEvaluations = async (appId: string) => {
-    const response = await axios.get(`/api/evaluations/`, {params: {app_id: appId}})
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(`/api/evaluations?project_id=${projectId}`, {
+        params: {app_id: appId},
+    })
     return response.data.map(evaluationTransformer) as _Evaluation[]
 }
 
 export const fetchEvaluation = async (evaluationId: string) => {
-    const response = await axios.get(`/api/evaluations/${evaluationId}/`)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(`/api/evaluations/${evaluationId}?project_id=${projectId}`)
     return evaluationTransformer(response.data) as _Evaluation
 }
 
 export const fetchEvaluationStatus = async (evaluationId: string) => {
-    const response = await axios.get(`/api/evaluations/${evaluationId}/status/`)
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.get(
+        `/api/evaluations/${evaluationId}/status?project_id=${projectId}`,
+    )
     return response.data as {status: _Evaluation["status"]}
 }
 
@@ -143,17 +167,25 @@ export type CreateEvaluationData = {
     correct_answer_column: string
 }
 export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
-    return axios.post(`/api/evaluations/`, {...evaluation, app_id: appId})
+    const {projectId} = getCurrentProject()
+
+    return axios.post(`/api/evaluations?project_id=${projectId}`, {...evaluation, app_id: appId})
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
-    return axios.delete(`/api/evaluations/`, {data: {evaluations_ids: evaluationsIds}})
+    const {projectId} = getCurrentProject()
+
+    return axios.delete(`/api/evaluations?project_id=${projectId}`, {
+        data: {evaluations_ids: evaluationsIds},
+    })
 }
 
 // Evaluation Scenarios
 export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
+    const {projectId} = getCurrentProject()
+
     const [{data: evaluationScenarios}, evaluation] = await Promise.all([
-        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios/`),
+        axios.get(`/api/evaluations/${evaluationId}/evaluation_scenarios?project_id=${projectId}`),
         fetchEvaluation(evaluationId),
     ])
 
@@ -182,7 +214,7 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
     const inputNames = Array.from(inputsNameSet)
     const inputValuesSet = new Set<string>()
     const variants = scenarioGroups.map((group) => group[0].evaluation.variants[0])
-    const correctAnswers = _.uniqBy(
+    const correctAnswers = uniqBy(
         scenarioGroups.map((group) => group[0].correct_answers).flat(),
         "key",
     )
@@ -242,14 +274,14 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
 export const fetchEvaluatonIdsByResource = async ({
     resourceIds,
     resourceType,
-    appId,
 }: {
     resourceIds: string[]
     resourceType: "testset" | "evaluator_config" | "variant"
-    appId: string
 }) => {
-    return axios.get(`/api/evaluations/by_resource`, {
-        params: {resource_ids: resourceIds, resource_type: resourceType, app_id: appId},
+    const {projectId} = getCurrentProject()
+
+    return axios.get(`/api/evaluations/by_resource?project_id=${projectId}`, {
+        params: {resource_ids: resourceIds, resource_type: resourceType},
         paramsSerializer: {
             indexes: null, //no brackets in query params
         },

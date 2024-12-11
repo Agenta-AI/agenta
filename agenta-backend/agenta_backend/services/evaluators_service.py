@@ -21,6 +21,7 @@ from agenta_backend.models.api.evaluation_model import (
     EvaluatorMappingOutputInterface,
 )
 from agenta_backend.utils.traces import (
+    remove_trace_prefix,
     process_distributed_trace_into_trace_tree,
     get_field_value_from_trace_tree,
 )
@@ -65,9 +66,25 @@ async def map(
     """
 
     mapping_outputs = {}
-    trace = process_distributed_trace_into_trace_tree(mapping_input.inputs["trace"])
+    mapping_inputs = mapping_input.inputs
+    response_version = mapping_input.inputs.get("version")
+
+    trace = {}
+    if response_version == "3.0":
+        trace = mapping_inputs.get("tree", {})
+    elif response_version == "2.0":
+        trace = mapping_inputs.get("trace", {})
+
+    trace = process_distributed_trace_into_trace_tree(
+        trace=trace,
+        version=mapping_input.inputs.get("version"),
+    )
     for to_key, from_key in mapping_input.mapping.items():
-        mapping_outputs[to_key] = get_field_value_from_trace_tree(trace, from_key)
+        mapping_outputs[to_key] = get_field_value_from_trace_tree(
+            trace,
+            from_key,
+            version=mapping_input.inputs.get("version"),
+        )
     return {"outputs": mapping_outputs}
 
 
@@ -363,7 +380,7 @@ async def auto_ai_critique(
         output = validate_string_output("ai_critique", output)
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {
-            "prompt_user": app_params.get("prompt_user", "").format(**data_point),
+            "prompt_user": app_params.get("prompt_user", ""),
             "prediction": output,
             "ground_truth": correct_answer,
             **data_point,
@@ -798,7 +815,7 @@ def compare_jsons(
         llm_app_output_value = flattened_app_output.get(key, None)
 
         key_score = 0.0
-        if ground_truth_value and llm_app_output_value:
+        if ground_truth_value is not None and llm_app_output_value is not None:
             key_score = diff(
                 {key: ground_truth_value},
                 {key: llm_app_output_value},
@@ -918,9 +935,10 @@ async def rag_faithfulness(
             )
 
         # Get required keys for rag evaluator
-        question_key: Union[str, None] = settings_values.get("question_key", None)
-        answer_key: Union[str, None] = settings_values.get("answer_key", None)
-        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
+        mapping_keys = remove_trace_prefix(settings_values=settings_values)
+        question_key: Union[str, None] = mapping_keys.get("question_key", None)
+        answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
+        contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
             logging.error(
@@ -931,12 +949,23 @@ async def rag_faithfulness(
             )
 
         # Turn distributed trace into trace tree
-        trace = process_distributed_trace_into_trace_tree(output["trace"])
+        trace = {}
+        version = output.get("version")
+        if version == "3.0":
+            trace = output.get("tree", {})
+        elif version == "2.0":
+            trace = output.get("trace", {})
+
+        trace = process_distributed_trace_into_trace_tree(trace, version)
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
-        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(
+            trace, question_key, version
+        )
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
+        contexts_val: Any = get_field_value_from_trace_tree(
+            trace, contexts_key, version
+        )
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(
@@ -1019,9 +1048,10 @@ async def rag_context_relevancy(
             )
 
         # Get required keys for rag evaluator
-        question_key: Union[str, None] = settings_values.get("question_key", None)
-        answer_key: Union[str, None] = settings_values.get("answer_key", None)
-        contexts_key: Union[str, None] = settings_values.get("contexts_key", None)
+        mapping_keys = remove_trace_prefix(settings_values=settings_values)
+        question_key: Union[str, None] = mapping_keys.get("question_key", None)
+        answer_key: Union[str, None] = mapping_keys.get("answer_key", None)
+        contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
             logging.error(
@@ -1032,12 +1062,23 @@ async def rag_context_relevancy(
             )
 
         # Turn distributed trace into trace tree
-        trace = process_distributed_trace_into_trace_tree(output["trace"])
+        trace = {}
+        version = output.get("version")
+        if version == "3.0":
+            trace = output.get("tree", {})
+        elif version == "2.0":
+            trace = output.get("trace", {})
+
+        trace = process_distributed_trace_into_trace_tree(trace, version)
 
         # Get value of required keys for rag evaluator
-        question_val: Any = get_field_value_from_trace_tree(trace, question_key)
-        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key)
-        contexts_val: Any = get_field_value_from_trace_tree(trace, contexts_key)
+        question_val: Any = get_field_value_from_trace_tree(
+            trace, question_key, version
+        )
+        answer_val: Any = get_field_value_from_trace_tree(trace, answer_key, version)
+        contexts_val: Any = get_field_value_from_trace_tree(
+            trace, contexts_key, version
+        )
 
         if None in [question_val, answer_val, contexts_val]:
             logging.error(

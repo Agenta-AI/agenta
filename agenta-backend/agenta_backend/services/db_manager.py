@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+from enum import Enum
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any, Dict, List, Optional, Tuple
@@ -77,6 +78,7 @@ from agenta_backend.models.db_models import (
 
 from agenta_backend.models.shared_models import (
     Result,
+    AppType,
     ConfigDB,
     TemplateType,
     CorrectAnswer,
@@ -94,6 +96,25 @@ logger.setLevel(logging.DEBUG)
 
 # Define parent directory
 PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
+
+
+async def fetch_project_by_id(
+    project_id: str,
+) -> ProjectDB:
+    async with engine.session() as session:
+        project = (
+            (
+                await session.execute(
+                    select(ProjectDB).filter_by(
+                        id=uuid.UUID(project_id),
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+        return project
 
 
 async def add_testset_to_app_variant(
@@ -684,14 +705,38 @@ async def create_deployment(
             raise Exception(f"Error while creating deployment: {e}")
 
 
+async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
+    """Get the application type from the specified template.
+
+    Args:
+        template_id (Optional[str]): The ID of the template
+
+    Returns:
+        AppType (str): The determined application type. Defaults to AppType.CUSTOM.
+    """
+
+    if template_id is None:
+        return AppType.CUSTOM
+
+    template_db = await get_template(template_id=template_id)
+    if "Completion Prompt" in template_db.title:
+        return AppType.COMPLETION_TEMPLATE
+    elif "Chat Prompt" in template_db.title:
+        return AppType.CHAT_TEMPLATE
+    return AppType.CUSTOM
+
+
 async def create_app_and_envs(
-    app_name: str, project_id: Optional[str] = None, workspace_id: Optional[str] = None
+    app_name: str,
+    template_id: Optional[str] = None,
+    project_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
 
     Args:
         app_name (str): The name of the app to create.
+        template_id (str): The ID of the template.
         project_id (str): The ID of the project.
 
     Returns:
@@ -701,18 +746,17 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    if isCloudEE():
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        project_id = str(project.id)
-
     app = await fetch_app_by_name_and_parameters(
         app_name=app_name, project_id=project_id
     )
     if app is not None:
         raise ValueError("App with the same name already exists")
 
+    app_type = await get_app_type_from_template_by_id(template_id=template_id)
     async with engine.session() as session:
-        app = AppDB(app_name=app_name, project_id=uuid.UUID(project_id))
+        app = AppDB(
+            app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
+        )
 
         session.add(app)
         await session.commit()
@@ -1164,7 +1208,6 @@ async def list_apps(
     project_id: str,
     user_uid: str,
     app_name: Optional[str] = None,
-    workspace_id: Optional[str] = None,
 ):
     """
     Lists all the unique app names and their IDs from the database
@@ -1184,13 +1227,10 @@ async def list_apps(
 
     elif isCloudEE():
         if isCloudEE():
-            project = await db_manager_ee.get_project_by_workspace(
-                workspace_id=workspace_id
-            )
             user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)  # type: ignore
             has_permission = await check_rbac_permission(  # type: ignore
                 user_org_workspace_data=user_org_workspace_data,
-                project_id=str(project.id),
+                project_id=project_id,
                 permission=Permission.VIEW_APPLICATION,  # type: ignore
             )
             logger.debug(f"User has Permission to list apps: {has_permission}")
@@ -1202,7 +1242,7 @@ async def list_apps(
 
             async with engine.session() as session:
                 result = await session.execute(
-                    select(AppDB).filter_by(project_id=project.id)
+                    select(AppDB).filter_by(project_id=project_id)
                 )
                 apps = result.unique().scalars().all()
                 return [converters.app_db_to_pydantic(app) for app in apps]
@@ -1843,38 +1883,6 @@ async def remove_testsets(testset_ids: List[str]):
         await session.commit()
 
 
-async def remove_app_testsets(app_id: str):
-    """Returns a list of testsets owned by an app.
-
-    Args:
-        app_id (str): The name of the app
-
-    Returns:
-        int: The number of testsets deleted
-    """
-
-    # Find testsets owned by the app
-    deleted_count: int = 0
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(TestSetDB).filter_by(app_id=uuid.UUID(app_id))
-        )
-        testsets = result.scalars().all()
-
-        if len(testsets) == 0:
-            logger.info(f"No testsets found for app {app_id}")
-            return 0
-
-        for testset in testsets:
-            await session.delete(testset)
-            deleted_count += 1
-            logger.info(f"{deleted_count} testset(s) deleted for app {app_id}")
-
-        await session.commit()
-        return deleted_count
-
-
 async def remove_base_from_db(base_id: str):
     """
     Remove a base from the database.
@@ -2037,7 +2045,7 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
         return testset
 
 
-async def create_testset(app: AppDB, project_id: str, testset_data: Dict[str, Any]):
+async def create_testset(project_id: str, testset_data: Dict[str, Any]):
     """
     Creates a testset.
 
@@ -2768,26 +2776,19 @@ async def update_app_variant(
 
 async def fetch_app_by_name_and_parameters(
     app_name: str,
-    workspace_id: Optional[str] = None,
     project_id: Optional[str] = None,
 ):
     """Fetch an app by its name and project identifier.
 
     Args:
         app_name (str): The name of the app
-        workspace_id (str, optional): The ID of the workspace. Defaults to None.
         project_id (str, optional): The ID of the project. Defaults to None.
 
     Returns:
         AppDB: the instance of the app
     """
-
-    if not project_id and (isCloudEE() and workspace_id is not None):
-        project = await db_manager_ee.get_project_by_workspace(workspace_id)
-        project_id = str(project.id) if project else None
-
     if project_id is None:
-        raise ValueError("Either workspace_id or project_id must be provided.")
+        raise ValueError("project_id must be provided.")
 
     async with engine.session() as session:
         query = select(AppDB).filter_by(

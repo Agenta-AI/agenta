@@ -8,7 +8,7 @@ import "dotenv/config";
 
 const config: Config = {
   title: "Agenta Documentation",
-  tagline: "The LLM platform.",
+  tagline: "The LLMOps platform.",
   favicon: "images/favicon.ico",
   // Set the production url of your site here
   url: "https://docs.agenta.ai",
@@ -113,6 +113,11 @@ const config: Config = {
           to: "/changelog/main",
           position: "left",
           label: "Changelog",
+        },
+        {
+          to: "https://agenta.ai/blog",
+          position: "left",
+          label: "Blog",
         },
         // {
         //   to: "https://github.com/orgs/Agenta-AI/projects/13/views/1",
@@ -228,7 +233,6 @@ const config: Config = {
       },
     },
   },
-
   plugins: [
     async function myPlugin(context, options) {
       return {
@@ -268,6 +272,35 @@ const config: Config = {
         api_host: "https://app.posthog.com",
       },
     ],
+    [
+      "@docusaurus/plugin-client-redirects", 
+      {
+      redirects: [
+      {
+        from: "/prompt-management/creating-a-custom-template",
+        to: "/custom-workflows/quick-start",
+      },
+      {
+        from: "/reference/sdk/quick_start",
+        to: "/reference/sdk/deprecated-v2/quick_start",
+      },
+      {
+        from: "/reference/cli/quick-usage",
+        to: "/reference/cli/cli-reference",
+      },
+      ],
+        createRedirects(existingPath) {
+          if (existingPath.includes('/reference/sdk/core_functions')) {
+            return [
+              existingPath.replace('reference/sdk/core_functions', 'reference/sdk/deprecated-v2/core_functions'),
+            ];
+          }
+          return undefined;
+        },
+
+    },
+    ],
+
     [
       "@docusaurus/plugin-ideal-image",
       {

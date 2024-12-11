@@ -1,9 +1,9 @@
 services:
     reverse-proxy:
         image: traefik:v2.10
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
         ports:
-            - "80:80"
+            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
             - "8080:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -20,7 +20,8 @@ services:
             - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - DOMAIN_NAME=http://localhost
+            - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
+            - WEBSITE_DOMAIN_NAME=${WEBSITE_DOMAIN_NAME:-http://localhost}
             - FEATURE_FLAG=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
@@ -28,6 +29,7 @@ services:
             - CELERY_RESULT_BACKEND=redis://redis:6379/0
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
+            - AGENTA_PORT=${AGENTA_PORT:-80}
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/migrations:/app/migrations
@@ -103,6 +105,7 @@ services:
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
         environment:
             - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
+            - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}
         restart: always
 
     redis:

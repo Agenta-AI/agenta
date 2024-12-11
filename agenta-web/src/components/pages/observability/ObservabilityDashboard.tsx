@@ -14,9 +14,9 @@ import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import {getNodeById} from "@/lib/helpers/observability_helpers"
-import {Filter, FilterConditions, JSSTheme} from "@/lib/Types"
+import {Filter, FilterConditions, JSSTheme, KeyValuePair} from "@/lib/Types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
-import {SwapOutlined} from "@ant-design/icons"
+import {ReloadOutlined, SwapOutlined} from "@ant-design/icons"
 import {
     Button,
     Input,
@@ -35,12 +35,13 @@ import dayjs from "dayjs"
 import {useRouter} from "next/router"
 import React, {useCallback, useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {Export} from "@phosphor-icons/react"
+import {Database, Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
+import TestsetDrawer, {TestsetTraceData} from "./drawer/TestsetDrawer"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -71,6 +72,7 @@ const ObservabilityDashboard = () => {
         setSort,
         pagination,
         setPagination,
+        fetchTraces,
     } = useObservabilityData()
     const appId = useAppId()
     const router = useRouter()
@@ -78,6 +80,8 @@ const ObservabilityDashboard = () => {
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
     const [columns, setColumns] = useState<ColumnsType<_AgentaRootsResponse>>([
         {
             title: "ID",
@@ -178,7 +182,13 @@ const ObservabilityDashboard = () => {
                 style: {minWidth: 80},
             }),
             render: (_, record) => (
-                <div>{formatLatency(record?.metrics?.acc?.duration.total / 1000)}</div>
+                <div>
+                    {formatLatency(
+                        record?.metrics?.acc?.duration?.total
+                            ? record?.metrics?.acc?.duration?.total / 1000
+                            : null,
+                    )}
+                </div>
             ),
         },
         {
@@ -249,6 +259,18 @@ const ObservabilityDashboard = () => {
             setSelected(activeTrace?.node.id)
         }
     }, [activeTrace, selected])
+
+    useEffect(() => {
+        const interval = setInterval(fetchTraces, 300000)
+
+        return () => clearInterval(interval)
+    }, [])
+
+    const rowSelection = {
+        onChange: (selectedRowKeys: React.Key[]) => {
+            setSelectedRowKeys(selectedRowKeys)
+        },
+    }
 
     const selectedItem = useMemo(
         () => (traces?.length ? getNodeById(traces, selected) : null),
@@ -349,7 +371,7 @@ const ObservabilityDashboard = () => {
                     "Trace ID": trace.key,
                     Name: trace.node.name,
                     "Span type": trace.node.type || "N/A",
-                    Inputs: convertToStringOrJson(trace?.data?.inputs?.topic) || "N/A",
+                    Inputs: convertToStringOrJson(trace?.data?.inputs) || "N/A",
                     Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
                     Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
                     Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
@@ -474,12 +496,33 @@ const ObservabilityDashboard = () => {
         setSort({type, sorted, customRange})
     }, [])
 
+    const getTestsetTraceData = () => {
+        if (!traces?.length) return []
+
+        const extractData = selectedRowKeys.map((key, idx) => {
+            const node = getNodeById(traces, key as string)
+            return {data: node?.data as KeyValuePair, key: node?.key, id: idx + 1}
+        })
+
+        if (extractData.length > 0) {
+            setTestsetDrawerData(extractData as TestsetTraceData[])
+        }
+    }
+
     return (
         <div className="flex flex-col gap-6">
             <Typography.Text className={classes.title}>Observability</Typography.Text>
 
             <div className="flex justify-between gap-2 flex-col 2xl:flex-row 2xl:items-center">
                 <Space>
+                    <Button
+                        icon={<ReloadOutlined />}
+                        onClick={() => {
+                            fetchTraces()
+                        }}
+                    >
+                        Reload
+                    </Button>
                     <Input.Search
                         placeholder="Search"
                         value={searchQuery}
@@ -515,6 +558,13 @@ const ObservabilityDashboard = () => {
                         >
                             Export as CSV
                         </Button>
+                        <Button
+                            onClick={() => getTestsetTraceData()}
+                            icon={<Database size={14} />}
+                            disabled={traces.length === 0 || selectedRowKeys.length === 0}
+                        >
+                            Add test set
+                        </Button>
                         <EditColumns
                             isOpen={isFilterColsDropdownOpen}
                             handleOpenChange={setIsFilterColsDropdownOpen}
@@ -528,6 +578,12 @@ const ObservabilityDashboard = () => {
 
             <div className="flex flex-col gap-2">
                 <Table
+                    rowSelection={{
+                        type: "checkbox",
+                        columnWidth: 48,
+                        selectedRowKeys,
+                        ...rowSelection,
+                    }}
                     loading={isLoading}
                     columns={mergedColumns as TableColumnType<_AgentaRootsResponse>[]}
                     dataSource={traces}
@@ -593,6 +649,17 @@ const ObservabilityDashboard = () => {
                     onChange={onPaginationChange}
                 />
             </div>
+
+            {testsetDrawerData.length > 0 && (
+                <TestsetDrawer
+                    open={testsetDrawerData.length > 0}
+                    data={testsetDrawerData}
+                    onClose={() => {
+                        setTestsetDrawerData([])
+                        setSelectedRowKeys([])
+                    }}
+                />
+            )}
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer

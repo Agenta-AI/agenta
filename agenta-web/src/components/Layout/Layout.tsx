@@ -1,9 +1,9 @@
-import React, {useEffect, useMemo} from "react"
-import {Breadcrumb, Layout, Modal, Space, Typography, theme} from "antd"
+import React, {useEffect, useMemo, useState} from "react"
+import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
-import {isDemo, renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
+import {isDemo} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
@@ -17,6 +17,8 @@ import {ThemeProvider} from "react-jss"
 import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
+import {useProjectData} from "@/contexts/project.context"
+import {dynamicContext} from "@/lib/helpers/dynamic"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -74,6 +76,40 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             color: "rgba(0, 0, 0, 0.45)",
         },
     },
+    banner: {
+        position: "sticky",
+        zIndex: 10,
+        top: 0,
+        left: 0,
+        height: 38,
+        backgroundColor: "#1c2c3d",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        color: "#fff",
+        fontSize: 12,
+        lineHeight: "20px",
+        fontWeight: 500,
+        "& span": {
+            fontWeight: 600,
+        },
+    },
+    notFoundContainer: {
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        alignItems: "center",
+        justifyContent: "center",
+        "& .ant-typography:nth-of-type(1)": {
+            fontSize: 24,
+            fontWeight: 600,
+        },
+        "& .ant-typography:nth-of-type(2)": {
+            fontSize: 14,
+            marginTop: 8,
+        },
+    },
 }))
 
 type LayoutProps = {
@@ -84,14 +120,23 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
     const {currentApp} = useAppsData()
-    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [footerRef, {height: footerHeight}] = useElementSize()
+    const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
     const [modal, contextHolder] = Modal.useModal()
+
+    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+    const {changeSelectedOrg} = useOrgData()
+
+    useEffect(() => {
+        dynamicContext("org.context", {useOrgData}).then((context) => {
+            setUseOrgData(() => context.useOrgData)
+        })
+    }, [])
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -160,14 +205,35 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [appTheme])
 
     // wait unitl we have the app id, if its an app route
-    if (isAppRoute && (!appId || !currentApp)) return null
+    if (isAppRoute && !appId) return null
+
+    if (appId && !currentApp)
+        return (
+            <div className={classes.notFoundContainer}>
+                <Typography.Text>404 - Page Not Found</Typography.Text>
+                <Typography.Text>This page could not be found.</Typography.Text>
+
+                <Button type="primary" onClick={() => router.push("/apps")}>
+                    Back To Apps
+                </Button>
+            </div>
+        )
+
+    const isAuthRoute =
+        router.pathname.includes("/auth") || router.pathname.includes("/post-signup")
+
+    const handleBackToWorkspaceSwitch = () => {
+        const project = projects.find((p) => p.user_role === "owner")
+        if (project && !project.is_demo) {
+            changeSelectedOrg(project.organization_id)
+        }
+    }
 
     return (
         <NoSSRWrapper>
             {typeof window === "undefined" ? null : (
                 <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
-                    {router.pathname.includes("/auth") ||
-                    router.pathname.includes("/post-signup") ? (
+                    {isAuthRoute ? (
                         <Layout className={classes.layout}>
                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                 {children}
@@ -175,60 +241,88 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </ErrorBoundary>
                         </Layout>
                     ) : (
-                        <Layout hasSider className={classes.layout}>
-                            <Sidebar />
-                            <Layout className={classes.layout}>
-                                <div>
-                                    <div className={classes.breadcrumbContainer}>
-                                        <Breadcrumb
-                                            items={[
-                                                {
-                                                    title: (
-                                                        <div className="flex items-center gap-1">
-                                                            <Lightning size={16} />
-                                                            <Link href="/apps">Apps</Link>
-                                                        </div>
-                                                    ),
-                                                },
-                                                {title: capitalizedAppName},
-                                            ]}
-                                        />
-                                        <div className={classes.topRightBar}>
-                                            <Text>agenta v{packageJsonData.version}</Text>
-                                        </div>
-                                    </div>
-                                    <Content className={classes.content}>
-                                        <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                            {children}
-                                            {contextHolder}
-                                        </ErrorBoundary>
-                                    </Content>
+                        // !isAuthRoute && isProjectId
+                        <div>
+                            {project?.is_demo && (
+                                <div className={classes.banner}>
+                                    You are in <span>a view-only</span> demo workspace. To go back
+                                    to your workspace{" "}
+                                    <span
+                                        className="cursor-pointer"
+                                        onClick={handleBackToWorkspaceSwitch}
+                                    >
+                                        click here
+                                    </span>
                                 </div>
-                                <Footer ref={footerRef} className={classes.footer}>
-                                    <Space className={classes.footerLeft} size={10}>
-                                        <Link
-                                            href={"https://github.com/Agenta-AI/agenta"}
-                                            target="_blank"
-                                        >
-                                            <GithubFilled className={classes.footerLinkIcon} />
-                                        </Link>
-                                        <Link
-                                            href={"https://www.linkedin.com/company/agenta-ai/"}
-                                            target="_blank"
-                                        >
-                                            <LinkedinFilled className={classes.footerLinkIcon} />
-                                        </Link>
-                                        <Link
-                                            href={"https://twitter.com/agenta_ai"}
-                                            target="_blank"
-                                        >
-                                            <TwitterOutlined className={classes.footerLinkIcon} />
-                                        </Link>
-                                    </Space>
-                                    <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                                </Footer>
+                            )}
+                            <Layout hasSider className={classes.layout}>
+                                <Sidebar />
+                                <Layout className={classes.layout}>
+                                    <div>
+                                        <div className={classes.breadcrumbContainer}>
+                                            <Breadcrumb
+                                                items={[
+                                                    {
+                                                        title: (
+                                                            <div className="flex items-center gap-1">
+                                                                <Lightning size={16} />
+                                                                <Link href="/apps">Apps</Link>
+                                                            </div>
+                                                        ),
+                                                    },
+                                                    {title: currentApp?.app_name || ""},
+                                                ]}
+                                            />
+                                            <div className={classes.topRightBar}>
+                                                <Text>agenta v{packageJsonData.version}</Text>
+                                            </div>
+                                        </div>
+                                        <Content className={classes.content}>
+                                            <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                                <ConfigProvider
+                                                    theme={{
+                                                        algorithm:
+                                                            appTheme === "dark"
+                                                                ? theme.darkAlgorithm
+                                                                : theme.defaultAlgorithm,
+                                                    }}
+                                                >
+                                                    {children}
+                                                </ConfigProvider>
+                                                {contextHolder}
+                                            </ErrorBoundary>
+                                        </Content>
+                                    </div>
+                                    <Footer ref={footerRef} className={classes.footer}>
+                                        <Space className={classes.footerLeft} size={10}>
+                                            <Link
+                                                href={"https://github.com/Agenta-AI/agenta"}
+                                                target="_blank"
+                                            >
+                                                <GithubFilled className={classes.footerLinkIcon} />
+                                            </Link>
+                                            <Link
+                                                href={"https://www.linkedin.com/company/agenta-ai/"}
+                                                target="_blank"
+                                            >
+                                                <LinkedinFilled
+                                                    className={classes.footerLinkIcon}
+                                                />
+                                            </Link>
+                                            <Link
+                                                href={"https://twitter.com/agenta_ai"}
+                                                target="_blank"
+                                            >
+                                                <TwitterOutlined
+                                                    className={classes.footerLinkIcon}
+                                                />
+                                            </Link>
+                                        </Space>
+                                        <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
+                                    </Footer>
+                                </Layout>
                             </Layout>
-                        </Layout>
+                        </div>
                     )}
                 </ThemeProvider>
             )}

@@ -227,6 +227,7 @@ class URI(BaseModel):
 class App(BaseModel):
     app_id: str
     app_name: str
+    app_type: Optional[str] = None
     updated_at: str
 
 

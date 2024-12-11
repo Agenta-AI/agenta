@@ -24,8 +24,8 @@ describe("Evaluations CRUD Operations Test", function () {
             cy.get('[data-cy="new-evaluation-button"]').click()
             cy.get(".ant-modal-content").should("exist")
 
-            cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
-            cy.get(".ant-modal-content").should("contain.text", "This field is required")
+            cy.get(".ant-modal-footer > .ant-btn-primary").click()
+            cy.get(".ant-message").should("contain.text", "Please select a test set")
         })
 
         it("Should verify the successful creation and completion of the evaluation", () => {
@@ -45,7 +45,7 @@ describe("Evaluations CRUD Operations Test", function () {
 
     context("Executing Evaluation with different answer column", () => {
         it("Should successfully rename the testset columns", () => {
-            cy.visit(`/apps/testsets`)
+            cy.visit(`/testsets`)
             cy.location("pathname").should("include", "/testsets")
             cy.get(".ant-table-row").eq(0).click()
             cy.wait(1000)
