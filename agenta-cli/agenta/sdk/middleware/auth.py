@@ -20,7 +20,6 @@ _ALLOW_UNAUTHORIZED = (
 
 
 class DenyResponse(JSONResponse):
-
     def __init__(
         self,
         status_code: int = 401,
