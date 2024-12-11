@@ -13,8 +13,7 @@ import {
     fetchAllEvaluators,
 } from "@/services/evaluations/api"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
-import {ColDef, ICellRendererParams} from "ag-grid-community"
-import {AgGridReact} from "ag-grid-react"
+import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
@@ -36,6 +35,7 @@ import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 import {getStringOrJson} from "@/lib/helpers/utils"
+import AgGridReact from "@/lib/helpers/agGrid"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
