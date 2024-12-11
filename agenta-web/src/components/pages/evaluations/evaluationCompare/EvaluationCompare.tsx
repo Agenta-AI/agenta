@@ -32,7 +32,7 @@ import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import {getStringOrJson} from "@/lib/helpers/utils"
-import AgGridReact from "@/lib/helpers/agGrid"
+import AgGridReact, {type AgGridReactType} from "@/lib/helpers/agGrid"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -87,7 +87,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
     const [evaluators] = useAtom(evaluatorsAtom)
-    const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
+    const gridRef = useRef<AgGridReactType<_EvaluationScenario>>()
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])

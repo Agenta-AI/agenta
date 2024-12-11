@@ -35,7 +35,7 @@ import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 import {getStringOrJson} from "@/lib/helpers/utils"
-import AgGridReact from "@/lib/helpers/agGrid"
+import AgGridReact, {type AgGridReactType} from "@/lib/helpers/agGrid"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -66,7 +66,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
     const [fetching, setFetching] = useState(false)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
-    const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
+    const gridRef = useRef<AgGridReactType<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
