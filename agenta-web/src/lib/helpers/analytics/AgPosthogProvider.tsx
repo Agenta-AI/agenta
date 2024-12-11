@@ -18,18 +18,17 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) =>
         try {
             const posthog = (await import("posthog-js")).default
 
-            posthog.init(process.env.NEXT_PUBLIC_POSTHOG_API_KEY!, {
+            posthog.init("test", {
                 api_host: "https://app.posthog.com",
                 // Enable debug mode in development
                 loaded: (posthog) => {
                     setPosthogClient(posthog)
                     if (process.env.NODE_ENV === "development") posthog.debug()
-                    setLoadingPosthog(false)
                 },
                 capture_pageview: false,
                 ...config,
             })
-        } catch (loadError) {
+        } finally {
             setLoadingPosthog(false)
         }
     }, [loadingPosthog, config, posthogClient, setPosthogClient])
