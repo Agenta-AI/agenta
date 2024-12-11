@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 import {useRouter} from "next/router"
 import {useAtom} from "jotai"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
@@ -6,28 +6,33 @@ import {CustomPosthogProviderType} from "./types"
 
 const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) => {
     const router = useRouter()
-    const loadingPosthog = useRef(false)
+    const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
 
     const initPosthog = useCallback(async () => {
         if (!!posthogClient) return
-        if (loadingPosthog.current) return
+        if (loadingPosthog) return
 
-        loadingPosthog.current = true
+        setLoadingPosthog(true)
 
-        const posthog = (await import("posthog-js")).default
+        try {
+            const posthog = (await import("posthog-js")).default
 
-        posthog.init(process.env.NEXT_PUBLIC_POSTHOG_API_KEY!, {
-            api_host: "https://app.posthog.com",
-            // Enable debug mode in development
-            loaded: (posthog) => {
-                setPosthogClient(posthog)
-                if (process.env.NODE_ENV === "development") posthog.debug()
-            },
-            capture_pageview: false,
-            ...config,
-        })
-    }, [config, posthogClient, setPosthogClient])
+            posthog.init(process.env.NEXT_PUBLIC_POSTHOG_API_KEY!, {
+                api_host: "https://app.posthog.com",
+                // Enable debug mode in development
+                loaded: (posthog) => {
+                    setPosthogClient(posthog)
+                    if (process.env.NODE_ENV === "development") posthog.debug()
+                    setLoadingPosthog(false)
+                },
+                capture_pageview: false,
+                ...config,
+            })
+        } catch (loadError) {
+            setLoadingPosthog(false)
+        }
+    }, [loadingPosthog, config, posthogClient, setPosthogClient])
 
     useEffect(() => {
         initPosthog()
