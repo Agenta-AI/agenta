@@ -1,4 +1,4 @@
-import _ from "lodash"
+import cloneDeep from "lodash/cloneDeep"
 import {camelToSnake} from "./utils"
 
 const llmAvailableProvidersToken = "llmAvailableProvidersToken"
@@ -59,7 +59,7 @@ export const getLlmProviderKey = (providerName: string) =>
     getAllProviderLlmKeys().find((item: LlmProvider) => item.title === providerName)?.key
 
 export const getAllProviderLlmKeys = () => {
-    const providers = _.cloneDeep(llmAvailableProviders)
+    const providers = cloneDeep(llmAvailableProviders)
     try {
         if (typeof window !== "undefined") {
             const providersInStorage: LlmProvider[] = JSON.parse(
