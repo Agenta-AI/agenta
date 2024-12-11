@@ -14,9 +14,11 @@ from os import environ
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Body, FastAPI, UploadFile, HTTPException
 
+from agenta.sdk.middleware.auth import AuthorizationMiddleware
 from agenta.sdk.context.routing import routing_context_manager, routing_context
 from agenta.sdk.context.tracing import tracing_context
-from agenta.sdk.router import router as router
+from agenta.sdk.router import router
+from agenta.sdk.utils import helpers
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
@@ -36,24 +38,21 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
-app = FastAPI()
 
-origins = [
-    "*",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+AGENTA_USE_CORS = str(environ.get("AGENTA_USE_CORS", "true")).lower() in (
+    "true",
+    "1",
+    "t",
 )
 
-app.include_router(router, prefix="")
-
-
+app = FastAPI()
 log.setLevel("DEBUG")
+
+
+_MIDDLEWARES = True
+
+
+app.include_router(router, prefix="")
 
 
 class PathValidator(BaseModel):
@@ -121,6 +120,33 @@ class entrypoint:
         route_path="",
         config_schema: Optional[BaseModel] = None,
     ):
+        ### --- Update Middleware --- #
+        try:
+            global _MIDDLEWARES  # pylint: disable=global-statement
+
+            if _MIDDLEWARES:
+                app.add_middleware(
+                    AuthorizationMiddleware,
+                    host=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host,
+                    resource_id=ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id,
+                    resource_type="application",
+                )
+
+                if AGENTA_USE_CORS:
+                    app.add_middleware(
+                        CORSMiddleware,
+                        allow_origins=["*"],
+                        allow_methods=["*"],
+                        allow_headers=["*"],
+                        allow_credentials=True,
+                    )
+
+                _MIDDLEWARES = False
+
+        except:  # pylint: disable=bare-except
+            log.warning("Agenta SDK - failed to secure route: %s", route_path)
+        ### --- Update Middleware --- #
+
         DEFAULT_PATH = "generate"
         PLAYGROUND_PATH = "/playground"
         RUN_PATH = "/run"
@@ -226,7 +252,7 @@ class entrypoint:
             with routing_context_manager(
                 application={
                     "id": app_id,
-                    "slug": kwargs["app"],
+                    "slug": kwargs.get("app"),
                 },
                 variant={
                     "slug": kwargs.get("config"),
@@ -261,6 +287,9 @@ class entrypoint:
         ### --- Update OpenAPI --- #
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
+
+        # Inject the current version of the SDK into the openapi_schema
+        openapi_schema["agenta_sdk"] = {"version": helpers.get_current_version()}
 
         for route in entrypoint.routes:
             self.override_schema(
@@ -330,9 +359,7 @@ class entrypoint:
         *args,
         **func_params,
     ):
-        log.info(f"---------------------------")
-        log.info(f"Agenta SDK - running route: {repr(self.route_path or '/')}")
-        log.info(f"---------------------------")
+        log.info("Agenta SDK - handling route: %s", repr(self.route_path or "/"))
 
         tracing_context.set(routing_context.get())
 
@@ -350,35 +377,31 @@ class entrypoint:
 
     async def handle_success(self, result: Any, inline_trace: bool):
         data = None
-        trace = dict()
+        tree = None
 
         with suppress():
             data = self.patch_result(result)
 
             if inline_trace:
-                trace = await self.fetch_inline_trace(inline_trace)
+                tree = await self.fetch_inline_trace(inline_trace)
 
         log.info(f"----------------------------------")
         log.info(f"Agenta SDK - exiting with success: 200")
         log.info(f"----------------------------------")
 
-        return BaseResponse(data=data, trace=trace)
+        return BaseResponse(data=data, tree=tree)
 
     def handle_failure(self, error: Exception):
-        log.error("--------------------------------------------------")
-        log.error("Agenta SDK - handling application exception below:")
-        log.error("--------------------------------------------------")
-        log.error(format_exc().strip("\n"))
-        log.error("--------------------------------------------------")
+        log.warning("--------------------------------------------------")
+        log.warning("Agenta SDK - handling application exception below:")
+        log.warning("--------------------------------------------------")
+        log.warning(format_exc().strip("\n"))
+        log.warning("--------------------------------------------------")
 
-        status_code = error.status_code if hasattr(error, "status_code") else 500
+        status_code = 500
         message = str(error)
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
-
-        log.error(f"----------------------------------")
-        log.error(f"Agenta SDK - exiting with failure: {status_code}")
-        log.error(f"----------------------------------")
 
         raise HTTPException(status_code=status_code, detail=detail)
 
@@ -656,10 +679,7 @@ class entrypoint:
 
         loop = get_event_loop()
 
-        with routing_context_manager(
-            config=args_config_params,
-            environment="terminal",
-        ):
+        with routing_context_manager(config=args_config_params):
             result = loop.run_until_complete(
                 self.execute_function(
                     func,
@@ -668,30 +688,23 @@ class entrypoint:
                 )
             )
 
-        SHOW_DETAILS = True
-        SHOW_DATA = False
-        SHOW_TRACE = False
-
         if result.trace:
             log.info("\n========= Result =========\n")
 
             log.info(f"trace_id: {result.trace['trace_id']}")
-            if SHOW_DETAILS:
-                log.info(f"latency:  {result.trace.get('latency')}")
-                log.info(f"cost:     {result.trace.get('cost')}")
-                log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
+            log.info(f"latency:  {result.trace.get('latency')}")
+            log.info(f"cost:     {result.trace.get('cost')}")
+            log.info(f"usage:   {list(result.trace.get('usage', {}).values())}")
 
-            if SHOW_DATA:
-                log.info(" ")
-                log.info(f"data:")
-                log.info(dumps(result.data, indent=2))
+            log.info(" ")
+            log.info("data:")
+            log.info(dumps(result.data, indent=2))
 
-            if SHOW_TRACE:
-                log.info(" ")
-                log.info(f"trace:")
-                log.info(f"----------------")
-                log.info(dumps(result.trace.get("spans", []), indent=2))
-                log.info(f"----------------")
+            log.info(" ")
+            log.info("trace:")
+            log.info("----------------")
+            log.info(dumps(result.trace.get("spans", []), indent=2))
+            log.info("----------------")
 
             log.info("\n==========================\n")
 

@@ -15,18 +15,7 @@ Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
 
-    // Check if there are app variants present
-    cy.request({
-        url: `${Cypress.env().baseApiURL}/apps`,
-        method: "GET",
-    }).then((resp) => {
-        if (resp.body.length) {
-            cy.get('[data-cy="create-new-app-button"]').click()
-            cy.get('[data-cy="create-from-template"]').click()
-        } else {
-            cy.get('[data-cy="create-from-template"]').click()
-        }
-    })
+    cy.get('[data-cy="create-from-template"]').click()
 
     const appName = randString(5)
     cy.task("log", `App name: ${appName}`)
@@ -49,7 +38,7 @@ Cypress.Commands.add("createVariant", () => {
 Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.createVariant()
 
-    cy.visit("/apps/testsets")
+    cy.visit("/testsets")
     cy.url().should("include", "/testsets")
     cy.get('[data-cy="create-testset-modal-button"]').click()
     cy.get(".ant-modal-content").should("exist")
@@ -60,8 +49,17 @@ Cypress.Commands.add("createVariantsAndTestsets", () => {
     cy.clickLinkAndWait('[data-cy="create-new-testset-button"]')
     cy.wrap(testsetName).as("testsetName")
 
-    cy.get(".ag-row").should("have.length", 3)
+    cy.get(".ag-row").should("have.length", 1)
+    cy.get('[data-cy="testset-header-column-edit-button"]').eq(0).click()
+    cy.get('[data-cy="testset-header-column-edit-input"]').clear()
+    cy.get('[data-cy="testset-header-column-edit-input"]').type("country")
+    cy.get('[data-cy="testset-header-column-save-button"]').click()
+
     countries.forEach((country, index) => {
+        if (index !== 0) {
+            cy.get('[data-cy="add-new-testset-row"]').click()
+        }
+
         cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`).within(() => {
             cy.get(".ag-cell").eq(1).type(country.country)
             cy.get(".ag-cell")
@@ -97,24 +95,24 @@ Cypress.Commands.add("removeLlmProviderKey", () => {
 
 Cypress.Commands.add("createNewEvaluation", (evaluatorName = "Exact Match") => {
     cy.request({
-        url: `${Cypress.env().baseApiURL}/evaluations/?app_id=${app_id}`,
+        url: `${Cypress.env().baseApiURL}/evaluations?app_id=${app_id}`,
         method: "GET",
     }).then((resp) => {
         cy.get('[data-cy="new-evaluation-button"]').click()
     })
     cy.get(".ant-modal-content").should("exist")
 
-    cy.get('[data-cy="select-testset-group"]').click()
-    cy.get('[data-cy="select-testset-option"]').eq(0).click()
+    cy.get('[data-cy="evaluation-testset-table"]').find('input[type="radio"]').eq(0).check()
 
-    cy.get('[data-cy="select-variant-group"]').click()
-    cy.get('[data-cy="select-variant-option"]').eq(0).click()
-    cy.get('[data-cy="select-variant-group"]').click()
+    cy.get('[data-cy="evaluation-variant-collapse-header"]').click()
+    cy.get('[data-cy="evaluation-variant-table"]').find('input[type="checkbox"]').eq(0).check()
 
-    cy.get('[data-cy="select-evaluators-group"]').click()
-    cy.get('[data-cy="select-evaluators-option"]').contains(evaluatorName).eq(0).click()
-    cy.get('[data-cy="select-evaluators-group"]').click({force: true})
+    cy.get('[data-cy="evaluation-evaluator-collapse-header"]').click()
+    cy.get('[data-cy="evaluation-search-evaluator"]')
+        .type(evaluatorName)
+        .should("have.value", evaluatorName)
+    cy.get('[data-cy="evaluation-evaluator-table"]').find('input[type="checkbox"]').eq(1).check()
 
-    cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
+    cy.get(".ant-modal-footer > .ant-btn-primary").click()
     cy.wait(1000)
 })

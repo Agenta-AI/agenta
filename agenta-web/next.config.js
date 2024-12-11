@@ -1,3 +1,7 @@
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+    enabled: process.env.ANALYZE === "true",
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     output: "standalone",
@@ -12,6 +16,7 @@ const nextConfig = {
         "rc-pagination",
         "rc-picker",
         "rc-tree",
+        "rc-input",
         "rc-table",
         "@ant-design/icons",
         "@ant-design/icons-svg",
@@ -52,4 +57,4 @@ const nextConfig = {
     },
 }
 
-module.exports = nextConfig
+module.exports = withBundleAnalyzer(nextConfig)

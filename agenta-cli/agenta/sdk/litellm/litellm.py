@@ -1,3 +1,4 @@
+from typing import Dict
 from opentelemetry.trace import SpanKind
 
 import agenta as ag
@@ -34,7 +35,7 @@ def litellm_handler():
         def __init__(self):
             super().__init__()
 
-            self.span = None
+            self.span: Dict[str, CustomSpan] = dict()
 
         def log_pre_api_call(
             self,
@@ -42,6 +43,12 @@ def litellm_handler():
             messages,
             kwargs,
         ):
+            litellm_call_id = kwargs.get("litellm_call_id")
+
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
+
             type = (  # pylint: disable=redefined-builtin
                 "chat"
                 if kwargs.get("call_type") in ["completion", "acompletion"]
@@ -50,25 +57,31 @@ def litellm_handler():
 
             kind = SpanKind.CLIENT
 
-            self.span = CustomSpan(
+            self.span[litellm_call_id] = CustomSpan(
                 ag.tracer.start_span(name=f"litellm_{kind.name.lower()}", kind=kind)
             )
 
-            self.span.set_attributes(
+            span = self.span[litellm_call_id]
+
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
+
+            if not span.is_recording():
+                log.error("Agenta SDK - litellm span not recording.")
+                return
+
+            span.set_attributes(
                 attributes={"node": type},
                 namespace="type",
             )
 
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
-                return
-
-            self.span.set_attributes(
+            span.set_attributes(
                 attributes={"inputs": {"prompt": kwargs["messages"]}},
                 namespace="data",
             )
 
-            self.span.set_attributes(
+            span.set_attributes(
                 attributes={
                     "configuration": {
                         "model": kwargs.get("model"),
@@ -85,40 +98,20 @@ def litellm_handler():
             start_time,
             end_time,
         ):
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+            litellm_call_id = kwargs.get("litellm_call_id")
+
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            result = kwargs.get("complete_streaming_response")
+            span = self.span[litellm_call_id]
 
-            outputs = (
-                {"__default__": result} if not isinstance(result, dict) else result
-            )
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
 
-            self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
-
-            self.span.set_attributes(
-                attributes={"total": kwargs.get("response_cost")},
-                namespace="metrics.unit.costs",
-            )
-
-            self.span.set_attributes(
-                attributes=(
-                    {
-                        "prompt": response_obj.usage.prompt_tokens,
-                        "completion": response_obj.usage.completion_tokens,
-                        "total": response_obj.usage.total_tokens,
-                    }
-                ),
-                namespace="metrics.unit.tokens",
-            )
-
-            self.span.set_status(status="OK")
-
-            self.span.end()
+            if not span.is_recording():
+                return
 
         def log_success_event(
             self,
@@ -127,8 +120,22 @@ def litellm_handler():
             start_time,
             end_time,
         ):
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+            if kwargs.get("stream"):
+                return
+
+            litellm_call_id = kwargs.get("litellm_call_id")
+
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
+
+            span = self.span[litellm_call_id]
+
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
+
+            if not span.is_recording():
                 return
 
             try:
@@ -138,7 +145,7 @@ def litellm_handler():
                     result.append(message)
 
                 outputs = {"completion": result}
-                self.span.set_attributes(
+                span.set_attributes(
                     attributes={"outputs": outputs},
                     namespace="data",
                 )
@@ -146,12 +153,12 @@ def litellm_handler():
             except Exception as e:
                 pass
 
-            self.span.set_attributes(
+            span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},
                 namespace="metrics.unit.costs",
             )
 
-            self.span.set_attributes(
+            span.set_attributes(
                 attributes=(
                     {
                         "prompt": response_obj.usage.prompt_tokens,
@@ -162,9 +169,9 @@ def litellm_handler():
                 namespace="metrics.unit.tokens",
             )
 
-            self.span.set_status(status="OK")
+            span.set_status(status="OK")
 
-            self.span.end()
+            span.end()
 
         def log_failure_event(
             self,
@@ -173,15 +180,26 @@ def litellm_handler():
             start_time,
             end_time,
         ):
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+            litellm_call_id = kwargs.get("litellm_call_id")
+
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            self.span.record_exception(kwargs["exception"])
+            span = self.span[litellm_call_id]
 
-            self.span.set_status(status="ERROR")
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
 
-            self.span.end()
+            if not span.is_recording():
+                return
+
+            span.record_exception(kwargs["exception"])
+
+            span.set_status(status="ERROR")
+
+            span.end()
 
         async def async_log_stream_event(
             self,
@@ -190,40 +208,23 @@ def litellm_handler():
             start_time,
             end_time,
         ):
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+            if kwargs.get("stream"):
                 return
 
-            result = kwargs.get("complete_streaming_response")
+            litellm_call_id = kwargs.get("litellm_call_id")
 
-            outputs = (
-                {"__default__": result} if not isinstance(result, dict) else result
-            )
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
 
-            self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
+            span = self.span[litellm_call_id]
 
-            self.span.set_attributes(
-                attributes={"total": kwargs.get("response_cost")},
-                namespace="metrics.unit.costs",
-            )
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
 
-            self.span.set_attributes(
-                attributes=(
-                    {
-                        "prompt": response_obj.usage.prompt_tokens,
-                        "completion": response_obj.usage.completion_tokens,
-                        "total": response_obj.usage.total_tokens,
-                    }
-                ),
-                namespace="metrics.unit.tokens",
-            )
-
-            self.span.set_status(status="OK")
-
-            self.span.end()
+            if not span.is_recording():
+                return
 
         async def async_log_success_event(
             self,
@@ -232,28 +233,42 @@ def litellm_handler():
             start_time,
             end_time,
         ):
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+            litellm_call_id = kwargs.get("litellm_call_id")
+
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            # result = kwargs.get("complete_streaming_response")
-            result = response_obj.choices[0].message.content
+            span = self.span[litellm_call_id]
 
-            outputs = (
-                {"__default__": result} if not isinstance(result, dict) else result
-            )
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
 
-            self.span.set_attributes(
-                attributes={"outputs": outputs},
-                namespace="data",
-            )
+            if not span.is_recording():
+                return
 
-            self.span.set_attributes(
+            try:
+                result = []
+                for choice in response_obj.choices:
+                    message = choice.message.__dict__
+                    result.append(message)
+
+                outputs = {"completion": result}
+                span.set_attributes(
+                    attributes={"outputs": outputs},
+                    namespace="data",
+                )
+
+            except Exception as e:
+                pass
+
+            span.set_attributes(
                 attributes={"total": kwargs.get("response_cost")},
                 namespace="metrics.unit.costs",
             )
 
-            self.span.set_attributes(
+            span.set_attributes(
                 attributes=(
                     {
                         "prompt": response_obj.usage.prompt_tokens,
@@ -264,9 +279,9 @@ def litellm_handler():
                 namespace="metrics.unit.tokens",
             )
 
-            self.span.set_status(status="OK")
+            span.set_status(status="OK")
 
-            self.span.end()
+            span.end()
 
         async def async_log_failure_event(
             self,
@@ -275,14 +290,25 @@ def litellm_handler():
             start_time,
             end_time,
         ):
-            if not self.span:
-                log.error("LiteLLM callback error: span not found.")
+            litellm_call_id = kwargs.get("litellm_call_id")
+
+            if not litellm_call_id:
+                log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            self.span.record_exception(kwargs["exception"])
+            span = self.span[litellm_call_id]
 
-            self.span.set_status(status="ERROR")
+            if not span:
+                log.warning("Agenta SDK - litellm tracing failed")
+                return
 
-            self.span.end()
+            if not span.is_recording():
+                return
+
+            span.record_exception(kwargs["exception"])
+
+            span.set_status(status="ERROR")
+
+            span.end()
 
     return LitellmHandler()

@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install Prettier
+        run: npm install prettier@3.2.5 --no-save
+        working-directory: agenta-web
+
       - name: Run Prettier
-        run: npx prettier --check .
+        run: |
+          npx prettier -v
+          npx prettier --check .
         working-directory: agenta-web

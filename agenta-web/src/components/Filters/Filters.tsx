@@ -4,7 +4,7 @@ import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phospho
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
-import {isEqual} from "lodash"
+import isEqual from "lodash/isEqual"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {

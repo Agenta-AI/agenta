@@ -8,6 +8,91 @@ import Image from "@theme/IdealImage";
 ```
 
 <section class="changelog">
+### Viewing Traces in the Playground and Authentication for Deployed Applications
+
+_29 November 2024_
+
+**v0.28.0**
+
+#### Viewing traces in the playground:
+
+You can now see traces directly in the playground. For simple applications, this means you can view the prompts sent to LLMs. For custom workflows, you get an overview of intermediate steps and outputs. This makes it easier to understand what’s happening under the hood and debug your applications.
+
+#### Authentication improvements:
+
+We’ve strengthened authentication for deployed applications. As you know, Agenta lets you either fetch the app’s config or call it with Agenta acting as a proxy. Now, we’ve added authentication to the second method. The APIs we create are now protected and can be called using an API key. You can find code snippets for calling the application in the overview page.
+
+#### Documentation improvements:
+
+We’ve added new cookbooks and updated existing documentation:
+
+- New [cookbook for observability with LangChain](/tutorials/cookbooks/observability_langchain)
+- New [cookbook for custom workflows](/tutorials/cookbooks/AI-powered-code-reviews) where we build an AI powered code reviewer
+- Updated the [custom workflows documentation](/custom-workflows/overview) and added [reference](/reference/sdk/custom-workflow)
+- Updated the [reference for the observability SDK](/reference/sdk/observability) and [for the prompt management SDK](/reference/sdk/configuration-management)
+
+#### Bug fixes:
+
+- Fixed an issue with the observability SDK not being compatible with LiteLLM.
+- Fixed an issue where cost and token usage were not correctly computed for all calls.
+
+---
+
+### Observability and Prompt Management
+
+_6 November 2024_
+
+**v0.27.0**
+
+<Image
+  style={{
+    display: "block",
+    margin: "5px auto",
+    width: "80%",
+    textAlign: "center",
+  }}
+  img={require("/images/observability/observability.png")}
+  alt="Observability view showing an open trace for an OpenAI application"
+  loading="lazy"
+/>
+This release is one of our biggest yet—one changelog hardly does it justice.
+
+**First up: Observability**
+
+We’ve had observability in beta for a while, but now it’s been completely rewritten,
+with a brand-new UI and fully **open-source code**.
+
+The new [Observability SDK](/observability/overview) is compatible with [OpenTelemetry (Otel)](https://opentelemetry.io/) and [gen-ai semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/). This means you get a lot of integrations right out of the box, like [LangChain](/observability/integrations/langchain), [OpenAI](/observability/integrations/openai), and more.
+
+We’ll publish a full blog post soon, but here’s a quick look at what the new observability offers:
+
+- A redesigned UI that lets you visualize nested traces, making it easier to understand what’s happening behind the scenes.
+
+- The web UI lets you filter traces by name, cost, and other attributes—you can even search through them easily.
+
+- The SDK is Otel-compatible, and we’ve already tested integrations for [OpenAI](/observability/integrations/openai), [LangChain](/observability/integrations/langchain), [LiteLLM](/observability/integrations/litellm), and [Instructor](/observability/integrations/instructor), with guides available for each. In most cases, adding a few lines of code will have you seeing traces directly in Agenta.
+
+**Next: Prompt Management**
+
+We’ve completely rewritten the [prompt management SDK](/prompt-management/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
+
+**And finally: LLM-as-a-Judge Overhaul**
+
+We’ve made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we’re seeing better results with it.
+
+<Image
+  style={{
+    display: "block",
+    margin: "5px auto",
+    width: "50%",
+    textAlign: "center",
+  }}
+  img={require("/images/evaluation/llm-as-a-judge.gif")}
+  alt="Configuring the LLM-as-a-Judge evaluator"
+  loading="lazy"
+/>
+
+---
 
 ### New Application Management View and Various Improvements
 
@@ -56,7 +141,12 @@ _22 August 2024_
   <Image
     img={require("/images/changelog/new_ui.png")}
     alt="Button for exporting evaluation results"
-    style={{ width: "80%", maxWidth: "800px" }}
+    style={{
+      display: "block",
+      margin: "5px auto",
+      width: "80%",
+      textAlign: "center",
+    }}
   />
 </div>
 

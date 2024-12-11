@@ -1,12 +1,14 @@
 {
     "name": "agenta",
-    "version": "0.27.1",
+    "version": "0.28.1",
     "private": true,
     "engines": {
         "node": ">=18"
     },
     "scripts": {
         "dev": "next dev",
+        "dev:local": "ENV_FILE=.local.env next dev",
+        "dev:turbo": "ENV_FILE=.local.env next dev --turbo",
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
@@ -27,6 +29,7 @@
         "@headlessui/tailwindcss": "^0.2.0",
         "@lobehub/icons": "^1.18.0",
         "@monaco-editor/react": "^4.5.2",
+        "@next/bundle-analyzer": "^14.2.17",
         "@phosphor-icons/react": "^2.1.7",
         "@sentry/nextjs": "^8.37.1",
         "@tailwindcss/forms": "^0.5.7",

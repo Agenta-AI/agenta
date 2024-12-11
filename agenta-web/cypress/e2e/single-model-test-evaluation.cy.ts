@@ -43,8 +43,6 @@ describe("Single Model Test workflow", () => {
 
             cy.wait(1000)
             cy.get('[data-cy="single-model-run-all-button"]').click()
-
-            cy.wait("@generateRequest")
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').type("100")
         })
 
@@ -64,7 +62,7 @@ describe("Single Model Test workflow", () => {
         })
 
         it("Should check the evaluation testset is successfully saved", () => {
-            cy.visit(`/apps/testsets`)
+            cy.visit(`/testsets`)
             cy.url().should("include", "/testsets")
             cy.get('[data-cy="app-testset-list"]').as("table")
             cy.get("@table").contains(saved_testset_name).as("tempTestSet").should("be.visible")

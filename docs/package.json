@@ -20,6 +20,7 @@
   "dependencies": {
     "@cloudflare/stream-react": "1.9.1",
     "@docusaurus/core": "3.4.0",
+    "@docusaurus/plugin-client-redirects": "^3.4.0",
     "@docusaurus/plugin-content-docs": "^3.5.2",
     "@docusaurus/plugin-ideal-image": "^3.4.0",
     "@docusaurus/preset-classic": "3.4.0",

@@ -81,21 +81,19 @@ async def start_variant(
 
     try:
         logger.debug(
-            "Starting variant %s with image name %s and tags %s and app_name %s and organization %s and workspace %s",
+            "Starting variant %s with image name %s and tags %s and app_name %s",
             db_app_variant.variant_name,
             db_app_variant.image.docker_id,
             db_app_variant.image.tags,
             db_app_variant.app.app_name,
         )
-        logger.debug("App name is %s", db_app_variant.app.app_name)
         # update the env variables
         domain_name = os.environ.get("DOMAIN_NAME")
         if domain_name is None or domain_name == "http://localhost":
             # in the case of agenta running locally, the containers can access the host machine via this address
             domain_name = (
-                "http://host.docker.internal"  # unclear why this stopped working
+                f"http://host.docker.internal:{os.environ.get('AGENTA_PORT','80')}"
             )
-            # domain_name = "http://localhost"
 
         env_vars = {} if env_vars is None else env_vars  # type: ignore
         env_vars.update(

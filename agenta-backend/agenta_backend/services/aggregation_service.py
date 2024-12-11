@@ -125,6 +125,7 @@ def sum_float_from_llm_app_response(
             raise ValueError(f"No valid values found for {key} sum aggregation.")
 
         total_value = sum(values)
+
         return Result(type=key, value=total_value)
     except Exception as exc:
         return Result(

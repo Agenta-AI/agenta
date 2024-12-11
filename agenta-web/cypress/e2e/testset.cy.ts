@@ -14,7 +14,7 @@ describe("Testsets crud and UI functionality", () => {
     context("Testing creation process of testset", () => {
         beforeEach(() => {
             // navigate to the new testset page
-            cy.visit(`/apps/testsets`)
+            cy.visit(`/testsets`)
         })
 
         it("Should successfully creates the testset and navigates to the list", () => {
@@ -27,8 +27,12 @@ describe("Testsets crud and UI functionality", () => {
             cy.get('[data-cy="testset-name-input"]').type(testsetName)
             cy.clickLinkAndWait('[data-cy="create-new-testset-button"]')
 
-            cy.get(".ag-row").should("have.length", 3)
+            cy.get(".ag-row").should("have.length", 1)
             countries.forEach((country, index) => {
+                if (index !== 0) {
+                    cy.get('[data-cy="add-new-testset-row"]').click()
+                }
+
                 cy.get(`.ag-center-cols-container .ag-row[row-index="${index}"]`).within(() => {
                     cy.get(".ag-cell").eq(1).type(country.country)
                     cy.get(".ag-cell")
@@ -52,7 +56,7 @@ describe("Testsets crud and UI functionality", () => {
     context("When uploading testset", () => {
         const testset_name = randString(8)
         beforeEach(() => {
-            cy.visit(`/apps/testsets`)
+            cy.visit(`/testsets`)
         })
 
         it("Should successfully upload a testset", () => {

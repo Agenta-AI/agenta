@@ -1,14 +1,7 @@
-# List of examples
+# Agenta Examples
 
-- baby_name_generator
-Simple baby name generator using one prompt, jinja2 and openai
-- Job info extractor
-Extracts job info from a job description using langchain and openai function calls
-- noteGPT
-Simple app that takes a transcript and creates notes using langchain and davinci
-- recipes_and_ingredients
-Simple app with one prompt that takes a receipe and finds the most dominant ingredient using langchain 
-- sales_call_qa_llama
-App using llama_index to answer questions on a sales call based on embeddings
-- sales_call_summarizer
-App using langchain to summarize a sales call
+## Custom workflows
+
+| Example                                                                                                               | Description                                                                                                                                                                  |
+| :-------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Chain of prompt workflow](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/chain_of_prompts/) | A custom workflow with a chain of two prompts ([tutorial](https://docs.agenta.ai/custom-workflows/quick-start?utm_source=github&utm_medium=referral&utm_campaign=examples)). |

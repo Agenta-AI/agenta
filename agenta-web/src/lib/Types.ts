@@ -1,6 +1,7 @@
 import {StaticImageData} from "next/image"
 import {EvaluationFlow, EvaluationType} from "./enums"
 import {GlobalToken} from "antd"
+import {AgentaNodeDTO} from "@/services/observability/types"
 
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
@@ -24,6 +25,7 @@ export type TestsetCreationMode = "create" | "clone" | "rename"
 export interface ListAppsItem {
     app_id: string
     app_name: string
+    app_type?: string
     updated_at: string
 }
 
@@ -493,7 +495,9 @@ export type ComparisonResultRow = {
 export type RequestMetadata = {
     cost: number
     latency: number
-    usage: {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
+    usage:
+        | {completion?: number; prompt?: number; total: number}
+        | {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
 }
 
 export type WithPagination<T> = {
@@ -544,17 +548,24 @@ export type FuncResponse = {
     usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
 }
 
-export type BaseResponse = {
-    version: string
-    data: string | Record<string, any>
-    trace?: {
-        trace_id: string
-        cost?: number
-        latency?: number
-        usage?: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
-        spans?: BaseResponseSpans[]
-    }
+export interface TraceDetailsV2 {
+    trace_id: string
+    cost?: number
+    latency?: number
+    usage: {completion_tokens: number; prompt_tokens: number; total_tokens: number}
+    spans?: BaseResponseSpans[]
 }
+
+export interface TraceDetailsV3 {
+    version: string
+    nodes: AgentaNodeDTO[]
+    count?: number | null
+}
+
+export type BaseResponse = {
+    version?: string | null
+    data: string | Record<string, any>
+} & Partial<{tree: TraceDetailsV3} & {trace: TraceDetailsV2}>
 
 export type BaseResponseSpans = {
     id: string
