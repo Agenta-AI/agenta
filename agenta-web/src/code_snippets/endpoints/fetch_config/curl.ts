@@ -13,6 +13,11 @@ export default function cURLCode(appName: string, env_name: string): string {
         "version": null,
         "id": null
     }
+
+
+
+
+    
 }'
 `
 }
