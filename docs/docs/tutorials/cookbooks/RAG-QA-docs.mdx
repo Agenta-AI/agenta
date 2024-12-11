@@ -1,20 +1,33 @@
 ---
 title: "RAG Q&A over Documentation"
+description: "Build a Q&A system for your documentation using RAG with Agenta, Litellm and Qdrant. Evaluate it using Ragas Context relevancy and LLM-as-a-judge. Deploy it as an API endpoint."
 ---
 
 :::info Open in Github
 The code for this tutorial is available [here](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/rag-docs-qa).
 :::
 
-In this tutorial, we'll build a Q&A system for our documentation using RAG (Retrieval-Augmented Generation). Our AI assistant will answer user queries by retrieving relevant sections from our documentation and using them as context when calling a Large Language Model (LLM).
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+In this tutorial, we'll build a Q&A system for our documentation using RAG (Retrieval-Augmented Generation). Our AI assistant will answer user queries by retrieving relevant sections from our documentation and using them as context when calling an LLM.
 
 At the end, we will have:
 
-- A playground for testing different embeddings, adjusting top_k values (number of context chunks to include), and experimenting with various prompts and models
-- LLM-as-a-judge and RAG context relevancy evaluations for our Q&A application
-- A deployed application that we can directly invoke or export its configuration to run elsewhere
+- A **playground** for testing different embeddings, adjusting top_k values (number of context chunks to include), and experimenting with various prompts and models
+- **LLM-as-a-judge** and **RAG context relevancy** evaluations for our Q&A application
+- **Observability** with Agenta to debug and monitor our application
+- A **deployment** that we can either [directly invoke](/prompt-management/integration/proxy-calls) **or** [fetch the configuration](/reference/sdk/configuration-management#get_from_registry) to run elsewhere
 
 You can try our playground by creating a free account at [https://cloud.agenta.ai](https://cloud.agenta.ai) and opening the demo.
+
+<Image
+  style={{ display: "block", margin: "10px auto" }}
+  img={require("/images/cookbooks/rag-qa-playground.png")}
+  alt="Playground for testing the RAG "
+  loading="lazy"
+/>
 
 ## Our stack
 
@@ -209,10 +222,10 @@ To run the ingestion pipeline, you need first to create a collection in Qdrant a
 - `DOCS_BASE_URL`: The base URL where the documentation can be found (in our case it's `https://docs.agenta.ai`).
 
 :::info
-The complete script with a setup readme is available [here](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/rag-docs-qa).
+The complete ingestion script with a setup readme is [available in Github](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/rag-docs-qa).
 :::
 
-## Querying the Assistant
+## The query RAG workflow
 
 Now that we have ingested the documentation into the Qdrant vector database, let's create the query logic for our assistant. Parts related to the Agenta integrations are highlighted.
 
@@ -392,21 +405,61 @@ def generate(query: str):
         return llm(query, results)
 ```
 
-This script handles user queries by:
+Our system uses a standard RAG workflow consisting of three main steps:
 
 1. **Searching the documentation:** Uses the query to retrieve relevant documents from Qdrant.
 2. **Optionally reranking results:** Improves the relevance of results using Cohere's reranker.
 3. **Generating the answer:** Constructs a prompt with the query and context, then calls the LLM to generate the final answer.
 
-### Instrumentation with Agenta
+To integrate this script with Agenta, we need to make two main adjustments:
 
-We use Agenta's `@ag.instrument()` decorator to instrument functions. This allows us to trace inputs, outputs, and internal variables for better observability and debugging.
+1. **Instrumentation:** Use `@ag.instrument()` decorator to trace inputs, outputs, and internal variables.
+2. **Integration with the Playground:** Use `ag.route()` to define a route and later create a service that will be used to test the app in the playground.
 
-Additionally, we store internal variables using `ag.tracing.store_internals()`, which helps in evaluation .
+We'll discuss these in more detail in the next sections.
 
-## Configuration
+## Instrumentation
 
-We define a `Config` class using Pydantic to manage configurations for our assistant. This includes the system and user prompts, models to use, and other parameters.
+Tracing captures the inputs and outputs of all functions and LLM calls in our app. This helps us debug multi-step workflows (for example, determining whether an incorrect response stems from the LLM call or from incorrect context) and monitor usage over time.
+
+```python
+@ag.instrument()
+def generate(query: str):
+    ...
+```
+
+Instrumenting code in Agenta is straightforward. The `@ag.instrument()` decorator lets you capture function inputs and outputs to create a trace tree.
+
+Agenta also provides auto-instrumentation for most frameworks and libraries. Since we're using litellm, we'll use Agenta's callback function to automatically instrument its calls.
+
+For RAG evaluation of our applications, we need to evaluate the relevancy of retrieved context for each query. Since context isn't part of any function's input or output, we'll add it manually to a span using `ag.tracing.store_internals({"context": context})`, which stores internal variables in the ongoing span.
+
+<Image
+  style={{ display: "block", margin: "10px auto" }}
+  img={require("/images/cookbooks/rag-qa-tracing.png")}
+  alt="Trace view of the RAG Q&A assistant"
+  loading="lazy"
+/>
+
+## Playground integration
+
+Agenta provides a custom playground for testing application parameters. Here, we can experiment with different embeddings, top_k values, and LLM models.
+
+Using the Agenta SDK, we'll define a configuration schema for our application and create an endpoint to enable playground communication. Then, we'll deploy the application to Agenta Cloud using the Agenta CLI for testing. Agenta handles all infrastructure work needed to create our application service.
+
+### Defining the configuration
+
+Let's define the configuration schema for our application. This schema will determine what elements appear in the playground UI and what parameters we can experiment with.
+
+Our configuration includes:
+
+- **System prompt:** The system prompt template
+- **User prompt:** The user prompt template
+- **Embedding model:** Choice between OpenAI and Cohere
+- **LLM model:** Selection from supported language models
+- **Top_k value:** Number of document chunks to retrieve from the vector database
+- **Use rerank:** Toggle for Cohere's reranking feature
+- **Rerank top_k value:** Number of chunks the reranker should return (used for both reordering and filtering)
 
 ```python
 from pydantic import BaseModel, Field
@@ -428,21 +481,64 @@ class Config(BaseModel):
     use_rerank: bool = Field(default=True)
 ```
 
-This configuration allows us to experiment with different models and parameters easily.
+We implement this using a standard `Config` Pydantic class that inherits from BaseModel. The fields use simple types (str or int). Agenta requires each field to have a default value. For multiple-choice fields, we use `Annotated[str, ag.MultipleChoice(choices=["choice1", "choice2"])]` to specify the available options.
 
-## Adding to the Playground
+:::info
+`supported_llm_models` is a helper variable provided by Agenta that contains the list available in LiteLLM.
+:::
 
-With Agenta, we can serve our application and add it to a playground for interactive testing and parameter tuning.
+### Creating the endpoint and using the configuration
 
-**[Instructions on adding to the playground will be added here.]**
+Next, we'll create an endpoint to enable communication between the playground and our application.
 
-## Evaluating the Assistant
+```python
+@ag.route("/", config_schema=Config)
+def generate(query: str):
+    config = ag.ConfigManager.get_from_route(Config)
+    ...
+```
 
-To ensure our assistant provides accurate and relevant answers, we'll use evaluators to assess its performance.
+[The decorator `@ag.route("/", config_schema=Config)`](https://www.notion.so/reference/sdk/custom-workflow#agroute-decorator) registers the `generate` function as an endpoint and uses the `Config` class to define the configuration schema. This creates a `POST /playground/run` endpoint that accepts the configuration as a parameter and runs the workflow. The playground uses this endpoint to interact with the service.
 
-### RAG Relevancy Evaluator
+To get the configuration from the request, we use `ag.ConfigManager.get_from_route(Config)`, which returns a Config object containing the values provided by the playground.
 
-We use the RAG Relevancy evaluator as described in [Agenta's evaluation documentation](#). (Placeholder for documentation link.)
+We can use these configuration values throughout our workflow. For instance, we can use `config.use_rerank` in the `generate` function to control the reranking feature.
+
+Note that `ag.ConfigManager.get_from_route(Config)` is accessible in any function called within the generate function's execution path, as the configuration is preserved in the context.
+
+### Deploying the application to Agenta
+
+Now that we have everything ready to deploy our application to Agenta, let's proceed. First, add the `requirements.txt` file to the same folder as your project files and populate the `.env` file with your environment variables. Then run these commands:
+
+```bash
+agenta init
+
+agenta variant serve query.py
+```
+
+The first command creates a new application in Agenta, while the second command serves the application and creates a playground for testing.
+
+:::info
+Under the hood, `agenta variant serve` creates a docker image of your application and sets up a service for it in Agenta Cloud.
+:::
+
+Once complete, you can access the playground and begin testing your application.
+
+<Image
+  style={{ display: "block", margin: "10px auto" }}
+  img={require("/images/cookbooks/rag-qa-playground.png")}
+  alt="Playground for testing the RAG Q&A assistant"
+  loading="lazy"
+/>
+
+## Evaluating the assistant
+
+To ensure our assistant provides accurate and relevant answers, we'll use evaluators to assess its performance. We will create two evaluators:
+
+1. RAG Relevancy Evaluator: Measures how relevant the assistant's answers are with respect to the retrieved context.
+2. LLM-as-a-Judge Evaluator: Rates the quality of the assistant's responses.
+
+For the first, we use the RAG Relevancy evaluator as described in [Agenta's evaluation documentation](/evaluation/evaluators/rag-evaluators).
 
 **Configuration:**
 
@@ -450,33 +546,37 @@ We use the RAG Relevancy evaluator as described in [Agenta's evaluation document
 - **Answer key:** `trace.generate.outputs`
 - **Contexts key:** `trace.generate.llm.internals.context`
 
-This evaluator measures how relevant the assistant's answers are with respect to the retrieved context.
+This evaluator measures how relevant the assistant's answers are with respect to the retrieved context. Note that we use `trace.generate.llm.internals.context`, which we previously stored in the span, to get the context from the trace.
 
-### LLM-as-a-Judge Evaluator
+You can use the evaluator playground to configure the evaluator and identify the correct trace data to use in your configuration (see image below).
 
-We also set up an LLM-as-a-Judge evaluator to rate the quality of the assistant's responses.
+<Image
+  style={{ display: "block", margin: "10px auto" }}
+  img={require("/images/cookbooks/rag-qa-eval-config.png")}
+  alt="Configuration of the RAG Relevancy evaluator"
+  loading="lazy"
+/>
 
-**[Placeholder for the prompt used in the evaluator.]**
+We set and test an LLM-as-a-Judge evaluator to rate the quality of the assistant's responses the same way. More details on setting up LLM-as-a-Judge evaluators can be found [here](/evaluation/evaluators/llm-as-a-judge).
 
-## Deploying the Assistant
+## Deploying the assistant
 
-Once satisfied with the assistant's performance, we can deploy it as an API endpoint using Agenta.
+After iterating through various prompts and parameters and evaluating their performance, we can deploy our satisfied solution as an API endpoint using Agenta.
 
-**[Deployment instructions will be added here.]**
+Simply click the `Deploy` button in the playground to accomplish this.
+
+Agenta provides us with [two endpoints](/prompt-management/integration/how-to-integrate-with-agenta) to interact with our deployed application:
+
+- The first allows us to directly invoke the deployed application with the production configuration.
+- The second allows us to fetch the deployed configuration as a JSON and use it in our self-deployed application.
 
 ## Conclusion
 
-In this tutorial, we've:
+In this tutorial, we built a documentation Q&A system using RAG, but more importantly, we created a comprehensive LLMOps workflow that includes:
 
-- **Built** a RAG-based Q&A assistant over our documentation.
-- **Ingested and processed** documentation into a vector database.
-- **Handled user queries** by retrieving relevant context and generating answers.
-- **Instrumented our code** for observability with Agenta.
-- **Configured and used evaluators** to assess performance.
-- **Prepared the assistant for deployment**.
+- A **playground** for testing different embeddings, prompts, and retrieval parameters in real time
+- **Observability tools** for debugging multi-step RAG workflows and monitoring production performance
+- **Evaluation pipelines** for assessing both RAG relevancy and response quality
+- **Deployment capabilities** for smoothly transitioning from experimentation to production
 
-By following these steps, you can create powerful AI assistants that provide accurate information based on your documentation.
-
----
-
-**Note:** Sections marked as placeholders will be completed later.
+This workflow shows how to evolve beyond a basic RAG implementation to build a production-ready system with robust testing, monitoring, and iteration capabilities.
