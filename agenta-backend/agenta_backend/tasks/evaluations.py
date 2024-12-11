@@ -283,6 +283,8 @@ def evaluate(
             ]
 
             # 4. We save the result of the eval scenario in the db
+            print("============ App Output ============: ", app_output.result.value)
+
             loop.run_until_complete(
                 create_new_evaluation_scenario(
                     project_id=project_id,

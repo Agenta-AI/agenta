@@ -15,18 +15,7 @@ Cypress.Commands.add("createVariant", () => {
     cy.addingOpenaiKey()
     cy.visit("/apps")
 
-    // Check if there are app variants present
-    cy.request({
-        url: `${Cypress.env().baseApiURL}/apps`,
-        method: "GET",
-    }).then((resp) => {
-        if (resp.body.length) {
-            cy.get('[data-cy="create-new-app-button"]').click()
-            cy.get('[data-cy="create-from-template"]').click()
-        } else {
-            cy.get('[data-cy="create-from-template"]').click()
-        }
-    })
+    cy.get('[data-cy="create-from-template"]').click()
 
     const appName = randString(5)
     cy.task("log", `App name: ${appName}`)
@@ -113,17 +102,17 @@ Cypress.Commands.add("createNewEvaluation", (evaluatorName = "Exact Match") => {
     })
     cy.get(".ant-modal-content").should("exist")
 
-    cy.get('[data-cy="select-testset-group"]').click()
-    cy.get('[data-cy="select-testset-option"]').eq(0).click()
+    cy.get('[data-cy="evaluation-testset-table"]').find('input[type="radio"]').eq(0).check()
 
-    cy.get('[data-cy="select-variant-group"]').click()
-    cy.get('[data-cy="select-variant-option"]').eq(0).click()
-    cy.get('[data-cy="select-variant-group"]').click()
+    cy.get('[data-cy="evaluation-variant-collapse-header"]').click()
+    cy.get('[data-cy="evaluation-variant-table"]').find('input[type="checkbox"]').eq(0).check()
 
-    cy.get('[data-cy="select-evaluators-group"]').click()
-    cy.get('[data-cy="select-evaluators-option"]').contains(evaluatorName).eq(0).click()
-    cy.get('[data-cy="select-evaluators-group"]').click({force: true})
+    cy.get('[data-cy="evaluation-evaluator-collapse-header"]').click()
+    cy.get('[data-cy="evaluation-search-evaluator"]')
+        .type(evaluatorName)
+        .should("have.value", evaluatorName)
+    cy.get('[data-cy="evaluation-evaluator-table"]').find('input[type="checkbox"]').eq(1).check()
 
-    cy.get(".ant-modal-footer > .ant-btn-primary > .ant-btn-icon > .anticon > svg").click()
+    cy.get(".ant-modal-footer > .ant-btn-primary").click()
     cy.wait(1000)
 })

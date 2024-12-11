@@ -1,5 +1,6 @@
 import axios from "@/lib/helpers/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {ProjectsResponse} from "./types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -8,7 +9,7 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllProjects = async () => {
+export const fetchAllProjects = async (): Promise<ProjectsResponse[]> => {
     const response = await axios.get(`${getAgentaApiUrl()}/api/projects`)
     return response.data
 }
