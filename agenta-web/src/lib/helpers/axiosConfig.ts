@@ -3,7 +3,7 @@ import {getErrorMessage, globalErrorHandler} from "./errorHandler"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import router from "next/router"
 import {getAgentaApiUrl} from "./utils"
-import {isObject} from "lodash"
+import isObject from "lodash/isObject"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 
 export const PERMISSION_ERR_MSG =

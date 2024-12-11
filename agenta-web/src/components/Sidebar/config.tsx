@@ -54,8 +54,8 @@ export const useSidebarConfig = () => {
 
     const sidebarConfig: SidebarConfig[] = [
         {
-            key: "application-link",
-            title: "Applications",
+            key: "app-management-link",
+            title: "App Management",
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined />,

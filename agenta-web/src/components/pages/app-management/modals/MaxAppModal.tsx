@@ -66,14 +66,14 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
                     <Button onClick={() => props.onCancel?.({} as any)}>Cancel</Button>
                     <Link
                         href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
-                        target="_black"
+                        target="_blank"
                     >
                         <Button icon={<SlackLogo size={14} className="mt-0.5" />}>
                             Visit slack
                         </Button>
                     </Link>
 
-                    <Link href="https://cal.com/mahmoud-mabrouk-ogzgey/30min" target="_black">
+                    <Link href="https://cal.com/mahmoud-mabrouk-ogzgey/30min" target="_blank">
                         <Button type="primary" icon={<Phone size={14} className="mt-0.5" />}>
                             Schedule a call
                         </Button>

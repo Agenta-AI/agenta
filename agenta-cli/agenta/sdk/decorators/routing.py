@@ -18,6 +18,7 @@ from agenta.sdk.middleware.auth import AuthorizationMiddleware
 from agenta.sdk.context.routing import routing_context_manager, routing_context
 from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.router import router
+from agenta.sdk.utils import helpers
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
@@ -287,6 +288,9 @@ class entrypoint:
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
 
+        # Inject the current version of the SDK into the openapi_schema
+        openapi_schema["agenta_sdk"] = {"version": helpers.get_current_version()}
+
         for route in entrypoint.routes:
             self.override_schema(
                 openapi_schema=openapi_schema,
@@ -394,7 +398,7 @@ class entrypoint:
         log.warning(format_exc().strip("\n"))
         log.warning("--------------------------------------------------")
 
-        status_code = error.status_code if hasattr(error, "status_code") else 500
+        status_code = 500
         message = str(error)
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
         detail = {"message": message, "stacktrace": stacktrace}
