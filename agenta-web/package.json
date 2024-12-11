@@ -19,7 +19,7 @@
         "format-fix": "prettier --write .",
         "types:check": "tsc",
         "types:watch": "tsc -w",
-        "prepare": "cd .. && husky"
+        "prepare": "cd .. && husky && if [ \"$FEATURE_FLAG\" = \"cloud-dev\" ]; then cd .. && husky; fi"
     },
     "dependencies": {
         "@ant-design/colors": "^7.0.0",
