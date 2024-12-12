@@ -1,12 +1,25 @@
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
+
+from os import getenv
+from json import dumps
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 
+from agenta.sdk.middleware.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
+
+_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
+
+_CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
+_CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
+
+_cache = TTLLRUCache(capacity=_CACHE_CAPACITY, ttl=_CACHE_TTL)
 
 
 class VaultMiddleware(BaseHTTPMiddleware):
@@ -20,42 +33,44 @@ class VaultMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        print("--- agenta/sdk/middleware/vault.py ---")
         request.state.vault = None
 
         with suppress():
-            headers = {
-                "Authorization": request.state.auth.get("credentials"),
-            }
+            secrets = await self._get_secrets(request)
 
-            secrets = await self._get_secrets(
-                headers=headers,
-            )
-
-            if secrets:
-                request.state.vault = {
-                    "secrets": secrets,
-                }
-
-        print(request.state.vault)
+            request.state.vault = {"secrets": secrets}
 
         return await call_next(request)
 
-    async def _get_secrets(
-        self,
-        headers: Dict[str, str],
-    ):
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.host}/api/vault/v1/secrets",
-                    headers=headers,
-                )
+    # @atimeit
+    async def _get_secrets(self, request: Request) -> Optional[Dict]:
+        headers = {"Authorization": request.state.auth.get("credentials")}
 
-                vault = response.json()
+        _hash = dumps(
+            {
+                "headers": headers,
+            },
+            sort_keys=True,
+        )
 
-                secrets = vault.get("secrets")
+        if _CACHE_ENABLED:
+            secrets_cache = _cache.get(_hash)
+
+            if secrets_cache:
+                secrets = secrets_cache.get("secrets")
 
                 return secrets
-        except:  # pylint: disable=bare-except
-            return None
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.host}/api/vault/v1/secrets",
+                headers=headers,
+            )
+
+            vault = response.json()
+
+            secrets = vault.get("secrets")
+
+            _cache.put(_hash, {"secrets": secrets})
+
+            return secrets
