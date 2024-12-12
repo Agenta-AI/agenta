@@ -12,11 +12,7 @@ class OTelMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: FastAPI):
         super().__init__(app)
 
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable,
-    ):
+    async def dispatch(self, request: Request, call_next: Callable):
         request.state.otel = None
 
         with suppress():
@@ -27,7 +23,7 @@ class OTelMiddleware(BaseHTTPMiddleware):
             if context:
                 request.state.otel = {"baggage": {}}
 
-                for _, partial in context.values():
+                for partial in context.values():
                     for key, value in partial.items():
                         request.state.otel["baggage"][key] = value
 

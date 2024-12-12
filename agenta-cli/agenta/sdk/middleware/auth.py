@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 
 from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.exceptions import display_exception
 
 import agenta as ag
 
@@ -48,13 +49,17 @@ class AuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
-        self.resource_id = (
-            # STATELESS
-            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
-            # LEGACY OR STATEFUL
-            or ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id
-        )
-        self.resource_type = "application"
+
+        self.resource_id = None
+        self.resource_type = None
+
+        if ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id:
+            self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
+            self.resource_type = "service"
+
+        elif ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id:
+            self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id
+            self.resource_type = "application"
 
     async def dispatch(
         self,
@@ -68,9 +73,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         try:
-            authorization = request.headers.get("Authorization", None)
+            authorization = request.headers.get("authorization", None)
 
             headers = {"Authorization": authorization} if authorization else None
+
+            access_token = request.cookies.get("sAccessToken", None)
+
+            cookies = {"sAccessToken": access_token} if access_token else None
 
             baggage = request.state.otel.get("baggage") if request.state.otel else {}
 
@@ -90,10 +99,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if project_id:
                 params["project_id"] = project_id
 
+            print("-----------------------------------")
+            print(headers)
+            print(cookies)
+            print(params)
+            print("-----------------------------------")
+
             credentials = await self._get_credentials(
-                # credentials = await self._mock_get_credentials(
                 params=params,
                 headers=headers,
+                cookies=cookies,
             )
 
             request.state.auth = {"credentials": credentials}
@@ -103,11 +118,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         except DenyException as deny:
-            log.warning("-----------------------------------")
-            log.warning("Agenta - Auth Middleware Exception:")
-            log.warning("-----------------------------------")
-            log.warning(format_exc().strip("\n"))
-            log.warning("-----------------------------------")
+            display_exception("Auth Middleware Exception")
 
             return DenyResponse(
                 status_code=deny.status_code,
@@ -115,31 +126,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
             )
 
         except:  # pylint: disable=bare-except
-            log.warning("-----------------------------------")
-            log.warning("Agenta - Auth Middleware Exception:")
-            log.warning("-----------------------------------")
-            log.warning(format_exc().strip("\n"))
-            log.warning("-----------------------------------")
+            display_exception("Auth Middleware Exception")
 
             return DenyResponse(
                 status_code=500,
                 detail="Internal Server Error: auth middleware.",
             )
 
-    async def _mock_get_credentials(
-        self,
-        params: Dict[str, str],
-        headers: Dict[str, str],
-    ):
-        if not headers:
-            raise DenyException(content="Missing 'authorization' header.")
-
-        return headers.get("Authorization")
-
     async def _get_credentials(
         self,
         params: Optional[Dict[str, str]] = None,
         headers: Optional[Dict[str, str]] = None,
+        cookies: Optional[str] = None,
     ):
         if not headers:
             raise DenyException(content="Missing 'authorization' header.")
@@ -150,6 +148,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     f"{self.host}/api/permissions/verify",
                     headers=headers,
                     params=params,
+                    cookies=cookies,
                 )
 
                 if response.status_code == 401:
@@ -182,11 +181,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             raise deny
 
         except Exception as exc:  # pylint: disable=bare-except
-            log.warning("------------------------------------------------")
-            log.warning("Agenta - Auth Middleware Exception (suppressed):")
-            log.warning("------------------------------------------------")
-            log.warning(format_exc().strip("\n"))
-            log.warning("------------------------------------------------")
+            display_exception("Auth Middleware Exception (suppressed)")
 
             raise DenyException(
                 status_code=500, content="Internal Server Error: auth middleware."
