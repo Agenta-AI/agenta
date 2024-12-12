@@ -1,6 +1,8 @@
-from typing import Callable, Optional, Dict
+from typing import Callable, Optional, Tuple, Dict
 
-from uuid import UUID
+from os import getenv
+from json import dumps
+
 from pydantic import BaseModel
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -8,9 +10,19 @@ from fastapi import Request, FastAPI
 
 import httpx
 
+from agenta.sdk.middleware.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
+
+_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
+
+_CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
+_CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
+
+_cache = TTLLRUCache(capacity=_CACHE_CAPACITY, ttl=_CACHE_TTL)
 
 
 class Reference(BaseModel):
@@ -134,79 +146,90 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        print("--- agenta/sdk/middleware/config.py ---")
         request.state.config = None
 
         with suppress():
-            application_ref = await _parse_application_ref(request)
-            variant_ref = await _parse_variant_ref(request)
-            environment_ref = await _parse_environment_ref(request)
+            parameters, references = await self._get_config(request)
 
-            auth = request.state.auth or {}
-
-            headers = {
-                "Authorization": auth.get("credentials"),
+            request.state.config = {
+                "parameters": parameters,
+                "references": references,
             }
-
-            refs = {}
-            if application_ref:
-                refs["application_ref"] = application_ref.model_dump()
-            if variant_ref:
-                refs["variant_ref"] = variant_ref.model_dump()
-            if environment_ref:
-                refs["environment_ref"] = environment_ref.model_dump()
-
-            config = await self._get_config(
-                headers=headers,
-                refs=refs,
-            )
-
-            if config:
-                parameters = config.get("params")
-
-                references = {}
-
-                for ref_key in ["application_ref", "variant_ref", "environment_ref"]:
-                    refs = config.get(ref_key)
-                    ref_prefix = ref_key.split("_", maxsplit=1)[0]
-
-                    for ref_part_key in ["id", "slug", "version"]:
-                        ref_part = refs.get(ref_part_key)
-
-                        if ref_part:
-                            references[ref_prefix + "." + ref_part_key] = ref_part
-
-                request.state.config = {
-                    "parameters": parameters,
-                    "references": references,
-                }
-
-        print(request.state.config)
 
         return await call_next(request)
 
-    async def _get_config(
-        self,
-        headers: Dict[str, str],
-        refs: Dict[str, str],
-    ):
+    # @atimeit
+    async def _get_config(self, request: Request) -> Optional[Tuple[Dict, Dict]]:
+        application_ref = await _parse_application_ref(request)
+        variant_ref = await _parse_variant_ref(request)
+        environment_ref = await _parse_environment_ref(request)
+
+        auth = request.state.auth or {}
+
+        headers = {
+            "Authorization": auth.get("credentials"),
+        }
+
+        refs = {}
+        if application_ref:
+            refs["application_ref"] = application_ref.model_dump()
+        if variant_ref:
+            refs["variant_ref"] = variant_ref.model_dump()
+        if environment_ref:
+            refs["environment_ref"] = environment_ref.model_dump()
+
         if not refs:
-            return None
+            return None, None
 
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.host}/api/variants/configs/fetch",
-                    headers=headers,
-                    json=refs,
-                )
+        _hash = dumps(
+            {
+                "headers": headers,
+                "refs": refs,
+            },
+            sort_keys=True,
+        )
 
-                if response.status_code != 200:
-                    return None
+        if _CACHE_ENABLED:
+            config_cache = _cache.get(_hash)
 
-                config = response.json()
+            if config_cache:
+                parameters = config_cache.get("parameters")
+                references = config_cache.get("references")
 
-                return config
+                return parameters, references
 
-        except:  # pylint: disable=bare-except
-            return None
+        config = None
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{self.host}/api/variants/configs/fetch",
+                headers=headers,
+                json=refs,
+            )
+
+            if response.status_code != 200:
+                return None
+
+            config = response.json()
+
+        if not config:
+            _cache.put(_hash, {"parameters": None, "references": None})
+
+            return None, None
+
+        parameters = config.get("params")
+
+        references = {}
+
+        for ref_key in ["application_ref", "variant_ref", "environment_ref"]:
+            refs = config.get(ref_key)
+            ref_prefix = ref_key.split("_", maxsplit=1)[0]
+
+            for ref_part_key in ["id", "slug", "version"]:
+                ref_part = refs.get(ref_part_key)
+
+                if ref_part:
+                    references[ref_prefix + "." + ref_part_key] = ref_part
+
+        _cache.put(_hash, {"parameters": parameters, "references": references})
+
+        return parameters, references

@@ -3,9 +3,10 @@ from typing import Callable
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, FastAPI
 
-from agenta.sdk.utils.exceptions import suppress
-
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
+
+from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.timing import atimeit
 
 
 class OTelMiddleware(BaseHTTPMiddleware):
@@ -16,15 +17,26 @@ class OTelMiddleware(BaseHTTPMiddleware):
         request.state.otel = None
 
         with suppress():
-            baggage = {"baggage": request.headers.get("Baggage", "")}
+            baggage = await self._get_baggage(request)
 
-            context = W3CBaggagePropagator().extract(baggage)
-
-            if context:
-                request.state.otel = {"baggage": {}}
-
-                for partial in context.values():
-                    for key, value in partial.items():
-                        request.state.otel["baggage"][key] = value
+            request.state.otel = {"baggage": baggage}
 
         return await call_next(request)
+
+    # @atimeit
+    async def _get_baggage(
+        self,
+        request,
+    ):
+        _baggage = {"baggage": request.headers.get("Baggage", "")}
+
+        context = W3CBaggagePropagator().extract(_baggage)
+
+        baggage = {}
+
+        if context:
+            for partial in context.values():
+                for key, value in partial.items():
+                    baggage[key] = value
+
+        return baggage
