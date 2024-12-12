@@ -41,7 +41,8 @@ import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
-import TestsetDrawer, {TestsetTraceData} from "./drawer/TestsetDrawer"
+import TestsetDrawer from "./drawer/TestsetDrawer/TestsetDrawer"
+import {TestsetTraceData} from "./drawer/TestsetDrawer/assets/types"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
