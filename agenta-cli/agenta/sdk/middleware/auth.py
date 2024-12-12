@@ -1,16 +1,16 @@
 from typing import Callable, Dict, Optional
 
 from os import getenv
-from traceback import format_exc
+from json import dumps
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-
-from agenta.sdk.utils.logging import log
+from agenta.sdk.middleware.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import display_exception
+from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
 
@@ -18,6 +18,13 @@ _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 _ALLOW_UNAUTHORIZED = (
     getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in _TRUTHY
 )
+_SHARED_SERVICE = getenv("AGENTA_SHARED_SERVICE", "true").lower() in _TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
+
+_CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
+_CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
+
+_cache = TTLLRUCache(capacity=_CACHE_CAPACITY, ttl=_CACHE_TTL)
 
 
 class DenyResponse(JSONResponse):
@@ -49,71 +56,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+        self.resource_id = (
+            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
+            if not _SHARED_SERVICE
+            else None
+        )
 
-        self.resource_id = None
-        self.resource_type = None
-
-        if ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id:
-            self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
-            self.resource_type = "service"
-
-        elif ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id:
-            self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id
-            self.resource_type = "application"
-
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable,
-    ):
-        print("--- agenta/sdk/middleware/auth.py ---")
-        request.state.auth = None
-
-        if _ALLOW_UNAUTHORIZED:
-            return await call_next(request)
-
+    async def dispatch(self, request: Request, call_next: Callable):
         try:
-            authorization = request.headers.get("authorization", None)
+            if _ALLOW_UNAUTHORIZED:
+                request.state.auth = None
 
-            headers = {"Authorization": authorization} if authorization else None
+            else:
+                credentials = await self._get_credentials(request)
 
-            access_token = request.cookies.get("sAccessToken", None)
-
-            cookies = {"sAccessToken": access_token} if access_token else None
-
-            baggage = request.state.otel.get("baggage") if request.state.otel else {}
-
-            project_id = (
-                # CLEANEST
-                baggage.get("project_id")
-                # ALTERNATIVE
-                or request.query_params.get("project_id")
-            )
-
-            params = {
-                "action": "run_service",
-                "resource_type": self.resource_type,
-                "resource_id": self.resource_id,
-            }
-
-            if project_id:
-                params["project_id"] = project_id
-
-            print("-----------------------------------")
-            print(headers)
-            print(cookies)
-            print(params)
-            print("-----------------------------------")
-
-            credentials = await self._get_credentials(
-                params=params,
-                headers=headers,
-                cookies=cookies,
-            )
-
-            request.state.auth = {"credentials": credentials}
-
-            print(request.state.auth)
+                request.state.auth = {"credentials": credentials}
 
             return await call_next(request)
 
@@ -133,22 +90,55 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 detail="Internal Server Error: auth middleware.",
             )
 
-    async def _get_credentials(
-        self,
-        params: Optional[Dict[str, str]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        cookies: Optional[str] = None,
-    ):
-        if not headers:
-            raise DenyException(content="Missing 'authorization' header.")
-
+    # @atimeit
+    async def _get_credentials(self, request: Request) -> Optional[str]:
         try:
+            authorization = request.headers.get("authorization", None)
+
+            headers = {"Authorization": authorization} if authorization else None
+
+            access_token = request.cookies.get("sAccessToken", None)
+
+            cookies = {"sAccessToken": access_token} if access_token else None
+
+            baggage = request.state.otel.get("baggage") if request.state.otel else {}
+
+            project_id = (
+                # CLEANEST
+                baggage.get("project_id")
+                # ALTERNATIVE
+                or request.query_params.get("project_id")
+            )
+
+            params = {"action": "run_service", "resource_type": "service"}
+
+            if self.resource_id:
+                params["resource_id"] = self.resource_id
+
+            if project_id:
+                params["project_id"] = project_id
+
+            _hash = dumps(
+                {
+                    "headers": headers,
+                    "cookies": cookies,
+                    "params": params,
+                },
+                sort_keys=True,
+            )
+
+            if _CACHE_ENABLED:
+                credentials = _cache.get(_hash)
+
+                if credentials:
+                    return credentials
+
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     f"{self.host}/api/permissions/verify",
                     headers=headers,
-                    params=params,
                     cookies=cookies,
+                    params=params,
                 )
 
                 if response.status_code == 401:
@@ -173,7 +163,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     )
 
                 credentials = auth.get("credentials")
-                # --- #
+
+                _cache.put(_hash, credentials)
 
                 return credentials
 
