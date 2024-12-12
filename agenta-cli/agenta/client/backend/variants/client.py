@@ -97,6 +97,9 @@ class VariantsClient:
                 "new_config_name": new_config_name,
                 "parameters": parameters,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -249,6 +252,9 @@ class VariantsClient:
                     object_=env_vars, annotation=DockerEnvVars, direction="write"
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -398,6 +404,9 @@ class VariantsClient:
             method="PUT",
             json={
                 "parameters": parameters,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -757,6 +766,9 @@ class VariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -838,6 +850,9 @@ class VariantsClient:
                     annotation=ReferenceRequestModel,
                     direction="write",
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -921,6 +936,9 @@ class VariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -988,6 +1006,9 @@ class VariantsClient:
                 "config": convert_and_respect_annotation_metadata(
                     object_=config, annotation=ConfigDto, direction="write"
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1074,6 +1095,9 @@ class VariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1150,6 +1174,9 @@ class VariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1215,6 +1242,9 @@ class VariantsClient:
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref, annotation=ReferenceDto, direction="write"
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1291,6 +1321,9 @@ class VariantsClient:
                     annotation=ReferenceRequestModel,
                     direction="write",
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1396,6 +1429,9 @@ class AsyncVariantsClient:
                 "new_variant_name": new_variant_name,
                 "new_config_name": new_config_name,
                 "parameters": parameters,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1565,6 +1601,9 @@ class AsyncVariantsClient:
                     object_=env_vars, annotation=DockerEnvVars, direction="write"
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1730,6 +1769,9 @@ class AsyncVariantsClient:
             method="PUT",
             json={
                 "parameters": parameters,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -2129,6 +2171,9 @@ class AsyncVariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2218,6 +2263,9 @@ class AsyncVariantsClient:
                     annotation=ReferenceRequestModel,
                     direction="write",
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -2309,6 +2357,9 @@ class AsyncVariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2384,6 +2435,9 @@ class AsyncVariantsClient:
                 "config": convert_and_respect_annotation_metadata(
                     object_=config, annotation=ConfigDto, direction="write"
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -2478,6 +2532,9 @@ class AsyncVariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2562,6 +2619,9 @@ class AsyncVariantsClient:
                     direction="write",
                 ),
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2635,6 +2695,9 @@ class AsyncVariantsClient:
                 "application_ref": convert_and_respect_annotation_metadata(
                     object_=application_ref, annotation=ReferenceDto, direction="write"
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -2719,6 +2782,9 @@ class AsyncVariantsClient:
                     annotation=ReferenceRequestModel,
                     direction="write",
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
