@@ -11,7 +11,7 @@ import {statusMapper} from "../components/AvatarTreeContent"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import StatusRenderer from "../components/StatusRenderer"
 import AccordionTreePanel from "../components/AccordionTreePanel"
-import TestsetDrawer from "./TestsetDrawer"
+import TestsetDrawer from "./TestsetDrawer/TestsetDrawer"
 
 interface TraceContentProps {
     activeTrace: _AgentaRootsResponse

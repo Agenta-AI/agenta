@@ -1,23 +1,11 @@
 import {useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
 import {ArrowRight, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
-import {
-    Button,
-    Checkbox,
-    Divider,
-    Drawer,
-    Input,
-    message,
-    Radio,
-    Select,
-    Table,
-    Typography,
-} from "antd"
+import {Button, Checkbox, Divider, Input, message, Radio, Select, Table, Typography} from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Editor} from "@monaco-editor/react"
-import {createUseStyles} from "react-jss"
-import {JSSTheme, KeyValuePair, testset} from "@/lib/Types"
+import {KeyValuePair, testset} from "@/lib/Types"
 import {
     createNewTestset,
     fetchTestset,
@@ -27,42 +15,11 @@ import {
 import {collectKeyPathsFromObject, getStringOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
 import {useUpdateEffect} from "usehooks-ts"
-
 import useResizeObserver from "@/hooks/useResizeObserver"
+import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps} from "./assets/types"
+import {useStyles} from "./assets/styles"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    editor: {
-        border: `1px solid ${theme.colorBorder}`,
-        borderRadius: theme.borderRadius,
-        overflow: "hidden",
-        "& .monaco-editor": {
-            width: "0 !important",
-        },
-    },
-    drawerHeading: {
-        fontSize: theme.fontSizeLG,
-        lineHeight: theme.lineHeightLG,
-        fontWeight: theme.fontWeightMedium,
-    },
-    container: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-    },
-    label: {
-        fontWeight: theme.fontWeightMedium,
-    },
-}))
-
-type Mapping = {data: string; column: string; newColumn?: string}
-type Preview = {key: string; data: KeyValuePair[]}
-export type TestsetTraceData = {key: string; data: KeyValuePair; id: number}
-type Props = {
-    onClose: () => void
-    data: TestsetTraceData[]
-} & React.ComponentProps<typeof Drawer>
-
-const TestsetDrawer = ({onClose, data, ...props}: Props) => {
+const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {testsets: listOfTestsets, isTestsetsLoading} = useLoadTestsetsList()
