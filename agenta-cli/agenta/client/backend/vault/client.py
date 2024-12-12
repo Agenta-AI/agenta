@@ -2,61 +2,39 @@
 
 import typing
 from ..core.client_wrapper import SyncClientWrapper
-from .. import core
 from ..core.request_options import RequestOptions
-from ..types.image import Image
+from ..types.secret_response_dto import SecretResponseDto
 from ..core.pydantic_utilities import parse_obj_as
-from ..errors.unprocessable_entity_error import UnprocessableEntityError
-from ..types.http_validation_error import HttpValidationError
 from json.decoder import JSONDecodeError
 from ..core.api_error import ApiError
-from .types.container_templates_response import ContainerTemplatesResponse
-from ..types.uri import Uri
+from ..types.secret_dto import SecretDto
+from ..types.header_dto import HeaderDto
+from ..core.serialization import convert_and_respect_annotation_metadata
+from ..errors.unprocessable_entity_error import UnprocessableEntityError
+from ..types.http_validation_error import HttpValidationError
+from ..core.jsonable_encoder import jsonable_encoder
 from ..core.client_wrapper import AsyncClientWrapper
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
 
 
-class ContainersClient:
+class VaultClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    def build_image(
-        self,
-        *,
-        app_id: str,
-        base_name: str,
-        tar_file: core.File,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> Image:
+    def list_secrets(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[SecretResponseDto]:
         """
-        Builds a Docker image from a tar file containing the application code.
-
-        Args:
-        app_id (str): The ID of the application to build the image for.
-        base_name (str): The base name of the image to build.
-        tar_file (UploadFile): The tar file containing the application code.
-        stoken_session (SessionContainer): The session container for the user making the request.
-
-        Returns:
-        Image: The Docker image that was built.
-
         Parameters
         ----------
-        app_id : str
-
-        base_name : str
-
-        tar_file : core.File
-            See core.File for more documentation
-
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        Image
+        typing.List[SecretResponseDto]
             Successful Response
 
         Examples
@@ -67,94 +45,76 @@ class ContainersClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.containers.build_image(
-            app_id="app_id",
-            base_name="base_name",
-        )
+        client.vault.list_secrets()
         """
         _response = self._client_wrapper.httpx_client.request(
-            "containers/build_image",
-            method="POST",
-            params={
-                "app_id": app_id,
-                "base_name": base_name,
-            },
-            data={},
-            files={
-                "tar_file": tar_file,
-            },
-            request_options=(
-                {**request_options, "timeout_in_seconds": 600}
-                if request_options
-                else {"timeout_in_seconds": 600}
-            ),
-            omit=OMIT,
+            "vault/v1/secrets",
+            method="GET",
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    Image,
+                    typing.List[SecretResponseDto],
                     parse_obj_as(
-                        type_=Image,  # type: ignore
+                        type_=typing.List[SecretResponseDto],  # type: ignore
                         object_=_response.json(),
                     ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def restart_container(
+    def create_secret(
         self,
         *,
-        variant_id: str,
+        secret: SecretDto,
+        header: typing.Optional[HeaderDto] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Dict[str, typing.Optional[typing.Any]]:
+    ) -> SecretResponseDto:
         """
-        Restart docker container.
-
-        Args:
-        payload (RestartAppContainer) -- the required data (app_name and variant_name)
-
         Parameters
         ----------
-        variant_id : str
+        secret : SecretDto
+
+        header : typing.Optional[HeaderDto]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        typing.Dict[str, typing.Optional[typing.Any]]
+        SecretResponseDto
             Successful Response
 
         Examples
         --------
-        from agenta import AgentaApi
+        from agenta import AgentaApi, ProviderKeyDto, SecretDto
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.containers.restart_container(
-            variant_id="variant_id",
+        client.vault.create_secret(
+            secret=SecretDto(
+                data=ProviderKeyDto(
+                    provider="openai",
+                    key="key",
+                ),
+            ),
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "containers/restart_container",
+            "vault/v1/secrets",
             method="POST",
             json={
-                "variant_id": variant_id,
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=HeaderDto, direction="write"
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret, annotation=SecretDto, direction="write"
+                ),
             },
             headers={
                 "content-type": "application/json",
@@ -165,9 +125,9 @@ class ContainersClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    typing.Dict[str, typing.Optional[typing.Any]],
+                    SecretResponseDto,
                     parse_obj_as(
-                        type_=typing.Dict[str, typing.Optional[typing.Any]],  # type: ignore
+                        type_=SecretResponseDto,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -186,27 +146,20 @@ class ContainersClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def container_templates(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> ContainerTemplatesResponse:
+    def read_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> SecretResponseDto:
         """
-        Returns a list of templates available for creating new containers.
-
-        Parameters:
-        stoken_session (SessionContainer): The session container for the user.
-
-        Returns:
-
-        Union[List[Template], str]: A list of templates or an error message.
-
         Parameters
         ----------
+        secret_id : str
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        ContainerTemplatesResponse
+        SecretResponseDto
             Successful Response
 
         Examples
@@ -217,60 +170,62 @@ class ContainersClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.containers.container_templates()
+        client.vault.read_secret(
+            secret_id="secret_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "containers/templates",
+            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",
             method="GET",
             request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    ContainerTemplatesResponse,
+                    SecretResponseDto,
                     parse_obj_as(
-                        type_=ContainerTemplatesResponse,  # type: ignore
+                        type_=SecretResponseDto,  # type: ignore
                         object_=_response.json(),
                     ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def construct_app_container_url(
+    def update_secret(
         self,
+        secret_id: str,
         *,
-        base_id: typing.Optional[str] = None,
-        variant_id: typing.Optional[str] = None,
+        header: typing.Optional[HeaderDto] = OMIT,
+        secret: typing.Optional[SecretDto] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> Uri:
+    ) -> SecretResponseDto:
         """
-        Constructs the URL for an app container based on the provided base_id or variant_id.
-
-        Args:
-        base_id (Optional[str]): The ID of the base to use for the app container.
-        variant_id (Optional[str]): The ID of the variant to use for the app container.
-        request (Request): The request object.
-
-        Returns:
-        URI: The URI for the app container.
-
-        Raises:
-        HTTPException: If the base or variant cannot be found or the user does not have access.
-
         Parameters
         ----------
-        base_id : typing.Optional[str]
+        secret_id : str
 
-        variant_id : typing.Optional[str]
+        header : typing.Optional[HeaderDto]
+
+        secret : typing.Optional[SecretDto]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        Uri
+        SecretResponseDto
             Successful Response
 
         Examples
@@ -281,23 +236,33 @@ class ContainersClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.containers.construct_app_container_url()
+        client.vault.update_secret(
+            secret_id="secret_id",
+        )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "containers/container_url",
-            method="GET",
-            params={
-                "base_id": base_id,
-                "variant_id": variant_id,
+            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",
+            method="PUT",
+            json={
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=HeaderDto, direction="write"
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret, annotation=SecretDto, direction="write"
+                ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
+            omit=OMIT,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    Uri,
+                    SecretResponseDto,
                     parse_obj_as(
-                        type_=Uri,  # type: ignore
+                        type_=SecretResponseDto,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -316,46 +281,73 @@ class ContainersClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
+        """
+        Parameters
+        ----------
+        secret_id : str
 
-class AsyncContainersClient:
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        None
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.vault.delete_secret(
+            secret_id="secret_id",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",
+            method="DELETE",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+
+class AsyncVaultClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    async def build_image(
-        self,
-        *,
-        app_id: str,
-        base_name: str,
-        tar_file: core.File,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> Image:
+    async def list_secrets(
+        self, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[SecretResponseDto]:
         """
-        Builds a Docker image from a tar file containing the application code.
-
-        Args:
-        app_id (str): The ID of the application to build the image for.
-        base_name (str): The base name of the image to build.
-        tar_file (UploadFile): The tar file containing the application code.
-        stoken_session (SessionContainer): The session container for the user making the request.
-
-        Returns:
-        Image: The Docker image that was built.
-
         Parameters
         ----------
-        app_id : str
-
-        base_name : str
-
-        tar_file : core.File
-            See core.File for more documentation
-
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        Image
+        typing.List[SecretResponseDto]
             Successful Response
 
         Examples
@@ -371,85 +363,57 @@ class AsyncContainersClient:
 
 
         async def main() -> None:
-            await client.containers.build_image(
-                app_id="app_id",
-                base_name="base_name",
-            )
+            await client.vault.list_secrets()
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "containers/build_image",
-            method="POST",
-            params={
-                "app_id": app_id,
-                "base_name": base_name,
-            },
-            data={},
-            files={
-                "tar_file": tar_file,
-            },
-            request_options=(
-                {**request_options, "timeout_in_seconds": 600}
-                if request_options
-                else {"timeout_in_seconds": 600}
-            ),
-            omit=OMIT,
+            "vault/v1/secrets",
+            method="GET",
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    Image,
+                    typing.List[SecretResponseDto],
                     parse_obj_as(
-                        type_=Image,  # type: ignore
+                        type_=typing.List[SecretResponseDto],  # type: ignore
                         object_=_response.json(),
                     ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def restart_container(
+    async def create_secret(
         self,
         *,
-        variant_id: str,
+        secret: SecretDto,
+        header: typing.Optional[HeaderDto] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.Dict[str, typing.Optional[typing.Any]]:
+    ) -> SecretResponseDto:
         """
-        Restart docker container.
-
-        Args:
-        payload (RestartAppContainer) -- the required data (app_name and variant_name)
-
         Parameters
         ----------
-        variant_id : str
+        secret : SecretDto
+
+        header : typing.Optional[HeaderDto]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        typing.Dict[str, typing.Optional[typing.Any]]
+        SecretResponseDto
             Successful Response
 
         Examples
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi
+        from agenta import AsyncAgentaApi, ProviderKeyDto, SecretDto
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -458,18 +422,28 @@ class AsyncContainersClient:
 
 
         async def main() -> None:
-            await client.containers.restart_container(
-                variant_id="variant_id",
+            await client.vault.create_secret(
+                secret=SecretDto(
+                    data=ProviderKeyDto(
+                        provider="openai",
+                        key="key",
+                    ),
+                ),
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "containers/restart_container",
+            "vault/v1/secrets",
             method="POST",
             json={
-                "variant_id": variant_id,
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=HeaderDto, direction="write"
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret, annotation=SecretDto, direction="write"
+                ),
             },
             headers={
                 "content-type": "application/json",
@@ -480,9 +454,9 @@ class AsyncContainersClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    typing.Dict[str, typing.Optional[typing.Any]],
+                    SecretResponseDto,
                     parse_obj_as(
-                        type_=typing.Dict[str, typing.Optional[typing.Any]],  # type: ignore
+                        type_=SecretResponseDto,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -501,27 +475,20 @@ class AsyncContainersClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def container_templates(
-        self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> ContainerTemplatesResponse:
+    async def read_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> SecretResponseDto:
         """
-        Returns a list of templates available for creating new containers.
-
-        Parameters:
-        stoken_session (SessionContainer): The session container for the user.
-
-        Returns:
-
-        Union[List[Template], str]: A list of templates or an error message.
-
         Parameters
         ----------
+        secret_id : str
+
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        ContainerTemplatesResponse
+        SecretResponseDto
             Successful Response
 
         Examples
@@ -537,63 +504,65 @@ class AsyncContainersClient:
 
 
         async def main() -> None:
-            await client.containers.container_templates()
+            await client.vault.read_secret(
+                secret_id="secret_id",
+            )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "containers/templates",
+            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",
             method="GET",
             request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    ContainerTemplatesResponse,
+                    SecretResponseDto,
                     parse_obj_as(
-                        type_=ContainerTemplatesResponse,  # type: ignore
+                        type_=SecretResponseDto,  # type: ignore
                         object_=_response.json(),
                     ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def construct_app_container_url(
+    async def update_secret(
         self,
+        secret_id: str,
         *,
-        base_id: typing.Optional[str] = None,
-        variant_id: typing.Optional[str] = None,
+        header: typing.Optional[HeaderDto] = OMIT,
+        secret: typing.Optional[SecretDto] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> Uri:
+    ) -> SecretResponseDto:
         """
-        Constructs the URL for an app container based on the provided base_id or variant_id.
-
-        Args:
-        base_id (Optional[str]): The ID of the base to use for the app container.
-        variant_id (Optional[str]): The ID of the variant to use for the app container.
-        request (Request): The request object.
-
-        Returns:
-        URI: The URI for the app container.
-
-        Raises:
-        HTTPException: If the base or variant cannot be found or the user does not have access.
-
         Parameters
         ----------
-        base_id : typing.Optional[str]
+        secret_id : str
 
-        variant_id : typing.Optional[str]
+        header : typing.Optional[HeaderDto]
+
+        secret : typing.Optional[SecretDto]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        Uri
+        SecretResponseDto
             Successful Response
 
         Examples
@@ -609,29 +578,97 @@ class AsyncContainersClient:
 
 
         async def main() -> None:
-            await client.containers.construct_app_container_url()
+            await client.vault.update_secret(
+                secret_id="secret_id",
+            )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "containers/container_url",
-            method="GET",
-            params={
-                "base_id": base_id,
-                "variant_id": variant_id,
+            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",
+            method="PUT",
+            json={
+                "header": convert_and_respect_annotation_metadata(
+                    object_=header, annotation=HeaderDto, direction="write"
+                ),
+                "secret": convert_and_respect_annotation_metadata(
+                    object_=secret, annotation=SecretDto, direction="write"
+                ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
+            omit=OMIT,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    Uri,
+                    SecretResponseDto,
                     parse_obj_as(
-                        type_=Uri,  # type: ignore
+                        type_=SecretResponseDto,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def delete_secret(
+        self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    ) -> None:
+        """
+        Parameters
+        ----------
+        secret_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        None
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.vault.delete_secret(
+                secret_id="secret_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"vault/v1/secrets/{jsonable_encoder(secret_id)}",
+            method="DELETE",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return
             if _response.status_code == 422:
                 raise UnprocessableEntityError(
                     typing.cast(
