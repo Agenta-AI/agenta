@@ -1,0 +1,14 @@
+{
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "scripts": {
+    "build-test": "turbo build-test",
+    "dev": "turbo dev",
+    "lint": "turbo lint"
+  },
+  "workspaces": [
+    "./agenta-web"
+  ],
+  "packageManager": "npm@10.9.0"
+}
