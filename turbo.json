@@ -1,8 +1,8 @@
 {
     "$schema": "https://turbo.build/schema.json",
     "tasks": {
-      "build-test": {
-        "dependsOn": ["^build-test"],
+      "build": {
+        "dependsOn": ["^build"],
         "inputs": ["$TURBO_DEFAULT$", ".env*"],
         "outputs": [".next/**"]
       },
