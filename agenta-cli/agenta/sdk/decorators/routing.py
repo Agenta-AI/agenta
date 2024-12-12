@@ -29,7 +29,7 @@ from agenta.sdk.context.tracing import (
     TracingContext,
 )
 from agenta.sdk.router import router
-from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
     DictInput,
@@ -400,11 +400,7 @@ class entrypoint:
             return BaseResponse(data=data)
 
     def handle_failure(self, error: Exception):
-        log.warning("-------------------------------")
-        log.warning("Agenta - Application Exception:")
-        log.warning("-------------------------------")
-        log.warning(format_exc().strip("\n"))
-        log.warning("-------------------------------")
+        display_exception("Application Exception")
 
         status_code = 500
         message = str(error)
