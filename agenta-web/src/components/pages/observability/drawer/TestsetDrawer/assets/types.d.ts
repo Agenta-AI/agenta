@@ -1,8 +1,16 @@
 import {Drawer} from "antd"
+import {KeyValuePair} from "tailwindcss/types/config"
 
 export type Mapping = {data: string; column: string; newColumn?: string}
 export type Preview = {key: string; data: KeyValuePair[]}
-export type TestsetTraceData = {key: string; data: KeyValuePair; id: number}
+export type TestsetTraceData = {
+    key: string
+    data: KeyValuePair
+    id: number
+    isEdited?: false
+    isError?: false,
+    originalData?: KeyValuePair | null
+}
 export type TestsetDrawerProps = {
     onClose: () => void
     data: TestsetTraceData[]
