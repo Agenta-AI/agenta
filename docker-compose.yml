@@ -1,3 +1,9 @@
+version: '3.8'
+
+x-common-config: &common-config
+  networks:
+    - agenta-network
+
 services:
     reverse-proxy:
         image: traefik:v2.10
@@ -192,6 +198,16 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+
+    completion-old-sdk:
+        extends:
+            file: ./services/completion-old-sdk/docker-compose.yml
+            service: completion-old-sdk
+
+    chat-old-sdk:
+        extends:
+            file: ./services/chat-old-sdk/docker-compose.yml
+            service: chat-old-sdk
 
 networks:
     agenta-network:
