@@ -13,12 +13,6 @@ class MultipleChoice:
     choices: Union[List[str], Dict[str, List[str]]]
 
 
-class InFile:
-    def __init__(self, file_name: str, file_path: str):
-        self.file_name = file_name
-        self.file_path = file_path
-
-
 class LLMTokenUsage(BaseModel):
     completion_tokens: int
     prompt_tokens: int
