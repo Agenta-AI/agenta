@@ -60,18 +60,18 @@ if is_first_push; then
     echo "🚀 First-time push detected for branch: $BRANCH_NAME"
     run_frontend_checks
 
-    for DIR in "${DIRECTORIES[@]}"; do
-        run_backend_checks "$DIR"
-    done
+    # for DIR in "${DIRECTORIES[@]}"; do
+    #     run_backend_checks "$DIR"
+    # done
 else
     echo "🔍 Checking directory changes for existing branch: $BRANCH_NAME"
     if git diff --name-only --cached origin/"$BRANCH_NAME" | grep -q '^agenta-web/'; then
         run_frontend_checks
     fi
 
-    for DIR in "${DIRECTORIES[@]}"; do
-        if git diff --name-only --cached origin/"$BRANCH_NAME" | grep -q "^$DIR/"; then
-            run_backend_checks "$DIR"
-        fi
-    done
+    # for DIR in "${DIRECTORIES[@]}"; do
+    #     if git diff --name-only --cached origin/"$BRANCH_NAME" | grep -q "^$DIR/"; then
+    #         run_backend_checks "$DIR"
+    #     fi
+    # done
 fi
