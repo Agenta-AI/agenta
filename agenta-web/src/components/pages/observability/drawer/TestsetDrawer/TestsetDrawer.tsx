@@ -74,25 +74,55 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         try {
             resetStates()
             setTestset({name: label, id: value})
+            let testsetColumns: string[] = []
 
             if (value && value !== "create") {
                 const data = await fetchTestset(value)
                 if (data?.csvdata?.length) {
-                    setSelectedTestsetColumns(Object.keys(data.csvdata[0]))
+                    testsetColumns = Object.keys(data.csvdata[0])
                     setSelectedTestsetRows(data.csvdata)
                 }
             }
 
+            // TODO: make this function more efficinat and cleanup things
             if (mappingOptions.length > 0 && value) {
-                setMappingData((prevMappingData) =>
-                    mappingOptions.map((item, index) => ({
-                        ...prevMappingData[index],
-                        data: item.value,
-                    })),
-                )
+                setMappingData((prevMappingData) => {
+                    const updatedColumns = [...testsetColumns]
+
+                    const mappedData = mappingOptions.map((item, index) => {
+                        const mapName = item.value.split(".").pop()!
+                        const columns = updatedColumns.map((col) => col.toLowerCase())
+
+                        let matchingColumn = columns.includes(mapName.toLowerCase())
+                            ? updatedColumns[columns.indexOf(mapName.toLowerCase())]
+                            : mapName === "outputs"
+                              ? updatedColumns[columns.indexOf("correct_answer")]
+                              : undefined
+
+                        if (!matchingColumn) {
+                            matchingColumn = mapName
+
+                            if (
+                                columns.length === 0 ||
+                                !columns.includes(matchingColumn.toLowerCase())
+                            ) {
+                                updatedColumns.push(matchingColumn)
+                                setSelectedTestsetColumns(updatedColumns)
+                            }
+                        }
+
+                        return {
+                            ...prevMappingData[index],
+                            data: item.value,
+                            column: matchingColumn,
+                        }
+                    })
+
+                    return mappedData
+                })
             }
         } catch (error) {
-            message.error("Failed to laod Test sets!")
+            message.error("Failed to load Test sets!")
         }
     }
 
@@ -116,7 +146,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         }
     }
 
-    // maybe we can convert this into a function for better useability
+    // TODO: maybe we can convert this into a function for better useability
     const formatDataPreview = useMemo(() => {
         if (!traceData?.length) return ""
 
@@ -481,7 +511,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     onChange={(value) => setRowDataPreview(value)}
                                 >
                                     {traceData.map((trace) => (
-                                        <Select.Option value={trace?.key}>
+                                        <Select.Option value={trace?.key} key={trace?.key}>
                                             Span {trace.id}{" "}
                                             {trace.isEdited && (
                                                 <span className="ml-2 text-[10px] text-blue-400 py-0.5 px-1 bg-blue-100 rounded-[2px]">
@@ -588,33 +618,31 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                                 />
                                                 <ArrowRight size={16} />
                                                 <div className="flex-1 flex gap-2 items-center">
-                                                    {!isNewTestset && (
-                                                        <Select
-                                                            style={{width: "100%"}}
-                                                            placeholder="Select a column"
-                                                            value={data.column || undefined}
-                                                            onChange={(value) =>
-                                                                onMappingOptionChange({
-                                                                    pathName: "column",
-                                                                    value,
-                                                                    idx,
-                                                                })
-                                                            }
-                                                            options={[
-                                                                ...(testset.id
-                                                                    ? customSelectOptions(
-                                                                          columnOptions.length > 0,
-                                                                      )
-                                                                    : []),
-                                                                ...columnOptions?.map((column) => ({
-                                                                    value: column,
-                                                                    lable: column,
-                                                                })),
-                                                            ]}
-                                                        />
-                                                    )}
+                                                    <Select
+                                                        style={{width: "100%"}}
+                                                        placeholder="Select a column"
+                                                        value={data.column || undefined}
+                                                        onChange={(value) =>
+                                                            onMappingOptionChange({
+                                                                pathName: "column",
+                                                                value,
+                                                                idx,
+                                                            })
+                                                        }
+                                                        options={[
+                                                            ...(testset.id
+                                                                ? customSelectOptions(
+                                                                      columnOptions.length > 0,
+                                                                  )
+                                                                : []),
+                                                            ...columnOptions?.map((column) => ({
+                                                                value: column,
+                                                                lable: column,
+                                                            })),
+                                                        ]}
+                                                    />
 
-                                                    {data.column === "create" || isNewTestset ? (
+                                                    {data.column === "create" ? (
                                                         <div className="w-full relative">
                                                             <Input
                                                                 style={{width: "100%"}}
@@ -656,14 +684,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                         style={{width: elementWidth}}
                                         icon={<Plus />}
                                         onClick={() =>
-                                            setMappingData([
-                                                ...mappingData,
-                                                {
-                                                    data: "",
-                                                    column: isNewTestset ? "create" : "",
-                                                    newColumn: "",
-                                                },
-                                            ])
+                                            setMappingData([...mappingData, {data: "", column: ""}])
                                         }
                                     >
                                         Add field
