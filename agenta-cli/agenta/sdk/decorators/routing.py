@@ -168,9 +168,7 @@ class entrypoint:
 
             return await self.execute_wrapper(request, False, *args, **kwargs)
 
-        self.update_run_wrapper_signature(
-            wrapper=run_wrapper
-        )
+        self.update_run_wrapper_signature(wrapper=run_wrapper)
 
         run_route = f"{entrypoint._run_path}{route_path}"
         app.post(run_route, response_model=BaseResponse)(run_wrapper)
@@ -190,7 +188,6 @@ class entrypoint:
             kwargs, parameters = self.split_kwargs(kwargs, default_parameters)
 
             request.state.config["parameters"] = parameters
-
 
             return await self.execute_wrapper(request, True, *args, **kwargs)
 
