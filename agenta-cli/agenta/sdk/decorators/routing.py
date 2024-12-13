@@ -164,7 +164,7 @@ class entrypoint:
             }
             # LEGACY
 
-            kwargs, _ = self.split_kwargs(kwargs, default_parameters)
+            kwargs, config = self.process_kwargs(kwargs, default_parameters)
 
             return await self.execute_wrapper(request, False, *args, **kwargs)
 
@@ -185,16 +185,14 @@ class entrypoint:
         ### --- Test --- #
         @wraps(func)
         async def test_wrapper(request: Request, *args, **kwargs) -> Any:
-            kwargs, parameters = self.split_kwargs(kwargs, default_parameters)
+            kwargs, config = self.process_kwargs(kwargs, default_parameters)
 
-            request.state.config["parameters"] = parameters
-
+            request.state.config["parameters"] = config
             return await self.execute_wrapper(request, True, *args, **kwargs)
 
         self.update_test_wrapper_signature(
             wrapper=test_wrapper,
-            config_class=config,
-            config_dict=default_parameters,
+            config_instance=config
         )
 
         test_route = f"{entrypoint._test_path}{route_path}"
@@ -257,14 +255,15 @@ class entrypoint:
                 )
         ### --------------- #
 
-    def parse_config(self) -> Dict[str, Any]:
+    def parse_config(self) -> Tuple[Optional[Type[BaseModel]], Dict[str, Any]]:
+        """Parse the config schema and return the config class and default parameters."""
         config = None
-        default_parameters = ag.config.all()
+        default_parameters = {}
 
         if self.config_schema:
             try:
                 config = self.config_schema() if self.config_schema else None
-                default_parameters = config.dict() if config else default_parameters
+                default_parameters = config.dict() if config else {}
             except ValidationError as e:
                 raise ValueError(
                     f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
@@ -276,13 +275,17 @@ class entrypoint:
 
         return config, default_parameters
 
-    def split_kwargs(
+    def process_kwargs(
         self, kwargs: Dict[str, Any], default_parameters: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        arguments = {k: v for k, v in kwargs.items() if k not in default_parameters}
-        parameters = {k: v for k, v in kwargs.items() if k in default_parameters}
-
-        return arguments, parameters
+        """Remove the config parameters from the kwargs."""
+        # Extract agenta_config if present
+        config_params = kwargs.pop("agenta_config", {})
+        if isinstance(config_params, BaseModel):
+            config_params = config_params.dict()
+        # Merge with default parameters
+        config = {**default_parameters, **config_params}
+        return kwargs, config
 
     async def execute_wrapper(
         self,
@@ -486,16 +489,12 @@ class entrypoint:
     def update_test_wrapper_signature(
         self,
         wrapper: Callable[..., Any],
-        config_class: Type[BaseModel],  # TODO: change to our type
-        config_dict: Dict[str, Any],
+        config_instance: Type[BaseModel],  # TODO: change to our type
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[Parameter] = []
-        if config_class:
-            self.add_config_params_to_parser(updated_params, config_class)
-        else:
-            self.deprecated_add_config_params_to_parser(updated_params, config_dict)
+        self.add_config_params_to_parser(updated_params, config_instance)
         self.add_func_params_to_parser(updated_params)
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
@@ -512,40 +511,19 @@ class entrypoint:
         self.add_request_to_signature(wrapper)
 
     def add_config_params_to_parser(
-        self, updated_params: list, config_class: Type[BaseModel]
+        self, updated_params: list, config_instance: Type[BaseModel]
     ) -> None:
         """Add configuration parameters to function signature."""
-        for name, field in config_class.__fields__.items():
+        for name, field in config_instance.__fields__.items():
             assert field.default is not None, f"Field {name} has no default value"
-            updated_params.append(
-                Parameter(
-                    name=name,
-                    kind=Parameter.KEYWORD_ONLY,
-                    annotation=field.annotation.__name__,
-                    default=Body(field.default),
-                )
+        updated_params.append(
+            Parameter(
+                name="agenta_config",
+                kind=Parameter.KEYWORD_ONLY,
+                annotation=type(config_instance),  # Get the actual class type
+                default=Body(config_instance),  # Use the instance directly
             )
-
-    def deprecated_add_config_params_to_parser(
-        self, updated_params: list, config_dict: Dict[str, Any]
-    ) -> None:
-        """Add configuration parameters to function signature."""
-        for name, param in config_dict.items():
-            assert (
-                len(param.__class__.__bases__) == 1
-            ), f"Inherited standard type of {param.__class__} needs to be one."
-            updated_params.append(
-                Parameter(
-                    name=name,
-                    kind=Parameter.KEYWORD_ONLY,
-                    default=Body(param),
-                    annotation=param.__class__.__bases__[
-                        0
-                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
-                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
-                    # thus, why we are accessing the first item.
-                )
-            )
+        )
 
     def add_func_params_to_parser(self, updated_params: list) -> None:
         """Add function parameters to function signature."""
@@ -573,69 +551,29 @@ class entrypoint:
         endpoint: str,
         config: Type[BaseModel],
     ):
+        """Override config in OpenAPI schema to add agenta-specific metadata."""
         endpoint = endpoint[1:].replace("/", "_")
-        schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func_name}_{endpoint}_post"
-        ]["properties"]
-        # New logic
-        for param_name, param_val in config.__fields__.items():
-            if param_val.annotation is str:
-                if any(
-                    isinstance(constraint, MultipleChoice)
-                    for constraint in param_val.metadata
-                ):
-                    choices = next(
-                        constraint.choices
-                        for constraint in param_val.metadata
-                        if isinstance(constraint, MultipleChoice)
-                    )
-                    if isinstance(choices, dict):
-                        schema_to_override[param_name]["x-parameter"] = "grouped_choice"
-                        schema_to_override[param_name]["choices"] = choices
-                    elif isinstance(choices, list):
-                        schema_to_override[param_name]["x-parameter"] = "choice"
-                        schema_to_override[param_name]["enum"] = choices
-                else:
-                    schema_to_override[param_name]["x-parameter"] = "text"
-            if param_val.annotation is bool:
-                schema_to_override[param_name]["x-parameter"] = "bool"
-            if param_val.annotation in (int, float):
-                schema_to_override[param_name]["x-parameter"] = (
-                    "int" if param_val.annotation is int else "float"
-                )
-                # Check for greater than or equal to constraint
-                if any(isinstance(constraint, Ge) for constraint in param_val.metadata):
-                    min_value = next(
-                        constraint.ge
-                        for constraint in param_val.metadata
-                        if isinstance(constraint, Ge)
-                    )
-                    schema_to_override[param_name]["minimum"] = min_value
-                # Check for greater than constraint
-                elif any(
-                    isinstance(constraint, Gt) for constraint in param_val.metadata
-                ):
-                    min_value = next(
-                        constraint.gt
-                        for constraint in param_val.metadata
-                        if isinstance(constraint, Gt)
-                    )
-                    schema_to_override[param_name]["exclusiveMinimum"] = min_value
-                # Check for less than or equal to constraint
-                if any(isinstance(constraint, Le) for constraint in param_val.metadata):
-                    max_value = next(
-                        constraint.le
-                        for constraint in param_val.metadata
-                        if isinstance(constraint, Le)
-                    )
-                    schema_to_override[param_name]["maximum"] = max_value
-                # Check for less than constraint
-                elif any(
-                    isinstance(constraint, Lt) for constraint in param_val.metadata
-                ):
-                    max_value = next(
-                        constraint.lt
-                        for constraint in param_val.metadata
-                        if isinstance(constraint, Lt)
-                    )
-                    schema_to_override[param_name]["exclusiveMaximum"] = max_value
+        schema_key = f"Body_{func_name}_{endpoint}_post"
+        schema_to_override = openapi_schema["components"]["schemas"][schema_key]
+        
+        # Get the config class name to find its schema
+        config_class_name = type(config).__name__
+        config_schema = openapi_schema["components"]["schemas"][config_class_name]
+        
+        # Process each field in the config class
+        for field_name, field in config.__class__.__fields__.items():
+            # Check if field has Annotated metadata for MultipleChoice
+            if hasattr(field, "metadata") and field.metadata:
+                for meta in field.metadata:
+                    if isinstance(meta, MultipleChoice):
+                        choices = meta.choices
+                        if isinstance(choices, dict):
+                            config_schema["properties"][field_name].update({
+                                "x-parameter": "grouped_choice",
+                                "choices": choices
+                            })
+                        elif isinstance(choices, list):
+                            config_schema["properties"][field_name].update({
+                                "x-parameter": "choice",
+                                "enum": choices
+                            })
