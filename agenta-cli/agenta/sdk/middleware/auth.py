@@ -63,7 +63,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         try:
             if _UNAUTHORIZED_ALLOWED or request.url.path in _ALWAYS_ALLOW_LIST:
-                request.state.auth = None
+                request.state.auth = {}
 
             else:
                 credentials = await self._get_credentials(request)

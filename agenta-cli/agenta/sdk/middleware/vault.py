@@ -66,7 +66,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        request.state.vault = None
+        request.state.vault = {}
 
         with suppress():
             secrets = await self._get_secrets(request)
@@ -76,7 +76,11 @@ class VaultMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
     async def _get_secrets(self, request: Request) -> Optional[Dict]:
-        headers = {"Authorization": request.state.auth.get("credentials")}
+        credentials = request.state.auth.get("credentials")
+
+        headers = None
+        if credentials:
+            headers = {"Authorization": credentials}
 
         _hash = dumps(
             {
@@ -98,7 +102,11 @@ class VaultMiddleware(BaseHTTPMiddleware):
         try:
             for provider_kind in ProviderKind:
                 provider = provider_kind.value
-                key = f"{provider.upper()}_API_KEY"
+                key_name = f"{provider.upper()}_API_KEY"
+                key = getenv(key_name)
+
+                if not key:
+                    continue
 
                 secret = SecretDTO(
                     kind=SecretKind.PROVIDER_KEY,
@@ -121,9 +129,13 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     headers=headers,
                 )
 
-                vault = response.json()
+                if response.status_code != 200:
+                    vault_secrets = []
 
-                vault_secrets = vault.get("secrets")
+                else:
+                    vault = response.json()
+
+                    vault_secrets = vault.get("secrets")
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 

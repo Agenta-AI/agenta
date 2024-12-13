@@ -219,6 +219,13 @@ class entrypoint:
             test_route = entrypoint._legacy_generate_path
             app.post(test_route, response_model=BaseResponse)(test_wrapper)
         # LEGACY
+
+        # LEGACY
+        # TODO: Removing this implies no breaking changes
+        if route_path == "":
+            test_route = entrypoint._legacy_playground_run_path
+            app.post(test_route, response_model=BaseResponse)(test_wrapper)
+        # LEGACY
         ### ------------ #
 
         ### --- OpenAPI --- #
@@ -341,10 +348,10 @@ class entrypoint:
             raise HTTPException(status_code=500, detail="Missing 'request'.")
 
         state = request.state
-        credentials = state.auth.get("credentials") if state.auth else None
-        parameters = state.config.get("parameters") if state.config else None
-        references = state.config.get("references") if state.config else None
-        secrets = state.vault.get("secrets") if state.vault else None
+        credentials = state.auth.get("credentials")
+        parameters = state.config.get("parameters")
+        references = state.config.get("references")
+        secrets = state.vault.get("secrets")
 
         with routing_context_manager(
             context=RoutingContext(
@@ -369,8 +376,6 @@ class entrypoint:
         *args,
         **kwargs,
     ):
-        log.info("Agenta - Handling: '%s'", repr(self.route_path or "/"))
-
         try:
             result = (
                 await self.func(*args, **kwargs)
