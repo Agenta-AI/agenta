@@ -1,10 +1,16 @@
 from typing import Dict, Any, List
 import agenta as ag
-import litellm
+import os
 from supported_llm_models import get_all_supported_llm_models
 
-litellm.drop_params = True
-litellm.callbacks = [ag.callbacks.litellm_handler()]
+# Import mock if MOCK_LLM environment variable is set
+if os.getenv("MOCK_LLM", True):
+    from mock_litellm import MockLiteLLM
+    litellm = MockLiteLLM()
+else:
+    import litellm
+    litellm.drop_params = True
+    litellm.callbacks = [ag.callbacks.litellm_handler()]
 
 SYSTEM_PROMPT = "You have expertise in offering technical ideas to startups."
 
