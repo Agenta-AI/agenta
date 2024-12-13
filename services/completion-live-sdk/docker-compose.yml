@@ -6,6 +6,7 @@ services:
       - ../../agenta-cli:/agenta-cli
     environment:
       - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
+      - AGENTA_HOST=http://host.docker.internal
     networks:
       - agenta-network
     labels:
