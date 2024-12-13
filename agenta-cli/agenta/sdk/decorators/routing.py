@@ -31,7 +31,6 @@ from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
     DictInput,
     FloatParam,
-    InFile,
     IntParam,
     MultipleChoiceParam,
     MultipleChoice,
@@ -139,7 +138,6 @@ class entrypoint:
         self.config_schema = config_schema
 
         signature_parameters = signature(func).parameters
-        ingestible_files = self.extract_ingestible_files()
         config, default_parameters = self.parse_config()
 
         ### --- Middleware --- #
@@ -168,14 +166,10 @@ class entrypoint:
 
             kwargs, _ = self.split_kwargs(kwargs, default_parameters)
 
-            # TODO: Why is this not used in the run_wrapper?
-            # self.ingest_files(kwargs, ingestible_files)
-
             return await self.execute_wrapper(request, False, *args, **kwargs)
 
         self.update_run_wrapper_signature(
-            wrapper=run_wrapper,
-            ingestible_files=ingestible_files,
+            wrapper=run_wrapper
         )
 
         run_route = f"{entrypoint._run_path}{route_path}"
@@ -197,14 +191,11 @@ class entrypoint:
 
             request.state.config["parameters"] = parameters
 
-            # TODO: Why is this only used in the test_wrapper?
-            self.ingest_files(kwargs, ingestible_files)
 
             return await self.execute_wrapper(request, True, *args, **kwargs)
 
         self.update_test_wrapper_signature(
             wrapper=test_wrapper,
-            ingestible_files=ingestible_files,
             config_class=config,
             config_dict=default_parameters,
         )
@@ -280,15 +271,6 @@ class entrypoint:
                 )
         ### --------------- #
 
-    def extract_ingestible_files(self) -> Dict[str, Parameter]:
-        """Extract parameters annotated as InFile from function signature."""
-
-        return {
-            name: param
-            for name, param in signature(self.func).parameters.items()
-            if param.annotation is InFile
-        }
-
     def parse_config(self) -> Dict[str, Any]:
         config = None
         default_parameters = ag.config.all()
@@ -315,27 +297,6 @@ class entrypoint:
         parameters = {k: v for k, v in kwargs.items() if k in default_parameters}
 
         return arguments, parameters
-
-    def ingest_file(
-        self,
-        upfile: UploadFile,
-    ):
-        temp_file = NamedTemporaryFile(delete=False)
-        temp_file.write(upfile.file.read())
-        temp_file.close()
-
-        return InFile(file_name=upfile.filename, file_path=temp_file.name)
-
-    def ingest_files(
-        self,
-        func_params: Dict[str, Any],
-        ingestible_files: Dict[str, Parameter],
-    ) -> None:
-        """Ingest files specified in function parameters."""
-
-        for name in ingestible_files:
-            if name in func_params and func_params[name] is not None:
-                func_params[name] = self.ingest_file(func_params[name])
 
     async def execute_wrapper(
         self,
@@ -541,7 +502,6 @@ class entrypoint:
         wrapper: Callable[..., Any],
         config_class: Type[BaseModel],  # TODO: change to our type
         config_dict: Dict[str, Any],
-        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
@@ -550,19 +510,18 @@ class entrypoint:
             self.add_config_params_to_parser(updated_params, config_class)
         else:
             self.deprecated_add_config_params_to_parser(updated_params, config_dict)
-        self.add_func_params_to_parser(updated_params, ingestible_files)
+        self.add_func_params_to_parser(updated_params)
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 
     def update_run_wrapper_signature(
         self,
         wrapper: Callable[..., Any],
-        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[Parameter] = []
-        self.add_func_params_to_parser(updated_params, ingestible_files)
+        self.add_func_params_to_parser(updated_params)
         for param in [
             "config",
             "environment",
@@ -614,33 +573,24 @@ class entrypoint:
                 )
             )
 
-    def add_func_params_to_parser(
-        self,
-        updated_params: list,
-        ingestible_files: Dict[str, Parameter],
-    ) -> None:
+    def add_func_params_to_parser(self, updated_params: list) -> None:
         """Add function parameters to function signature."""
         for name, param in signature(self.func).parameters.items():
-            if name in ingestible_files:
-                updated_params.append(
-                    Parameter(name, param.kind, annotation=UploadFile)
+            assert (
+                len(param.default.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.default.__class__} needs to be one."
+            updated_params.append(
+                Parameter(
+                    name,
+                    Parameter.KEYWORD_ONLY,
+                    default=Body(..., embed=True),
+                    annotation=param.default.__class__.__bases__[
+                        0
+                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
+                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
+                    # thus, why we are accessing the first item.
                 )
-            else:
-                assert (
-                    len(param.default.__class__.__bases__) == 1
-                ), f"Inherited standard type of {param.default.__class__} needs to be one."
-                updated_params.append(
-                    Parameter(
-                        name,
-                        Parameter.KEYWORD_ONLY,
-                        default=Body(..., embed=True),
-                        annotation=param.default.__class__.__bases__[
-                            0
-                        ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
-                        # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
-                        # thus, why we are accessing the first item.
-                    )
-                )
+            )
 
     def override_config_in_schema(
         self,
