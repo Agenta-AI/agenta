@@ -1,14 +1,12 @@
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List
+from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
+from functools import wraps
+from traceback import format_exception
+from asyncio import sleep
+
+from tempfile import NamedTemporaryFile
 from annotated_types import Ge, Le, Gt, Lt
 from pydantic import BaseModel, HttpUrl, ValidationError
-from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
-from argparse import ArgumentParser
-from functools import wraps
-from asyncio import sleep, get_event_loop
-from traceback import format_exc, format_exception
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-
 
 from fastapi import Body, FastAPI, UploadFile, HTTPException, Request
 
@@ -20,7 +18,6 @@ from agenta.sdk.middleware.cors import CORSMiddleware
 
 from agenta.sdk.context.routing import (
     routing_context_manager,
-    routing_context,
     RoutingContext,
 )
 from agenta.sdk.context.tracing import (
@@ -60,7 +57,7 @@ class PathValidator(BaseModel):
     url: HttpUrl
 
 
-class route:
+class route:  # pylint: disable=invalid-name
     # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
     # as independent endpoints. It is designed for backward compatibility with existing code that uses
     # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
@@ -122,6 +119,7 @@ class entrypoint:
     """
 
     routes = list()
+
     _middleware = False
     _run_path = "/run"
     _test_path = "/test"
@@ -158,28 +156,34 @@ class entrypoint:
         ### --- Run --- #
         @wraps(func)
         async def run_wrapper(request: Request, *args, **kwargs) -> Any:
-            arguments = {
+            # LEGACY
+            # TODO: Removing this implies breaking changes in :
+            # - calls to /generate_deployed
+            kwargs = {
                 k: v
                 for k, v in kwargs.items()
                 if k not in ["config", "environment", "app"]
             }
+            # LEGACY
 
-            return await self.execute_wrapper(
-                request,
-                False,
-                *args,
-                **arguments,
-            )
+            kwargs, _ = self.split_kwargs(kwargs, default_parameters)
 
-        self.update_deployed_function_signature(
-            run_wrapper,
-            ingestible_files,
+            # TODO: Why is this not used in the run_wrapper?
+            # self.ingest_files(kwargs, ingestible_files)
+
+            return await self.execute_wrapper(request, False, *args, **kwargs)
+
+        self.update_run_wrapper_signature(
+            wrapper=run_wrapper,
+            ingestible_files=ingestible_files,
         )
 
         run_route = f"{entrypoint._run_path}{route_path}"
         app.post(run_route, response_model=BaseResponse)(run_wrapper)
 
         # LEGACY
+        # TODO: Removing this implies breaking changes in :
+        # - calls to /generate_deployed must be replaced with calls to /run
         if route_path == "":
             run_route = entrypoint._legacy_generate_deployed_path
             app.post(run_route, response_model=BaseResponse)(run_wrapper)
@@ -189,34 +193,28 @@ class entrypoint:
         ### --- Test --- #
         @wraps(func)
         async def test_wrapper(request: Request, *args, **kwargs) -> Any:
-            arguments, _ = self.split_kwargs(
-                kwargs,
-                default_parameters,
-            )
+            kwargs, parameters = self.split_kwargs(kwargs, default_parameters)
 
-            self.ingest_files(
-                arguments,
-                ingestible_files,
-            )
+            request.state.config["parameters"] = parameters
 
-            return await self.execute_wrapper(
-                request,
-                True,
-                *args,
-                **arguments,
-            )
+            # TODO: Why is this only used in the test_wrapper?
+            self.ingest_files(kwargs, ingestible_files)
+
+            return await self.execute_wrapper(request, True, *args, **kwargs)
 
         self.update_test_wrapper_signature(
             wrapper=test_wrapper,
+            ingestible_files=ingestible_files,
             config_class=config,
             config_dict=default_parameters,
-            ingestible_files=ingestible_files,
         )
 
         test_route = f"{entrypoint._test_path}{route_path}"
         app.post(test_route, response_model=BaseResponse)(test_wrapper)
 
         # LEGACY
+        # TODO: Removing this implies breaking changes in :
+        # - calls to /generate must be replaced with calls to /test
         if route_path == "":
             test_route = entrypoint._legacy_generate_path
             app.post(test_route, response_model=BaseResponse)(test_wrapper)
@@ -306,14 +304,15 @@ class entrypoint:
     def split_kwargs(
         self, kwargs: Dict[str, Any], default_parameters: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Split keyword arguments into function parameters and API configuration parameters."""
+        arguments = {k: v for k, v in kwargs.items() if k not in default_parameters}
+        parameters = {k: v for k, v in kwargs.items() if k in default_parameters}
 
-        func_params = {k: v for k, v in kwargs.items() if k not in default_parameters}
-        api_config_params = {k: v for k, v in kwargs.items() if k in default_parameters}
+        return arguments, parameters
 
-        return func_params, api_config_params
-
-    def ingest_file(self, upfile: UploadFile):
+    def ingest_file(
+        self,
+        upfile: UploadFile,
+    ):
         temp_file = NamedTemporaryFile(delete=False)
         temp_file.write(upfile.file.read())
         temp_file.close()
@@ -384,7 +383,11 @@ class entrypoint:
         except Exception as error:  # pylint: disable=broad-except
             self.handle_failure(error)
 
-    async def handle_success(self, result: Any, inline: bool):
+    async def handle_success(
+        self,
+        result: Any,
+        inline: bool,
+    ):
         data = None
         tree = None
 
@@ -399,7 +402,10 @@ class entrypoint:
         except:
             return BaseResponse(data=data)
 
-    def handle_failure(self, error: Exception):
+    def handle_failure(
+        self,
+        error: Exception,
+    ):
         display_exception("Application Exception")
 
         status_code = 500
@@ -409,7 +415,10 @@ class entrypoint:
 
         raise HTTPException(status_code=status_code, detail=detail)
 
-    def patch_result(self, result: Any):
+    def patch_result(
+        self,
+        result: Any,
+    ):
         """
         Patch the result to only include the message if the result is a FuncResponse-style dictionary with message, cost, and usage keys.
 
@@ -446,7 +455,10 @@ class entrypoint:
 
         return data
 
-    async def fetch_inline_trace(self, inline):
+    async def fetch_inline_trace(
+        self,
+        inline,
+    ):
         WAIT_FOR_SPANS = True
         TIMEOUT = 1
         TIMESTEP = 0.1
@@ -537,7 +549,7 @@ class entrypoint:
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 
-    def update_deployed_function_signature(
+    def update_run_wrapper_signature(
         self,
         wrapper: Callable[..., Any],
         ingestible_files: Dict[str, Parameter],

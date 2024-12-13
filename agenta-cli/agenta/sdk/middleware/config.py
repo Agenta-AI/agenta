@@ -10,19 +10,16 @@ from fastapi import Request, FastAPI
 
 import httpx
 
-from agenta.sdk.middleware.cache import TTLLRUCache
+from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import suppress
-from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
 
-_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
 
-_CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
-_CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
 
-_cache = TTLLRUCache(capacity=_CACHE_CAPACITY, ttl=_CACHE_TTL)
+_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
 
 class Reference(BaseModel):
@@ -31,122 +28,19 @@ class Reference(BaseModel):
     version: Optional[str] = None
 
 
-async def _parse_application_ref(
-    request: Request,
-) -> Optional[Reference]:
-    baggage = request.state.otel.get("baggage") if request.state.otel else {}
-
-    application_id = (
-        # CLEANEST
-        baggage.get("application_id")
-        # ALTERNATIVE
-        or request.query_params.get("application_id")
-        # LEGACY
-        or request.query_params.get("app_id")
-    )
-    application_slug = (
-        # CLEANEST
-        baggage.get("application_slug")
-        # ALTERNATIVE
-        or request.query_params.get("application_slug")
-        # LEGACY
-        or request.query_params.get("app_slug")
-        or request.query_params.get("app")
-    )
-
-    if not any([application_id, application_slug]):
-        return None
-
-    return Reference(
-        id=application_id,
-        slug=application_slug,
-    )
-
-
-async def _parse_variant_ref(
-    request: Request,
-) -> Optional[Reference]:
-    baggage = request.state.otel.get("baggage") if request.state.otel else {}
-
-    variant_id = (
-        # CLEANEST
-        baggage.get("variant_id")
-        # ALTERNATIVE
-        or request.query_params.get("variant_id")
-    )
-    variant_slug = (
-        # CLEANEST
-        baggage.get("variant_slug")
-        # ALTERNATIVE
-        or request.query_params.get("variant_slug")
-        # LEGACY
-        or request.query_params.get("config")
-    )
-    variant_version = (
-        # CLEANEST
-        baggage.get("variant_version")
-        # ALTERNATIVE
-        or request.query_params.get("variant_version")
-    )
-
-    if not any([variant_id, variant_slug, variant_version]):
-        return None
-
-    return Reference(
-        id=variant_id,
-        slug=variant_slug,
-        version=variant_version,
-    )
-
-
-async def _parse_environment_ref(
-    request: Request,
-) -> Optional[Reference]:
-    baggage = request.state.otel.get("baggage") if request.state.otel else {}
-
-    environment_id = (
-        # CLEANEST
-        baggage.get("environment_id")
-        # ALTERNATIVE
-        or request.query_params.get("environment_id")
-    )
-    environment_slug = (
-        # CLEANEST
-        baggage.get("environment_slug")
-        # ALTERNATIVE
-        or request.query_params.get("environment_slug")
-        # LEGACY
-        or request.query_params.get("environment")
-    )
-    environment_version = (
-        # CLEANEST
-        baggage.get("environment_version")
-        # ALTERNATIVE
-        or request.query_params.get("environment_version")
-    )
-
-    if not any([environment_id, environment_slug, environment_version]):
-        return None
-
-    return Reference(
-        id=environment_id,
-        slug=environment_slug,
-        version=environment_version,
-    )
-
-
 class ConfigMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: FastAPI):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+        self.application_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id
 
     async def dispatch(
         self,
         request: Request,
         call_next: Callable,
     ):
-        request.state.config = None
+        request.state.config = {}
 
         with suppress():
             parameters, references = await self._get_config(request)
@@ -160,9 +54,9 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
     # @atimeit
     async def _get_config(self, request: Request) -> Optional[Tuple[Dict, Dict]]:
-        application_ref = await _parse_application_ref(request)
-        variant_ref = await _parse_variant_ref(request)
-        environment_ref = await _parse_environment_ref(request)
+        application_ref = await self._parse_application_ref(request)
+        variant_ref = await self._parse_variant_ref(request)
+        environment_ref = await self._parse_environment_ref(request)
 
         auth = request.state.auth or {}
 
@@ -207,7 +101,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             )
 
             if response.status_code != 200:
-                return None
+                return None, None
 
             config = response.json()
 
@@ -233,3 +127,128 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         _cache.put(_hash, {"parameters": parameters, "references": references})
 
         return parameters, references
+
+    async def _parse_application_ref(
+        self,
+        request: Request,
+    ) -> Optional[Reference]:
+        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+
+        body = {}
+        try:
+            body = await request.json()
+        except:  # pylint: disable=bare-except
+            pass
+
+        application_id = (
+            # CLEANEST
+            baggage.get("application_id")
+            # ALTERNATIVE
+            or request.query_params.get("application_id")
+            # LEGACY
+            or request.query_params.get("app_id")
+            or self.application_id
+        )
+        application_slug = (
+            # CLEANEST
+            baggage.get("application_slug")
+            # ALTERNATIVE
+            or request.query_params.get("application_slug")
+            # LEGACY
+            or request.query_params.get("app_slug")
+            or body.get("app")
+        )
+
+        if not any([application_id, application_slug]):
+            return None
+
+        return Reference(
+            id=application_id,
+            slug=application_slug,
+        )
+
+    async def _parse_variant_ref(
+        self,
+        request: Request,
+    ) -> Optional[Reference]:
+        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+
+        body = {}
+        try:
+            body = await request.json()
+        except:  # pylint: disable=bare-except
+            pass
+
+        variant_id = (
+            # CLEANEST
+            baggage.get("variant_id")
+            # ALTERNATIVE
+            or request.query_params.get("variant_id")
+        )
+        variant_slug = (
+            # CLEANEST
+            baggage.get("variant_slug")
+            # ALTERNATIVE
+            or request.query_params.get("variant_slug")
+            # LEGACY
+            or request.query_params.get("config")
+            or body.get("config")
+        )
+        variant_version = (
+            # CLEANEST
+            baggage.get("variant_version")
+            # ALTERNATIVE
+            or request.query_params.get("variant_version")
+        )
+
+        if not any([variant_id, variant_slug, variant_version]):
+            return None
+
+        return Reference(
+            id=variant_id,
+            slug=variant_slug,
+            version=variant_version,
+        )
+
+    async def _parse_environment_ref(
+        self,
+        request: Request,
+    ) -> Optional[Reference]:
+        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+
+        body = {}
+        try:
+            body = await request.json()
+        except:  # pylint: disable=bare-except
+            pass
+
+        environment_id = (
+            # CLEANEST
+            baggage.get("environment_id")
+            # ALTERNATIVE
+            or request.query_params.get("environment_id")
+        )
+        environment_slug = (
+            # CLEANEST
+            baggage.get("environment_slug")
+            # ALTERNATIVE
+            or request.query_params.get("environment_slug")
+            # LEGACY
+            or request.query_params.get("environment")
+            or body.get("environment")
+        )
+        environment_version = (
+            # CLEANEST
+            baggage.get("environment_version")
+            # ALTERNATIVE
+            or request.query_params.get("environment_version")
+        )
+
+        if not any([environment_id, environment_slug, environment_version]):
+            return None
+
+        return Reference(
+            id=environment_id,
+            slug=environment_slug,
+            version=environment_version,
+        )

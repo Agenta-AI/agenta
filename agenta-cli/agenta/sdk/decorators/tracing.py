@@ -97,7 +97,7 @@ class instrument:  # pylint: disable=invalid-name
 
         token = None
         if references:
-            for k, v in references:
+            for k, v in references.items():
                 token = attach(baggage.set_baggage(f"ag.refs.{k}", v))
 
         return token
@@ -246,9 +246,7 @@ class instrument:  # pylint: disable=invalid-name
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys()
-                if ignore is True
-                else []
+                else io.keys() if ignore is True else []
             )
         }
 

@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 
-from agenta.sdk.decorators.routing import routing_context
+from agenta.sdk.context.routing import routing_context
 
 
 class VaultManager:
