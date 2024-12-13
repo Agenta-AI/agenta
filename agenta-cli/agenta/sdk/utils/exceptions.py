@@ -17,11 +17,11 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
         if exc_type is None:
             return True
         else:
-            log.error("-------------------------------------------------")
-            log.error("Agenta SDK - suppressing tracing exception below:")
-            log.error("-------------------------------------------------")
-            log.error(format_exc().strip("\n"))
-            log.error("-------------------------------------------------")
+            log.warning("-------------------------------------------------")
+            log.warning("Agenta SDK - suppressing tracing exception below:")
+            log.warning("-------------------------------------------------")
+            log.warning(format_exc().strip("\n"))
+            log.warning("-------------------------------------------------")
             return True
 
 
@@ -34,8 +34,11 @@ def handle_exceptions():
             try:
                 return await func(*args, **kwargs)
             except Exception as e:
-                log.error("--- HANDLING EXCEPTION ---")
-                log.error("--------------------------")
+                log.warning("------------------------------------------")
+                log.warning("Agenta SDK - intercepting exception below:")
+                log.warning("------------------------------------------")
+                log.warning(format_exc().strip("\n"))
+                log.warning("------------------------------------------")
                 raise e
 
         @wraps(func)
@@ -43,8 +46,11 @@ def handle_exceptions():
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                log.error("--- HANDLING EXCEPTION ---")
-                log.error("--------------------------")
+                log.warning("------------------------------------------")
+                log.warning("Agenta SDK - intercepting exception below:")
+                log.warning("------------------------------------------")
+                log.warning(format_exc().strip("\n"))
+                log.warning("------------------------------------------")
                 raise e
 
         return async_wrapper if is_coroutine_function else sync_wrapper

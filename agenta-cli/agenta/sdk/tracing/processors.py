@@ -12,7 +12,7 @@ from opentelemetry.sdk.trace.export import (
 
 from agenta.sdk.utils.logging import log
 
-# LOAD CONTEXT, HERE
+# LOAD CONTEXT, HERE !
 
 
 class TraceProcessor(BatchSpanProcessor):
@@ -43,8 +43,6 @@ class TraceProcessor(BatchSpanProcessor):
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
-        # ADD LINKS FROM CONTEXT, HERE
-
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
 
@@ -91,9 +89,7 @@ class TraceProcessor(BatchSpanProcessor):
         ret = super().force_flush(timeout_millis)
 
         if not ret:
-            log.error("--------------------------------------------")
-            log.error("Agenta SDK - skipping export due to timeout.")
-            log.error("--------------------------------------------")
+            log.warning("Agenta SDK - skipping export due to timeout.")
 
     def is_ready(
         self,

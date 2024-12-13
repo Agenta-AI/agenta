@@ -1,4 +1,4 @@
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Callable
 from enum import Enum
 
 from httpx import get as check
@@ -32,6 +32,8 @@ class Tracing(metaclass=Singleton):
     def __init__(
         self,
         url: str,
+        redact: Optional[Callable[..., Any]] = None,
+        redact_on_error: Optional[bool] = True,
     ) -> None:
         # ENDPOINT (OTLP)
         self.otlp_url = url
@@ -48,6 +50,10 @@ class Tracing(metaclass=Singleton):
         self.tracer: Optional[Tracer] = None
         # INLINE SPANS for INLINE TRACES (INLINE PROCESSOR)
         self.inline_spans: Dict[str, Any] = dict()
+
+        # REDACT
+        self.redact = redact
+        self.redact_on_error = redact_on_error
 
     # PUBLIC
 
@@ -84,7 +90,6 @@ class Tracing(metaclass=Singleton):
                 self.otlp_url,
             )
             log.info("--------------------------------------------")
-
             check(
                 self.otlp_url,
                 headers=self.headers,
@@ -100,13 +105,10 @@ class Tracing(metaclass=Singleton):
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-
             log.info("Success: traces will be exported.")
             log.info("--------------------------------------------")
-
         except:  # pylint: disable=bare-except
-            log.warning("Failure: traces will not be exported.")
-            log.warning("--------------------------------------------")
+            log.warning("Agenta SDK - traces will not be exported.")
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)

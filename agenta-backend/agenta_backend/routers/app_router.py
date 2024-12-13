@@ -50,9 +50,7 @@ else:
 if isCloudEE():
     from agenta_backend.commons.services import db_manager_ee
     from agenta_backend.commons.services.selectors import (
-        get_user_own_org,
         get_user_org_and_workspace_id,
-        get_org_default_workspace,
     )  # noqa pylint: disable-all
     from agenta_backend.commons.utils.permissions import (
         check_action_access,
@@ -220,9 +218,6 @@ async def create_app(
                     Permission.CREATE_APPLICATION,
                 )
 
-            if payload.workspace_id is None:
-                payload.workspace_id = request.state.workspace_id
-
             try:
                 user_org_workspace_data = await get_user_org_and_workspace_id(
                     request.state.user_id
@@ -235,7 +230,7 @@ async def create_app(
 
                 has_permission = await check_rbac_permission(
                     user_org_workspace_data=user_org_workspace_data,
-                    project_id=payload.project_id or request.state.project_id,
+                    project_id=request.state.project_id,
                     permission=Permission.CREATE_APPLICATION,
                 )
                 logger.debug(
@@ -252,8 +247,7 @@ async def create_app(
 
         app_db = await db_manager.create_app_and_envs(
             payload.app_name,
-            project_id=payload.project_id or request.state.project_id,
-            workspace_id=payload.workspace_id,
+            project_id=request.state.project_id,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
     except Exception as e:
@@ -310,18 +304,16 @@ async def update_app(
 async def list_apps(
     request: Request,
     app_name: Optional[str] = None,
-    workspace_id: Optional[str] = None,
 ) -> List[App]:
     """
-    Retrieve a list of apps filtered by app_name and org_id.
+    Retrieve a list of apps filtered by app_name.
 
     Args:
         app_name (Optional[str]): The name of the app to filter by.
-        org_id (Optional[str]): The ID of the organization to filter by.
         stoken_session (SessionContainer): The session container.
 
     Returns:
-        List[App]: A list of apps filtered by app_name and org_id.
+        List[App]: A list of apps filtered by app_name.
 
     Raises:
         HTTPException: If there was an error retrieving the list of apps.
@@ -331,7 +323,6 @@ async def list_apps(
             project_id=request.state.project_id,
             user_uid=request.state.user_id,
             app_name=app_name,
-            workspace_id=workspace_id,
         )
         return apps
     except Exception as e:
@@ -491,12 +482,9 @@ async def create_app_and_variant_from_template(
                 )
 
             logger.debug("Step 3: Checking user has permission to create app")
-            project = await db_manager_ee.get_project_by_workspace(
-                workspace_id=payload.workspace_id
-            )
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
-                project_id=str(project.id),
+                project_id=request.state.project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
             logger.debug(
@@ -518,8 +506,7 @@ async def create_app_and_variant_from_template(
         app_name = payload.app_name.lower()
         app = await db_manager.fetch_app_by_name_and_parameters(
             app_name,
-            workspace_id=payload.workspace_id,
-            project_id=payload.project_id or request.state.project_id,
+            project_id=request.state.project_id,
         )
         if app is not None:
             raise Exception(
@@ -527,31 +514,31 @@ async def create_app_and_variant_from_template(
             )
 
         logger.debug(
-            "Step 5: Creating new app and initializing environments"
+            "Step 5: Retrieve template from db"
             if isCloudEE()
-            else "Step 2: Creating new app and initializing environments"
+            else "Step 2: Retrieve template from db"
+        )
+        template_db = await db_manager.get_template(payload.template_id)
+
+        logger.debug(
+            "Step 6: Creating new app and initializing environments"
+            if isCloudEE()
+            else "Step 3: Creating new app and initializing environments"
         )
         if app is None:
             app = await db_manager.create_app_and_envs(
-                app_name,
-                project_id=payload.project_id or request.state.project_id,
-                workspace_id=payload.workspace_id,
+                app_name=app_name,
+                template_id=str(template_db.id),
+                project_id=request.state.project_id,
             )
-
-        logger.debug(
-            "Step 6: Retrieve template from db"
-            if isCloudEE()
-            else "Step 3: Retrieve template from db"
-        )
-        template_db = await db_manager.get_template(payload.template_id)
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
-        image_name = f"{repo_name}:{template_db.name}"
 
         logger.debug(
             "Step 7: Creating image instance and adding variant based on image"
             if isCloudEE()
             else "Step 4: Creating image instance and adding variant based on image"
         )
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+        image_name = f"{repo_name}:{template_db.name}"
         app_variant_db = await app_manager.add_variant_based_on_image(
             app=app,
             project_id=str(app.project_id),

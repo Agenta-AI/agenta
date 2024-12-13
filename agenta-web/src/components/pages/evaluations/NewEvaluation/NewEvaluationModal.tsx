@@ -1,66 +1,58 @@
 import {useAppId} from "@/hooks/useAppId"
-import {JSSTheme, Variant, LLMRunRateLimit, testset} from "@/lib/Types"
+import {JSSTheme, LLMRunRateLimit, testset, Variant} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {fetchVariants} from "@/services/api"
-import {CreateEvaluationData, createEvalutaiton} from "@/services/evaluations/api"
+import {fetchSingleProfile, fetchVariants} from "@/services/api"
+import {createEvalutaiton} from "@/services/evaluations/api"
 import {fetchTestsets} from "@/services/testsets/api"
-import {PlusOutlined, QuestionCircleOutlined} from "@ant-design/icons"
-import {
-    Divider,
-    Form,
-    Modal,
-    Select,
-    Spin,
-    Tag,
-    Typography,
-    InputNumber,
-    Input,
-    Row,
-    Col,
-    Switch,
-    Tooltip,
-} from "antd"
-import dayjs from "dayjs"
+import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
+import {Modal, Spin, Space, message, Button} from "antd"
 import {useAtom} from "jotai"
-import Image from "next/image"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import SelectTestsetSection from "./SelectTestsetSection"
+import SelectVariantSection from "./SelectVariantSection"
+import SelectEvaluatorSection from "./SelectEvaluatorSection"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+const AdvancedSettingsPopover: any = dynamicComponent(
+    "pages/evaluations/NewEvaluation/AdvancedSettingsPopover",
+)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    spinContainer: {
-        display: "grid",
-        placeItems: "center",
-        height: "100%",
+    modalContainer: {
+        height: 800,
+        overflowY: "hidden",
+        "& > div": {
+            height: "100%",
+        },
+        "& .ant-modal-content": {
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            "& .ant-modal-body": {
+                overflowY: "auto",
+                flex: 1,
+                paddingTop: theme.padding,
+                paddingBottom: theme.padding,
+            },
+        },
     },
-    selector: {
-        width: 300,
-    },
-    evaluationImg: {
-        width: 20,
-        height: 20,
-        marginRight: 12,
-        filter: theme.isDark ? "invert(1)" : "none",
-    },
-    configRow: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    configRowContent: {
-        display: "flex",
-        alignItems: "center",
-    },
-    date: {
-        fontSize: "0.75rem",
-        color: "#8c8c8c",
-    },
-    tag: {
-        transform: "scale(0.8)",
-    },
-    divider: {
-        margin: "1rem -1.5rem",
-        width: "unset",
+    collapseContainer: {
+        "& .ant-collapse-header": {
+            alignItems: "center !important",
+        },
+        "& .ant-collapse-content": {
+            maxHeight: 400,
+            height: "100%",
+            overflowY: "auto",
+            "& .ant-collapse-content-box": {
+                padding: 0,
+            },
+        },
+        "& .ant-input-group-addon button": {
+            height: 30,
+        },
     },
 }))
 
@@ -74,22 +66,57 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [fetching, setFetching] = useState(false)
     const [testSets, setTestSets] = useState<testset[]>([])
     const [variants, setVariants] = useState<Variant[]>([])
+    const [usernames, setUsernames] = useState<Record<string, string>>({})
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
-    const [showAdvancedConfig, setshowAdvancedConfig] = useState(false)
-    const [form] = Form.useForm()
+    const [selectedTestsetId, setSelectedTestsetId] = useState("")
+    const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
+    const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
+
+    const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
+    const handlePanelChange = (key: string | string[]) => {
+        setActivePanel((prevKey) => (prevKey === key ? null : (key as string)))
+    }
 
     useEffect(() => {
-        setFetching(true)
-        form.resetFields()
-        Promise.all([fetchTestsets(appId), fetchVariants(appId)])
-            .then(([testSets, variants]) => {
+        const fetchData = async () => {
+            setFetching(true)
+            setSelectedEvalConfigs([])
+            setSelectedTestsetId("")
+            setSelectedVariantIds([])
+
+            try {
+                const [testSets, variants] = await Promise.all([
+                    fetchTestsets(),
+                    fetchVariants(appId),
+                ])
+
+                const usernameMap: Record<string, string> = {}
+                const uniqueModifiedByIds = Array.from(
+                    new Set(variants.map((variant) => variant.modifiedById)),
+                )
+
+                const profiles = await Promise.all(
+                    uniqueModifiedByIds.map((id) => fetchSingleProfile(id)),
+                )
+
+                profiles.forEach((profile, index) => {
+                    const id = uniqueModifiedByIds[index]
+                    usernameMap[id] = profile?.username || "-"
+                })
+
                 setTestSets(testSets)
                 setVariants(variants)
-            })
-            .catch(console.error)
-            .finally(() => setFetching(false))
+                setUsernames(usernameMap)
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setFetching(false)
+            }
+        }
+
+        fetchData()
     }, [props.open, appId])
 
     const [rateLimitValues, setRateLimitValues] = useState<LLMRunRateLimit>({
@@ -99,32 +126,42 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         delay_between_batches: 5,
     })
     const [correctAnswerColumn, setCorrectAnswerColumn] = useState<string>("correct_answer")
-    const onRateLimitInputChange = (field: keyof LLMRunRateLimit, value: number) => {
-        setRateLimitValues((prevValues: any) => ({...prevValues, [field]: value}))
-    }
-    const onAdvanceConfigSwitchChange = (checked: boolean) => {
-        setshowAdvancedConfig(checked)
-    }
-    const onCorrectAnswerColumnChange = (value: string) => {
-        setCorrectAnswerColumn(value)
-    }
 
-    const onSubmit = (values: CreateEvaluationData) => {
-        // redirect if no llm keys and an AI Critique config is selected
+    const validateSubmission = () => {
+        if (!selectedTestsetId) {
+            message.error("Please select a test set")
+            return false
+        }
+        if (selectedVariantIds.length === 0) {
+            message.error("Please select app variant")
+            return false
+        }
+        if (selectedEvalConfigs.length === 0) {
+            message.error("Please select evaluator configuration")
+            return false
+        }
         if (
-            values.evaluators_configs.some(
+            selectedEvalConfigs.some(
                 (id) =>
                     evaluatorConfigs.find((config) => config.id === id)?.evaluator_key ===
                     "auto_ai_critique",
             ) &&
             redirectIfNoLLMKeys()
-        )
-            return
+        ) {
+            message.error("LLM keys are required for AI Critique configuration")
+            return false
+        }
+        return true
+    }
+
+    const onSubmit = () => {
+        if (!validateSubmission()) return
+
         setSubmitLoading(true)
         createEvalutaiton(appId, {
-            testset_id: values.testset_id,
-            variant_ids: values.variant_ids,
-            evaluators_configs: values.evaluators_configs,
+            testset_id: selectedTestsetId,
+            variant_ids: selectedVariantIds,
+            evaluators_configs: selectedEvalConfigs,
             rate_limit: rateLimitValues,
             lm_providers_keys: apiKeyObject(),
             correct_answer_column: correctAnswerColumn,
@@ -136,293 +173,64 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
 
     return (
         <Modal
-            title="New Evaluation"
-            onOk={form.submit}
+            title={
+                <div className="w-full flex items-center justify-between">
+                    <div>New Evaluation</div>
+                    <Space>
+                        <AdvancedSettingsPopover
+                            correctAnswerColumn={correctAnswerColumn}
+                            setCorrectAnswerColumn={setCorrectAnswerColumn}
+                            setRateLimitValues={setRateLimitValues}
+                            rateLimitValues={rateLimitValues}
+                        />
+                        <Button
+                            type="text"
+                            onClick={() => props.onCancel?.({} as any)}
+                            icon={<CloseOutlined />}
+                        />
+                    </Space>
+                </div>
+            }
+            onOk={onSubmit}
             okText="Create"
+            centered
+            closeIcon={null}
+            destroyOnClose
+            maskClosable={false}
+            width={1200}
+            className={classes.modalContainer}
             okButtonProps={{icon: <PlusOutlined />, loading: submitLoading}}
             {...props}
         >
-            <Divider className={classes.divider} />
-            <Spin spinning={fetching}>
-                <Form
-                    requiredMark={false}
-                    form={form}
-                    name="new-evaluation"
-                    onFinish={onSubmit}
-                    layout="vertical"
-                >
-                    <Form.Item
-                        name="testset_id"
-                        label="Which testset do you want to use?"
-                        rules={[{required: true, message: "This field is required"}]}
-                    >
-                        <Select placeholder="Select testset" data-cy="select-testset-group">
-                            {testSets.map((testSet) => (
-                                <Select.Option
-                                    key={testSet._id}
-                                    value={testSet._id}
-                                    data-cy="select-testset-option"
-                                >
-                                    {testSet.name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-
-                    <Form.Item
-                        name="variant_ids"
-                        label="Which variants you would like to evaluate?"
-                        rules={[{required: true, message: "This field is required"}]}
-                    >
-                        <Select
-                            mode="multiple"
-                            placeholder="Select variants"
-                            data-cy="select-variant-group"
-                        >
-                            {variants.map((variant) => (
-                                <Select.Option
-                                    key={variant.variantId}
-                                    value={variant.variantId}
-                                    data-cy="select-variant-option"
-                                >
-                                    {variant.variantName}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-
-                    <Form.Item
-                        name="evaluators_configs"
-                        label="Which evaluators you would like to evaluate on?"
-                    >
-                        <Select
-                            mode="multiple"
-                            placeholder="Select evaluators"
-                            showSearch
-                            filterOption={(input, option) => {
-                                const config = evaluatorConfigs.find(
-                                    (item) => item.id === option?.value,
-                                )
-                                return (
-                                    config?.name.toLowerCase().includes(input.toLowerCase()) ||
-                                    false
-                                )
-                            }}
-                            data-cy="select-evaluators-group"
-                        >
-                            {evaluatorConfigs.map((config) => {
-                                const evaluator = evaluators.find(
-                                    (item) => item.key === config.evaluator_key,
-                                )!
-
-                                if (!evaluator) {
-                                    return null
-                                }
-
-                                return (
-                                    <Select.Option
-                                        key={config.id}
-                                        value={config.id}
-                                        data-cy="select-evaluators-option"
-                                    >
-                                        <div className={classes.configRow}>
-                                            <div className={classes.configRowContent}>
-                                                {evaluator.icon_url && (
-                                                    <Image
-                                                        src={evaluator.icon_url}
-                                                        alt={evaluator.name}
-                                                        className={classes.evaluationImg}
-                                                    />
-                                                )}
-                                                <Typography.Text>{config.name}</Typography.Text>
-                                                <Tag
-                                                    className={classes.tag}
-                                                    color={evaluator.color}
-                                                >
-                                                    {evaluator.name}
-                                                </Tag>
-                                            </div>
-                                            <Typography.Text className={classes.date}>
-                                                {dayjs(config.created_at).format("DD MMM YY")}
-                                            </Typography.Text>
-                                        </div>
-                                    </Select.Option>
-                                )
-                            })}
-                        </Select>
-                    </Form.Item>
-                    <span style={{marginRight: "10px"}}>Advanced Configuration</span>
-                    <Switch checked={showAdvancedConfig} onChange={onAdvanceConfigSwitchChange} />
-                    <Divider className={classes.divider} />
-
-                    {showAdvancedConfig && (
-                        <>
-                            <Form.Item required label="Rate Limit Configuration">
-                                <Row gutter={16}>
-                                    <Col span={12}>
-                                        <Form.Item
-                                            label={
-                                                <>
-                                                    Batch Size&nbsp;
-                                                    <Tooltip title="Number of testset to have in each batch">
-                                                        <QuestionCircleOutlined />
-                                                    </Tooltip>
-                                                </>
-                                            }
-                                            name="batch_size"
-                                            style={{marginBottom: "0"}}
-                                            rules={[
-                                                {
-                                                    validator: (_, value) => {
-                                                        if (value !== null) {
-                                                            return Promise.resolve()
-                                                        }
-                                                        return Promise.reject(
-                                                            "This field is required",
-                                                        )
-                                                    },
-                                                },
-                                            ]}
-                                        >
-                                            <InputNumber
-                                                defaultValue={rateLimitValues.batch_size}
-                                                onChange={(value: number | null) =>
-                                                    value !== null &&
-                                                    onRateLimitInputChange("batch_size", value)
-                                                }
-                                                style={{width: "100%"}}
-                                            />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Form.Item
-                                            label={
-                                                <>
-                                                    Max Retries&nbsp;
-                                                    <Tooltip title="Maximum number of times to retry the failed llm call">
-                                                        <QuestionCircleOutlined />
-                                                    </Tooltip>
-                                                </>
-                                            }
-                                            name="max_retries"
-                                            rules={[
-                                                {
-                                                    validator: (_, value) => {
-                                                        if (value !== null) {
-                                                            return Promise.resolve()
-                                                        }
-                                                        return Promise.reject(
-                                                            "This field is required",
-                                                        )
-                                                    },
-                                                },
-                                            ]}
-                                        >
-                                            <InputNumber
-                                                defaultValue={rateLimitValues.max_retries}
-                                                onChange={(value: number | null) =>
-                                                    value !== null &&
-                                                    onRateLimitInputChange("max_retries", value)
-                                                }
-                                                style={{width: "100%"}}
-                                            />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Form.Item
-                                            label={
-                                                <>
-                                                    Retry Delay&nbsp;
-                                                    <Tooltip title="Delay before retrying the failed llm call (in seconds)">
-                                                        <QuestionCircleOutlined />
-                                                    </Tooltip>
-                                                </>
-                                            }
-                                            style={{marginBottom: "0"}}
-                                            name="retry_delay"
-                                            rules={[
-                                                {
-                                                    validator: (_, value) => {
-                                                        if (value !== null) {
-                                                            return Promise.resolve()
-                                                        }
-                                                        return Promise.reject(
-                                                            "This field is required",
-                                                        )
-                                                    },
-                                                },
-                                            ]}
-                                        >
-                                            <InputNumber
-                                                defaultValue={rateLimitValues.retry_delay}
-                                                onChange={(value: number | null) =>
-                                                    value !== null &&
-                                                    onRateLimitInputChange("retry_delay", value)
-                                                }
-                                                style={{width: "100%"}}
-                                            />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={12}>
-                                        <Form.Item
-                                            label={
-                                                <>
-                                                    Delay Between Batches&nbsp;
-                                                    <Tooltip title="Delay to run batches (in seconds)">
-                                                        <QuestionCircleOutlined />
-                                                    </Tooltip>
-                                                </>
-                                            }
-                                            name="delay_between_batches"
-                                            style={{marginBottom: "0"}}
-                                            rules={[
-                                                {
-                                                    validator: (_, value) => {
-                                                        if (value !== null) {
-                                                            return Promise.resolve()
-                                                        }
-                                                        return Promise.reject(
-                                                            "This field is required",
-                                                        )
-                                                    },
-                                                },
-                                            ]}
-                                        >
-                                            <InputNumber
-                                                defaultValue={rateLimitValues.delay_between_batches}
-                                                onChange={(value: number | null) =>
-                                                    value !== null &&
-                                                    onRateLimitInputChange(
-                                                        "delay_between_batches",
-                                                        value,
-                                                    )
-                                                }
-                                                style={{width: "100%"}}
-                                            />
-                                        </Form.Item>
-                                    </Col>
-                                </Row>
-                            </Form.Item>
-                            <Form.Item
-                                required
-                                label={
-                                    <>
-                                        Correct Answer Column&nbsp;
-                                        <Tooltip title="Column in the test set containing the correct/expected answer">
-                                            <QuestionCircleOutlined />
-                                        </Tooltip>
-                                    </>
-                                }
-                            >
-                                <Input
-                                    defaultValue="correct_answer"
-                                    onChange={(e) => onCorrectAnswerColumnChange(e.target.value)}
-                                    style={{width: "50%"}}
-                                />
-                            </Form.Item>
-                        </>
-                    )}
-                </Form>
+            <Spin spinning={fetching} className="w-full">
+                <Space direction="vertical" size={16} className="w-full">
+                    <SelectTestsetSection
+                        activePanel={activePanel}
+                        handlePanelChange={handlePanelChange}
+                        testSets={testSets}
+                        selectedTestsetId={selectedTestsetId}
+                        setSelectedTestsetId={setSelectedTestsetId}
+                        className={classes.collapseContainer}
+                    />
+                    <SelectVariantSection
+                        activePanel={activePanel}
+                        handlePanelChange={handlePanelChange}
+                        variants={variants}
+                        usernames={usernames}
+                        selectedVariantIds={selectedVariantIds}
+                        setSelectedVariantIds={setSelectedVariantIds}
+                        className={classes.collapseContainer}
+                    />
+                    <SelectEvaluatorSection
+                        activePanel={activePanel}
+                        handlePanelChange={handlePanelChange}
+                        evaluators={evaluators}
+                        evaluatorConfigs={evaluatorConfigs}
+                        selectedEvalConfigs={selectedEvalConfigs}
+                        setSelectedEvalConfigs={setSelectedEvalConfigs}
+                        className={classes.collapseContainer}
+                    />
+                </Space>
             </Spin>
         </Modal>
     )

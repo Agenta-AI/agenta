@@ -1,0 +1,237 @@
+---
+title: "Quick Start"
+description: "How to build a workflow with a chain of prompts using Agenta"
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+
+```
+
+<Image
+  style={{ display: "block", margin: "10 auto", marginBottom: "20px" }}
+  img={require("/images/custom-workflows/workflow-cop.png")}
+  alt="Illustration of the workflow for the chain of prompts application"
+  loading="lazy"
+/>
+
+In this tutorial, you'll learn how to create a custom workflow with two prompts. By the end, you'll have a playground where you can edit and run the chain of prompts and evaluate the overall output.
+
+:::tip
+You can find the complete code for this tutorial [here](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/chain_of_prompts/).
+:::
+
+## Custom workflows in Agenta
+
+Custom workflows are Python programs you can add to Agenta. Once added, you can use Agenta's playground to interact with them, run evaluations, deploy them, and monitor their performance, all through the Agenta webUI.
+
+You can create custom workflows by writing Python code and deploying them using the Agenta Command Line Interface (CLI).
+
+## 1. Writing the application
+
+We are creating a chain of prompt application. The application will take a blog post, the first prompt will summarize it, and the second prompt will write a tweet based on the summary. The highlighted lines are the ones related to Agenta.
+
+```python
+from openai import OpenAI
+from pydantic import BaseModel, Field
+# highlight-start
+import agenta as ag
+
+ag.init()
+# highlight-end
+
+client = OpenAI()
+prompt1 = "Summarize the following blog post: {blog_post}"
+prompt2 = "Write a tweet based on this: {output_1}"
+
+# highlight-start
+class CoPConfig(BaseModel):
+    prompt1: str = Field(default=prompt1)
+    prompt2: str = Field(default=prompt2)
+# highlight-end
+
+# highlight-next-line
+@ag.route("/", schema=CoPConfig)
+def generate(blog_post: str):
+    # highlight-next-line
+    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+    formatted_prompt1 = config.prompt1.format(blog_post=blog_post)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt1}])
+    output_1 = completion.choices[0].message.content
+    formatted_prompt2 = config.prompt2.format(output_1=output_1)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt2}])
+    return completion.choices[0].message.content
+```
+
+Let's take a look at the different parts of the code:
+
+### Initialization
+
+```python
+import agenta as ag
+
+ag.init()
+```
+
+Here, we initialize the Agenta SDK. `ag.init()` takes the environment variables `AGENTA_API_KEY` and `AGENTA_HOST` as arguments, which Agenta provides automatically when serving the application.
+
+### Workflow configuration
+
+```python
+class CoPConfig(BaseModel):
+    prompt1: str = Field(default=prompt1)
+    prompt2: str = Field(default=prompt2)
+```
+
+Each workflow has a configuration, which you can iterate on in the playground and version. In this case, the configuration includes the two prompts.
+
+Configurations are defined using [Pydantic](https://docs.pydantic.dev/) models. Each field in the model requires a default value. String fields are shown as text areas in the playground. You can also add other field types, such as integers, floats and booleans (which are shown in the playground as sliders and checkboxes).
+
+:::note
+For simplicity, we're using a simple Pydantic model with two prompts. In practice, you can use a more complex model that includes other parameters (model, temperature, top-k, etc.).
+:::
+
+### Specifying entry points
+
+```python
+@ag.route("/", config_schema=CoPConfig)
+def generate(blog_post: str):
+```
+
+Agenta uses the concept of entry points. Entry points are the functions Agenta uses to communicate with the code. Agenta creates an HTTP API for each entry point, which the playground and evaluation use to communicate with the code.
+
+The `schema` argument to the `@ag.route` decorator specifies the configuration the entry point expects. In this case, it expects a configuration with two prompts.
+
+### Using the configuration in the code
+
+```python
+config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+```
+
+Finally, we modify the function to use the configuration provided by the endpoint. `ag.ConfigManager.get_from_route(schema=CoPConfig)` returns the configuration passed to the endpoint, which is provided by the playground or an evaluation.
+
+## 2. Deploying the Application
+
+### Setting up the folder structure
+
+Before serving the application in Agenta using the CLI, set up the folder structure.
+
+Create a `requirement.txt` file containing all the requirements. In this case, we need to add the Agenta and OpenAI SDKs.
+
+```python requirements.txt
+agenta
+openai
+```
+
+Add a `.env` file with any required environment variables. In this case, add the OpenAI API key.
+
+:::info
+We don't need to set the `AGENTA_API_KEY` environment variable since it's provided by Agenta automatically when serving the application.
+:::
+:::info
+We don't need to explicitly load the environment variables from the `.env` file. The Agenta SDK automatically loads the contents of the `.env` file.
+:::
+
+```bash .env
+OPENAI_API_KEY=sk-...
+```
+
+Both these files need to be in the same folder as the application code.
+
+### Serving the application
+
+To serve the application, initialize the project in Agenta. Run the following command in the folder containing the application code and necessary files.
+
+```bash
+agenta init
+```
+
+This command prompts for the application name, Agenta host (Agenta Cloud), and whether to start from a blank project (select "yes" since we wrote the code) or populate the folder with a template application (select "no" in this case).
+
+After running this command, a new `config.toml` file containing the application's configuration is created in the folder. Additionally, a new empty application is created in the Agenta web UI.
+
+Serve the application by running:
+
+```bash
+agenta variant serve myapp.py
+```
+
+This command serves the application in Agenta. The application is now added to the Agenta web interface and can be used from there.
+
+:::info
+Under the hood, this command builds an image for the application, deploys a container with the image, and exposes a REST API that Agenta uses to communicate.
+:::
+
+:::note
+When serving an application, all the files within the folder will be compressed and sent to the backend. You can create an `.agentaignore` file to ignore files and folders from being sent to the backend.
+:::
+
+## Using the application in Agenta
+
+The application should now be visible in Agenta. A new application variant is always created under the name `<filename>.default`. Variants are always named in the format `<filename>.<variant_name>`, allowing you to determine which source code was used to create the application (`<filename>`). When first created, we always generate a 'default' configuration.
+
+<Image
+  style={{ display: "block", margin: "10 auto" }}
+  img={require("/images/custom-workflows/playground-cop.png")}
+  alt="Screenshot of the playground for the chain of prompts application"
+  loading="lazy"
+/>
+
+## Adding observability (optional)
+
+If you've started using the application, you may have noticed that it's not automatically traced. We might want to add observability so that we can debug the application.
+
+Adding observability in custom workflows follows the same process as for applications running outside of Agenta. For more details, please refer to the [observability documentation](/observability/overview).
+
+As we'll be instrumenting the OpenAI client, we need to add the `opentelemetry.instrumentation.openai` package to the `requirements.txt` file.
+
+Here's how the updated code would look:
+
+```python cop.py
+from openai import OpenAI
+import agenta as ag
+from pydantic import BaseModel, Field
+# highlight-start
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+# highlight-end
+
+ag.init()
+
+client = OpenAI()
+prompt1 = "Summarize the following blog post: {blog_post}"
+prompt2 = "Write a tweet based on this: {output_1}"
+
+# highlight-start
+OpenAIInstrumentor().instrument()
+# highlight-end
+
+class CoPConfig(BaseModel):
+    prompt1: str = Field(default=prompt1)
+    prompt2: str = Field(default=prompt2)
+
+@ag.route("/", config_schema=CoPConfig)
+# highlight-start
+@ag.instrument()
+# highlight-end
+def generate(blog_post: str):
+    config = ag.ConfigManager.get_from_route(schema=CoPConfig)
+    formatted_prompt1 = config.prompt1.format(blog_post=blog_post)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt1}])
+    output_1 = completion.choices[0].message.content
+    formatted_prompt2 = config.prompt2.format(output_1=output_1)
+    completion = client.chat.completions.create(model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt2}])
+    return completion.choices[0].message.content
+```
+
+:::warning
+The `@ag.instrument()` decorator must be placed after the `@ag.route` decorator (called first).
+:::
+
+With these changes, we can now view the traces directly in the playground and debug the application.
+
+<Image
+  style={{ display: "block", margin: "10 auto" }}
+  img={require("/images/custom-workflows/trace-cop.png")}
+  alt="Screenshot of the playground for the chain of prompts application"
+  loading="lazy"
+/>

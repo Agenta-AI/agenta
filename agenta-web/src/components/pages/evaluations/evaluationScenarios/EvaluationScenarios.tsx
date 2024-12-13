@@ -31,7 +31,7 @@ import CompareOutputDiff from "@/components/CompareOutputDiff/CompareOutputDiff"
 import {formatCurrency, formatLatency} from "@/lib/helpers/formatters"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
-import _ from "lodash"
+import uniqBy from "lodash/uniqBy"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
@@ -85,10 +85,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
         }
     }
 
-    const uniqueCorrectAnswers: CorrectAnswer[] = _.uniqBy(
-        scenarios[0]?.correct_answers || [],
-        "key",
-    )
+    const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(scenarios[0]?.correct_answers || [], "key")
     const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
@@ -349,14 +346,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        <Typography.Link href={`/apps/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>
                     <Space>
                         <Typography.Text strong>Variant:</Typography.Text>
                         <Typography.Link
-                            href={`/apps/${appId}/playground/?variant=${evalaution?.variants[0].variantName}`}
+                            href={`/apps/${appId}/playground?variant=${evalaution?.variants[0].variantName}`}
                         >
                             {variantNameWithRev({
                                 variant_name: evalaution?.variants[0].variantName ?? "",

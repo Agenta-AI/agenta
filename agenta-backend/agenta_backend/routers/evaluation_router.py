@@ -33,7 +33,6 @@ logger.setLevel(logging.DEBUG)
     response_model=List[str],
 )
 async def fetch_evaluation_ids(
-    app_id: str,
     resource_type: str,
     request: Request,
     resource_ids: List[str] = Query(None),
@@ -52,11 +51,10 @@ async def fetch_evaluation_ids(
         List[str]: A list of evaluation ids.
     """
     try:
-        app = await db_manager.fetch_app_by_id(app_id=app_id)
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(app.project_id),
+                project_id=request.state.project_id,
                 permission=Permission.VIEW_EVALUATION,
             )
             logger.debug(
@@ -70,7 +68,9 @@ async def fetch_evaluation_ids(
                     status_code=403,
                 )
         evaluations = await db_manager.fetch_evaluations_by_resource(
-            resource_type, str(app.project_id), resource_ids
+            resource_type,
+            request.state.project_id,
+            resource_ids,
         )
         return list(map(lambda x: str(x.id), evaluations))
     except Exception as exc:
@@ -130,7 +130,8 @@ async def create_evaluation(
 
             evaluate.delay(
                 app_id=payload.app_id,
-                project_id=str(app.project_id),
+                user_id=str(request.state.user_id),
+                project_id=str(request.state.project_id),
                 variant_id=variant_id,
                 evaluators_config_ids=payload.evaluators_configs,
                 testset_id=payload.testset_id,

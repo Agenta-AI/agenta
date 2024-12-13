@@ -122,6 +122,7 @@ interface ParentContextDTO {
 interface NodeTimeDTO {
     start: string
     end: string
+    span?: number
 }
 
 export interface NodeStatusDTO {

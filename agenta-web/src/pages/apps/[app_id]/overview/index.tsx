@@ -1,5 +1,3 @@
-import DeleteAppModal from "@/components/AppSelector/modals/DeleteAppModal"
-import EditAppModal from "@/components/AppSelector/modals/EditAppModal"
 import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
@@ -8,7 +6,6 @@ import VariantsOverview from "@/components/pages/overview/variants/VariantsOverv
 import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-import {renameVariablesCapitalizeAll} from "@/lib/helpers/utils"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {deleteApp} from "@/services/app-selector/api"
@@ -23,6 +20,8 @@ import {createUseStyles} from "react-jss"
 const ObservabilityOverview: any = dynamicComponent(
     "pages/overview/observability/ObservabilityOverview",
 )
+const DeleteAppModal: any = dynamicComponent("pages/app-management/modals/DeleteAppModal")
+const EditAppModal: any = dynamicComponent("pages/app-management/modals/EditAppModal")
 
 const {Title} = Typography
 
@@ -44,7 +43,6 @@ export default function Overview() {
     const appId = useAppId()
     const classes = useStyles()
     const {currentApp} = useAppsData()
-    const capitalizedAppName = renameVariablesCapitalizeAll(currentApp?.app_name || "")
     const [variants, setVariants] = useState<Variant[]>([])
     const [isVariantLoading, setIsVariantLoading] = useState(false)
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
@@ -118,7 +116,7 @@ export default function Overview() {
         <>
             <div className={classes.container}>
                 <Space className="justify-between">
-                    <Title>{capitalizedAppName}</Title>
+                    <Title>{currentApp?.app_name || ""}</Title>
 
                     <Dropdown
                         trigger={["click"]}
@@ -175,7 +173,7 @@ export default function Overview() {
                     onOk={handleDeleteOk}
                     onCancel={() => setIsDeleteAppModalOpen(false)}
                     confirmLoading={isDelAppLoading}
-                    appName={currentApp?.app_name}
+                    appDetails={currentApp}
                 />
             )}
 

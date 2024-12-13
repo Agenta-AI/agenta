@@ -1,10 +1,13 @@
 import Secrets from "@/components/pages/settings/Secrets/Secrets"
 import ProtectedRoute from "@/components/ProtectedRoute/ProtectedRoute"
+import {useProjectData} from "@/contexts/project.context"
 import {useQueryParam} from "@/hooks/useQuery"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {isDemo} from "@/lib/helpers/utils"
 import {ApartmentOutlined, KeyOutlined, LockOutlined} from "@ant-design/icons"
 import {Space, Tabs, Typography} from "antd"
+import {useRouter} from "next/router"
+import {useEffect} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({
@@ -28,6 +31,14 @@ const useStyles = createUseStyles({
 const Settings: React.FC = () => {
     const [tab, setTab] = useQueryParam("tab", isDemo() ? "workspace" : "secrets")
     const classes = useStyles()
+    const router = useRouter()
+    const {project} = useProjectData()
+
+    useEffect(() => {
+        if (project?.is_demo) {
+            router.push("/apps")
+        }
+    }, [project, router])
 
     //dynamic components for demo
     const WorkspaceManage = dynamicComponent(`pages/settings/WorkspaceManage/WorkspaceManage`)
