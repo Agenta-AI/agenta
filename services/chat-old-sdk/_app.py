@@ -6,9 +6,11 @@ from supported_llm_models import get_all_supported_llm_models
 # Import mock if MOCK_LLM environment variable is set
 if os.getenv("MOCK_LLM", True):
     from mock_litellm import MockLiteLLM
+
     litellm = MockLiteLLM()
 else:
     import litellm
+
     litellm.drop_params = True
     litellm.callbacks = [ag.callbacks.litellm_handler()]
 
