@@ -5,4 +5,10 @@ import os
 
 
 if __name__ == "__main__":
-    run("agenta:app", host="0.0.0.0", port=80, reload=True, reload_dirs=[".", "/agenta-cli"])
+    run(
+        "agenta:app",
+        host="0.0.0.0",
+        port=80,
+        reload=True,
+        reload_dirs=[".", "/agenta-cli"],
+    )

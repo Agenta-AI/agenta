@@ -1,5 +1,5 @@
 @baseUrl = http://localhost
-@service = completion-old-sdk
+@service = completion-live-sdk
 
 ### These request can be run using the Rest Client extension in vsCode
 
