@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 class RoutingContext(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
-    secrets: Optional[Dict[str, Any]] = None
+    secrets: Optional[List[Any]] = None
 
 
 routing_context = ContextVar("routing_context", default=RoutingContext())
