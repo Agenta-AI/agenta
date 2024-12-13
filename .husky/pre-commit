@@ -11,10 +11,8 @@ if git diff --cached --name-only | grep -q '^agenta-web/'; then
         echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
         npm run format-fix
 
-        # Stage the fixed files
-        git add .
-
-        echo '✅ Formatting issues fixed and changes staged.'
+        echo '✅ Formatting issues fixed. Please stage the changes and commit the code again'
+        exit 1
     fi
 
     cd "$ORIGINAL_DIR" || exit
@@ -30,10 +28,8 @@ for DIR in "${DIRECTORIES[@]}"; do
             echo "⚠️ Formatting issues detected in $DIR. Running black to fix them..."
             black .
 
-            # Stage the fixed files
-            git add .
-
-            echo "✅ Formatting issues fixed and changes staged in $DIR."
+            echo "✅ Formatting issues fixed Please stage the changes and commit the code again $DIR."
+            exit 1
         fi
 
          cd "$ORIGINAL_DIR" || exit
