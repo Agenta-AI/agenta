@@ -6,9 +6,9 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class BodyImportTestset(UniversalBaseModel):
-    endpoint: typing.Optional[str] = None
-    testset_name: typing.Optional[str] = None
+class HeaderDto(UniversalBaseModel):
+    name: typing.Optional[str] = None
+    description: typing.Optional[str] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
