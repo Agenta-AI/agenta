@@ -10,20 +10,19 @@ import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 
-from agenta.sdk.middleware.cache import TTLLRUCache
+from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
 
 
-# TODO: Move these four to backend client types
-
-
+# TODO: Move to backend client types
 class SecretKind(str, Enum):
     PROVIDER_KEY = "provider_key"
 
 
+# TODO: Move to backend client types
 class ProviderKind(str, Enum):
     OPENAI = "openai"
     COHERE = "cohere"
@@ -39,23 +38,21 @@ class ProviderKind(str, Enum):
     GEMINI = "gemini"
 
 
+# TODO: Move to backend client types
 class ProviderKeyDTO(BaseModel):
     provider: ProviderKind
     key: str
 
 
+# TODO: Move to backend client types
 class SecretDTO(BaseModel):
     kind: SecretKind = "provider_key"
     data: ProviderKeyDTO
 
 
-_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
 
-_CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
-_CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
-
-_cache = TTLLRUCache(capacity=_CACHE_CAPACITY, ttl=_CACHE_TTL)
+_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
 
 class VaultMiddleware(BaseHTTPMiddleware):
@@ -78,7 +75,6 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
-    # @atimeit
     async def _get_secrets(self, request: Request) -> Optional[Dict]:
         headers = {"Authorization": request.state.auth.get("credentials")}
 
@@ -133,13 +129,15 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         merged_secrets = {}
 
-        for secret in local_secrets:
-            provider = secret["data"]["provider"]
-            merged_secrets[provider] = secret
+        if local_secrets:
+            for secret in local_secrets:
+                provider = secret["data"]["provider"]
+                merged_secrets[provider] = secret
 
-        for secret in vault_secrets:
-            provider = secret["data"]["provider"]
-            merged_secrets[provider] = secret
+        if vault_secrets:
+            for secret in vault_secrets:
+                provider = secret["data"]["provider"]
+                merged_secrets[provider] = secret
 
         secrets = list(merged_secrets.values())
 
