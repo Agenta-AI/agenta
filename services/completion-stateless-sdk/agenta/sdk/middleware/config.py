@@ -54,15 +54,15 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
     # @atimeit
     async def _get_config(self, request: Request) -> Optional[Tuple[Dict, Dict]]:
+        credentials = request.state.auth.get("credentials")
+
+        headers = None
+        if credentials:
+            headers = {"Authorization": credentials}
+
         application_ref = await self._parse_application_ref(request)
         variant_ref = await self._parse_variant_ref(request)
         environment_ref = await self._parse_environment_ref(request)
-
-        auth = request.state.auth or {}
-
-        headers = {
-            "Authorization": auth.get("credentials"),
-        }
 
         refs = {}
         if application_ref:
