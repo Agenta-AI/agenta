@@ -31,7 +31,6 @@ from agenta.sdk.utils.logging import log
 from agenta.sdk.types import (
     DictInput,
     FloatParam,
-    InFile,
     IntParam,
     MultipleChoiceParam,
     MultipleChoice,
@@ -139,7 +138,6 @@ class entrypoint:
         self.config_schema = config_schema
 
         signature_parameters = signature(func).parameters
-        ingestible_files = self.extract_ingestible_files()
         config, default_parameters = self.parse_config()
 
         ### --- Middleware --- #
@@ -168,15 +166,9 @@ class entrypoint:
 
             kwargs, _ = self.split_kwargs(kwargs, default_parameters)
 
-            # TODO: Why is this not used in the run_wrapper?
-            # self.ingest_files(kwargs, ingestible_files)
-
             return await self.execute_wrapper(request, False, *args, **kwargs)
 
-        self.update_run_wrapper_signature(
-            wrapper=run_wrapper,
-            ingestible_files=ingestible_files,
-        )
+        self.update_run_wrapper_signature(wrapper=run_wrapper)
 
         run_route = f"{entrypoint._run_path}{route_path}"
         app.post(run_route, response_model=BaseResponse)(run_wrapper)
@@ -197,14 +189,10 @@ class entrypoint:
 
             request.state.config["parameters"] = parameters
 
-            # TODO: Why is this only used in the test_wrapper?
-            self.ingest_files(kwargs, ingestible_files)
-
             return await self.execute_wrapper(request, True, *args, **kwargs)
 
         self.update_test_wrapper_signature(
             wrapper=test_wrapper,
-            ingestible_files=ingestible_files,
             config_class=config,
             config_dict=default_parameters,
         )
@@ -234,11 +222,7 @@ class entrypoint:
             {
                 "func": func.__name__,
                 "endpoint": test_route,
-                "params": (
-                    {**default_parameters, **signature_parameters}
-                    if not config
-                    else signature_parameters
-                ),
+                "params": signature_parameters,
                 "config": config,
             }
         )
@@ -264,14 +248,7 @@ class entrypoint:
         openapi_schema = app.openapi()
 
         for _route in entrypoint.routes:
-            self.override_schema(
-                openapi_schema=openapi_schema,
-                func_name=_route["func"],
-                endpoint=_route["endpoint"],
-                params=_route["params"],
-            )
-
-            if _route["config"] is not None:  # new SDK version
+            if _route["config"] is not None:
                 self.override_config_in_schema(
                     openapi_schema=openapi_schema,
                     func_name=_route["func"],
@@ -279,15 +256,6 @@ class entrypoint:
                     config=_route["config"],
                 )
         ### --------------- #
-
-    def extract_ingestible_files(self) -> Dict[str, Parameter]:
-        """Extract parameters annotated as InFile from function signature."""
-
-        return {
-            name: param
-            for name, param in signature(self.func).parameters.items()
-            if param.annotation is InFile
-        }
 
     def parse_config(self) -> Dict[str, Any]:
         config = None
@@ -315,27 +283,6 @@ class entrypoint:
         parameters = {k: v for k, v in kwargs.items() if k in default_parameters}
 
         return arguments, parameters
-
-    def ingest_file(
-        self,
-        upfile: UploadFile,
-    ):
-        temp_file = NamedTemporaryFile(delete=False)
-        temp_file.write(upfile.file.read())
-        temp_file.close()
-
-        return InFile(file_name=upfile.filename, file_path=temp_file.name)
-
-    def ingest_files(
-        self,
-        func_params: Dict[str, Any],
-        ingestible_files: Dict[str, Parameter],
-    ) -> None:
-        """Ingest files specified in function parameters."""
-
-        for name in ingestible_files:
-            if name in func_params and func_params[name] is not None:
-                func_params[name] = self.ingest_file(func_params[name])
 
     async def execute_wrapper(
         self,
@@ -541,7 +488,6 @@ class entrypoint:
         wrapper: Callable[..., Any],
         config_class: Type[BaseModel],  # TODO: change to our type
         config_dict: Dict[str, Any],
-        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
@@ -550,31 +496,18 @@ class entrypoint:
             self.add_config_params_to_parser(updated_params, config_class)
         else:
             self.deprecated_add_config_params_to_parser(updated_params, config_dict)
-        self.add_func_params_to_parser(updated_params, ingestible_files)
+        self.add_func_params_to_parser(updated_params)
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 
     def update_run_wrapper_signature(
         self,
         wrapper: Callable[..., Any],
-        ingestible_files: Dict[str, Parameter],
     ) -> None:
         """Update the function signature to include new parameters."""
 
         updated_params: List[Parameter] = []
-        self.add_func_params_to_parser(updated_params, ingestible_files)
-        for param in [
-            "config",
-            "environment",
-        ]:  # we add the config and environment parameters
-            updated_params.append(
-                Parameter(
-                    name=param,
-                    kind=Parameter.KEYWORD_ONLY,
-                    default=Body(None),
-                    annotation=str,
-                )
-            )
+        self.add_func_params_to_parser(updated_params)
         self.update_wrapper_signature(wrapper, updated_params)
         self.add_request_to_signature(wrapper)
 
@@ -614,33 +547,24 @@ class entrypoint:
                 )
             )
 
-    def add_func_params_to_parser(
-        self,
-        updated_params: list,
-        ingestible_files: Dict[str, Parameter],
-    ) -> None:
+    def add_func_params_to_parser(self, updated_params: list) -> None:
         """Add function parameters to function signature."""
         for name, param in signature(self.func).parameters.items():
-            if name in ingestible_files:
-                updated_params.append(
-                    Parameter(name, param.kind, annotation=UploadFile)
+            assert (
+                len(param.default.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.default.__class__} needs to be one."
+            updated_params.append(
+                Parameter(
+                    name,
+                    Parameter.KEYWORD_ONLY,
+                    default=Body(..., embed=True),
+                    annotation=param.default.__class__.__bases__[
+                        0
+                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
+                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
+                    # thus, why we are accessing the first item.
                 )
-            else:
-                assert (
-                    len(param.default.__class__.__bases__) == 1
-                ), f"Inherited standard type of {param.default.__class__} needs to be one."
-                updated_params.append(
-                    Parameter(
-                        name,
-                        Parameter.KEYWORD_ONLY,
-                        default=Body(..., embed=True),
-                        annotation=param.default.__class__.__bases__[
-                            0
-                        ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
-                        # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
-                        # thus, why we are accessing the first item.
-                    )
-                )
+            )
 
     def override_config_in_schema(
         self,
@@ -715,193 +639,3 @@ class entrypoint:
                         if isinstance(constraint, Lt)
                     )
                     schema_to_override[param_name]["exclusiveMaximum"] = max_value
-
-    def override_schema(
-        self, openapi_schema: dict, func_name: str, endpoint: str, params: dict
-    ):
-        """
-        Overrides the default openai schema generated by fastapi with additional information about:
-        - The choices available for each MultipleChoiceParam instance
-        - The min and max values for each FloatParam instance
-        - The min and max values for each IntParam instance
-        - The default value for DictInput instance
-        - The default value for MessagesParam instance
-        - The default value for FileInputURL instance
-        - The default value for BinaryParam instance
-        - ... [PLEASE ADD AT EACH CHANGE]
-
-        Args:
-            openapi_schema (dict): The openapi schema generated by fastapi
-            func (str): The name of the function to override
-            endpoint (str): The name of the endpoint to override
-            params (dict(param_name, param_val)): The dictionary of the parameters for the function
-        """
-
-        def find_in_schema(
-            schema_type_properties: dict, schema: dict, param_name: str, xparam: str
-        ):
-            """Finds a parameter in the schema based on its name and x-parameter value"""
-            for _, value in schema.items():
-                value_title_lower = str(value.get("title")).lower()
-                value_title = (
-                    "_".join(value_title_lower.split())
-                    if len(value_title_lower.split()) >= 2
-                    else value_title_lower
-                )
-
-                if (
-                    isinstance(value, dict)
-                    and schema_type_properties.get("x-parameter") == xparam
-                    and value_title == param_name
-                ):
-                    # this will update the default type schema with the properties gotten
-                    # from the schema type (param_val) __schema_properties__ classmethod
-                    for type_key, type_value in schema_type_properties.items():
-                        # BEFORE:
-                        # value = {'temperature': {'title': 'Temperature'}}
-                        value[type_key] = type_value
-                        # AFTER:
-                        # value = {'temperature': { "type": "number", "title": "Temperature", "x-parameter": "float" }}
-                    return value
-
-        def get_type_from_param(param_val):
-            param_type = "string"
-            annotation = param_val.annotation
-
-            if annotation == int:
-                param_type = "integer"
-            elif annotation == float:
-                param_type = "number"
-            elif annotation == dict:
-                param_type = "object"
-            elif annotation == bool:
-                param_type = "boolean"
-            elif annotation == list:
-                param_type = "list"
-            elif annotation == str:
-                param_type = "string"
-            else:
-                print("ERROR, unhandled annotation:", annotation)
-
-            return param_type
-
-        # Goes from '/some/path' to 'some_path'
-        endpoint = endpoint[1:].replace("/", "_")
-
-        schema_to_override = openapi_schema["components"]["schemas"][
-            f"Body_{func_name}_{endpoint}_post"
-        ]["properties"]
-
-        for param_name, param_val in params.items():
-            if isinstance(param_val, GroupedMultipleChoiceParam):
-                subschema = find_in_schema(
-                    param_val.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "grouped_choice",
-                )
-                assert (
-                    subschema
-                ), f"GroupedMultipleChoiceParam '{param_name}' is in the parameters but could not be found in the openapi.json"
-                subschema["choices"] = param_val.choices  # type: ignore
-                subschema["default"] = param_val.default  # type: ignore
-
-            elif isinstance(param_val, MultipleChoiceParam):
-                subschema = find_in_schema(
-                    param_val.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "choice",
-                )
-                default = str(param_val)
-                param_choices = param_val.choices  # type: ignore
-                choices = (
-                    [default] + param_choices
-                    if param_val not in param_choices
-                    else param_choices
-                )
-                subschema["enum"] = choices
-                subschema["default"] = (
-                    default if default in param_choices else choices[0]
-                )
-
-            elif isinstance(param_val, FloatParam):
-                subschema = find_in_schema(
-                    param_val.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "float",
-                )
-                subschema["minimum"] = param_val.minval  # type: ignore
-                subschema["maximum"] = param_val.maxval  # type: ignore
-                subschema["default"] = param_val
-
-            elif isinstance(param_val, IntParam):
-                subschema = find_in_schema(
-                    param_val.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "int",
-                )
-                subschema["minimum"] = param_val.minval  # type: ignore
-                subschema["maximum"] = param_val.maxval  # type: ignore
-                subschema["default"] = param_val
-
-            elif isinstance(param_val, Parameter) and param_val.annotation is DictInput:
-                subschema = find_in_schema(
-                    param_val.annotation.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "dict",
-                )
-                subschema["default"] = param_val.default["default_keys"]
-
-            elif isinstance(param_val, TextParam):
-                subschema = find_in_schema(
-                    param_val.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "text",
-                )
-                subschema["default"] = param_val
-
-            elif (
-                isinstance(param_val, Parameter)
-                and param_val.annotation is MessagesInput
-            ):
-                subschema = find_in_schema(
-                    param_val.annotation.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "messages",
-                )
-                subschema["default"] = param_val.default
-
-            elif (
-                isinstance(param_val, Parameter)
-                and param_val.annotation is FileInputURL
-            ):
-                subschema = find_in_schema(
-                    param_val.annotation.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "file_url",
-                )
-                subschema["default"] = "https://example.com"
-
-            elif isinstance(param_val, BinaryParam):
-                subschema = find_in_schema(
-                    param_val.__schema_type_properties__(),
-                    schema_to_override,
-                    param_name,
-                    "bool",
-                )
-                subschema["default"] = param_val.default  # type: ignore
-            else:
-                subschema = {
-                    "title": str(param_name).capitalize(),
-                    "type": get_type_from_param(param_val),
-                }
-                if param_val.default != _empty:
-                    subschema["default"] = param_val.default  # type: ignore
-                schema_to_override[param_name] = subschema
