@@ -6,7 +6,6 @@ from fastapi import Request, FastAPI
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
 
 from agenta.sdk.utils.exceptions import suppress
-from agenta.sdk.utils.timing import atimeit
 
 
 class OTelMiddleware(BaseHTTPMiddleware):
@@ -23,7 +22,6 @@ class OTelMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
-    # @atimeit
     async def _get_baggage(
         self,
         request,

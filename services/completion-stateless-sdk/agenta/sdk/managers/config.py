@@ -7,7 +7,7 @@ import yaml
 from pydantic import BaseModel
 
 from agenta.sdk.managers.shared import SharedManager
-from agenta.sdk.decorators.routing import routing_context
+from agenta.sdk.context.routing import routing_context
 
 T = TypeVar("T", bound=BaseModel)
 

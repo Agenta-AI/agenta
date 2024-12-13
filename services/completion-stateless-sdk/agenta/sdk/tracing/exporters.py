@@ -74,11 +74,6 @@ class OTLPExporter(OTLPSpanExporter):
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         credentials = None
 
-        # --- DEBUG
-        for span in spans:
-            print(span.name, span.attributes)
-        # ---------
-
         if self.credentials:
             trace_ids = set(span.get_span_context().trace_id for span in spans)
 
@@ -100,11 +95,6 @@ class OTLPExporter(OTLPSpanExporter):
 
         if credentials:
             self._session.headers.update({"Authorization": credentials})
-
-        # --- DEBUG
-        auth = {"Authorization": self._session.headers.get("Authorization")}
-        print("    ", auth)
-        # ---------
 
         return super()._export(serialized_data)
 
