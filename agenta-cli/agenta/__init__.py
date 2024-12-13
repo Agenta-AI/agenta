@@ -8,7 +8,6 @@ from .sdk.types import (
     DictInput,
     MultipleChoice,
     FloatParam,
-    InFile,
     IntParam,
     MultipleChoiceParam,
     GroupedMultipleChoiceParam,
