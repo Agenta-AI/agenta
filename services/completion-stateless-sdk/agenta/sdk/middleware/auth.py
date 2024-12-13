@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 
 from os import getenv
 from json import dumps
@@ -8,23 +8,21 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from agenta.sdk.middleware.cache import TTLLRUCache
+from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import display_exception
-from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
 
-_TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
-_ALLOW_UNAUTHORIZED = (
-    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in _TRUTHY
+
+_SHARED_SERVICE = getenv("AGENTA_SHARED_SERVICE", "false").lower() in TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_UNAUTHORIZED_ALLOWED = (
+    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in TRUTHY
 )
-_SHARED_SERVICE = getenv("AGENTA_SHARED_SERVICE", "true").lower() in _TRUTHY
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
+_ALWAYS_ALLOW_LIST = ["/health"]
 
-_CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
-_CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
-
-_cache = TTLLRUCache(capacity=_CACHE_CAPACITY, ttl=_CACHE_TTL)
+_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
 
 class DenyResponse(JSONResponse):
@@ -64,7 +62,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            if _ALLOW_UNAUTHORIZED:
+            if _UNAUTHORIZED_ALLOWED or request.url.path in _ALWAYS_ALLOW_LIST:
                 request.state.auth = None
 
             else:
@@ -87,10 +85,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             return DenyResponse(
                 status_code=500,
-                detail="Internal Server Error: auth middleware.",
+                detail="Auth: Unexpected Error.",
             )
 
-    # @atimeit
     async def _get_credentials(self, request: Request) -> Optional[str]:
         try:
             authorization = request.headers.get("authorization", None)
@@ -143,23 +140,26 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
                 if response.status_code == 401:
                     raise DenyException(
-                        status_code=401, content="Invalid 'authorization' header."
+                        status_code=401,
+                        content="Invalid credentials",
                     )
                 elif response.status_code == 403:
                     raise DenyException(
-                        status_code=403, content="Service execution not allowed."
+                        status_code=403,
+                        content="Service execution not allowed.",
                     )
                 elif response.status_code != 200:
                     raise DenyException(
                         status_code=400,
-                        content="Internal Server Error: auth middleware.",
+                        content="Auth: Unexpected Error.",
                     )
 
                 auth = response.json()
 
                 if auth.get("effect") != "allow":
                     raise DenyException(
-                        status_code=403, content="Service execution not allowed."
+                        status_code=403,
+                        content="Service execution not allowed.",
                     )
 
                 credentials = auth.get("credentials")
@@ -175,5 +175,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
             display_exception("Auth Middleware Exception (suppressed)")
 
             raise DenyException(
-                status_code=500, content="Internal Server Error: auth middleware."
+                status_code=500,
+                content="Auth: Unexpected Error.",
             ) from exc
