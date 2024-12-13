@@ -1,10 +1,10 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
 import {ArrowRight, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Checkbox, Divider, Input, message, Radio, Select, Table, Typography} from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Editor} from "@monaco-editor/react"
+import {Editor, OnMount} from "@monaco-editor/react"
 import {KeyValuePair, testset} from "@/lib/Types"
 import {
     createNewTestset,
@@ -18,6 +18,7 @@ import {useUpdateEffect} from "usehooks-ts"
 import useResizeObserver from "@/hooks/useResizeObserver"
 import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps} from "./assets/types"
 import {useStyles} from "./assets/styles"
+import clsx from "clsx"
 
 const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
@@ -40,6 +41,8 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
+    // checkpoint-2
+    const [updatedData, setUpdatedData] = useState("")
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
@@ -113,6 +116,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         }
     }
 
+    // maybe we can convert this into a function for better useability
     const formatDataPreview = useMemo(() => {
         if (!traceData?.length) return ""
 
@@ -323,6 +327,73 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         )
     }, [mappingData, selectedTestsetColumns, showLastFiveRows])
 
+    // checkpoint-2 integrations ---------------------------------------------------------------------------------
+
+    const selectedTraceData = useMemo(
+        () => traceData.find((trace) => trace.key === rowDataPreview),
+        [rowDataPreview, traceData],
+    )
+
+    const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
+        editor.onDidBlurEditorText(() => {
+            setUpdatedData(editor.getValue())
+        })
+    }, [])
+
+    useUpdateEffect(() => {
+        if (updatedData && updatedData !== formatDataPreview) {
+            const updatedTraceData = traceData.map((trace) => {
+                const isMatchingOriginalData =
+                    trace.originalData &&
+                    updatedData === getStringOrJson({data: trace.originalData})
+                const isMatchingKey = trace.key === rowDataPreview
+                const isMatchingData = updatedData !== getStringOrJson({data: trace.data})
+
+                try {
+                    const parsedUpdatedData = JSON.parse(updatedData)
+
+                    if (isMatchingOriginalData) {
+                        return isMatchingKey
+                            ? {
+                                  ...trace,
+                                  ...parsedUpdatedData,
+                                  isEdited: false,
+                                  originalData: null,
+                                  isError: false,
+                              }
+                            : trace
+                    }
+
+                    if (isMatchingKey) {
+                        return {
+                            ...trace,
+                            ...parsedUpdatedData,
+                            ...(isMatchingData && !trace.originalData
+                                ? {originalData: trace.data}
+                                : {}),
+                            isEdited: true,
+                            isError: false,
+                        }
+                    }
+                } catch (error) {
+                    if (isMatchingKey) {
+                        return {...trace, isError: true}
+                    }
+                }
+
+                return trace
+            })
+
+            setTraceData(updatedTraceData)
+        } else if (updatedData && updatedData == formatDataPreview && selectedTraceData?.isError) {
+            setTraceData((prevTraceData) => {
+                return prevTraceData.map((trace) => {
+                    return trace.key === rowDataPreview ? {...trace, isError: false} : trace
+                })
+            })
+        }
+    }, [updatedData])
+
     return (
         <>
             <GenericDrawer
@@ -408,11 +479,18 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     style={{width: elementWidth}}
                                     value={rowDataPreview}
                                     onChange={(value) => setRowDataPreview(value)}
-                                    options={traceData.map((trace) => ({
-                                        value: trace?.key,
-                                        label: `Span ${trace.id}`,
-                                    }))}
-                                />
+                                >
+                                    {traceData.map((trace) => (
+                                        <Select.Option value={trace?.key}>
+                                            Span {trace.id}{" "}
+                                            {trace.isEdited && (
+                                                <span className="ml-2 text-[10px] text-blue-400 py-0.5 px-1 bg-blue-100 rounded-[2px]">
+                                                    (edited)
+                                                </span>
+                                            )}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
                                 <div className="flex justify-between items-center gap-2">
                                     {traceData.length > 1 && (
                                         <Button
@@ -421,12 +499,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                             icon={<Trash size={14} />}
                                             onClick={onRemoveTraceData}
                                         >
-                                            Remove span{" "}
-                                            {
-                                                traceData.find(
-                                                    (trace) => trace.key === rowDataPreview,
-                                                )?.id
-                                            }
+                                            Remove span {selectedTraceData?.id}
                                         </Button>
                                     )}
 
@@ -447,17 +520,28 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                 </div>
                             </div>
 
+                            {selectedTraceData?.isError && (
+                                <Typography.Text type="danger">
+                                    Your input JSON format is not parsable
+                                </Typography.Text>
+                            )}
+
                             <Editor
-                                className={classes.editor}
+                                className={clsx([
+                                    classes.editor,
+                                    selectedTraceData?.isError && "!border-red-400",
+                                    selectedTraceData?.isEdited && "!border-blue-400",
+                                ])}
                                 height={210}
                                 language={editorFormat.toLowerCase()}
                                 theme={`vs-${appTheme}`}
                                 value={formatDataPreview}
+                                onMount={handleEditorDidMount}
                                 options={{
                                     wordWrap: "on",
                                     minimap: {enabled: false},
                                     scrollBeyondLastLine: false,
-                                    readOnly: true,
+                                    readOnly: false,
                                     lineNumbers: "off",
                                     lineDecorationsWidth: 0,
                                     scrollbar: {
