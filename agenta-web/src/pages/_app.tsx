@@ -17,6 +17,7 @@ import ProjectContextProvider from "@/contexts/project.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
+import AgSWRConfig from "@/lib/api/SWRConfig"
 
 const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 
@@ -57,20 +58,22 @@ export default function App({Component, pageProps}: AppProps) {
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
             <main className={`${inter.variable} font-sans`}>
-                <PostHogProvider client={posthog}>
-                    <ThemeContextProvider>
-                        <ProfileContextProvider>
-                            <ProjectContextProvider>
-                                <AppContextProvider>
-                                    <Layout>
-                                        <Component {...pageProps} />
-                                        <NoMobilePageWrapper />
-                                    </Layout>
-                                </AppContextProvider>
-                            </ProjectContextProvider>
-                        </ProfileContextProvider>
-                    </ThemeContextProvider>
-                </PostHogProvider>
+                <AgSWRConfig>
+                    <PostHogProvider client={posthog}>
+                        <ThemeContextProvider>
+                            <ProfileContextProvider>
+                                <ProjectContextProvider>
+                                    <AppContextProvider>
+                                        <Layout>
+                                            <Component {...pageProps} />
+                                            <NoMobilePageWrapper />
+                                        </Layout>
+                                    </AppContextProvider>
+                                </ProjectContextProvider>
+                            </ProfileContextProvider>
+                        </ThemeContextProvider>
+                    </PostHogProvider>
+                </AgSWRConfig>
             </main>
         </>
     )
