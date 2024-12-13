@@ -209,6 +209,11 @@ services:
             file: ./services/chat-old-sdk/docker-compose.yml
             service: chat-old-sdk
 
+    completion-serverless-sdk:
+        extends:
+            file: ./services/completion-serverless-sdk/docker-compose.yml
+            service: completion-serverless-sdk
+
 networks:
     agenta-network:
         name: agenta-network
