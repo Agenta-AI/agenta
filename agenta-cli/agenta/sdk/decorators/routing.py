@@ -164,6 +164,12 @@ class entrypoint:
             }
             # LEGACY
 
+            if request.state.config["parameters"] is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Config not found based on provided references.",
+                )
+
             kwargs, _ = self.split_kwargs(kwargs, default_parameters)
 
             return await self.execute_wrapper(request, False, *args, **kwargs)
