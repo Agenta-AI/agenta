@@ -164,7 +164,13 @@ class entrypoint:
             }
             # LEGACY
 
-            kwargs, config = self.process_kwargs(kwargs, default_parameters)
+            kwargs, _ = self.process_kwargs(kwargs, default_parameters)
+            if request.state.config["parameters"] is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Config not found based on provided references.",
+                )
+
 
             return await self.execute_wrapper(request, False, *args, **kwargs)
 
