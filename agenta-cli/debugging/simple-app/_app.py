@@ -13,6 +13,7 @@ default_prompt = (
 
 ag.init()
 
+
 class Prompt(BaseModel):
     prompt_template: str = Field(default=default_prompt)
     model_config = {
@@ -20,10 +21,11 @@ class Prompt(BaseModel):
             "x-component-type": "prompt-playground",
             "x-component-props": {
                 "supportedModels": ["gpt-3", "gpt-4"],
-                "allowTemplating": True
-            }
+                "allowTemplating": True,
+            },
         }
     }
+
 
 class Message(BaseModel):
     role: str = Field(default="user")
@@ -33,10 +35,11 @@ class Message(BaseModel):
             "x-component-type": "message",
             "x-component-props": {
                 "supportedModels": ["gpt-3", "gpt-4"],
-                "allowTemplating": True
-            }
+                "allowTemplating": True,
+            },
         }
     }
+
 
 class BabyConfig(BaseModel):
     temperature: float = Field(default=0.2)
@@ -45,11 +48,10 @@ class BabyConfig(BaseModel):
         default="asd"
     )
     prompt: Prompt = Field(default=Prompt())
-    
 
 
 @ag.route("/", config_schema=BabyConfig)
-def generate(country: str, gender: str, messages:Message) -> str:
+def generate(country: str, gender: str, messages: Message) -> str:
     """
     Generate a baby name based on the given country and gender.
 

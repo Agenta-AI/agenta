@@ -10,6 +10,8 @@ from agenta.sdk.tracing import Tracing
 from agenta.client.exceptions import APIRequestError
 
 print(".DS_Store")
+
+
 class AgentaSingleton:
     """Singleton class to save all the "global variables" for the sdk."""
 
