@@ -219,6 +219,13 @@ class entrypoint:
             test_route = entrypoint._legacy_generate_path
             app.post(test_route, response_model=BaseResponse)(test_wrapper)
         # LEGACY
+
+        # LEGACY
+        # TODO: Removing this implies no breaking changes
+        if route_path == "":
+            test_route = entrypoint._legacy_playground_run_path
+            app.post(test_route, response_model=BaseResponse)(test_wrapper)
+        # LEGACY
         ### ------------ #
 
         ### --- OpenAPI --- #

@@ -145,6 +145,9 @@ class Config:
 
         parameters = context.parameters
 
+        if not parameters:
+            return None
+
         if key in parameters:
             value = parameters[key]
 
