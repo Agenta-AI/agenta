@@ -11,7 +11,8 @@ import {convertToCsv, downloadCsv} from "./fileManipulations"
 import {fetchEvaluatonIdsByResource} from "@/services/evaluations/api"
 import {getAppValues} from "@/contexts/app.context"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
-import {capitalize, round} from "lodash"
+import capitalize from "lodash/capitalize"
+import round from "lodash/round"
 import dayjs from "dayjs"
 import {runningStatuses} from "@/components/pages/evaluations/cellRenderers/cellRenderers"
 import {formatCurrency, formatLatency} from "./formatters"
@@ -240,16 +241,7 @@ export const getVotesPercentage = (record: HumanEvaluationListTableDataType, ind
 export const checkIfResourceValidForDeletion = async (
     data: Omit<Parameters<typeof fetchEvaluatonIdsByResource>[0], "appId">,
 ) => {
-    let appId
-
-    if (data.resourceType === "testset") {
-        appId = getAppValues().apps[0]?.app_id
-    } else {
-        appId = getAppValues().currentApp?.app_id
-    }
-    if (!appId) return false
-
-    const response = await fetchEvaluatonIdsByResource({...data, appId})
+    const response = await fetchEvaluatonIdsByResource(data)
     if (response.data.length > 0) {
         const name =
             (data.resourceType === "testset"

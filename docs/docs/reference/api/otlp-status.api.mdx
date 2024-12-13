@@ -1,0 +1,138 @@
+---
+id: otlp-status
+title: "Status of OTLP endpoint"
+description: "Status of OTLP endpoint."
+sidebar_label: "Status of OTLP endpoint"
+hide_title: true
+hide_table_of_contents: true
+api: eJx9U01v2zAM/SuGzkGc7JhTs2JYixVosXa7BMHAyEysVrFUiTaWGf7vI2XH+QBaX2yLj3zk41OrCHZRLVbqcRMxNLAx1tAhWzXztVpPVIFRB+PJuEot1DMB1TFz2+zx5eEpw6rwzlQ0VRPlPAYQ2H3BQEfW/4kJzbGA0bsqIvO06stsJq+rwrXWGOO2ttnPAcx52lWEFQkcvLdGJ4L8NUpOq6IucQ/y5YPQk+kZGgzR9BA6eOTykYKpdlyRDFk5+D1AuokauvwE3E+tOgYPELd5RU1psvfaBCxEwCPtWHJ9KnHrrOWMvtI4YSfPRO2RSieq7VBqeqCSf3J3vpC8meciak4BWCkh4SAzMnOr6mA5oyTycZHn2rq6mMKOpYMpmBy8UdebXKZoditQ1a2lnK4DE6V6y6f7H3i4Qygw8MH6HPAsqvdCX8JGAZmPj5mygr38L2ueL5h/aXt8bKSBss+S+U21dSl9EGvo7SvoN3YYJ4wLVbPpfDr7aJghIeO2BvOATuY59pFgHLqUaxSKI+wnIzFC2N+cAtKld5H2UJ3V++A2XLfXnnz82QUaxCP8S7m3YJI5U6ftYImVurCECDOXm8e2kPzeGLypkjsVdNtuIOKvYLtOjt9rDLJe/mwgGNiI2LzbyXEXsvk3XhwrxbfRyyAN2Lpf6dX1E0eMvv3+7YUl+g+HQnfm
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Status of OTLP endpoint"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/observability/v1/otlp/traces"}
+>
+  
+</MethodEndpoint>
+
+
+
+Status of OTLP endpoint.
+
+<div>
+  <div>
+    <ApiTabs
+      label={undefined}
+      id={undefined}
+    >
+      <TabItem
+        label={"200"}
+        value={"200"}
+      >
+        <div>
+          
+          
+          Successful Response
+          
+          
+        </div><div>
+          <MimeTabs
+            className={"openapi-tabs__mime"}
+            schemaType={"response"}
+          >
+            <TabItem
+              label={"application/json"}
+              value={"application/json"}
+            >
+              <SchemaTabs
+                className={"openapi-tabs__schema"}
+              >
+                <TabItem
+                  label={"Schema"}
+                  value={"Schema"}
+                >
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>
+                        Schema
+                      </strong>
+                    </summary><div
+                      style={{"textAlign":"left","marginLeft":"1rem"}}
+                    >
+                      
+                    </div><ul
+                      style={{"marginLeft":"1rem"}}
+                    >
+                      <SchemaItem
+                        collapsible={false}
+                        name={"version"}
+                        required={true}
+                        schemaName={"Version (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Version"}}
+                      >
+                        
+                      </SchemaItem><SchemaItem
+                        collapsible={false}
+                        name={"status"}
+                        required={true}
+                        schemaName={"Status (string)"}
+                        qualifierMessage={undefined}
+                        schema={{"type":"string","title":"Status"}}
+                      >
+                        
+                      </SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem><TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={"{\n  \"version\": \"string\",\n  \"status\": \"string\"\n}"}
+                    language={"json"}
+                  >
+                    
+                  </ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
+      

@@ -41,7 +41,7 @@ def _is_uuid_key(key: str) -> bool:
         "root.id",
         "tree.id",
         "node.id",
-        "parend.id",
+        "parent.id",
     )
 
 
@@ -152,6 +152,7 @@ def parse_ingest_value(
         attributes[key] = to_type(attributes[key])
     except ValueError:
         print_exc()
+        print(f"key='{key}' attribute='{attributes[key]}' type='{to_type}'")
 
         del attributes[key]
 
@@ -167,7 +168,7 @@ def parse_ingest(
         }
         for field, attributes in typecheck.items():
             if attributes is not None:
-                for key in attributes.keys():
+                for key in list(attributes.keys()):
                     scoped_key = f"{field}.{key}"
                     if _is_uuid_key(scoped_key):
                         parse_ingest_value(attributes, UUID, key)
@@ -387,12 +388,15 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
             and span.meta
             and span.metrics
         ):
+            model = span.meta.get("response.model")
+            prompt_tokens = span.metrics.get("unit.tokens.prompt", 0.0)
+            completion_tokens = span.metrics.get("unit.tokens.completion", 0.0)
+
             try:
                 costs = cost_calculator.cost_per_token(
-                    model=span.meta.get("response.model"),
-                    prompt_tokens=span.metrics.get("unit.tokens.prompt", 0.0),
-                    completion_tokens=span.metrics.get("unit.tokens.completion", 0.0),
-                    call_type=span.node.type.name.lower(),
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                 )
 
                 if not costs:
@@ -405,5 +409,8 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.completion"] = completion_cost
                 span.metrics["unit.costs.total"] = total_cost
 
-            except:  # pylint: disable=W0702:bare-except
-                pass
+            except:  # pylint: disable=bare-except
+                print("Failed to calculate costs:")
+                print(
+                    f"model={model}, prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}"
+                )

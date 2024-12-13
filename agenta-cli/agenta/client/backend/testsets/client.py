@@ -28,7 +28,6 @@ class TestsetsClient:
         file: core.File,
         upload_type: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
-        app_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
@@ -50,8 +49,6 @@ class TestsetsClient:
         upload_type : typing.Optional[str]
 
         testset_name : typing.Optional[str]
-
-        app_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -77,7 +74,6 @@ class TestsetsClient:
             data={
                 "upload_type": upload_type,
                 "testset_name": testset_name,
-                "app_id": app_id,
             },
             files={
                 "file": file,
@@ -173,18 +169,16 @@ class TestsetsClient:
 
     def create_testset(
         self,
-        app_id: str,
         *,
         name: str,
         csvdata: typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]],
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Create a testset with given name and app_name, save the testset to MongoDB.
+        Create a testset with given name, save the testset to MongoDB.
 
         Args:
         name (str): name of the test set.
-        app_name (str): name of the application.
         testset (Dict[str, str]): test set data.
 
         Returns:
@@ -192,8 +186,6 @@ class TestsetsClient:
 
         Parameters
         ----------
-        app_id : str
-
         name : str
 
         csvdata : typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]]
@@ -215,13 +207,12 @@ class TestsetsClient:
             base_url="https://yourhost.com/path/to/api",
         )
         client.testsets.create_testset(
-            app_id="app_id",
             name="name",
             csvdata=[{"key": "value"}],
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"testsets/{jsonable_encoder(app_id)}",
+            "testsets",
             method="POST",
             json={
                 "name": name,
@@ -405,7 +396,7 @@ class TestsetsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def get_testsets(
-        self, *, app_id: str, request_options: typing.Optional[RequestOptions] = None
+        self, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.List[TestSetOutputResponse]:
         """
         Get all testsets.
@@ -420,8 +411,6 @@ class TestsetsClient:
 
         Parameters
         ----------
-        app_id : str
-
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
@@ -438,16 +427,11 @@ class TestsetsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.testsets.get_testsets(
-            app_id="app_id",
-        )
+        client.testsets.get_testsets()
         """
         _response = self._client_wrapper.httpx_client.request(
             "testsets",
             method="GET",
-            params={
-                "app_id": app_id,
-            },
             request_options=request_options,
         )
         try:
@@ -557,7 +541,6 @@ class AsyncTestsetsClient:
         file: core.File,
         upload_type: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
-        app_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
@@ -579,8 +562,6 @@ class AsyncTestsetsClient:
         upload_type : typing.Optional[str]
 
         testset_name : typing.Optional[str]
-
-        app_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -614,7 +595,6 @@ class AsyncTestsetsClient:
             data={
                 "upload_type": upload_type,
                 "testset_name": testset_name,
-                "app_id": app_id,
             },
             files={
                 "file": file,
@@ -718,18 +698,16 @@ class AsyncTestsetsClient:
 
     async def create_testset(
         self,
-        app_id: str,
         *,
         name: str,
         csvdata: typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]],
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Create a testset with given name and app_name, save the testset to MongoDB.
+        Create a testset with given name, save the testset to MongoDB.
 
         Args:
         name (str): name of the test set.
-        app_name (str): name of the application.
         testset (Dict[str, str]): test set data.
 
         Returns:
@@ -737,8 +715,6 @@ class AsyncTestsetsClient:
 
         Parameters
         ----------
-        app_id : str
-
         name : str
 
         csvdata : typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]]
@@ -765,7 +741,6 @@ class AsyncTestsetsClient:
 
         async def main() -> None:
             await client.testsets.create_testset(
-                app_id="app_id",
                 name="name",
                 csvdata=[{"key": "value"}],
             )
@@ -774,7 +749,7 @@ class AsyncTestsetsClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"testsets/{jsonable_encoder(app_id)}",
+            "testsets",
             method="POST",
             json={
                 "name": name,
@@ -974,7 +949,7 @@ class AsyncTestsetsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def get_testsets(
-        self, *, app_id: str, request_options: typing.Optional[RequestOptions] = None
+        self, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.List[TestSetOutputResponse]:
         """
         Get all testsets.
@@ -989,8 +964,6 @@ class AsyncTestsetsClient:
 
         Parameters
         ----------
-        app_id : str
-
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
@@ -1012,9 +985,7 @@ class AsyncTestsetsClient:
 
 
         async def main() -> None:
-            await client.testsets.get_testsets(
-                app_id="app_id",
-            )
+            await client.testsets.get_testsets()
 
 
         asyncio.run(main())
@@ -1022,9 +993,6 @@ class AsyncTestsetsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "testsets",
             method="GET",
-            params={
-                "app_id": app_id,
-            },
             request_options=request_options,
         )
         try:

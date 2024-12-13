@@ -1,7 +1,6 @@
-import os
-import logging
 import toml
-from typing import Optional
+from os import getenv
+from typing import Optional, Callable, Any
 from importlib.metadata import version
 
 from agenta.sdk.utils.logging import log
@@ -9,10 +8,6 @@ from agenta.sdk.utils.globals import set_global
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
 from agenta.sdk.tracing import Tracing
 from agenta.client.exceptions import APIRequestError
-
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class AgentaSingleton:
@@ -36,6 +31,8 @@ class AgentaSingleton:
         host: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
+        redact: Optional[Callable[..., Any]] = None,
+        redact_on_error: Optional[bool] = True,
         # DEPRECATING
         app_id: Optional[str] = None,
     ) -> None:
@@ -72,13 +69,13 @@ class AgentaSingleton:
 
         self.host = (
             host
-            or os.environ.get("AGENTA_HOST")
+            or getenv("AGENTA_HOST")
             or config.get("backend_host")
             or config.get("host")
             or "https://cloud.agenta.ai"
         )
 
-        self.app_id = app_id or config.get("app_id") or os.environ.get("AGENTA_APP_ID")
+        self.app_id = app_id or config.get("app_id") or getenv("AGENTA_APP_ID")
         # if not self.app_id:
         #     raise ValueError(
         #         "App ID must be specified. You can provide it in one of the following ways:\n"
@@ -87,12 +84,12 @@ class AgentaSingleton:
         #         "3. As an environment variable 'AGENTA_APP_ID'."
         #     )
 
-        self.api_key = (
-            api_key or os.environ.get("AGENTA_API_KEY") or config.get("api_key")
-        )
+        self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
 
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/otlp/traces",  # type: ignore
+            redact=redact,
+            redact_on_error=redact_on_error,
         )
 
         self.tracing.configure(
@@ -103,15 +100,15 @@ class AgentaSingleton:
 
         self.api = AgentaApi(
             base_url=self.host + "/api",
-            api_key=api_key if api_key else "",
+            api_key=self.api_key if self.api_key else "",
         )
 
         self.async_api = AsyncAgentaApi(
             base_url=self.host + "/api",
-            api_key=api_key if api_key else "",
+            api_key=self.api_key if self.api_key else "",
         )
 
-        self.base_id = os.environ.get("AGENTA_BASE_ID")
+        self.base_id = getenv("AGENTA_BASE_ID")
 
         self.config = Config(
             host=self.host,
@@ -162,7 +159,7 @@ class Config:
         try:
             self.push(config_name="default", overwrite=overwrite, **kwargs)
         except Exception as ex:
-            logger.warning(
+            log.warning(
                 "Unable to push the default configuration to the server. %s", str(ex)
             )
 
@@ -183,7 +180,7 @@ class Config:
                 overwrite=overwrite,
             )
         except Exception as ex:
-            logger.warning(
+            log.warning(
                 "Failed to push the configuration to the server with error: %s", ex
             )
 
@@ -210,14 +207,14 @@ class Config:
                         config_name=config_name,
                     )
             except Exception as ex:
-                logger.warning(
+                log.warning(
                     "Failed to pull the configuration from the server with error: %s",
                     str(ex),
                 )
         try:
             self.set(**{"current_version": config.current_version, **config.parameters})
         except Exception as ex:
-            logger.warning("Failed to set the configuration with error: %s", str(ex))
+            log.warning("Failed to set the configuration with error: %s", str(ex))
 
     def all(self):
         """Returns all the parameters for the app variant"""
@@ -260,7 +257,9 @@ def init(
     host: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
-    # DEPRECATED
+    redact: Optional[Callable[..., Any]] = None,
+    redact_on_error: Optional[bool] = True,
+    # DEPRECATING
     app_id: Optional[str] = None,
 ):
     """Main function to initialize the agenta sdk.
@@ -291,7 +290,8 @@ def init(
         host=host,
         api_key=api_key,
         config_fname=config_fname,
-        # DEPRECATED
+        redact=redact,
+        redact_on_error=redact_on_error,
         app_id=app_id,
     )
 

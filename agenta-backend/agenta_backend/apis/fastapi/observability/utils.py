@@ -3,10 +3,16 @@ from uuid import UUID
 from collections import OrderedDict
 from json import loads, JSONDecodeError, dumps
 from copy import copy
+from datetime import datetime, timedelta, time
 
 from fastapi import Query, HTTPException
 
 from agenta_backend.apis.fastapi.observability.opentelemetry.semconv import CODEX
+
+from agenta_backend.apis.fastapi.observability.models import (
+    LegacyDataPoint,
+    LegacySummary,
+)
 
 from agenta_backend.core.observability.dtos import (
     TimeDTO,
@@ -24,6 +30,7 @@ from agenta_backend.core.observability.dtos import (
     OTelSpanDTO,
     OTelContextDTO,
     OTelLinkDTO,
+    BucketDTO,
     NodeType,
 )
 from agenta_backend.core.observability.dtos import (
@@ -32,20 +39,23 @@ from agenta_backend.core.observability.dtos import (
     FilteringDTO,
     PaginationDTO,
     QueryDTO,
+    AnalyticsDTO,
+    ConditionDTO,
 )
 
 
-# --- PARSE QUERY DTO ---
+# --- PARSE QUERY / ANALYTICS DTO ---
 
 
 def _parse_windowing(
     oldest: Optional[str] = None,
     newest: Optional[str] = None,
+    window: Optional[int] = None,
 ) -> Optional[WindowingDTO]:
     _windowing = None
 
     if oldest or newest:
-        _windowing = WindowingDTO(oldest=oldest, newest=newest)
+        _windowing = WindowingDTO(oldest=oldest, newest=newest, window=window)
 
     return _windowing
 
@@ -87,9 +97,6 @@ def _parse_pagination(
     stop: Optional[str] = None,
 ) -> Optional[PaginationDTO]:
     _pagination = None
-
-    print("---------------------------------")
-    print(page, size, next, stop)
 
     if page and next:
         raise HTTPException(
@@ -142,6 +149,26 @@ def parse_query_dto(
         windowing=_parse_windowing(oldest=oldest, newest=newest),
         filtering=_parse_filtering(filtering=filtering),
         pagination=_parse_pagination(page=page, size=size, next=next, stop=stop),
+    )
+
+
+def parse_analytics_dto(
+    # GROUPING
+    # - Option 2: Flat query parameters
+    focus: Optional[str] = Query(None),
+    # WINDOWING
+    # - Option 2: Flat query parameters
+    oldest: Optional[str] = Query(None),
+    newest: Optional[str] = Query(None),
+    window: Optional[int] = Query(None),
+    # FILTERING
+    # - Option 1: Single query parameter as JSON
+    filtering: Optional[str] = Query(None),
+) -> AnalyticsDTO:
+    return AnalyticsDTO(
+        grouping=_parse_grouping(focus=focus),
+        windowing=_parse_windowing(oldest=oldest, newest=newest, window=window),
+        filtering=_parse_filtering(filtering=filtering),
     )
 
 
@@ -760,3 +787,151 @@ def parse_to_agenta_span_dto(
     # ----------------------
 
     return span_dto
+
+
+# --- PARSE LEGACY ANALYTICS ---
+
+
+def _parse_time_range(
+    window_text: str,
+) -> Tuple[datetime, datetime, int]:
+    quantity, unit = window_text.split("_")
+    quantity = int(quantity)
+
+    today = datetime.now()
+    newest = datetime.combine(today.date(), time.max)
+
+    if unit == "hours":
+        oldest = newest - timedelta(hours=quantity)
+        window = 60  # 1 hour
+        return newest, oldest, window
+
+    elif unit == "days":
+        oldest = newest - timedelta(days=quantity)
+        window = 1440  # 1 day
+        return newest, oldest, window
+
+    else:
+        raise ValueError(f"Unknown time unit: {unit}")
+
+
+def parse_legacy_analytics_dto(
+    timeRange: Optional[str] = Query(None),  # pylint: disable=invalid-name
+    app_id: Optional[str] = Query(None),
+    environment: Optional[str] = Query(None),
+    variant: Optional[str] = Query(None),
+) -> Optional[AnalyticsDTO]:
+    if not timeRange and not environment and not variant:
+        return None
+
+    print("timeRange: ", timeRange)
+    print("app_id: ", app_id)
+    print("environment: ", environment)
+    print("variant: ", variant)
+
+    application_condition = None
+    environment_condition = None
+    variant_condition = None
+    filtering = None
+
+    if app_id:
+        application_condition = ConditionDTO(
+            key="refs.application.id",  # ID ?
+            operator="is",
+            value=app_id,
+        )
+
+    if environment:
+        environment_condition = ConditionDTO(
+            key="refs.environment.slug",  # SLUG ?
+            operator="is",
+            value=environment,
+        )
+
+    if variant:
+        variant_condition = ConditionDTO(
+            key="refs.variant.id",  # ID ?
+            operator="is",
+            value=variant,
+        )
+
+    if application_condition or environment_condition or variant_condition:
+        filtering = FilteringDTO(
+            conditions=[
+                condition
+                for condition in [
+                    application_condition,
+                    environment_condition,
+                    variant_condition,
+                ]
+                if condition
+            ]
+        )
+
+    windowing = None
+
+    if timeRange:
+        newest, oldest, window = _parse_time_range(timeRange)
+
+        print("newest: ", newest)
+        print("oldest: ", oldest)
+        print("window: ", window)
+
+        windowing = WindowingDTO(newest=newest, oldest=oldest, window=window)
+
+    grouping = GroupingDTO(focus="tree")
+
+    return AnalyticsDTO(
+        grouping=grouping,
+        windowing=windowing,
+        filtering=filtering,
+    )
+
+
+def parse_legacy_analytics(
+    bucket_dtos: List[BucketDTO],
+) -> Tuple[List[LegacyDataPoint], LegacySummary]:
+    data_points = list()
+
+    total_failure = 0
+    total_latency = 0.0
+
+    summary = LegacySummary(
+        total_count=0,
+        failure_rate=0.0,
+        total_cost=0.0,
+        avg_cost=0.0,
+        avg_latency=0.0,
+        total_tokens=0,
+        avg_tokens=0.0,
+    )
+
+    for bucket_dto in bucket_dtos:
+        data_point = LegacyDataPoint(
+            timestamp=bucket_dto.timestamp,
+            success_count=(bucket_dto.total.count or 0) - (bucket_dto.error.count or 0),
+            failure_count=bucket_dto.error.count or 0,
+            cost=bucket_dto.total.cost or 0.0,
+            latency=bucket_dto.total.duration or 0.0,
+            total_tokens=bucket_dto.total.tokens or 0,
+        )
+
+        data_points.append(data_point)
+
+        summary.total_count += bucket_dto.total.count if bucket_dto.total.count else 0
+        summary.total_cost += bucket_dto.total.cost if bucket_dto.total.cost else 0.0
+        summary.total_tokens += (
+            bucket_dto.total.tokens if bucket_dto.total.tokens else 0
+        )
+
+        total_failure += bucket_dto.error.count if bucket_dto.error.count else 0
+        total_latency += bucket_dto.total.duration if bucket_dto.total.duration else 0.0
+
+    if summary.total_count:
+        summary.failure_rate = (total_failure / summary.total_count) * 100
+
+        summary.avg_cost = summary.total_cost / summary.total_count
+        summary.avg_latency = (total_latency / summary.total_count) / 1_000
+        summary.avg_tokens = summary.total_tokens / summary.total_count
+
+    return data_points, summary

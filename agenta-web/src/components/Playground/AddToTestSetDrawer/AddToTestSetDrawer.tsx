@@ -22,12 +22,12 @@ import {
     Tooltip,
     message,
 } from "antd"
-import {useRouter} from "next/router"
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
-import _ from "lodash"
+import cloneDeep from "lodash/cloneDeep"
+import clone from "lodash/clone"
 
 const useStyles = createUseStyles({
     footer: {
@@ -57,16 +57,16 @@ function flatToTurn({
     chat?: ChatMessage[]
     correct_answer?: ChatMessage | string
 }) {
-    const flatChat = _.cloneDeep(chat || [])
+    const flatChat = cloneDeep(chat || [])
     if (correct_answer && typeof correct_answer !== "string")
-        flatChat.push(_.cloneDeep(correct_answer))
+        flatChat.push(cloneDeep(correct_answer))
 
     const turns: {chat: ChatMessage[]; correct_answer: ChatMessage}[] = []
     let currentTurn: ChatMessage[] = []
     flatChat.forEach((item) => {
         if (item.role !== ChatRole.User) {
             turns.push({
-                chat: _.clone(currentTurn || []),
+                chat: clone(currentTurn || []),
                 correct_answer: item,
             })
         }
@@ -76,7 +76,7 @@ function flatToTurn({
 }
 
 function turnToFlat(turns: {chat: ChatMessage[]; correct_answer: ChatMessage}[]) {
-    const flat = _.cloneDeep(turns.at(-1))
+    const flat = cloneDeep(turns.at(-1))
     return {
         chat: flat?.chat || [],
         correct_answer: flat?.correct_answer || "",
@@ -99,14 +99,9 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     >(null)
     const [shouldRender, setShouldRender] = useState(false)
     const dirty = useRef(false)
-    const router = useRouter()
-    const appId = router.query.app_id as string
-    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList(appId)
-    const storedValue = localStorage.getItem(`selectedTestset_${appId}`)?.replace(/"/g, "")
-    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(
-        `selectedTestset_${appId}`,
-        "",
-    )
+    const {testsets, mutate, isTestsetsLoading, isTestsetsLoadingError} = useLoadTestsetsList()
+    const storedValue = localStorage.getItem(`selectedTestset`)?.replace(/"/g, "")
+    const [selectedTestset, setSelectedTestset] = useLocalStorage<string>(`selectedTestset`, "")
 
     useEffect(() => {
         if (storedValue && testsets.some((testset: testset) => testset._id === storedValue)) {
@@ -131,8 +126,8 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
 
             //reset to defaults
             form.resetFields()
-            chatParams.chat = _.cloneDeep(params.chat || [])
-            chatParams.correct_answer = _.cloneDeep(params.correct_answer || "")
+            chatParams.chat = cloneDeep(params.chat || [])
+            chatParams.correct_answer = cloneDeep(params.correct_answer || "")
             setTurnModeChat(null)
             setShouldRender(true)
         } else {
@@ -177,7 +172,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
             })
 
             const promise = isNew
-                ? createNewTestset(appId, name, newRows)
+                ? createNewTestset(name, newRows)
                 : updateTestset(selectedTestset!, name, [...csvdata, ...newRows])
             promise
                 .then(() => {

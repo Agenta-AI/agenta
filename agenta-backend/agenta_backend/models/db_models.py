@@ -15,7 +15,7 @@ from sqlalchemy_json import mutable_json_type
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from agenta_backend.dbs.postgres.shared.base import Base
-from agenta_backend.models.shared_models import TemplateType
+from agenta_backend.models.shared_models import TemplateType, AppType
 
 
 CASCADE_ALL_DELETE = "all, delete-orphan"
@@ -106,6 +106,7 @@ class AppDB(Base):
         nullable=False,
     )
     app_name = Column(String)
+    app_type = Column(Enum(AppType, name="app_enumtype"), nullable=True)
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )

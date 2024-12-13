@@ -40,7 +40,7 @@ import {
     getStringOrJson,
 } from "@/lib/helpers/utils"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
-import {debounce} from "lodash"
+import debounce from "lodash/debounce"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import ParamsForm from "../Playground/ParamsForm/ParamsForm"
 import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
@@ -340,6 +340,8 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         variantData[idx].isChatVariant
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],
+                        undefined,
+                        true,
                     )
 
                     let res: BaseResponse | undefined
