@@ -1,17 +1,53 @@
 from typing import Callable, Dict, Optional
 
+from enum import Enum
 from os import getenv
 from json import dumps
+
+from pydantic import BaseModel
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 
 from agenta.sdk.middleware.cache import TTLLRUCache
-from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.timing import atimeit
 
 import agenta as ag
+
+
+# TODO: Move these four to backend client types
+
+
+class SecretKind(str, Enum):
+    PROVIDER_KEY = "provider_key"
+
+
+class ProviderKind(str, Enum):
+    OPENAI = "openai"
+    COHERE = "cohere"
+    ANYSCALE = "anyscale"
+    DEEPINFRA = "deepinfra"
+    ALEPHALPHA = "alephalpha"
+    GROQ = "groq"
+    MISTRALAI = "mistralai"
+    ANTHROPIC = "anthropic"
+    PERPLEXITYAI = "perplexityai"
+    TOGETHERAI = "togetherai"
+    OPENROUTER = "openrouter"
+    GEMINI = "gemini"
+
+
+class ProviderKeyDTO(BaseModel):
+    provider: ProviderKind
+    key: str
+
+
+class SecretDTO(BaseModel):
+    kind: SecretKind = "provider_key"
+    data: ProviderKeyDTO
+
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in _TRUTHY
@@ -61,16 +97,52 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 return secrets
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.host}/api/vault/v1/secrets",
-                headers=headers,
-            )
+        local_secrets = []
 
-            vault = response.json()
+        try:
+            for provider_kind in ProviderKind:
+                provider = provider_kind.value
+                key = f"{provider.upper()}_API_KEY"
 
-            secrets = vault.get("secrets")
+                secret = SecretDTO(
+                    kind=SecretKind.PROVIDER_KEY,
+                    data=ProviderKeyDTO(
+                        provider=provider,
+                        key=key,
+                    ),
+                )
 
-            _cache.put(_hash, {"secrets": secrets})
+                local_secrets.append(secret.model_dump())
+        except:  # pylint: disable=bare-except
+            display_exception("Vault: Local Secrets Exception")
 
-            return secrets
+        vault_secrets = []
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.host}/api/vault/v1/secrets",
+                    headers=headers,
+                )
+
+                vault = response.json()
+
+                vault_secrets = vault.get("secrets")
+        except:  # pylint: disable=bare-except
+            display_exception("Vault: Vault Secrets Exception")
+
+        merged_secrets = {}
+
+        for secret in local_secrets:
+            provider = secret["data"]["provider"]
+            merged_secrets[provider] = secret
+
+        for secret in vault_secrets:
+            provider = secret["data"]["provider"]
+            merged_secrets[provider] = secret
+
+        secrets = list(merged_secrets.values())
+
+        _cache.put(_hash, {"secrets": secrets})
+
+        return secrets
