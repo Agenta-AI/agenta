@@ -8,6 +8,35 @@
 ### Health Check
 GET {{baseUrl}}/{{service}}/health HTTP/1.1
 
+### Test chat-new-sdk
+POST {{baseUrl}}/{{service}}/chat HTTP/1.1
+Content-Type: application/json
+
+{
+    "inputs": {
+        "message": "What is the capital of France?"
+    }
+}
+
+### Test chat configuration
+POST {{baseUrl}}/{{service}}/configure HTTP/1.1
+Content-Type: application/json
+
+{
+    "model": "gpt-3.5-turbo",
+    "temperature": 0.7,
+    "max_tokens": 100,
+    "prompt": {
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant specializing in geography."
+            }
+        ],
+        "template_format": "fstring"
+    }
+}
+
 ### Generate Chat Response
 POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
