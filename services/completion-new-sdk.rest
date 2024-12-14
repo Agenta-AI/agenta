@@ -1,5 +1,5 @@
 @baseUrl = http://localhost
-@service = completion-old-sdk
+@service = completion-live-sdk
 
 ### These request can be run using the Rest Client extension in vsCode
 
@@ -14,17 +14,19 @@ POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
 
 {
-    "temperature": 1.0,
-    "model": "gpt-3.5-turbo",
-    "max_tokens": -1,
-    "prompt_system": "You are an expert in geography.",
-    "prompt_user": "What is the capital of {country}?",
-    "top_p": 1.0,
-    "frequence_penalty": 0.0,
-    "presence_penalty": 0.0,
-    "force_json": false,
+    "agenta_config": {
+        "temperature": 0.7,
+        "model": "gpt-3.5-turbo-16k",
+        "max_tokens": 256,
+        "prompt_system": "You are an expert in linguistics.",
+        "prompt_user": "What is the meaning of {word}?",
+        "top_p": 0.95,
+        "frequence_penalty": 0.5,
+        "presence_penalty": 0.5,
+        "force_json": true
+    },
     "inputs": {
-        "country": "France"
+        "word": "language"
     }
 }
 
@@ -33,17 +35,19 @@ POST {{baseUrl}}/{{service}}/playground/run HTTP/1.1
 Content-Type: application/json
 
 {
-    "temperature": 1.0,
-    "model": "gpt-3.5-turbo",
-    "max_tokens": -1,
-    "prompt_system": "You are an expert in geography.",
-    "prompt_user": "What is the capital of {country}?",
-    "top_p": 1.0,
-    "frequence_penalty": 0.0,
-    "presence_penalty": 0.0,
-    "force_json": false,
+    "agenta_config": {
+        "temperature": 0.7,
+        "model": "gpt-3.5-turbo-16k",
+        "max_tokens": 256,
+        "prompt_system": "You are an expert in linguistics.",
+        "prompt_user": "What is the meaning of {word}?",
+        "top_p": 0.95,
+        "frequence_penalty": 0.5,
+        "presence_penalty": 0.5,
+        "force_json": true
+    },
     "inputs": {
-        "country": "Spain"
+        "word": "language"
     }
 }
 
