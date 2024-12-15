@@ -6,6 +6,7 @@ import type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn
 import {useCallback, useMemo} from "react"
 import cloneDeep from "lodash/cloneDeep"
 import type {ConfigPropertyType} from "../../state/types"
+import { findVariantById, compareVariant, createBaseCompare } from "../usePlaygroundState/assets/comparators"
 
 function usePlaygroundVariantConfig<T = any>(
     options: UsePlaygroundVariantConfigOptions,
@@ -14,25 +15,12 @@ function usePlaygroundVariantConfig<T = any>(
 
     const {variants, mutate} = usePlaygroundState({
         ...stateOptions,
-        compare:
-            useCallback(
-                (a: InitialStateType | undefined, b: InitialStateType | undefined) => {
-                    const variantsA = a?.variants || []
-                    const variantsB = b?.variants || []
-
-                    const variantA = variantsA.find((v) => v.variantId === variantId)
-                    const variantB = variantsB.find((v) => v.variantId === variantId)
-
-                    if (!!variantA && !!variantB && !isEqual(variantA, variantB)) {
-                        const paramsA = accessKeyInVariant(configKey, variantA)
-                        const paramsB = accessKeyInVariant(configKey, variantB)
-
-                        return isEqual(paramsA, paramsB)
-                    }
-                    return isEqual(a, b)
-                },
-                [configKey, variantId],
-            ),
+        compare: useCallback(
+            (a: InitialStateType | undefined, b: InitialStateType | undefined) => {
+                return compareVariant(a, b, variantId, options?.compare, configKey)
+            },
+            [configKey, variantId, options?.compare],
+        ),
     })
 
     const mutateVariant = useCallback(
