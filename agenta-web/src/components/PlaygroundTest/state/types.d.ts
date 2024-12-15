@@ -19,14 +19,6 @@ export type InitialStateType = {
 }
 
 // Configuration types
-export interface UsePlaygroundStateOptions extends SWRConfiguration {
-    service?: string
-    appId?: string
-    projectId?: string
-    hookId?: string
-    selector?: (state: InitialStateType) => any
-    compare?: (a: InitialStateType | undefined, b: InitialStateType | undefined) => boolean
-}
 
 export type SWRCache = Map<string, any>
 
