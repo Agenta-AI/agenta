@@ -3,6 +3,7 @@ import {KeyValuePair} from "tailwindcss/types/config"
 
 export type Mapping = {data: string; column: string; newColumn?: string}
 export type Preview = {key: string; data: KeyValuePair[]}
+export type TestsetColumn = {column: string; isNew: boolean}
 export type TestsetTraceData = {
     key: string
     data: KeyValuePair

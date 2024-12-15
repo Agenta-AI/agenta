@@ -23,4 +23,12 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     label: {
         fontWeight: theme.fontWeightMedium,
     },
+    customTag: {
+        marginLeft: 8,
+        fontSize: "10px",
+        backgroundColor: theme.blue1,
+        color: theme.blue4,
+        padding: `2px 4px`,
+        borderRadius: "2px",
+    },
 }))
