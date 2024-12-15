@@ -31,7 +31,6 @@ const PlaygroundVariantConfig = ({
 
             <div className="div flex flex-col gap-2 pb-10">
                 {prompts.map((prompt) => {
-                    console.log('render prompt', prompt)
                     return (
                         <PlaygroundVariantConfigPromptCollapse
                             key={prompt.key}

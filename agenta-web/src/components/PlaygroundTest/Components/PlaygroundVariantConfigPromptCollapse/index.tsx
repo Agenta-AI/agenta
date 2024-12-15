@@ -6,7 +6,7 @@ import PlaygroundVariantConfigPromptCollapseHeader from "./assets/PlaygroundVari
 import PlaygroundVariantConfigPromptCollapseContent from "./assets/PlaygroundVariantConfigPromptCollapseContent"
 import { PromptConfigType } from "../../hooks/useAgentaConfig/types"
 
-const PlaygroundVariantConfigPromptCollapse = memo(({variantId, prompt}: {
+const PlaygroundVariantConfigPromptCollapse = ({variantId, prompt}: {
     variantId: string
     prompt: PromptConfigType
 }) => {
@@ -46,6 +46,6 @@ const PlaygroundVariantConfigPromptCollapse = memo(({variantId, prompt}: {
             items={items}
         />
     )
-})
+}
 
-export default PlaygroundVariantConfigPromptCollapse
+export default memo(PlaygroundVariantConfigPromptCollapse)
