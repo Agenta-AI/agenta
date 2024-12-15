@@ -5,7 +5,7 @@ import type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn
 import {useCallback, useMemo} from "react"
 import cloneDeep from "lodash/cloneDeep"
 import type {ConfigPropertyType} from "../../state/types"
-import { compareVariant } from "../usePlaygroundState/assets/helpers"
+import {compareVariant} from "../usePlaygroundState/assets/helpers"
 
 function usePlaygroundVariantConfig<T = any>(
     options: UsePlaygroundVariantConfigOptions,
@@ -32,13 +32,16 @@ function usePlaygroundVariantConfig<T = any>(
                     if (!state) return state
                     const clone = cloneDeep(state)
 
-                    const updateVariant = (variant: StateVariant): StateVariant => {    
-                        const previousParam = accessKeyInVariant(configKey, variant) as ConfigPropertyType;
+                    const updateVariant = (variant: StateVariant): StateVariant => {
+                        const previousParam = accessKeyInVariant(
+                            configKey,
+                            variant,
+                        ) as ConfigPropertyType
                         if (previousParam && previousParam.default !== val) {
-                            previousParam.default = val;
-                            return variant;
+                            previousParam.default = val
+                            return variant
                         }
-                        return variant;
+                        return variant
                     }
                     clone.variants = clone.variants.map((v) =>
                         v.variantId === variantId ? updateVariant(v) : cloneDeep(v),

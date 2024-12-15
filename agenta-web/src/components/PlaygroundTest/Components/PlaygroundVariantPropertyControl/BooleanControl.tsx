@@ -1,11 +1,11 @@
-import { memo } from "react"
-import { Switch, Typography, type SwitchProps } from "antd"
+import {memo} from "react"
+import {Switch, Typography, type SwitchProps} from "antd"
 
 interface BooleanControlProps extends SwitchProps {
-    label: string;
+    label: string
 }
 
-const BooleanControl = ({ label, value, onChange }: BooleanControlProps) => {
+const BooleanControl = ({label, value, onChange}: BooleanControlProps) => {
     return (
         <div className="flex items-center gap-2 justify-between">
             <Typography.Text>{label}</Typography.Text>

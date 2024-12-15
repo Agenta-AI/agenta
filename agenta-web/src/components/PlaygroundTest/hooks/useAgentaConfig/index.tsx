@@ -8,8 +8,9 @@ const useAgentaConfig = ({variant}: {variant: StateVariant}) => {
     const schemaName = variant.schema ? getBodySchemaName(variant.schema) : ""
 
     const promptParams: SchemaObject = variant.schema
-        ? (variant.schema.components.schemas[schemaName]?.properties?.agenta_config || {} as SchemaObject)
-        : {} as SchemaObject
+        ? variant.schema.components.schemas[schemaName]?.properties?.agenta_config ||
+          ({} as SchemaObject)
+        : ({} as SchemaObject)
 
     // TODO: refactor when we have multiple prompts
     const prompts: PromptConfigType[] = useMemo(() => {
