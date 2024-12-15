@@ -44,11 +44,13 @@ export const compareVariantConfig = (
     variantA: StateVariant | undefined,
     variantB: StateVariant | undefined,
     configKey: string,
+    variantId: string,
 ): boolean => {
     if (!variantA || !variantB) return variantA === variantB
 
     const paramsA = accessKeyInVariant(configKey, variantA)
     const paramsB = accessKeyInVariant(configKey, variantB)
+
     return isEqual(paramsA, paramsB)
 }
 
@@ -95,9 +97,11 @@ export const compareVariant = (
 
     if (!!variantA && !!variantB && !isEqual(variantA, variantB)) {
         if (configKey) {
-            return compareVariantConfig(variantA, variantB, configKey)
+            return compareVariantConfig(variantA, variantB, configKey, variantId)
         }
         return isEqual(variantA, variantB)
+    } else if (!!variantA && !!variantB && isEqual(variantA, variantB)) {
+        return true
     }
     return createBaseCompare(customCompare)(a, b)
 }
