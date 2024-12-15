@@ -7,7 +7,7 @@ interface AddButtonProps extends ButtonProps {
 
 const AddButton = ({label, ...props}: AddButtonProps) => {
     return (
-        <Button variant="outlined" color="default" className="self-start">
+        <Button variant="outlined" color="default" className="self-start" {...props}>
             <Plus size={14} />
             {label}
         </Button>
