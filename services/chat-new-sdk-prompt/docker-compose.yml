@@ -1,0 +1,23 @@
+services:
+  chat-new-sdk-prompt:
+    build: .
+    volumes:
+      - .:/app
+      - ../../agenta-cli:/agenta-cli
+    environment:
+      - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
+      - AGENTA_HOST=http://host.docker.internal
+    networks:
+      - agenta-network
+    labels:
+      - "traefik.http.routers.chat-new-sdk-prompt.rule=PathPrefix(`/chat-new-sdk-prompt/`)"
+      - "traefik.http.routers.chat-new-sdk-prompt.entrypoints=web"
+      - "traefik.http.middlewares.chat-new-sdk-prompt-strip.stripprefix.prefixes=/chat-new-sdk-prompt"
+      - "traefik.http.middlewares.chat-new-sdk-prompt-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.chat-new-sdk-prompt.middlewares=chat-new-sdk-prompt-strip"
+      - "traefik.http.services.chat-new-sdk-prompt.loadbalancer.server.port=80"
+      - "traefik.http.routers.chat-new-sdk-prompt.service=chat-new-sdk-prompt"
+
+networks:
+  agenta-network:
+    external: true
