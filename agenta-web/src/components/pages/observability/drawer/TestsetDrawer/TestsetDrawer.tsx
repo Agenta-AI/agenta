@@ -1,7 +1,18 @@
 import {useCallback, useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
 import {ArrowRight, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Checkbox, Divider, Input, message, Radio, Select, Table, Typography} from "antd"
+import {
+    Button,
+    Checkbox,
+    Divider,
+    Input,
+    message,
+    Modal,
+    Radio,
+    Select,
+    Table,
+    Typography,
+} from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Editor, OnMount} from "@monaco-editor/react"
@@ -16,7 +27,7 @@ import {collectKeyPathsFromObject, getStringOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
 import {useUpdateEffect} from "usehooks-ts"
 import useResizeObserver from "@/hooks/useResizeObserver"
-import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps} from "./assets/types"
+import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps, TestsetColumn} from "./assets/types"
 import {useStyles} from "./assets/styles"
 import clsx from "clsx"
 
@@ -34,7 +45,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [testset, setTestset] = useState({name: "", id: ""})
     const [newTestsetName, setNewTestsetName] = useState("")
     const [editorFormat, setEditorFormat] = useState("JSON")
-    const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<string[]>([])
+    const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<TestsetColumn[]>([])
     const [selectedTestsetRows, setSelectedTestsetRows] = useState<KeyValuePair[]>([])
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
     const [rowDataPreview, setRowDataPreview] = useState(traceData[0]?.key || "")
@@ -43,10 +54,12 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
     // checkpoint-2
     const [updatedData, setUpdatedData] = useState("")
+    const [isConfirmeModal, setIsConfirmeModal] = useState(false)
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
     const selectedTestsetTestCases = selectedTestsetRows.slice(-5)
+    const isNewColumnCreated = selectedTestsetColumns.find(({isNew}) => isNew === true)
     const isMapColumnExist = mappingData.some((mapping) =>
         mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
     )
@@ -107,7 +120,12 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                 !columns.includes(matchingColumn.toLowerCase())
                             ) {
                                 updatedColumns.push(matchingColumn)
-                                setSelectedTestsetColumns(updatedColumns)
+                                setSelectedTestsetColumns(() =>
+                                    updatedColumns.map((data) => ({
+                                        column: data,
+                                        isNew: !testsetColumns.includes(data),
+                                    })),
+                                )
                             }
                         }
 
@@ -180,7 +198,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         const selectedColumns = mappingData
             .map((item) => item.column)
             .filter((col) => col !== "create")
-        return selectedTestsetColumns.filter((column) => !selectedColumns.includes(column))
+        return selectedTestsetColumns.filter(({column}) => !selectedColumns.includes(column))
     }, [mappingData, selectedTestsetColumns])
 
     const onMappingOptionChange = ({
@@ -255,7 +273,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 }
             }
 
-            for (const column of selectedTestsetColumns) {
+            for (const {column} of selectedTestsetColumns) {
                 if (!(column in formattedItem)) {
                     formattedItem[column] = ""
                 }
@@ -341,9 +359,9 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
         const testsetColumns = showLastFiveRows
             ? selectedTestsetColumns.map((item) => ({
-                  title: item,
-                  dataIndex: item,
-                  key: item,
+                  title: item.column,
+                  dataIndex: item.column,
+                  key: item.column,
                   width: 250,
                   onHeaderCell: () => ({style: {minWidth: 200}}),
               }))
@@ -439,7 +457,11 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                         <Button
                             type="primary"
                             loading={isLoading || isTestsetsLoading}
-                            onClick={onSaveTestset}
+                            onClick={() =>
+                                !isNewTestset && isNewColumnCreated
+                                    ? setIsConfirmeModal(true)
+                                    : onSaveTestset()
+                            }
                             disabled={!testset.name || !isMapColumnExist || hasDuplicateColumns}
                         >
                             Save
@@ -514,9 +536,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                         <Select.Option value={trace?.key} key={trace?.key}>
                                             Span {trace.id}{" "}
                                             {trace.isEdited && (
-                                                <span className="ml-2 text-[10px] text-blue-400 py-0.5 px-1 bg-blue-100 rounded-[2px]">
-                                                    (edited)
-                                                </span>
+                                                <span className={classes.customTag}>(edited)</span>
                                             )}
                                         </Select.Option>
                                     ))}
@@ -635,7 +655,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                                                       columnOptions.length > 0,
                                                                   )
                                                                 : []),
-                                                            ...columnOptions?.map((column) => ({
+                                                            ...columnOptions?.map(({column}) => ({
                                                                 value: column,
                                                                 lable: column,
                                                             })),
@@ -765,6 +785,33 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                 </Typography.Text>
                             )}
                         </div>
+
+                        {isConfirmeModal && (
+                            <Modal
+                                open={isConfirmeModal}
+                                onCancel={() => setIsConfirmeModal(false)}
+                                title="Are you sure you want to save?"
+                                okText={"Confirme"}
+                                onOk={() => onSaveTestset()}
+                                zIndex={2000}
+                                centered
+                            >
+                                <div className="flex flex-col gap-4">
+                                    <Typography.Text>
+                                        You have created some new column are you sure you want to
+                                        add them on the {testset.name} test set.
+                                    </Typography.Text>
+
+                                    <div className="flex gap-1">
+                                        {selectedTestsetColumns
+                                            .filter((item) => item.isNew)
+                                            .map((item) => (
+                                                <Typography.Text>{item.column}</Typography.Text>
+                                            ))}
+                                    </div>
+                                </div>
+                            </Modal>
+                        )}
                     </section>
                 }
             />
