@@ -5,7 +5,7 @@ import type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn
 import {useCallback, useMemo} from "react"
 import cloneDeep from "lodash/cloneDeep"
 import type {ConfigPropertyType} from "../../state/types"
-import { compareVariant } from "../usePlaygroundState/assets/comparators"
+import { compareVariant } from "../usePlaygroundState/assets/helpers"
 
 function usePlaygroundVariantConfig<T = any>(
     options: UsePlaygroundVariantConfigOptions,

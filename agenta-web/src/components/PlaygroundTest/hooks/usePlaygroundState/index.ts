@@ -13,7 +13,7 @@ import {getCurrentProject} from "@/contexts/project.context"
 import isEqual from "lodash/isEqual"
 import type {InitialStateType, OpenAPISchema, StateVariant} from "../../state/types"
 import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
-import {openAPIJsonFetcher} from "./assets/fetchers"
+import {openAPIJsonFetcher} from "./assets/helpers"
 import cloneDeep from "lodash/cloneDeep"
 import {initialState} from "./assets/constants"
 
