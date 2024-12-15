@@ -1,4 +1,5 @@
-import type {StateVariant, UsePlaygroundStateOptions} from "../../state/types"
+import type {StateVariant} from "../../state/types"
+import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
 
 export interface UsePlaygroundVariantConfigOptions
     extends Omit<UsePlaygroundStateOptions, "selector"> {

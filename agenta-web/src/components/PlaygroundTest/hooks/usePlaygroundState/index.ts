@@ -11,12 +11,8 @@ import useSWR, {
 import Router from "next/router"
 import {getCurrentProject} from "@/contexts/project.context"
 import isEqual from "lodash/isEqual"
-import type {
-    InitialStateType,
-    OpenAPISchema,
-    StateVariant,
-    UsePlaygroundStateOptions,
-} from "../../state/types"
+import type {InitialStateType, OpenAPISchema, StateVariant} from "../../state/types"
+import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
 import {openAPIJsonFetcher} from "./assets/fetchers"
 import cloneDeep from "lodash/cloneDeep"
 import {initialState} from "./assets/constants"
@@ -28,6 +24,7 @@ const usePlaygroundState = ({
     selector = (state: InitialStateType) => state,
     hookId,
     use,
+    neverFetch,
     ...rest
 }: UsePlaygroundStateOptions = {}) => {
     /**
@@ -113,6 +110,14 @@ const usePlaygroundState = ({
     const {data, isLoading, mutate} = useSWR<InitialStateType, Error>(key, {
         use: [swrMiddleware as Middleware, ...(use || [])],
         revalidateOnFocus: false,
+        ...(neverFetch && {
+            fetcher: undefined,
+            revalidateOnMount: false,
+            revalidateIfStale: false,
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            compare: () => true,
+        }),
         ...rest,
     })
 

@@ -2,12 +2,8 @@ import {type MouseEvent, useCallback} from "react"
 import type {Key} from "swr"
 import usePlaygroundState from "../usePlaygroundState"
 import type {UsePlaygroundVariantsReturn, UsePlaygroundVariantsOptions} from "./types"
-import type {
-    StateMiddleware,
-    InitialStateType,
-    UsePlaygroundStateOptions,
-    StateVariant,
-} from "../../state/types"
+import type {StateMiddleware, InitialStateType, StateVariant} from "../../state/types"
+import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
 import cloneDeep from "lodash/cloneDeep"
 import {v4 as uuidv4} from "uuid"
 import {createVariantCompare} from "../usePlaygroundState/assets/comparators"
@@ -33,6 +29,7 @@ const usePlaygroundVariants = (
                 }) as StateMiddleware,
             ...(options?.use || []),
         ],
+        neverFetch: options?.neverFetch,
         compare: useCallback<NonNullable<UsePlaygroundStateOptions["compare"]>>(
             (a, b) => createVariantCompare(options?.compare)(a, b),
             [options?.compare],

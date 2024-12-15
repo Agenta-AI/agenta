@@ -1,4 +1,4 @@
-import {memo, useCallback} from "react"
+import {memo} from "react"
 import {useRouter} from "next/router"
 import {AVAILABLE_SERVICES} from "./assets/constants"
 import {Typography} from "antd"
@@ -24,14 +24,8 @@ const VariantsWrapper = memo(({service}: {service: string}) => {
 
 const PlaygroundHeader = () => {
     const {addVariant} = usePlaygroundVariants({
-        fetcher: undefined,
-        // no re-renders if data state is mutated
-        compare: useCallback(() => true, []),
+        neverFetch: true,
         hookId: "root",
-        revalidateOnMount: false,
-        revalidateIfStale: false,
-        revalidateOnFocus: false,
-        revalidateOnReconnect: false,
     })
 
     return (
