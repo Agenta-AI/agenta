@@ -3,16 +3,16 @@ import {Select, Typography} from "antd"
 import type {SelectProps} from "antd"
 
 type BaseOption = {
-    label: string;
-    value: string;
+    label: string
+    value: string
 }
 
 type GroupedOptions = {
-    label: string;
-    options: BaseOption[];
+    label: string
+    options: BaseOption[]
 }
 
-type Options = BaseOption[] | Record<string, string[]>;
+type Options = BaseOption[] | Record<string, string[]>
 
 interface SelectControlProps {
     mode?: SelectProps["mode"]
@@ -22,13 +22,7 @@ interface SelectControlProps {
     onChange?: (value: string | string[]) => void
 }
 
-const SelectControl = ({
-    mode,
-    label,
-    options: _options,
-    value,
-    onChange,
-}: SelectControlProps) => {
+const SelectControl = ({mode, label, options: _options, value, onChange}: SelectControlProps) => {
     const options = useMemo((): (BaseOption | GroupedOptions)[] => {
         if (!_options) return []
         if (Array.isArray(_options)) {

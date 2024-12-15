@@ -30,19 +30,16 @@ const PlaygroundHeader = () => {
 
     return (
         <div className="flex items-center gap-4 px-2.5 py-2">
-            <Typography className="text-[16px] leading-[18px] font-[600]">
-                Playground
-            </Typography>
+            <Typography className="text-[16px] leading-[18px] font-[600]">Playground</Typography>
             <AddButton label={"Variant"} onClick={addVariant} />
         </div>
     )
 }
-    
 
 const Playground: React.FC = () => {
     const router = useRouter()
     const service = router.query.service as string
-    
+
     console.log("render Playground")
 
     if (!service || !AVAILABLE_SERVICES.includes(service)) {
