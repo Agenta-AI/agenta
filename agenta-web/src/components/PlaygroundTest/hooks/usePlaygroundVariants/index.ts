@@ -1,5 +1,4 @@
 import {type MouseEvent, useCallback} from "react"
-import isEqual from "lodash/isEqual"
 import type {Key} from "swr"
 import usePlaygroundState from "../usePlaygroundState"
 import type {UsePlaygroundVariantsReturn, UsePlaygroundVariantsOptions} from "./types"
@@ -11,6 +10,7 @@ import type {
 } from "../../state/types"
 import cloneDeep from "lodash/cloneDeep"
 import {v4 as uuidv4} from "uuid"
+import {createVariantCompare} from "../usePlaygroundState/assets/comparators"
 
 const usePlaygroundVariants = (
     options?: UsePlaygroundVariantsOptions,
@@ -34,26 +34,8 @@ const usePlaygroundVariants = (
             ...(options?.use || []),
         ],
         compare: useCallback<NonNullable<UsePlaygroundStateOptions["compare"]>>(
-            (a: InitialStateType | undefined, b: InitialStateType | undefined) => {
-                const test = () => {
-                    const variantsA = a?.variants
-                    const variantsB = b?.variants
-
-                    if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
-                        const keysA = variantsA.map((v) => v.variantId)
-                        const keysB = variantsB.map((v) => v.variantId)
-
-                        return (
-                            keysA.length === keysB.length &&
-                            keysA.every((key) => keysB.includes(key))
-                        )
-                    }
-                    return isEqual(a, b)
-                }
-
-                return options?.compare ? options.compare(a, b) : test()
-            },
-            [options],
+            (a, b) => createVariantCompare(options?.compare)(a, b),
+            [options?.compare],
         ),
         ...options,
         hookId: options?.hookId || "variants-wrapper",

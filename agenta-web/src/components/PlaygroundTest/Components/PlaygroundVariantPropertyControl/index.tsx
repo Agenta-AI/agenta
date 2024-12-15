@@ -43,7 +43,7 @@ const PlaygroundVariantPropertyControl = ({
         const handleParamUpdate = (e: HandleParamUpdateEvent | string | boolean | string[]) => {
             const val = Array.isArray(e) ? e : typeof e === "object" ? e.target.value : e
 
-            console.log("handleParamUpdate", e)
+            console.log("handleParamUpdate", val)
             mutateVariant(variantId, val)
         }
 
