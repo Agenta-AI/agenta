@@ -214,15 +214,25 @@ services:
             file: ./services/completion-stateless-sdk/docker-compose.yml
             service: completion-stateless-sdk
 
-    completion-live-sdk:
+    completion-new-sdk:
         extends:
-            file: ./services/completion-live-sdk/docker-compose.yml
-            service: completion-live-sdk
+            file: ./services/completion-new-sdk/docker-compose.yml
+            service: completion-new-sdk
     
-    chat-live-sdk:
+    chat-new-sdk:
         extends:
-            file: ./services/chat-live-sdk/docker-compose.yml
-            service: chat-live-sdk
+            file: ./services/chat-new-sdk/docker-compose.yml
+            service: chat-new-sdk
+
+    completion-new-sdk-prompt:
+        extends:
+            file: ./services/completion-new-sdk-prompt/docker-compose.yml
+            service: completion-new-sdk-prompt
+    
+    chat-new-sdk-prompt:
+        extends:
+            file: ./services/chat-new-sdk-prompt/docker-compose.yml
+            service: chat-new-sdk-prompt
 
 networks:
     agenta-network:
