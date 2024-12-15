@@ -5,6 +5,12 @@ import {SWRConfiguration, Key, Middleware} from "swr"
 export interface StateVariant extends Variant {
     schema?: OpenAPISchema
     appId: string
+    baseId: string
+    baseName: string
+    revision: string | number
+    configName: string
+    projectId: string
+    appName: string
 }
 
 export type InitialStateType = {
