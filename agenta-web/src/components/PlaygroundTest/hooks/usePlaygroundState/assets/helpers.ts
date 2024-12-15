@@ -1,6 +1,30 @@
 import isEqual from "lodash/isEqual"
 import type {InitialStateType, StateVariant} from "../../../state/types"
 import {accessKeyInVariant} from "../../../assets/helpers"
+import {Variant} from "@/lib/Types"
+import {dereference} from "@scalar/openapi-parser"
+import {type OpenAPI} from "@scalar/openapi-types"
+
+/**
+ * FETCHERS
+ */
+
+export const openAPIJsonFetcher = async (variant: Pick<Variant, "variantId">, service: string) => {
+    const openapiJsonResponse = await fetch(`http://localhost/${service}/openapi.json`)
+    const responseJson = await openapiJsonResponse.json()
+    const doc = responseJson as OpenAPI.Document
+    const {schema, errors} = await dereference(doc)
+
+    return {
+        variantId: variant.variantId,
+        schema: schema,
+        errors,
+    }
+}
+
+/**
+ * COMPARE FUNCTIONS
+ */
 
 export const findVariantById = (
     state: InitialStateType | undefined,

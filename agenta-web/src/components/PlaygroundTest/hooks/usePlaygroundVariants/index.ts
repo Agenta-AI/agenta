@@ -6,7 +6,7 @@ import type {StateMiddleware, InitialStateType, StateVariant} from "../../state/
 import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
 import cloneDeep from "lodash/cloneDeep"
 import {v4 as uuidv4} from "uuid"
-import {createVariantCompare} from "../usePlaygroundState/assets/comparators"
+import {createVariantCompare} from "../usePlaygroundState/assets/helpers"
 
 const usePlaygroundVariants = (
     options?: UsePlaygroundVariantsOptions,
