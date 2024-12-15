@@ -67,7 +67,6 @@ const usePlaygroundState = ({
                     const areEqual = isEqual(state.variants, data)
                     if (!areEqual) {
                         state.variants = [...data].map((variant) => {
-                            console.log("base variant", variant)
                             return {
                                 appId: variant.app_id,
                                 variantId: variant.variant_id,
@@ -75,6 +74,9 @@ const usePlaygroundState = ({
                                 baseName: variant.base_name,
                                 variantName: variant.variant_name,
                                 revision: variant.revision,
+                                configName: variant.config_name,
+                                projectId: variant.project_id,
+                                appName: variant.app_name,
                             } as StateVariant
                         })
                     }
