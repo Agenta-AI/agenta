@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
+import clsx from "clsx"
 import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
@@ -119,7 +120,7 @@ type LayoutProps = {
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
-    const {currentApp} = useAppsData()
+    const {currentApp, isLoading} = useAppsData()
     const [footerRef, {height: footerHeight}] = useElementSize()
     const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
@@ -137,6 +138,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
             setUseOrgData(() => context.useOrgData)
         })
     }, [])
+
+    const isNewPlayground = router.pathname.includes("/playground-test")
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -207,7 +210,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && !appId) return null
 
-    if (appId && !currentApp)
+    if (appId && !currentApp && !isLoading)
         return (
             <div className={classes.notFoundContainer}>
                 <Typography.Text>404 - Page Not Found</Typography.Text>
@@ -259,7 +262,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 <Sidebar />
                                 <Layout className={classes.layout}>
                                     <div>
-                                        <div className={classes.breadcrumbContainer}>
+                                        <div className={clsx(classes.breadcrumbContainer, {
+                                            '[&&]:!mb-0': isNewPlayground
+                                        })}>
                                             <Breadcrumb
                                                 items={[
                                                     {
@@ -277,7 +282,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                                 <Text>agenta v{packageJsonData.version}</Text>
                                             </div>
                                         </div>
-                                        <Content className={classes.content}>
+                                        <Content className={clsx(classes.content, {
+                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0": isNewPlayground
+                                        })}>
                                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                                 <ConfigProvider
                                                     theme={{
