@@ -1,4 +1,3 @@
-import isEqual from "lodash/isEqual"
 import {accessKeyInVariant} from "../../assets/helpers"
 import usePlaygroundState from "../usePlaygroundState"
 import type {InitialStateType, StateVariant} from "../../state/types"
@@ -6,7 +5,7 @@ import type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn
 import {useCallback, useMemo} from "react"
 import cloneDeep from "lodash/cloneDeep"
 import type {ConfigPropertyType} from "../../state/types"
-import { findVariantById, compareVariant, createBaseCompare } from "../usePlaygroundState/assets/comparators"
+import { compareVariant } from "../usePlaygroundState/assets/comparators"
 
 function usePlaygroundVariantConfig<T = any>(
     options: UsePlaygroundVariantConfigOptions,
@@ -15,6 +14,9 @@ function usePlaygroundVariantConfig<T = any>(
 
     const {variants, mutate} = usePlaygroundState({
         ...stateOptions,
+        revalidateOnFocus: false,
+        revalidateOnReconnect: false,
+        revalidateOnMount: false,
         compare: useCallback(
             (a: InitialStateType | undefined, b: InitialStateType | undefined) => {
                 return compareVariant(a, b, variantId, options?.compare, configKey)

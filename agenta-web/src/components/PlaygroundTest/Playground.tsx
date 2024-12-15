@@ -22,16 +22,33 @@ const VariantsWrapper = memo(({service}: {service: string}) => {
     )
 })
 
-const Playground: React.FC = () => {
-    const router = useRouter()
-    const service = router.query.service as string
+const PlaygroundHeader = () => {
     const {addVariant} = usePlaygroundVariants({
         fetcher: undefined,
         // no re-renders if data state is mutated
         compare: useCallback(() => true, []),
         hookId: "root",
+        revalidateOnMount: false,
+        revalidateIfStale: false,
+        revalidateOnFocus: false,
+        revalidateOnReconnect: false,
     })
 
+    return (
+        <div className="flex items-center gap-4 px-2.5 py-2">
+            <Typography className="text-[16px] leading-[18px] font-[600]">
+                Playground
+            </Typography>
+            <AddButton label={"Variant"} onClick={addVariant} />
+        </div>
+    )
+}
+    
+
+const Playground: React.FC = () => {
+    const router = useRouter()
+    const service = router.query.service as string
+    
     console.log("render Playground")
 
     if (!service || !AVAILABLE_SERVICES.includes(service)) {
@@ -49,12 +66,7 @@ const Playground: React.FC = () => {
 
     return (
         <div className="flex flex-col w-full h-[calc(100dvh-70px)] overflow-hidden">
-            <div className="flex items-center gap-4 px-2.5 py-2">
-                <Typography className="text-[16px] leading-[18px] font-[600]">
-                    Playground
-                </Typography>
-                <AddButton label={"Variant"} onClick={addVariant} />
-            </div>
+            <PlaygroundHeader />
             <VariantsWrapper service={service} />
         </div>
     )
