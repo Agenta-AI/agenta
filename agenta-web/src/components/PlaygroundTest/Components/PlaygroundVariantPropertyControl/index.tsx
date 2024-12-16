@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo} from "react"
+import {memo, useMemo} from "react"
 import {Typography} from "antd"
 import MinMaxControl from "./MinMaxControl"
 import BooleanControl from "./BooleanControl"
@@ -13,6 +13,7 @@ interface PropertyWithHandler extends Omit<ConfigPropertyType, "type"> {
     minimum?: number
     maximum?: number
     choices?: Record<string, string[]>
+    key: string
 }
 
 const PlaygroundVariantPropertyControl = ({
@@ -28,6 +29,7 @@ const PlaygroundVariantPropertyControl = ({
     })
 
     console.log("render property", configKey)
+
     const property = useMemo((): PropertyWithHandler => {
         /**
          * A generic function that updates a variant prompt's parameters
@@ -42,8 +44,6 @@ const PlaygroundVariantPropertyControl = ({
 
         const handleParamUpdate = (e: HandleParamUpdateEvent | string | boolean | string[]) => {
             const val = Array.isArray(e) ? e : typeof e === "object" ? e.target.value : e
-
-            console.log("handleParamUpdate", val)
             mutateVariant(variantId, val)
         }
 
@@ -94,7 +94,7 @@ const PlaygroundVariantPropertyControl = ({
                         onChange={property.handleChange}
                     />
                 )
-            } else if (configKey.includes("prompt_")) {
+            } else if (property.key.includes("prompt_")) {
                 return (
                     <PromptInput
                         key={property.title}

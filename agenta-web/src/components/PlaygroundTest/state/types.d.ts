@@ -3,7 +3,7 @@ import {SWRConfiguration, Key, Middleware} from "swr"
 
 // Base state types
 export interface StateVariant extends Variant {
-    schema?: OpenAPISchema
+    schema?: ParsedSchema
     appId: string
     baseId: string
     baseName: string
@@ -11,6 +11,45 @@ export interface StateVariant extends Variant {
     configName: string
     projectId: string
     appName: string
+}
+
+export type ModelDefaults = {
+    temperature: number
+    model: string
+    max_tokens: number
+    top_p: number
+    frequence_penalty: number
+    presence_penalty: number
+    force_json: boolean
+    key: string
+}
+
+export type PromptDefaults = {
+    prompt_system: string
+    prompt_user: string
+    key: string
+}
+
+type ParsedBasePromptConfig = {
+    modelProperties: ConfigProperty[]
+    modelDefaults: ModelDefaults
+    promptProperties: ConfigProperty[]
+    promptDefaults: PromptDefaults
+}
+
+type GroupConfigReturn<R extends boolean, P extends boolean> = R extends true
+    ? P extends true
+        ? PromptDefaults
+        : ModelDefaults
+    : ConfigProperty[]
+
+export interface PromptConfigType extends ParsedBasePromptConfig {
+    key: string
+}
+
+export type ParsedSchema = {
+    schemaName: string
+    promptConfig: Array<PromptConfigType>
 }
 
 export type InitialStateType = {
