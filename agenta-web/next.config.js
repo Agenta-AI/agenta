@@ -11,6 +11,7 @@ const nextConfig = {
     transpilePackages: [
         "@lobehub/ui",
         "@lobehub/icons",
+        "@lobehub/fluent-emoji",
         "rc-util",
         "antd",
         "rc-pagination",
