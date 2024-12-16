@@ -148,4 +148,6 @@ app.include_router(
 if isCloudEE():
     import agenta_backend.cloud.main as cloud
 
+    print("isCloudEE")
+
     app = cloud.extend_app_schema(app)
