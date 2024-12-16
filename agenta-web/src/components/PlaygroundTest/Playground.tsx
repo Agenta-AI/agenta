@@ -1,40 +1,10 @@
 import {memo} from "react"
 import {useRouter} from "next/router"
 import {AVAILABLE_SERVICES} from "./assets/constants"
-import {Typography} from "antd"
-import AddButton from "./assets/AddButton"
-import usePlaygroundVariants from "./hooks/usePlaygroundVariants"
 import dynamic from "next/dynamic"
+import PlaygroundVariants from "./Components/PlaygroundVariants"
 
-const PlaygroundVariant = dynamic(() => import("./Components/PlaygroundVariant"), {ssr: false})
-
-const VariantsWrapper = memo(({service}: {service: string}) => {
-    const {variants} = usePlaygroundVariants()
-
-    console.log("render VariantsWrapper", variants)
-
-    return (
-        <div className="flex flex-col gap-2 w-full grow overflow-hidden">
-            {variants.map((variant) => {
-                return <PlaygroundVariant variant={variant} key={variant.variantId} />
-            })}
-        </div>
-    )
-})
-
-const PlaygroundHeader = () => {
-    const {addVariant} = usePlaygroundVariants({
-        neverFetch: true,
-        hookId: "root",
-    })
-
-    return (
-        <div className="flex items-center gap-4 px-2.5 py-2">
-            <Typography className="text-[16px] leading-[18px] font-[600]">Playground</Typography>
-            <AddButton label={"Variant"} onClick={addVariant} />
-        </div>
-    )
-}
+const PlaygroundHeader = dynamic(() => import("./Components/PlaygroundHeader"), {ssr: false})
 
 const Playground: React.FC = () => {
     const router = useRouter()
@@ -58,7 +28,7 @@ const Playground: React.FC = () => {
     return (
         <div className="flex flex-col w-full h-[calc(100dvh-70px)] overflow-hidden">
             <PlaygroundHeader />
-            <VariantsWrapper service={service} />
+            <PlaygroundVariants />
         </div>
     )
 }

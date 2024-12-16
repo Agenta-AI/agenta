@@ -1,7 +1,7 @@
 import {memo} from "react"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 import AddButton from "../../../assets/AddButton"
-import {PromptConfigType} from "@/components/PlaygroundTest/hooks/useAgentaConfig/types"
+import {type PromptConfigType} from "../../../state/types"
 
 const PlaygroundVariantConfigPromptCollapseContent = ({
     prompt,

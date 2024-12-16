@@ -1,6 +1,6 @@
 import {memo} from "react"
 import dynamic from "next/dynamic"
-import {PromptConfigType} from "@/components/PlaygroundTest/hooks/useAgentaConfig/types"
+import {type PromptConfigType} from "../../../state/types"
 
 const PlaygroundVariantModelConfig = dynamic(() => import("../../PlaygroundVariantModelConfig"), {
     ssr: false,
