@@ -1,13 +1,13 @@
-import {memo} from "react"
+import {memo, type MouseEvent} from "react"
 import {Button} from "antd"
-import {ConfigProperty} from "../../../state/types"
+import {type ConfigProperty} from "../../../state/types"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 
 interface PlaygroundVariantModelConfigModalProps {
     variantId: string
     properties: ConfigProperty[]
     handleSave: () => void
-    handleClose: () => void
+    handleClose: (e: MouseEvent<HTMLElement>) => void
 }
 
 const PlaygroundVariantModelConfigModal = ({

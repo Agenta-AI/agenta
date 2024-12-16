@@ -1,8 +1,8 @@
-import {memo, useCallback, useState} from "react"
+import {type MouseEvent, memo, useCallback, useState} from "react"
 import clsx from "clsx"
 import {Button, Popover} from "antd"
 import {CaretDown} from "@phosphor-icons/react"
-import {ConfigProperty} from "../../state/types"
+import {type ConfigProperty} from "../../state/types"
 import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import PlaygroundVariantModelConfigModal from "./assets/PlaygroundVariantModelConfigModal"
 
@@ -18,14 +18,23 @@ const PlaygroundVariantModelConfig = ({
     const [openAdvancedConfigPopover, setOpenAdvancedConfigPopover] = useState(false)
     const promptModel = modelProperties.find((mp) => mp.title === "Model")
 
-    const handleResetDefaults = useCallback(() => {
+    const handleResetDefaults = useCallback((e: MouseEvent<HTMLElement>) => {
         console.log("reset defaults")
+
+        closePopover(e)
     }, [])
 
-    const closePopover = useCallback(() => {
+    const closePopover = useCallback((e: MouseEvent<HTMLElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+
         setOpenAdvancedConfigPopover(false)
     }, [])
-    const openPopover = useCallback(() => {
+
+    const openPopover = useCallback((e: MouseEvent<HTMLElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+
         setOpenAdvancedConfigPopover(true)
     }, [])
 

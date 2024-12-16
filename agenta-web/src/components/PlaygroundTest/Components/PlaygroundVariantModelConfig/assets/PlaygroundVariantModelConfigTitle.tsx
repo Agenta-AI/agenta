@@ -1,9 +1,9 @@
-import {memo} from "react"
+import {memo, type MouseEvent} from "react"
 import {Button, Typography} from "antd"
 import {useStyles} from "./styles"
 
 interface PlaygroundVariantModelConfigTitleProps {
-    handleReset: () => void
+    handleReset: (e: MouseEvent<HTMLElement>) => void
 }
 
 const PlaygroundVariantModelConfigTitle = ({
