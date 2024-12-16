@@ -41,14 +41,14 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
     const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [traceData, setTraceData] = useState(data.length > 0 ? data : [])
+    const [traceData, setTraceData] = useState<TestsetTraceData[]>([])
     const [testset, setTestset] = useState({name: "", id: ""})
     const [newTestsetName, setNewTestsetName] = useState("")
     const [editorFormat, setEditorFormat] = useState("JSON")
     const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<TestsetColumn[]>([])
     const [selectedTestsetRows, setSelectedTestsetRows] = useState<KeyValuePair[]>([])
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
-    const [rowDataPreview, setRowDataPreview] = useState(traceData[0]?.key || "")
+    const [rowDataPreview, setRowDataPreview] = useState("")
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
@@ -63,6 +63,13 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const isMapColumnExist = mappingData.some((mapping) =>
         mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
     )
+
+    useUpdateEffect(() => {
+        if (data.length > 0) {
+            setTraceData(data)
+            setRowDataPreview(data[0]?.key || "")
+        }
+    }, [data])
 
     // predefind options
     const customSelectOptions = (divider = true) => {
@@ -86,59 +93,18 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
         try {
             resetStates()
-            setTestset({name: label, id: value})
-            let testsetColumns: string[] = []
-
             if (value && value !== "create") {
                 const data = await fetchTestset(value)
                 if (data?.csvdata?.length) {
-                    testsetColumns = Object.keys(data.csvdata[0])
+                    const testsetColumns = Object.keys(data.csvdata[0])
+                    setSelectedTestsetColumns(() =>
+                        testsetColumns.map((data) => ({column: data, isNew: false})),
+                    )
                     setSelectedTestsetRows(data.csvdata)
                 }
             }
 
-            // TODO: make this function more efficinat and cleanup things
-            if (mappingOptions.length > 0 && value) {
-                setMappingData((prevMappingData) => {
-                    const updatedColumns = [...testsetColumns]
-
-                    const mappedData = mappingOptions.map((item, index) => {
-                        const mapName = item.value.split(".").pop()!
-                        const columns = updatedColumns.map((col) => col.toLowerCase())
-
-                        let matchingColumn = columns.includes(mapName.toLowerCase())
-                            ? updatedColumns[columns.indexOf(mapName.toLowerCase())]
-                            : mapName === "outputs"
-                              ? updatedColumns[columns.indexOf("correct_answer")]
-                              : undefined
-
-                        if (!matchingColumn) {
-                            matchingColumn = mapName
-
-                            if (
-                                columns.length === 0 ||
-                                !columns.includes(matchingColumn.toLowerCase())
-                            ) {
-                                updatedColumns.push(matchingColumn)
-                                setSelectedTestsetColumns(() =>
-                                    updatedColumns.map((data) => ({
-                                        column: data,
-                                        isNew: !testsetColumns.includes(data),
-                                    })),
-                                )
-                            }
-                        }
-
-                        return {
-                            ...prevMappingData[index],
-                            data: item.value,
-                            column: matchingColumn,
-                        }
-                    })
-
-                    return mappedData
-                })
-            }
+            setTestset({name: label, id: value})
         } catch (error) {
             message.error("Failed to load Test sets!")
         }
@@ -191,8 +157,57 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
             traceKeys.forEach((key) => uniquePaths.add(key))
         })
 
-        return Array.from(uniquePaths).map((item) => ({value: item}))
-    }, [traceData])
+        const mappedData = Array.from(uniquePaths).map((item) => ({value: item}))
+
+        // TODO: make this function more efficinat and cleanup things
+        if (mappedData.length > 0 && testset.id) {
+            setMappingData((prevMappingData) => {
+                const testsetColumnsSet = new Set(
+                    selectedTestsetColumns.map((item) => item.column.toLowerCase()),
+                )
+
+                const newMappedData = mappedData.map((item, index) => {
+                    const mapName = item.value.split(".").pop()!.toLowerCase()
+
+                    let matchingColumn = mapName
+                    if (testsetColumnsSet.has(mapName)) {
+                        matchingColumn = selectedTestsetColumns.find(
+                            (col) => col.column.toLowerCase() === mapName,
+                        )!.column
+                    } else if (mapName === "outputs" && testsetColumnsSet.has("correct_answer")) {
+                        matchingColumn = selectedTestsetColumns.find(
+                            (col) => col.column.toLowerCase() === "correct_answer",
+                        )!.column
+                    }
+
+                    return {
+                        ...prevMappingData[index],
+                        data: item.value,
+                        column: matchingColumn,
+                    }
+                })
+
+                // Efficiently update selected columns
+                const updatedColumns = new Set([
+                    ...selectedTestsetColumns.map((col) => col.column),
+                    ...newMappedData
+                        .filter((item) => !testsetColumnsSet.has(item.column.toLowerCase()))
+                        .map((item) => item.column),
+                ])
+
+                setSelectedTestsetColumns(
+                    Array.from(updatedColumns).map((column) => ({
+                        column,
+                        isNew: !testsetColumnsSet.has(column.toLowerCase()),
+                    })),
+                )
+
+                return newMappedData
+            })
+        }
+
+        return mappedData
+    }, [traceData, testset])
 
     const columnOptions = useMemo(() => {
         const selectedColumns = mappingData
@@ -446,7 +461,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         <>
             <GenericDrawer
                 {...props}
-                destroyOnClose
+                destroyOnClose={false}
                 onClose={onClose}
                 expandable
                 initialWidth={640}
@@ -805,8 +820,10 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     <div className="flex gap-1">
                                         {selectedTestsetColumns
                                             .filter((item) => item.isNew)
-                                            .map((item) => (
-                                                <Typography.Text>{item.column}</Typography.Text>
+                                            .map((item, idx) => (
+                                                <Typography.Text key={idx}>
+                                                    {item.column}
+                                                </Typography.Text>
                                             ))}
                                     </div>
                                 </div>
