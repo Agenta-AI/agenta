@@ -17,7 +17,7 @@ import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
-import AgGridReact, { type AgGridReactType } from "@/lib/helpers/agGrid"
+import AgGridReact, {type AgGridReactType} from "@/lib/helpers/agGrid"
 
 type TestsetTableProps = {
     mode: "edit"
@@ -84,7 +84,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
     const [writeMode, setWriteMode] = useState(mode)
-    const [gridRef, setGridRef] = useState<AgGridReactType["api"]>()  
+    const [gridRef, setGridRef] = useState<AgGridReactType["api"]>()
 
     const [selectedRow, setSelectedRow] = useState([])
 
