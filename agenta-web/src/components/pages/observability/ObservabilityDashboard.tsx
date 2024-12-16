@@ -654,16 +654,14 @@ const ObservabilityDashboard = () => {
                 />
             </div>
 
-            {testsetDrawerData.length > 0 && (
-                <TestsetDrawer
-                    open={testsetDrawerData.length > 0}
-                    data={testsetDrawerData}
-                    onClose={() => {
-                        setTestsetDrawerData([])
-                        setSelectedRowKeys([])
-                    }}
-                />
-            )}
+            <TestsetDrawer
+                open={testsetDrawerData.length > 0}
+                data={testsetDrawerData}
+                onClose={() => {
+                    setTestsetDrawerData([])
+                    setSelectedRowKeys([])
+                }}
+            />
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer
