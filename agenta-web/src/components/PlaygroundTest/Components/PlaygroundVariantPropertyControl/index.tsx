@@ -4,17 +4,7 @@ import MinMaxControl from "./MinMaxControl"
 import BooleanControl from "./BooleanControl"
 import MultiSelectControl from "./MultiSelectControl"
 import PromptInput from "./PromptInput"
-import type {ConfigPropertyType} from "../../state/types"
 import usePlaygroundVariantConfig from "../../hooks/usePlaygroundVariantConfig"
-
-interface PropertyWithHandler extends Omit<ConfigPropertyType, "type"> {
-    type: string
-    handleChange: (value: unknown) => void
-    minimum?: number
-    maximum?: number
-    choices?: Record<string, string[]>
-    key: string
-}
 
 const PlaygroundVariantPropertyControl = ({
     configKey,
@@ -23,14 +13,12 @@ const PlaygroundVariantPropertyControl = ({
     configKey: string
     variantId: string
 }) => {
-    const {mutateVariant, config} = usePlaygroundVariantConfig({
+    const {mutateVariant, config: _config} = usePlaygroundVariantConfig({
         configKey,
         variantId,
     })
 
-    console.log("render property", configKey)
-
-    const property = useMemo((): PropertyWithHandler => {
+    const property = useMemo(() => {
         /**
          * A generic function that updates a variant prompt's parameters
          * @param e
@@ -38,40 +26,53 @@ const PlaygroundVariantPropertyControl = ({
          */
         interface HandleParamUpdateEvent {
             target: {
-                value: string | boolean | string[]
+                value: string | boolean | string[] | null | number
             }
         }
 
-        const handleParamUpdate = (e: HandleParamUpdateEvent | string | boolean | string[]) => {
-            const val = Array.isArray(e) ? e : typeof e === "object" ? e.target.value : e
+        const handleParamUpdate = (
+            e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
+        ) => {
+            const val = !!e
+                ? Array.isArray(e)
+                    ? e
+                    : typeof e === "object"
+                      ? e.target.value
+                      : e
+                : null
+            console.log("handle param update", val)
             mutateVariant(variantId, val)
         }
 
         return {
-            ...config,
-            handleChange: (e: HandleParamUpdateEvent | string | boolean | string[]) =>
-                handleParamUpdate(e),
+            config: _config.config || _config,
+            valueInfo: _config.config ? _config : {},
+            handleChange: (
+                e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
+            ) => handleParamUpdate(e),
         }
-    }, [config, mutateVariant, variantId])
+    }, [_config])
 
-    switch (property.type) {
+    console.log("render property", configKey)
+
+    switch (property.config.type) {
         case "number":
         case "integer":
-            if (!Number.isNaN(property.minimum) && !Number.isNaN(property.maximum)) {
+            if (!Number.isNaN(property.config.minimum) && !Number.isNaN(property.config.maximum)) {
                 return (
                     <MinMaxControl
-                        label={property.title}
-                        min={property.minimum}
-                        max={property.maximum}
+                        label={property.config.title}
+                        min={property.config.minimum}
+                        max={property.config.maximum}
                         step={0.1}
-                        value={property.default as number}
+                        value={property.valueInfo.value as number}
                         onChange={property.handleChange}
                     />
                 )
             } else {
                 return (
                     <div>
-                        <Typography.Text>{property.title}</Typography.Text>
+                        <Typography.Text>{property.config.title}</Typography.Text>
                         number
                     </div>
                 )
@@ -79,28 +80,28 @@ const PlaygroundVariantPropertyControl = ({
         case "boolean":
             return (
                 <BooleanControl
-                    label={property.title}
-                    value={property.default as boolean}
+                    label={property.config.title}
+                    value={property.valueInfo.value as boolean}
                     onChange={property.handleChange}
                 />
             )
         case "string":
-            if (property.choices) {
+            if (property.config.choices) {
                 return (
                     <MultiSelectControl
-                        label={property.title}
-                        options={property.choices}
-                        value={property.default as string | string[]}
+                        label={property.config.title}
+                        options={property.config.choices}
+                        value={property.valueInfo.value as string | string[]}
                         onChange={property.handleChange}
                     />
                 )
-            } else if (property.key.includes("prompt_")) {
+            } else if (property.config.key.includes("prompt_")) {
                 return (
                     <PromptInput
-                        key={property.title}
-                        title={property.title}
-                        value={property.default as string}
-                        type={property.type}
+                        key={property.config.title}
+                        title={property.config.title}
+                        value={property.valueInfo.value as string}
+                        type={property.config.type}
                         onChange={property.handleChange}
                     />
                 )
@@ -109,7 +110,7 @@ const PlaygroundVariantPropertyControl = ({
         default:
             return (
                 <div>
-                    <Typography.Text>{property.title}</Typography.Text>
+                    <Typography.Text>{property.config.title}</Typography.Text>
                 </div>
             )
     }

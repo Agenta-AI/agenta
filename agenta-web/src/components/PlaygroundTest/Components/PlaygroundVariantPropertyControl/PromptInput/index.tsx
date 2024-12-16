@@ -13,7 +13,7 @@ const PromptInput = ({
 }: {
     value: string
     title: string
-    onChange: (e: ChangeEvent) => void
+    onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void
     type?: string
     options?: string[]
 }) => {

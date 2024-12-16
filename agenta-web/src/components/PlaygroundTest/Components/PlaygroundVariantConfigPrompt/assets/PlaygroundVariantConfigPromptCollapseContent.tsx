@@ -13,7 +13,7 @@ const PlaygroundVariantConfigPromptCollapseContent = ({
     console.log("render PlaygroundVariantConfigPromptCollapse - Content")
     return (
         <div className="flex flex-col gap-4">
-            {prompt.promptProperties.map((property) => {
+            {prompt.promptDefaults.map((property) => {
                 return (
                     <PlaygroundVariantPropertyControl
                         key={[property.configKey, variantId].join("-")}

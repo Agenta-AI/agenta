@@ -10,5 +10,5 @@ export interface UsePlaygroundVariantConfigOptions
 export interface UsePlaygroundVariantConfigReturn<T = any> {
     variant: StateVariant | undefined
     config: T | undefined
-    mutateVariant: (variantId: string, val: string | boolean | string[] | number) => void
+    mutateVariant: (variantId: string, val: string | boolean | string[] | number | null) => void
 }
