@@ -19,7 +19,7 @@ const useStyles = createUseStyles({
 })
 
 interface Props {
-    variant: Variant
+    variant: Variant[]
     isModalOpen: boolean
     setIsModalOpen: (value: boolean) => void
     environments: Environment[]
