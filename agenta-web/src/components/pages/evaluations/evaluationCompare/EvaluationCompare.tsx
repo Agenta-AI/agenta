@@ -87,7 +87,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
     const [testset, setTestset] = useState<TestSet>()
     const [evaluators] = useAtom(evaluatorsAtom)
-    const gridRef = useRef<AgGridReactType<_EvaluationScenario>>()
+    const [gridRef, setGridRef] = useState<AgGridReactType<ComparisonResultRow>>()
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
@@ -375,14 +375,14 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                 setRows(rows)
                 setTestset(testset)
                 setTimeout(() => {
-                    if (!gridRef.current) return
+                    if (!gridRef) return
 
                     const ids: string[] =
-                        gridRef.current.api
+                        gridRef.api
                             .getColumns()
                             ?.filter((column) => column.getColDef().field?.endsWith("result"))
                             ?.map((item) => item.getColId()) || []
-                    gridRef.current.api.autoSizeColumns(ids, false)
+                    gridRef.api.autoSizeColumns(ids, false)
                     setFetching(false)
                 }, 100)
             })
@@ -390,8 +390,9 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     }
 
     useEffect(() => {
+        if (!gridRef) return
         fetcher()
-    }, [appId, evaluationIdsStr])
+    }, [appId, evaluationIdsStr, gridRef])
 
     const handleToggleVariantVisibility = (evalId: string) => {
         if (!hiddenVariants.includes(evalId)) {
@@ -437,7 +438,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
     }
 
     const onExport = (): void => {
-        const gridApi = gridRef.current?.api
+        const gridApi = gridRef?.api
         if (!gridApi) return
 
         const {currentApp} = getAppValues()
@@ -576,7 +577,7 @@ const EvaluationCompareMode: React.FC<Props> = () => {
                     data-cy="evaluation-compare-table"
                 >
                     <AgGridReact<ComparisonResultRow>
-                        ref={gridRef as any}
+                        gridRef={setGridRef}
                         rowData={rows}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.rowId}

@@ -66,7 +66,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
     const [fetching, setFetching] = useState(false)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
-    const gridRef = useRef<AgGridReactType<_EvaluationScenario>>()
+    const [gridRef, setGridRef] = useState<AgGridReactType<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
@@ -287,14 +287,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 setScenarios(scenarios)
                 setEvaluators(evaluators)
                 setTimeout(() => {
-                    if (!gridRef.current) return
+                    if (!gridRef) return
 
                     const ids: string[] =
-                        gridRef.current.api
+                        gridRef.api
                             .getColumns()
                             ?.filter((column) => column.getColDef().field === "results")
                             ?.map((item) => item.getColId()) || []
-                    gridRef.current.api.autoSizeColumns(ids, false)
+                    gridRef.api.autoSizeColumns(ids, false)
                     setFetching(false)
                 }, 100)
             })
@@ -303,13 +303,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
     }
 
     useEffect(() => {
+        if (!gridRef) return
         fetcher()
-    }, [appId, evaluationId])
+    }, [appId, gridRef, evaluationId])
 
     const onExport = () => {
-        if (!gridRef.current) return
+        if (!gridRef) return
         const {currentApp} = getAppValues()
-        gridRef.current.api.exportDataAsCsv({
+        gridRef.api.exportDataAsCsv({
             fileName: `${currentApp?.app_name}_${evalaution.variants[0].variantName}.csv`,
             processHeaderCallback: (params) => {
                 if (params.column.getColDef().headerName === "Output") {
@@ -422,7 +423,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     data-cy="evalaution-scenarios-table"
                 >
                     <AgGridReact<_EvaluationScenario>
-                        ref={gridRef as any}
+                        gridRef={setGridRef}
                         rowData={scenarios}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}
