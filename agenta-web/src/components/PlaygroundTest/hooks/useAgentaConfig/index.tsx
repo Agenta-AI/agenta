@@ -1,15 +1,24 @@
 import {useMemo} from "react"
-import {type StateVariant} from "../../state/types"
-import {PromptConfigType} from "../../state/types"
+import usePlaygroundVariants from "../usePlaygroundVariants"
 
-const useAgentaConfig = ({variant}: {variant: StateVariant}) => {
-    const prompts: PromptConfigType[] = useMemo(() => {
-        return variant.schema?.promptConfig || []
-    }, [variant])
+const useAgentaConfig = ({variantId, promptIndex}: {variantId: string; promptIndex?: number}) => {
+    const {variants} = usePlaygroundVariants({
+        neverFetch: true,
+    })
 
-    return {
-        prompts,
-    }
+    const returnData = useMemo(() => {
+        const variant = variants?.find((v) => v.variantId === variantId)
+        const prompts = variant?.schema?.promptConfig || []
+        const prompt = !isNaN(promptIndex as number) ? prompts[promptIndex as number] : undefined
+
+        return {
+            prompts,
+            variant,
+            prompt,
+        }
+    }, [variants, variantId, promptIndex])
+
+    return returnData
 }
 
 export default useAgentaConfig

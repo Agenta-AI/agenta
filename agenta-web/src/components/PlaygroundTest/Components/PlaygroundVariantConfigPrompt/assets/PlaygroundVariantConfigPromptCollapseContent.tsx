@@ -1,19 +1,20 @@
 import {memo} from "react"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 import AddButton from "../../../assets/AddButton"
-import {type PromptConfigType} from "../../../state/types"
+import useAgentaConfig from "@/components/PlaygroundTest/hooks/useAgentaConfig"
 
 const PlaygroundVariantConfigPromptCollapseContent = ({
-    prompt,
+    promptIndex,
     variantId,
 }: {
     variantId: string
-    prompt: PromptConfigType
+    promptIndex: number
 }) => {
+    const {prompt} = useAgentaConfig({variantId, promptIndex})  
     console.log("render PlaygroundVariantConfigPromptCollapse - Content")
     return (
         <div className="flex flex-col gap-4">
-            {prompt.promptDefaults.map((property) => {
+            {prompt?.promptDefaults.map((property) => {
                 return (
                     <PlaygroundVariantPropertyControl
                         key={[property.configKey, variantId].join("-")}

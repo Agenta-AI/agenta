@@ -1,16 +1,15 @@
 import {memo} from "react"
 import dynamic from "next/dynamic"
-import {type PromptConfigType} from "../../../state/types"
 
 const PlaygroundVariantModelConfig = dynamic(() => import("../../PlaygroundVariantModelConfig"), {
     ssr: false,
 })
 
 const PlaygroundVariantConfigPromptCollapseHeader = ({
-    prompt,
+    promptIndex,
     variantId,
 }: {
-    prompt: PromptConfigType
+    promptIndex: number
     variantId: string
 }) => {
     console.log("render PlaygroundVariantConfigPromptCollapse - Header")
@@ -19,7 +18,7 @@ const PlaygroundVariantConfigPromptCollapseHeader = ({
             <div>Prompt</div>
             <PlaygroundVariantModelConfig
                 variantId={variantId}
-                modelProperties={prompt.modelDefaults}
+                promptIndex={promptIndex}
             />
         </div>
     )

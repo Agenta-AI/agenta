@@ -4,14 +4,13 @@ import clsx from "clsx"
 import {Collapse} from "antd"
 import PlaygroundVariantConfigPromptCollapseHeader from "./assets/PlaygroundVariantConfigPromptCollapseHeader"
 import PlaygroundVariantConfigPromptCollapseContent from "./assets/PlaygroundVariantConfigPromptCollapseContent"
-import {type PromptConfigType} from "../../state/types"
 
 const PlaygroundVariantConfigPrompt = ({
     variantId,
-    prompt,
+    promptIndex,
 }: {
+    promptIndex: number
     variantId: string
-    prompt: PromptConfigType
 }) => {
     console.log("render PlaygroundVariantConfigCollapse")
     const defaultActiveKey = useRef(["1"])
@@ -25,13 +24,13 @@ const PlaygroundVariantConfigPrompt = ({
                 },
                 label: (
                     <PlaygroundVariantConfigPromptCollapseHeader
-                        prompt={prompt}
+                        promptIndex={promptIndex}
                         variantId={variantId}
                     />
                 ),
                 children: (
                     <PlaygroundVariantConfigPromptCollapseContent
-                        prompt={prompt}
+                        promptIndex={promptIndex}
                         variantId={variantId}
                     />
                 ),
