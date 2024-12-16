@@ -68,7 +68,6 @@ const EvaluatorsModal = ({
         "evaluator_view",
         "list",
     )
-    const [selectedEvaluatorCategory, setSelectedEvaluatorCategory] = useState("view_all")
     const [selectedTestset, setSelectedTestset] = useState("")
 
     const evalConfigFetcher = () => {
@@ -114,8 +113,6 @@ const EvaluatorsModal = ({
                     setCloneConfig={setCloneConfig}
                     setEvaluatorsDisplay={setEvaluatorsDisplay}
                     evaluatorsDisplay={evaluatorsDisplay}
-                    selectedEvaluatorCategory={selectedEvaluatorCategory}
-                    setSelectedEvaluatorCategory={setSelectedEvaluatorCategory}
                 />
             ),
         },
@@ -128,8 +125,6 @@ const EvaluatorsModal = ({
                     setSelectedEvaluator={setSelectedEvaluator}
                     setEvaluatorsDisplay={setEvaluatorsDisplay}
                     evaluatorsDisplay={evaluatorsDisplay}
-                    selectedEvaluatorCategory={selectedEvaluatorCategory}
-                    setSelectedEvaluatorCategory={setSelectedEvaluatorCategory}
                 />
             ),
         },
