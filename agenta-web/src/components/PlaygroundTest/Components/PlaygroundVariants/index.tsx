@@ -1,8 +1,10 @@
 import {memo} from "react"
 import usePlaygroundVariants from "../../hooks/usePlaygroundVariants"
-import PlaygroundVariant from "../PlaygroundVariant"
+import dynamic from "next/dynamic"
 
-const PlaygroundVariants = memo(() => {
+const PlaygroundVariant = dynamic(() => import("../PlaygroundVariant"), {ssr: false})
+
+const PlaygroundVariants = () => {
     const {variants} = usePlaygroundVariants()
 
     console.log("render VariantsWrapper", variants)
@@ -14,6 +16,6 @@ const PlaygroundVariants = memo(() => {
             })}
         </div>
     )
-})
+}
 
-export default PlaygroundVariants
+export default memo(PlaygroundVariants)
