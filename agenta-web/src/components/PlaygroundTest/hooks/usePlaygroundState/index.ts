@@ -10,10 +10,9 @@ import useSWR, {
 } from "swr"
 import Router from "next/router"
 import {getCurrentProject} from "@/contexts/project.context"
-import isEqual from "lodash/isEqual"
-import type {InitialStateType, OpenAPISchema, StateVariant} from "../../state/types"
+import type {InitialStateType} from "../../state/types"
 import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
-import {openAPIJsonFetcher} from "./assets/helpers"
+import {fetchAndUpdateVariants, setVariants} from "./assets/helpers"
 import cloneDeep from "lodash/cloneDeep"
 import {initialState} from "./assets/constants"
 
@@ -61,39 +60,9 @@ const usePlaygroundState = ({
                     }
 
                     const data = await _fetcher(url)
-                    const areEqual = isEqual(state.variants, data)
-                    if (!areEqual) {
-                        state.variants = [...data].map((variant) => {
-                            return {
-                                appId: variant.app_id,
-                                variantId: variant.variant_id,
-                                baseId: variant.base_id,
-                                baseName: variant.base_name,
-                                variantName: variant.variant_name,
-                                revision: variant.revision,
-                                configName: variant.config_name,
-                                projectId: variant.project_id,
-                                appName: variant.app_name,
-                            } as StateVariant
-                        })
-                    }
+                    state.variants = setVariants(state.variants, data)
 
-                    const jsonPromises = state.variants.map((variant) =>
-                        openAPIJsonFetcher(variant, service),
-                    )
-                    const openapiJsons = await Promise.all(jsonPromises)
-
-                    openapiJsons.forEach((json, index) => {
-                        const stateVariant = state.variants.find(
-                            (variant) => variant.variantId === json.variantId,
-                        )
-                        if (!stateVariant) {
-                            console.error("Could not find variant for json", json)
-                            return
-                        }
-
-                        stateVariant.schema = json.schema as OpenAPISchema
-                    })
+                    await fetchAndUpdateVariants(state.variants, service)
 
                     return state
                 }
