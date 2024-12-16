@@ -9,7 +9,6 @@ export type TestsetTraceData = {
     data: KeyValuePair
     id: number
     isEdited?: false
-    isError?: false
     originalData?: KeyValuePair | null
 }
 export type TestsetDrawerProps = {

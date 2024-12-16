@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
-import {ArrowRight, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
+import {ArrowRight, FloppyDiskBack, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {
     Button,
     Checkbox,
@@ -15,7 +15,7 @@ import {
 } from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Editor, OnMount} from "@monaco-editor/react"
+import {Editor} from "@monaco-editor/react"
 import {KeyValuePair, testset} from "@/lib/Types"
 import {
     createNewTestset,
@@ -23,7 +23,7 @@ import {
     updateTestset,
     useLoadTestsetsList,
 } from "@/services/testsets/api"
-import {collectKeyPathsFromObject, getStringOrJson} from "@/lib/helpers/utils"
+import {collectKeyPathsFromObject, getYamlOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
 import {useUpdateEffect} from "usehooks-ts"
 import useResizeObserver from "@/hooks/useResizeObserver"
@@ -44,7 +44,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [traceData, setTraceData] = useState<TestsetTraceData[]>([])
     const [testset, setTestset] = useState({name: "", id: ""})
     const [newTestsetName, setNewTestsetName] = useState("")
-    const [editorFormat, setEditorFormat] = useState("JSON")
+    const [editorFormat, setEditorFormat] = useState<"JSON" | "YAML">("JSON")
     const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<TestsetColumn[]>([])
     const [selectedTestsetRows, setSelectedTestsetRows] = useState<KeyValuePair[]>([])
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
@@ -62,6 +62,10 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const isNewColumnCreated = selectedTestsetColumns.find(({isNew}) => isNew === true)
     const isMapColumnExist = mappingData.some((mapping) =>
         mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
+    )
+    const selectedTraceData = useMemo(
+        () => traceData.find((trace) => trace.key === rowDataPreview),
+        [rowDataPreview, traceData],
     )
 
     useUpdateEffect(() => {
@@ -130,23 +134,13 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         }
     }
 
-    // TODO: maybe we can convert this into a function for better useability
     const formatDataPreview = useMemo(() => {
         if (!traceData?.length) return ""
 
-        const jsonObject = {
-            data:
-                traceData.find((trace) => trace?.key === rowDataPreview)?.data ||
-                traceData[0]?.data,
-        }
+        const jsonObject = {data: selectedTraceData?.data || traceData[0]?.data}
         if (!jsonObject) return ""
 
-        try {
-            return editorFormat === "YAML" ? yaml.dump(jsonObject) : getStringOrJson(jsonObject)
-        } catch (error) {
-            message.error("Failed to convert JSON to YAML. Please ensure the data is valid.")
-            return getStringOrJson(jsonObject)
-        }
+        return getYamlOrJson(editorFormat, jsonObject)
     }, [editorFormat, traceData, rowDataPreview])
 
     const mappingOptions = useMemo(() => {
@@ -390,42 +384,32 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         )
     }, [mappingData, selectedTestsetColumns, showLastFiveRows])
 
-    // checkpoint-2 integrations ---------------------------------------------------------------------------------
-
-    const selectedTraceData = useMemo(
-        () => traceData.find((trace) => trace.key === rowDataPreview),
-        [rowDataPreview, traceData],
-    )
-
-    const handleEditorDidMount: OnMount = useCallback((editor, monaco) => {
-        editor.onDidBlurEditorText(() => {
-            setUpdatedData(editor.getValue())
-        })
-    }, [])
-
-    useUpdateEffect(() => {
+    const onSaveEditedTrace = () => {
         if (updatedData && updatedData !== formatDataPreview) {
-            const updatedTraceData = traceData.map((trace) => {
-                const isMatchingKey = trace.key === rowDataPreview
+            try {
+                const updatedTraceData = traceData.map((trace) => {
+                    if (trace.key === rowDataPreview) {
+                        const parsedUpdatedData =
+                            typeof updatedData === "string"
+                                ? editorFormat === "YAML"
+                                    ? yaml.load(updatedData)
+                                    : JSON.parse(updatedData)
+                                : updatedData
 
-                try {
-                    const parsedUpdatedData =
-                        typeof updatedData === "string" ? JSON.parse(updatedData) : updatedData
+                        const updatedDataString = getYamlOrJson(editorFormat, parsedUpdatedData)
+                        const originalDataString = getYamlOrJson(editorFormat, {
+                            data: trace.originalData || trace.data,
+                        })
+                        const isMatchingOriginalData = updatedDataString == originalDataString
+                        const isMatchingData =
+                            updatedDataString !== getYamlOrJson(editorFormat, {data: trace.data})
 
-                    const originalDataString = getStringOrJson({data: trace.originalData})
-                    const updatedDataString = getStringOrJson(parsedUpdatedData)
-
-                    const isMatchingOriginalData = originalDataString === updatedDataString
-                    const isMatchingData = updatedDataString !== getStringOrJson({data: trace.data})
-
-                    if (isMatchingKey) {
                         if (isMatchingOriginalData) {
                             return {
                                 ...trace,
                                 ...parsedUpdatedData,
                                 isEdited: false,
                                 originalData: null,
-                                isError: false,
                             }
                         } else {
                             return {
@@ -435,38 +419,38 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     ? {originalData: trace.data}
                                     : {}),
                                 isEdited: true,
-                                isError: false,
                             }
                         }
                     }
-
                     return trace
-                } catch (error) {
-                    return isMatchingKey ? {...trace, isError: true} : trace
-                }
-            })
+                })
 
-            // Only update if there are actual changes
-            setTraceData((prevTraceData) =>
-                JSON.stringify(prevTraceData) !== JSON.stringify(updatedTraceData)
-                    ? updatedTraceData
-                    : prevTraceData,
-            )
-        } else if (updatedData && updatedData === formatDataPreview && selectedTraceData?.isError) {
-            setTraceData((prevTraceData) =>
-                prevTraceData.map((trace) =>
-                    trace.key === rowDataPreview ? {...trace, isError: false} : trace,
-                ),
-            )
+                // Only update if there are actual changes
+                setTraceData((prevTraceData) =>
+                    JSON.stringify(prevTraceData) !== JSON.stringify(updatedTraceData)
+                        ? updatedTraceData
+                        : prevTraceData,
+                )
+            } catch (error) {
+                message.error(
+                    editorFormat === "YAML" ? "Invalid YAML format" : "Invalid JSON format",
+                )
+                console.error("Parsing error:", error)
+            }
         }
-    }, [updatedData])
+    }
 
     return (
         <>
             <GenericDrawer
                 {...props}
                 destroyOnClose={false}
-                onClose={onClose}
+                onClose={() => {
+                    onClose()
+                    setUpdatedData("")
+                    setNewTestsetName("")
+                    setHasDuplicateColumns(false)
+                }}
                 expandable
                 initialWidth={640}
                 headerExtra="Add to test set"
@@ -549,7 +533,10 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                 <Select
                                     style={{width: elementWidth}}
                                     value={rowDataPreview}
-                                    onChange={(value) => setRowDataPreview(value)}
+                                    onChange={(value) => {
+                                        setRowDataPreview(value)
+                                        setUpdatedData("")
+                                    }}
                                 >
                                     {traceData.map((trace) => (
                                         <Select.Option value={trace?.key} key={trace?.key}>
@@ -588,37 +575,38 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     />
                                 </div>
                             </div>
-
-                            {selectedTraceData?.isError && (
-                                <Typography.Text type="danger">
-                                    Your input JSON format is not parsable
-                                </Typography.Text>
-                            )}
-
-                            <Editor
-                                className={clsx([
-                                    classes.editor,
-                                    selectedTraceData?.isError && "!border-red-400",
-                                    selectedTraceData?.isEdited && "!border-blue-400",
-                                ])}
-                                height={210}
-                                language={editorFormat.toLowerCase()}
-                                theme={`vs-${appTheme}`}
-                                value={formatDataPreview}
-                                onMount={handleEditorDidMount}
-                                options={{
-                                    wordWrap: "on",
-                                    minimap: {enabled: false},
-                                    scrollBeyondLastLine: false,
-                                    readOnly: false,
-                                    lineNumbers: "off",
-                                    lineDecorationsWidth: 0,
-                                    scrollbar: {
-                                        verticalScrollbarSize: 8,
-                                        horizontalScrollbarSize: 8,
-                                    },
-                                }}
-                            />
+                            <div className="relative">
+                                <Editor
+                                    className={clsx([
+                                        classes.editor,
+                                        selectedTraceData?.isEdited && "!border-blue-400",
+                                    ])}
+                                    height={210}
+                                    language={editorFormat.toLowerCase()}
+                                    theme={`vs-${appTheme}`}
+                                    value={formatDataPreview}
+                                    onChange={(value) => setUpdatedData(value as string)}
+                                    options={{
+                                        wordWrap: "on",
+                                        minimap: {enabled: false},
+                                        scrollBeyondLastLine: false,
+                                        readOnly: false,
+                                        lineNumbers: "off",
+                                        lineDecorationsWidth: 0,
+                                        scrollbar: {
+                                            verticalScrollbarSize: 4,
+                                            horizontalScrollbarSize: 4,
+                                        },
+                                    }}
+                                />
+                                {updatedData && updatedData !== formatDataPreview ? (
+                                    <Button
+                                        icon={<FloppyDiskBack size={14} />}
+                                        className="absolute top-2 right-2"
+                                        onClick={onSaveEditedTrace}
+                                    />
+                                ) : null}
+                            </div>
                         </div>
 
                         <div className={classes.container}>
