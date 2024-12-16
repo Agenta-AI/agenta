@@ -406,54 +406,58 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     useUpdateEffect(() => {
         if (updatedData && updatedData !== formatDataPreview) {
             const updatedTraceData = traceData.map((trace) => {
-                const isMatchingOriginalData =
-                    trace.originalData &&
-                    updatedData === getStringOrJson({data: trace.originalData})
                 const isMatchingKey = trace.key === rowDataPreview
-                const isMatchingData = updatedData !== getStringOrJson({data: trace.data})
 
                 try {
-                    const parsedUpdatedData = JSON.parse(updatedData)
+                    const parsedUpdatedData =
+                        typeof updatedData === "string" ? JSON.parse(updatedData) : updatedData
 
-                    if (isMatchingOriginalData) {
-                        return isMatchingKey
-                            ? {
-                                  ...trace,
-                                  ...parsedUpdatedData,
-                                  isEdited: false,
-                                  originalData: null,
-                                  isError: false,
-                              }
-                            : trace
-                    }
+                    const originalDataString = getStringOrJson({data: trace.originalData})
+                    const updatedDataString = getStringOrJson(parsedUpdatedData)
+
+                    const isMatchingOriginalData = originalDataString === updatedDataString
+                    const isMatchingData = updatedDataString !== getStringOrJson({data: trace.data})
 
                     if (isMatchingKey) {
-                        return {
-                            ...trace,
-                            ...parsedUpdatedData,
-                            ...(isMatchingData && !trace.originalData
-                                ? {originalData: trace.data}
-                                : {}),
-                            isEdited: true,
-                            isError: false,
+                        if (isMatchingOriginalData) {
+                            return {
+                                ...trace,
+                                ...parsedUpdatedData,
+                                isEdited: false,
+                                originalData: null,
+                                isError: false,
+                            }
+                        } else {
+                            return {
+                                ...trace,
+                                ...parsedUpdatedData,
+                                ...(isMatchingData && !trace.originalData
+                                    ? {originalData: trace.data}
+                                    : {}),
+                                isEdited: true,
+                                isError: false,
+                            }
                         }
                     }
+
+                    return trace
                 } catch (error) {
-                    if (isMatchingKey) {
-                        return {...trace, isError: true}
-                    }
+                    return isMatchingKey ? {...trace, isError: true} : trace
                 }
-
-                return trace
             })
 
-            setTraceData(updatedTraceData)
-        } else if (updatedData && updatedData == formatDataPreview && selectedTraceData?.isError) {
-            setTraceData((prevTraceData) => {
-                return prevTraceData.map((trace) => {
-                    return trace.key === rowDataPreview ? {...trace, isError: false} : trace
-                })
-            })
+            // Only update if there are actual changes
+            setTraceData((prevTraceData) =>
+                JSON.stringify(prevTraceData) !== JSON.stringify(updatedTraceData)
+                    ? updatedTraceData
+                    : prevTraceData,
+            )
+        } else if (updatedData && updatedData === formatDataPreview && selectedTraceData?.isError) {
+            setTraceData((prevTraceData) =>
+                prevTraceData.map((trace) =>
+                    trace.key === rowDataPreview ? {...trace, isError: false} : trace,
+                ),
+            )
         }
     }, [updatedData])
 
