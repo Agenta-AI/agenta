@@ -13,8 +13,8 @@ const PlaygroundVariantConfigPrompt = ({
     variantId: string
     prompt: PromptConfigType
 }) => {
-    const defaultActiveKey = useRef(["1"])
     console.log("render PlaygroundVariantConfigCollapse")
+    const defaultActiveKey = useRef(["1"])
     const items = useMemo(() => {
         return [
             {
