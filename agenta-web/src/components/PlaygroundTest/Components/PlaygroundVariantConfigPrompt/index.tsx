@@ -4,9 +4,9 @@ import clsx from "clsx"
 import {Collapse} from "antd"
 import PlaygroundVariantConfigPromptCollapseHeader from "./assets/PlaygroundVariantConfigPromptCollapseHeader"
 import PlaygroundVariantConfigPromptCollapseContent from "./assets/PlaygroundVariantConfigPromptCollapseContent"
-import {PromptConfigType} from "../../hooks/useAgentaConfig/types"
+import {type PromptConfigType} from "../../state/types"
 
-const PlaygroundVariantConfigPromptCollapse = ({
+const PlaygroundVariantConfigPrompt = ({
     variantId,
     prompt,
 }: {
@@ -51,4 +51,4 @@ const PlaygroundVariantConfigPromptCollapse = ({
     )
 }
 
-export default memo(PlaygroundVariantConfigPromptCollapse)
+export default memo(PlaygroundVariantConfigPrompt)

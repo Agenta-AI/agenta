@@ -3,7 +3,7 @@ import clsx from "clsx"
 import useAgentaConfig from "../../hooks/useAgentaConfig"
 import {type StateVariant} from "../../state/types"
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
-import PlaygroundVariantConfigPromptCollapse from "../PlaygroundVariantConfigPromptCollapse"
+import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 
 const PlaygroundVariantConfig = ({
     variant,
@@ -32,7 +32,7 @@ const PlaygroundVariantConfig = ({
             <div className="div flex flex-col gap-2 pb-10">
                 {prompts.map((prompt) => {
                     return (
-                        <PlaygroundVariantConfigPromptCollapse
+                        <PlaygroundVariantConfigPrompt
                             key={prompt.key}
                             variantId={variantId}
                             prompt={prompt}
