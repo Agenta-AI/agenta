@@ -1,7 +1,5 @@
 import {memo, type MouseEvent} from "react"
 import {Button, Typography} from "antd"
-import {useStyles} from "./styles"
-
 interface PlaygroundVariantModelConfigTitleProps {
     handleReset: (e: MouseEvent<HTMLElement>) => void
 }
@@ -9,10 +7,9 @@ interface PlaygroundVariantModelConfigTitleProps {
 const PlaygroundVariantModelConfigTitle = ({
     handleReset,
 }: PlaygroundVariantModelConfigTitleProps) => {
-    const classes = useStyles()
     return (
         <div className="flex items-center gap-6 justify-between">
-            <Typography.Text className={classes.title}>Model Parameters</Typography.Text>
+            <Typography.Text className="text-[14px] leading-[22px] font-[500]">Model Parameters</Typography.Text>
             <Button onClick={handleReset}>Reset default</Button>
         </div>
     )
