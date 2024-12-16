@@ -17,7 +17,7 @@ import {NoticeType} from "antd/es/message/interface"
 import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
-import AgGridReact from "@/lib/helpers/agGrid"
+import AgGridReact, { type AgGridReactType } from "@/lib/helpers/agGrid"
 
 type TestsetTableProps = {
     mode: "edit"
@@ -84,7 +84,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const [inputValues, setInputValues] = useStateCallback(columnDefs.map((col) => col.field))
     const [focusedRowData, setFocusedRowData] = useState<GenericObject>()
     const [writeMode, setWriteMode] = useState(mode)
-    const gridRef = useRef<any>(null)
+    const [gridRef, setGridRef] = useState<AgGridReactType["api"]>()  
 
     const [selectedRow, setSelectedRow] = useState([])
 
@@ -181,8 +181,8 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         setColumnDefs(newColumnDefs)
 
         setRowData(newRowData)
-        if (gridRef.current) {
-            gridRef.current.setColumnDefs(newColumnDefs)
+        if (gridRef) {
+            gridRef.setColumnDefs(newColumnDefs)
         }
     }
 
@@ -225,12 +225,14 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     }
 
     const onRowSelectedOrDeselected = () => {
-        if (!gridRef?.current) return
-        setSelectedRow(gridRef?.current?.getSelectedNodes())
+        if (!gridRef) return
+        const selectedNodes = gridRef?.getSelectedNodes()
+        setSelectedRow(selectedNodes as any)
     }
 
     const onDeleteRow = () => {
-        const selectedNodes = gridRef.current.getSelectedNodes()
+        if (!gridRef) return
+        const selectedNodes = gridRef.getSelectedNodes()
         const selectedData = selectedNodes.map((node: GenericObject) => node.data)
         const newrowData = rowData.filter((row) => !selectedData.includes(row))
         setRowData(newrowData)
@@ -257,8 +259,8 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         setColumnDefs(newColumnDefs)
         setRowData(newRowData)
         setIsDataChanged(true)
-        if (gridRef.current) {
-            gridRef.current.setColumnDefs(newColumnDefs)
+        if (gridRef) {
+            gridRef.setColumnDefs(newColumnDefs)
         }
     }
 
@@ -343,7 +345,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                 style={{height: 500}}
             >
                 <AgGridReact
-                    onGridReady={(params) => (gridRef.current = params.api)}
+                    onGridReady={(params) => setGridRef(params.api)}
                     rowData={rowData}
                     columnDefs={columnDefs}
                     defaultColDef={defaultColDef}
