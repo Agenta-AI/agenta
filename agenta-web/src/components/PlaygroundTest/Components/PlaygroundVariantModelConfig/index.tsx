@@ -1,14 +1,14 @@
-import {type MouseEvent, memo, useCallback, useState} from "react"
+import {type MouseEvent, memo, useCallback, useMemo, useState} from "react"
 import clsx from "clsx"
 import {Button, Popover} from "antd"
 import {CaretDown} from "@phosphor-icons/react"
-import {type ConfigProperty} from "../../state/types"
+import {ModelDefaults, type ConfigProperty} from "../../state/types"
 import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import PlaygroundVariantModelConfigModal from "./assets/PlaygroundVariantModelConfigModal"
 
 interface PlaygroundVariantModelConfigProps {
     variantId: string
-    modelProperties: ConfigProperty[]
+    modelProperties: ModelDefaults[]
 }
 
 const PlaygroundVariantModelConfig = ({
@@ -16,7 +16,11 @@ const PlaygroundVariantModelConfig = ({
     variantId,
 }: PlaygroundVariantModelConfigProps) => {
     const [openAdvancedConfigPopover, setOpenAdvancedConfigPopover] = useState(false)
-    const promptModel = modelProperties.find((mp) => mp.title === "Model")
+    const promptModel = useMemo(() => {
+        const property = modelProperties.find((mp) => mp.key === "model")
+        const value = property?.value as string
+        return value
+    }, [modelProperties])
 
     const handleResetDefaults = useCallback((e: MouseEvent<HTMLElement>) => {
         console.log("reset defaults")
@@ -66,7 +70,7 @@ const PlaygroundVariantModelConfig = ({
             ])}
         >
             <Button onClick={openPopover}>
-                {promptModel?.default} <CaretDown size={14} />
+                {promptModel || null} <CaretDown size={14} />
             </Button>
         </Popover>
     )

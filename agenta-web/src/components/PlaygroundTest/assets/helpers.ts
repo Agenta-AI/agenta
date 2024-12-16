@@ -23,24 +23,27 @@ export const groupConfigOptions = <R extends boolean = false, P extends boolean 
     filterByName = (_: string) => true,
     reduce = false as R,
     configKeyRoot,
+    parse = () => undefined,
 }: {
     configObject: Record<string, any>
     filterByName: (propertyName: string) => boolean
     reduce?: R
     configKeyRoot: string
+    parse?: (defaultType: {key: string; value: any}) => Record<string, any> | undefined
 }): GroupConfigReturn<R, P> => {
     const filtered = Object.keys(configObject).filter(filterByName)
 
     return (
         reduce
-            ? filtered.reduce(
-                  (acc, propertyName) => ({
-                      ...acc,
-                      [propertyName]: configObject[propertyName],
+            ? filtered.map((propertyName, index) => {
+                  const obj = {
                       key: propertyName,
-                  }),
-                  {} as P extends true ? PromptDefaults : ModelDefaults,
-              )
+                      value: configObject[propertyName],
+                      configKey: `${configKeyRoot}.[${index}]`,
+                  }
+
+                  return parse(obj) || obj
+              })
             : filtered.map((propertyName, index) => ({
                   ...(configObject[propertyName] || {}),
                   key: propertyName,
@@ -73,7 +76,18 @@ export const parseVariantSchema = (originalSchema: OpenAPISchema) => {
         configObject: agentaConfig?.default,
         filterByName: (propertyName) => !propertyName.includes("prompt_"),
         reduce: true,
-        configKeyRoot: `${configKeyRoot}.configKeyRoot`,
+        configKeyRoot: `${configKeyRoot}.modelDefaults`,
+        parse: (defaults) => {
+            const properties = agentaConfig?.properties?.[defaults.key]
+            return {
+                ...defaults,
+                config: {
+                    ...properties,
+                    key: defaults.key,
+                },
+                value: defaults.value || properties?.default,
+            }
+        },
     })
 
     const promptProperties = groupConfigOptions<false, false>({
@@ -87,7 +101,20 @@ export const parseVariantSchema = (originalSchema: OpenAPISchema) => {
         filterByName: (propertyName) => propertyName.includes("prompt_"),
         reduce: true,
         configKeyRoot: `${configKeyRoot}.promptDefaults`,
+        parse: (defaults) => {
+            const properties = agentaConfig?.properties?.[defaults.key]
+            return {
+                ...defaults,
+                config: {
+                    ...properties,
+                    key: defaults.key,
+                },
+                value: defaults.value || properties?.default,
+            }
+        },
     })
+
+    console.log("promptDefaults", promptDefaults)
 
     return {
         schemaName,

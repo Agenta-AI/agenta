@@ -1,5 +1,6 @@
 import {Variant} from "@/lib/Types"
 import {SWRConfiguration, Key, Middleware} from "swr"
+import {Config} from "tailwindcss"
 
 // Base state types
 export interface StateVariant extends Variant {
@@ -14,33 +15,38 @@ export interface StateVariant extends Variant {
 }
 
 export type ModelDefaults = {
-    temperature: number
-    model: string
-    max_tokens: number
-    top_p: number
-    frequence_penalty: number
-    presence_penalty: number
-    force_json: boolean
+    config: ConfigProperty
+    configKey: string
     key: string
+    value: ConfigProperty["default"]
+    // temperature: number
+    // model: string
+    // max_tokens: number
+    // top_p: number
+    // frequence_penalty: number
+    // presence_penalty: number
+    // force_json: boolean
+    // key: string
 }
 
 export type PromptDefaults = {
-    prompt_system: string
-    prompt_user: string
+    config: ConfigProperty
+    configKey: string
     key: string
+    value: Pick<ConfigProperty, "default">
 }
 
 type ParsedBasePromptConfig = {
     modelProperties: ConfigProperty[]
-    modelDefaults: ModelDefaults
+    modelDefaults: ModelDefaults[]
     promptProperties: ConfigProperty[]
-    promptDefaults: PromptDefaults
+    promptDefaults: PromptDefaults[]
 }
 
 type GroupConfigReturn<R extends boolean, P extends boolean> = R extends true
     ? P extends true
-        ? PromptDefaults
-        : ModelDefaults
+        ? PromptDefaults[]
+        : ModelDefaults[]
     : ConfigProperty[]
 
 export interface PromptConfigType extends ParsedBasePromptConfig {
@@ -133,25 +139,25 @@ export interface SchemaObject {
 // Configuration Property Types
 interface BaseConfigProperty {
     title: string
-    default: any
+    value: any
 }
 
 interface StringConfigProperty extends BaseConfigProperty {
     type: "string"
-    default: string | string[]
+    value: string | string[]
     choices?: Array<{label: string; value: string}>
 }
 
 interface NumberConfigProperty extends BaseConfigProperty {
     type: "number" | "integer"
-    default: number
+    value: number | null
     minimum?: number
     maximum?: number
 }
 
 interface BooleanConfigProperty extends BaseConfigProperty {
     type: "boolean"
-    default: boolean
+    value: boolean
 }
 
 export type ConfigPropertyType = StringConfigProperty | NumberConfigProperty | BooleanConfigProperty

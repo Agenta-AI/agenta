@@ -26,7 +26,7 @@ function usePlaygroundVariantConfig<T = any>(
     })
 
     const mutateVariant = useCallback(
-        (variantId: string, val: string | boolean | string[] | number) => {
+        (variantId: string, val: string | boolean | string[] | number | null) => {
             mutate(
                 (state) => {
                     if (!state) return state
@@ -37,14 +37,14 @@ function usePlaygroundVariantConfig<T = any>(
                             configKey,
                             variant,
                         ) as ConfigPropertyType
-                        if (previousParam && previousParam.default !== val) {
-                            previousParam.default = val
+                        if (previousParam && previousParam.value !== val) {
+                            previousParam.value = val
                             return variant
                         }
                         return variant
                     }
                     clone.variants = clone.variants.map((v) =>
-                        v.variantId === variantId ? updateVariant(v) : cloneDeep(v),
+                        v.variantId === variantId ? updateVariant(v) : v,
                     )
                     return clone
                 },

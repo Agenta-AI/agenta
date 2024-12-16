@@ -19,7 +19,7 @@ const PlaygroundVariantConfigPromptCollapseHeader = ({
             <div>Prompt</div>
             <PlaygroundVariantModelConfig
                 variantId={variantId}
-                modelProperties={prompt.modelProperties}
+                modelProperties={prompt.modelDefaults}
             />
         </div>
     )
