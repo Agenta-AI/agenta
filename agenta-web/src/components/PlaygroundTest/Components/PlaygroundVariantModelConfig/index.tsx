@@ -2,25 +2,29 @@ import {type MouseEvent, memo, useCallback, useMemo, useState} from "react"
 import clsx from "clsx"
 import {Button, Popover} from "antd"
 import {CaretDown} from "@phosphor-icons/react"
-import {ModelDefaults, type ConfigProperty} from "../../state/types"
 import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import PlaygroundVariantModelConfigModal from "./assets/PlaygroundVariantModelConfigModal"
+import useAgentaConfig from "../../hooks/useAgentaConfig"
+import { ModelDefaults } from "../../state/types"
 
 interface PlaygroundVariantModelConfigProps {
     variantId: string
-    modelProperties: ModelDefaults[]
+    promptIndex: number
 }
 
 const PlaygroundVariantModelConfig = ({
-    modelProperties,
+    promptIndex,
     variantId,
 }: PlaygroundVariantModelConfigProps) => {
     const [openAdvancedConfigPopover, setOpenAdvancedConfigPopover] = useState(false)
-    const promptModel = useMemo(() => {
+    const {prompt} = useAgentaConfig({variantId, promptIndex})
+
+    const {promptDefaults, promptModel} = useMemo(() => {
+        const modelProperties: ModelDefaults[] = prompt?.modelDefaults || []
         const property = modelProperties.find((mp) => mp.key === "model")
         const value = property?.value as string
-        return value
-    }, [modelProperties])
+        return {promptModel: value, promptDefaults: modelProperties}
+    }, [prompt])
 
     const handleResetDefaults = useCallback((e: MouseEvent<HTMLElement>) => {
         console.log("reset defaults")
@@ -56,7 +60,7 @@ const PlaygroundVariantModelConfig = ({
             content={
                 <PlaygroundVariantModelConfigModal
                     variantId={variantId}
-                    properties={modelProperties}
+                    properties={promptDefaults}
                     handleClose={closePopover}
                     handleSave={saveProperties}
                 />

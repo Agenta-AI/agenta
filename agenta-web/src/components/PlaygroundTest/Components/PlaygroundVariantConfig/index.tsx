@@ -12,7 +12,7 @@ const PlaygroundVariantConfig = ({
     variant: StateVariant
     variantId: string
 }) => {
-    const {prompts} = useAgentaConfig({variant})
+    const {prompts} = useAgentaConfig({variantId})
     console.log("render PlaygroundVariant - Config")
 
     return (
@@ -30,12 +30,12 @@ const PlaygroundVariantConfig = ({
             <PlaygroundVariantConfigHeader variant={variant} />
 
             <div className="div flex flex-col gap-2 pb-10">
-                {prompts.map((prompt) => {
+                {prompts.map((prompt, promptIndex) => {
                     return (
                         <PlaygroundVariantConfigPrompt
                             key={prompt.key}
+                            promptIndex={promptIndex}
                             variantId={variantId}
-                            prompt={prompt}
                         />
                     )
                 })}
