@@ -8,7 +8,7 @@ import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import {usePostHogAg} from "@/hooks/usePostHogAg"
-import {LlmProvider, getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
+import {type LlmProvider} from "@/lib/helpers/llmProviders"
 import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
 import dayjs from "dayjs"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
@@ -120,7 +120,7 @@ const AppManagement: React.FC = () => {
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
-        const apiKeys = isDemo() ? secrets : getAllProviderLlmKeys()
+        const apiKeys = secrets
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,

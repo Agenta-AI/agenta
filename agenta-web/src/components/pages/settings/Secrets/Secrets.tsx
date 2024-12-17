@@ -1,11 +1,5 @@
 import {useVaultSecret} from "@/hooks/useVaultSecret"
-import {
-    getLlmProviderKey,
-    saveLlmProviderKey,
-    removeSingleLlmProviderKey,
-    getAllProviderLlmKeys,
-    LlmProvider,
-} from "@/lib/helpers/llmProviders"
+import {getLlmProviderKey, type LlmProvider} from "@/lib/helpers/llmProviders"
 import {isDemo} from "@/lib/helpers/utils"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useEffect, useState} from "react"
@@ -14,9 +8,7 @@ const {Title, Text} = Typography
 
 export default function Secrets() {
     const {secrets, handleModifyVaultSecret, handleDeleteVaultSecret} = useVaultSecret()
-    const [llmProviderKeys, setLlmProviderKeys] = useState<LlmProvider[]>(
-        isDemo() ? [] : getAllProviderLlmKeys(),
-    )
+    const [llmProviderKeys, setLlmProviderKeys] = useState<LlmProvider[]>([])
     const [messageAPI, contextHolder] = message.useMessage()
 
     useEffect(() => {
@@ -61,16 +53,13 @@ export default function Secrets() {
                                     type="primary"
                                     disabled={key === getLlmProviderKey(title) || !key}
                                     onClick={async () => {
-                                        if (isDemo()) {
-                                            await handleModifyVaultSecret({
-                                                name,
-                                                title,
-                                                key,
-                                                id: secretId,
-                                            })
-                                        } else {
-                                            saveLlmProviderKey(title, key)
-                                        }
+                                        await handleModifyVaultSecret({
+                                            name,
+                                            title,
+                                            key,
+                                            id: secretId,
+                                        })
+
                                         messageAPI.success("The secret is saved")
                                     }}
                                 >
@@ -79,11 +68,12 @@ export default function Secrets() {
                                 <Button
                                     disabled={!Boolean(key)}
                                     onClick={async () => {
-                                        if (isDemo() && secretId) {
-                                            await handleDeleteVaultSecret(secretId)
-                                        } else {
-                                            removeSingleLlmProviderKey(title)
-                                        }
+                                        await handleDeleteVaultSecret({
+                                            name,
+                                            id: secretId,
+                                            title,
+                                            key,
+                                        })
 
                                         const newLlmProviderKeys = [...llmProviderKeys]
                                         newLlmProviderKeys[i].key = ""
