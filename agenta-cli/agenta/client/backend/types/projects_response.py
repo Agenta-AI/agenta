@@ -6,9 +6,15 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class BodyImportTestset(UniversalBaseModel):
-    endpoint: typing.Optional[str] = None
-    testset_name: typing.Optional[str] = None
+class ProjectsResponse(UniversalBaseModel):
+    organization_id: typing.Optional[str] = None
+    organization_name: typing.Optional[str] = None
+    workspace_id: typing.Optional[str] = None
+    workspace_name: typing.Optional[str] = None
+    project_id: str
+    project_name: str
+    user_role: typing.Optional[str] = None
+    is_demo: typing.Optional[bool] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

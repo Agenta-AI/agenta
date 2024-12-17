@@ -2,4 +2,4 @@
 
 import typing
 
-Format = typing.Union[typing.Literal["legacy", "agenta"], typing.Any]
+SecretKind = typing.Literal["provider_key"]
