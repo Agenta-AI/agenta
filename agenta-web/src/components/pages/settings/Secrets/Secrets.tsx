@@ -1,6 +1,5 @@
 import {useVaultSecret} from "@/hooks/useVaultSecret"
 import {getLlmProviderKey, type LlmProvider} from "@/lib/helpers/llmProviders"
-import {isDemo} from "@/lib/helpers/utils"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useEffect, useState} from "react"
 
