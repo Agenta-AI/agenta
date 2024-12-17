@@ -69,7 +69,9 @@ export const useVaultSecret = () => {
     useEffect(() => {
         if (shouldRunMigration.current) {
             shouldRunMigration.current = false
-            migrateProviderKeys()
+            if (isDemo()) {
+                migrateProviderKeys()
+            }
         }
     }, [])
 
