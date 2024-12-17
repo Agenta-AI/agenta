@@ -74,10 +74,6 @@ class route:
         self.route_path = path
 
     def __call__(self, f):
-        # If not running in Agenta, return the original function unchanged
-        if environ.get("AGENTA_RUNTIME") != "true":
-            return f
-
         self.e = entrypoint(
             f, route_path=self.route_path, config_schema=self.config_schema
         )
@@ -123,23 +119,6 @@ class entrypoint:
         route_path="",
         config_schema: Optional[BaseModel] = None,
     ):
-        self.func = func
-        self.route_path = route_path
-        self.config_schema = config_schema
-
-    def __call__(self, func=None):
-        if func is None:
-            func = self.func
-            route_path = self.route_path
-            config_schema = self.config_schema
-        else:
-            route_path = ""
-            config_schema = None
-
-        # If not running in Agenta, return the original function unchanged
-        if environ.get("AGENTA_RUNTIME") != "true":
-            return func
-
         ### --- Update Middleware --- #
         try:
             global _MIDDLEWARES  # pylint: disable=global-statement
@@ -192,11 +171,6 @@ class entrypoint:
         ### --- Playground  --- #
         @wraps(func)
         async def wrapper(*args, **kwargs) -> Any:
-            if environ.get("AGENTA_RUNTIME") != "true":
-                raise HTTPException(
-                    status_code=403,
-                    detail="This endpoint is only available when running in Agenta environment",
-                )
             func_params, api_config_params = self.split_kwargs(kwargs, config_params)
             self.ingest_files(func_params, ingestible_files)
             if not config_schema:
@@ -259,11 +233,6 @@ class entrypoint:
         ### --- Deployed --- #
         @wraps(func)
         async def wrapper_deployed(*args, **kwargs) -> Any:
-            if environ.get("AGENTA_RUNTIME") != "true":
-                raise HTTPException(
-                    status_code=403,
-                    detail="This endpoint is only available when running in Agenta environment",
-                )
             func_params = {
                 k: v
                 for k, v in kwargs.items()
