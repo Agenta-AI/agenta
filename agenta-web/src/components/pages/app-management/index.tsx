@@ -17,6 +17,7 @@ import GetStartedSection from "./components/GetStartedSection"
 import ApplicationManagementSection from "./components/ApplicationManagementSection"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
 import {useProjectData} from "@/contexts/project.context"
+import {useVaultSecret} from "@/hooks/useVaultSecret"
 
 const CreateAppStatusModal: any = dynamicComponent(
     "pages/app-management/modals/CreateAppStatusModal",
@@ -83,6 +84,7 @@ const AppManagement: React.FC = () => {
         details: undefined,
         appId: undefined,
     })
+    const {secrets} = useVaultSecret()
 
     const {project} = useProjectData()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
@@ -118,7 +120,7 @@ const AppManagement: React.FC = () => {
         setStatusModalOpen(true)
 
         // attempt to create and start the template, notify user of the progress
-        const apiKeys = getAllProviderLlmKeys()
+        const apiKeys = isDemo() ? secrets : getAllProviderLlmKeys()
         await createAndStartTemplate({
             appName: newApp,
             templateId: template_id,

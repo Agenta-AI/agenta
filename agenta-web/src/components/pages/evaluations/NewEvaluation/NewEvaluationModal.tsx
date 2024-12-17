@@ -1,7 +1,7 @@
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, LLMRunRateLimit, testset, Variant} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
-import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
+import {apiKeyObject, isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
 import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {createEvalutaiton} from "@/services/evaluations/api"
 import {fetchTestsets} from "@/services/testsets/api"
@@ -14,6 +14,8 @@ import SelectTestsetSection from "./SelectTestsetSection"
 import SelectVariantSection from "./SelectVariantSection"
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {useVaultSecret} from "@/hooks/useVaultSecret"
+import {getAllProviderLlmKeys} from "@/lib/helpers/llmProviders"
 
 const AdvancedSettingsPopover: any = dynamicComponent(
     "pages/evaluations/NewEvaluation/AdvancedSettingsPopover",
@@ -73,7 +75,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
-
+    const {secrets} = useVaultSecret()
     const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
     const handlePanelChange = (key: string | string[]) => {
         setActivePanel((prevKey) => (prevKey === key ? null : (key as string)))
@@ -163,7 +165,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             variant_ids: selectedVariantIds,
             evaluators_configs: selectedEvalConfigs,
             rate_limit: rateLimitValues,
-            lm_providers_keys: apiKeyObject(),
+            lm_providers_keys: apiKeyObject(isDemo() ? secrets : getAllProviderLlmKeys()),
             correct_answer_column: correctAnswerColumn,
         })
             .then(onSuccess)
