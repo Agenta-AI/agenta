@@ -4,6 +4,9 @@ import typing
 import httpx
 from .core.client_wrapper import SyncClientWrapper
 from .observability.client import ObservabilityClient
+from .vault.client import VaultClient
+from .access_control.client import AccessControlClient
+from .scopes.client import ScopesClient
 from .apps.client import AppsClient
 from .variants.client import VariantsClient
 from .evaluations.client import EvaluationsClient
@@ -19,9 +22,9 @@ from .types.list_api_keys_response import ListApiKeysResponse
 from .core.pydantic_utilities import parse_obj_as
 from json.decoder import JSONDecodeError
 from .core.api_error import ApiError
+from .core.jsonable_encoder import jsonable_encoder
 from .errors.unprocessable_entity_error import UnprocessableEntityError
 from .types.http_validation_error import HttpValidationError
-from .core.jsonable_encoder import jsonable_encoder
 from .types.organization import Organization
 from .types.organization_output import OrganizationOutput
 from .types.invite_request import InviteRequest
@@ -32,6 +35,9 @@ from .types.workspace_role_response import WorkspaceRoleResponse
 from .types.permission import Permission
 from .core.client_wrapper import AsyncClientWrapper
 from .observability.client import AsyncObservabilityClient
+from .vault.client import AsyncVaultClient
+from .access_control.client import AsyncAccessControlClient
+from .scopes.client import AsyncScopesClient
 from .apps.client import AsyncAppsClient
 from .variants.client import AsyncVariantsClient
 from .evaluations.client import AsyncEvaluationsClient
@@ -101,6 +107,9 @@ class AgentaApi:
             timeout=_defaulted_timeout,
         )
         self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
+        self.vault = VaultClient(client_wrapper=self._client_wrapper)
+        self.access_control = AccessControlClient(client_wrapper=self._client_wrapper)
+        self.scopes = ScopesClient(client_wrapper=self._client_wrapper)
         self.apps = AppsClient(client_wrapper=self._client_wrapper)
         self.variants = VariantsClient(client_wrapper=self._client_wrapper)
         self.evaluations = EvaluationsClient(client_wrapper=self._client_wrapper)
@@ -166,10 +175,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def create_api_key(
-        self,
-        *,
-        workspace_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, request_options: typing.Optional[RequestOptions] = None
     ) -> str:
         """
         Creates an API key for a user.
@@ -182,8 +188,6 @@ class AgentaApi:
 
         Parameters
         ----------
-        workspace_id : str
-
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
@@ -200,16 +204,11 @@ class AgentaApi:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.create_api_key(
-            workspace_id="workspace_id",
-        )
+        client.create_api_key()
         """
         _response = self._client_wrapper.httpx_client.request(
             "keys",
             method="POST",
-            params={
-                "workspace_id": workspace_id,
-            },
             request_options=request_options,
         )
         try:
@@ -220,16 +219,6 @@ class AgentaApi:
                         type_=str,  # type: ignore
                         object_=_response.json(),
                     ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
@@ -476,6 +465,9 @@ class AgentaApi:
                 "description": description,
                 "type": type,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -660,6 +652,9 @@ class AgentaApi:
                 "description": description,
                 "updated_at": updated_at,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -821,6 +816,9 @@ class AgentaApi:
             json={
                 "email": email,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -910,6 +908,9 @@ class AgentaApi:
             json={
                 "token": token,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -985,6 +986,9 @@ class AgentaApi:
                 "name": name,
                 "description": description,
                 "type": type,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1064,6 +1068,9 @@ class AgentaApi:
                 "name": name,
                 "description": description,
                 "updated_at": updated_at,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1261,6 +1268,9 @@ class AgentaApi:
                 "email": email,
                 "organization_id": organization_id,
                 "role": role,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1632,6 +1642,11 @@ class AsyncAgentaApi:
         self.observability = AsyncObservabilityClient(
             client_wrapper=self._client_wrapper
         )
+        self.vault = AsyncVaultClient(client_wrapper=self._client_wrapper)
+        self.access_control = AsyncAccessControlClient(
+            client_wrapper=self._client_wrapper
+        )
+        self.scopes = AsyncScopesClient(client_wrapper=self._client_wrapper)
         self.apps = AsyncAppsClient(client_wrapper=self._client_wrapper)
         self.variants = AsyncVariantsClient(client_wrapper=self._client_wrapper)
         self.evaluations = AsyncEvaluationsClient(client_wrapper=self._client_wrapper)
@@ -1705,10 +1720,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def create_api_key(
-        self,
-        *,
-        workspace_id: str,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, *, request_options: typing.Optional[RequestOptions] = None
     ) -> str:
         """
         Creates an API key for a user.
@@ -1721,8 +1733,6 @@ class AsyncAgentaApi:
 
         Parameters
         ----------
-        workspace_id : str
-
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
@@ -1744,9 +1754,7 @@ class AsyncAgentaApi:
 
 
         async def main() -> None:
-            await client.create_api_key(
-                workspace_id="workspace_id",
-            )
+            await client.create_api_key()
 
 
         asyncio.run(main())
@@ -1754,9 +1762,6 @@ class AsyncAgentaApi:
         _response = await self._client_wrapper.httpx_client.request(
             "keys",
             method="POST",
-            params={
-                "workspace_id": workspace_id,
-            },
             request_options=request_options,
         )
         try:
@@ -1767,16 +1772,6 @@ class AsyncAgentaApi:
                         type_=str,  # type: ignore
                         object_=_response.json(),
                     ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
                 )
             _response_json = _response.json()
         except JSONDecodeError:
@@ -2055,6 +2050,9 @@ class AsyncAgentaApi:
                 "description": description,
                 "type": type,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2263,6 +2261,9 @@ class AsyncAgentaApi:
                 "description": description,
                 "updated_at": updated_at,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2440,6 +2441,9 @@ class AsyncAgentaApi:
             json={
                 "email": email,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2537,6 +2541,9 @@ class AsyncAgentaApi:
             json={
                 "token": token,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -2620,6 +2627,9 @@ class AsyncAgentaApi:
                 "name": name,
                 "description": description,
                 "type": type,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -2707,6 +2717,9 @@ class AsyncAgentaApi:
                 "name": name,
                 "description": description,
                 "updated_at": updated_at,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -2928,6 +2941,9 @@ class AsyncAgentaApi:
                 "email": email,
                 "organization_id": organization_id,
                 "role": role,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
