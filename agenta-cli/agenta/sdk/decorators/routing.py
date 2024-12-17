@@ -3,7 +3,6 @@ from annotated_types import Ge, Le, Gt, Lt
 from pydantic import BaseModel, HttpUrl, ValidationError
 from json import dumps
 from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
-from argparse import ArgumentParser
 from functools import wraps
 from asyncio import sleep, get_event_loop
 from traceback import format_exc, format_exception
