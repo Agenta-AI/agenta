@@ -143,6 +143,9 @@ class ConfigsClient:
                 "parameters": parameters,
                 "overwrite": overwrite,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -433,6 +436,9 @@ class AsyncConfigsClient:
                 "config_name": config_name,
                 "parameters": parameters,
                 "overwrite": overwrite,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,

@@ -122,6 +122,9 @@ class EvaluatorsClient:
                 "inputs": inputs,
                 "mapping": mapping,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -208,6 +211,9 @@ class EvaluatorsClient:
                 "inputs": inputs,
                 "settings": settings,
                 "credentials": credentials,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -364,6 +370,9 @@ class EvaluatorsClient:
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -510,6 +519,9 @@ class EvaluatorsClient:
                 "name": name,
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -726,6 +738,9 @@ class AsyncEvaluatorsClient:
                 "inputs": inputs,
                 "mapping": mapping,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -820,6 +835,9 @@ class AsyncEvaluatorsClient:
                 "inputs": inputs,
                 "settings": settings,
                 "credentials": credentials,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -992,6 +1010,9 @@ class AsyncEvaluatorsClient:
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1154,6 +1175,9 @@ class AsyncEvaluatorsClient:
                 "name": name,
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,

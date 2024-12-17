@@ -34,6 +34,7 @@ class EvaluationsClient:
         Fetches evaluation ids for a given resource type and id.
 
         Arguments:
+        app_id (str): The ID of the app for which to fetch evaluations.
         resource_type (str): The type of resource for which to fetch evaluations.
         resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
@@ -250,6 +251,9 @@ class EvaluationsClient:
                 "lm_providers_keys": lm_providers_keys,
                 "correct_answer_column": correct_answer_column,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -321,6 +325,9 @@ class EvaluationsClient:
             method="DELETE",
             json={
                 "evaluations_ids": evaluations_ids,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -716,6 +723,7 @@ class AsyncEvaluationsClient:
         Fetches evaluation ids for a given resource type and id.
 
         Arguments:
+        app_id (str): The ID of the app for which to fetch evaluations.
         resource_type (str): The type of resource for which to fetch evaluations.
         resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
@@ -727,7 +735,6 @@ class AsyncEvaluationsClient:
 
         Parameters
         ----------
-
         resource_type : str
 
         resource_ids : typing.Optional[typing.Union[str, typing.Sequence[str]]]
@@ -957,6 +964,9 @@ class AsyncEvaluationsClient:
                 "lm_providers_keys": lm_providers_keys,
                 "correct_answer_column": correct_answer_column,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1036,6 +1046,9 @@ class AsyncEvaluationsClient:
             method="DELETE",
             json={
                 "evaluations_ids": evaluations_ids,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
