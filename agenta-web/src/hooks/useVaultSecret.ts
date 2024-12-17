@@ -1,7 +1,8 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 import {
     getAllProviderLlmKeys,
     llmAvailableProviders,
+    llmAvailableProvidersToken,
     LlmProvider,
     removeSingleLlmProviderKey,
     saveLlmProviderKey,
@@ -11,6 +12,7 @@ import {dynamicLib, dynamicService} from "@/lib/helpers/dynamic"
 
 export const useVaultSecret = () => {
     const [secrets, setSecrets] = useState<LlmProvider[]>(llmAvailableProviders)
+    const shouldRunMigration = useRef(true)
 
     const getVaultSecrets = async () => {
         try {
@@ -42,6 +44,33 @@ export const useVaultSecret = () => {
 
     useEffect(() => {
         getVaultSecrets()
+    }, [])
+
+    const migrateProviderKeys = async () => {
+        try {
+            const localStorageProviders = localStorage.getItem(llmAvailableProvidersToken)
+
+            if (localStorageProviders) {
+                const providers = JSON.parse(localStorageProviders)
+
+                for (const provider of providers) {
+                    if (provider.key) {
+                        await handleModifyVaultSecret(provider as LlmProvider)
+                    }
+                }
+
+                localStorage.removeItem(llmAvailableProvidersToken)
+            }
+        } catch (error) {
+            console.error(error)
+        }
+    }
+
+    useEffect(() => {
+        if (shouldRunMigration.current) {
+            shouldRunMigration.current = false
+            migrateProviderKeys()
+        }
     }, [])
 
     const handleModifyVaultSecret = async (provider: LlmProvider) => {
