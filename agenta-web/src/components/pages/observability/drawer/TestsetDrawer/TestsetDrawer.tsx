@@ -42,6 +42,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [traceData, setTraceData] = useState<TestsetTraceData[]>([])
+    const [updatedTraceData, setUpdatedTraceData] = useState("")
     const [testset, setTestset] = useState({name: "", id: ""})
     const [newTestsetName, setNewTestsetName] = useState("")
     const [editorFormat, setEditorFormat] = useState<"JSON" | "YAML">("JSON")
@@ -52,21 +53,36 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
-    // checkpoint-2
-    const [updatedData, setUpdatedData] = useState("")
-    const [isConfirmeModal, setIsConfirmeModal] = useState(false)
+    const [isConfirmSave, setIsConfirmSave] = useState(false)
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
     const selectedTestsetTestCases = selectedTestsetRows.slice(-5)
-    const isNewColumnCreated = selectedTestsetColumns.find(({isNew}) => isNew === true)
-    const isMapColumnExist = mappingData.some((mapping) =>
-        mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
+    const isNewColumnCreated = useMemo(
+        () => selectedTestsetColumns.some(({isNew}) => isNew),
+        [selectedTestsetColumns],
+    )
+    const isMapColumnExist = useMemo(
+        () =>
+            mappingData.some((mapping) =>
+                mapping.column === "create" || !mapping.column
+                    ? !!mapping?.newColumn
+                    : !!mapping.column,
+            ),
+        [mappingData],
     )
     const selectedTraceData = useMemo(
         () => traceData.find((trace) => trace.key === rowDataPreview),
         [rowDataPreview, traceData],
     )
+    const formatDataPreview = useMemo(() => {
+        if (!traceData?.length) return ""
+
+        const jsonObject = {data: selectedTraceData?.data || traceData[0]?.data}
+        if (!jsonObject) return ""
+
+        return getYamlOrJson(editorFormat, jsonObject)
+    }, [editorFormat, traceData, rowDataPreview])
 
     useUpdateEffect(() => {
         if (data.length > 0) {
@@ -76,7 +92,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     }, [data])
 
     // predefind options
-    const customSelectOptions = (divider = true) => {
+    const customSelectOptions = useCallback((divider = true) => {
         return [
             {value: "create", label: "Create New"},
             ...(divider
@@ -90,7 +106,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                   ]
                 : []),
         ]
-    }
+    }, [])
 
     const onTestsetOptionChange = async (option: {label: string; value: string}) => {
         const {value, label} = option
@@ -134,15 +150,6 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         }
     }
 
-    const formatDataPreview = useMemo(() => {
-        if (!traceData?.length) return ""
-
-        const jsonObject = {data: selectedTraceData?.data || traceData[0]?.data}
-        if (!jsonObject) return ""
-
-        return getYamlOrJson(editorFormat, jsonObject)
-    }, [editorFormat, traceData, rowDataPreview])
-
     const mappingOptions = useMemo(() => {
         const uniquePaths = new Set<string>()
 
@@ -153,7 +160,6 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
         const mappedData = Array.from(uniquePaths).map((item) => ({value: item}))
 
-        // TODO: make this function more efficinat and cleanup things
         if (mappedData.length > 0 && testset.id) {
             setMappingData((prevMappingData) => {
                 const testsetColumnsSet = new Set(
@@ -256,57 +262,59 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         setNewTestsetName("")
     }
 
-    const mapAndConvertDataInCsvFormat = (
-        traceData: TestsetTraceData[],
-        type: "preview" | "export",
-    ) => {
-        const formattedData = traceData.map((item) => {
-            const formattedItem: Record<string, any> = {}
+    const mapAndConvertDataInCsvFormat = useCallback(
+        (traceData: TestsetTraceData[], type: "preview" | "export") => {
+            const formattedData = traceData.map((item) => {
+                const formattedItem: Record<string, any> = {}
 
-            for (const mapping of mappingData) {
-                const keys = mapping.data.split(".")
-                let value = keys.reduce((acc: any, key) => acc?.[key], item)
+                for (const mapping of mappingData) {
+                    const keys = mapping.data.split(".")
+                    let value = keys.reduce((acc: any, key) => acc?.[key], item)
 
-                const targetKey =
-                    mapping.column === "create" || !mapping.column
-                        ? mapping.newColumn
-                        : mapping.column
+                    const targetKey =
+                        mapping.column === "create" || !mapping.column
+                            ? mapping.newColumn
+                            : mapping.column
 
-                if (targetKey) {
-                    formattedItem[targetKey] =
-                        value === undefined || value === null
-                            ? ""
-                            : typeof value === "string"
-                              ? value
-                              : JSON.stringify(value)
-                }
-            }
-
-            for (const {column} of selectedTestsetColumns) {
-                if (!(column in formattedItem)) {
-                    formattedItem[column] = ""
-                }
-            }
-
-            return formattedItem
-        })
-
-        if (type === "export" && !isNewTestset) {
-            // add all previous test cases
-            const allKeys = Array.from(new Set(formattedData.flatMap((item) => Object.keys(item))))
-
-            selectedTestsetRows.forEach((row) => {
-                const formattedRow: Record<string, any> = {}
-                for (const key of allKeys) {
-                    formattedRow[key] = row[key] ?? ""
+                    if (targetKey) {
+                        formattedItem[targetKey] =
+                            value === undefined || value === null
+                                ? ""
+                                : typeof value === "string"
+                                  ? value
+                                  : JSON.stringify(value)
+                    }
                 }
 
-                formattedData.push(formattedRow)
+                for (const {column} of selectedTestsetColumns) {
+                    if (!(column in formattedItem)) {
+                        formattedItem[column] = ""
+                    }
+                }
+
+                return formattedItem
             })
-        }
 
-        return formattedData
-    }
+            if (type === "export" && !isNewTestset) {
+                // add all previous test cases
+                const allKeys = Array.from(
+                    new Set(formattedData.flatMap((item) => Object.keys(item))),
+                )
+
+                selectedTestsetRows.forEach((row) => {
+                    const formattedRow: Record<string, any> = {}
+                    for (const key of allKeys) {
+                        formattedRow[key] = row[key] ?? ""
+                    }
+
+                    formattedData.push(formattedRow)
+                })
+            }
+
+            return formattedData
+        },
+        [mappingData, selectedTestsetColumns, selectedTestsetRows, isNewTestset],
+    )
 
     const onSaveTestset = async () => {
         try {
@@ -336,7 +344,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         }
     }
 
-    const hasDuplicateColumnNames = () => {
+    const hasDuplicateColumnNames = useCallback(() => {
         const seenValues = new Set<string>()
 
         return mappingData.some((item) => {
@@ -350,7 +358,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 return false
             })
         })
-    }
+    }, [mappingData])
 
     const tableColumns = useMemo(() => {
         const mappedColumns = mappingData.map((data, idx) => {
@@ -385,16 +393,16 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     }, [mappingData, selectedTestsetColumns, showLastFiveRows])
 
     const onSaveEditedTrace = () => {
-        if (updatedData && updatedData !== formatDataPreview) {
+        if (updatedTraceData && updatedTraceData !== formatDataPreview) {
             try {
-                const updatedTraceData = traceData.map((trace) => {
+                const newTrace = traceData.map((trace) => {
                     if (trace.key === rowDataPreview) {
                         const parsedUpdatedData =
-                            typeof updatedData === "string"
+                            typeof updatedTraceData === "string"
                                 ? editorFormat === "YAML"
-                                    ? yaml.load(updatedData)
-                                    : JSON.parse(updatedData)
-                                : updatedData
+                                    ? yaml.load(updatedTraceData)
+                                    : JSON.parse(updatedTraceData)
+                                : updatedTraceData
 
                         const updatedDataString = getYamlOrJson(editorFormat, parsedUpdatedData)
                         const originalDataString = getYamlOrJson(editorFormat, {
@@ -427,15 +435,14 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
                 // Only update if there are actual changes
                 setTraceData((prevTraceData) =>
-                    JSON.stringify(prevTraceData) !== JSON.stringify(updatedTraceData)
-                        ? updatedTraceData
+                    JSON.stringify(prevTraceData) !== JSON.stringify(newTrace)
+                        ? newTrace
                         : prevTraceData,
                 )
             } catch (error) {
                 message.error(
                     editorFormat === "YAML" ? "Invalid YAML format" : "Invalid JSON format",
                 )
-                console.error("Parsing error:", error)
             }
         }
     }
@@ -447,7 +454,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 destroyOnClose={false}
                 onClose={() => {
                     onClose()
-                    setUpdatedData("")
+                    setUpdatedTraceData("")
                     setNewTestsetName("")
                     setHasDuplicateColumns(false)
                 }}
@@ -462,7 +469,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                             loading={isLoading || isTestsetsLoading}
                             onClick={() =>
                                 !isNewTestset && isNewColumnCreated
-                                    ? setIsConfirmeModal(true)
+                                    ? setIsConfirmSave(true)
                                     : onSaveTestset()
                             }
                             disabled={!testset.name || !isMapColumnExist || hasDuplicateColumns}
@@ -535,7 +542,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     value={rowDataPreview}
                                     onChange={(value) => {
                                         setRowDataPreview(value)
-                                        setUpdatedData("")
+                                        setUpdatedTraceData("")
                                     }}
                                 >
                                     {traceData.map((trace) => (
@@ -585,7 +592,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     language={editorFormat.toLowerCase()}
                                     theme={`vs-${appTheme}`}
                                     value={formatDataPreview}
-                                    onChange={(value) => setUpdatedData(value as string)}
+                                    onChange={(value) => setUpdatedTraceData(value as string)}
                                     options={{
                                         wordWrap: "on",
                                         minimap: {enabled: false},
@@ -599,7 +606,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                         },
                                     }}
                                 />
-                                {updatedData && updatedData !== formatDataPreview ? (
+                                {updatedTraceData && updatedTraceData !== formatDataPreview ? (
                                     <Button
                                         icon={<FloppyDiskBack size={14} />}
                                         className="absolute top-2 right-2"
@@ -793,10 +800,10 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                             )}
                         </div>
 
-                        {isConfirmeModal && (
+                        {isConfirmSave && (
                             <Modal
-                                open={isConfirmeModal}
-                                onCancel={() => setIsConfirmeModal(false)}
+                                open={isConfirmSave}
+                                onCancel={() => setIsConfirmSave(false)}
                                 title="Are you sure you want to save?"
                                 okText={"Confirme"}
                                 onOk={() => onSaveTestset()}
