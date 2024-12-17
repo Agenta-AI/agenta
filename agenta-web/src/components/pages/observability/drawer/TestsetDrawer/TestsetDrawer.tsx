@@ -34,7 +34,7 @@ import clsx from "clsx"
 const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
-    const {testsets: listOfTestsets, isTestsetsLoading} = useLoadTestsetsList()
+    const {testsets: listOfTestsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
     const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
         setIsDrawerExtended(rect.width > 640)
     })
@@ -59,7 +59,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
     const selectedTestsetTestCases = selectedTestsetRows.slice(-5)
     const isNewColumnCreated = useMemo(
-        () => selectedTestsetColumns.some(({isNew}) => isNew),
+        () => selectedTestsetColumns.find(({isNew}) => isNew),
         [selectedTestsetColumns],
     )
     const isMapColumnExist = useMemo(
@@ -335,7 +335,9 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 message.success("Test set updated successfully")
             }
 
+            mutate()
             onClose()
+            setIsConfirmSave(false)
         } catch (error) {
             console.log(error)
             message.error("Something went wrong. Please try again later")
@@ -805,25 +807,25 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                 open={isConfirmSave}
                                 onCancel={() => setIsConfirmSave(false)}
                                 title="Are you sure you want to save?"
-                                okText={"Confirme"}
+                                okText={"Confirm"}
                                 onOk={() => onSaveTestset()}
+                                confirmLoading={isLoading || isTestsetsLoading}
                                 zIndex={2000}
                                 centered
                             >
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-4 my-4">
                                     <Typography.Text>
-                                        You have created some new column are you sure you want to
-                                        add them on the {testset.name} test set.
+                                        You have created new columns. Do you want to add them to the
+                                        <span className="font-bold">{testset.name}</span> test set?
                                     </Typography.Text>
 
                                     <div className="flex gap-1">
-                                        {selectedTestsetColumns
-                                            .filter((item) => item.isNew)
-                                            .map((item, idx) => (
-                                                <Typography.Text key={idx}>
-                                                    {item.column}
-                                                </Typography.Text>
-                                            ))}
+                                        New columns:{" "}
+                                        {JSON.stringify(
+                                            selectedTestsetColumns
+                                                .filter((item) => item.isNew)
+                                                .map((item) => item.column),
+                                        )}
                                     </div>
                                 </div>
                             </Modal>
