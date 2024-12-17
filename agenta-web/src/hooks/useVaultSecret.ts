@@ -7,6 +7,7 @@ import {
     saveLlmProviderKey,
 } from "@/lib/helpers/llmProviders"
 import {isDemo} from "@/lib/helpers/utils"
+import {dynamicLib, dynamicService} from "@/lib/helpers/dynamic"
 
 export const useVaultSecret = () => {
     const [secrets, setSecrets] = useState<LlmProvider[]>(llmAvailableProviders)
@@ -14,7 +15,7 @@ export const useVaultSecret = () => {
     const getVaultSecrets = async () => {
         try {
             if (isDemo()) {
-                const {fetchVaultSecret} = await import("@/services/vault/api"!)
+                const {fetchVaultSecret} = await dynamicService("vault/api")
                 const data = await fetchVaultSecret()
 
                 setSecrets((prevSecret) => {
@@ -46,8 +47,8 @@ export const useVaultSecret = () => {
     const handleModifyVaultSecret = async (provider: LlmProvider) => {
         try {
             if (isDemo()) {
-                const {createVaultSecret, updateVaultSecret} = await import("@/services/vault/api"!)
-                const {SecretDTOKind, SecretDTOProvider} = await import("@/lib/types_ee"!)
+                const {updateVaultSecret, createVaultSecret} = await dynamicService("vault/api")
+                const {SecretDTOProvider, SecretDTOKind} = await dynamicLib("types_ee")
 
                 const envNameMap: Record<string, any> = {
                     OPENAI_API_KEY: SecretDTOProvider.OPENAI,
@@ -98,8 +99,7 @@ export const useVaultSecret = () => {
     const handleDeleteVaultSecret = async (provider: LlmProvider) => {
         try {
             if (isDemo() && provider.id) {
-                const {deleteVaultSecret} = await import("@/services/vault/api"!)
-
+                const {deleteVaultSecret} = await dynamicService("vault/api")
                 await deleteVaultSecret({secret_id: provider.id})
                 await getVaultSecrets()
             } else {
