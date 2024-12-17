@@ -12,9 +12,7 @@ export default function Secrets() {
     const [messageAPI, contextHolder] = message.useMessage()
 
     useEffect(() => {
-        if (isDemo()) {
-            setLlmProviderKeys(secrets)
-        }
+        setLlmProviderKeys(secrets)
     }, [secrets])
 
     return (
