@@ -6,8 +6,7 @@ import {useEffect, useState} from "react"
 const {Title, Text} = Typography
 
 export default function Secrets() {
-    const {secrets, handleModifyVaultSecret, handleDeleteVaultSecret, findVaultSecret} =
-        useVaultSecret()
+    const {secrets, handleModifyVaultSecret, handleDeleteVaultSecret} = useVaultSecret()
     const [llmProviderKeys, setLlmProviderKeys] = useState<LlmProvider[]>([])
     const [messageAPI, contextHolder] = message.useMessage()
 
@@ -49,7 +48,7 @@ export default function Secrets() {
                                 <Button
                                     data-cy="openai-api-save"
                                     type="primary"
-                                    disabled={key === findVaultSecret(title) || !key}
+                                    disabled={!key}
                                     onClick={async () => {
                                         await handleModifyVaultSecret({
                                             name,

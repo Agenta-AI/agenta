@@ -139,13 +139,9 @@ export const useVaultSecret = () => {
         }
     }
 
-    const findVaultSecret = (providerName: string) =>
-        secrets.find((item: LlmProvider) => item.title === providerName)?.key
-
     return {
         secrets,
         handleModifyVaultSecret,
         handleDeleteVaultSecret,
-        findVaultSecret,
     }
 }
