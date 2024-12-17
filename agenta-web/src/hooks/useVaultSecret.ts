@@ -14,7 +14,7 @@ export const useVaultSecret = () => {
     const getVaultSecrets = async () => {
         try {
             if (isDemo()) {
-                const {fetchVaultSecret} = await import("@/services/vault/api")
+                const {fetchVaultSecret} = await import("@/services/vault/api"!)
                 const data = await fetchVaultSecret()
 
                 setSecrets((prevSecret) => {
@@ -46,8 +46,8 @@ export const useVaultSecret = () => {
     const handleModifyVaultSecret = async (provider: LlmProvider) => {
         try {
             if (isDemo()) {
-                const {createVaultSecret, updateVaultSecret} = await import("@/services/vault/api")
-                const {SecretDTOKind, SecretDTOProvider} = await import("@/lib/types_ee")
+                const {createVaultSecret, updateVaultSecret} = await import("@/services/vault/api"!)
+                const {SecretDTOKind, SecretDTOProvider} = await import("@/lib/types_ee"!)
 
                 const envNameMap: Record<string, any> = {
                     OPENAI_API_KEY: SecretDTOProvider.OPENAI,
@@ -98,7 +98,7 @@ export const useVaultSecret = () => {
     const handleDeleteVaultSecret = async (provider: LlmProvider) => {
         try {
             if (isDemo() && provider.id) {
-                const {deleteVaultSecret} = await import("@/services/vault/api")
+                const {deleteVaultSecret} = await import("@/services/vault/api"!)
 
                 await deleteVaultSecret({secret_id: provider.id})
                 await getVaultSecrets()
