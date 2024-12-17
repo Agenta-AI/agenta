@@ -1,6 +1,5 @@
 import {useVaultSecret} from "@/hooks/useVaultSecret"
-import {getLlmProviderKey, type LlmProvider} from "@/lib/helpers/llmProviders"
-import {isDemo} from "@/lib/helpers/utils"
+import {type LlmProvider} from "@/lib/helpers/llmProviders"
 import {Button, Input, Space, Typography, message} from "antd"
 import {useEffect, useState} from "react"
 
@@ -12,9 +11,7 @@ export default function Secrets() {
     const [messageAPI, contextHolder] = message.useMessage()
 
     useEffect(() => {
-        if (isDemo()) {
-            setLlmProviderKeys(secrets)
-        }
+        setLlmProviderKeys(secrets)
     }, [secrets])
 
     return (
@@ -51,7 +48,7 @@ export default function Secrets() {
                                 <Button
                                     data-cy="openai-api-save"
                                     type="primary"
-                                    disabled={key === getLlmProviderKey(title) || !key}
+                                    disabled={!key}
                                     onClick={async () => {
                                         await handleModifyVaultSecret({
                                             name,
