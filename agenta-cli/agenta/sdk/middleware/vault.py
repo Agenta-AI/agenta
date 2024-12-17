@@ -1,4 +1,4 @@
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, List
 
 from enum import Enum
 from os import getenv
@@ -24,18 +24,18 @@ class SecretKind(str, Enum):
 
 # TODO: Move to backend client types
 class ProviderKind(str, Enum):
-    OPENAI = "openai"
-    COHERE = "cohere"
-    ANYSCALE = "anyscale"
-    DEEPINFRA = "deepinfra"
     ALEPHALPHA = "alephalpha"
+    ANTHROPIC = "anthropic"
+    ANYSCALE = "anyscale"
+    COHERE = "cohere"
+    DEEPINFRA = "deepinfra"
+    GEMINI = "gemini"
     GROQ = "groq"
     MISTRALAI = "mistralai"
-    ANTHROPIC = "anthropic"
+    OPENAI = "openai"
+    OPENROUTER = "openrouter"
     PERPLEXITYAI = "perplexityai"
     TOGETHERAI = "togetherai"
-    OPENROUTER = "openrouter"
-    GEMINI = "gemini"
 
 
 # TODO: Move to backend client types
@@ -97,7 +97,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 return secrets
 
-        local_secrets = []
+        local_secrets: List[SecretDTO] = []
 
         try:
             for provider_kind in ProviderKind:
@@ -120,7 +120,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         except:  # pylint: disable=bare-except
             display_exception("Vault: Local Secrets Exception")
 
-        vault_secrets = []
+        vault_secrets: List[SecretDTO] = []
 
         try:
             async with httpx.AsyncClient() as client:
@@ -135,7 +135,8 @@ class VaultMiddleware(BaseHTTPMiddleware):
                 else:
                     vault = response.json()
 
-                    vault_secrets = vault.get("secrets")
+                    vault_secrets = [secret.secret.model_dump() for secret in vault]
+
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
