@@ -7,7 +7,7 @@ import {waitForAppToStart} from "@/services/api"
 import {createUseStyles} from "react-jss"
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
-import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/lib/helpers/llmProviders"
 import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
 import dayjs from "dayjs"
@@ -132,7 +132,7 @@ const AppManagement: React.FC = () => {
                     setFetchingTemplate(false)
                 if (status === "success") {
                     mutate()
-                    posthog.capture("app_deployment", {
+                    posthog?.capture?.("app_deployment", {
                         properties: {
                             app_id: appId,
                             environment: "UI",
