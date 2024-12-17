@@ -2,6 +2,7 @@ import {useLayoutEffect} from "react"
 import {isDemo, generateOrRetrieveDistinctId} from "@/lib/helpers/utils"
 import {usePostHog} from "posthog-js/react"
 import {useProfileData} from "@/contexts/profile.context"
+import useIsomorphicLayoutEffect from "./useIsomorphicLayoutEffect"
 
 export const usePostHogAg = () => {
     const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
@@ -23,11 +24,11 @@ export const usePostHogAg = () => {
         }
     }
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
         if (!trackingEnabled) posthog.opt_out_capturing()
     }, [trackingEnabled])
 
-    useLayoutEffect(() => {
+    useIsomorphicLayoutEffect(() => {
         if (posthog.get_distinct_id() !== _id) identify()
     }, [user?.id])
 
