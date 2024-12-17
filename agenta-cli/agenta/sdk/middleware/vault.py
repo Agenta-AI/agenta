@@ -1,53 +1,41 @@
-from typing import Callable, Dict, Optional, List
-
-from enum import Enum
 from os import getenv
 from json import dumps
-
-from pydantic import BaseModel
+from typing import Callable, Dict, Optional, List, Any
 
 import httpx
-from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 from agenta.sdk.utils.constants import TRUTHY
+from agenta.client.backend.types.provider_kind import ProviderKind
 from agenta.sdk.utils.exceptions import suppress, display_exception
+from agenta.client.backend.types.secret_dto import SecretDto as SecretDTO
+from agenta.client.backend.types.provider_key_dto import (
+    ProviderKeyDto as ProviderKeyDTO,
+)
+from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 
 import agenta as ag
 
 
-# TODO: Move to backend client types
-class SecretKind(str, Enum):
-    PROVIDER_KEY = "provider_key"
+# ProviderKind (agenta.client.backend.types.provider_kind import ProviderKind) defines a type hint that allows \
+# for a fixed set of string literals representing various provider names, alongside `typing.Any`.
+PROVIDER_KINDS = []
 
+# Rationale behind the following:
+# -------------------------------
+# You cannot loop directly over the values in `typing.Literal` because:
+# - `Literal` is not iterable.
+# - `ProviderKind.__args__` includes `Literal` and `Any`, but the actual string values
+#   are nested within the `Literal`'s own `__args__` attribute.
 
-# TODO: Move to backend client types
-class ProviderKind(str, Enum):
-    ALEPHALPHA = "alephalpha"
-    ANTHROPIC = "anthropic"
-    ANYSCALE = "anyscale"
-    COHERE = "cohere"
-    DEEPINFRA = "deepinfra"
-    GEMINI = "gemini"
-    GROQ = "groq"
-    MISTRALAI = "mistralai"
-    OPENAI = "openai"
-    OPENROUTER = "openrouter"
-    PERPLEXITYAI = "perplexityai"
-    TOGETHERAI = "togetherai"
-
-
-# TODO: Move to backend client types
-class ProviderKeyDTO(BaseModel):
-    provider: ProviderKind
-    key: str
-
-
-# TODO: Move to backend client types
-class SecretDTO(BaseModel):
-    kind: SecretKind = "provider_key"
-    data: ProviderKeyDTO
+# To solve this, we programmatically extract the values from `Literal` while retaining
+# the structure of ProviderKind. This ensures:
+# 1. We don't modify the original `ProviderKind` type definition.
+# 2. We dynamically access the literal values for use at runtime when necessary.
+for arg in ProviderKind.__args__:  # type: ignore
+    if hasattr(arg, "__args__"):
+        PROVIDER_KINDS.extend(arg.__args__)
 
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
@@ -60,6 +48,18 @@ class VaultMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+
+    def _transform_secrets_response_to_secret_dto(
+        self, secrets_list: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        secrets_dto_dict = [
+            {
+                "kind": secret.get("secret", {}).get("kind"),
+                "data": secret.get("secret", {}).get("data", {}),
+            }
+            for secret in secrets_list
+        ]
+        return secrets_dto_dict
 
     async def dispatch(
         self,
@@ -100,16 +100,15 @@ class VaultMiddleware(BaseHTTPMiddleware):
         local_secrets: List[SecretDTO] = []
 
         try:
-            for provider_kind in ProviderKind:
-                provider = provider_kind.value
+            for provider_kind in PROVIDER_KINDS:
+                provider = provider_kind
                 key_name = f"{provider.upper()}_API_KEY"
                 key = getenv(key_name)
 
                 if not key:
                     continue
 
-                secret = SecretDTO(
-                    kind=SecretKind.PROVIDER_KEY,
+                secret = SecretDTO(  # 'kind' attribute in SecretDTO defaults to 'provider_kind'
                     data=ProviderKeyDTO(
                         provider=provider,
                         key=key,
@@ -133,10 +132,10 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     vault_secrets = []
 
                 else:
-                    vault = response.json()
-
-                    vault_secrets = [secret.secret.model_dump() for secret in vault]
-
+                    secrets = response.json()
+                    vault_secrets = self._transform_secrets_response_to_secret_dto(
+                        secrets
+                    )
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
