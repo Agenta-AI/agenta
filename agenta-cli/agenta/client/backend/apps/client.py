@@ -216,7 +216,9 @@ class AppsClient:
         _response = self._client_wrapper.httpx_client.request(
             "apps",
             method="GET",
-            params={"app_name": app_name},
+            params={
+                "app_name": app_name,
+            },
             request_options=request_options,
         )
         try:
@@ -248,13 +250,15 @@ class AppsClient:
         *,
         app_name: str,
         project_id: typing.Optional[str] = OMIT,
+        workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
         """
-        Create a new app for a user.
+        Create a new app for a user or organization.
 
         Args:
-        payload (CreateApp): The payload containing the app name.
+        payload (CreateApp): The payload containing the app name and organization ID (optional).
         stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
@@ -268,6 +272,10 @@ class AppsClient:
         app_name : str
 
         project_id : typing.Optional[str]
+
+        workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -295,6 +303,11 @@ class AppsClient:
             json={
                 "app_name": app_name,
                 "project_id": project_id,
+                "workspace_id": workspace_id,
+                "organization_id": organization_id,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -393,7 +406,7 @@ class AppsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> UpdateAppOutput:
         """
-        Update an app for a user.
+        Update an app for a user or organization.
 
         Args:
         app_id (str): The ID of the app.
@@ -438,6 +451,9 @@ class AppsClient:
             method="PATCH",
             json={
                 "app_name": app_name,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -538,6 +554,9 @@ class AppsClient:
                 "base_name": base_name,
                 "config_name": config_name,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -572,6 +591,8 @@ class AppsClient:
         template_id: str,
         env_vars: typing.Dict[str, str],
         project_id: typing.Optional[str] = OMIT,
+        workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
@@ -596,6 +617,10 @@ class AppsClient:
         env_vars : typing.Dict[str, str]
 
         project_id : typing.Optional[str]
+
+        workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -626,7 +651,12 @@ class AppsClient:
                 "app_name": app_name,
                 "template_id": template_id,
                 "project_id": project_id,
+                "workspace_id": workspace_id,
                 "env_vars": env_vars,
+                "organization_id": organization_id,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -752,7 +782,7 @@ class AppsClient:
             base_url="https://yourhost.com/path/to/api",
         )
         client.apps.environment_revisions(
-            app_id="string",
+            app_id="app_id",
             environment_name={"key": "value"},
         )
         """
@@ -1005,7 +1035,9 @@ class AsyncAppsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "apps",
             method="GET",
-            params={"app_name": app_name},
+            params={
+                "app_name": app_name,
+            },
             request_options=request_options,
         )
         try:
@@ -1037,13 +1069,15 @@ class AsyncAppsClient:
         *,
         app_name: str,
         project_id: typing.Optional[str] = OMIT,
+        workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> CreateAppOutput:
         """
-        Create a new app for a user.
+        Create a new app for a user or organization.
 
         Args:
-        payload (CreateApp): The payload containing the app name.
+        payload (CreateApp): The payload containing the app name and organization ID (optional).
         stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
@@ -1057,6 +1091,10 @@ class AsyncAppsClient:
         app_name : str
 
         project_id : typing.Optional[str]
+
+        workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1092,6 +1130,11 @@ class AsyncAppsClient:
             json={
                 "app_name": app_name,
                 "project_id": project_id,
+                "workspace_id": workspace_id,
+                "organization_id": organization_id,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1198,7 +1241,7 @@ class AsyncAppsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> UpdateAppOutput:
         """
-        Update an app for a user.
+        Update an app for a user or organization.
 
         Args:
         app_id (str): The ID of the app.
@@ -1251,6 +1294,9 @@ class AsyncAppsClient:
             method="PATCH",
             json={
                 "app_name": app_name,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1359,6 +1405,9 @@ class AsyncAppsClient:
                 "base_name": base_name,
                 "config_name": config_name,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1393,6 +1442,8 @@ class AsyncAppsClient:
         template_id: str,
         env_vars: typing.Dict[str, str],
         project_id: typing.Optional[str] = OMIT,
+        workspace_id: typing.Optional[str] = OMIT,
+        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AppVariantResponse:
         """
@@ -1417,6 +1468,10 @@ class AsyncAppsClient:
         env_vars : typing.Dict[str, str]
 
         project_id : typing.Optional[str]
+
+        workspace_id : typing.Optional[str]
+
+        organization_id : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1455,7 +1510,12 @@ class AsyncAppsClient:
                 "app_name": app_name,
                 "template_id": template_id,
                 "project_id": project_id,
+                "workspace_id": workspace_id,
                 "env_vars": env_vars,
+                "organization_id": organization_id,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -1594,7 +1654,7 @@ class AsyncAppsClient:
 
         async def main() -> None:
             await client.apps.environment_revisions(
-                app_id="string",
+                app_id="app_id",
                 environment_name={"key": "value"},
             )
 

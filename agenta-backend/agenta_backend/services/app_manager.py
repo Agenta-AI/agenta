@@ -101,6 +101,7 @@ async def start_variant(
                 "AGENTA_BASE_ID": str(db_app_variant.base_id),
                 "AGENTA_APP_ID": str(db_app_variant.app_id),
                 "AGENTA_HOST": domain_name,
+                "AGENTA_RUNTIME": "true",
             }
         )
         if isCloudEE():
