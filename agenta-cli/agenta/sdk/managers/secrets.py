@@ -5,7 +5,7 @@ from agenta.sdk.context.routing import routing_context
 from agenta.sdk.assets import model_to_provider_mapping
 
 
-class VaultManager:
+class SecretsManager:
     @staticmethod
     def get_from_route() -> Optional[Dict[str, Any]]:
         context = routing_context.get()
@@ -19,7 +19,7 @@ class VaultManager:
 
     @staticmethod
     def get_api_key_for_model(model: str) -> str:
-        secrets = VaultManager.get_from_route()
+        secrets = SecretsManager.get_from_route()
 
         if not secrets:
             return None
