@@ -12,6 +12,7 @@ import ProjectContextProvider from "@/contexts/project.context"
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 import {Inter} from "next/font/google"
+import AgSWRConfig from "@/lib/api/SWRConfig"
 
 const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 const CustomPosthogProvider = dynamic(() => import("@/lib/helpers/analytics/AgPosthogProvider"))
@@ -29,24 +30,26 @@ export default function App({Component, pageProps}: AppProps) {
                 <link rel="shortcut icon" href="/assets/favicon.ico" />
             </Head>
             <main className={`${inter.variable} font-sans`}>
-                <CustomPosthogProvider
-                    config={{
-                        persistence: "localStorage+cookie",
-                    }}
-                >
-                    <ThemeContextProvider>
-                        <ProfileContextProvider>
-                            <ProjectContextProvider>
-                                <AppContextProvider>
-                                    <Layout>
-                                        <Component {...pageProps} />
-                                        <NoMobilePageWrapper />
-                                    </Layout>
-                                </AppContextProvider>
-                            </ProjectContextProvider>
-                        </ProfileContextProvider>
-                    </ThemeContextProvider>
-                </CustomPosthogProvider>
+                <AgSWRConfig>
+                    <CustomPosthogProvider
+                        config={{
+                            persistence: "localStorage+cookie",
+                        }}
+                    >
+                        <ThemeContextProvider>
+                            <ProfileContextProvider>
+                                <ProjectContextProvider>
+                                    <AppContextProvider>
+                                        <Layout>
+                                            <Component {...pageProps} />
+                                            <NoMobilePageWrapper />
+                                        </Layout>
+                                    </AppContextProvider>
+                                </ProjectContextProvider>
+                            </ProfileContextProvider>
+                        </ThemeContextProvider>
+                    </CustomPosthogProvider>
+                </AgSWRConfig>
             </main>
         </>
     )
