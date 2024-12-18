@@ -12,6 +12,7 @@ import {
     Select,
     Table,
     Typography,
+    AutoComplete,
 } from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
@@ -210,10 +211,10 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     }, [traceData, testset])
 
     const columnOptions = useMemo(() => {
-        const selectedColumns = mappingData
-            .map((item) => item.column)
-            .filter((col) => col !== "create")
-        return selectedTestsetColumns.filter(({column}) => !selectedColumns.includes(column))
+        return selectedTestsetColumns?.map(({column}) => ({
+            value: column,
+            lable: column,
+        }))
     }, [mappingData, selectedTestsetColumns])
 
     const onMappingOptionChange = ({
@@ -286,8 +287,8 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                     }
                 }
 
-                for (const {column} of selectedTestsetColumns) {
-                    if (!(column in formattedItem)) {
+                for (const {column, isNew} of selectedTestsetColumns) {
+                    if (!(column in formattedItem) && !isNew) {
                         formattedItem[column] = ""
                     }
                 }
@@ -668,36 +669,42 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                                         options={[
                                                             ...(testset.id
                                                                 ? customSelectOptions(
-                                                                      columnOptions.length > 0,
+                                                                      selectedTestsetColumns.length >
+                                                                          0,
                                                                   )
                                                                 : []),
-                                                            ...columnOptions?.map(({column}) => ({
-                                                                value: column,
-                                                                lable: column,
-                                                            })),
+                                                            ...columnOptions,
                                                         ]}
                                                     />
 
-                                                    {data.column === "create" ? (
-                                                        <div className="w-full relative">
-                                                            <Input
-                                                                style={{width: "100%"}}
-                                                                value={data.newColumn || ""}
-                                                                onChange={(e) =>
-                                                                    onMappingOptionChange({
-                                                                        pathName: "newColumn",
-                                                                        value: e.target.value,
-                                                                        idx,
-                                                                    })
-                                                                }
-                                                                placeholder="Column name"
-                                                            />
-                                                            <PencilSimple
-                                                                size={14}
-                                                                className="absolute top-[8px] right-2"
-                                                            />
-                                                        </div>
-                                                    ) : null}
+                                                    {data.column === "create" && (
+                                                        <AutoComplete
+                                                            style={{width: "100%"}}
+                                                            options={columnOptions}
+                                                            onSelect={(value) =>
+                                                                onMappingOptionChange({
+                                                                    pathName: "newColumn",
+                                                                    value,
+                                                                    idx,
+                                                                })
+                                                            }
+                                                            onChange={(value) =>
+                                                                onMappingOptionChange({
+                                                                    pathName: "newColumn",
+                                                                    value,
+                                                                    idx,
+                                                                })
+                                                            }
+                                                            placeholder="Column name"
+                                                            filterOption={(inputValue, option) =>
+                                                                option!.value
+                                                                    .toUpperCase()
+                                                                    .indexOf(
+                                                                        inputValue.toUpperCase(),
+                                                                    ) !== -1
+                                                            }
+                                                        />
+                                                    )}
                                                 </div>
 
                                                 <Button
