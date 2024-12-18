@@ -45,12 +45,9 @@ const useApps = () => {
     const isMockProjectId = projectId === DEFAULT_UUID
 
     const {selectedOrg, loading} = useOrgData()
+    const shouldFetch = !!user && (!isDemo() || !!selectedOrg?.id)
     const {data, error, isLoading, mutate} = useSWR(
-        !!user
-            ? `${getAgentaApiUrl()}/api/apps?` +
-                  (!isMockProjectId ? `project_id=${projectId}&` : "")
-            : null,
-        !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
+        shouldFetch ? `/api/apps?` + (!isMockProjectId ? `project_id=${projectId}&` : "") : null,
         {
             shouldRetryOnError: false,
         },
