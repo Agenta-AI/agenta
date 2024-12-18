@@ -51,6 +51,7 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
             leave="transition-opacity duration-150"
             leaveFrom="opacity-100"
             leaveTo="opacity-0"
+            as="div"
             className={clsx([
                 "fixed top-0 left-0 right-0 bottom-0", // overlay the entire screen
                 "flex flex-col items-center justify-center gap-4", // flex config
