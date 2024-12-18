@@ -1,7 +1,10 @@
 import pytest
 import asyncio
 
-from agenta_backend.tests.engine import test_db_engine as db_engine
+from agenta_backend.utils.common import isOss
+
+if isOss():
+    from agenta_backend.tests.engine import test_db_engine as db_engine
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -17,6 +20,8 @@ def event_loop():
 
     yield res
 
-    res.run_until_complete(db_engine.remove_db())  # drop database
-    res.run_until_complete(db_engine.close_db())  # close connections to database
+    if isOss():
+        res.run_until_complete(db_engine.remove_db())  # drop database
+        res.run_until_complete(db_engine.close_db())  # close connections to database
+
     res._close()  # close event loop # type: ignore
