@@ -1,4 +1,4 @@
-import {accessKeyInVariant} from "../../assets/helpers"
+import {accessKeyInVariant, setKeyInVariant} from "../../assets/helpers"
 import usePlaygroundState from "../usePlaygroundState"
 import type {InitialStateType, StateVariant} from "../../state/types"
 import type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn} from "./types"
@@ -10,7 +10,7 @@ import {compareVariant} from "../usePlaygroundState/assets/helpers"
 function usePlaygroundVariantConfig<T = any>(
     options: UsePlaygroundVariantConfigOptions,
 ): UsePlaygroundVariantConfigReturn<T> {
-    const {configKey, variantId, ...stateOptions} = options
+    const {configKey, valueKey, variantId, ...stateOptions} = options
 
     const {variants, mutate} = usePlaygroundState({
         ...stateOptions,
@@ -19,7 +19,10 @@ function usePlaygroundVariantConfig<T = any>(
         revalidateOnMount: false,
         compare: useCallback(
             (a: InitialStateType | undefined, b: InitialStateType | undefined) => {
-                return compareVariant(a, b, variantId, options?.compare, configKey)
+                return (
+                    compareVariant(a, b, variantId, options?.compare, configKey) &&
+                    compareVariant(a, b, variantId, options?.compare, valueKey)
+                )
             },
             [configKey, variantId, options?.compare],
         ),
@@ -34,11 +37,17 @@ function usePlaygroundVariantConfig<T = any>(
 
                     const updateVariant = (variant: StateVariant): StateVariant => {
                         const previousParam = accessKeyInVariant(
-                            configKey,
+                            valueKey,
                             variant,
-                        ) as ConfigPropertyType
-                        if (previousParam && previousParam.value !== val) {
-                            previousParam.value = val
+                        ) as ConfigPropertyType["value"]
+                        if (
+                            previousParam !== val
+                        ) {
+                            setKeyInVariant(
+                                valueKey,
+                                variant,
+                                val,
+                            )
                             return variant
                         }
                         return variant
@@ -59,12 +68,44 @@ function usePlaygroundVariantConfig<T = any>(
     const returnValues = useMemo(() => {
         const variant = variants?.find((v) => v.variantId === variantId)
         const config = variant ? (accessKeyInVariant(configKey, variant) as T) : undefined
+        const value = variant ? (accessKeyInVariant(valueKey, variant) as T) : undefined
+
+        interface HandleParamUpdateEvent {
+            target: {
+                value: string | boolean | string[] | null | number
+            }
+        }
+
+        const handleParamUpdate = (
+            e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
+        ) => {
+            const val = !!e
+                ? Array.isArray(e)
+                    ? e
+                    : typeof e === "object"
+                      ? e.target.value
+                      : e
+                : null
+            console.log("handle param update", val, configKey, valueKey, config, variant)
+            mutateVariant(variantId, val)
+        }
+
+        const property = {
+            config,
+            valueInfo: value,
+            handleChange: (
+                e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
+            ) => handleParamUpdate(e),
+        }
+
         return {
             variant,
             config,
+            value,
             mutateVariant,
+            property,
         }
-    }, [variants, variantId, configKey, mutateVariant])
+    }, [variants, variantId, configKey, valueKey, mutateVariant])
 
     return returnValues
 }

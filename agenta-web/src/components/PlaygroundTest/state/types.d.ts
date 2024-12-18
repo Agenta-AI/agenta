@@ -1,6 +1,6 @@
 import {Variant} from "@/lib/Types"
 import {SWRConfiguration, Key, Middleware} from "swr"
-import {Config} from "tailwindcss"
+import {OpenAPISchema, SchemaObject, ParsedSchema} from "../types"
 
 // Base state types
 export interface StateVariant extends Variant {
@@ -19,14 +19,6 @@ export type ModelDefaults = {
     configKey: string
     key: string
     value: ConfigProperty["default"]
-    // temperature: number
-    // model: string
-    // max_tokens: number
-    // top_p: number
-    // frequence_penalty: number
-    // presence_penalty: number
-    // force_json: boolean
-    // key: string
 }
 
 export type PromptDefaults = {
@@ -36,27 +28,11 @@ export type PromptDefaults = {
     value: Pick<ConfigProperty, "default">
 }
 
-type ParsedBasePromptConfig = {
-    modelProperties: ConfigProperty[]
-    modelDefaults: ModelDefaults[]
-    promptProperties: ConfigProperty[]
-    promptDefaults: PromptDefaults[]
-}
-
 type GroupConfigReturn<R extends boolean, P extends boolean> = R extends true
     ? P extends true
         ? PromptDefaults[]
         : ModelDefaults[]
     : ConfigProperty[]
-
-export interface PromptConfigType extends ParsedBasePromptConfig {
-    key: string
-}
-
-export type ParsedSchema = {
-    schemaName: string
-    promptConfig: Array<PromptConfigType>
-}
 
 export type InitialStateType = {
     variants: StateVariant[]
@@ -79,49 +55,39 @@ export type StateMiddleware = Middleware<
 >
 
 // OpenAPI related types
-export interface OpenAPISchema {
-    openapi: string
-    info: {
-        title: string
-        version: string
-    }
-    paths: {
-        [path: string]: {
-            [method: string]: {
-                summary?: string
-                operationId?: string
-                requestBody?: {
-                    content: {
-                        "application/json": {
-                            schema: SchemaObject
-                        }
-                    }
-                    required?: boolean
-                }
-                responses: {
-                    [code: string]: {
-                        description: string
-                        content?: {
-                            "application/json": {
-                                schema: SchemaObject
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    components: {
-        schemas: {
-            [name: string]: SchemaObject
-        }
+
+interface BaseSchemaProperty {
+    type?: string
+    title?: string
+    description?: string
+    default?: any
+    enum?: string[]
+    maximum?: number
+    minimum?: number
+    anyOf?: Array<{type?: string} | {type?: "null"}>
+}
+
+interface ObjectSchemaProperty extends BaseSchemaProperty {
+    properties?: Record<string, BaseSchemaProperty>
+    additionalProperties?: boolean
+}
+
+interface ArraySchemaProperty extends BaseSchemaProperty {
+    items?: BaseSchemaProperty & {
+        properties?: Record<string, BaseSchemaProperty>
     }
 }
 
 export interface SchemaObject {
     type?: string
     properties?: {
-        [name: string]: SchemaObject
+        messages?: ArraySchemaProperty
+        system_prompt?: BaseSchemaProperty
+        user_prompt?: BaseSchemaProperty
+        template_format?: BaseSchemaProperty
+        input_keys?: BaseSchemaProperty
+        llm_config?: ObjectSchemaProperty
+        agenta_config?: AgentaConfig
     }
     items?: SchemaObject
     anyOf?: SchemaObject[]
@@ -130,10 +96,9 @@ export interface SchemaObject {
     default?: any
     maximum?: number
     minimum?: number
-    ["x-parameter"]?: string
-    choices?: {
-        [category: string]: string[]
-    }
+    enum?: string[]
+    description?: string
+    additionalProperties?: boolean
 }
 
 // Configuration Property Types

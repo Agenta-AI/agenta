@@ -33,7 +33,7 @@ const PlaygroundVariantConfig = ({
                 {prompts.map((prompt, promptIndex) => {
                     return (
                         <PlaygroundVariantConfigPrompt
-                            key={prompt.key}
+                            key={prompt.key as string}
                             promptIndex={promptIndex}
                             variantId={variantId}
                         />

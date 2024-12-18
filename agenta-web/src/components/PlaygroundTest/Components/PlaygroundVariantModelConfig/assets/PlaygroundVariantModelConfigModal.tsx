@@ -1,14 +1,7 @@
-import {memo, type MouseEvent} from "react"
+import {memo, useCallback, type MouseEvent} from "react"
 import {Button} from "antd"
-import {ModelDefaults, type ConfigProperty} from "../../../state/types"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
-
-interface PlaygroundVariantModelConfigModalProps {
-    variantId: string
-    properties: ModelDefaults[]
-    handleSave: () => void
-    handleClose: (e: MouseEvent<HTMLElement>) => void
-}
+import { PlaygroundVariantModelConfigModalProps } from "../types"
 
 const PlaygroundVariantModelConfigModal = ({
     variantId,
@@ -16,13 +9,20 @@ const PlaygroundVariantModelConfigModal = ({
     handleSave,
     handleClose,
 }: PlaygroundVariantModelConfigModalProps) => {
+    console.log("render PlaygroundVariantModelConfigModal")
+    const preventClickBubble = useCallback((e: MouseEvent<HTMLElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+    }, [])
+
     return (
-        <div>
+        <div onClick={preventClickBubble}>
             {properties.map((property) => (
                 <PlaygroundVariantPropertyControl
                     variantId={variantId}
                     key={property.key}
                     configKey={property.configKey}
+                    valueKey={property.valueKey}
                 />
             ))}
 
