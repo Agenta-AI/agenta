@@ -11,7 +11,7 @@ ag.config.default(
 @ag.instrument()
 def main(aloha: str = "Aloha") -> str:
     print(ag.ConfigManager.get_from_route())
-    print(ag.VaultManager.get_from_route())
+    print(ag.SecretsManager.get_from_route())
     print(ag.config.flag)
 
     return aloha
