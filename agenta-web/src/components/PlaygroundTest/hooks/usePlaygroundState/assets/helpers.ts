@@ -1,5 +1,6 @@
 import isEqual from "lodash/isEqual"
-import type {InitialStateType, StateVariant, OpenAPISchema} from "../../../state/types"
+import type {InitialStateType, StateVariant} from "../../../state/types"
+import type {OpenAPISchema} from "../../../types"
 import {accessKeyInVariant, parseVariantSchema} from "../../../assets/helpers"
 import {type Variant} from "@/lib/Types"
 import {dereference} from "@scalar/openapi-parser"

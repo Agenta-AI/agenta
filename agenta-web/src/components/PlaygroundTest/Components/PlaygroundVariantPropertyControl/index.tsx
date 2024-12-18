@@ -8,53 +8,21 @@ import usePlaygroundVariantConfig from "../../hooks/usePlaygroundVariantConfig"
 
 const PlaygroundVariantPropertyControl = ({
     configKey,
+    valueKey,
     variantId,
 }: {
     configKey: string
+    valueKey: string
     variantId: string
 }) => {
-    const {mutateVariant, config: _config} = usePlaygroundVariantConfig({
+    const {mutateVariant, property} = usePlaygroundVariantConfig({
         configKey,
+        valueKey,
         variantId,
     })
 
-    const property = useMemo(() => {
-        /**
-         * A generic function that updates a variant prompt's parameters
-         * @param e
-         * @param param
-         */
-        interface HandleParamUpdateEvent {
-            target: {
-                value: string | boolean | string[] | null | number
-            }
-        }
-
-        const handleParamUpdate = (
-            e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
-        ) => {
-            const val = !!e
-                ? Array.isArray(e)
-                    ? e
-                    : typeof e === "object"
-                      ? e.target.value
-                      : e
-                : null
-            console.log("handle param update", val)
-            mutateVariant(variantId, val)
-        }
-
-        return {
-            config: _config.config || _config,
-            valueInfo: _config.config ? _config : {},
-            handleChange: (
-                e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
-            ) => handleParamUpdate(e),
-        }
-    }, [_config])
-
-    console.log("render property", configKey)
-
+    console.log("render - PlaygroundVariantPropertyControl", property.config.title)
+ 
     switch (property.config.type) {
         case "number":
         case "integer":
@@ -65,7 +33,7 @@ const PlaygroundVariantPropertyControl = ({
                         min={property.config.minimum}
                         max={property.config.maximum}
                         step={0.1}
-                        value={property.valueInfo.value as number}
+                        value={property.valueInfo as number}
                         onChange={property.handleChange}
                     />
                 )
@@ -81,7 +49,7 @@ const PlaygroundVariantPropertyControl = ({
             return (
                 <BooleanControl
                     label={property.config.title}
-                    value={property.valueInfo.value as boolean}
+                    value={property.valueInfo as boolean}
                     onChange={property.handleChange}
                 />
             )
@@ -91,7 +59,7 @@ const PlaygroundVariantPropertyControl = ({
                     <MultiSelectControl
                         label={property.config.title}
                         options={property.config.choices}
-                        value={property.valueInfo.value as string | string[]}
+                        value={property.valueInfo as string | string[]}
                         onChange={property.handleChange}
                     />
                 )
@@ -100,7 +68,7 @@ const PlaygroundVariantPropertyControl = ({
                     <PromptInput
                         key={property.config.title}
                         title={property.config.title}
-                        value={property.valueInfo.value as string}
+                        value={property.valueInfo as string}
                         type={property.config.type}
                         onChange={property.handleChange}
                     />

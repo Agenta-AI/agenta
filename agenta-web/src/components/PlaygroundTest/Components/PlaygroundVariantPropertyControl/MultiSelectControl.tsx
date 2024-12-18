@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 import {Select, Typography} from "antd"
 import type {SelectProps} from "antd"
+import PlaygroundVariantPropertyControlWrapper from "./assets/PlaygroundVariantPropertyControlWrapper"
 
 type BaseOption = {
     label: string
@@ -38,7 +39,7 @@ const SelectControl = ({mode, label, options: _options, value, onChange}: Select
     }, [_options])
 
     return (
-        <div className="flex flex-col gap-2 mb-[13px]">
+        <PlaygroundVariantPropertyControlWrapper>
             <Typography.Text>{label}</Typography.Text>
             <Select<string | string[]>
                 mode={mode}
@@ -46,7 +47,7 @@ const SelectControl = ({mode, label, options: _options, value, onChange}: Select
                 onChange={onChange}
                 options={options}
             />
-        </div>
+        </PlaygroundVariantPropertyControlWrapper>
     )
 }
 

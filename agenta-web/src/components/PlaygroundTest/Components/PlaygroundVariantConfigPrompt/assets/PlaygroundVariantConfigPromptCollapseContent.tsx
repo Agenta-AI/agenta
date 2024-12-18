@@ -1,7 +1,8 @@
 import {memo} from "react"
-import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 import AddButton from "../../../assets/AddButton"
 import useAgentaConfig from "@/components/PlaygroundTest/hooks/useAgentaConfig"
+import { ModelConfig, PromptConfigType } from "@/components/PlaygroundTest/types"
+import PromptMessageConfig from "../../PromptMessageConfig"
 
 const PlaygroundVariantConfigPromptCollapseContent = ({
     promptIndex,
@@ -10,16 +11,26 @@ const PlaygroundVariantConfigPromptCollapseContent = ({
     variantId: string
     promptIndex: number
 }) => {
-    const {prompt} = useAgentaConfig({variantId, promptIndex})  
+    const {prompt} = useAgentaConfig({variantId, promptIndex})
+    if (!prompt) return null
+    const messages = prompt.messages || []
     console.log("render PlaygroundVariantConfigPromptCollapse - Content")
     return (
         <div className="flex flex-col gap-4">
-            {prompt?.promptDefaults.map((property) => {
+            {(Array.isArray(messages.value)
+                ? messages.value
+                : [messages.value]
+            ).map((messageValue, index) => {
+                const withConfig = {
+                    ...(messageValue as ModelConfig),
+                    config: messages.config as PromptConfigType,
+                }
                 return (
-                    <PlaygroundVariantPropertyControl
-                        key={[property.configKey, variantId].join("-")}
+                    <PromptMessageConfig
+                        key={[withConfig.valueKey, variantId].join("-")}
                         variantId={variantId}
-                        configKey={property.configKey}
+                        configKey={messages.configKey || ""}
+                        valueKey={`${messages.valueKey}.[${index}]`}
                     />
                 )
             })}

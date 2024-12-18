@@ -5,12 +5,8 @@ import {CaretDown} from "@phosphor-icons/react"
 import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import PlaygroundVariantModelConfigModal from "./assets/PlaygroundVariantModelConfigModal"
 import useAgentaConfig from "../../hooks/useAgentaConfig"
-import { ModelDefaults } from "../../state/types"
-
-interface PlaygroundVariantModelConfigProps {
-    variantId: string
-    promptIndex: number
-}
+import { PlaygroundVariantModelConfigProps } from "./types"
+import { ModelConfig, PromptConfigType } from "../../types"
 
 const PlaygroundVariantModelConfig = ({
     promptIndex,
@@ -19,11 +15,25 @@ const PlaygroundVariantModelConfig = ({
     const [openAdvancedConfigPopover, setOpenAdvancedConfigPopover] = useState(false)
     const {prompt} = useAgentaConfig({variantId, promptIndex})
 
-    const {promptDefaults, promptModel} = useMemo(() => {
-        const modelProperties: ModelDefaults[] = prompt?.modelDefaults || []
-        const property = modelProperties.find((mp) => mp.key === "model")
-        const value = property?.value as string
-        return {promptModel: value, promptDefaults: modelProperties}
+    const {properties, modelName} = useMemo(() => {
+        const llmConfig = prompt?.llm_config || {} as PromptConfigType
+        const llmConfigValue: ModelConfig = llmConfig?.value as ModelConfig || {} as ModelConfig
+
+        console.log('llmConfigValue', llmConfigValue)
+
+        const properties = llmConfigValue ? (Object.keys(llmConfigValue) as (keyof ModelConfig)[]).map((key) => {
+            return {
+                key,
+                configKey: `${llmConfig.configKey}.${key}`,
+                valueKey: `${llmConfig.valueKey}.${key}`,
+                value: llmConfigValue[key],
+            }
+        }) : []
+
+        return {
+            properties,
+            modelName: llmConfigValue?.model,
+        }
     }, [prompt])
 
     const handleResetDefaults = useCallback((e: MouseEvent<HTMLElement>) => {
@@ -60,7 +70,7 @@ const PlaygroundVariantModelConfig = ({
             content={
                 <PlaygroundVariantModelConfigModal
                     variantId={variantId}
-                    properties={promptDefaults}
+                    properties={properties}
                     handleClose={closePopover}
                     handleSave={saveProperties}
                 />
@@ -74,7 +84,7 @@ const PlaygroundVariantModelConfig = ({
             ])}
         >
             <Button onClick={openPopover}>
-                {promptModel || null} <CaretDown size={14} />
+                {modelName ?? "Choose a model"} <CaretDown size={14} />
             </Button>
         </Popover>
     )

@@ -1,13 +1,24 @@
 import {memo} from "react"
+
 import dynamic from "next/dynamic"
 import {Typography} from "antd"
-import PlaygroundVariantConfig from "./PlaygroundVariantConfig"
-import {type StateVariant} from "../state/types"
+import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
+import { PlaygroundVariantProps } from "./types"
 
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
 
-const PlaygroundVariant = ({variant}: {variant: StateVariant}) => {
+/**
+ * PlaygroundVariant component
+ *
+ * This component is responsible for rendering a single playground variant.
+ * It receives a `variant` prop of type `StateVariant` and renders the
+ * `PlaygroundVariantConfigPrompt` component for the variant.
+ *
+ * @param {StateVariant} variant - The variant to render.
+ * @returns {JSX.Element} The rendered component.
+ */
+const PlaygroundVariant = ({variant}: PlaygroundVariantProps) => {
     console.log("render PlaygroundVariant", variant.variantId)
     return (
         <div key={variant.variantId} className="flex flex-col grow h-full overflow-hidden">

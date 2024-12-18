@@ -18,8 +18,11 @@ const Playground: React.FC = () => {
                 <h1>Service not found</h1>
                 <p>available services are:</p>
                 <ul>
-                    <li>completion-old-sdk</li>
-                    <li>chat-old-sdk</li>
+                    {
+                        AVAILABLE_SERVICES.map((service) => (
+                            <li key={service}>{service}</li>
+                        ))
+                    }
                 </ul>
             </div>
         )
