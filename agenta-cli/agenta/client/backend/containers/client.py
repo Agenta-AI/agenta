@@ -156,6 +156,9 @@ class ContainersClient:
             json={
                 "variant_id": variant_id,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -467,6 +470,9 @@ class AsyncContainersClient:
             method="POST",
             json={
                 "variant_id": variant_id,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
