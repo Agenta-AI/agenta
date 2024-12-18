@@ -1,8 +1,8 @@
 import axiosApi from "axios"
-import {getErrorMessage, globalErrorHandler} from "./errorHandler"
+import {getErrorMessage, globalErrorHandler} from "../../helpers/errorHandler"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import router from "next/router"
-import {getAgentaApiUrl} from "./utils"
+import {getAgentaApiUrl} from "../../helpers/utils"
 import isObject from "lodash/isObject"
 import AlertPopup from "@/components/AlertPopup/AlertPopup"
 
