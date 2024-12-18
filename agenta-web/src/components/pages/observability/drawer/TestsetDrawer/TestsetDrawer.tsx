@@ -55,6 +55,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
     const [isConfirmSave, setIsConfirmSave] = useState(false)
+    const [hasSpanConflict, setHasSpanConflict] = useState(false) // New state for span conflicts
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
@@ -185,6 +186,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                         ...prevMappingData[index],
                         data: item.value,
                         column: matchingColumn,
+                        span: traceData.find((trace) => trace.data === item.value)?.key || "", // Add span key to mapping data
                     }
                 })
 
@@ -247,9 +249,11 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
     useUpdateEffect(() => {
         const duplicatesExist = hasDuplicateColumnNames()
+        const spanConflictsExist = hasSpanConflicts() // Check for span conflicts
         setHasDuplicateColumns(duplicatesExist)
+        setHasSpanConflict(spanConflictsExist) // Update state for span conflicts
 
-        if (!duplicatesExist && isMapColumnExist) {
+        if (!duplicatesExist && !spanConflictsExist && isMapColumnExist) {
             onPreviewOptionChange(preview.key)
         }
     }, [mappingData])
@@ -360,6 +364,30 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 seenValues.add(value as string)
                 return false
             })
+        })
+    }, [mappingData])
+
+    // Function to check for span conflicts
+    const hasSpanConflicts = useCallback(() => {
+        const spanColumnMap = new Map<string, Set<string>>()
+
+        return mappingData.some((item) => {
+            const span = item.span
+            const column = item.column || item.newColumn
+
+            if (!span || !column) return false
+
+            if (!spanColumnMap.has(span)) {
+                spanColumnMap.set(span, new Set())
+            }
+
+            const columns = spanColumnMap.get(span)!
+            if (columns.has(column)) {
+                return true // Conflict found: same column used within the same span
+            }
+
+            columns.add(column)
+            return false
         })
     }, [mappingData])
 
@@ -475,7 +503,12 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                     ? setIsConfirmSave(true)
                                     : onSaveTestset()
                             }
-                            disabled={!testset.name || !isMapColumnExist || hasDuplicateColumns}
+                            disabled={
+                                !testset.name ||
+                                !isMapColumnExist ||
+                                hasDuplicateColumns ||
+                                hasSpanConflict // Disable save if there are span conflicts
+                            }
                         >
                             Save
                         </Button>
@@ -629,6 +662,12 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                             {hasDuplicateColumns && (
                                 <Typography.Text type="danger">
                                     Duplicate columns detected. Ensure each column is unique
+                                </Typography.Text>
+                            )}
+                            {hasSpanConflict && (
+                                <Typography.Text type="danger">
+                                    Span conflicts detected. Ensure each column is unique within a
+                                    span.
                                 </Typography.Text>
                             )}
 
