@@ -23,8 +23,9 @@ class LLMTokenUsage(BaseModel):
 
 
 class BaseResponse(BaseModel):
-    version: Optional[str] = "3.0"
+    version: Optional[str] = "3.1"
     data: Optional[Union[str, Dict[str, Any]]] = None
+    content_type: Optional[str] = "string"
     tree: Optional[AgentaNodesResponse] = None
 
 
