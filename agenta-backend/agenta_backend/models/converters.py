@@ -334,6 +334,7 @@ async def app_variant_db_revision_to_output(
     app_variant_revision_db: AppVariantRevisionsDB,
 ) -> AppVariantRevision:
     return AppVariantRevision(
+        id=str(app_variant_revision_db.id) or None,
         revision=app_variant_revision_db.revision,
         modified_by=app_variant_revision_db.modified_by.username,
         config=ConfigDB(
