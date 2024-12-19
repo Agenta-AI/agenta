@@ -1,3 +1,4 @@
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import EmptyComponent from "@/components/EmptyComponent"
 import GenericDrawer from "@/components/GenericDrawer"
 import {nodeTypeStyles} from "./components/AvatarTreeContent"
@@ -41,7 +42,10 @@ import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import {useUpdateEffect} from "usehooks-ts"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
-import TestsetDrawer, {TestsetTraceData} from "./drawer/TestsetDrawer"
+import {TestsetTraceData, TestsetDrawerProps} from "./drawer/TestsetDrawer/assets/types"
+const TestsetDrawer = dynamicComponent<TestsetDrawerProps>(
+    "pages/observability/drawer/TestsetDrawer/TestsetDrawer",
+)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -650,16 +654,14 @@ const ObservabilityDashboard = () => {
                 />
             </div>
 
-            {testsetDrawerData.length > 0 && (
-                <TestsetDrawer
-                    open={testsetDrawerData.length > 0}
-                    data={testsetDrawerData}
-                    onClose={() => {
-                        setTestsetDrawerData([])
-                        setSelectedRowKeys([])
-                    }}
-                />
-            )}
+            <TestsetDrawer
+                open={testsetDrawerData.length > 0}
+                data={testsetDrawerData}
+                onClose={() => {
+                    setTestsetDrawerData([])
+                    setSelectedRowKeys([])
+                }}
+            />
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer

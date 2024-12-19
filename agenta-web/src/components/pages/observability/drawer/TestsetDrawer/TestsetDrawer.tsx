@@ -1,98 +1,99 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
-import {ArrowRight, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
+import {ArrowRight, FloppyDiskBack, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {
     Button,
     Checkbox,
     Divider,
-    Drawer,
     Input,
     message,
+    Modal,
     Radio,
     Select,
     Table,
     Typography,
+    AutoComplete,
 } from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Editor} from "@monaco-editor/react"
-import {createUseStyles} from "react-jss"
-import {JSSTheme, KeyValuePair, testset} from "@/lib/Types"
+import {KeyValuePair, testset} from "@/lib/Types"
 import {
     createNewTestset,
     fetchTestset,
     updateTestset,
     useLoadTestsetsList,
 } from "@/services/testsets/api"
-import {collectKeyPathsFromObject, getStringOrJson} from "@/lib/helpers/utils"
+import {collectKeyPathsFromObject, getYamlOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
 import {useUpdateEffect} from "usehooks-ts"
-
 import useResizeObserver from "@/hooks/useResizeObserver"
+import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps, TestsetColumn} from "./assets/types"
+import {useStyles} from "./assets/styles"
+import clsx from "clsx"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    editor: {
-        border: `1px solid ${theme.colorBorder}`,
-        borderRadius: theme.borderRadius,
-        overflow: "hidden",
-        "& .monaco-editor": {
-            width: "0 !important",
-        },
-    },
-    drawerHeading: {
-        fontSize: theme.fontSizeLG,
-        lineHeight: theme.lineHeightLG,
-        fontWeight: theme.fontWeightMedium,
-    },
-    container: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-    },
-    label: {
-        fontWeight: theme.fontWeightMedium,
-    },
-}))
-
-type Mapping = {data: string; column: string; newColumn?: string}
-type Preview = {key: string; data: KeyValuePair[]}
-export type TestsetTraceData = {key: string; data: KeyValuePair; id: number}
-type Props = {
-    onClose: () => void
-    data: TestsetTraceData[]
-} & React.ComponentProps<typeof Drawer>
-
-const TestsetDrawer = ({onClose, data, ...props}: Props) => {
+const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
-    const {testsets: listOfTestsets, isTestsetsLoading} = useLoadTestsetsList()
+    const {testsets: listOfTestsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
     const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
         setIsDrawerExtended(rect.width > 640)
     })
 
     const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [traceData, setTraceData] = useState(data.length > 0 ? data : [])
+    const [traceData, setTraceData] = useState<TestsetTraceData[]>([])
+    const [updatedTraceData, setUpdatedTraceData] = useState("")
     const [testset, setTestset] = useState({name: "", id: ""})
     const [newTestsetName, setNewTestsetName] = useState("")
-    const [editorFormat, setEditorFormat] = useState("JSON")
-    const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<string[]>([])
+    const [editorFormat, setEditorFormat] = useState<"JSON" | "YAML">("JSON")
+    const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<TestsetColumn[]>([])
     const [selectedTestsetRows, setSelectedTestsetRows] = useState<KeyValuePair[]>([])
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
-    const [rowDataPreview, setRowDataPreview] = useState(traceData[0]?.key || "")
+    const [rowDataPreview, setRowDataPreview] = useState("")
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
+    const [isConfirmSave, setIsConfirmSave] = useState(false)
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
     const selectedTestsetTestCases = selectedTestsetRows.slice(-5)
-    const isMapColumnExist = mappingData.some((mapping) =>
-        mapping.column === "create" || !mapping.column ? !!mapping?.newColumn : !!mapping.column,
+    const isNewColumnCreated = useMemo(
+        () => selectedTestsetColumns.find(({isNew}) => isNew),
+        [selectedTestsetColumns],
     )
+    const isMapColumnExist = useMemo(
+        () =>
+            mappingData.some((mapping) =>
+                mapping.column === "create" || !mapping.column
+                    ? !!mapping?.newColumn
+                    : !!mapping.column,
+            ),
+        [mappingData],
+    )
+    const selectedTraceData = useMemo(
+        () => traceData.find((trace) => trace.key === rowDataPreview),
+        [rowDataPreview, traceData],
+    )
+    const formatDataPreview = useMemo(() => {
+        if (!traceData?.length) return ""
+
+        const jsonObject = {data: selectedTraceData?.data || traceData[0]?.data}
+        if (!jsonObject) return ""
+
+        return getYamlOrJson(editorFormat, jsonObject)
+    }, [editorFormat, traceData, rowDataPreview])
+
+    useUpdateEffect(() => {
+        if (data.length > 0) {
+            setTraceData(data)
+            setRowDataPreview(data[0]?.key || "")
+        }
+    }, [data])
 
     // predefind options
-    const customSelectOptions = (divider = true) => {
+    const customSelectOptions = useCallback((divider = true) => {
         return [
             {value: "create", label: "Create New"},
             ...(divider
@@ -106,33 +107,27 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                   ]
                 : []),
         ]
-    }
+    }, [])
 
     const onTestsetOptionChange = async (option: {label: string; value: string}) => {
         const {value, label} = option
 
         try {
             resetStates()
-            setTestset({name: label, id: value})
-
             if (value && value !== "create") {
                 const data = await fetchTestset(value)
                 if (data?.csvdata?.length) {
-                    setSelectedTestsetColumns(Object.keys(data.csvdata[0]))
+                    const testsetColumns = Object.keys(data.csvdata[0])
+                    setSelectedTestsetColumns(() =>
+                        testsetColumns.map((data) => ({column: data, isNew: false})),
+                    )
                     setSelectedTestsetRows(data.csvdata)
                 }
             }
 
-            if (mappingOptions.length > 0 && value) {
-                setMappingData((prevMappingData) =>
-                    mappingOptions.map((item, index) => ({
-                        ...prevMappingData[index],
-                        data: item.value,
-                    })),
-                )
-            }
+            setTestset({name: label, id: value})
         } catch (error) {
-            message.error("Failed to laod Test sets!")
+            message.error("Failed to load Test sets!")
         }
     }
 
@@ -156,24 +151,6 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         }
     }
 
-    const formatDataPreview = useMemo(() => {
-        if (!traceData?.length) return ""
-
-        const jsonObject = {
-            data:
-                traceData.find((trace) => trace?.key === rowDataPreview)?.data ||
-                traceData[0]?.data,
-        }
-        if (!jsonObject) return ""
-
-        try {
-            return editorFormat === "YAML" ? yaml.dump(jsonObject) : getStringOrJson(jsonObject)
-        } catch (error) {
-            message.error("Failed to convert JSON to YAML. Please ensure the data is valid.")
-            return getStringOrJson(jsonObject)
-        }
-    }, [editorFormat, traceData, rowDataPreview])
-
     const mappingOptions = useMemo(() => {
         const uniquePaths = new Set<string>()
 
@@ -182,14 +159,62 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
             traceKeys.forEach((key) => uniquePaths.add(key))
         })
 
-        return Array.from(uniquePaths).map((item) => ({value: item}))
-    }, [traceData])
+        const mappedData = Array.from(uniquePaths).map((item) => ({value: item}))
+
+        if (mappedData.length > 0 && testset.id) {
+            setMappingData((prevMappingData) => {
+                const testsetColumnsSet = new Set(
+                    selectedTestsetColumns.map((item) => item.column.toLowerCase()),
+                )
+
+                const newMappedData = mappedData.map((item, index) => {
+                    const mapName = item.value.split(".").pop()!.toLowerCase()
+
+                    let matchingColumn = mapName
+                    if (testsetColumnsSet.has(mapName)) {
+                        matchingColumn = selectedTestsetColumns.find(
+                            (col) => col.column.toLowerCase() === mapName,
+                        )!.column
+                    } else if (mapName === "outputs" && testsetColumnsSet.has("correct_answer")) {
+                        matchingColumn = selectedTestsetColumns.find(
+                            (col) => col.column.toLowerCase() === "correct_answer",
+                        )!.column
+                    }
+
+                    return {
+                        ...prevMappingData[index],
+                        data: item.value,
+                        column: matchingColumn,
+                    }
+                })
+
+                // Efficiently update selected columns
+                const updatedColumns = new Set([
+                    ...selectedTestsetColumns.map((col) => col.column),
+                    ...newMappedData
+                        .filter((item) => !testsetColumnsSet.has(item.column.toLowerCase()))
+                        .map((item) => item.column),
+                ])
+
+                setSelectedTestsetColumns(
+                    Array.from(updatedColumns).map((column) => ({
+                        column,
+                        isNew: !testsetColumnsSet.has(column.toLowerCase()),
+                    })),
+                )
+
+                return newMappedData
+            })
+        }
+
+        return mappedData
+    }, [traceData, testset])
 
     const columnOptions = useMemo(() => {
-        const selectedColumns = mappingData
-            .map((item) => item.column)
-            .filter((col) => col !== "create")
-        return selectedTestsetColumns.filter((column) => !selectedColumns.includes(column))
+        return selectedTestsetColumns?.map(({column}) => ({
+            value: column,
+            lable: column,
+        }))
     }, [mappingData, selectedTestsetColumns])
 
     const onMappingOptionChange = ({
@@ -238,57 +263,59 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         setNewTestsetName("")
     }
 
-    const mapAndConvertDataInCsvFormat = (
-        traceData: TestsetTraceData[],
-        type: "preview" | "export",
-    ) => {
-        const formattedData = traceData.map((item) => {
-            const formattedItem: Record<string, any> = {}
+    const mapAndConvertDataInCsvFormat = useCallback(
+        (traceData: TestsetTraceData[], type: "preview" | "export") => {
+            const formattedData = traceData.map((item) => {
+                const formattedItem: Record<string, any> = {}
 
-            for (const mapping of mappingData) {
-                const keys = mapping.data.split(".")
-                let value = keys.reduce((acc: any, key) => acc?.[key], item)
+                for (const mapping of mappingData) {
+                    const keys = mapping.data.split(".")
+                    let value = keys.reduce((acc: any, key) => acc?.[key], item)
 
-                const targetKey =
-                    mapping.column === "create" || !mapping.column
-                        ? mapping.newColumn
-                        : mapping.column
+                    const targetKey =
+                        mapping.column === "create" || !mapping.column
+                            ? mapping.newColumn
+                            : mapping.column
 
-                if (targetKey) {
-                    formattedItem[targetKey] =
-                        value === undefined || value === null
-                            ? ""
-                            : typeof value === "string"
-                              ? value
-                              : JSON.stringify(value)
-                }
-            }
-
-            for (const column of selectedTestsetColumns) {
-                if (!(column in formattedItem)) {
-                    formattedItem[column] = ""
-                }
-            }
-
-            return formattedItem
-        })
-
-        if (type === "export" && !isNewTestset) {
-            // add all previous test cases
-            const allKeys = Array.from(new Set(formattedData.flatMap((item) => Object.keys(item))))
-
-            selectedTestsetRows.forEach((row) => {
-                const formattedRow: Record<string, any> = {}
-                for (const key of allKeys) {
-                    formattedRow[key] = row[key] ?? ""
+                    if (targetKey) {
+                        formattedItem[targetKey] =
+                            value === undefined || value === null
+                                ? ""
+                                : typeof value === "string"
+                                  ? value
+                                  : JSON.stringify(value)
+                    }
                 }
 
-                formattedData.push(formattedRow)
+                for (const {column, isNew} of selectedTestsetColumns) {
+                    if (!(column in formattedItem) && !isNew) {
+                        formattedItem[column] = ""
+                    }
+                }
+
+                return formattedItem
             })
-        }
 
-        return formattedData
-    }
+            if (type === "export" && !isNewTestset) {
+                // add all previous test cases
+                const allKeys = Array.from(
+                    new Set(formattedData.flatMap((item) => Object.keys(item))),
+                )
+
+                selectedTestsetRows.forEach((row) => {
+                    const formattedRow: Record<string, any> = {}
+                    for (const key of allKeys) {
+                        formattedRow[key] = row[key] ?? ""
+                    }
+
+                    formattedData.push(formattedRow)
+                })
+            }
+
+            return formattedData
+        },
+        [mappingData, selectedTestsetColumns, selectedTestsetRows, isNewTestset],
+    )
 
     const onSaveTestset = async () => {
         try {
@@ -309,7 +336,9 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 message.success("Test set updated successfully")
             }
 
+            mutate()
             onClose()
+            setIsConfirmSave(false)
         } catch (error) {
             console.log(error)
             message.error("Something went wrong. Please try again later")
@@ -318,7 +347,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         }
     }
 
-    const hasDuplicateColumnNames = () => {
+    const hasDuplicateColumnNames = useCallback(() => {
         const seenValues = new Set<string>()
 
         return mappingData.some((item) => {
@@ -332,7 +361,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                 return false
             })
         })
-    }
+    }, [mappingData])
 
     const tableColumns = useMemo(() => {
         const mappedColumns = mappingData.map((data, idx) => {
@@ -350,9 +379,9 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
 
         const testsetColumns = showLastFiveRows
             ? selectedTestsetColumns.map((item) => ({
-                  title: item,
-                  dataIndex: item,
-                  key: item,
+                  title: item.column,
+                  dataIndex: item.column,
+                  key: item.column,
                   width: 250,
                   onHeaderCell: () => ({style: {minWidth: 200}}),
               }))
@@ -366,12 +395,72 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
         )
     }, [mappingData, selectedTestsetColumns, showLastFiveRows])
 
+    const onSaveEditedTrace = () => {
+        if (updatedTraceData && updatedTraceData !== formatDataPreview) {
+            try {
+                const newTrace = traceData.map((trace) => {
+                    if (trace.key === rowDataPreview) {
+                        const parsedUpdatedData =
+                            typeof updatedTraceData === "string"
+                                ? editorFormat === "YAML"
+                                    ? yaml.load(updatedTraceData)
+                                    : JSON.parse(updatedTraceData)
+                                : updatedTraceData
+
+                        const updatedDataString = getYamlOrJson(editorFormat, parsedUpdatedData)
+                        const originalDataString = getYamlOrJson(editorFormat, {
+                            data: trace.originalData || trace.data,
+                        })
+                        const isMatchingOriginalData = updatedDataString == originalDataString
+                        const isMatchingData =
+                            updatedDataString !== getYamlOrJson(editorFormat, {data: trace.data})
+
+                        if (isMatchingOriginalData) {
+                            return {
+                                ...trace,
+                                ...parsedUpdatedData,
+                                isEdited: false,
+                                originalData: null,
+                            }
+                        } else {
+                            return {
+                                ...trace,
+                                ...parsedUpdatedData,
+                                ...(isMatchingData && !trace.originalData
+                                    ? {originalData: trace.data}
+                                    : {}),
+                                isEdited: true,
+                            }
+                        }
+                    }
+                    return trace
+                })
+
+                // Only update if there are actual changes
+                setTraceData((prevTraceData) =>
+                    JSON.stringify(prevTraceData) !== JSON.stringify(newTrace)
+                        ? newTrace
+                        : prevTraceData,
+                )
+            } catch (error) {
+                message.error(
+                    editorFormat === "YAML" ? "Invalid YAML format" : "Invalid JSON format",
+                )
+            }
+        }
+    }
+
     return (
         <>
             <GenericDrawer
                 {...props}
-                destroyOnClose
-                onClose={onClose}
+                destroyOnClose={false}
+                onClose={() => {
+                    onClose()
+                    setUpdatedTraceData("")
+                    setNewTestsetName("")
+                    setHasDuplicateColumns(false)
+                }}
                 expandable
                 initialWidth={640}
                 headerExtra="Add to test set"
@@ -381,7 +470,11 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                         <Button
                             type="primary"
                             loading={isLoading || isTestsetsLoading}
-                            onClick={onSaveTestset}
+                            onClick={() =>
+                                !isNewTestset && isNewColumnCreated
+                                    ? setIsConfirmSave(true)
+                                    : onSaveTestset()
+                            }
                             disabled={!testset.name || !isMapColumnExist || hasDuplicateColumns}
                         >
                             Save
@@ -450,12 +543,20 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                 <Select
                                     style={{width: elementWidth}}
                                     value={rowDataPreview}
-                                    onChange={(value) => setRowDataPreview(value)}
-                                    options={traceData.map((trace) => ({
-                                        value: trace?.key,
-                                        label: `Span ${trace.id}`,
-                                    }))}
-                                />
+                                    onChange={(value) => {
+                                        setRowDataPreview(value)
+                                        setUpdatedTraceData("")
+                                    }}
+                                >
+                                    {traceData.map((trace) => (
+                                        <Select.Option value={trace?.key} key={trace?.key}>
+                                            Span {trace.id}{" "}
+                                            {trace.isEdited && (
+                                                <span className={classes.customTag}>(edited)</span>
+                                            )}
+                                        </Select.Option>
+                                    ))}
+                                </Select>
                                 <div className="flex justify-between items-center gap-2">
                                     {traceData.length > 1 && (
                                         <Button
@@ -464,12 +565,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                             icon={<Trash size={14} />}
                                             onClick={onRemoveTraceData}
                                         >
-                                            Remove span{" "}
-                                            {
-                                                traceData.find(
-                                                    (trace) => trace.key === rowDataPreview,
-                                                )?.id
-                                            }
+                                            Remove span {selectedTraceData?.id}
                                         </Button>
                                     )}
 
@@ -489,26 +585,38 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                     />
                                 </div>
                             </div>
-
-                            <Editor
-                                className={classes.editor}
-                                height={210}
-                                language={editorFormat.toLowerCase()}
-                                theme={`vs-${appTheme}`}
-                                value={formatDataPreview}
-                                options={{
-                                    wordWrap: "on",
-                                    minimap: {enabled: false},
-                                    scrollBeyondLastLine: false,
-                                    readOnly: true,
-                                    lineNumbers: "off",
-                                    lineDecorationsWidth: 0,
-                                    scrollbar: {
-                                        verticalScrollbarSize: 8,
-                                        horizontalScrollbarSize: 8,
-                                    },
-                                }}
-                            />
+                            <div className="relative">
+                                <Editor
+                                    className={clsx([
+                                        classes.editor,
+                                        selectedTraceData?.isEdited && "!border-blue-400",
+                                    ])}
+                                    height={210}
+                                    language={editorFormat.toLowerCase()}
+                                    theme={`vs-${appTheme}`}
+                                    value={formatDataPreview}
+                                    onChange={(value) => setUpdatedTraceData(value as string)}
+                                    options={{
+                                        wordWrap: "on",
+                                        minimap: {enabled: false},
+                                        scrollBeyondLastLine: false,
+                                        readOnly: false,
+                                        lineNumbers: "off",
+                                        lineDecorationsWidth: 0,
+                                        scrollbar: {
+                                            verticalScrollbarSize: 4,
+                                            horizontalScrollbarSize: 4,
+                                        },
+                                    }}
+                                />
+                                {updatedTraceData && updatedTraceData !== formatDataPreview ? (
+                                    <Button
+                                        icon={<FloppyDiskBack size={14} />}
+                                        className="absolute top-2 right-2"
+                                        onClick={onSaveEditedTrace}
+                                    />
+                                ) : null}
+                            </div>
                         </div>
 
                         <div className={classes.container}>
@@ -547,52 +655,56 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                                 />
                                                 <ArrowRight size={16} />
                                                 <div className="flex-1 flex gap-2 items-center">
-                                                    {!isNewTestset && (
-                                                        <Select
+                                                    <Select
+                                                        style={{width: "100%"}}
+                                                        placeholder="Select a column"
+                                                        value={data.column || undefined}
+                                                        onChange={(value) =>
+                                                            onMappingOptionChange({
+                                                                pathName: "column",
+                                                                value,
+                                                                idx,
+                                                            })
+                                                        }
+                                                        options={[
+                                                            ...(testset.id
+                                                                ? customSelectOptions(
+                                                                      selectedTestsetColumns.length >
+                                                                          0,
+                                                                  )
+                                                                : []),
+                                                            ...columnOptions,
+                                                        ]}
+                                                    />
+
+                                                    {data.column === "create" && (
+                                                        <AutoComplete
                                                             style={{width: "100%"}}
-                                                            placeholder="Select a column"
-                                                            value={data.column || undefined}
-                                                            onChange={(value) =>
+                                                            options={columnOptions}
+                                                            onSelect={(value) =>
                                                                 onMappingOptionChange({
-                                                                    pathName: "column",
+                                                                    pathName: "newColumn",
                                                                     value,
                                                                     idx,
                                                                 })
                                                             }
-                                                            options={[
-                                                                ...(testset.id
-                                                                    ? customSelectOptions(
-                                                                          columnOptions.length > 0,
-                                                                      )
-                                                                    : []),
-                                                                ...columnOptions?.map((column) => ({
-                                                                    value: column,
-                                                                    lable: column,
-                                                                })),
-                                                            ]}
+                                                            onChange={(value) =>
+                                                                onMappingOptionChange({
+                                                                    pathName: "newColumn",
+                                                                    value,
+                                                                    idx,
+                                                                })
+                                                            }
+                                                            placeholder="Column name"
+                                                            filterOption={(inputValue, option) =>
+                                                                option!.value
+                                                                    .toUpperCase()
+                                                                    .indexOf(
+                                                                        inputValue.toUpperCase(),
+                                                                    ) !== -1
+                                                            }
                                                         />
                                                     )}
-
-                                                    {data.column === "create" || isNewTestset ? (
-                                                        <div className="w-full relative">
-                                                            <Input
-                                                                style={{width: "100%"}}
-                                                                value={data.newColumn || ""}
-                                                                onChange={(e) =>
-                                                                    onMappingOptionChange({
-                                                                        pathName: "newColumn",
-                                                                        value: e.target.value,
-                                                                        idx,
-                                                                    })
-                                                                }
-                                                                placeholder="Column name"
-                                                            />
-                                                            <PencilSimple
-                                                                size={14}
-                                                                className="absolute top-[8px] right-2"
-                                                            />
-                                                        </div>
-                                                    ) : null}
                                                 </div>
 
                                                 <Button
@@ -615,14 +727,7 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                         style={{width: elementWidth}}
                                         icon={<Plus />}
                                         onClick={() =>
-                                            setMappingData([
-                                                ...mappingData,
-                                                {
-                                                    data: "",
-                                                    column: isNewTestset ? "create" : "",
-                                                    newColumn: "",
-                                                },
-                                            ])
+                                            setMappingData([...mappingData, {data: "", column: ""}])
                                         }
                                     >
                                         Add field
@@ -703,6 +808,35 @@ const TestsetDrawer = ({onClose, data, ...props}: Props) => {
                                 </Typography.Text>
                             )}
                         </div>
+
+                        {isConfirmSave && (
+                            <Modal
+                                open={isConfirmSave}
+                                onCancel={() => setIsConfirmSave(false)}
+                                title="Are you sure you want to save?"
+                                okText={"Confirm"}
+                                onOk={() => onSaveTestset()}
+                                confirmLoading={isLoading || isTestsetsLoading}
+                                zIndex={2000}
+                                centered
+                            >
+                                <div className="flex flex-col gap-4 my-4">
+                                    <Typography.Text>
+                                        You have created new columns. Do you want to add them to the
+                                        <span className="font-bold">{testset.name}</span> test set?
+                                    </Typography.Text>
+
+                                    <div className="flex gap-1">
+                                        New columns:{" "}
+                                        {JSON.stringify(
+                                            selectedTestsetColumns
+                                                .filter((item) => item.isNew)
+                                                .map((item) => item.column),
+                                        )}
+                                    </div>
+                                </div>
+                            </Modal>
+                        )}
                     </section>
                 }
             />
