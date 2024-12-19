@@ -1,6 +1,13 @@
 import {useCallback, useMemo, useState} from "react"
 import GenericDrawer from "@/components/GenericDrawer"
-import {ArrowRight, FloppyDiskBack, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
+import {
+    ArrowRight,
+    FloppyDiskBack,
+    PencilSimple,
+    Plus,
+    Trash,
+    WarningCircle,
+} from "@phosphor-icons/react"
 import {
     Button,
     Checkbox,
@@ -55,6 +62,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
     const [isConfirmSave, setIsConfirmSave] = useState(false)
+    const [isDifferStructureExist, setIsDifferStructureExist] = useState(false)
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
@@ -89,8 +97,29 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         if (data.length > 0) {
             setTraceData(data)
             setRowDataPreview(data[0]?.key || "")
+
+            const hasDiffer = hasStructuralDifference(data)
+            setIsDifferStructureExist(hasDiffer)
         }
     }, [data])
+
+    const hasStructuralDifference = useCallback(
+        (trace: TestsetTraceData[]): boolean => {
+            if (trace.length <= 1) return false
+
+            const referencePaths = collectKeyPathsFromObject(trace[0].data).sort().join(",")
+
+            for (let i = 1; i < trace.length; i++) {
+                const currentPaths = collectKeyPathsFromObject(trace[i].data).sort().join(",")
+
+                if (currentPaths !== referencePaths) {
+                    return true
+                }
+            }
+            return false
+        },
+        [collectKeyPathsFromObject],
+    )
 
     // predefind options
     const customSelectOptions = useCallback((divider = true) => {
@@ -483,6 +512,16 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 }
                 mainContent={
                     <section ref={elemRef} className="w-full flex flex-col gap-6">
+                        {isDifferStructureExist && (
+                            <Typography.Text
+                                className="mb-1 flex items-center gap-1"
+                                type="warning"
+                            >
+                                <WarningCircle size={16} /> You have selected various kind of spans
+                                that have different structures then others!
+                            </Typography.Text>
+                        )}
+
                         <Typography.Text className={classes.drawerHeading}>
                             Spans selected {traceData.length}
                         </Typography.Text>
