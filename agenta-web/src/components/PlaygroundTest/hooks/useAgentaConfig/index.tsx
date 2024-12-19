@@ -8,6 +8,7 @@ const useAgentaConfig = ({variantId, promptIndex}: {variantId: string; promptInd
 
     const returnData = useMemo(() => {
         const variant = variants?.find((v) => v.variantId === variantId)
+        console.log("variant", variant)
         const prompts = variant?.schema?.promptConfig || []
 
         const prompt = !isNaN(promptIndex as number) ? prompts[promptIndex as number] : undefined

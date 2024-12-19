@@ -6,14 +6,12 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 
 const PlaygroundVariantConfig = ({
-    variant,
     variantId,
 }: {
-    variant: StateVariant
-    variantId: string
+    variantId: StateVariant["variantId"]
 }) => {
-    const {prompts} = useAgentaConfig({variantId})
     console.log("render PlaygroundVariant - Config")
+    const {prompts} = useAgentaConfig({variantId})
 
     return (
         <div
@@ -27,7 +25,7 @@ const PlaygroundVariantConfig = ({
                 "[&_.ant-collapse-header]:!pl-3 [&_.ant-collapse-header]:!pr-4",
             ])}
         >
-            <PlaygroundVariantConfigHeader variant={variant} />
+            <PlaygroundVariantConfigHeader variantId={variantId} />
 
             <div className="div flex flex-col gap-2 pb-10">
                 {prompts.map((prompt, promptIndex) => {

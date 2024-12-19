@@ -1,19 +1,35 @@
-import {accessKeyInVariant, setKeyInVariant} from "../../assets/helpers"
-import usePlaygroundState from "../usePlaygroundState"
-import type {InitialStateType, StateVariant} from "../../state/types"
-import type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn} from "./types"
 import {useCallback, useMemo} from "react"
 import cloneDeep from "lodash/cloneDeep"
-import type {ConfigPropertyType} from "../../state/types"
-import {compareVariant} from "../usePlaygroundState/assets/helpers"
 
-function usePlaygroundVariantConfig<T = any>(
-    options: UsePlaygroundVariantConfigOptions,
-): UsePlaygroundVariantConfigReturn<T> {
+import {accessKeyInVariant, setKeyInVariant} from "../../assets/helpers"
+import type {InitialStateType, StateVariant} from "../../state/types"
+import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
+import {Path} from "../../types"
+import usePlaygroundVariant from "../usePlaygroundVariant"
+import {
+    ConfigValue,
+    InferSchemaType,
+    PropertyConfig,
+    UsePlaygroundVariantConfigReturn,
+} from "./types"
+import {isSchemaObject} from "./assets/helpers"
+import { compareVariant } from "../usePlaygroundState/assets/helpers"
+
+function usePlaygroundVariantConfig<
+    CK extends Path<StateVariant> & string,
+    VK extends Path<StateVariant> & string,
+>(
+    options: Omit<UsePlaygroundStateOptions, "selector"> & {
+        configKey: CK
+        valueKey: VK
+        variantId: string
+    },
+): UsePlaygroundVariantConfigReturn<StateVariant, CK, VK> {
     const {configKey, valueKey, variantId, ...stateOptions} = options
 
-    const {variants, mutate} = usePlaygroundState({
+    const {variant, mutateVariant} = usePlaygroundVariant({
         ...stateOptions,
+        variantId,
         revalidateOnFocus: false,
         revalidateOnReconnect: false,
         revalidateOnMount: false,
@@ -22,93 +38,56 @@ function usePlaygroundVariantConfig<T = any>(
                 return (
                     compareVariant(a, b, variantId, options?.compare, configKey) &&
                     compareVariant(a, b, variantId, options?.compare, valueKey)
-                )
+                );
             },
-            [configKey, variantId, options?.compare],
+            [variantId, options?.compare, configKey, valueKey]
         ),
     })
 
-    const mutateVariant = useCallback(
-        (variantId: string, val: string | boolean | string[] | number | null) => {
-            mutate(
-                (state) => {
-                    if (!state) return state
-                    const clone = cloneDeep(state)
+    const handleParamUpdate = useCallback(
+        (e: {target: {value: ConfigValue}} | ConfigValue) => {
+            const val = e ? (typeof e === "object" && "target" in e ? e.target.value : e) : null
 
-                    const updateVariant = (variant: StateVariant): StateVariant => {
-                        const previousParam = accessKeyInVariant(
-                            valueKey,
-                            variant,
-                        ) as ConfigPropertyType["value"]
-                        if (
-                            previousParam !== val
-                        ) {
-                            setKeyInVariant(
-                                valueKey,
-                                variant,
-                                val,
-                            )
-                            return variant
-                        }
-                        return variant
-                    }
-                    clone.variants = clone.variants.map((v) =>
-                        v.variantId === variantId ? updateVariant(v) : v,
-                    )
-                    return clone
-                },
-                {
-                    revalidate: false,
-                },
-            )
+            if (!variant) return
+            const updatedVariant = cloneDeep(variant)
+            setKeyInVariant(valueKey, updatedVariant, val)
+            mutateVariant(updatedVariant)
         },
-        [configKey, mutate],
+        [valueKey, variant, mutateVariant],
     )
 
+    // Rest of the hook implementation remains the same
     const returnValues = useMemo(() => {
-        const variant = variants?.find((v) => v.variantId === variantId)
-        const config = variant ? (accessKeyInVariant(configKey, variant) as T) : undefined
-        const value = variant ? (accessKeyInVariant(valueKey, variant) as T) : undefined
+        const rawConfig = variant
+            ? accessKeyInVariant<StateVariant, CK>(configKey, variant)
+            : undefined
+        const config = rawConfig && isSchemaObject(rawConfig) ? rawConfig : undefined
+        const rawValue = variant
+            ? accessKeyInVariant<StateVariant, VK>(valueKey, variant)
+            : undefined
 
-        interface HandleParamUpdateEvent {
-            target: {
-                value: string | boolean | string[] | null | number
-            }
-        }
+        // Use the improved type inference
+        const value = config ? (rawValue as InferSchemaType<typeof config>) : undefined
 
-        const handleParamUpdate = (
-            e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
-        ) => {
-            const val = !!e
-                ? Array.isArray(e)
-                    ? e
-                    : typeof e === "object"
-                      ? e.target.value
-                      : e
-                : null
-            console.log("handle param update", val, configKey, valueKey, config, variant)
-            mutateVariant(variantId, val)
-        }
-
-        const property = {
+        const property: PropertyConfig<StateVariant, CK, VK, typeof config> = {
             config,
             valueInfo: value,
-            handleChange: (
-                e: HandleParamUpdateEvent | string | boolean | string[] | null | number,
-            ) => handleParamUpdate(e),
+            handleChange: handleParamUpdate,
         }
 
         return {
-            variant,
             config,
             value,
-            mutateVariant,
             property,
-        }
-    }, [variants, variantId, configKey, valueKey, mutateVariant])
-
-    return returnValues
+        } as const
+    }, [variant, configKey, valueKey, handleParamUpdate])
+    
+    return returnValues as UsePlaygroundVariantConfigReturn<
+        StateVariant,
+        CK,
+        VK,
+        typeof returnValues.config
+    >
 }
 
-export type {UsePlaygroundVariantConfigOptions, UsePlaygroundVariantConfigReturn}
 export default usePlaygroundVariantConfig

@@ -1,7 +1,6 @@
 import {memo} from "react"
 import AddButton from "../../../assets/AddButton"
 import useAgentaConfig from "@/components/PlaygroundTest/hooks/useAgentaConfig"
-import { ModelConfig, PromptConfigType } from "@/components/PlaygroundTest/types"
 import PromptMessageConfig from "../../PromptMessageConfig"
 
 const PlaygroundVariantConfigPromptCollapseContent = ({
@@ -20,14 +19,10 @@ const PlaygroundVariantConfigPromptCollapseContent = ({
             {(Array.isArray(messages.value)
                 ? messages.value
                 : [messages.value]
-            ).map((messageValue, index) => {
-                const withConfig = {
-                    ...(messageValue as ModelConfig),
-                    config: messages.config as PromptConfigType,
-                }
+            ).map((_, index) => {
                 return (
                     <PromptMessageConfig
-                        key={[withConfig.valueKey, variantId].join("-")}
+                        key={[messages.valueKey, index, variantId].join("-")}
                         variantId={variantId}
                         configKey={messages.configKey || ""}
                         valueKey={`${messages.valueKey}.[${index}]`}

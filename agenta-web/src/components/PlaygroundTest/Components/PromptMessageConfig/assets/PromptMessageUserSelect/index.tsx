@@ -1,25 +1,39 @@
-import {Button, Dropdown} from "antd"
-import {CaretUpDown} from "@phosphor-icons/react"
+import {useMemo} from "react"
+import { Button, Dropdown, MenuProps } from "antd"
+import { CaretUpDown } from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import usePlaygroundVariantConfig from "@/components/PlaygroundTest/hooks/usePlaygroundVariantConfig"
 import { PromptMessageConfigProps } from "../../types"
 
-const PromptMessageUserSelect = ({
-    configKey,
-    valueKey,
-    variantId,
-}: PromptMessageConfigProps) => {
-    const {mutateVariant, config, value} = usePlaygroundVariantConfig({
+const PromptMessageUserSelect = ({ configKey, valueKey, variantId }: PromptMessageConfigProps) => {
+    const { property, config, value } = usePlaygroundVariantConfig<typeof configKey, typeof valueKey>({
         configKey,
         valueKey,
         variantId,
     })
 
-    console.log("PromptMessageUserSelect", configKey, valueKey, variantId, config, value)
+    const menuItems: MenuProps['items'] = useMemo(() => {
+        interface MenuItemType {
+            key: string;
+            label: string;
+            onClick: () => void;
+        }
+
+        return (config?.enum || []).map((option: string): MenuItemType => ({
+            key: option,
+            label: option,
+            onClick: () => property.handleChange(option)
+        }))
+    }, [config?.enum, property])
+
+    if (!property || !config?.enum) return null
 
     return (
-        <Dropdown menu={config.enums} trigger={["click"]}>
+        <Dropdown 
+            menu={{ items: menuItems }} 
+            trigger={["click"]}
+        >
             <Button
                 className={clsx([
                     "rounded-md",
@@ -29,7 +43,7 @@ const PromptMessageUserSelect = ({
                     "flex items-center",
                 ])}
             >
-                {value}
+                {(value as string) || 'Select...'}  {/* value will be typed as string when config.type is "string" */}
                 <CaretUpDown size={14} />
             </Button>
         </Dropdown>

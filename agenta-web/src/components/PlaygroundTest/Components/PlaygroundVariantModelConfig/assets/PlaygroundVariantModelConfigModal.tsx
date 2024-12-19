@@ -1,7 +1,9 @@
 import {memo, useCallback, type MouseEvent} from "react"
 import {Button} from "antd"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
-import { PlaygroundVariantModelConfigModalProps } from "../types"
+import type { PlaygroundVariantModelConfigModalProps } from "../types"
+import type { Path } from "../../../types"
+import type { StateVariant } from "../../../state/types"
 
 const PlaygroundVariantModelConfigModal = ({
     variantId,
@@ -15,14 +17,15 @@ const PlaygroundVariantModelConfigModal = ({
         e.stopPropagation()
     }, [])
 
+    console.log('properties', properties)
     return (
         <div onClick={preventClickBubble}>
             {properties.map((property) => (
                 <PlaygroundVariantPropertyControl
                     variantId={variantId}
                     key={property.key}
-                    configKey={property.configKey}
-                    valueKey={property.valueKey}
+                    configKey={property.configKey as Path<StateVariant>}
+                    valueKey={property.valueKey as Path<StateVariant>}
                 />
             ))}
 

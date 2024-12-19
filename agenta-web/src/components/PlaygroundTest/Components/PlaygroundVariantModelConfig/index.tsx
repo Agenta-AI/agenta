@@ -6,7 +6,8 @@ import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelCo
 import PlaygroundVariantModelConfigModal from "./assets/PlaygroundVariantModelConfigModal"
 import useAgentaConfig from "../../hooks/useAgentaConfig"
 import { PlaygroundVariantModelConfigProps } from "./types"
-import { ModelConfig, PromptConfigType } from "../../types"
+import { LLMConfig, PromptConfigType } from "../../types/openapi"
+import { ModelConfig } from "../../types"
 
 const PlaygroundVariantModelConfig = ({
     promptIndex,
@@ -16,17 +17,16 @@ const PlaygroundVariantModelConfig = ({
     const {prompt} = useAgentaConfig({variantId, promptIndex})
 
     const {properties, modelName} = useMemo(() => {
-        const llmConfig = prompt?.llm_config || {} as PromptConfigType
-        const llmConfigValue: ModelConfig = llmConfig?.value as ModelConfig || {} as ModelConfig
-
-        console.log('llmConfigValue', llmConfigValue)
-
-        const properties = llmConfigValue ? (Object.keys(llmConfigValue) as (keyof ModelConfig)[]).map((key) => {
+        const llmConfig = prompt?.llm_config
+        const llmConfigValue: LLMConfig = llmConfig?.value as LLMConfig || {} as LLMConfig
+        const llmConfigProperties = llmConfig?.config
+        console.log('llmConfigProperties', llmConfigProperties)
+        const properties = llmConfigProperties ? (Object.keys(llmConfigProperties) as (keyof LLMConfig)[]).map((key) => {
             return {
                 key,
                 configKey: `${llmConfig.configKey}.${key}`,
                 valueKey: `${llmConfig.valueKey}.${key}`,
-                value: llmConfigValue[key],
+                value: llmConfigProperties[key]?.default || null,
             }
         }) : []
 
@@ -36,12 +36,6 @@ const PlaygroundVariantModelConfig = ({
         }
     }, [prompt])
 
-    const handleResetDefaults = useCallback((e: MouseEvent<HTMLElement>) => {
-        console.log("reset defaults")
-
-        closePopover(e)
-    }, [])
-
     const closePopover = useCallback((e: MouseEvent<HTMLElement>) => {
         e.preventDefault()
         e.stopPropagation()
@@ -49,11 +43,20 @@ const PlaygroundVariantModelConfig = ({
         setOpenAdvancedConfigPopover(false)
     }, [])
 
+    const handleResetDefaults = useCallback((e: MouseEvent<HTMLElement>) => {
+        console.log("reset defaults")
+
+        closePopover(e)
+    }, [closePopover])
+
     const openPopover = useCallback((e: MouseEvent<HTMLElement>) => {
         e.preventDefault()
         e.stopPropagation()
 
-        setOpenAdvancedConfigPopover(true)
+        // setOpenAdvancedConfigPopover((previous) => {
+        //     console.log('set openAdvancedConfigPopover', previous)
+        //     return !previous
+        // })
     }, [])
 
     const saveProperties = useCallback(() => {
@@ -63,7 +66,7 @@ const PlaygroundVariantModelConfig = ({
     return (
         <Popover
             open={openAdvancedConfigPopover}
-            onOpenChange={() => setOpenAdvancedConfigPopover(false)}
+            onOpenChange={setOpenAdvancedConfigPopover}
             trigger={["click"]}
             arrow={false}
             title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
