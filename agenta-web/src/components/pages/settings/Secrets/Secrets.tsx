@@ -8,11 +8,17 @@ const {Title, Text} = Typography
 export default function Secrets() {
     const {secrets, handleModifyVaultSecret, handleDeleteVaultSecret} = useVaultSecret()
     const [llmProviderKeys, setLlmProviderKeys] = useState<LlmProvider[]>([])
+    const [loadingSecrets, setLoadingSecrets] = useState<Record<string, boolean>>({})
     const [messageAPI, contextHolder] = message.useMessage()
 
     useEffect(() => {
         setLlmProviderKeys(secrets)
     }, [secrets])
+
+    const setSecretLoading = (id: string | undefined, isLoading: boolean) => {
+        if (!id) return
+        setLoadingSecrets((prev) => ({...prev, [id]: isLoading}))
+    }
 
     return (
         <div data-cy="secrets">
@@ -49,34 +55,45 @@ export default function Secrets() {
                                     data-cy="openai-api-save"
                                     type="primary"
                                     disabled={!key}
+                                    loading={loadingSecrets[secretId || ""] === true}
                                     onClick={async () => {
-                                        await handleModifyVaultSecret({
-                                            name,
-                                            title,
-                                            key,
-                                            id: secretId,
-                                        })
-
-                                        messageAPI.success("The secret is saved")
+                                        if (!secretId) return
+                                        setSecretLoading(secretId, true)
+                                        try {
+                                            await handleModifyVaultSecret({
+                                                name,
+                                                title,
+                                                key,
+                                                id: secretId,
+                                            })
+                                            messageAPI.success("The secret is saved")
+                                        } finally {
+                                            setSecretLoading(secretId, false)
+                                        }
                                     }}
                                 >
                                     Save
                                 </Button>
                                 <Button
                                     disabled={!Boolean(key)}
+                                    loading={loadingSecrets[secretId || ""] === true}
                                     onClick={async () => {
-                                        await handleDeleteVaultSecret({
-                                            name,
-                                            id: secretId,
-                                            title,
-                                            key,
-                                        })
-
-                                        const newLlmProviderKeys = [...llmProviderKeys]
-                                        newLlmProviderKeys[i].key = ""
-                                        setLlmProviderKeys(newLlmProviderKeys)
-
-                                        messageAPI.warning("The secret is deleted")
+                                        if (!secretId) return
+                                        setSecretLoading(secretId, true)
+                                        try {
+                                            await handleDeleteVaultSecret({
+                                                name,
+                                                id: secretId,
+                                                title,
+                                                key,
+                                            })
+                                            const newLlmProviderKeys = [...llmProviderKeys]
+                                            newLlmProviderKeys[i].key = ""
+                                            setLlmProviderKeys(newLlmProviderKeys)
+                                            messageAPI.warning("The secret is deleted")
+                                        } finally {
+                                            setSecretLoading(secretId, false)
+                                        }
                                     }}
                                 >
                                     Delete
