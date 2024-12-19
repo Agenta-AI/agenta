@@ -59,6 +59,8 @@ export const useVaultSecret = () => {
                     }
                 }
 
+                localStorage.setItem(`${llmAvailableProvidersToken}Backup`, localStorageProviders)
+
                 localStorage.removeItem(llmAvailableProvidersToken)
             }
         } catch (error) {
