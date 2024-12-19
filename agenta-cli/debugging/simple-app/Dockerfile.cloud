@@ -1,0 +1,9 @@
+FROM public.ecr.aws/h3w6n5z0/agentaai/lambda_templates_public:main
+
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
+RUN pip install --no-cache-dir --disable-pip-version-check -U agenta
+RUN pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
+RUN pip install --no-cache-dir --disable-pip-version-check mangum
+COPY . ${LAMBDA_TASK_ROOT}
+
+CMD [ "lambda_function.handler" ]
