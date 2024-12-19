@@ -4,6 +4,7 @@ import {useAtom} from "jotai"
 import {posthogAtom} from "../store/atoms"
 import {type PostHog} from "posthog-js"
 import useIsomorphicLayoutEffect from "@/hooks/useIsomorphicLayoutEffect"
+import {useCallback} from "react"
 
 interface ExtendedPostHog extends PostHog {
     identify: PostHog["identify"]
@@ -16,22 +17,27 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const [posthog] = useAtom(posthogAtom)
 
     const _id: string | undefined = isDemo() ? user?.email : generateOrRetrieveDistinctId()
-    const capture: PostHog["capture"] = (...args) => {
-        if (trackingEnabled && user?.id) {
-            return posthog?.capture?.(...args)
-        }
-        return undefined
-    }
-    const identify: PostHog["identify"] = (id, ...args) => {
-        if (trackingEnabled && user?.id) {
-            posthog?.identify?.(_id !== undefined ? _id : id, ...args)
-        }
-    }
+    const capture: PostHog["capture"] = useCallback(
+        (...args) => {
+            if (trackingEnabled && user?.id) {
+                return posthog?.capture?.(...args)
+            }
+            return undefined
+        },
+        [posthog, trackingEnabled, user?.id],
+    )
+    const identify: PostHog["identify"] = useCallback(
+        (id, ...args) => {
+            if (trackingEnabled && user?.id) {
+                posthog?.identify?.(_id !== undefined ? _id : id, ...args)
+            }
+        },
+        [_id, posthog, trackingEnabled, user?.id],
+    )
     useIsomorphicLayoutEffect(() => {
         if (!posthog) return
 
         if (!trackingEnabled) {
-            console.log("POSTHOG: opt_out_capturing")
             posthog.opt_out_capturing()
         }
     }, [posthog, trackingEnabled])
@@ -41,11 +47,5 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
         if (posthog.get_distinct_id() !== _id) identify()
     }, [posthog, _id])
 
-    return posthog
-        ? ({
-              ...posthog,
-              identify,
-              capture,
-          } as ExtendedPostHog)
-        : null
+    return Object.assign({}, posthog, {identify, capture}) as ExtendedPostHog
 }

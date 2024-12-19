@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 import {useRouter} from "next/router"
 import {useAtom} from "jotai"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
