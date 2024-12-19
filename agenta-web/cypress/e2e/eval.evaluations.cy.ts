@@ -50,6 +50,8 @@ describe("Evaluations CRUD Operations Test", function () {
             cy.get(".ant-table-row").eq(0).click()
             cy.wait(1000)
             cy.contains(/create a new test set/i).should("be.visible")
+            cy.get(".ag-root").should("exist")
+            cy.wait(3000)
             cy.get('[data-cy="testset-header-column-edit-button"]').eq(1).click()
             cy.get('[data-cy="testset-header-column-edit-input"]').clear()
             cy.get('[data-cy="testset-header-column-edit-input"]').type("answer")
