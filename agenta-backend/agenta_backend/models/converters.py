@@ -318,6 +318,7 @@ async def app_variant_db_revisions_to_output(
     for app_variant_revision_db in app_variant_revisions_db:
         app_variant_revisions.append(
             AppVariantRevision(
+                id=str(app_variant_revision_db.id) or None,
                 revision=app_variant_revision_db.revision,
                 modified_by=app_variant_revision_db.modified_by.username,
                 config={
