@@ -119,7 +119,7 @@ type LayoutProps = {
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
-    const {currentApp} = useAppsData()
+    const {currentApp, isLoading, error} = useAppsData()
     const [footerRef, {height: footerHeight}] = useElementSize()
     const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
@@ -207,7 +207,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && !appId) return null
 
-    if (appId && !currentApp)
+    if (appId && !currentApp && !isLoading && !error)
         return (
             <div className={classes.notFoundContainer}>
                 <Typography.Text>404 - Page Not Found</Typography.Text>

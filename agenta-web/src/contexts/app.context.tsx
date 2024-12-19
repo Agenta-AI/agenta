@@ -70,6 +70,7 @@ export const getAppValues = () => appContextValues
 
 const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const {data: apps, error, isLoading, mutate} = useApps()
+    const {isLoading: isProjectLoading} = useProjectData()
     const router = useRouter()
     const appId = router.query?.app_id as string
     const [recentlyVisitedAppId, setRecentlyVisitedAppId] = useLocalStorage<string | null>(
@@ -115,7 +116,7 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 currentApp,
                 apps,
                 error,
-                isLoading,
+                isLoading: isLoading || isProjectLoading,
                 mutate,
                 modalInstance,
                 setModalInstance,
