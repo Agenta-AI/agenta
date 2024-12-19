@@ -351,17 +351,20 @@ class entrypoint:
     ):
         data = None
         tree = None
+        content_type = "string"
 
         with suppress():
+            if isinstance(result, (dict, list)):
+                content_type = "json"
             data = self.patch_result(result)
 
             if inline:
                 tree = await self.fetch_inline_trace(inline)
 
         try:
-            return BaseResponse(data=data, tree=tree)
+            return BaseResponse(data=data, tree=tree, content_type=content_type)
         except:
-            return BaseResponse(data=data)
+            return BaseResponse(data=data, content_type=content_type)
 
     def handle_failure(
         self,
