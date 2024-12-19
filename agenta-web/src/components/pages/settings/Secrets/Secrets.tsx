@@ -57,9 +57,8 @@ export default function Secrets() {
                                     disabled={!key}
                                     loading={loadingSecrets[secretId || ""] === true}
                                     onClick={async () => {
-                                        if (!secretId) return
-                                        setSecretLoading(secretId, true)
                                         try {
+                                            setSecretLoading(secretId, true)
                                             await handleModifyVaultSecret({
                                                 name,
                                                 title,
@@ -78,9 +77,8 @@ export default function Secrets() {
                                     disabled={!Boolean(key)}
                                     loading={loadingSecrets[secretId || ""] === true}
                                     onClick={async () => {
-                                        if (!secretId) return
-                                        setSecretLoading(secretId, true)
                                         try {
+                                            setSecretLoading(secretId, true)
                                             await handleDeleteVaultSecret({
                                                 name,
                                                 id: secretId,
