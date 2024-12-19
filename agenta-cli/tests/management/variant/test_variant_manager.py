@@ -6,7 +6,7 @@ import pytest
 @pytest.mark.usefixtures("create_app_from_template")
 class TestVariantManager:
     @pytest.mark.asyncio
-    @pytest.mark.variant_management
+    @pytest.mark.variant_manager
     async def test_configs_add_success(self, http_client, get_completion_app_from_list):
         # ARRANGE: Prepare test data
         test_variant_slug = "from_pytest"
@@ -14,7 +14,7 @@ class TestVariantManager:
 
         # ACT: Add configuration
         response = await http_client.post(
-            "/api/variants/configs/add",
+            "variants/configs/add",
             json={
                 "variant_ref": {"slug": test_variant_slug, "version": None, "id": None},
                 "application_ref": {"slug": None, "version": None, "id": app_id},
@@ -30,7 +30,7 @@ class TestVariantManager:
         assert "url" in response_data, "Response missing 'url'"
 
     @pytest.mark.asyncio
-    @pytest.mark.variant_management
+    @pytest.mark.variant_manager
     async def test_configs_add_duplicate(
         self, http_client, get_completion_app_from_list
     ):
@@ -40,7 +40,7 @@ class TestVariantManager:
 
         # ACT: Attempt to add duplicate configuration
         response = await http_client.post(
-            "/api/variants/configs/add",
+            "variants/configs/add",
             json={
                 "variant_ref": {
                     "slug": existing_variant_slug,
@@ -58,14 +58,14 @@ class TestVariantManager:
         ), "Incorrect error message for duplicate config"
 
     @pytest.mark.asyncio
-    @pytest.mark.variant_management
+    @pytest.mark.variant_manager
     async def test_configs_nonexistent_app(self, http_client):
         # ARRANGE: Prepare test data with non-existent application
         non_existent_app_id = str(uuid.uuid4())
 
         # ACT: Attempt to add config for non-existent application
         response = await http_client.post(
-            "/api/variants/configs/add",
+            "variants/configs/add",
             json={
                 "variant_ref": {"slug": "default", "version": None, "id": None},
                 "application_ref": {
@@ -85,7 +85,7 @@ class TestVariantManager:
         ), "Incorrect error message for non-existent application"
 
     @pytest.mark.asyncio
-    @pytest.mark.variant_management
+    @pytest.mark.variant_manager
     async def test_configs_add_invalid_data(self, http_client):
         # ARRANGE: Prepare invalid test data
         invalid_variant_data = {
@@ -99,7 +99,7 @@ class TestVariantManager:
 
         # ACT: Attempt to add configuration with invalid data
         response = await http_client.post(
-            "/api/variants/configs/add", json=invalid_variant_data
+            "variants/configs/add", json=invalid_variant_data
         )
 
         # ASSERT: Verify validation error
