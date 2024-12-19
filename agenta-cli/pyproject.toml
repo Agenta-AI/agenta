@@ -45,6 +45,8 @@ setuptools = "^71.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.24.0"
+mypy = "^1.13.0"
+pytest-xdist = "^3.6.1"
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
