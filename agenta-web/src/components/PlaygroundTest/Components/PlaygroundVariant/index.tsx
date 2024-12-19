@@ -25,7 +25,7 @@ const PlaygroundVariant = ({variant}: PlaygroundVariantProps) => {
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter className="h-full">
                     <SplitterPanel defaultSize="40%" min="20%" max="70%" className="!h-full">
-                        <PlaygroundVariantConfig variant={variant} variantId={variant.variantId} />
+                        <PlaygroundVariantConfig variantId={variant.variantId} />
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
                         <Typography.Text className="text-[14px] leading-[22px] font-[500]">

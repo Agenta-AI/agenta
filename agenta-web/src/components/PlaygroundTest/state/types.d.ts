@@ -1,9 +1,9 @@
 import {Variant} from "@/lib/Types"
 import {SWRConfiguration, Key, Middleware} from "swr"
-import {OpenAPISchema, SchemaObject, ParsedSchema} from "../types"
+import type {SchemaObject, ParsedSchema} from "../types/openapi"
 
 // Base state types
-export interface StateVariant extends Variant {
+export interface StateVariant extends Omit<Variant, "parameters"> {
     schema?: ParsedSchema
     appId: string
     baseId: string
@@ -76,29 +76,6 @@ interface ArraySchemaProperty extends BaseSchemaProperty {
     items?: BaseSchemaProperty & {
         properties?: Record<string, BaseSchemaProperty>
     }
-}
-
-export interface SchemaObject {
-    type?: string
-    properties?: {
-        messages?: ArraySchemaProperty
-        system_prompt?: BaseSchemaProperty
-        user_prompt?: BaseSchemaProperty
-        template_format?: BaseSchemaProperty
-        input_keys?: BaseSchemaProperty
-        llm_config?: ObjectSchemaProperty
-        agenta_config?: AgentaConfig
-    }
-    items?: SchemaObject
-    anyOf?: SchemaObject[]
-    required?: string[]
-    title?: string
-    default?: any
-    maximum?: number
-    minimum?: number
-    enum?: string[]
-    description?: string
-    additionalProperties?: boolean
 }
 
 // Configuration Property Types
