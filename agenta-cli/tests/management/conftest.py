@@ -1,4 +1,5 @@
 import os
+import uuid
 import asyncio
 
 import httpx
@@ -65,6 +66,10 @@ async def fetch_completion_template(fetch_templates):
     )
 
 
+def get_random_name():
+    return f"completion_app_{uuid.uuid4().hex[:8]}"
+
+
 @pytest_asyncio.fixture(scope="session")
 async def app_from_template_payload(fetch_completion_template):
     """
@@ -72,7 +77,7 @@ async def app_from_template_payload(fetch_completion_template):
     """
 
     return {
-        "app_name": "completion_app",
+        "app_name": get_random_name(),
         "env_vars": {"OPENAI_API_KEY": OPENAI_API_KEY},
         "template_id": fetch_completion_template.get("id", None),
     }
@@ -102,19 +107,11 @@ async def create_app_from_template(app_from_template_payload, http_client):
     )
     create_app_response.raise_for_status()
 
-    # Fetch created app
-    list_app_response = await http_client.get("apps/")
-    list_app_response.raise_for_status()
-
-    apps_response = list_app_response.json()
-    if not apps_response:
-        raise ValueError("No applications found after creation")
-
     # Small delay to ensure app is ready
     await asyncio.sleep(3)
 
-    app_response = apps_response[0]
-
+    # Get response data
+    app_response = create_app_response.json()
     try:
         # Yield the app for tests to use
         yield app_response
