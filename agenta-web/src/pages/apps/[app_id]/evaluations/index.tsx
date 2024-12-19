@@ -7,6 +7,9 @@ import {ChartDonut, ListChecks, TestTube} from "@phosphor-icons/react"
 import {Tabs, TabsProps, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
+import "@ag-grid-community/styles/ag-grid.css"
+import "@ag-grid-community/styles/ag-theme-alpine.css"
+
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
         display: "flex",
