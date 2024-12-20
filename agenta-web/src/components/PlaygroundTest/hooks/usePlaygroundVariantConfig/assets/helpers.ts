@@ -1,4 +1,4 @@
-import type {SchemaObject} from "../../../types/openapi"
+import {SchemaObject} from "@/components/PlaygroundTest/types/shared"
 
 /**
  * Type guard function to check if a value is a valid OpenAPI Schema Object

@@ -36,7 +36,7 @@ const PlaygroundVariantConfigPrompt = ({
                 ),
             },
         ]
-    }, [variantId, prompt])
+    }, [promptIndex, variantId])
     return (
         <Collapse
             className={clsx([

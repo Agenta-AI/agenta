@@ -10,4 +10,5 @@ export interface UsePlaygroundVariantReturn {
     isDirty?: boolean
     deleteVariant: () => Promise<void>
     mutateVariant: (updates: Partial<StateVariant>) => Promise<void>
+    saveVariant: () => Promise<void>
 }

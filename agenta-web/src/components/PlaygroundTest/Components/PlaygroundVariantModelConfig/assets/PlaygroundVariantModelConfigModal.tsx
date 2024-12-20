@@ -2,7 +2,7 @@ import {memo, useCallback, type MouseEvent} from "react"
 import {Button} from "antd"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 import type { PlaygroundVariantModelConfigModalProps } from "../types"
-import type { Path } from "../../../types"
+import type { Path } from "../../../types/pathHelpers"
 import type { StateVariant } from "../../../state/types"
 
 const PlaygroundVariantModelConfigModal = ({

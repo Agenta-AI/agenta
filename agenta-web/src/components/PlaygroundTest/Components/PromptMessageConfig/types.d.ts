@@ -1,5 +1,5 @@
-import {Path} from "../../assets/helpers"
-import {StateVariant} from "../../state/types"
+import type {StateVariant} from "../../state/types"
+import type {Path} from "../../types/pathHelpers"
 
 export interface PromptMessageConfigProps {
     variantId: string

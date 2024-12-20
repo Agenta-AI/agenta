@@ -2,7 +2,7 @@ import {useCallback, useEffect} from "react"
 import {useSWRConfig, type Key} from "swr"
 import usePlaygroundState from "../usePlaygroundState"
 import type {UsePlaygroundVariantsReturn, UsePlaygroundVariantsOptions} from "./types"
-import type {StateMiddleware, InitialStateType, StateVariant} from "../../state/types"
+// import type {StateMiddleware, InitialStateType, StateVariant} from "../../state/types"
 import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
 import {
     createVariantCompare,

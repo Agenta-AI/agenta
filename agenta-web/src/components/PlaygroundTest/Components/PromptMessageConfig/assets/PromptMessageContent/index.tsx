@@ -6,7 +6,7 @@ import {PromptMessageConfigProps} from "../../types"
 const {TextArea} = Input
 
 const PromptMessageContent = ({configKey, valueKey, variantId}: PromptMessageConfigProps) => {
-    const {property} = usePlaygroundVariantConfig<typeof configKey, typeof valueKey>({
+    const {property} = usePlaygroundVariantConfig({
         configKey,
         valueKey,
         variantId,

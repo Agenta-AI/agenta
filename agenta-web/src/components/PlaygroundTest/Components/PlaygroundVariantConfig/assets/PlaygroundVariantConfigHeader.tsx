@@ -4,12 +4,13 @@ import {type StateVariant, type InitialStateType} from "../../../state/types"
 import usePlaygroundVariant from "@/components/PlaygroundTest/hooks/usePlaygroundVariant"
 import isEqual from "lodash/isEqual"
 import { useCallback } from "react"
+import { PlaygroundStateData } from "@/components/PlaygroundTest/hooks/usePlaygroundState/types"
 
 const PlaygroundVariantConfigHeader = ({variantId}: {variantId: StateVariant["variantId"]}) => {
     const {variant, isDirty, deleteVariant, saveVariant} = usePlaygroundVariant({
         variantId,
         compare: useCallback(
-            (a?: InitialStateType, b?: InitialStateType): boolean => {
+            (a?: PlaygroundStateData, b?: PlaygroundStateData): boolean => {
                 if (!a || !b) return false
                 if (!isEqual(a, b)) {
                     return a.dirtyStates?.get(variantId) === b.dirtyStates?.get(variantId)
