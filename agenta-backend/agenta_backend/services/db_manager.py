@@ -483,7 +483,7 @@ async def create_new_variant_base(
     app: AppDB,
     project_id: str,
     base_name: str,
-    image: ImageDB,
+    image: Optional[ImageDB] = None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
@@ -501,7 +501,7 @@ async def create_new_variant_base(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
             base_name=base_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
         )
 
         session.add(base)
@@ -536,10 +536,10 @@ async def create_new_app_variant(
     user: UserDB,
     variant_name: str,
     project_id: str,
-    image: ImageDB,
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
+    image: Optional[ImageDB] = None,
 ) -> AppVariantDB:
     """Create a new variant.
 
@@ -566,7 +566,7 @@ async def create_new_app_variant(
             modified_by_id=user.id,
             revision=0,
             variant_name=variant_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
             base_id=base.id,
             base_name=base_name,
             config_name=config.config_name,
@@ -666,10 +666,10 @@ async def create_image(
 async def create_deployment(
     app_id: str,
     project_id: str,
-    container_name: str,
-    container_id: str,
     uri: str,
     status: str,
+    container_name: Optional[str] = "",
+    container_id: Optional[str] = "",
 ) -> DeploymentDB:
     """Create a new deployment.
 
@@ -701,6 +701,7 @@ async def create_deployment(
             await session.refresh(deployment)
 
             return deployment
+
         except Exception as e:
             raise Exception(f"Error while creating deployment: {e}")
 
