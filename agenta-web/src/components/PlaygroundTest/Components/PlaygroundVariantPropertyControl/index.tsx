@@ -1,105 +1,123 @@
-import {memo, useMemo} from "react"
-import {Typography} from "antd"
 import MinMaxControl from "./MinMaxControl"
 import BooleanControl from "./BooleanControl"
 import MultiSelectControl from "./MultiSelectControl"
 import PromptInput from "./PromptInput"
-import usePlaygroundVariantConfig from "../../hooks/usePlaygroundVariantConfig"
-import type { StateVariant } from "../../state/types";
-import { Path } from "../../types"
 
-interface PlaygroundVariantPropertyControlProps {
-    configKey: Path<StateVariant>;  // Update this type
-    valueKey: Path<StateVariant>;   // Update this type
-    variantId: string;
-}
+import {memo} from "react"
+import {Typography} from "antd"
+
+import usePlaygroundVariantConfig from "../../hooks/usePlaygroundVariantConfig"
+import {
+    isBooleanSchema,
+    isEnumSchema,
+    isModelSchema,
+    isNumberSchema,
+    isPromptSchema,
+    isRangeNumberSchema,
+    isStringSchema,
+} from "./assets/helpers"
+import {type PlaygroundVariantPropertyControlProps, type PropertyData} from "./types"
+
+const ModelSelectControl = () => null
 
 const PlaygroundVariantPropertyControl: React.FC<PlaygroundVariantPropertyControlProps> = ({
     configKey,
     valueKey,
     variantId,
-    // ...other props
 }) => {
-    const {property} = usePlaygroundVariantConfig<
-        typeof configKey,
-        typeof valueKey
-    >({
-        configKey,
-        valueKey,
-        variantId,
-    });
+    const {property} = usePlaygroundVariantConfig({configKey, valueKey, variantId})
 
-    
-    if (!property || !property.config) {
-        console.log('return null', property)
+    if (!property?.config) {
         return null
     }
-    
-    console.log("render - PlaygroundVariantPropertyControl", property, property.config.title, property.config.anyOf)
-    // update. property.config.type does not exist anymore. 
-    // 
-    switch (property.config.type) {
-        case "number":
-        case "integer":
-            if (!Number.isNaN(property.config.minimum) && !Number.isNaN(property.config.maximum)) {
-                return (
-                    <MinMaxControl
-                        label={property.config.title || ""}
-                        min={property.config.minimum}
-                        max={property.config.maximum}
-                        step={0.1}
-                        value={property.valueInfo as number}
-                        onChange={property.handleChange}
-                    />
-                )
-            } else {
-                return (
-                    <div>
-                        <Typography.Text>{property.config.title}</Typography.Text>
-                        number
-                    </div>
-                )
-            }
-        case "boolean":
+
+    const {config, valueInfo, handleChange} = property
+
+    // Number controls
+    if (isNumberSchema(config)) {
+        if (isRangeNumberSchema(config)) {
             return (
-                <BooleanControl
-                    label={property.config.title || ""}
-                    value={property.valueInfo as boolean}
-                    onChange={property.handleChange}
+                <MinMaxControl
+                    label={config.title || ""}
+                    min={config.minimum}
+                    max={config.maximum}
+                    step={config.multipleOf || 0.1}
+                    value={valueInfo as number}
+                    onChange={handleChange}
                 />
             )
-        case "string":
-            console.log('string property!', property.config)
-            // if (property.config.choices) {
-            //     return (
-            //         <MultiSelectControl
-            //             label={property.config.title}
-            //             options={property.config.choices}
-            //             value={property.valueInfo as string | string[]}
-            //             onChange={property.handleChange}
-            //         />
-            //     )
-            // } else 
-            // if (property.config.key.includes("prompt_")) {
-            //     return (
-            //         <PromptInput
-            //             key={property.config.title}
-            //             title={property.config.title}
-            //             value={property.valueInfo as string}
-            //             type={property.config.type}
-            //             onChange={property.handleChange}
-            //         />
-            //     )
-            // }
-            return null
+        }
 
-        default:
-            return (
-                <div>
-                    <Typography.Text>{property.config.title}</Typography.Text>
-                </div>
-            )
+        return (
+            <div>
+                <Typography.Text>{config.title}</Typography.Text>
+                <span>Generic number input (to be implemented)</span>
+            </div>
+        )
     }
+
+    // Boolean controls
+    if (isBooleanSchema(config)) {
+        return (
+            <BooleanControl
+                label={config.title || ""}
+                value={valueInfo as boolean}
+                onChange={handleChange}
+            />
+        )
+    }
+
+    // String controls
+    if (isStringSchema(config)) {
+        // Model selection
+        if (isModelSchema(config)) {
+            return <ModelSelectControl />
+        }
+
+        // Enum selection
+        if (isEnumSchema(config)) {
+            const options = config.enum?.map(value => ({
+                label: value,
+                value
+            })) || [];
+
+            return (
+                <MultiSelectControl
+                    label={config.title || ""}
+                    options={options}
+                    value={valueInfo as string | string[]}
+                    onChange={handleChange}
+                />
+            )
+        }
+
+        // Prompt input
+        if (isPromptSchema(config)) {
+            return (
+                <PromptInput
+                    title={config.title || ""}
+                    value={valueInfo as string}
+                    onChange={handleChange}
+                />
+            )
+        }
+
+        // Default string input (could be implemented later)
+        return (
+            <div>
+                <Typography.Text>{config.title}</Typography.Text>
+                <span>Generic string input (to be implemented)</span>
+            </div>
+        )
+    }
+
+    // Default fallback
+    return (
+        <div>
+            <Typography.Text>{config.title || "Unknown Control"}</Typography.Text>
+            <span>Type: {config.type}</span>
+        </div>
+    )
 }
 
 export default memo(PlaygroundVariantPropertyControl)

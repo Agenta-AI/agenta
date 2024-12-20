@@ -6,8 +6,7 @@ import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelCo
 import PlaygroundVariantModelConfigModal from "./assets/PlaygroundVariantModelConfigModal"
 import useAgentaConfig from "../../hooks/useAgentaConfig"
 import { PlaygroundVariantModelConfigProps } from "./types"
-import { LLMConfig, PromptConfigType } from "../../types/openapi"
-import { ModelConfig } from "../../types"
+import { LLMConfig } from "../../types/openApiTypes"
 
 const PlaygroundVariantModelConfig = ({
     promptIndex,
@@ -20,7 +19,7 @@ const PlaygroundVariantModelConfig = ({
         const llmConfig = prompt?.llm_config
         const llmConfigValue: LLMConfig = llmConfig?.value as LLMConfig || {} as LLMConfig
         const llmConfigProperties = llmConfig?.config
-        console.log('llmConfigProperties', llmConfigProperties)
+        console.log('llmConfigProperties', prompt, llmConfigProperties)
         const properties = llmConfigProperties ? (Object.keys(llmConfigProperties) as (keyof LLMConfig)[]).map((key) => {
             return {
                 key,

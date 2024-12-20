@@ -1,9 +1,9 @@
 import { memo } from "react"
 import PromptMessageUserSelect from "./assets/PromptMessageUserSelect"
 import { PromptMessageConfigProps } from "./types"
-import type { Path } from "../../types"
 import { StateVariant } from "../../state/types"
 import PromptMessageContent from "./assets/PromptMessageContent"
+import { Path } from "../../types/pathHelpers"
 
 const PromptMessageConfig = ({
     variantId,

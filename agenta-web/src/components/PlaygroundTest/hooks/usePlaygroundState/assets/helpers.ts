@@ -1,11 +1,11 @@
 import isEqual from "lodash/isEqual"
-import type {InitialStateType, StateVariant} from "../../../state/types"
-
-import {accessKeyInVariant, parseVariantSchema} from "../../../assets/helpers"
-import {type Variant} from "@/lib/Types"
 import {openapi, dereference} from "@scalar/openapi-parser"
+import {accessKeyInVariant, parseVariantSchema} from "../../../assets/helpers"
+
+import type {InitialStateType, StateVariant} from "../../../state/types"
+import {type Variant} from "@/lib/Types"
 import {type OpenAPI} from "@scalar/openapi-types"
-import {OpenAPISpec} from "@/components/PlaygroundTest/types/openapi"
+import {type OpenAPISpec} from "../../..//types/openApiSpec"
 
 /**
  * FETCHERS
@@ -21,14 +21,8 @@ export const openAPIJsonFetcher = async (variant: Pick<Variant, "variantId">, se
     const openapiJsonResponse = await fetch(`http://localhost/${service}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const doc = responseJson as OpenAPI.Document
-    const test = await openapi()
-        // loads the specification …
-        .load(doc)
-        .dereference()
-        .get()
-    const {schema, errors} = await dereference(doc)
 
-    console.log("dereferenced!", schema, test)
+    const {schema, errors} = await dereference(doc)
 
     return {
         variantId: variant.variantId,

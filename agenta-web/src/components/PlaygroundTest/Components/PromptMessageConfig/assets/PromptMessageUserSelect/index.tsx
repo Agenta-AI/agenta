@@ -7,7 +7,7 @@ import usePlaygroundVariantConfig from "@/components/PlaygroundTest/hooks/usePla
 import { PromptMessageConfigProps } from "../../types"
 
 const PromptMessageUserSelect = ({ configKey, valueKey, variantId }: PromptMessageConfigProps) => {
-    const { property, config, value } = usePlaygroundVariantConfig<typeof configKey, typeof valueKey>({
+    const { property } = usePlaygroundVariantConfig({
         configKey,
         valueKey,
         variantId,
@@ -20,14 +20,16 @@ const PromptMessageUserSelect = ({ configKey, valueKey, variantId }: PromptMessa
             onClick: () => void;
         }
 
-        return (config?.enum || []).map((option: string): MenuItemType => ({
+        return (property?.config?.enum || []).map((option: string): MenuItemType => ({
             key: option,
             label: option,
-            onClick: () => property.handleChange(option)
+            onClick: () => property?.handleChange(option)
         }))
-    }, [config?.enum, property])
+    }, [property])
 
-    if (!property || !config?.enum) return null
+    console.log('render - PromptMessageUserSelect', property)
+
+    if (!property || !property?.config?.enum) return null
 
     return (
         <Dropdown 
@@ -43,7 +45,7 @@ const PromptMessageUserSelect = ({ configKey, valueKey, variantId }: PromptMessa
                     "flex items-center",
                 ])}
             >
-                {(value as string) || 'Select...'}  {/* value will be typed as string when config.type is "string" */}
+                {(property?.valueInfo as string) || 'Select...'}  {/* value will be typed as string when config.type is "string" */}
                 <CaretUpDown size={14} />
             </Button>
         </Dropdown>

@@ -1,15 +1,20 @@
-import {getBodySchemaName} from "@/lib/helpers/openapi_parser"
-import type {
-    OpenAPISpec,
-    PromptConfigType,
-    ParsedSchema,
-    SchemaObject,
-    PromptProperties,
-    SchemaWithAgentaConfig,
-} from "../types/openapi"
+import {detectChatVariantFromOpenAISchema, getBodySchemaName} from "@/lib/helpers/openapi_parser"
+import {SchemaObject, WithConfig} from "../types/shared"
+import {JoinPath, Path, PathValue} from "../types/pathHelpers"
 import {StateVariant} from "../state/types"
-import {Path, PathValue} from "../types"
+import {OpenAPISpec} from "../types/openApiSpec"
+import {
+    AgentaConfig,
+    AgentaPromptSchema,
+    ParsedSchema,
+    PromptConfigType,
+    ArrayWithObjectConfig,
+    RegularConfig,
+    PropertySchema,
+} from "../types/parsedSchema"
+import {LLMConfig, Message} from "../types/openApiTypes"
 
+// Path manipulation utilities
 export function accessKeyInVariant<T extends Record<string, any>, P extends Path<T> & string>(
     path: P,
     object: T,
@@ -29,6 +34,8 @@ export const setKeyInVariant = (
     value: any,
 ): Record<string, any> => {
     const keys = path.split(/[.\[\]]/).filter(Boolean)
+    const result = {...object}
+
     keys.reduce((o, i, idx) => {
         if (idx === keys.length - 1) {
             o[i] = value
@@ -38,10 +45,21 @@ export const setKeyInVariant = (
             }
             return o[i]
         }
-    }, object)
-    return object
+        return o
+    }, result)
+
+    return result
 }
 
+export function joinPath<T extends Path<StateVariant>, K extends string>(
+    base: T,
+    key: K,
+): JoinPath<T, K> {
+    if (!key) return base as JoinPath<T, K>
+    return `${base}.${key}` as const as JoinPath<T, K>
+}
+
+// Schema processing utilities
 const cleanEmptyKeys = <T extends Record<string, any>>(
     obj: T,
     promptDefault: Partial<Record<string, any>>,
@@ -60,100 +78,23 @@ const cleanEmptyKeys = <T extends Record<string, any>>(
     }, {} as T)
 }
 
-const extractConfig = (property: SchemaObject, parentKey: string): any => {
-    if (property.type === "array" && property.items?.properties) {
-        return property.items.properties
-    }
+const extractConfig = (property: SchemaObject, parentKey: string): SchemaObject => {
+    // Don't extract properties from array items anymore
     return property
 }
 
-const processProperty = (
-    acc: Record<string, PromptConfigType>,
-    key: string,
-    property: SchemaObject,
-    parentKey: string,
-    promptDefault: any,
-): Record<string, PromptConfigType> => {
-    const createConfigType = (
-        config: Record<string, any>,
-        configKey: string,
-        type: string,
-    ): PromptConfigType => {
-        const keyValue = promptDefault?.[key]
-        const value = Array.isArray(keyValue)
-            ? keyValue.map((val, index) => ({
-                  ...val,
-                  valueKey: `${parentKey.replace(".config", ".value")}.[${index}]`,
-              }))
-            : keyValue
-
-        return {
-            key,
-            config,
-            configKey,
-            type,
-            value,
-            valueKey: `${parentKey.replace(".config", ".value")}`,
-        }
-    }
-
-    const processInnerProperties = (
-        properties: Record<string, SchemaObject>,
-        parentKey: string,
-    ): Record<string, PromptConfigType> => {
-        return Object.keys(properties || {}).reduce(
-            (innerAcc, innerKey) => {
-                const innerParentKey = `${parentKey}.${innerKey}`
-                innerAcc[innerKey] = {
-                    key: innerKey,
-                    configKey: `${innerParentKey}`,
-                    ...extractConfig(properties[innerKey], innerParentKey),
-                }
-                return innerAcc
-            },
-            {} as Record<string, PromptConfigType>,
-        )
-    }
-
-    if (property.type === "array") {
-        if (property.items?.type === "object") {
-            acc[key] = createConfigType(
-                processInnerProperties(property.items.properties || {}, parentKey),
-                `${parentKey}`,
-                property.type,
-            )
-        } else {
-            acc[key] = createConfigType(
-                extractConfig(property, parentKey),
-                `${parentKey}`,
-                property.type,
-            )
-        }
-    } else if (property.type === "string") {
-        acc[key] = createConfigType(
-            extractConfig(property, parentKey),
-            `${parentKey}`,
-            property.type,
-        )
-    } else if (key === "llm_config") {
-        acc[key] = createConfigType(
-            processInnerProperties(property.properties || {}, parentKey),
-            `${parentKey}`,
-            property.type || "object",
-        )
-    } else {
-        acc[key] = createConfigType(
-            extractConfig(property, parentKey),
-            `${parentKey}.config`,
-            property.type || "object",
-        )
-    }
-    return acc
-}
-
+// Type guard for schema with Agenta config
 function hasAgentaConfig(
     schema: OpenAPISpec["components"]["schemas"][keyof OpenAPISpec["components"]["schemas"]],
-): schema is SchemaWithAgentaConfig {
+): schema is {
+    properties: {
+        agenta_config: AgentaConfig
+        inputs: {title: "Inputs"}
+    }
+    type: "object"
+    required: string[]
+    title: string
+} {
     return (
         typeof schema === "object" &&
         schema !== null &&
@@ -163,37 +104,115 @@ function hasAgentaConfig(
     )
 }
 
-// Add these new types and helper function
-type JoinPath<T extends string, K extends string> = `${T}.${K}`
-
-export function joinPath<T extends Path<StateVariant>, K extends string>(
-    base: T,
-    key: K,
-): JoinPath<T, K> {
-    return `${base}.${key}` as const
+// Property processing
+const isArrayWithObjectConfig = (config: PromptConfigType): config is ArrayWithObjectConfig => {
+    return config.type === "array" && config.subType === "object"
 }
 
-// Type guard to check if a schema has properties
-// function hasProperties(
-//     schema: OpenAPISpec["components"]["schemas"][keyof OpenAPISpec["components"]["schemas"]],
-// ): schema is {
-//     properties: Record<string, any>
-//     type: string
-//     required?: string[]
-//     title: string
-// } {
-//     return (
-//         typeof schema === "object" &&
-//         schema !== null &&
-//         "properties" in schema &&
-//         typeof schema.properties === "object"
-//     )
-// }
+const processProperty = (
+    acc: Record<string, ArrayWithObjectConfig | RegularConfig>,
+    key: string,
+    property: SchemaObject,
+    parentKey: string,
+    promptDefault: any,
+): Record<string, ArrayWithObjectConfig | RegularConfig> => {
+    const createConfigType = (
+        config: SchemaObject,
+        configKey: string,
+        type: string,
+        subType?: string,
+    ): ArrayWithObjectConfig | RegularConfig => {
+        const baseConfig = {
+            key,
+            type,
+            configKey,
+            valueKey: `${parentKey.replace(".config", ".value")}`,
+            value: Array.isArray(promptDefault?.[key])
+                ? promptDefault[key].map((val: any, index: number) => ({
+                      ...val,
+                      valueKey: `${parentKey.replace(".config", ".value")}.[${index}]`,
+                  }))
+                : promptDefault?.[key],
+        }
 
+        if (type === "array" && subType === "object") {
+            return {
+                ...baseConfig,
+                type: "array",
+                subType: "object",
+                configKey: `${parentKey.replace(".config", ".objectConfig.properties")}`,
+                objectConfig: {
+                    ...config,
+                    key,
+                    type: "object",
+                    properties: Object.entries(config.properties || {}).reduce(
+                        (acc, [propKey, propValue]) => ({
+                            ...acc,
+                            [propKey]: {
+                                ...propValue,
+                                key: propKey,
+                                configKey: `${parentKey}.${propKey}`,
+                            },
+                        }),
+                        {} as Record<string, PropertySchema>,
+                    ),
+                },
+            } as ArrayWithObjectConfig
+        }
+
+        return {
+            ...baseConfig,
+            config:
+                type === "object"
+                    ? config.properties
+                    : Object.entries({[key]: config}).reduce(
+                          (acc, [propKey, propValue]) => ({
+                              ...acc,
+                              [propKey]: {
+                                  ...(typeof propValue === "object" ? propValue : {}),
+                                  key: propKey,
+                                  configKey: `${configKey}.${propKey}`,
+                              },
+                          }),
+                          {} as Record<string, PropertySchema>,
+                      ),
+        } as RegularConfig
+    }
+
+    // Process properties based on type
+    if (property.type === "array") {
+        if (property.items?.type === "object") {
+            acc[key] = createConfigType(
+                property.items,
+                `${parentKey}`,
+                property.type,
+                property.items.type,
+            )
+        } else {
+            const extracted = extractConfig(property, parentKey)
+            acc[key] = createConfigType(
+                extracted,
+                `${parentKey}`,
+                property.type,
+                property.items?.type,
+            )
+        }
+    } else if (key === "llm_config") {
+        acc[key] = createConfigType(property, `${parentKey}`, "object")
+    } else {
+        const extracted = extractConfig(property, parentKey)
+        acc[key] = createConfigType(extracted, `${parentKey}`, property.type || "object")
+    }
+
+    return acc
+}
+
+// Main parser function
 export const parseVariantSchema = (originalSchema: OpenAPISpec): ParsedSchema => {
     const schemaName = getBodySchemaName(
         originalSchema,
     ) as keyof OpenAPISpec["components"]["schemas"]
+    const isChat = detectChatVariantFromOpenAISchema(originalSchema)
 
     if (!schemaName) {
         throw new Error("Could not find schema name in OpenAPI schema")
@@ -205,57 +224,26 @@ export const parseVariantSchema = (originalSchema: OpenAPISpec): ParsedSchema =>
         throw new Error(`Schema ${schemaName} does not contain agenta_config`)
     }
 
-    // Now TypeScript knows schema.properties.agenta_config exists and is of type AgentaConfig
-    const agentaConfig = schema.properties.agenta_config || {}
+    const agentaConfig = schema.properties.agenta_config
+    const promptProperties = agentaConfig?.properties?.prompt
+        ?.properties as AgentaPromptSchema["properties"]
+    const promptDefaults = agentaConfig?.default?.prompt
+        ? Array.isArray(agentaConfig?.default?.prompt)
+            ? agentaConfig.default.prompt
+            : [agentaConfig?.default?.prompt]
+        : []
 
-    console.log("agentaConfig", JSON.stringify(agentaConfig.properties.prompt.properties, null, 2))
+    const promptSchemas = promptDefaults.map((promptDefault, index) => {
+        const configTypes: Record<string, ArrayWithObjectConfig | RegularConfig> = {}
 
-    const promptProperties = agentaConfig?.properties?.prompt?.properties
-    const promptDefaults = Array.isArray(agentaConfig?.default?.prompt)
-        ? agentaConfig?.default?.prompt
-        : [agentaConfig?.default?.prompt]
+        for (const key in promptProperties) {
+            const property = promptProperties[key as keyof AgentaPromptSchema["properties"]]
+            const parentKey = `schema.promptConfig.[${index}].${key}.config`
 
-    // const promptSchemas = promptDefaults.map((promptDefault: any, index) => {
-    //     const configTypes: Record<string, PromptConfigType> = Object.keys(
-    //         promptProperties || {},
-    //     ).reduce(
-    //         (acc, key) => {
-    //             const property = promptProperties?.[key]
-    //             const parentKey = `schema.promptConfig.[${index}].${key}.config`
-
-    //             if (property) {
-    //                 processProperty(acc, key, property, parentKey, promptDefault)
-    //             }
-
-    //             return acc
-    //         },
-    //         {} as Record<string, PromptConfigType>,
-    //     )
-
-    //     return {
-    //         key: `${schemaName}-prompt-${index}`,
-    //         ...cleanEmptyKeys(configTypes, promptDefault),
-    //     }
-    // })
-
-    // Then modify the mapping block
-    const promptSchemas = (promptDefaults || []).map((promptDefault: any, index) => {
-        const configTypes: Record<string, PromptConfigType> = Object.keys(
-            promptProperties || {},
-        ).reduce(
-            (acc, key) => {
-                // Use type assertion to tell TypeScript that key is a valid keyof PromptProperties
-                const property = promptProperties?.[key as keyof PromptProperties]
-                const parentKey = `schema.promptConfig.[${index}].${key}.config`
-
-                if (property) {
-                    processProperty(acc, key, property as SchemaObject, parentKey, promptDefault)
-                }
-
-                return acc
-            },
-            {} as Record<string, PromptConfigType>,
-        )
+            if (property) {
+                processProperty(configTypes, key, property, parentKey, promptDefault)
+            }
+        }
 
         return {
             key: `${schemaName}-prompt-${index}`,
@@ -265,6 +253,7 @@ export const parseVariantSchema = (originalSchema: OpenAPISpec): ParsedSchema =>
 
     return {
         schemaName,
+        isChat,
         promptConfig: promptSchemas as ParsedSchema["promptConfig"],
     }
 }

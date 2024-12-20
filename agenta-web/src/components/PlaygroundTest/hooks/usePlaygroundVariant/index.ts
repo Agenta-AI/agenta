@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useMemo} from "react"
 import usePlaygroundVariants from "../usePlaygroundVariants"
 import type {StateVariant} from "../../state/types"
 import {message} from "antd"
@@ -6,8 +6,6 @@ import cloneDeep from "lodash/cloneDeep"
 import {useSWRConfig} from "swr"
 import {UsePlaygroundVariantOptions, UsePlaygroundVariantReturn} from "./types"
 import {AxiosResponse} from "axios"
-import {compareVariant, createVariantCompare} from "../usePlaygroundState/assets/helpers"
-import {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
 
 /**
  * Hook for managing a single variant in the playground
@@ -144,7 +142,6 @@ const usePlaygroundVariant = (options: UsePlaygroundVariantOptions): UsePlaygrou
     )
 
     return Object.assign({}, swr, {variant, deleteVariant, mutateVariant, saveVariant})
-    // {variant, deleteVariant, mutateVariant}
 }
 
 export default usePlaygroundVariant

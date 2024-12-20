@@ -1,33 +1,40 @@
-import {useCallback, useMemo} from "react"
+import { useCallback, useMemo } from "react"
 import cloneDeep from "lodash/cloneDeep"
-
-import {accessKeyInVariant, setKeyInVariant} from "../../assets/helpers"
-import type {InitialStateType, StateVariant} from "../../state/types"
-import type {UsePlaygroundStateOptions} from "../usePlaygroundState/types"
-import {Path} from "../../types"
+import { accessKeyInVariant, setKeyInVariant } from "../../assets/helpers"
 import usePlaygroundVariant from "../usePlaygroundVariant"
-import {
-    ConfigValue,
-    InferSchemaType,
-    PropertyConfig,
-    UsePlaygroundVariantConfigReturn,
-} from "./types"
-import {isSchemaObject} from "./assets/helpers"
+import { isSchemaObject } from "./assets/helpers"
 import { compareVariant } from "../usePlaygroundState/assets/helpers"
+import type { SchemaObject } from "../../types/shared"
+import type { Path } from "../../types/pathHelpers"
+import type { InitialStateType, StateVariant } from "../../state/types"
+import type { UsePlaygroundStateOptions } from "../usePlaygroundState/types"
 
-function usePlaygroundVariantConfig<
-    CK extends Path<StateVariant> & string,
-    VK extends Path<StateVariant> & string,
->(
-    options: Omit<UsePlaygroundStateOptions, "selector"> & {
-        configKey: CK
-        valueKey: VK
-        variantId: string
-    },
-): UsePlaygroundVariantConfigReturn<StateVariant, CK, VK> {
-    const {configKey, valueKey, variantId, ...stateOptions} = options
+// Basic value types
+export type ConfigValue = string | boolean | string[] | number | null
 
-    const {variant, mutateVariant} = usePlaygroundVariant({
+// Simple property interface to avoid deep recursion
+export interface PlaygroundVariantProperty {
+    config: SchemaObject
+    valueInfo: unknown
+    handleChange: (e: { target: { value: ConfigValue } } | ConfigValue) => void
+}
+
+// Hook return type
+export interface PlaygroundVariantConfigReturn {
+    property: PlaygroundVariantProperty | undefined
+}
+
+function usePlaygroundVariantConfig({
+    configKey,
+    valueKey,
+    variantId,
+    ...stateOptions
+}: Omit<UsePlaygroundStateOptions, "selector"> & {
+    configKey: Path<StateVariant>
+    valueKey: Path<StateVariant>
+    variantId: string
+}): PlaygroundVariantConfigReturn {
+    const { variant, mutateVariant } = usePlaygroundVariant({
         ...stateOptions,
         variantId,
         revalidateOnFocus: false,
@@ -36,58 +43,46 @@ function usePlaygroundVariantConfig<
         compare: useCallback(
             (a: InitialStateType | undefined, b: InitialStateType | undefined) => {
                 return (
-                    compareVariant(a, b, variantId, options?.compare, configKey) &&
-                    compareVariant(a, b, variantId, options?.compare, valueKey)
-                );
+                    compareVariant(a, b, variantId, stateOptions?.compare, configKey) &&
+                    compareVariant(a, b, variantId, stateOptions?.compare, valueKey)
+                )
             },
-            [variantId, options?.compare, configKey, valueKey]
+            [variantId, stateOptions?.compare, configKey, valueKey]
         ),
     })
 
     const handleParamUpdate = useCallback(
-        (e: {target: {value: ConfigValue}} | ConfigValue) => {
+        (e: { target: { value: ConfigValue } } | ConfigValue) => {
             const val = e ? (typeof e === "object" && "target" in e ? e.target.value : e) : null
-
             if (!variant) return
             const updatedVariant = cloneDeep(variant)
             setKeyInVariant(valueKey, updatedVariant, val)
             mutateVariant(updatedVariant)
         },
-        [valueKey, variant, mutateVariant],
+        [valueKey, variant, mutateVariant]
     )
 
-    // Rest of the hook implementation remains the same
-    const returnValues = useMemo(() => {
-        const rawConfig = variant
-            ? accessKeyInVariant<StateVariant, CK>(configKey, variant)
-            : undefined
-        const config = rawConfig && isSchemaObject(rawConfig) ? rawConfig : undefined
-        const rawValue = variant
-            ? accessKeyInVariant<StateVariant, VK>(valueKey, variant)
-            : undefined
+    const config = useMemo(() => {
+        const rawConfig = variant ? accessKeyInVariant(configKey, variant) : undefined
+        return rawConfig && isSchemaObject(rawConfig) ? rawConfig : undefined
+    }, [configKey, variant])
 
-        // Use the improved type inference
-        const value = config ? (rawValue as InferSchemaType<typeof config>) : undefined
+    console.log('variant config', config, variant, valueKey, configKey)
 
-        const property: PropertyConfig<StateVariant, CK, VK, typeof config> = {
-            config,
-            valueInfo: value,
-            handleChange: handleParamUpdate,
-        }
+    return useMemo(() => {
+        const valueInfo = variant ? accessKeyInVariant(valueKey, variant) : undefined
 
         return {
-            config,
-            value,
-            property,
-        } as const
-    }, [variant, configKey, valueKey, handleParamUpdate])
-    
-    return returnValues as UsePlaygroundVariantConfigReturn<
-        StateVariant,
-        CK,
-        VK,
-        typeof returnValues.config
-    >
+            property: config
+                ? {
+                      config,
+                      valueInfo,
+                      handleChange: handleParamUpdate,
+                  }
+                : undefined,
+        }
+    }, [variant, valueKey, handleParamUpdate, config])
 }
 
 export default usePlaygroundVariantConfig
+
