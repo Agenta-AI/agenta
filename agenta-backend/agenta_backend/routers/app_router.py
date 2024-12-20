@@ -27,6 +27,7 @@ from agenta_backend.models.api.api_models import (
     UpdateAppOutput,
     CreateAppOutput,
     AddVariantFromImagePayload,
+    AddVariantFromURLPayload,
 )
 
 if isCloudEE():
@@ -342,7 +343,6 @@ async def add_variant_from_image(
     Args:
         app_id (str): The ID of the app to add the variant to.
         payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
     Raises:
         HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
@@ -367,6 +367,7 @@ async def add_variant_from_image(
 
     try:
         app = await db_manager.fetch_app_by_id(app_id)
+
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -394,14 +395,91 @@ async def add_variant_from_image(
             is_template_image=False,
             user_uid=request.state.user_id,
         )
-        app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
-        logger.debug("Step 8: We create ready-to use evaluators")
-        await evaluator_manager.create_ready_to_use_evaluators(
-            app_name=app.app_name, project_id=str(app.project_id)
+        app_variant_db = await db_manager.fetch_app_variant_by_id(
+            str(variant_db.id),
         )
 
-        return await converters.app_variant_db_to_output(app_variant_db)
+        await evaluator_manager.create_ready_to_use_evaluators(
+            app_name=app.app_name,
+            project_id=str(app.project_id),
+        )
+
+        app_variant_dto = await converters.app_variant_db_to_output(
+            app_variant_db,
+        )
+
+        return app_variant_dto
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{app_id}/variant/from-url/", operation_id="add_variant_from_url")
+async def add_variant_from_url(
+    app_id: str,
+    payload: AddVariantFromURLPayload,
+    request: Request,
+):
+    """
+    Add a new variant to an app based on a URL.
+
+    Args:
+        app_id (str): The ID of the app to add the variant to.
+        payload (AddVariantFromURLPayload): The payload containing information about the variant to add.
+
+    Raises:
+        HTTPException: If the user does not have access to the app or if there is an error adding the variant.
+
+    Returns:
+        dict: The newly added variant.
+    """
+
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                object=app,
+                permission=Permission.CREATE_APPLICATION,
+            )
+            logger.debug(
+                f"User has Permission to create app from url: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        variant_db = await app_manager.add_variant_based_on_url(
+            app=app,
+            project_id=str(app.project_id),
+            variant_name=payload.variant_name,
+            url=payload.url,
+            base_name=payload.base_name,
+            config_name=payload.config_name,
+            user_uid=request.state.user_id,
+        )
+
+        app_variant_db = await db_manager.fetch_app_variant_by_id(
+            str(variant_db.id),
+        )
+
+        await evaluator_manager.create_ready_to_use_evaluators(
+            app_name=app.app_name,
+            project_id=str(app.project_id),
+        )
+
+        app_variant_dto = await converters.app_variant_db_to_output(
+            app_variant_db,
+        )
+
+        return app_variant_dto
+
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

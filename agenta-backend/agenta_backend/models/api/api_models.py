@@ -198,6 +198,13 @@ class AddVariantFromImagePayload(BaseModel):
     config_name: Optional[str]
 
 
+class AddVariantFromURLPayload(BaseModel):
+    variant_name: str
+    url: str
+    base_name: Optional[str]
+    config_name: Optional[str]
+
+
 class ImageExtended(Image):
     # includes the mongodb image id
     id: str
