@@ -212,7 +212,9 @@ async def create_app(
         if isCloudEE():
             api_key_from_headers = request.headers.get("Authorization", None)
             if api_key_from_headers is not None:
-                api_key = api_key_from_headers.split(" ")[-1] # ["ApiKey", "xxxxx.xxxxxx"]
+                api_key = api_key_from_headers.split(" ")[
+                    -1
+                ]  # ["ApiKey", "xxxxx.xxxxxx"]
                 await check_apikey_action_access(
                     api_key,
                     request.state.user_id,
