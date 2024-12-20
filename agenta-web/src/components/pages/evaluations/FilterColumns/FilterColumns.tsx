@@ -4,7 +4,7 @@ import {Button, Dropdown, Space} from "antd"
 import {ItemType} from "antd/es/menu/interface"
 import React from "react"
 import {createUseStyles} from "react-jss"
-import {ColDef} from "ag-grid-community"
+import {type ColDef} from "@ag-grid-community/core"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     dropdownMenu: {
