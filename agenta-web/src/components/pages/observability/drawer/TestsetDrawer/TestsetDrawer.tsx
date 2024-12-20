@@ -221,7 +221,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                 const updatedColumns = new Set([
                     ...selectedTestsetColumns.map((col) => col.column),
                     ...newMappedData
-                        .filter((item) => !testsetColumnsSet.has(item.column.toLowerCase()))
+                        .filter((item) => item.column !== "create" && item.column)
                         .map((item) => item.column),
                 ])
 
@@ -275,10 +275,10 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     }
 
     useUpdateEffect(() => {
-        const duplicatesExist = hasDuplicateColumnNames()
-        setHasDuplicateColumns(duplicatesExist)
+        const hasInvalidMappings = hasInvalidColumnMappings()
+        setHasDuplicateColumns(hasInvalidMappings)
 
-        if (!duplicatesExist && isMapColumnExist) {
+        if (!hasInvalidMappings && isMapColumnExist) {
             onPreviewOptionChange(preview.key)
         }
     }, [mappingData])
@@ -294,28 +294,71 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
 
     const mapAndConvertDataInCsvFormat = useCallback(
         (traceData: TestsetTraceData[], type: "preview" | "export") => {
+            // First identify duplicate columns and their data paths
+            const duplicateColumnMap = new Map<string, string[]>()
+            mappingData.forEach((mapping) => {
+                const targetKey =
+                    mapping.column === "create" || !mapping.column
+                        ? mapping.newColumn
+                        : mapping.column
+
+                if (targetKey) {
+                    if (!duplicateColumnMap.has(targetKey)) {
+                        duplicateColumnMap.set(targetKey, [mapping.data])
+                    } else {
+                        duplicateColumnMap.get(targetKey)!.push(mapping.data)
+                    }
+                }
+            })
+
+            // Get columns that have duplicate mappings
+            const duplicateColumns = new Map(
+                Array.from(duplicateColumnMap.entries()).filter(([_, paths]) => paths.length > 1),
+            )
+
             const formattedData = traceData.map((item) => {
                 const formattedItem: Record<string, any> = {}
 
+                // Handle non-duplicate columns first
                 for (const mapping of mappingData) {
-                    const keys = mapping.data.split(".")
-                    let value = keys.reduce((acc: any, key) => acc?.[key], item)
-
                     const targetKey =
                         mapping.column === "create" || !mapping.column
                             ? mapping.newColumn
                             : mapping.column
 
-                    if (targetKey) {
-                        formattedItem[targetKey] =
-                            value === undefined || value === null
+                    if (!targetKey || duplicateColumns.has(targetKey)) {
+                        continue // Skip duplicate columns for now
+                    }
+
+                    const keys = mapping.data.split(".")
+                    let value = keys.reduce((acc: any, key) => acc?.[key], item)
+
+                    formattedItem[targetKey] =
+                        value === undefined || value === null
+                            ? ""
+                            : typeof value === "string"
+                              ? value
+                              : JSON.stringify(value)
+                }
+
+                // Handle duplicate columns
+                duplicateColumns.forEach((dataPaths, columnName) => {
+                    const values = dataPaths
+                        .map((path) => {
+                            const keys = path.split(".")
+                            const value = keys.reduce((acc: any, key) => acc?.[key], item)
+                            return value === undefined || value === null
                                 ? ""
                                 : typeof value === "string"
                                   ? value
                                   : JSON.stringify(value)
-                    }
-                }
+                        })
+                        .filter((val) => val !== "") // Remove empty values
 
+                    formattedItem[columnName] = values.length > 0 ? values.join(" | ") : ""
+                })
+
+                // Add empty values for missing columns
                 for (const {column, isNew} of selectedTestsetColumns) {
                     if (!(column in formattedItem) && !isNew) {
                         formattedItem[column] = ""
@@ -376,52 +419,66 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         }
     }
 
-    const hasDuplicateColumnNames = useCallback(() => {
-        const seenValues = new Set<string>()
+    const hasInvalidColumnMappings = useCallback(() => {
+        const columnMappings = new Map<string, Set<string>>() // Map of column name to set of paths
 
         return mappingData.some((item) => {
-            const columnValues = [item.column, item.newColumn]
-                .filter(Boolean)
-                .filter((value) => value !== "create")
+            const columnName =
+                item.column === "create" || !item.column ? item.newColumn : item.column
+            if (!columnName || columnName === "create") return false
 
-            return columnValues.some((value) => {
-                if (seenValues.has(value as string)) return true
-                seenValues.add(value as string)
+            const span = item.data
+
+            if (!columnMappings.has(columnName)) {
+                columnMappings.set(columnName, new Set([span]))
                 return false
-            })
+            }
+
+            const existingSpans = columnMappings.get(columnName)!
+            if (existingSpans.has(span)) {
+                return true
+            }
+
+            existingSpans.add(span)
+            return false
         })
     }, [mappingData])
 
     const tableColumns = useMemo(() => {
-        const mappedColumns = mappingData.map((data, idx) => {
-            const columnData =
-                data.column === "create" || !data.column ? data.newColumn : data.column
-
-            return {
+        // Get unique column names while preserving order
+        const uniqueColumns = new Set<string>()
+        const mappedColumns = mappingData
+            .map((data) => {
+                const columnData =
+                    data.column === "create" || !data.column ? data.newColumn : data.column
+                return columnData
+            })
+            .filter((columnData) => {
+                if (!columnData || uniqueColumns.has(columnData)) return false
+                uniqueColumns.add(columnData)
+                return true
+            })
+            .map((columnData) => ({
                 title: columnData,
                 dataIndex: columnData,
-                key: idx,
+                key: columnData,
                 width: 250,
                 onHeaderCell: () => ({style: {minWidth: 200}}),
-            }
-        })
+            }))
 
         const testsetColumns = showLastFiveRows
-            ? selectedTestsetColumns.map((item) => ({
-                  title: item.column,
-                  dataIndex: item.column,
-                  key: item.column,
-                  width: 250,
-                  onHeaderCell: () => ({style: {minWidth: 200}}),
-              }))
+            ? selectedTestsetColumns
+                  .filter((item) => !uniqueColumns.has(item.column))
+                  .map((item) => ({
+                      title: item.column,
+                      dataIndex: item.column,
+                      key: item.column,
+                      width: 250,
+                      onHeaderCell: () => ({style: {minWidth: 200}}),
+                  }))
             : []
 
-        // Remove duplicate columns and filter out columns without dataIndex
-        return [...mappedColumns, ...testsetColumns].filter(
-            (column, index, self) =>
-                column.dataIndex &&
-                self.findIndex((c) => c.dataIndex === column.dataIndex) === index,
-        )
+        return [...mappedColumns, ...testsetColumns]
     }, [mappingData, selectedTestsetColumns, showLastFiveRows])
 
     const onSaveEditedTrace = () => {
@@ -517,8 +574,8 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                                 className="mb-1 flex items-center gap-1"
                                 type="warning"
                             >
-                                <WarningCircle size={16} /> You have selected various kind of spans
-                                that have different structures then others!
+                                <WarningCircle size={16} /> Some of the selected spans have a
+                                different structure than the others.
                             </Typography.Text>
                         )}
 
@@ -861,7 +918,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                             >
                                 <div className="flex flex-col gap-4 my-4">
                                     <Typography.Text>
-                                        You have created new columns. Do you want to add them to the
+                                        You have created new columns. Do you want to add them to the{" "}
                                         <span className="font-bold">{testset.name}</span> test set?
                                     </Typography.Text>
 
