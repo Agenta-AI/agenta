@@ -46,7 +46,7 @@ def get_agenta_version():
 
 
 @pytest.fixture(scope="class")
-def execute_python():
+def executable_python():
     """
     Fixture to provide the current Python executable.
     """
@@ -94,7 +94,7 @@ def create_application(http_client):
 
 @pytest.fixture(scope="class")
 def fastapi_server(
-    request, get_port_number, create_application, http_client, execute_python
+    request, get_port_number, create_application, http_client, executable_python
 ):
     """
     Run the FastAPI server as a subprocess on a random port and return its base URL.
@@ -119,7 +119,7 @@ def fastapi_server(
     )
 
     command = [
-        execute_python,
+        executable_python,
         app_file,
     ]
 
