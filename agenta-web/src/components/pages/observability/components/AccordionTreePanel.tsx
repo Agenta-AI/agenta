@@ -50,7 +50,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     }),
     editor: ({bgColor}: {bgColor?: string}) => ({
-        overflow: "hidden",
+        overflowY: "hidden",
         "& .monaco-editor .monaco-editor-background": {
             backgroundColor: bgColor,
         },
