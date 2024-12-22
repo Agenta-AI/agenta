@@ -50,7 +50,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     }),
     editor: ({bgColor}: {bgColor?: string}) => ({
-        overflowY: "hidden",
         "& .monaco-editor .monaco-editor-background": {
             backgroundColor: bgColor,
         },
@@ -111,7 +110,7 @@ const AccordionTreePanel = ({
                             style={{
                                 height: fullEditorHeight ? "100%" : `${editorHeight}px`,
                                 maxHeight: fullEditorHeight ? "none" : 800,
-                                overflow: "auto",
+                                overflowY: "auto",
                             }}
                         >
                             <Editor
@@ -139,6 +138,7 @@ const AccordionTreePanel = ({
                                     scrollbar: {
                                         verticalScrollbarSize: 8,
                                         horizontalScrollbarSize: 8,
+                                        handleMouseWheel: false,
                                     },
                                 }}
                                 onMount={(editor) => {
