@@ -1,0 +1,37 @@
+# Define the directories to check
+DIRECTORIES=("agenta-backend" "agenta-cli")
+ORIGINAL_DIR=$(pwd)
+
+# Check for changes in frontend directory
+if git diff --cached --name-only | grep -q '^agenta-web/'; then
+    cd agenta-web || exit
+
+    # Run Prettier check
+    if ! npm run format; then
+        echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
+        npm run format-fix
+
+        echo '✅ Formatting issues fixed. Please stage the changes and commit the code again'
+        exit 1
+    fi
+
+    cd "$ORIGINAL_DIR" || exit
+fi
+
+# Check for changes in backend directory
+for DIR in "${DIRECTORIES[@]}"; do
+    if git diff --cached --name-only | grep -q "^$DIR/"; then
+        cd "$DIR" || exit
+
+        # Run black for formatting
+        if !  black --check .; then
+            echo "⚠️ Formatting issues detected in $DIR. Running black to fix them..."
+            black .
+
+            echo "✅ Formatting issues fixed Please stage the changes and commit the code again $DIR."
+            exit 1
+        fi
+
+         cd "$ORIGINAL_DIR" || exit
+    fi
+done
