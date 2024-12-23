@@ -242,7 +242,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
     const columnOptions = useMemo(() => {
         return selectedTestsetColumns?.map(({column}) => ({
             value: column,
-            lable: column,
+            label: column,
         }))
     }, [mappingData, selectedTestsetColumns])
 
