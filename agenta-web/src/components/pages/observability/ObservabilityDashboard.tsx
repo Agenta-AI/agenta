@@ -39,7 +39,7 @@ import {createUseStyles} from "react-jss"
 import {Database, Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
 import {TestsetTraceData, TestsetDrawerProps} from "./drawer/TestsetDrawer/assets/types"
@@ -426,7 +426,7 @@ const ObservabilityDashboard = () => {
         setPagination({size: pageSize, page: current})
     }
     // reset pagination to page 1 whenever quearies get updated
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (pagination.page > 1) {
             setPagination({...pagination, page: 1})
         }
@@ -455,7 +455,7 @@ const ObservabilityDashboard = () => {
         }
     }
     // Sync searchQuery with filters state
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         const dataFilter = filters.find((f) => f.key === "content")
         setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
@@ -489,7 +489,7 @@ const ObservabilityDashboard = () => {
         }
     }
     // Sync traceTabs with filters state
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         const nodeTypeFilter = filters.find((f) => f.key === "node.type")?.value
         setTraceTabs((prev) =>
             nodeTypeFilter === "chat" ? "chat" : prev == "chat" ? "tree" : prev,

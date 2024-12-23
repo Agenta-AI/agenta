@@ -33,7 +33,7 @@ import {
 } from "@/services/testsets/api"
 import {collectKeyPathsFromObject, getYamlOrJson} from "@/lib/helpers/utils"
 import yaml from "js-yaml"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import useResizeObserver from "@/hooks/useResizeObserver"
 import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps, TestsetColumn} from "./assets/types"
 import {useStyles} from "./assets/styles"
@@ -93,7 +93,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         return getYamlOrJson(editorFormat, jsonObject)
     }, [editorFormat, traceData, rowDataPreview])
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (data.length > 0) {
             setTraceData(data)
             setRowDataPreview(data[0]?.key || "")
@@ -274,7 +274,7 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
         setPreview({key: value, data: newTestsetData})
     }
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         const hasInvalidMappings = hasInvalidColumnMappings()
         setHasDuplicateColumns(hasInvalidMappings)
 
