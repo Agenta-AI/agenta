@@ -2,5 +2,22 @@
 
 set -e
 
-OPENAI_API_KEY=sk-xxxxx AGENTA_HOST=http://localhost AGENTA_API_KEY=xxxx.xxxxxxxxxxxxxxx pytest -n 2 -v ./management/*
-BASE_URL=http://127.0.0.1 AGENTA_HOST=http://localhost AGENTA_API_KEY=xxxx.xxxxxxxxxxxxxxx pytest -v ./sdk_routing/*
+# Function to prompt for a variable if not already set
+check_and_request_var() {
+  local var_name=$1
+  local var_value=${!var_name}  # Use indirect variable reference to get value
+  if [ -z "$var_value" ]; then
+    read -p "Enter value for $var_name: " var_value
+    export $var_name="$var_value"
+  fi
+}
+
+# Check for required variables and prompt if missing
+check_and_request_var "OPENAI_API_KEY"
+check_and_request_var "AGENTA_HOST"
+check_and_request_var "AGENTA_API_KEY"
+
+# Run test commands
+pytest -n 2 -v ./management/*
+BASE_URL="http://127.0.0.1" pytest -v ./sdk_routing/*
+pytest cli/
