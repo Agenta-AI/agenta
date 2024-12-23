@@ -83,7 +83,11 @@ class ContainersClient:
             files={
                 "tar_file": tar_file,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:
@@ -155,7 +159,11 @@ class ContainersClient:
             headers={
                 "content-type": "application/json",
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:
@@ -218,7 +226,11 @@ class ContainersClient:
         _response = self._client_wrapper.httpx_client.request(
             "containers/templates",
             method="GET",
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -295,7 +307,11 @@ class ContainersClient:
                 "base_id": base_id,
                 "variant_id": variant_id,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -395,7 +411,11 @@ class AsyncContainersClient:
             files={
                 "tar_file": tar_file,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:
@@ -475,7 +495,11 @@ class AsyncContainersClient:
             headers={
                 "content-type": "application/json",
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:
@@ -546,7 +570,11 @@ class AsyncContainersClient:
         _response = await self._client_wrapper.httpx_client.request(
             "containers/templates",
             method="GET",
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -631,7 +659,11 @@ class AsyncContainersClient:
                 "base_id": base_id,
                 "variant_id": variant_id,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:

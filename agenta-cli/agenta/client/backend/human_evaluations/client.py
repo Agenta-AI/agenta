@@ -489,8 +489,8 @@ class HumanEvaluationsClient:
         evaluation_scenario_id: str,
         evaluation_type: EvaluationType,
         *,
-        score: typing.Optional[Score] = OMIT,
         vote: typing.Optional[str] = OMIT,
+        score: typing.Optional[Score] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
@@ -515,9 +515,9 @@ class HumanEvaluationsClient:
 
         evaluation_type : EvaluationType
 
-        score : typing.Optional[Score]
-
         vote : typing.Optional[str]
+
+        score : typing.Optional[Score]
 
         correct_answer : typing.Optional[str]
 
@@ -555,10 +555,10 @@ class HumanEvaluationsClient:
             f"human-evaluations/{jsonable_encoder(evaluation_id)}/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/{jsonable_encoder(evaluation_type)}",
             method="PUT",
             json={
+                "vote": vote,
                 "score": convert_and_respect_annotation_metadata(
                     object_=score, annotation=Score, direction="write"
                 ),
-                "vote": vote,
                 "correct_answer": correct_answer,
                 "outputs": convert_and_respect_annotation_metadata(
                     object_=outputs,
@@ -1333,8 +1333,8 @@ class AsyncHumanEvaluationsClient:
         evaluation_scenario_id: str,
         evaluation_type: EvaluationType,
         *,
-        score: typing.Optional[Score] = OMIT,
         vote: typing.Optional[str] = OMIT,
+        score: typing.Optional[Score] = OMIT,
         correct_answer: typing.Optional[str] = OMIT,
         outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
         inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
@@ -1359,9 +1359,9 @@ class AsyncHumanEvaluationsClient:
 
         evaluation_type : EvaluationType
 
-        score : typing.Optional[Score]
-
         vote : typing.Optional[str]
+
+        score : typing.Optional[Score]
 
         correct_answer : typing.Optional[str]
 
@@ -1407,10 +1407,10 @@ class AsyncHumanEvaluationsClient:
             f"human-evaluations/{jsonable_encoder(evaluation_id)}/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/{jsonable_encoder(evaluation_type)}",
             method="PUT",
             json={
+                "vote": vote,
                 "score": convert_and_respect_annotation_metadata(
                     object_=score, annotation=Score, direction="write"
                 ),
-                "vote": vote,
                 "correct_answer": correct_answer,
                 "outputs": convert_and_respect_annotation_metadata(
                     object_=outputs,
