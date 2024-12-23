@@ -8,6 +8,7 @@ import utc from "dayjs/plugin/utc"
 import {notification} from "antd"
 import Router from "next/router"
 import {getApikeys, LlmProvider} from "./llmProviders"
+import yaml from "js-yaml"
 
 if (typeof window !== "undefined") {
     //@ts-ignore
@@ -331,6 +332,14 @@ export const getInitials = (str: string, limit = 2) => {
 
 export const getStringOrJson = (value: any) => {
     return typeof value === "string" ? value : JSON.stringify(value, null, 2)
+}
+
+export const getYamlOrJson = (format: "JSON" | "YAML", data: any) => {
+    try {
+        return format === "YAML" ? yaml.dump(data) : getStringOrJson(data)
+    } catch (error) {
+        return getStringOrJson(data)
+    }
 }
 
 export const filterVariantParameters = ({
