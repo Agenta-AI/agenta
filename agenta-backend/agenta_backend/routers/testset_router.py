@@ -201,11 +201,6 @@ async def import_testset(
         ) from error
 
 
-@router.post(
-    "/{app_id}",
-    response_model=TestSetSimpleResponse,
-    operation_id="deprecating_create_testset",
-)
 @router.post("/", response_model=TestSetSimpleResponse, operation_id="create_testset")
 async def create_testset(
     csvdata: NewTestset,

@@ -13,6 +13,7 @@ Permission = typing.Union[
         "delete_app_variant",
         "modify_variant_configurations",
         "delete_application_variant",
+        "run_service",
         "view_app_environment_deployment",
         "edit_app_environment_deployment",
         "create_app_environment_deployment",

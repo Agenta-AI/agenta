@@ -66,7 +66,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "observability/dashboard/",
+            "observability/dashboard",
             method="GET",
             params={
                 "app_id": app_id,
@@ -152,7 +152,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "observability/trace/",
+            "observability/trace",
             method="POST",
             json={
                 "trace": trace,
@@ -161,6 +161,9 @@ class ObservabilityClient:
                     annotation=typing.Sequence[CreateSpan],
                     direction="write",
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -242,7 +245,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "observability/traces/",
+            "observability/traces",
             method="GET",
             params={
                 "app_id": app_id,
@@ -312,7 +315,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "observability/traces/",
+            "observability/traces",
             method="DELETE",
             json=request,
             request_options=request_options,
@@ -371,7 +374,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"observability/traces/{jsonable_encoder(trace_id)}/",
+            f"observability/traces/{jsonable_encoder(trace_id)}",
             method="GET",
             request_options=request_options,
         )
@@ -452,7 +455,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "observability/spans/",
+            "observability/spans",
             method="GET",
             params={
                 "app_id": app_id,
@@ -522,7 +525,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "observability/spans/",
+            "observability/spans",
             method="DELETE",
             json=request,
             request_options=request_options,
@@ -587,7 +590,7 @@ class ObservabilityClient:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"observability/spans/{jsonable_encoder(span_id)}/",
+            f"observability/spans/{jsonable_encoder(span_id)}",
             method="GET",
             params={
                 "type": type,
@@ -672,7 +675,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "observability/dashboard/",
+            "observability/dashboard",
             method="GET",
             params={
                 "app_id": app_id,
@@ -765,7 +768,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "observability/trace/",
+            "observability/trace",
             method="POST",
             json={
                 "trace": trace,
@@ -774,6 +777,9 @@ class AsyncObservabilityClient:
                     annotation=typing.Sequence[CreateSpan],
                     direction="write",
                 ),
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -863,7 +869,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "observability/traces/",
+            "observability/traces",
             method="GET",
             params={
                 "app_id": app_id,
@@ -941,7 +947,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "observability/traces/",
+            "observability/traces",
             method="DELETE",
             json=request,
             request_options=request_options,
@@ -1008,7 +1014,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"observability/traces/{jsonable_encoder(trace_id)}/",
+            f"observability/traces/{jsonable_encoder(trace_id)}",
             method="GET",
             request_options=request_options,
         )
@@ -1097,7 +1103,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "observability/spans/",
+            "observability/spans",
             method="GET",
             params={
                 "app_id": app_id,
@@ -1175,7 +1181,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "observability/spans/",
+            "observability/spans",
             method="DELETE",
             json=request,
             request_options=request_options,
@@ -1248,7 +1254,7 @@ class AsyncObservabilityClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"observability/spans/{jsonable_encoder(span_id)}/",
+            f"observability/spans/{jsonable_encoder(span_id)}",
             method="GET",
             params={
                 "type": type,

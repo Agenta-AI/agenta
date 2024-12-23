@@ -34,13 +34,13 @@ class ContainersClient:
         Builds a Docker image from a tar file containing the application code.
 
         Args:
-        app_id (str): The ID of the application to build the image for.
-        base_name (str): The base name of the image to build.
-        tar_file (UploadFile): The tar file containing the application code.
-        stoken_session (SessionContainer): The session container for the user making the request.
+            app_id (str): The ID of the application to build the image for.
+            base_name (str): The base name of the image to build.
+            tar_file (UploadFile): The tar file containing the application code.
+            stoken_session (SessionContainer): The session container for the user making the request.
 
         Returns:
-        Image: The Docker image that was built.
+            Image: The Docker image that was built.
 
         Parameters
         ----------
@@ -124,7 +124,7 @@ class ContainersClient:
         Restart docker container.
 
         Args:
-        payload (RestartAppContainer) -- the required data (app_name and variant_name)
+            payload (RestartAppContainer) -- the required data (app_name and variant_name)
 
         Parameters
         ----------
@@ -156,7 +156,14 @@ class ContainersClient:
             json={
                 "variant_id": variant_id,
             },
-            request_options=request_options,
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:
@@ -219,7 +226,11 @@ class ContainersClient:
         _response = self._client_wrapper.httpx_client.request(
             "containers/templates",
             method="GET",
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -246,15 +257,24 @@ class ContainersClient:
         Constructs the URL for an app container based on the provided base_id or variant_id.
 
         Args:
-        base_id (Optional[str]): The ID of the base to use for the app container.
-        variant_id (Optional[str]): The ID of the variant to use for the app container.
-        request (Request): The request object.
+
+
+
+            base_id (Optional[str]): The ID of the base to use for the app container.
+            variant_id (Optional[str]): The ID of the variant to use for the app container.
+            request (Request): The request object.
 
         Returns:
-        URI: The URI for the app container.
+
+
+
+            URI: The URI for the app container.
 
         Raises:
-        HTTPException: If the base or variant cannot be found or the user does not have access.
+
+
+
+            HTTPException: If the base or variant cannot be found or the user does not have access.
 
         Parameters
         ----------
@@ -287,7 +307,11 @@ class ContainersClient:
                 "base_id": base_id,
                 "variant_id": variant_id,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -330,13 +354,13 @@ class AsyncContainersClient:
         Builds a Docker image from a tar file containing the application code.
 
         Args:
-        app_id (str): The ID of the application to build the image for.
-        base_name (str): The base name of the image to build.
-        tar_file (UploadFile): The tar file containing the application code.
-        stoken_session (SessionContainer): The session container for the user making the request.
+            app_id (str): The ID of the application to build the image for.
+            base_name (str): The base name of the image to build.
+            tar_file (UploadFile): The tar file containing the application code.
+            stoken_session (SessionContainer): The session container for the user making the request.
 
         Returns:
-        Image: The Docker image that was built.
+            Image: The Docker image that was built.
 
         Parameters
         ----------
@@ -428,7 +452,7 @@ class AsyncContainersClient:
         Restart docker container.
 
         Args:
-        payload (RestartAppContainer) -- the required data (app_name and variant_name)
+            payload (RestartAppContainer) -- the required data (app_name and variant_name)
 
         Parameters
         ----------
@@ -468,7 +492,14 @@ class AsyncContainersClient:
             json={
                 "variant_id": variant_id,
             },
-            request_options=request_options,
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
             omit=OMIT,
         )
         try:
@@ -539,7 +570,11 @@ class AsyncContainersClient:
         _response = await self._client_wrapper.httpx_client.request(
             "containers/templates",
             method="GET",
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -566,15 +601,24 @@ class AsyncContainersClient:
         Constructs the URL for an app container based on the provided base_id or variant_id.
 
         Args:
-        base_id (Optional[str]): The ID of the base to use for the app container.
-        variant_id (Optional[str]): The ID of the variant to use for the app container.
-        request (Request): The request object.
+
+
+
+            base_id (Optional[str]): The ID of the base to use for the app container.
+            variant_id (Optional[str]): The ID of the variant to use for the app container.
+            request (Request): The request object.
 
         Returns:
-        URI: The URI for the app container.
+
+
+
+            URI: The URI for the app container.
 
         Raises:
-        HTTPException: If the base or variant cannot be found or the user does not have access.
+
+
+
+            HTTPException: If the base or variant cannot be found or the user does not have access.
 
         Parameters
         ----------
@@ -615,7 +659,11 @@ class AsyncContainersClient:
                 "base_id": base_id,
                 "variant_id": variant_id,
             },
-            request_options=request_options,
+            request_options=(
+                {**request_options, "timeout_in_seconds": 600}
+                if request_options
+                else {"timeout_in_seconds": 600}
+            ),
         )
         try:
             if 200 <= _response.status_code < 300:

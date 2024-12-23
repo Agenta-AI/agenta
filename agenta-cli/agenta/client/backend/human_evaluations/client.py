@@ -3,40 +3,42 @@
 import typing
 from ..core.client_wrapper import SyncClientWrapper
 from ..core.request_options import RequestOptions
-from ..types.app_variant_response import AppVariantResponse
-from ..core.jsonable_encoder import jsonable_encoder
+from ..types.human_evaluation import HumanEvaluation
 from ..core.pydantic_utilities import parse_obj_as
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
 from json.decoder import JSONDecodeError
 from ..core.api_error import ApiError
-from ..types.app import App
-from ..types.create_app_output import CreateAppOutput
-from ..types.update_app_output import UpdateAppOutput
-from ..types.environment_output import EnvironmentOutput
-from ..types.environment_output_extended import EnvironmentOutputExtended
+from ..types.evaluation_type import EvaluationType
+from ..types.simple_evaluation_output import SimpleEvaluationOutput
+from ..core.jsonable_encoder import jsonable_encoder
+from ..types.evaluation_status_enum import EvaluationStatusEnum
+from ..types.human_evaluation_scenario import HumanEvaluationScenario
+from ..types.score import Score
+from ..types.human_evaluation_scenario_output import HumanEvaluationScenarioOutput
+from ..types.human_evaluation_scenario_input import HumanEvaluationScenarioInput
+from ..core.serialization import convert_and_respect_annotation_metadata
 from ..core.client_wrapper import AsyncClientWrapper
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
 
 
-class AppsClient:
+class HumanEvaluationsClient:
     def __init__(self, *, client_wrapper: SyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    def list_app_variants(
-        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[AppVariantResponse]:
+    def fetch_list_human_evaluations(
+        self, *, app_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[HumanEvaluation]:
         """
-        Retrieve a list of app variants for a given app ID.
+        Fetches a list of evaluations, optionally filtered by an app ID.
 
         Args:
-            app_id (str): The ID of the app to retrieve variants for.
-            stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
+            app_id (Optional[str]): An optional app ID to filter the evaluations.
 
         Returns:
-            List[AppVariantResponse]: A list of app variants for the given app ID.
+            List[HumanEvaluation]: A list of evaluations.
 
         Parameters
         ----------
@@ -47,7 +49,7 @@ class AppsClient:
 
         Returns
         -------
-        typing.List[AppVariantResponse]
+        typing.List[HumanEvaluation]
             Successful Response
 
         Examples
@@ -58,102 +60,24 @@ class AppsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.apps.list_app_variants(
+        client.human_evaluations.fetch_list_human_evaluations(
             app_id="app_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/variants",
-            method="GET",
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.List[AppVariantResponse],
-                    parse_obj_as(
-                        type_=typing.List[AppVariantResponse],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def get_variant_by_env(
-        self,
-        *,
-        app_id: str,
-        environment: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AppVariantResponse:
-        """
-        Retrieve the app variant based on the provided app_id and environment.
-
-        Args:
-            app_id (str): The ID of the app to retrieve the variant for.
-            environment (str): The environment of the app variant to retrieve.
-            stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
-
-        Raises:
-            HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
-
-        Returns:
-            AppVariantResponse: The retrieved app variant.
-
-        Parameters
-        ----------
-        app_id : str
-
-        environment : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AppVariantResponse
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.apps.get_variant_by_env(
-            app_id="app_id",
-            environment="environment",
-        )
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "apps/get_variant_by_env",
+            "human-evaluations",
             method="GET",
             params={
                 "app_id": app_id,
-                "environment": environment,
             },
             request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    AppVariantResponse,
+                    typing.List[HumanEvaluation],
                     parse_obj_as(
-                        type_=AppVariantResponse,  # type: ignore
+                        type_=typing.List[HumanEvaluation],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -172,35 +96,44 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_apps(
+    def create_human_evaluation(
         self,
         *,
-        app_name: typing.Optional[str] = None,
+        app_id: str,
+        variant_ids: typing.Sequence[str],
+        evaluation_type: EvaluationType,
+        inputs: typing.Sequence[str],
+        testset_id: str,
+        status: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[App]:
+    ) -> SimpleEvaluationOutput:
         """
-        Retrieve a list of apps filtered by app_name.
-
-        Args:
-            app_name (Optional[str]): The name of the app to filter by.
-            stoken_session (SessionContainer): The session container.
-
-        Returns:
-            List[App]: A list of apps filtered by app_name.
-
+        Creates a new comparison table document
         Raises:
-            HTTPException: If there was an error retrieving the list of apps.
+            HTTPException: _description_
+        Returns:
+            _description_
 
         Parameters
         ----------
-        app_name : typing.Optional[str]
+        app_id : str
+
+        variant_ids : typing.Sequence[str]
+
+        evaluation_type : EvaluationType
+
+        inputs : typing.Sequence[str]
+
+        testset_id : str
+
+        status : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        typing.List[App]
+        SimpleEvaluationOutput
             Successful Response
 
         Examples
@@ -211,100 +144,25 @@ class AppsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.apps.list_apps()
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            "apps",
-            method="GET",
-            params={
-                "app_name": app_name,
-            },
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.List[App],
-                    parse_obj_as(
-                        type_=typing.List[App],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def create_app(
-        self,
-        *,
-        app_name: str,
-        project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> CreateAppOutput:
-        """
-        Create a new app for a user or organization.
-
-        Args:
-            payload (CreateApp): The payload containing the app name and organization ID (optional).
-            stoken_session (SessionContainer): The session container containing the user's session token.
-
-        Returns:
-            CreateAppOutput: The output containing the newly created app's ID and name.
-
-        Raises:
-            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
-
-        Parameters
-        ----------
-        app_name : str
-
-        project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        CreateAppOutput
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.apps.create_app(
-            app_name="app_name",
+        client.human_evaluations.create_human_evaluation(
+            app_id="app_id",
+            variant_ids=["variant_ids"],
+            evaluation_type="human_a_b_testing",
+            inputs=["inputs"],
+            testset_id="testset_id",
+            status="status",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "apps",
+            "human-evaluations",
             method="POST",
             json={
-                "app_name": app_name,
-                "project_id": project_id,
-                "workspace_id": workspace_id,
-                "organization_id": organization_id,
+                "app_id": app_id,
+                "variant_ids": variant_ids,
+                "evaluation_type": evaluation_type,
+                "inputs": inputs,
+                "testset_id": testset_id,
+                "status": status,
             },
             headers={
                 "content-type": "application/json",
@@ -315,9 +173,9 @@ class AppsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    CreateAppOutput,
+                    SimpleEvaluationOutput,
                     parse_obj_as(
-                        type_=CreateAppOutput,  # type: ignore
+                        type_=SimpleEvaluationOutput,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -336,101 +194,252 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def remove_app(
-        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    def delete_evaluations(
+        self,
+        *,
+        evaluations_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.List[str]:
+        """
+        Delete specific comparison tables based on their unique IDs.
+
+        Args:
+            payload (List[str]): The unique identifiers of the comparison tables to delete.
+
+        Returns:
+        A list of the deleted comparison tables' IDs.
+
+        Parameters
+        ----------
+        evaluations_ids : typing.Sequence[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.List[str]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.human_evaluations.delete_evaluations(
+            evaluations_ids=["evaluations_ids"],
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "human-evaluations",
+            method="DELETE",
+            json={
+                "evaluations_ids": evaluations_ids,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.List[str],
+                    parse_obj_as(
+                        type_=typing.List[str],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_human_evaluation(
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HumanEvaluation:
+        """
+        Fetches a single evaluation based on its ID.
+
+        Args:
+            evaluation_id (str): The ID of the evaluation to fetch.
+
+        Returns:
+            HumanEvaluation: The fetched evaluation.
+
+        Parameters
+        ----------
+        evaluation_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HumanEvaluation
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.human_evaluations.fetch_human_evaluation(
+            evaluation_id="evaluation_id",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}",
+            method="GET",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    HumanEvaluation,
+                    parse_obj_as(
+                        type_=HumanEvaluation,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_human_evaluation(
+        self,
+        evaluation_id: str,
+        *,
+        status: typing.Optional[EvaluationStatusEnum] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Remove app, all its variant, containers and images
+        Updates an evaluation's status.
+
+        Raises:
+            HTTPException: If the columns in the test set do not match with the inputs in the variant.
+
+        Returns:
+            None: A 204 No Content status code, indicating that the update was successful.
+
+        Parameters
+        ----------
+        evaluation_id : str
+
+        status : typing.Optional[EvaluationStatusEnum]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.human_evaluations.update_human_evaluation(
+            evaluation_id="evaluation_id",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}",
+            method="PUT",
+            json={
+                "status": status,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def fetch_human_evaluation_scenarios(
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.List[HumanEvaluationScenario]:
+        """
+        Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-            app -- App to remove
-
-        Parameters
-        ----------
-        app_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.apps.remove_app(
-            app_id="app_id",
-        )
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}",
-            method="DELETE",
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def update_app(
-        self,
-        app_id: str,
-        *,
-        app_name: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> UpdateAppOutput:
-        """
-        Update an app for a user or organization.
-
-        Args:
-            app_id (str): The ID of the app.
-            payload (UpdateApp): The payload containing the app name.
-            stoken_session (SessionContainer): The session container containing the user's session token.
-
-        Returns:
-            UpdateAppOuput: The output containing the newly created app's ID and name.
+            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+            HTTPException: If the evaluation is not found or access is denied.
+
+        Returns:
+            List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters
         ----------
-        app_id : str
-
-        app_name : str
+        evaluation_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        UpdateAppOutput
+        typing.List[HumanEvaluationScenario]
             Successful Response
 
         Examples
@@ -441,29 +450,21 @@ class AppsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.apps.update_app(
-            app_id="app_id",
-            app_name="app_name",
+        client.human_evaluations.fetch_human_evaluation_scenarios(
+            evaluation_id="evaluation_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}",
-            method="PATCH",
-            json={
-                "app_name": app_name,
-            },
-            headers={
-                "content-type": "application/json",
-            },
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}/evaluation_scenarios",
+            method="GET",
             request_options=request_options,
-            omit=OMIT,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    UpdateAppOutput,
+                    typing.List[HumanEvaluationScenario],
                     parse_obj_as(
-                        type_=UpdateAppOutput,  # type: ignore
+                        type_=typing.List[HumanEvaluationScenario],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -482,44 +483,51 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def add_variant_from_image(
+    def update_evaluation_scenario_router(
         self,
-        app_id: str,
+        evaluation_id: str,
+        evaluation_scenario_id: str,
+        evaluation_type: EvaluationType,
         *,
-        variant_name: str,
-        docker_id: str,
-        tags: str,
-        base_name: typing.Optional[str] = OMIT,
-        config_name: typing.Optional[str] = OMIT,
+        vote: typing.Optional[str] = OMIT,
+        score: typing.Optional[Score] = OMIT,
+        correct_answer: typing.Optional[str] = OMIT,
+        outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
+        inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
+        is_pinned: typing.Optional[bool] = OMIT,
+        note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Add a new variant to an app based on a Docker image.
-
-        Args:
-            app_id (str): The ID of the app to add the variant to.
-            payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        Updates an evaluation scenario's vote or score based on its type.
 
         Raises:
-            HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+            HTTPException: If update fails or unauthorized.
 
         Returns:
-            dict: The newly added variant.
+            None: 204 No Content status code upon successful update.
 
         Parameters
         ----------
-        app_id : str
+        evaluation_id : str
 
-        variant_name : str
+        evaluation_scenario_id : str
 
-        docker_id : str
+        evaluation_type : EvaluationType
 
-        tags : str
+        vote : typing.Optional[str]
 
-        base_name : typing.Optional[str]
+        score : typing.Optional[Score]
 
-        config_name : typing.Optional[str]
+        correct_answer : typing.Optional[str]
+
+        outputs : typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]]
+
+        inputs : typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]]
+
+        is_pinned : typing.Optional[bool]
+
+        note : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -537,22 +545,33 @@ class AppsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.apps.add_variant_from_image(
-            app_id="app_id",
-            variant_name="variant_name",
-            docker_id="docker_id",
-            tags="tags",
+        client.human_evaluations.update_evaluation_scenario_router(
+            evaluation_id="evaluation_id",
+            evaluation_scenario_id="evaluation_scenario_id",
+            evaluation_type="human_a_b_testing",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/variant/from-image",
-            method="POST",
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/{jsonable_encoder(evaluation_type)}",
+            method="PUT",
             json={
-                "variant_name": variant_name,
-                "docker_id": docker_id,
-                "tags": tags,
-                "base_name": base_name,
-                "config_name": config_name,
+                "vote": vote,
+                "score": convert_and_respect_annotation_metadata(
+                    object_=score, annotation=Score, direction="write"
+                ),
+                "correct_answer": correct_answer,
+                "outputs": convert_and_respect_annotation_metadata(
+                    object_=outputs,
+                    annotation=typing.Sequence[HumanEvaluationScenarioOutput],
+                    direction="write",
+                ),
+                "inputs": convert_and_respect_annotation_metadata(
+                    object_=inputs,
+                    annotation=typing.Sequence[HumanEvaluationScenarioInput],
+                    direction="write",
+                ),
+                "is_pinned": is_pinned,
+                "note": note,
             },
             headers={
                 "content-type": "application/json",
@@ -584,50 +603,32 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def create_app_and_variant_from_template(
+    def get_evaluation_scenario_score_router(
         self,
+        evaluation_scenario_id: str,
         *,
-        app_name: str,
-        template_id: str,
-        env_vars: typing.Dict[str, str],
-        project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AppVariantResponse:
+    ) -> typing.Dict[str, str]:
         """
-        Create an app and variant from a template.
+        Fetch the score of a specific evaluation scenario.
 
         Args:
-            payload (CreateAppVariant): The payload containing the app and variant information.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
-
-        Raises:
-            HTTPException: If the user has reached the app limit or if an app with the same name already exists.
+            evaluation_scenario_id: The ID of the evaluation scenario to fetch.
+            stoken_session: Session data, verified by `verify_session`.
 
         Returns:
-            AppVariantResponse: The output of the created app variant.
+            Dictionary containing the scenario ID and its score.
 
         Parameters
         ----------
-        app_name : str
-
-        template_id : str
-
-        env_vars : typing.Dict[str, str]
-
-        project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
+        evaluation_scenario_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        AppVariantResponse
+        typing.Dict[str, str]
             Successful Response
 
         Examples
@@ -638,22 +639,87 @@ class AppsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.apps.create_app_and_variant_from_template(
-            app_name="app_name",
-            template_id="template_id",
-            env_vars={"key": "value"},
+        client.human_evaluations.get_evaluation_scenario_score_router(
+            evaluation_scenario_id="evaluation_scenario_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            "apps/app_and_variant_from_template",
-            method="POST",
+            f"human-evaluations/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/score",
+            method="GET",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Dict[str, str],
+                    parse_obj_as(
+                        type_=typing.Dict[str, str],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_evaluation_scenario_score_router(
+        self,
+        evaluation_scenario_id: str,
+        *,
+        score: float,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Updates the score of an evaluation scenario.
+
+        Raises:
+            HTTPException: Server error if the evaluation update fails.
+
+        Returns:
+            None: 204 No Content status code upon successful update.
+
+        Parameters
+        ----------
+        evaluation_scenario_id : str
+
+        score : float
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.human_evaluations.update_evaluation_scenario_score_router(
+            evaluation_scenario_id="evaluation_scenario_id",
+            score=1.1,
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"human-evaluations/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/score",
+            method="PUT",
             json={
-                "app_name": app_name,
-                "template_id": template_id,
-                "project_id": project_id,
-                "workspace_id": workspace_id,
-                "env_vars": env_vars,
-                "organization_id": organization_id,
+                "score": score,
             },
             headers={
                 "content-type": "application/json",
@@ -664,9 +730,9 @@ class AppsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    AppVariantResponse,
+                    typing.Optional[typing.Any],
                     parse_obj_as(
-                        type_=AppVariantResponse,  # type: ignore
+                        type_=typing.Optional[typing.Any],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -685,92 +751,31 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    def list_environments(
-        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[EnvironmentOutput]:
-        """
-        Retrieve a list of environments for a given app ID.
-
-        Args:
-            app_id (str): The ID of the app to retrieve environments for.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
-
-        Returns:
-            List[EnvironmentOutput]: A list of environment objects.
-
-        Parameters
-        ----------
-        app_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.List[EnvironmentOutput]
-            Successful Response
-
-        Examples
-        --------
-        from agenta import AgentaApi
-
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-        client.apps.list_environments(
-            app_id="app_id",
-        )
-        """
-        _response = self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/environments",
-            method="GET",
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.List[EnvironmentOutput],
-                    parse_obj_as(
-                        type_=typing.List[EnvironmentOutput],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    def environment_revisions(
+    def fetch_results(
         self,
-        app_id: str,
-        environment_name: typing.Optional[typing.Any],
+        evaluation_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> EnvironmentOutputExtended:
+    ) -> typing.Optional[typing.Any]:
         """
+        Fetch all the results for one the comparison table
+
+        Arguments:
+            evaluation_id -- _description_
+
+        Returns:
+            _description_
+
         Parameters
         ----------
-        app_id : str
-
-        environment_name : typing.Optional[typing.Any]
+        evaluation_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        EnvironmentOutputExtended
+        typing.Optional[typing.Any]
             Successful Response
 
         Examples
@@ -781,22 +786,21 @@ class AppsClient:
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
-        client.apps.environment_revisions(
-            app_id="app_id",
-            environment_name={"key": "value"},
+        client.human_evaluations.fetch_results(
+            evaluation_id="evaluation_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/revisions/{jsonable_encoder(environment_name)}",
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}/results",
             method="GET",
             request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    EnvironmentOutputExtended,
+                    typing.Optional[typing.Any],
                     parse_obj_as(
-                        type_=EnvironmentOutputExtended,  # type: ignore
+                        type_=typing.Optional[typing.Any],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -816,22 +820,21 @@ class AppsClient:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
 
-class AsyncAppsClient:
+class AsyncHumanEvaluationsClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
 
-    async def list_app_variants(
-        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[AppVariantResponse]:
+    async def fetch_list_human_evaluations(
+        self, *, app_id: str, request_options: typing.Optional[RequestOptions] = None
+    ) -> typing.List[HumanEvaluation]:
         """
-        Retrieve a list of app variants for a given app ID.
+        Fetches a list of evaluations, optionally filtered by an app ID.
 
         Args:
-            app_id (str): The ID of the app to retrieve variants for.
-            stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
+            app_id (Optional[str]): An optional app ID to filter the evaluations.
 
         Returns:
-            List[AppVariantResponse]: A list of app variants for the given app ID.
+            List[HumanEvaluation]: A list of evaluations.
 
         Parameters
         ----------
@@ -842,7 +845,7 @@ class AsyncAppsClient:
 
         Returns
         -------
-        typing.List[AppVariantResponse]
+        typing.List[HumanEvaluation]
             Successful Response
 
         Examples
@@ -858,7 +861,7 @@ class AsyncAppsClient:
 
 
         async def main() -> None:
-            await client.apps.list_app_variants(
+            await client.human_evaluations.fetch_list_human_evaluations(
                 app_id="app_id",
             )
 
@@ -866,105 +869,19 @@ class AsyncAppsClient:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/variants",
-            method="GET",
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.List[AppVariantResponse],
-                    parse_obj_as(
-                        type_=typing.List[AppVariantResponse],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def get_variant_by_env(
-        self,
-        *,
-        app_id: str,
-        environment: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> AppVariantResponse:
-        """
-        Retrieve the app variant based on the provided app_id and environment.
-
-        Args:
-            app_id (str): The ID of the app to retrieve the variant for.
-            environment (str): The environment of the app variant to retrieve.
-            stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
-
-        Raises:
-            HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
-
-        Returns:
-            AppVariantResponse: The retrieved app variant.
-
-        Parameters
-        ----------
-        app_id : str
-
-        environment : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        AppVariantResponse
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-
-
-        async def main() -> None:
-            await client.apps.get_variant_by_env(
-                app_id="app_id",
-                environment="environment",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "apps/get_variant_by_env",
+            "human-evaluations",
             method="GET",
             params={
                 "app_id": app_id,
-                "environment": environment,
             },
             request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    AppVariantResponse,
+                    typing.List[HumanEvaluation],
                     parse_obj_as(
-                        type_=AppVariantResponse,  # type: ignore
+                        type_=typing.List[HumanEvaluation],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -983,35 +900,44 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_apps(
+    async def create_human_evaluation(
         self,
         *,
-        app_name: typing.Optional[str] = None,
+        app_id: str,
+        variant_ids: typing.Sequence[str],
+        evaluation_type: EvaluationType,
+        inputs: typing.Sequence[str],
+        testset_id: str,
+        status: str,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> typing.List[App]:
+    ) -> SimpleEvaluationOutput:
         """
-        Retrieve a list of apps filtered by app_name.
-
-        Args:
-            app_name (Optional[str]): The name of the app to filter by.
-            stoken_session (SessionContainer): The session container.
-
-        Returns:
-            List[App]: A list of apps filtered by app_name.
-
+        Creates a new comparison table document
         Raises:
-            HTTPException: If there was an error retrieving the list of apps.
+            HTTPException: _description_
+        Returns:
+            _description_
 
         Parameters
         ----------
-        app_name : typing.Optional[str]
+        app_id : str
+
+        variant_ids : typing.Sequence[str]
+
+        evaluation_type : EvaluationType
+
+        inputs : typing.Sequence[str]
+
+        testset_id : str
+
+        status : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        typing.List[App]
+        SimpleEvaluationOutput
             Successful Response
 
         Examples
@@ -1027,111 +953,28 @@ class AsyncAppsClient:
 
 
         async def main() -> None:
-            await client.apps.list_apps()
-
-
-        asyncio.run(main())
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            "apps",
-            method="GET",
-            params={
-                "app_name": app_name,
-            },
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.List[App],
-                    parse_obj_as(
-                        type_=typing.List[App],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def create_app(
-        self,
-        *,
-        app_name: str,
-        project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> CreateAppOutput:
-        """
-        Create a new app for a user or organization.
-
-        Args:
-            payload (CreateApp): The payload containing the app name and organization ID (optional).
-            stoken_session (SessionContainer): The session container containing the user's session token.
-
-        Returns:
-            CreateAppOutput: The output containing the newly created app's ID and name.
-
-        Raises:
-            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
-
-        Parameters
-        ----------
-        app_name : str
-
-        project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        CreateAppOutput
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-
-
-        async def main() -> None:
-            await client.apps.create_app(
-                app_name="app_name",
+            await client.human_evaluations.create_human_evaluation(
+                app_id="app_id",
+                variant_ids=["variant_ids"],
+                evaluation_type="human_a_b_testing",
+                inputs=["inputs"],
+                testset_id="testset_id",
+                status="status",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "apps",
+            "human-evaluations",
             method="POST",
             json={
-                "app_name": app_name,
-                "project_id": project_id,
-                "workspace_id": workspace_id,
-                "organization_id": organization_id,
+                "app_id": app_id,
+                "variant_ids": variant_ids,
+                "evaluation_type": evaluation_type,
+                "inputs": inputs,
+                "testset_id": testset_id,
+                "status": status,
             },
             headers={
                 "content-type": "application/json",
@@ -1142,9 +985,9 @@ class AsyncAppsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    CreateAppOutput,
+                    SimpleEvaluationOutput,
                     parse_obj_as(
-                        type_=CreateAppOutput,  # type: ignore
+                        type_=SimpleEvaluationOutput,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1163,109 +1006,276 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def remove_app(
-        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
+    async def delete_evaluations(
+        self,
+        *,
+        evaluations_ids: typing.Sequence[str],
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.List[str]:
+        """
+        Delete specific comparison tables based on their unique IDs.
+
+        Args:
+            payload (List[str]): The unique identifiers of the comparison tables to delete.
+
+        Returns:
+        A list of the deleted comparison tables' IDs.
+
+        Parameters
+        ----------
+        evaluations_ids : typing.Sequence[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.List[str]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.human_evaluations.delete_evaluations(
+                evaluations_ids=["evaluations_ids"],
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "human-evaluations",
+            method="DELETE",
+            json={
+                "evaluations_ids": evaluations_ids,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.List[str],
+                    parse_obj_as(
+                        type_=typing.List[str],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_human_evaluation(
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> HumanEvaluation:
+        """
+        Fetches a single evaluation based on its ID.
+
+        Args:
+            evaluation_id (str): The ID of the evaluation to fetch.
+
+        Returns:
+            HumanEvaluation: The fetched evaluation.
+
+        Parameters
+        ----------
+        evaluation_id : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        HumanEvaluation
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.human_evaluations.fetch_human_evaluation(
+                evaluation_id="evaluation_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}",
+            method="GET",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    HumanEvaluation,
+                    parse_obj_as(
+                        type_=HumanEvaluation,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_human_evaluation(
+        self,
+        evaluation_id: str,
+        *,
+        status: typing.Optional[EvaluationStatusEnum] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Remove app, all its variant, containers and images
+        Updates an evaluation's status.
+
+        Raises:
+            HTTPException: If the columns in the test set do not match with the inputs in the variant.
+
+        Returns:
+            None: A 204 No Content status code, indicating that the update was successful.
+
+        Parameters
+        ----------
+        evaluation_id : str
+
+        status : typing.Optional[EvaluationStatusEnum]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.human_evaluations.update_human_evaluation(
+                evaluation_id="evaluation_id",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}",
+            method="PUT",
+            json={
+                "status": status,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def fetch_human_evaluation_scenarios(
+        self,
+        evaluation_id: str,
+        *,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.List[HumanEvaluationScenario]:
+        """
+        Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-            app -- App to remove
-
-        Parameters
-        ----------
-        app_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.Optional[typing.Any]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-
-
-        async def main() -> None:
-            await client.apps.remove_app(
-                app_id="app_id",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}",
-            method="DELETE",
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.Optional[typing.Any],
-                    parse_obj_as(
-                        type_=typing.Optional[typing.Any],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def update_app(
-        self,
-        app_id: str,
-        *,
-        app_name: str,
-        request_options: typing.Optional[RequestOptions] = None,
-    ) -> UpdateAppOutput:
-        """
-        Update an app for a user or organization.
-
-        Args:
-            app_id (str): The ID of the app.
-            payload (UpdateApp): The payload containing the app name.
-            stoken_session (SessionContainer): The session container containing the user's session token.
-
-        Returns:
-            UpdateAppOuput: The output containing the newly created app's ID and name.
+            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+            HTTPException: If the evaluation is not found or access is denied.
+
+        Returns:
+            List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters
         ----------
-        app_id : str
-
-        app_name : str
+        evaluation_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        UpdateAppOutput
+        typing.List[HumanEvaluationScenario]
             Successful Response
 
         Examples
@@ -1281,32 +1291,24 @@ class AsyncAppsClient:
 
 
         async def main() -> None:
-            await client.apps.update_app(
-                app_id="app_id",
-                app_name="app_name",
+            await client.human_evaluations.fetch_human_evaluation_scenarios(
+                evaluation_id="evaluation_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}",
-            method="PATCH",
-            json={
-                "app_name": app_name,
-            },
-            headers={
-                "content-type": "application/json",
-            },
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}/evaluation_scenarios",
+            method="GET",
             request_options=request_options,
-            omit=OMIT,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    UpdateAppOutput,
+                    typing.List[HumanEvaluationScenario],
                     parse_obj_as(
-                        type_=UpdateAppOutput,  # type: ignore
+                        type_=typing.List[HumanEvaluationScenario],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1325,44 +1327,51 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def add_variant_from_image(
+    async def update_evaluation_scenario_router(
         self,
-        app_id: str,
+        evaluation_id: str,
+        evaluation_scenario_id: str,
+        evaluation_type: EvaluationType,
         *,
-        variant_name: str,
-        docker_id: str,
-        tags: str,
-        base_name: typing.Optional[str] = OMIT,
-        config_name: typing.Optional[str] = OMIT,
+        vote: typing.Optional[str] = OMIT,
+        score: typing.Optional[Score] = OMIT,
+        correct_answer: typing.Optional[str] = OMIT,
+        outputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]] = OMIT,
+        inputs: typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]] = OMIT,
+        is_pinned: typing.Optional[bool] = OMIT,
+        note: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Add a new variant to an app based on a Docker image.
-
-        Args:
-            app_id (str): The ID of the app to add the variant to.
-            payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        Updates an evaluation scenario's vote or score based on its type.
 
         Raises:
-            HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+            HTTPException: If update fails or unauthorized.
 
         Returns:
-            dict: The newly added variant.
+            None: 204 No Content status code upon successful update.
 
         Parameters
         ----------
-        app_id : str
+        evaluation_id : str
 
-        variant_name : str
+        evaluation_scenario_id : str
 
-        docker_id : str
+        evaluation_type : EvaluationType
 
-        tags : str
+        vote : typing.Optional[str]
 
-        base_name : typing.Optional[str]
+        score : typing.Optional[Score]
 
-        config_name : typing.Optional[str]
+        correct_answer : typing.Optional[str]
+
+        outputs : typing.Optional[typing.Sequence[HumanEvaluationScenarioOutput]]
+
+        inputs : typing.Optional[typing.Sequence[HumanEvaluationScenarioInput]]
+
+        is_pinned : typing.Optional[bool]
+
+        note : typing.Optional[str]
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -1385,25 +1394,36 @@ class AsyncAppsClient:
 
 
         async def main() -> None:
-            await client.apps.add_variant_from_image(
-                app_id="app_id",
-                variant_name="variant_name",
-                docker_id="docker_id",
-                tags="tags",
+            await client.human_evaluations.update_evaluation_scenario_router(
+                evaluation_id="evaluation_id",
+                evaluation_scenario_id="evaluation_scenario_id",
+                evaluation_type="human_a_b_testing",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/variant/from-image",
-            method="POST",
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/{jsonable_encoder(evaluation_type)}",
+            method="PUT",
             json={
-                "variant_name": variant_name,
-                "docker_id": docker_id,
-                "tags": tags,
-                "base_name": base_name,
-                "config_name": config_name,
+                "vote": vote,
+                "score": convert_and_respect_annotation_metadata(
+                    object_=score, annotation=Score, direction="write"
+                ),
+                "correct_answer": correct_answer,
+                "outputs": convert_and_respect_annotation_metadata(
+                    object_=outputs,
+                    annotation=typing.Sequence[HumanEvaluationScenarioOutput],
+                    direction="write",
+                ),
+                "inputs": convert_and_respect_annotation_metadata(
+                    object_=inputs,
+                    annotation=typing.Sequence[HumanEvaluationScenarioInput],
+                    direction="write",
+                ),
+                "is_pinned": is_pinned,
+                "note": note,
             },
             headers={
                 "content-type": "application/json",
@@ -1435,50 +1455,32 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def create_app_and_variant_from_template(
+    async def get_evaluation_scenario_score_router(
         self,
+        evaluation_scenario_id: str,
         *,
-        app_name: str,
-        template_id: str,
-        env_vars: typing.Dict[str, str],
-        project_id: typing.Optional[str] = OMIT,
-        workspace_id: typing.Optional[str] = OMIT,
-        organization_id: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AppVariantResponse:
+    ) -> typing.Dict[str, str]:
         """
-        Create an app and variant from a template.
+        Fetch the score of a specific evaluation scenario.
 
         Args:
-            payload (CreateAppVariant): The payload containing the app and variant information.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
-
-        Raises:
-            HTTPException: If the user has reached the app limit or if an app with the same name already exists.
+            evaluation_scenario_id: The ID of the evaluation scenario to fetch.
+            stoken_session: Session data, verified by `verify_session`.
 
         Returns:
-            AppVariantResponse: The output of the created app variant.
+            Dictionary containing the scenario ID and its score.
 
         Parameters
         ----------
-        app_name : str
-
-        template_id : str
-
-        env_vars : typing.Dict[str, str]
-
-        project_id : typing.Optional[str]
-
-        workspace_id : typing.Optional[str]
-
-        organization_id : typing.Optional[str]
+        evaluation_scenario_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        AppVariantResponse
+        typing.Dict[str, str]
             Successful Response
 
         Examples
@@ -1494,25 +1496,98 @@ class AsyncAppsClient:
 
 
         async def main() -> None:
-            await client.apps.create_app_and_variant_from_template(
-                app_name="app_name",
-                template_id="template_id",
-                env_vars={"key": "value"},
+            await client.human_evaluations.get_evaluation_scenario_score_router(
+                evaluation_scenario_id="evaluation_scenario_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "apps/app_and_variant_from_template",
-            method="POST",
+            f"human-evaluations/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/score",
+            method="GET",
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Dict[str, str],
+                    parse_obj_as(
+                        type_=typing.Dict[str, str],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_evaluation_scenario_score_router(
+        self,
+        evaluation_scenario_id: str,
+        *,
+        score: float,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Updates the score of an evaluation scenario.
+
+        Raises:
+            HTTPException: Server error if the evaluation update fails.
+
+        Returns:
+            None: 204 No Content status code upon successful update.
+
+        Parameters
+        ----------
+        evaluation_scenario_id : str
+
+        score : float
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.human_evaluations.update_evaluation_scenario_score_router(
+                evaluation_scenario_id="evaluation_scenario_id",
+                score=1.1,
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"human-evaluations/evaluation_scenario/{jsonable_encoder(evaluation_scenario_id)}/score",
+            method="PUT",
             json={
-                "app_name": app_name,
-                "template_id": template_id,
-                "project_id": project_id,
-                "workspace_id": workspace_id,
-                "env_vars": env_vars,
-                "organization_id": organization_id,
+                "score": score,
             },
             headers={
                 "content-type": "application/json",
@@ -1523,9 +1598,9 @@ class AsyncAppsClient:
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    AppVariantResponse,
+                    typing.Optional[typing.Any],
                     parse_obj_as(
-                        type_=AppVariantResponse,  # type: ignore
+                        type_=typing.Optional[typing.Any],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1544,100 +1619,31 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
-    async def list_environments(
-        self, app_id: str, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[EnvironmentOutput]:
-        """
-        Retrieve a list of environments for a given app ID.
-
-        Args:
-            app_id (str): The ID of the app to retrieve environments for.
-            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
-
-        Returns:
-            List[EnvironmentOutput]: A list of environment objects.
-
-        Parameters
-        ----------
-        app_id : str
-
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-
-        Returns
-        -------
-        typing.List[EnvironmentOutput]
-            Successful Response
-
-        Examples
-        --------
-        import asyncio
-
-        from agenta import AsyncAgentaApi
-
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-            base_url="https://yourhost.com/path/to/api",
-        )
-
-
-        async def main() -> None:
-            await client.apps.list_environments(
-                app_id="app_id",
-            )
-
-
-        asyncio.run(main())
-        """
-        _response = await self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/environments",
-            method="GET",
-            request_options=request_options,
-        )
-        try:
-            if 200 <= _response.status_code < 300:
-                return typing.cast(
-                    typing.List[EnvironmentOutput],
-                    parse_obj_as(
-                        type_=typing.List[EnvironmentOutput],  # type: ignore
-                        object_=_response.json(),
-                    ),
-                )
-            if _response.status_code == 422:
-                raise UnprocessableEntityError(
-                    typing.cast(
-                        HttpValidationError,
-                        parse_obj_as(
-                            type_=HttpValidationError,  # type: ignore
-                            object_=_response.json(),
-                        ),
-                    )
-                )
-            _response_json = _response.json()
-        except JSONDecodeError:
-            raise ApiError(status_code=_response.status_code, body=_response.text)
-        raise ApiError(status_code=_response.status_code, body=_response_json)
-
-    async def environment_revisions(
+    async def fetch_results(
         self,
-        app_id: str,
-        environment_name: typing.Optional[typing.Any],
+        evaluation_id: str,
         *,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> EnvironmentOutputExtended:
+    ) -> typing.Optional[typing.Any]:
         """
+        Fetch all the results for one the comparison table
+
+        Arguments:
+            evaluation_id -- _description_
+
+        Returns:
+            _description_
+
         Parameters
         ----------
-        app_id : str
-
-        environment_name : typing.Optional[typing.Any]
+        evaluation_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
 
         Returns
         -------
-        EnvironmentOutputExtended
+        typing.Optional[typing.Any]
             Successful Response
 
         Examples
@@ -1653,25 +1659,24 @@ class AsyncAppsClient:
 
 
         async def main() -> None:
-            await client.apps.environment_revisions(
-                app_id="app_id",
-                environment_name={"key": "value"},
+            await client.human_evaluations.fetch_results(
+                evaluation_id="evaluation_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"apps/{jsonable_encoder(app_id)}/revisions/{jsonable_encoder(environment_name)}",
+            f"human-evaluations/{jsonable_encoder(evaluation_id)}/results",
             method="GET",
             request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
                 return typing.cast(
-                    EnvironmentOutputExtended,
+                    typing.Optional[typing.Any],
                     parse_obj_as(
-                        type_=EnvironmentOutputExtended,  # type: ignore
+                        type_=typing.Optional[typing.Any],  # type: ignore
                         object_=_response.json(),
                     ),
                 )

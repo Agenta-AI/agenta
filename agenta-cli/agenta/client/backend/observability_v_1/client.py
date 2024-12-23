@@ -11,6 +11,7 @@ from .types.format import Format
 from .types.query_traces_response import QueryTracesResponse
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
+from .types.query_analytics_response import QueryAnalyticsResponse
 from ..core.client_wrapper import AsyncClientWrapper
 
 
@@ -252,6 +253,103 @@ class ObservabilityV1Client:
                     CollectStatusResponse,
                     parse_obj_as(
                         type_=CollectStatusResponse,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def query_analytics(
+        self,
+        *,
+        format: typing.Optional[Format] = None,
+        focus: typing.Optional[str] = None,
+        oldest: typing.Optional[str] = None,
+        newest: typing.Optional[str] = None,
+        window: typing.Optional[int] = None,
+        filtering: typing.Optional[str] = None,
+        time_range: typing.Optional[str] = None,
+        app_id: typing.Optional[str] = None,
+        environment: typing.Optional[str] = None,
+        variant: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> QueryAnalyticsResponse:
+        """
+        Parameters
+        ----------
+        format : typing.Optional[Format]
+
+        focus : typing.Optional[str]
+
+        oldest : typing.Optional[str]
+
+        newest : typing.Optional[str]
+
+        window : typing.Optional[int]
+
+        filtering : typing.Optional[str]
+
+        time_range : typing.Optional[str]
+
+        app_id : typing.Optional[str]
+
+        environment : typing.Optional[str]
+
+        variant : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        QueryAnalyticsResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.observability_v_1.query_analytics()
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            "observability/v1/analytics",
+            method="GET",
+            params={
+                "format": format,
+                "focus": focus,
+                "oldest": oldest,
+                "newest": newest,
+                "window": window,
+                "filtering": filtering,
+                "timeRange": time_range,
+                "app_id": app_id,
+                "environment": environment,
+                "variant": variant,
+            },
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    QueryAnalyticsResponse,
+                    parse_obj_as(
+                        type_=QueryAnalyticsResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -541,6 +639,111 @@ class AsyncObservabilityV1Client:
                     CollectStatusResponse,
                     parse_obj_as(
                         type_=CollectStatusResponse,  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def query_analytics(
+        self,
+        *,
+        format: typing.Optional[Format] = None,
+        focus: typing.Optional[str] = None,
+        oldest: typing.Optional[str] = None,
+        newest: typing.Optional[str] = None,
+        window: typing.Optional[int] = None,
+        filtering: typing.Optional[str] = None,
+        time_range: typing.Optional[str] = None,
+        app_id: typing.Optional[str] = None,
+        environment: typing.Optional[str] = None,
+        variant: typing.Optional[str] = None,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> QueryAnalyticsResponse:
+        """
+        Parameters
+        ----------
+        format : typing.Optional[Format]
+
+        focus : typing.Optional[str]
+
+        oldest : typing.Optional[str]
+
+        newest : typing.Optional[str]
+
+        window : typing.Optional[int]
+
+        filtering : typing.Optional[str]
+
+        time_range : typing.Optional[str]
+
+        app_id : typing.Optional[str]
+
+        environment : typing.Optional[str]
+
+        variant : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        QueryAnalyticsResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.observability_v_1.query_analytics()
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            "observability/v1/analytics",
+            method="GET",
+            params={
+                "format": format,
+                "focus": focus,
+                "oldest": oldest,
+                "newest": newest,
+                "window": window,
+                "filtering": filtering,
+                "timeRange": time_range,
+                "app_id": app_id,
+                "environment": environment,
+                "variant": variant,
+            },
+            request_options=request_options,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    QueryAnalyticsResponse,
+                    parse_obj_as(
+                        type_=QueryAnalyticsResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )

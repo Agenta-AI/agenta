@@ -43,23 +43,28 @@ def convert_file_dict_to_httpx_tuples(
     return httpx_tuples
 
 
-def with_content_type(*, file: File, content_type: str) -> File:
-    """ """
+def with_content_type(*, file: File, default_content_type: str) -> File:
+    """
+    This function resolves to the file's content type, if provided, and defaults
+    to the default_content_type value if not.
+    """
     if isinstance(file, tuple):
         if len(file) == 2:
             filename, content = cast(Tuple[Optional[str], FileContent], file)  # type: ignore
-            return (filename, content, content_type)
+            return (filename, content, default_content_type)
         elif len(file) == 3:
-            filename, content, _ = cast(
+            filename, content, file_content_type = cast(
                 Tuple[Optional[str], FileContent, Optional[str]], file
             )  # type: ignore
-            return (filename, content, content_type)
+            out_content_type = file_content_type or default_content_type
+            return (filename, content, out_content_type)
         elif len(file) == 4:
-            filename, content, _, headers = cast(  # type: ignore
+            filename, content, file_content_type, headers = cast(  # type: ignore
                 Tuple[Optional[str], FileContent, Optional[str], Mapping[str, str]],
                 file,
             )
-            return (filename, content, content_type, headers)
+            out_content_type = file_content_type or default_content_type
+            return (filename, content, out_content_type, headers)
         else:
             raise ValueError(f"Unexpected tuple length: {len(file)}")
-    return (None, file, content_type)
+    return (None, file, default_content_type)
