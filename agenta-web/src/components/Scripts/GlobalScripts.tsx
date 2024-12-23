@@ -1,19 +1,21 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useCallback} from "react"
 import Head from "next/head"
 import {isDemo} from "@/lib/helpers/utils"
 
 const GlobalScripts = () => {
     const [CloudScripts, setCloudScripts] = useState<React.ComponentType | null>(null)
 
+    const initilizeScripts = useCallback(async () => {
+        // @ts-ignore
+        const Scripts = (await import("./assets/CloudScripts")).default
+        setCloudScripts(() => Scripts)
+    }, [])
+
     useEffect(() => {
         if (isDemo()) {
-            const loadCloudScripts = async () => {
-                const module = await import("./assets/CloudScripts")
-                setCloudScripts(() => module.default)
-            }
-            loadCloudScripts()
+            initilizeScripts()
         }
-    }, [])
+    }, [initilizeScripts])
 
     if (isDemo() && CloudScripts) {
         return <CloudScripts />
