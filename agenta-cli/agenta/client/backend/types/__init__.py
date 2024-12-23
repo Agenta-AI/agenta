@@ -9,11 +9,13 @@ from .agenta_tree_dto import AgentaTreeDto
 from .agenta_trees_response import AgentaTreesResponse
 from .aggregated_result import AggregatedResult
 from .aggregated_result_evaluator_config import AggregatedResultEvaluatorConfig
+from .analytics_response import AnalyticsResponse
 from .app import App
 from .app_variant_response import AppVariantResponse
 from .app_variant_revision import AppVariantRevision
 from .base_output import BaseOutput
 from .body_import_testset import BodyImportTestset
+from .bucket_dto import BucketDto
 from .collect_status_response import CollectStatusResponse
 from .config_db import ConfigDb
 from .config_dto import ConfigDto
@@ -22,6 +24,7 @@ from .correct_answer import CorrectAnswer
 from .create_app_output import CreateAppOutput
 from .create_span import CreateSpan
 from .create_trace_response import CreateTraceResponse
+from .delete_evaluation import DeleteEvaluation
 from .docker_env_vars import DockerEnvVars
 from .environment_output import EnvironmentOutput
 from .environment_output_extended import EnvironmentOutputExtended
@@ -32,7 +35,6 @@ from .evaluation_scenario import EvaluationScenario
 from .evaluation_scenario_input import EvaluationScenarioInput
 from .evaluation_scenario_output import EvaluationScenarioOutput
 from .evaluation_scenario_result import EvaluationScenarioResult
-from .evaluation_scenario_score_update import EvaluationScenarioScoreUpdate
 from .evaluation_status_enum import EvaluationStatusEnum
 from .evaluation_type import EvaluationType
 from .evaluator import Evaluator
@@ -46,17 +48,16 @@ from .human_evaluation import HumanEvaluation
 from .human_evaluation_scenario import HumanEvaluationScenario
 from .human_evaluation_scenario_input import HumanEvaluationScenarioInput
 from .human_evaluation_scenario_output import HumanEvaluationScenarioOutput
-from .human_evaluation_scenario_update import HumanEvaluationScenarioUpdate
-from .human_evaluation_update import HumanEvaluationUpdate
 from .image import Image
 from .invite_request import InviteRequest
+from .legacy_analytics_response import LegacyAnalyticsResponse
+from .legacy_data_point import LegacyDataPoint
 from .lifecycle_dto import LifecycleDto
 from .link_dto import LinkDto
 from .list_api_keys_response import ListApiKeysResponse
 from .llm_run_rate_limit import LlmRunRateLimit
 from .llm_tokens import LlmTokens
-from .lm_providers_enum import LmProvidersEnum
-from .new_human_evaluation import NewHumanEvaluation
+from .metrics_dto import MetricsDto
 from .new_testset import NewTestset
 from .node_dto import NodeDto
 from .node_type import NodeType
@@ -73,6 +74,7 @@ from .organization_output import OrganizationOutput
 from .outputs import Outputs
 from .parent_dto import ParentDto
 from .permission import Permission
+from .projects_response import ProjectsResponse
 from .reference_dto import ReferenceDto
 from .reference_request_model import ReferenceRequestModel
 from .result import Result
@@ -118,11 +120,13 @@ __all__ = [
     "AgentaTreesResponse",
     "AggregatedResult",
     "AggregatedResultEvaluatorConfig",
+    "AnalyticsResponse",
     "App",
     "AppVariantResponse",
     "AppVariantRevision",
     "BaseOutput",
     "BodyImportTestset",
+    "BucketDto",
     "CollectStatusResponse",
     "ConfigDb",
     "ConfigDto",
@@ -131,6 +135,7 @@ __all__ = [
     "CreateAppOutput",
     "CreateSpan",
     "CreateTraceResponse",
+    "DeleteEvaluation",
     "DockerEnvVars",
     "EnvironmentOutput",
     "EnvironmentOutputExtended",
@@ -141,7 +146,6 @@ __all__ = [
     "EvaluationScenarioInput",
     "EvaluationScenarioOutput",
     "EvaluationScenarioResult",
-    "EvaluationScenarioScoreUpdate",
     "EvaluationStatusEnum",
     "EvaluationType",
     "Evaluator",
@@ -155,17 +159,16 @@ __all__ = [
     "HumanEvaluationScenario",
     "HumanEvaluationScenarioInput",
     "HumanEvaluationScenarioOutput",
-    "HumanEvaluationScenarioUpdate",
-    "HumanEvaluationUpdate",
     "Image",
     "InviteRequest",
+    "LegacyAnalyticsResponse",
+    "LegacyDataPoint",
     "LifecycleDto",
     "LinkDto",
     "ListApiKeysResponse",
     "LlmRunRateLimit",
     "LlmTokens",
-    "LmProvidersEnum",
-    "NewHumanEvaluation",
+    "MetricsDto",
     "NewTestset",
     "NodeDto",
     "NodeType",
@@ -182,6 +185,7 @@ __all__ = [
     "Outputs",
     "ParentDto",
     "Permission",
+    "ProjectsResponse",
     "ReferenceDto",
     "ReferenceRequestModel",
     "Result",

@@ -30,7 +30,7 @@ class EvaluatorsClient:
         Endpoint to fetch a list of evaluators.
 
         Returns:
-        List[Evaluator]: A list of evaluator objects.
+            List[Evaluator]: A list of evaluator objects.
 
         Parameters
         ----------
@@ -82,11 +82,11 @@ class EvaluatorsClient:
         Endpoint to map the experiment data tree to evaluator interface.
 
         Args:
-        request (Request): The request object.
-        payload (EvaluatorMappingInputInterface): The payload containing the request data.
+            request (Request): The request object.
+            payload (EvaluatorMappingInputInterface): The payload containing the request data.
 
         Returns:
-        EvaluatorMappingOutputInterface: the evaluator mapping output object
+            EvaluatorMappingOutputInterface: the evaluator mapping output object
 
         Parameters
         ----------
@@ -121,6 +121,9 @@ class EvaluatorsClient:
             json={
                 "inputs": inputs,
                 "mapping": mapping,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
@@ -164,12 +167,12 @@ class EvaluatorsClient:
         Endpoint to evaluate LLM app run
 
         Args:
-        request (Request): The request object.
-        evaluator_key (str): The key of the evaluator.
-        payload (EvaluatorInputInterface): The payload containing the request data.
+            request (Request): The request object.
+            evaluator_key (str): The key of the evaluator.
+            payload (EvaluatorInputInterface): The payload containing the request data.
 
         Returns:
-        result: EvaluatorOutputInterface object containing the outputs.
+            result: EvaluatorOutputInterface object containing the outputs.
 
         Parameters
         ----------
@@ -209,6 +212,9 @@ class EvaluatorsClient:
                 "settings": settings,
                 "credentials": credentials,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -243,10 +249,10 @@ class EvaluatorsClient:
         Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        app_id (str): The ID of the app.
+            app_id (str): The ID of the app.
 
         Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+            List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters
         ----------
@@ -317,10 +323,10 @@ class EvaluatorsClient:
         Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        app_id (str): The ID of the app.
+            app_id (str): The ID of the app.
 
         Returns:
-        EvaluatorConfigDB: Evaluator configuration api model.
+            EvaluatorConfigDB: Evaluator configuration api model.
 
         Parameters
         ----------
@@ -364,6 +370,9 @@ class EvaluatorsClient:
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -401,7 +410,7 @@ class EvaluatorsClient:
         Endpoint to fetch evaluator configurations for a specific app.
 
         Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+            List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters
         ----------
@@ -471,7 +480,7 @@ class EvaluatorsClient:
         Endpoint to update evaluator configurations for a specific app.
 
         Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+            List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters
         ----------
@@ -511,6 +520,9 @@ class EvaluatorsClient:
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -548,10 +560,10 @@ class EvaluatorsClient:
         Endpoint to delete a specific evaluator configuration.
 
         Args:
-        evaluator_config_id (str): The unique identifier of the evaluator configuration.
+            evaluator_config_id (str): The unique identifier of the evaluator configuration.
 
         Returns:
-        bool: True if deletion was successful, False otherwise.
+            bool: True if deletion was successful, False otherwise.
 
         Parameters
         ----------
@@ -618,7 +630,7 @@ class AsyncEvaluatorsClient:
         Endpoint to fetch a list of evaluators.
 
         Returns:
-        List[Evaluator]: A list of evaluator objects.
+            List[Evaluator]: A list of evaluator objects.
 
         Parameters
         ----------
@@ -678,11 +690,11 @@ class AsyncEvaluatorsClient:
         Endpoint to map the experiment data tree to evaluator interface.
 
         Args:
-        request (Request): The request object.
-        payload (EvaluatorMappingInputInterface): The payload containing the request data.
+            request (Request): The request object.
+            payload (EvaluatorMappingInputInterface): The payload containing the request data.
 
         Returns:
-        EvaluatorMappingOutputInterface: the evaluator mapping output object
+            EvaluatorMappingOutputInterface: the evaluator mapping output object
 
         Parameters
         ----------
@@ -726,6 +738,9 @@ class AsyncEvaluatorsClient:
                 "inputs": inputs,
                 "mapping": mapping,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -768,12 +783,12 @@ class AsyncEvaluatorsClient:
         Endpoint to evaluate LLM app run
 
         Args:
-        request (Request): The request object.
-        evaluator_key (str): The key of the evaluator.
-        payload (EvaluatorInputInterface): The payload containing the request data.
+            request (Request): The request object.
+            evaluator_key (str): The key of the evaluator.
+            payload (EvaluatorInputInterface): The payload containing the request data.
 
         Returns:
-        result: EvaluatorOutputInterface object containing the outputs.
+            result: EvaluatorOutputInterface object containing the outputs.
 
         Parameters
         ----------
@@ -821,6 +836,9 @@ class AsyncEvaluatorsClient:
                 "settings": settings,
                 "credentials": credentials,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -855,10 +873,10 @@ class AsyncEvaluatorsClient:
         Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        app_id (str): The ID of the app.
+            app_id (str): The ID of the app.
 
         Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+            List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters
         ----------
@@ -937,10 +955,10 @@ class AsyncEvaluatorsClient:
         Endpoint to fetch evaluator configurations for a specific app.
 
         Args:
-        app_id (str): The ID of the app.
+            app_id (str): The ID of the app.
 
         Returns:
-        EvaluatorConfigDB: Evaluator configuration api model.
+            EvaluatorConfigDB: Evaluator configuration api model.
 
         Parameters
         ----------
@@ -992,6 +1010,9 @@ class AsyncEvaluatorsClient:
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1029,7 +1050,7 @@ class AsyncEvaluatorsClient:
         Endpoint to fetch evaluator configurations for a specific app.
 
         Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+            List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters
         ----------
@@ -1107,7 +1128,7 @@ class AsyncEvaluatorsClient:
         Endpoint to update evaluator configurations for a specific app.
 
         Returns:
-        List[EvaluatorConfigDB]: A list of evaluator configuration objects.
+            List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
         Parameters
         ----------
@@ -1155,6 +1176,9 @@ class AsyncEvaluatorsClient:
                 "evaluator_key": evaluator_key,
                 "settings_values": settings_values,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1192,10 +1216,10 @@ class AsyncEvaluatorsClient:
         Endpoint to delete a specific evaluator configuration.
 
         Args:
-        evaluator_config_id (str): The unique identifier of the evaluator configuration.
+            evaluator_config_id (str): The unique identifier of the evaluator configuration.
 
         Returns:
-        bool: True if deletion was successful, False otherwise.
+            bool: True if deletion was successful, False otherwise.
 
         Parameters
         ----------
