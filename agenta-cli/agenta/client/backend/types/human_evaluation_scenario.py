@@ -2,20 +2,20 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
+from .score import Score
 from .human_evaluation_scenario_input import HumanEvaluationScenarioInput
 from .human_evaluation_scenario_output import HumanEvaluationScenarioOutput
-from .score import Score
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
 class HumanEvaluationScenario(UniversalBaseModel):
+    score: typing.Optional[Score] = None
     id: typing.Optional[str] = None
     evaluation_id: str
     inputs: typing.List[HumanEvaluationScenarioInput]
     outputs: typing.List[HumanEvaluationScenarioOutput]
     vote: typing.Optional[str] = None
-    score: typing.Optional[Score] = None
     correct_answer: typing.Optional[str] = None
     is_pinned: typing.Optional[bool] = None
     note: typing.Optional[str] = None

@@ -2,18 +2,19 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-from .evaluation_type import EvaluationType
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class NewHumanEvaluation(UniversalBaseModel):
-    app_id: str
-    variant_ids: typing.List[str]
-    evaluation_type: EvaluationType
-    inputs: typing.List[str]
-    testset_id: str
-    status: str
+class ProjectsResponse(UniversalBaseModel):
+    organization_id: typing.Optional[str] = None
+    organization_name: typing.Optional[str] = None
+    workspace_id: typing.Optional[str] = None
+    workspace_name: typing.Optional[str] = None
+    project_id: str
+    project_name: str
+    user_role: typing.Optional[str] = None
+    is_demo: typing.Optional[bool] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

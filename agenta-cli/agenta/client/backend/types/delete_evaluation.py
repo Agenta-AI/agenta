@@ -6,9 +6,8 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class BodyImportTestset(UniversalBaseModel):
-    endpoint: typing.Optional[str] = None
-    testset_name: typing.Optional[str] = None
+class DeleteEvaluation(UniversalBaseModel):
+    evaluations_ids: typing.List[str]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
