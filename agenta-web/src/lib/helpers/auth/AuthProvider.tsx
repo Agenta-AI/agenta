@@ -4,6 +4,7 @@ import {AuthProviderType} from "./types"
 import {isDemo} from "../utils"
 ;(async () => {
     if (typeof window !== "undefined" && isDemo()) {
+        // @ts-ignore
         const {frontendConfig} = await import("@/config/frontendConfig")
         SuperTokensReact.init(frontendConfig())
     }
