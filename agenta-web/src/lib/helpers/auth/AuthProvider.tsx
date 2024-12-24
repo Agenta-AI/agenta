@@ -12,9 +12,7 @@ import {dynamicConfig} from "../dynamic"
 
 const AuthProvider: AuthProviderType = ({children, pageProps}) => {
     const doRefresh = useCallback(async () => {
-        if (!isDemo()) return
-
-        if (pageProps.fromSupertokens === "needs-refresh") {
+        if (isDemo() && pageProps.fromSupertokens === "needs-refresh") {
             const session = await import("supertokens-auth-react/recipe/session")
 
             if (await session.attemptRefreshingSession()) {
