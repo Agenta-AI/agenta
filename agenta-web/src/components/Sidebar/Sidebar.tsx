@@ -125,7 +125,7 @@ const SidebarMenu: React.FC<{
     const classes = useStyles()
 
     return (
-        <Menu mode={mode} {...menuProps}>
+        <Menu inlineCollapsed={collapsed} mode={mode} {...menuProps}>
             {items.map((item) => {
                 if (item.submenu) {
                     if (item.isCloudFeature) {
