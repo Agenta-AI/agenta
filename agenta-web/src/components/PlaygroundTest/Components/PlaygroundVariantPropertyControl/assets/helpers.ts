@@ -1,7 +1,7 @@
 import type {SchemaObject, StringSchema, NumberSchema, BooleanSchema} from "../../../types/shared"
 
 export function isSchemaObject(value: unknown): value is SchemaObject {
-    return typeof value === "object" && value !== null && "type" in value
+    return !!value && typeof value === "object" && ("type" in value || "anyOf" in value)
 }
 
 export function isStringSchema(schema: SchemaObject): schema is StringSchema {
@@ -17,11 +17,16 @@ export function isBooleanSchema(schema: SchemaObject): schema is BooleanSchema {
 }
 
 export function isRangeNumberSchema(schema: NumberSchema): boolean {
-    return typeof schema.minimum === "number" && typeof schema.maximum === "number"
+    return typeof schema.minimum === "number" || typeof schema.maximum === "number"
 }
 
 export function isEnumSchema(schema: StringSchema): boolean {
-    return Array.isArray(schema.enum) && schema.enum.length > 0
+    // const _options = schema.choices || schema.enum
+    return (
+        (Array.isArray(schema.enum) && schema.enum.length > 0) ||
+        (Array.isArray(schema.choices) && schema.choices.length > 0) ||
+        (typeof schema.choices === "object" && Object.keys(schema.choices).length > 0)
+    )
 }
 
 export function isModelSchema(schema: StringSchema): boolean {

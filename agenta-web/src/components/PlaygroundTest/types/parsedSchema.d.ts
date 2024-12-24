@@ -41,7 +41,7 @@ export interface ArrayWithObjectConfig<T extends ObjectSchema = ObjectSchema> {
     configKey: string
     valueKey: string
     value: Array<Record<string, any>>
-    objectConfig: T & {
+    propertyObjectConfig: T & {
         key: string
         configKey: string
         properties: Record<string, PropertySchema>
@@ -55,6 +55,7 @@ export interface RegularConfig<T extends ObjectSchema = ObjectSchema> {
     valueKey: string
     value: any
     config: Record<string, PropertySchema>
+    properties: Record<string, PropertySchema>
 }
 
 // // Updated PromptConfigType to be a discriminated union
@@ -62,7 +63,7 @@ export interface RegularConfig<T extends ObjectSchema = ObjectSchema> {
 
 // Helper type to infer the correct config type
 type InferConfig<T extends PromptConfigType> = T extends ArrayWithObjectConfig
-    ? T["objectConfig"]["properties"]
+    ? T["propertyObjectConfig"]["properties"]
     : T extends RegularConfig
       ? T["config"]
       : never
@@ -75,7 +76,7 @@ interface PromptConfigType<T extends ObjectSchema = ObjectSchema> extends Config
             configKey: string
         }
     }
-    objectConfig?: T & {
+    propertyObjectConfig?: T & {
         key: string
         configKey: string
     }

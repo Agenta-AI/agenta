@@ -22,7 +22,7 @@ import {ParsedSchema} from "../types/parsedSchema"
 //     [key in ModelProvider]: string[]
 // }
 
-export interface StateVariant extends Omit<Variant, "parameters" | "schema"> {
+export interface StateVariant extends Omit<Variant, "schema"> {
     schema?: ParsedSchema
     appId: string
     baseId: string
@@ -37,6 +37,10 @@ export interface StateVariant extends Omit<Variant, "parameters" | "schema"> {
 export interface InitialStateType {
     variants: StateVariant[]
     selected?: StateVariant
+    addVariant?: (baseVariantName: string, newVariantName: string) => void
+    deleteVariant?: () => void
+    saveVariant?: () => void
+    dirtyStates?: Map<string, boolean>
 }
 
 export type PlaygroundAction =

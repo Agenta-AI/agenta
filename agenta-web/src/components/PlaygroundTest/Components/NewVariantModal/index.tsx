@@ -1,4 +1,4 @@
-// NewVariantModal.tsx
+// TODO: OLD FILE, CHECK IF IT CAN BE SHARED, AND IF IT NEEDS IMPROVEMENTS
 
 import React, {useState} from "react"
 import {Modal, Input, Select, Space, Typography} from "antd"

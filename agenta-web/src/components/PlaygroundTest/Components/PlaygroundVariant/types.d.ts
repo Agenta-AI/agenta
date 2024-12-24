@@ -1,5 +1,7 @@
-import {StateVariant} from "../../state/types"
+import type {BaseContainerProps} from "../types"
 
-export type PlaygroundVariantProps = {
-    variant: StateVariant
+/** PlaygroundVariant component props */
+export interface PlaygroundVariantProps extends BaseContainerProps {
+    /** Unique identifier for the variant */
+    variantId: string
 }

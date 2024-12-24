@@ -1,20 +1,42 @@
-import {memo} from "react"
 import dynamic from "next/dynamic"
+import type {PromptCollapseHeaderProps} from "../types"
+import clsx from "clsx"
 
-const PlaygroundVariantModelConfig = dynamic(() => import("../../PlaygroundVariantModelConfig"), {
-    ssr: false,
-})
+// Load model config component dynamically
+const PlaygroundVariantModelConfig = dynamic(
+    () => import("../../PlaygroundVariantModelConfig"),
+    {
+        ssr: false,
+    }
+)
 
-const PlaygroundVariantConfigPromptCollapseHeader = ({
+/**
+ * PlaygroundVariantConfigPromptCollapseHeader renders the header section of a prompt configuration collapse.
+ * 
+ * Features:
+ * - Displays prompt label
+ * - Integrates model configuration component
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <PlaygroundVariantConfigPromptCollapseHeader 
+ *   variantId="variant-123"
+ *   promptIndex={0}
+ * />
+ * ```
+ */
+const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeaderProps> = ({
     promptIndex,
     variantId,
-}: {
-    promptIndex: number
-    variantId: string
+    className,
+    ...props
 }) => {
-    console.log("render PlaygroundVariantConfigPromptCollapse - Header")
     return (
-        <div className="w-full flex items-center justify-between">
+        <div
+            className={clsx("w-full flex items-center justify-between", className)}
+            {...props}
+        >
             <div>Prompt</div>
             <PlaygroundVariantModelConfig
                 variantId={variantId}
@@ -24,4 +46,5 @@ const PlaygroundVariantConfigPromptCollapseHeader = ({
     )
 }
 
-export default memo(PlaygroundVariantConfigPromptCollapseHeader)
+// Memoize the component to prevent unnecessary re-renders
+export default PlaygroundVariantConfigPromptCollapseHeader
