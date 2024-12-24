@@ -1,21 +1,21 @@
-import {useState, useEffect, useCallback} from "react"
+import {useState, useEffect, useCallback, ComponentType} from "react"
 import Head from "next/head"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 
 const GlobalScripts = () => {
-    const [CloudScripts, setCloudScripts] = useState<React.ComponentType | null>(null)
+    const [CloudScripts, setCloudScripts] = useState<ComponentType | null>(null)
 
-    const initilizeScripts = useCallback(async () => {
+    const initializeScripts = useCallback(() => {
         const Scripts = dynamicComponent("Scripts/assets/CloudScripts")
         setCloudScripts(() => Scripts)
     }, [])
 
     useEffect(() => {
         if (isDemo()) {
-            initilizeScripts()
+            initializeScripts()
         }
-    }, [initilizeScripts])
+    }, [initializeScripts])
 
     if (isDemo() && CloudScripts) {
         return <CloudScripts />

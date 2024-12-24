@@ -1,23 +1,26 @@
-import {useState, useEffect, useCallback} from "react"
+import {useState, useEffect, useCallback, ComponentType, FC} from "react"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 
-const OrgWrapper = ({children}: {children: React.ReactNode}) => {
-    const [Wrapper, setWrapper] = useState<any>(null)
+type OrgWrapperProps = {children: React.ReactNode}
 
-    const initilizeOrgProvider = useCallback(async () => {
-        const OrgContextProvider = await dynamicContext("org.context", Wrapper)
-        setWrapper(() => OrgContextProvider.default)
+const OrgWrapper: FC<OrgWrapperProps> = ({children}) => {
+    const [OrgContextProvider, setOrgContextProvider] =
+        useState<ComponentType<OrgWrapperProps> | null>(null)
+
+    const initializeOrgProvider = useCallback(async () => {
+        const Provider = await dynamicContext("org.context")
+        setOrgContextProvider(() => Provider.default)
     }, [])
 
     useEffect(() => {
         if (isDemo()) {
-            initilizeOrgProvider()
+            initializeOrgProvider()
         }
-    }, [initilizeOrgProvider])
+    }, [initializeOrgProvider])
 
-    if (isDemo()) {
-        return Wrapper ? <Wrapper>{children}</Wrapper> : null
+    if (isDemo() && OrgContextProvider) {
+        return <OrgContextProvider>{children}</OrgContextProvider>
     }
 
     return <>{children}</>
