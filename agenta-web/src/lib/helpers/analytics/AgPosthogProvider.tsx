@@ -3,6 +3,7 @@ import {useRouter} from "next/router"
 import {useAtom} from "jotai"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"
+import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
 import {isDemo} from "../utils"
 
 const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
@@ -27,17 +28,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                     if (process.env.NODE_ENV === "development") posthog.debug()
                 },
                 capture_pageview: false,
-                ...(isDemo()
-                    ? {
-                          session_recording: {
-                              maskAllInputs: false,
-                              maskInputOptions: {
-                                  password: true,
-                                  email: true,
-                              },
-                          },
-                      }
-                    : {persistence: "localStorage+cookie"}),
+                ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
             })
         } finally {
             setLoadingPosthog(false)
