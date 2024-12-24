@@ -2,13 +2,11 @@ import {useEffect, useCallback} from "react"
 import SuperTokensReact, {SuperTokensWrapper} from "supertokens-auth-react"
 import {AuthProviderType} from "./types"
 import {isDemo} from "../utils"
+import {dynamicConfig} from "../dynamic"
 ;(async () => {
     if (typeof window !== "undefined" && isDemo()) {
-        try {
-            // @ts-ignore
-            const {frontendConfig} = await import("@/config/frontendConfig")
-            SuperTokensReact.init(frontendConfig())
-        } catch (error) {}
+        const {frontendConfig} = await dynamicConfig("frontendConfig")
+        SuperTokensReact.init(frontendConfig())
     }
 })()
 

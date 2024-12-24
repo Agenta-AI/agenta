@@ -38,3 +38,11 @@ export async function dynamicLib(path: string, fallback?: any) {
         return fallback
     }
 }
+
+export async function dynamicConfig(path: string, fallback?: any) {
+    try {
+        return await import(`@/config/${path}`)
+    } catch (error) {
+        return fallback
+    }
+}

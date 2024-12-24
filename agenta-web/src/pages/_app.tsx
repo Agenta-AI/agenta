@@ -13,6 +13,7 @@ import OrgWrapper from "@/components/OrgWrapper/OrgWrapper"
 import GlobalScripts from "@/components/Scripts/GlobalScripts"
 import {Inter} from "next/font/google"
 import AgSWRConfig from "@/lib/api/SWRConfig"
+import {useSentryIntegrations} from "@/lib/helpers/sentry/hook/useSentryIntegrations"
 
 const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 const CustomPosthogProvider = dynamic(() => import("@/lib/helpers/analytics/AgPosthogProvider"))
@@ -23,6 +24,8 @@ const inter = Inter({
 })
 
 export default function App({Component, pageProps}: AppProps) {
+    useSentryIntegrations()
+
     return (
         <>
             <GlobalScripts />
