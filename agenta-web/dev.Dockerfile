@@ -1,46 +1,27 @@
-FROM node:22-alpine3.18 AS base
+FROM node:20.18-slim
 
 WORKDIR /app
 
-# Install dependencies based on the preferred package manager
+# Copy only package.json and lock files first to leverage Docker layer caching
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+
+# Install dependencies based on the available lock file
 RUN \
-    if [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm install; \
+    if [ -f yarn.lock ]; then yarn install; \
+    elif [ -f package-lock.json ]; then npm ci; \
     elif [ -f pnpm-lock.yaml ]; then npm install -g pnpm && pnpm install; \
     else yarn install; \
     fi
 
-# Copy only the necessary files for development
-COPY src ./src
-COPY public ./public
-COPY next.config.js .
-COPY tsconfig.json .
-COPY postcss.config.js .
-COPY tailwind.config.ts .
-COPY .env .
-COPY sentry.* .
+# Copy the rest of the application code
+COPY . .
 
-# Stage 2: Development Stage
-FROM node:22-alpine3.18 AS dev
+RUN npx next telemetry disable
 
-WORKDIR /app
-
-# Copy dependencies and application files from the base stage
-COPY --from=base /app /app
-
-# Install development dependencies
-RUN \
-    if [ -f yarn.lock ]; then yarn install; \
-    elif [ -f package-lock.json ]; then npm install; \
-    elif [ -f pnpm-lock.yaml ]; then pnpm install; \
-    else yarn install; \
-    fi
-
-# Expose the necessary ports
+# Expose the necessary port
 EXPOSE 3000
 
-# Start Next.js in development mode based on the preferred package manager
+# Start Next.js in development mode
 CMD \
     if [ -f yarn.lock ]; then yarn dev; \
     elif [ -f package-lock.json ]; then npm run dev; \

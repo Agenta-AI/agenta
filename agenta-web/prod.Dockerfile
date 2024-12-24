@@ -1,5 +1,5 @@
 # Stage 1: Build Stage
-FROM node:22-alpine3.18 AS builder
+FROM node:20.18-slim AS builder
 
 WORKDIR /app
 
@@ -20,7 +20,7 @@ COPY sentry.* .
 RUN npm run build
 
 # Stage 2: Production Stage
-FROM node:22-alpine3.18 AS prod
+FROM node:20.18-slim AS prod
 
 WORKDIR /app
 
