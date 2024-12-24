@@ -32,11 +32,7 @@ export default function App({Component, pageProps}: AppProps) {
 
             <main className={`${inter.variable} font-sans`}>
                 <AgSWRConfig>
-                    <CustomPosthogProvider
-                        config={{
-                            persistence: "localStorage+cookie",
-                        }}
-                    >
+                    <CustomPosthogProvider>
                         <AuthProvider pageProps={pageProps}>
                             <ThemeContextProvider>
                                 <ProfileContextProvider>
