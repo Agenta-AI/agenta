@@ -1,16 +1,19 @@
-import {memo} from "react"
 import {useRouter} from "next/router"
 import {AVAILABLE_SERVICES} from "./assets/constants"
 import dynamic from "next/dynamic"
 import PlaygroundVariants from "./Components/PlaygroundVariants"
-
+import usePlayground from "./hooks/usePlayground"
+import { SWRDevTools } from "swr-devtools";
 const PlaygroundHeader = dynamic(() => import("./Components/PlaygroundHeader"), {ssr: false})
 
 const Playground: React.FC = () => {
     const router = useRouter()
     const service = router.query.service as string
-
-    console.log("render Playground")
+    usePlayground({
+        hookId: "playground",
+    })
+    
+    console.log("usePlayground[%cComponent%c] - Playground - RENDER!" , "color: orange", "")
 
     if (!service || !AVAILABLE_SERVICES.includes(service)) {
         return (
@@ -29,11 +32,13 @@ const Playground: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col w-full h-[calc(100dvh-70px)] overflow-hidden">
-            <PlaygroundHeader />
-            <PlaygroundVariants />
-        </div>
+        <SWRDevTools>
+            <div className="flex flex-col w-full h-[calc(100dvh-70px)] overflow-hidden">
+                <PlaygroundHeader />
+                <PlaygroundVariants />
+            </div>
+        </SWRDevTools>
     )
 }
 
-export default memo(Playground)
+export default Playground

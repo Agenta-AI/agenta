@@ -1,6 +1,7 @@
-import {memo} from "react"
-import usePlaygroundVariants from "../../hooks/usePlaygroundVariants"
 import dynamic from "next/dynamic"
+import clsx from "clsx"
+import usePlayground from "../../hooks/usePlayground"
+import type {BaseContainerProps} from "../types"
 
 const PlaygroundVariant = dynamic(() => import("../PlaygroundVariant"), {ssr: false})
 
@@ -13,18 +14,28 @@ const PlaygroundVariant = dynamic(() => import("../PlaygroundVariant"), {ssr: fa
  *
  * @returns {JSX.Element} The rendered component.
  */
-const PlaygroundVariants = () => {
-    const {variants} = usePlaygroundVariants()
+const PlaygroundVariants = ({className, ...props}: BaseContainerProps) => {
+    const {variantIds} = usePlayground({
+        hookId: "playgroundVariants",
+    })
 
-    console.log("render VariantsWrapper", variants)
+    console.log(
+        "usePlayground[%cComponent%c] - PlaygroundVariants - RENDER!",
+        "color: orange",
+        "",
+        variantIds,
+    )
 
     return (
-        <div className="flex flex-col gap-2 w-full grow overflow-hidden">
-            {variants.map((variant) => {
-                return <PlaygroundVariant variant={variant} key={variant.variantId} />
+        <div
+            className={clsx(["flex flex-col gap-2 w-full grow overflow-hidden"], className)}
+            {...props}
+        >
+            {(variantIds || []).map((variantId) => {
+                return <PlaygroundVariant key={variantId} variantId={variantId} />
             })}
         </div>
     )
 }
 
-export default memo(PlaygroundVariants)
+export default PlaygroundVariants

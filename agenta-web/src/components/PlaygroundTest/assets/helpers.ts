@@ -1,5 +1,5 @@
 import {detectChatVariantFromOpenAISchema, getBodySchemaName} from "@/lib/helpers/openapi_parser"
-import {SchemaObject, WithConfig} from "../types/shared"
+import {SchemaObject} from "../types/shared"
 import {JoinPath, Path, PathValue} from "../types/pathHelpers"
 import {StateVariant} from "../state/types"
 import {OpenAPISpec} from "../types/openApiSpec"
@@ -12,7 +12,6 @@ import {
     RegularConfig,
     PropertySchema,
 } from "../types/parsedSchema"
-import {LLMConfig, Message} from "../types/openApiTypes"
 
 // Path manipulation utilities
 export function accessKeyInVariant<T extends Record<string, any>, P extends Path<T> & string>(
@@ -115,7 +114,71 @@ const processProperty = (
     property: SchemaObject,
     parentKey: string,
     promptDefault: any,
+    parameters?: any,
 ): Record<string, ArrayWithObjectConfig | RegularConfig> => {
+    const extractSchemaProperties = (
+        schema: SchemaObject,
+    ): {
+        type?: string
+        minimum?: number
+        maximum?: number
+        enum?: string[]
+        const?: string
+        choices?: Array<{label: string; value: string}> | Record<string, string[]>
+    } => {
+        // Handle direct schema properties
+        if (schema.type) {
+            const baseProps = {
+                type: schema.type,
+                minimum: schema.minimum,
+                maximum: schema.maximum,
+                enum: schema.enum,
+                const: schema.const,
+            }
+
+            // Add choices if they exist
+            if ("choices" in schema) {
+                console.log("----------- choices", schema.choices)
+                return {
+                    ...baseProps,
+                    choices: schema.choices as Array<{label: string; value: string}>,
+                }
+            }
+
+            return baseProps
+        }
+
+        // Handle anyOf cases
+        if (schema.anyOf) {
+            // Check if this is a collection of const values
+            const constValues = schema.anyOf
+                .filter((s) => s.type !== "null" && s.const)
+                .map((s) => s.const)
+
+            if (constValues.length > 0) {
+                console.log("----------- constValues", constValues)
+                // If we have const values, treat them as an enum
+                return {
+                    type: "string",
+                    enum: constValues.filter((value): value is string => value !== undefined),
+                }
+            }
+
+            // Otherwise, find the first non-null schema
+            const nonNullSchema = schema.anyOf.find((s) => s.type !== "null")
+            if (nonNullSchema) {
+                // Recursively extract properties from the non-null schema
+                return extractSchemaProperties(nonNullSchema)
+            }
+        }
+
+        return {}
+    }
+
+    const getTypeFromAnyOf = (schema: SchemaObject) => {
+        return extractSchemaProperties(schema)
+    }
+
     const createConfigType = (
         config: SchemaObject,
         configKey: string,
@@ -128,11 +191,60 @@ const processProperty = (
             configKey,
             valueKey: `${parentKey.replace(".config", ".value")}`,
             value: Array.isArray(promptDefault?.[key])
-                ? promptDefault[key].map((val: any, index: number) => ({
-                      ...val,
-                      valueKey: `${parentKey.replace(".config", ".value")}.[${index}]`,
-                  }))
-                : promptDefault?.[key],
+                ? promptDefault[key].map((val: any, index: number) => {
+                      console.log(
+                          "loooping array defaults",
+                          val,
+                          promptDefault[key],
+                          key,
+                          parentKey,
+                      )
+                      // TODO: REPLACE THIS
+                      if (val.content && val.role) {
+                          //this is a message
+                          const messageConfig = {
+                              ...val,
+                              content: parameters[`prompt_${val.role}`] || val.content,
+                              valueKey: `${parentKey.replace(".config", ".value")}.[${index}].content`,
+                          }
+                          console.log("MESSAGE CONFIG", messageConfig)
+                          return messageConfig
+                      }
+                      return {
+                          ...val,
+                          valueKey: `${parentKey.replace(".config", ".value")}.[${index}]`,
+                      }
+                  })
+                : parameters?.[key] || promptDefault?.[key],
+        }
+
+        console.log(
+            "BASE CONFIG!",
+            // baseConfig,
+            // promptDefault,
+            // parameters?.[key],
+            key,
+            type,
+            baseConfig,
+            promptDefault?.[key],
+        )
+        if (key === "llm_config") {
+            // return {
+            //     ...baseConfig,
+            //     type: "object",
+            //     config: Object.entries(config.properties || {}).reduce(
+            //         (acc, [propKey, propValue]) => ({
+            //             ...acc,
+            //             [propKey]: {
+            //                 ...(typeof propValue === "object" ? propValue : {}),
+            //                 ...getTypeFromAnyOf(propValue),
+            //                 key: propKey,
+            //                 configKey: `${parentKey}.${propKey}`,
+            //             },
+            //         }),
+            //         {} as Record<string, PropertySchema>,
+            //     ),
+            // } as RegularConfig
         }
 
         if (type === "array" && subType === "object") {
@@ -140,8 +252,8 @@ const processProperty = (
                 ...baseConfig,
                 type: "array",
                 subType: "object",
-                configKey: `${parentKey.replace(".config", ".objectConfig.properties")}`,
-                objectConfig: {
+                configKey: `${parentKey.replace(".config", ".propertyObjectConfig.properties")}`,
+                propertyObjectConfig: {
                     ...config,
                     key,
                     type: "object",
@@ -150,6 +262,7 @@ const processProperty = (
                             ...acc,
                             [propKey]: {
                                 ...propValue,
+                                ...getTypeFromAnyOf(propValue),
                                 key: propKey,
                                 configKey: `${parentKey}.${propKey}`,
                             },
@@ -158,22 +271,46 @@ const processProperty = (
                     ),
                 },
             } as ArrayWithObjectConfig
+        } else if (type === "object" && baseConfig.value) {
+            console.log("**********************", key, type)
+            Object.keys(baseConfig.value).forEach((key) => {
+                console.log("----------------", key)
+                baseConfig.value[key] = parameters?.[key] || baseConfig.value[key]
+            })
         }
 
         return {
             ...baseConfig,
             config:
                 type === "object"
-                    ? config.properties
+                    ? Object.entries(config.properties || {}).reduce(
+                          (acc, [propKey, propValue]) => {
+                              console.log("TEST PROP OBJECT", propValue, propKey)
+                              return {
+                                  ...acc,
+                                  [propKey]: {
+                                      ...(typeof propValue === "object" ? propValue : {}),
+                                      ...getTypeFromAnyOf(propValue),
+                                      key: propKey,
+                                      configKey: `${configKey}.${propKey}`,
+                                  },
+                              }
+                          },
+                          {} as Record<string, PropertySchema>,
+                      )
                     : Object.entries({[key]: config}).reduce(
-                          (acc, [propKey, propValue]) => ({
-                              ...acc,
-                              [propKey]: {
-                                  ...(typeof propValue === "object" ? propValue : {}),
-                                  key: propKey,
-                                  configKey: `${configKey}.${propKey}`,
-                              },
-                          }),
+                          (acc, [propKey, propValue]) => {
+                              console.log("TEST PROP VALUE", propValue)
+                              return {
+                                  ...acc,
+                                  [propKey]: {
+                                      ...(typeof propValue === "object" ? propValue : {}),
+                                      ...getTypeFromAnyOf(propValue),
+                                      key: propKey,
+                                      configKey: `${configKey}.${propKey}`,
+                                  },
+                              }
+                          },
                           {} as Record<string, PropertySchema>,
                       ),
         } as RegularConfig
@@ -182,6 +319,7 @@ const processProperty = (
     // Process properties based on type
     if (property.type === "array") {
         if (property.items?.type === "object") {
+            console.log("process object property inside array", property.items)
             acc[key] = createConfigType(
                 property.items,
                 `${parentKey}`,
@@ -190,6 +328,7 @@ const processProperty = (
             )
         } else {
             const extracted = extractConfig(property, parentKey)
+            console.log("extracted value", extracted)
             acc[key] = createConfigType(
                 extracted,
                 `${parentKey}`,
@@ -201,14 +340,17 @@ const processProperty = (
         acc[key] = createConfigType(property, `${parentKey}`, "object")
     } else {
         const extracted = extractConfig(property, parentKey)
-        acc[key] = createConfigType(extracted, `${parentKey}`, property.type || "object")
+        acc[key] = createConfigType(extracted, `${parentKey}`, property.type || "unknown")
     }
 
     return acc
 }
 
 // Main parser function
-export const parseVariantSchema = (originalSchema: OpenAPISpec): ParsedSchema => {
+export const parseVariantSchema = (
+    variant: StateVariant,
+    originalSchema: OpenAPISpec,
+): ParsedSchema => {
     const schemaName = getBodySchemaName(
         originalSchema,
     ) as keyof OpenAPISpec["components"]["schemas"]
@@ -233,6 +375,8 @@ export const parseVariantSchema = (originalSchema: OpenAPISpec): ParsedSchema =>
             : [agentaConfig?.default?.prompt]
         : []
 
+    console.log("promptDefaults", promptDefaults, variant)
+
     const promptSchemas = promptDefaults.map((promptDefault, index) => {
         const configTypes: Record<string, ArrayWithObjectConfig | RegularConfig> = {}
 
@@ -241,7 +385,14 @@ export const parseVariantSchema = (originalSchema: OpenAPISpec): ParsedSchema =>
             const parentKey = `schema.promptConfig.[${index}].${key}.config`
 
             if (property) {
-                processProperty(configTypes, key, property, parentKey, promptDefault)
+                processProperty(
+                    configTypes,
+                    key,
+                    property,
+                    parentKey,
+                    promptDefault,
+                    variant.parameters,
+                )
             }
         }
 
