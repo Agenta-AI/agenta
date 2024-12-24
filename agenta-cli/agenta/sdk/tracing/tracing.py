@@ -41,6 +41,8 @@ class Tracing(metaclass=Singleton):
         self.headers: Dict[str, str] = dict()
         # REFERENCES
         self.references: Dict[str, str] = dict()
+        # CREDENTIALS
+        self.credentials: Dict[int, str] = dict()
 
         # TRACER PROVIDER
         self.tracer_provider: Optional[TracerProvider] = None
@@ -60,13 +62,16 @@ class Tracing(metaclass=Singleton):
     def configure(
         self,
         api_key: Optional[str] = None,
+        service_id: Optional[str] = None,
         # DEPRECATING
         app_id: Optional[str] = None,
     ):
         # HEADERS (OTLP)
         if api_key:
-            self.headers["Authorization"] = api_key
+            self.headers["Authorization"] = f"ApiKey {api_key}"
         # REFERENCES
+        if service_id:
+            self.references["service.id"] = service_id
         if app_id:
             self.references["application.id"] = app_id
 
@@ -84,31 +89,28 @@ class Tracing(metaclass=Singleton):
         self.tracer_provider.add_span_processor(self.inline)
         # TRACE PROCESSORS -- OTLP
         try:
-            log.info("--------------------------------------------")
             log.info(
-                "Agenta SDK - connecting to otlp receiver at: %s",
+                "Agenta - OLTP URL: %s",
                 self.otlp_url,
             )
-            log.info("--------------------------------------------")
-            check(
-                self.otlp_url,
-                headers=self.headers,
-                timeout=1,
-            )
+            # check(
+            #     self.otlp_url,
+            #     headers=self.headers,
+            #     timeout=1,
+            # )
 
             _otlp = TraceProcessor(
                 OTLPExporter(
                     endpoint=self.otlp_url,
                     headers=self.headers,
+                    credentials=self.credentials,
                 ),
                 references=self.references,
             )
 
             self.tracer_provider.add_span_processor(_otlp)
-            log.info("Success: traces will be exported.")
-            log.info("--------------------------------------------")
         except:  # pylint: disable=bare-except
-            log.warning("Agenta SDK - traces will not be exported.")
+            log.warning("Agenta - OLTP unreachable, skipping exports.")
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)

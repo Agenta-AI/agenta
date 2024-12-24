@@ -51,7 +51,7 @@ async def verify_permissions(
         if isOss():
             return Allow(None)
 
-        if not action or not resource_type or not resource_id:
+        if not action or not resource_type:
             raise Deny()
 
         if isCloudEE():
@@ -70,8 +70,8 @@ async def verify_permissions(
             # CHECK PERMISSION 2/2: RESOURCE
             allow_resource = await check_resource_access(
                 project_id=UUID(request.state.project_id),
-                resource_id=resource_id,
                 resource_type=resource_type,
+                resource_id=resource_id,
             )
 
             if not allow_resource:
@@ -80,13 +80,14 @@ async def verify_permissions(
             return Allow(request.state.credentials)
 
     except Exception as exc:  # pylint: disable=bare-except
+        print(exc)
         raise Deny() from exc
 
 
 async def check_resource_access(
     project_id: UUID,
-    resource_id: UUID,
     resource_type: str,
+    resource_id: Optional[UUID] = None,
 ) -> bool:
     resource_project_id = None
 
@@ -94,6 +95,15 @@ async def check_resource_access(
         app = await db_manager.get_app_instance_by_id(app_id=str(resource_id))
 
         resource_project_id = app.project_id
+
+    if resource_type == "service":
+        if resource_id is None:
+            resource_project_id = project_id
+
+        else:
+            base = await db_manager.fetch_base_by_id(base_id=str(resource_id))
+
+            resource_project_id = base.project_id
 
     allow_resource = resource_project_id == project_id
 

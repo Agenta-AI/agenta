@@ -6,6 +6,17 @@ from inspect import iscoroutinefunction
 from agenta.sdk.utils.logging import log
 
 
+def display_exception(message: str):
+    _len = len("Agenta - ") + len(message) + len(":")
+    _bar = "-" * _len
+
+    log.warning(_bar)
+    log.warning("Agenta - %s:", message)
+    log.warning(_bar)
+    log.warning(format_exc().strip("\n"))
+    log.warning(_bar)
+
+
 class suppress(AbstractContextManager):  # pylint: disable=invalid-name
     def __init__(self):
         pass
@@ -14,15 +25,10 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
         pass
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        if exc_type is None:
-            return True
-        else:
-            log.warning("-------------------------------------------------")
-            log.warning("Agenta SDK - suppressing tracing exception below:")
-            log.warning("-------------------------------------------------")
-            log.warning(format_exc().strip("\n"))
-            log.warning("-------------------------------------------------")
-            return True
+        if exc_type is not None:
+            display_exception("Exception (suppressed)")
+
+        return True
 
 
 def handle_exceptions():
@@ -33,12 +39,10 @@ def handle_exceptions():
         async def async_wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+
             except Exception as e:
-                log.warning("------------------------------------------")
-                log.warning("Agenta SDK - intercepting exception below:")
-                log.warning("------------------------------------------")
-                log.warning(format_exc().strip("\n"))
-                log.warning("------------------------------------------")
+                display_exception("Exception")
+
                 raise e
 
         @wraps(func)
@@ -46,11 +50,8 @@ def handle_exceptions():
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                log.warning("------------------------------------------")
-                log.warning("Agenta SDK - intercepting exception below:")
-                log.warning("------------------------------------------")
-                log.warning(format_exc().strip("\n"))
-                log.warning("------------------------------------------")
+                display_exception("Exception")
+
                 raise e
 
         return async_wrapper if is_coroutine_function else sync_wrapper
