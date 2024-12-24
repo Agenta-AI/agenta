@@ -1,6 +1,6 @@
 import {getCurrentProject} from "@/contexts/project.context"
 import {AppTemplate} from "@/lib/Types"
-import axios from "@/lib/helpers/axiosConfig"
+import axios from "@/lib/api/assets/axiosConfig"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import {LlmProvider} from "@/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"

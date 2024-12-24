@@ -1,4 +1,4 @@
-import {usePostHogAg} from "@/hooks/usePostHogAg"
+import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import {Environment, Variant} from "@/lib/Types"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {fetchEnvironments, createPublishVariant} from "@/services/deployment/api"
@@ -58,7 +58,7 @@ const PublishVariantModal: React.FC<Props> = ({
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)
-            posthog.capture("app_deployed", {app_id: appId, environment: envName})
+            posthog?.capture?.("app_deployed", {app_id: appId, environment: envName})
         })
     }
 

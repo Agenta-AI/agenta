@@ -1,10 +1,11 @@
 import {capitalize} from "@/lib/helpers/utils"
-import {AgGridReact} from "ag-grid-react"
 import {Input, Modal} from "antd"
 import React, {forwardRef, useCallback, useImperativeHandle, useMemo, useState} from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useResizeObserver from "@/hooks/useResizeObserver"
 import {createUseStyles} from "react-jss"
+
+import AgGridReact from "@/lib/helpers/agGrid"
 
 const useStyles = createUseStyles({
     cellContainer: {
