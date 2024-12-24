@@ -6,16 +6,15 @@ export const useSentryIntegrations = () => {
     const isLoading = useRef(false)
 
     const initilizeSentryIntegrations = async () => {
-        const {lazyLoadSentryIntegrations} = await dynamicLib(
-            "helpers/sentry/lazyLoadSentryIntegrations",
-        )
-        lazyLoadSentryIntegrations()
+        const initSentry = await dynamicLib("helpers/sentry/lazyLoadSentryIntegrations")
+        initSentry?.lazyLoadSentryIntegrations()
     }
 
     useEffect(() => {
-        if (isLoading.current && isDemo()) return
-        isLoading.current = true
+        if (!isLoading.current && isDemo()) {
+            isLoading.current = true
 
-        initilizeSentryIntegrations()
+            initilizeSentryIntegrations()
+        }
     }, [])
 }
