@@ -5,7 +5,7 @@ from .conftest import *
 
 @pytest.mark.parametrize(
     "fastapi_server",
-    [{"app_file": "assets/greetings/main.py"}],
+    [{"app_file": "./assets/greetings/main.py"}],
     indirect=True,
 )
 class TestApplicationRoutes:

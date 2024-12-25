@@ -9,12 +9,13 @@ from .fixtures import *
 
 
 class TestAgentaVariantServeCommand:
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        self.asset_example_folder = "salutations"
-        self.assets_folder = str(
-            get_assets_folder(example_folder=self.asset_example_folder)
+    @pytest.fixture(scope="class", autouse=True)
+    def _setup(self, request):
+        request.cls.asset_example_folder = "salutations"
+        request.cls.assets_folder = str(
+            get_assets_folder(example_folder=request.cls.asset_example_folder)
         )
+        request.cls.api_key = get_programmatic_access_credentials()
 
     @pytest.mark.cli_testing
     def test_variant_serve_success(self, cleanup_application_and_files):
@@ -22,14 +23,14 @@ class TestAgentaVariantServeCommand:
         app_name = f"greetings_{uuid.uuid4().hex[:6]}"
         where_to_run_agenta = "\n"
         use_this_key = "n"
-        provide_api_key = os.environ.get("AGENTA_API_KEY")
+        provide_api_key = self.api_key
 
         # ACT: Add configuration
         init_inputs = [
             f"{app_name}\n",
             where_to_run_agenta,
             use_this_key,
-            provide_api_key,
+            f"{provide_api_key}\n",
         ]
         result = run_agenta_init(init_inputs, self.asset_example_folder)
         cli_output = next(result)
@@ -69,7 +70,9 @@ class TestAgentaVariantServeCommand:
         assert agentaignore_path.exists()
 
         # CLEANUP: Remove application from backend, db and local filesystem
-        cleanup = cleanup_application_and_files(self.asset_example_folder)
+        cleanup = cleanup_application_and_files(
+            self.asset_example_folder, provide_api_key
+        )
         assert next(cleanup) == "ok"
 
     @pytest.mark.cli_testing
@@ -78,14 +81,14 @@ class TestAgentaVariantServeCommand:
         app_name = f"greetings_{uuid.uuid4().hex[:6]}"
         where_to_run_agenta = "\n"
         use_this_key = "n"
-        provide_api_key = os.environ.get("AGENTA_API_KEY")
+        provide_api_key = self.api_key
 
         # ACT: Add configuration
         init_inputs = [
             f"{app_name}\n",
             where_to_run_agenta,
             use_this_key,
-            provide_api_key,
+            f"{provide_api_key}\n",
         ]
         result = run_agenta_init(init_inputs, self.asset_example_folder)
         cli_output = next(result)
@@ -123,5 +126,7 @@ class TestAgentaVariantServeCommand:
         assert agentaignore_path.exists()
 
         # CLEANUP: Remove application from backend, db and local filesystem
-        cleanup = cleanup_application_and_files(self.asset_example_folder)
+        cleanup = cleanup_application_and_files(
+            self.asset_example_folder, provide_api_key
+        )
         assert next(cleanup) == "ok"
