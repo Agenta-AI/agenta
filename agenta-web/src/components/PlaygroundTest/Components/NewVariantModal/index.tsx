@@ -1,25 +1,11 @@
 // TODO: OLD FILE, CHECK IF IT CAN BE SHARED, AND IF IT NEEDS IMPROVEMENTS
 
 import React, {useState} from "react"
-import {Modal, Input, Select, Space, Typography} from "antd"
-import {createUseStyles} from "react-jss"
+import {Modal, Input, Select, Typography} from "antd"
+import {Props} from "./assets/types"
+import {useStyles} from "./assets/styles"
+
 const {Text} = Typography
-
-interface Props {
-    isModalOpen: boolean
-    setIsModalOpen: (value: boolean) => void
-    addTab: () => void
-    variants: any[]
-    setNewVariantName: (value: string) => void
-    newVariantName: string
-    setTemplateVariantName: (value: string) => void
-}
-
-const useStyles = createUseStyles({
-    select: {
-        width: "100%",
-    },
-})
 
 const NewVariantModal: React.FC<Props> = ({
     isModalOpen,
@@ -31,26 +17,26 @@ const NewVariantModal: React.FC<Props> = ({
     setTemplateVariantName,
 }) => {
     const classes = useStyles()
-    const [variantPlaceHolder, setVariantPlaceHolder] = useState("Source Variant")
+    const [variantPlaceHolder, setVariantPlaceHolder] = useState("Variant source")
     const [isInputValid, setIsInputValid] = useState(false)
 
     const handleTemplateVariantChange = (value: string) => {
         let newValue = value.includes(".") ? value.split(".")[0] : value
         setTemplateVariantName(value)
         setVariantPlaceHolder(`${newValue}`)
-        setIsInputValid(newVariantName.trim().length > 0 && value !== "Source Variant")
+        setIsInputValid(newVariantName.trim().length > 0 && value !== "Variant source")
     }
 
     const handleVariantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const variantName = e.target.value
         setNewVariantName(variantName)
-        setIsInputValid(variantName.trim().length > 0 && variantPlaceHolder !== "Source Variant")
+        setIsInputValid(variantName.trim().length > 0 && variantPlaceHolder !== "Variant source")
     }
 
     return (
         <Modal
             data-cy="new-variant-modal"
-            title="Create a New Variant"
+            title="Create a new variant"
             open={isModalOpen}
             onOk={() => {
                 if (isInputValid) {
@@ -58,15 +44,17 @@ const NewVariantModal: React.FC<Props> = ({
                     addTab()
                 }
             }}
+            okText="Confirm"
             onCancel={() => setIsModalOpen(false)}
-            centered
             okButtonProps={{disabled: !isInputValid}} // Disable OK button if input is not valid
             destroyOnClose
+            centered
         >
-            <Space direction="vertical" size={20}>
-                <div>
-                    <Text>Select an existing variant to use as a template:</Text>
+            <section className="w-full flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                    <Text>Base variant</Text>
                     <Select
+                        showSearch
                         className={classes.select}
                         data-cy="new-variant-modal-select"
                         placeholder="Select a variant"
@@ -80,15 +68,15 @@ const NewVariantModal: React.FC<Props> = ({
                     />
                 </div>
 
-                <div>
-                    <Text>Enter a unique name for the new variant:</Text>
+                <div className="flex flex-col gap-2">
+                    <Text>Variant name</Text>
                     <Input
                         addonBefore={variantPlaceHolder}
                         onChange={handleVariantNameChange}
                         data-cy="new-variant-modal-input"
                     />
                 </div>
-            </Space>
+            </section>
         </Modal>
     )
 }
