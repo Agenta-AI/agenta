@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
+import {Button, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -80,11 +80,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "inline-block",
         width: "100%",
     },
-    menuItem: {
-        textOverflow: "initial !important",
-        display: "flex !important",
-        alignItems: "center",
-    },
     avatarMainContainer: {
         width: "100%",
         height: "100%",
@@ -108,7 +103,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
     menuHeader: {
-        padding: `${theme.paddingXS}px ${theme.padding}px`,
         color: theme.colorTextDescription,
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -124,157 +118,76 @@ const SidebarMenu: React.FC<{
 }> = ({items, menuProps, collapsed, mode = "inline"}) => {
     const classes = useStyles()
 
-    return (
-        <Menu mode={mode} {...menuProps}>
-            {items.map((item) => {
-                if (item.submenu) {
-                    if (item.isCloudFeature) {
-                        return (
-                            <Tooltip
-                                title={item.cloudFeatureTooltip}
-                                key={item.key}
-                                placement="right"
-                            >
-                                <Menu.SubMenu
-                                    icon={item.icon}
-                                    title={
-                                        <>
-                                            {item.title}{" "}
-                                            {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                                        </>
-                                    }
-                                    onTitleClick={item.onClick}
-                                    disabled={item.isCloudFeature}
-                                    data-cy={item.key}
-                                >
-                                    {item.submenu.map((subitem) => {
-                                        const node = (
-                                            <Link
-                                                className={classes.menuLinks}
-                                                href={subitem.link || "#"}
-                                                target={
-                                                    subitem.link?.startsWith("http")
-                                                        ? "_blank"
-                                                        : undefined
-                                                }
-                                            >
-                                                {subitem.title}
-                                            </Link>
-                                        )
-
-                                        return (
-                                            <Menu.Item
-                                                icon={subitem.icon}
-                                                key={subitem.key}
-                                                onClick={subitem.onClick}
-                                                data-cy={subitem.key}
-                                            >
-                                                {collapsed ? (
-                                                    node
-                                                ) : (
-                                                    <Tooltip
-                                                        title={subitem.tooltip}
-                                                        placement="right"
-                                                    >
-                                                        {node}
-                                                    </Tooltip>
-                                                )}
-                                            </Menu.Item>
-                                        )
-                                    })}
-                                </Menu.SubMenu>
-                            </Tooltip>
-                        )
+    const transformItems = useMemo(
+        () =>
+            (items: SidebarConfig[]): any => {
+                // @ts-ignore
+                return items.flatMap((item) => {
+                    if (item.submenu) {
+                        return {
+                            key: item.key,
+                            icon: item.icon,
+                            label: (
+                                <>
+                                    {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                                </>
+                            ),
+                            children: transformItems(item.submenu),
+                            disabled: item.isCloudFeature,
+                            onTitleClick: item.onClick,
+                            title: (
+                                <Tooltip title={item.cloudFeatureTooltip} placement="right">
+                                    {item.title}
+                                </Tooltip>
+                            ),
+                        }
+                    } else if (item.header) {
+                        return {
+                            type: "group",
+                            label: (
+                                <div key={item.key} className={classes.menuHeader}>
+                                    {item.title}
+                                </div>
+                            ),
+                        }
                     } else {
-                        return (
-                            <Menu.SubMenu
-                                key={item.key}
-                                icon={item.icon}
-                                title={
-                                    <>
-                                        {item.title}{" "}
-                                        {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                                    </>
-                                }
-                                onTitleClick={item.onClick}
+                        const node = (
+                            <Link
                                 data-cy={item.key}
-                            >
-                                {item.submenu.map((subitem) => {
-                                    const node = (
-                                        <Link
-                                            className={classes.menuLinks}
-                                            href={subitem.link || "#"}
-                                            target={
-                                                subitem.link?.startsWith("http")
-                                                    ? "_blank"
-                                                    : undefined
-                                            }
-                                        >
-                                            {subitem.title}
-                                        </Link>
-                                    )
-
-                                    return (
-                                        <Menu.Item
-                                            icon={subitem.icon}
-                                            key={subitem.key}
-                                            onClick={subitem.onClick}
-                                            data-cy={subitem.key}
-                                            className={classes.menuItem}
-                                        >
-                                            {collapsed ? (
-                                                node
-                                            ) : (
-                                                <Tooltip title={subitem.tooltip} placement="right">
-                                                    {node}
-                                                </Tooltip>
-                                            )}
-                                        </Menu.Item>
-                                    )
-                                })}
-                            </Menu.SubMenu>
-                        )
-                    }
-                } else if (item.header) {
-                    return (
-                        <div key={item.key} className={classes.menuHeader}>
-                            {item.title}
-                        </div>
-                    )
-                } else {
-                    const node = (
-                        <Link
-                            className={classes.menuLinks}
-                            href={item.link || "#"}
-                            target={item.link?.startsWith("http") ? "_blank" : undefined}
-                        >
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                        </Link>
-                    )
-                    return (
-                        <>
-                            <Menu.Item
-                                data-cy={item.key}
-                                icon={item.icon}
-                                key={item.key}
+                                className={classes.menuLinks}
+                                href={item.link || "#"}
                                 onClick={item.onClick}
-                                className={classes.menuItem}
+                                target={item.link?.startsWith("http") ? "_blank" : undefined}
                             >
-                                {collapsed ? (
-                                    node
-                                ) : (
-                                    <Tooltip title={item.tooltip} placement="right">
-                                        {node}
-                                    </Tooltip>
-                                )}
-                            </Menu.Item>
-                            {item.divider && <Divider className="my-4" />}
-                        </>
-                    )
-                }
-            })}
-        </Menu>
+                                {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            </Link>
+                        )
+
+                        return [
+                            {
+                                icon: item.icon,
+                                key: item.key,
+                                label: (
+                                    <>
+                                        {collapsed ? (
+                                            node
+                                        ) : (
+                                            <Tooltip title={item.tooltip} placement="right">
+                                                {node}
+                                            </Tooltip>
+                                        )}
+                                    </>
+                                ),
+                            },
+                            item.divider && {type: "divider", className: "!my-4"},
+                        ]
+                    }
+                })
+            },
+        [items, collapsed],
     )
+
+    return <Menu mode={mode} items={transformItems(items)} {...menuProps} />
 }
 
 const Sidebar: React.FC = () => {
