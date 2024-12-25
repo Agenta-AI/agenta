@@ -9,15 +9,14 @@ check_and_request_var() {
   if [ -z "$var_value" ]; then
     read -p "Enter value for $var_name: " var_value
     export $var_name="$var_value"
+    export BASE_URL="http://127.0.0.1" # required for sdk routing test suites
   fi
 }
 
 # Check for required variables and prompt if missing
 check_and_request_var "OPENAI_API_KEY"
 check_and_request_var "AGENTA_HOST"
-check_and_request_var "AGENTA_API_KEY"
 
 # Run test commands
-pytest -n 2 -v ./management/*
-BASE_URL="http://127.0.0.1" pytest -v ./sdk_routing/*
-pytest cli/
+pytest -n 2 -v ./management/* ./sdk_routing/* 
+pytest -v ./cli/*

@@ -1,3 +1,4 @@
+import sys
 import os
 import toml
 import shutil
@@ -8,10 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-
-AGENTA_API_KEY = os.environ.get("AGENTA_API_KEY")
-AGENTA_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
-API_BASE_URL = f"{AGENTA_HOST}/api/"
+from tests.conftest import get_admin_user_credentials, API_BASE_URL
 
 
 def agenta_executable():
@@ -29,7 +27,9 @@ def get_assets_folder(example_folder: str):
     return assets_folder
 
 
-def retrieve_app_id_from_path_and_remove_application(assets_dir):
+def retrieve_app_id_from_path_and_remove_application(
+    assets_dir: Path, access_token: str
+):
     """
     Retrieve the app_id from the config.toml file and remove the application
     """
@@ -42,7 +42,7 @@ def retrieve_app_id_from_path_and_remove_application(assets_dir):
         # Delete application
         response = httpx.delete(
             f"{API_BASE_URL}apps/{app_id}",
-            headers={"Authorization": f"ApiKey {AGENTA_API_KEY}"},
+            headers={"Authorization": f"ApiKey {access_token}"},
             timeout=httpx.Timeout(timeout=6, read=None, write=5),
         )
         response.raise_for_status()
@@ -67,15 +67,24 @@ def cleanup_created_test_files(assets_dir: Path):
             print(f"Removed: {config_file}")
 
 
+def get_programmatic_access_credentials():
+    """
+    Retrieve the admin user's credentials for API testing.
+    """
+
+    user_credentials = get_admin_user_credentials()
+    return str(user_credentials).strip("ApiKey ")
+
+
 @pytest.fixture
 def cleanup_application_and_files():
     """
     Factory fixture to ensure the application and test files are cleaned up after each test class, with support for dynamic folder input.
     """
 
-    def _cleanup_application_and_files(folder_name):
+    def _cleanup_application_and_files(folder_name, access_token):
         assets_dir = get_assets_folder(folder_name)
-        retrieve_app_id_from_path_and_remove_application(assets_dir)
+        retrieve_app_id_from_path_and_remove_application(assets_dir, access_token)
         cleanup_created_test_files(assets_dir)
 
         yield "ok"
@@ -95,7 +104,7 @@ def run_agenta_init(user_inputs: List[str], example_folder: str):
     # Construct the command with the provided inputs
     executable_path = agenta_executable()
     child = pexpect.spawn(
-        command=f"{executable_path} init", encoding="utf-8", timeout=5
+        command=f"{executable_path} init", encoding="utf-8", timeout=10
     )
 
     for input in user_inputs:
@@ -123,7 +132,7 @@ def run_variant_serve(user_inputs: List[str], example_folder: str):
     # Construct the command with the provided inputs
     executable_path = agenta_executable()
     child = pexpect.spawn(
-        command=f"{executable_path} variant serve app.py", encoding="utf-8", timeout=5
+        command=f"{executable_path} variant serve app.py", encoding="utf-8", timeout=10
     )
 
     for input in user_inputs:

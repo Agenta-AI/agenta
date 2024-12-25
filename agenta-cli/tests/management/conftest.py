@@ -7,11 +7,10 @@ import pytest
 import pytest_asyncio
 from pytest_asyncio import is_async_test
 
+from tests.conftest import get_admin_user_credentials, API_BASE_URL
+
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", None)
-AGENTA_API_KEY = os.environ.get("AGENTA_API_KEY", None)
-AGENTA_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
-API_BASE_URL = f"{AGENTA_HOST}/api/"
 
 
 def pytest_collection_modifyitems(items):
@@ -33,11 +32,12 @@ async def http_client():
     Create an HTTP client for API testing.
     """
 
+    programmatic_access = get_admin_user_credentials()
     async with httpx.AsyncClient(
         base_url=API_BASE_URL,
         timeout=httpx.Timeout(timeout=6, read=None, write=5),
         headers={
-            "Authorization": f"ApiKey {AGENTA_API_KEY}",
+            "Authorization": f"{programmatic_access}",
             "Content-Type": "application/json",
         },
     ) as client:

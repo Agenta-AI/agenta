@@ -12,11 +12,10 @@ from importlib.metadata import version
 import httpx
 import pytest
 
+from tests.conftest import get_admin_user_credentials, API_BASE_URL
+
 
 BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1")
-AGENTA_HOST = os.getenv("AGENTA_HOST", "http://localhost")
-API_BASE_URL = f"{AGENTA_HOST}/api/"
-API_KEY = os.getenv("AGENTA_API_KEY")
 
 
 def get_free_port(start=8001, end=8999, max_attempts=100):
@@ -67,11 +66,12 @@ def http_client(get_port_number):
     Create an HTTP client for API testing.
     """
 
+    programmatic_access = get_admin_user_credentials()
     with httpx.Client(
         base_url=f"{BASE_URL}:{get_port_number}",
         timeout=httpx.Timeout(timeout=6, read=None, write=5),
         headers={
-            "Authorization": f"ApiKey {API_KEY}",
+            "Authorization": f"{programmatic_access}",
             "Content-Type": "application/json",
         },
     ) as client:
