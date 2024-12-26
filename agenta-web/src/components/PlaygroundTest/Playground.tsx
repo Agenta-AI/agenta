@@ -3,7 +3,7 @@ import {AVAILABLE_SERVICES} from "./assets/constants"
 import dynamic from "next/dynamic"
 import PlaygroundVariants from "./Components/PlaygroundVariants"
 import usePlayground from "./hooks/usePlayground"
-import { SWRDevTools } from "swr-devtools";
+import {SWRDevTools} from "swr-devtools"
 const PlaygroundHeader = dynamic(() => import("./Components/PlaygroundHeader"), {ssr: false})
 
 const Playground: React.FC = () => {
@@ -12,8 +12,8 @@ const Playground: React.FC = () => {
     usePlayground({
         hookId: "playground",
     })
-    
-    console.log("usePlayground[%cComponent%c] - Playground - RENDER!" , "color: orange", "")
+
+    console.log("usePlayground[%cComponent%c] - Playground - RENDER!", "color: orange", "")
 
     if (!service || !AVAILABLE_SERVICES.includes(service)) {
         return (
@@ -21,11 +21,9 @@ const Playground: React.FC = () => {
                 <h1>Service not found</h1>
                 <p>available services are:</p>
                 <ul>
-                    {
-                        AVAILABLE_SERVICES.map((service) => (
-                            <li key={service}>{service}</li>
-                        ))
-                    }
+                    {AVAILABLE_SERVICES.map((service) => (
+                        <li key={service}>{service}</li>
+                    ))}
                 </ul>
             </div>
         )

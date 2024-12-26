@@ -5,7 +5,7 @@ import {Select, Typography} from "antd"
 
 /**
  * A select control component that supports both single and multiple selection modes.
- * 
+ *
  * @remarks
  * - Handles both flat and grouped option structures
  * - Automatically transforms string arrays into proper option objects

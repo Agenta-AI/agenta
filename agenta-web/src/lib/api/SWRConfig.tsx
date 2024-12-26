@@ -1,7 +1,7 @@
 import {SWRConfig, type SWRConfiguration} from "swr"
 import axios from "@/lib/api/assets/axiosConfig"
 import {SWRDevTools} from "swr-devtools"
-import {type AgentaFetcher, type FetcherOptions, type AgSWRConfigProps} from './types'
+import {type AgentaFetcher, type FetcherOptions, type AgSWRConfigProps} from "./types"
 
 const config: SWRConfiguration = {
     fetcher: ((url: string, options: FetcherOptions = {}) => {

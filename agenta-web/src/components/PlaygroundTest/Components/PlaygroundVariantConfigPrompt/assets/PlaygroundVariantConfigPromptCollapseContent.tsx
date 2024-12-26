@@ -9,12 +9,12 @@ import clsx from "clsx"
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
  * for a single prompt's messages.
- * 
+ *
  * Features:
  * - Displays a list of configurable messages for the prompt
  * - Allows adding new messages
  * - Manages message configurations through the playground state
- * 
+ *
  * @component
  */
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
@@ -47,10 +47,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     })
 
     return (
-        <div 
-            className={clsx("flex flex-col gap-4", className)}
-            {...props}
-        >
+        <div className={clsx("flex flex-col gap-4", className)} {...props}>
             {(messageConfigs || []).map((messageConfig) => (
                 <PromptMessageConfig
                     key={messageConfig.key}

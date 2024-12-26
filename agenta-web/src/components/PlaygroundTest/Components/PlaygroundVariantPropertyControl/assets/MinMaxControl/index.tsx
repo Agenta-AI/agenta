@@ -1,13 +1,13 @@
 import {memo, useCallback, useState, useEffect} from "react"
 import {Slider, InputNumber, Typography} from "antd"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
-import { MinMaxControlProps } from "./types"
-import debounce from 'lodash/debounce'
+import {MinMaxControlProps} from "./types"
+import debounce from "lodash/debounce"
 
 /**
  * A controlled input component that combines a slider and number input
  * for numerical value selection within a defined range.
- * 
+ *
  * @remarks
  * - Maintains internal state for immediate UI updates while debouncing parent state updates
  * - Both slider and input changes are debounced to prevent excessive updates
@@ -25,7 +25,7 @@ const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlPr
         debounce((newValue: number | null) => {
             onChange(newValue ?? min ?? null)
         }, 300),
-        [onChange, min]
+        [onChange, min],
     )
 
     /**
@@ -46,7 +46,7 @@ const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlPr
             setLocalValue(processedValue) // Update UI immediately
             debouncedOnChange(processedValue) // Debounce update to parent
         },
-        [debouncedOnChange]
+        [debouncedOnChange],
     )
 
     return (
@@ -62,12 +62,12 @@ const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlPr
                     className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left"
                 />
             </div>
-            <Slider 
-                min={min} 
-                max={max} 
-                step={step} 
-                value={localValue ?? min} 
-                onChange={handleValueChange} 
+            <Slider
+                min={min}
+                max={max}
+                step={step}
+                value={localValue ?? min}
+                onChange={handleValueChange}
             />
         </PlaygroundVariantPropertyControlWrapper>
     )

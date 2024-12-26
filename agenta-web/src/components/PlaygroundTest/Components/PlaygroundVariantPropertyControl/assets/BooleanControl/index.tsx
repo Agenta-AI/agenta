@@ -1,11 +1,11 @@
 import {memo} from "react"
 import {Switch, Typography} from "antd"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
-import { BooleanControlProps } from "./types"
+import {BooleanControlProps} from "./types"
 
 /**
  * A boolean toggle control component for playground variant properties.
- * 
+ *
  * @remarks
  * - Renders as a horizontal layout with label and switch
  * - Directly propagates state changes without debouncing

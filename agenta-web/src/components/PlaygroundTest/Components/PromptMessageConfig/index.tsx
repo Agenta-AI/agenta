@@ -6,7 +6,7 @@ import type {Path} from "../../types/pathHelpers"
 
 /**
  * PromptMessageConfig Component
- * 
+ *
  * Renders a configuration interface for a single prompt message, including:
  * - Role selector (user/assistant/system)
  * - Content editor for the message
@@ -20,9 +20,9 @@ import type {Path} from "../../types/pathHelpers"
  * @param props.valueKey - Path to the value in variant state
  */
 const PromptMessageConfig = ({
-    variantId, 
-    configKey, 
-    valueKey, 
+    variantId,
+    configKey,
+    valueKey,
     className,
     ...props
 }: PromptMessageConfigProps) => {
@@ -36,8 +36,11 @@ const PromptMessageConfig = ({
     )
 
     return (
-        <div 
-            className={clsx("relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]", className)}
+        <div
+            className={clsx(
+                "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]",
+                className,
+            )}
             {...props}
         >
             <PlaygroundVariantPropertyControl
