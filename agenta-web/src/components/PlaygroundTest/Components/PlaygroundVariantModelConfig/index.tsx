@@ -92,6 +92,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
                 trigger={["click"]}
+                placement="bottomRight"
                 arrow={false}
                 title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
                 content={
@@ -103,7 +104,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
                     />
                 }
                 overlayClassName={clsx([
-                    "[&_.ant-popover-inner-content]:px-3 [&_.ant-popover-inner-content]:py-2 [&_.ant-popover-inner-content]:pt-1",
+                    "[&_.ant-popover-inner-content]:px-3 [&_.ant-popover-inner-content]:pb-3 [&_.ant-popover-inner-content]:pt-1",
                     "[&._ant-popover-title]:mb-0",
                     "[&_.ant-popover-inner]:p-0",
                     "[&_.ant-popover-title_>_div]:p-2",
