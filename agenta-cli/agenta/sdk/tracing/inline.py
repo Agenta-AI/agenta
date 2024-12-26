@@ -101,8 +101,8 @@ class NodeDTO(BaseModel):
 Data = Dict[str, Any]
 Metrics = Dict[str, Any]
 Metadata = Dict[str, Any]
-Tags = Dict[str, str]
-Refs = Dict[str, str]
+Tags = Dict[str, Any]
+Refs = Dict[str, Any]
 
 
 class LinkDTO(BaseModel):
