@@ -4,6 +4,7 @@ import {Typography} from "antd"
 import clsx from "clsx"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {PlaygroundVariantProps} from "./types"
+import PlaygroundGenerations from "../PlaygroundGenerations"
 
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
@@ -35,9 +36,7 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
                         <PlaygroundVariantConfig variantId={variantId} />
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
-                        <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                            Generation
-                        </Typography.Text>
+                        <PlaygroundGenerations />
                     </SplitterPanel>
                 </Splitter>
             </div>
