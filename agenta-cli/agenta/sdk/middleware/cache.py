@@ -1,5 +1,9 @@
+from os import getenv
 from time import time
 from collections import OrderedDict
+
+CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
+CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
 
 
 class TTLLRUCache:

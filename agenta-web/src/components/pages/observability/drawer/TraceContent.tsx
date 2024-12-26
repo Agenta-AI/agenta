@@ -3,6 +3,7 @@ import {JSSTheme, KeyValuePair} from "@/lib/Types"
 import {ArrowRight, Database, PlusCircle, Rocket, Timer} from "@phosphor-icons/react"
 import {Button, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import React, {useState} from "react"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {createUseStyles} from "react-jss"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import dayjs from "dayjs"
@@ -11,7 +12,10 @@ import {statusMapper} from "../components/AvatarTreeContent"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import StatusRenderer from "../components/StatusRenderer"
 import AccordionTreePanel from "../components/AccordionTreePanel"
-import TestsetDrawer from "./TestsetDrawer"
+import {TestsetDrawerProps} from "./TestsetDrawer/assets/types"
+const TestsetDrawer = dynamicComponent<TestsetDrawerProps>(
+    "pages/observability/drawer/TestsetDrawer/TestsetDrawer",
+)
 
 interface TraceContentProps {
     activeTrace: _AgentaRootsResponse
