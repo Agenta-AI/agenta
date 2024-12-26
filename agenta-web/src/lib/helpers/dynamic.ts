@@ -30,3 +30,11 @@ export async function dynamicService(path: string, fallback?: any) {
         return fallback
     }
 }
+
+export async function dynamicLib(path: string, fallback?: any) {
+    try {
+        return await import(`@/lib/${path}`)
+    } catch (error) {
+        return fallback
+    }
+}
