@@ -262,9 +262,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 <Sidebar />
                                 <Layout className={classes.layout}>
                                     <div>
-                                        <div className={clsx(classes.breadcrumbContainer, {
-                                            '[&&]:!mb-0': isNewPlayground
-                                        })}>
+                                        <div
+                                            className={clsx(classes.breadcrumbContainer, {
+                                                "[&&]:!mb-0": isNewPlayground,
+                                            })}
+                                        >
                                             <Breadcrumb
                                                 items={[
                                                     {
@@ -282,9 +284,12 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                                 <Text>agenta v{packageJsonData.version}</Text>
                                             </div>
                                         </div>
-                                        <Content className={clsx(classes.content, {
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0": isNewPlayground
-                                        })}>
+                                        <Content
+                                            className={clsx(classes.content, {
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isNewPlayground,
+                                            })}
+                                        >
                                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                                 <ConfigProvider
                                                     theme={{

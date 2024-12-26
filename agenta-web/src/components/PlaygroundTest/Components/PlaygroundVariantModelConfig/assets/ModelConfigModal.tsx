@@ -6,7 +6,7 @@ import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyCon
 import type {
     PlaygroundVariantModelConfigModalProps,
     ModelConfigModalContentProps,
-    ModelConfigModalActionsProps
+    ModelConfigModalActionsProps,
 } from "../types"
 import type {Path} from "../../../types/pathHelpers"
 import type {StateVariant} from "../../../state/types"
@@ -15,15 +15,12 @@ import type {StateVariant} from "../../../state/types"
  * Renders the modal action buttons for saving and canceling changes
  */
 const ModalActions: React.FC<ModelConfigModalActionsProps> = ({
-    handleSave, 
+    handleSave,
     handleClose,
     className,
     ...props
 }) => (
-    <div 
-        className={clsx("flex items-center justify-end gap-2 mt-4", className)}
-        {...props}
-    >
+    <div className={clsx("flex items-center justify-end gap-2 mt-4", className)} {...props}>
         <Button onClick={handleClose}>Cancel</Button>
         <Button onClick={handleSave} variant="solid" color="default">
             Save
@@ -40,24 +37,20 @@ const ModalContent: React.FC<ModelConfigModalContentProps> = ({
     onClick,
     ...props
 }) => (
-    <div 
-        onClick={onClick}
-        className={className}
-        {...props}
-    >
+    <div onClick={onClick} className={className} {...props}>
         {children}
     </div>
 )
 
 /**
  * ModelConfigModal provides an interface for configuring model-specific parameters.
- * 
+ *
  * Features:
  * - Displays configurable model properties
  * - Prevents click event bubbling
  * - Handles save and cancel actions
  * - Memoized to prevent unnecessary re-renders
- * 
+ *
  * @component
  * @example
  * ```tsx

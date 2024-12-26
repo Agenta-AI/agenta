@@ -4,9 +4,9 @@ import {Input} from "antd"
 const {TextArea} = Input
 
 interface PromptMessageContentProps {
-    value: string;
-    placeholder?: string;
-    onChange: (value: string) => void;
+    value: string
+    placeholder?: string
+    onChange: (value: string) => void
 }
 
 const PromptMessageContent = ({value, placeholder, onChange}: PromptMessageContentProps) => {

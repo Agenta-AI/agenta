@@ -4,9 +4,9 @@ import {CaretUpDown} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 interface PromptMessageUserSelectProps {
-    value: string;
-    options: string[];
-    onChange: (value: string) => void;
+    value: string
+    options: string[]
+    onChange: (value: string) => void
 }
 
 const PromptMessageUserSelect = ({value, options, onChange}: PromptMessageUserSelectProps) => {
@@ -29,8 +29,7 @@ const PromptMessageUserSelect = ({value, options, onChange}: PromptMessageUserSe
                     "flex items-center",
                 ])}
             >
-                {value || "Select..."}{" "}
-                <CaretUpDown size={14} />
+                {value || "Select..."} <CaretUpDown size={14} />
             </Button>
         </Dropdown>
     )

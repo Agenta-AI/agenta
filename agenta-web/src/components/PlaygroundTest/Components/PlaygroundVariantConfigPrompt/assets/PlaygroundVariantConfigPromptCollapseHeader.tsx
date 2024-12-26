@@ -3,24 +3,21 @@ import type {PromptCollapseHeaderProps} from "../types"
 import clsx from "clsx"
 
 // Load model config component dynamically
-const PlaygroundVariantModelConfig = dynamic(
-    () => import("../../PlaygroundVariantModelConfig"),
-    {
-        ssr: false,
-    }
-)
+const PlaygroundVariantModelConfig = dynamic(() => import("../../PlaygroundVariantModelConfig"), {
+    ssr: false,
+})
 
 /**
  * PlaygroundVariantConfigPromptCollapseHeader renders the header section of a prompt configuration collapse.
- * 
+ *
  * Features:
  * - Displays prompt label
  * - Integrates model configuration component
- * 
+ *
  * @component
  * @example
  * ```tsx
- * <PlaygroundVariantConfigPromptCollapseHeader 
+ * <PlaygroundVariantConfigPromptCollapseHeader
  *   variantId="variant-123"
  *   promptIndex={0}
  * />
@@ -33,15 +30,9 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
     ...props
 }) => {
     return (
-        <div
-            className={clsx("w-full flex items-center justify-between", className)}
-            {...props}
-        >
+        <div className={clsx("w-full flex items-center justify-between", className)} {...props}>
             <div>Prompt</div>
-            <PlaygroundVariantModelConfig
-                variantId={variantId}
-                promptIndex={promptIndex}
-            />
+            <PlaygroundVariantModelConfig variantId={variantId} promptIndex={promptIndex} />
         </div>
     )
 }

@@ -4,19 +4,19 @@ import {CaretUpDown} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 interface SimpleDropdownSelectProps {
-    value: string;
-    options: string[];
-    onChange: (value: string) => void;
-    placeholder?: string;
-    className?: string;
+    value: string
+    options: string[]
+    onChange: (value: string) => void
+    placeholder?: string
+    className?: string
 }
 
 const SimpleDropdownSelect = ({
-    value, 
-    options, 
+    value,
+    options,
     onChange,
     placeholder = "Select...",
-    className
+    className,
 }: SimpleDropdownSelectProps) => {
     const menuItems: MenuProps["items"] = useMemo(() => {
         return options.map((option) => ({
@@ -35,11 +35,10 @@ const SimpleDropdownSelect = ({
                     "mt-1 mx-2 px-2",
                     "border-0",
                     "flex items-center",
-                    className
+                    className,
                 ])}
             >
-                {value || placeholder}{" "}
-                <CaretUpDown size={14} />
+                {value || placeholder} <CaretUpDown size={14} />
             </Button>
         </Dropdown>
     )

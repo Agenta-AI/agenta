@@ -1,7 +1,27 @@
+import {useState} from "react"
+import dynamic from "next/dynamic"
 import clsx from "clsx"
-import {Typography, Tag, Button} from "antd"
+import {Button, Select} from "antd"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
 import type {VariantHeaderProps, VariantActionButtonProps} from "../types"
+import {Variant} from "@/lib/Types"
+import {ArrowsOut, FloppyDiskBack} from "@phosphor-icons/react"
+
+import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
+import Version from "@/components/PlaygroundTest/assets/Version"
+import PlaygroundVariantHeaderMenu from "./PlaygroundVariantHeaderMenu"
+
+const DeployVariantModal = dynamic(() => import("../../DeployVariantModal"), {ssr: false})
+const PlaygroundVariantFocusMood = dynamic(() => import("../../PlaygroundVariantFocusMood"), {
+    ssr: false,
+})
+const CommitVariantChangesModal = dynamic(() => import("../../CommitVariantChangesModal"), {
+    ssr: false,
+})
+const VariantRenameModal = dynamic(() => import("../../VariantRenameModal"), {ssr: false})
+const VariantResetChangesModal = dynamic(() => import("../../VariantResetChangesModal"), {
+    ssr: false,
+})
 
 /**
  * Button to save variant changes when modifications are detected
@@ -38,7 +58,7 @@ const PlaygroundVariantDeleteButton: React.FC<VariantActionButtonProps> = ({vari
 /**
  * PlaygroundVariantConfigHeader displays the variant name, revision,
  * and action buttons for saving/deleting the variant.
- * 
+ *
  * @component
  * @example
  * ```tsx
@@ -50,7 +70,12 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
     className,
     ...divProps
 }) => {
-    const {variantName, revision} = usePlayground({
+    const [isDeployOpen, setIsDeployOpen] = useState(false)
+    const [isFocusMoodOpen, setIsFocusMoodOpen] = useState(false)
+    const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
+    const [isVariantRenameOpen, setIsVariantRenameOpen] = useState(false)
+    const [isResetModalOpen, setIsResetModalOpen] = useState(false)
+    const {variantName, revision, variants} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
         variantSelector: (variant) => ({
@@ -60,29 +85,84 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
     })
 
     return (
-        <div
+        <section
             className={clsx(
-                "w-full h-10 px-2.5",
-                "bg-[#f5f7fa]",
+                "w-full h-12 px-2.5",
                 "flex items-center justify-between",
                 "sticky top-0 z-[1]",
-                className
+                className,
             )}
             {...divProps}
         >
             <div className="flex items-center gap-2">
-                <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                    {variantName}
-                </Typography.Text>
-                <Tag color="default" bordered={false} className="bg-[rgba(5,23,41,0.06)]">
-                    {`v${revision}`}
-                </Tag>
+                <Select
+                    style={{width: 120}}
+                    value={variantId}
+                    placeholder="Select a person"
+                    options={variants?.map((variant) => ({
+                        label: variant.variantName,
+                        value: variant.variantId,
+                    }))}
+                />
+
+                <Version revision={revision} />
             </div>
             <div className="flex items-center gap-2">
-                <PlaygroundVariantSaveButton variantId={variantId} />
-                <PlaygroundVariantDeleteButton variantId={variantId} />
+                {/* <PlaygroundVariantSaveButton variantId={variantId} />
+                <PlaygroundVariantDeleteButton variantId={variantId} /> */}
+                <Button
+                    icon={<ArrowsOut size={14} />}
+                    type="text"
+                    onClick={() => setIsFocusMoodOpen(true)}
+                />
+
+                <DeployButton onClick={() => setIsDeployOpen(true)} />
+
+                <Button
+                    icon={<FloppyDiskBack size={14} />}
+                    type="primary"
+                    onClick={() => setIsCommitModalOpen(true)}
+                >
+                    Commit
+                </Button>
+
+                <PlaygroundVariantHeaderMenu
+                    setIsDeployOpen={setIsDeployOpen}
+                    setIsFocusMoodOpen={setIsFocusMoodOpen}
+                    setIsCommitModalOpen={setIsCommitModalOpen}
+                    setIsResetModalOpen={setIsResetModalOpen}
+                    setIsVariantRenameOpen={setIsVariantRenameOpen}
+                />
             </div>
-        </div>
+
+            <VariantResetChangesModal
+                open={isResetModalOpen}
+                onCancel={() => setIsResetModalOpen(false)}
+            />
+
+            <VariantRenameModal
+                open={isVariantRenameOpen}
+                onCancel={() => setIsVariantRenameOpen(false)}
+            />
+
+            <CommitVariantChangesModal
+                open={isCommitModalOpen}
+                onCancel={() => setIsCommitModalOpen(false)}
+            />
+
+            <PlaygroundVariantFocusMood
+                variantId={variantId}
+                open={isFocusMoodOpen}
+                onClose={() => setIsFocusMoodOpen(false)}
+            />
+
+            <DeployVariantModal
+                open={isDeployOpen}
+                onCancel={() => setIsDeployOpen(false)}
+                variant={variants?.[0] as Variant}
+                environments={[]}
+            />
+        </section>
     )
 }
 
