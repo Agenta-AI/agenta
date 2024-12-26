@@ -54,7 +54,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         "& .ant-tabs-content-holder": {
             padding: theme.padding,
             flex: 1,
-            overflowY: "auto",
             "& .ant-tabs-content": {
                 height: "100%",
                 "& .ant-tabs-tabpane": {
