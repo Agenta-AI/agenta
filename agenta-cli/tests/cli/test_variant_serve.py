@@ -130,3 +130,45 @@ class TestAgentaVariantServeCommand:
             self.asset_example_folder, provide_api_key
         )
         assert next(cleanup) == "ok"
+
+    @pytest.mark.cli_testing
+    def test_variant_serve_with_no_env_file(self, cleanup_application_and_files):
+        # ARRANGE: Prepare test data
+        app_name = f"greetings_{uuid.uuid4().hex[:6]}"
+        where_to_run_agenta = "\n"
+        use_this_key = "n"
+        provide_api_key = self.api_key
+        if Path(f"{self.assets_folder}/.env").exists():
+            os.rename(f"{self.assets_folder}/.env", f"{self.assets_folder}/.env.dummy")
+
+        # ACT: Add configuration
+        init_inputs = [
+            f"{app_name}\n",
+            where_to_run_agenta,
+            use_this_key,
+            f"{provide_api_key}\n",
+        ]
+        result = run_agenta_init(init_inputs, self.asset_example_folder)
+        cli_output = next(result)
+
+        if cli_output["exit_status"] == 1:
+            pytest.fail("Creating an app from the CLI failed.")
+
+        serve_inputs = ["n"]  # No .env file found! Are you sure you [...]
+        result = run_variant_serve(serve_inputs, self.asset_example_folder)
+        cli_serve_output = next(result)
+
+        # ASSERT: Verify response
+        assert cli_serve_output["exit_status"] == 0
+        assert "Operation cancelled." in cli_serve_output["output"]
+
+        # CLEANUP:
+        # i). Remove application from backend, db and local filesystem
+        cleanup = cleanup_application_and_files(
+            self.asset_example_folder, provide_api_key
+        )
+        assert next(cleanup) == "ok"
+
+        # ii). Rename the.env.dummy back to.env if it exists
+        if Path(f"{self.assets_folder}/.env.dummy").exists():
+            os.rename(f"{self.assets_folder}/.env.dummy", f"{self.assets_folder}/.env")
