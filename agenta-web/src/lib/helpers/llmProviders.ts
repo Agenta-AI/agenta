@@ -1,12 +1,12 @@
 import cloneDeep from "lodash/cloneDeep"
+import {camelToSnake} from "./utils"
 
-export const llmAvailableProvidersToken = "llmAvailableProvidersToken"
+const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
 export type LlmProvider = {
     title: string
     key: string
     name: string
-    id?: string
 }
 
 export const llmAvailableProviders: LlmProvider[] = [
@@ -54,6 +54,9 @@ export const saveLlmProviderKey = (providerName: string, keyValue: string) => {
     if (item) item.key = keyValue
     localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
 }
+
+export const getLlmProviderKey = (providerName: string) =>
+    getAllProviderLlmKeys().find((item: LlmProvider) => item.title === providerName)?.key
 
 export const getAllProviderLlmKeys = () => {
     const providers = cloneDeep(llmAvailableProviders)
