@@ -1,90 +1,116 @@
 from typing import Callable, Optional
-from os import environ
-from uuid import UUID
+
+from os import getenv
 from json import dumps
-from traceback import format_exc
 
 import httpx
 from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
-from agenta.sdk.utils.logging import log
-from agenta.sdk.middleware.cache import TTLLRUCache
+from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.constants import TRUTHY
+from agenta.sdk.utils.exceptions import display_exception
 
-AGENTA_SDK_AUTH_CACHE_CAPACITY = environ.get(
-    "AGENTA_SDK_AUTH_CACHE_CAPACITY",
-    512,
+import agenta as ag
+
+
+_SHARED_SERVICE = getenv("AGENTA_SHARED_SERVICE", "false").lower() in TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_UNAUTHORIZED_ALLOWED = (
+    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in TRUTHY
 )
+_ALWAYS_ALLOW_LIST = ["/health"]
 
-AGENTA_SDK_AUTH_CACHE_TTL = environ.get(
-    "AGENTA_SDK_AUTH_CACHE_TTL",
-    15 * 60,  # 15 minutes
-)
-
-AGENTA_SDK_AUTH_CACHE = str(environ.get("AGENTA_SDK_AUTH_CACHE", True)).lower() in (
-    "true",
-    "1",
-    "t",
-)
-
-AGENTA_SDK_AUTH_CACHE = False
-
-AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = str(
-    environ.get("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", False)
-).lower() in ("true", "1", "t")
+_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
 
-class Deny(Response):
-    def __init__(self) -> None:
-        super().__init__(status_code=401, content="Unauthorized")
-
-
-cache = TTLLRUCache(
-    capacity=AGENTA_SDK_AUTH_CACHE_CAPACITY,
-    ttl=AGENTA_SDK_AUTH_CACHE_TTL,
-)
-
-
-class AuthorizationMiddleware(BaseHTTPMiddleware):
+class DenyResponse(JSONResponse):
     def __init__(
         self,
-        app: FastAPI,
-        host: str,
-        resource_id: UUID,
-        resource_type: str,
-    ):
+        status_code: int = 401,
+        detail: str = "Unauthorized",
+    ) -> None:
+        super().__init__(
+            status_code=status_code,
+            content={"detail": detail},
+        )
+
+
+class DenyException(Exception):
+    def __init__(
+        self,
+        status_code: int = 401,
+        content: str = "Unauthorized",
+    ) -> None:
+        super().__init__()
+
+        self.status_code = status_code
+        self.content = content
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: FastAPI):
         super().__init__(app)
 
-        self.host = host
-        self.resource_id = resource_id
-        self.resource_type = resource_type
+        self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
+        self.resource_id = (
+            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
+            if not _SHARED_SERVICE
+            else None
+        )
 
-    async def dispatch(
-        self,
-        request: Request,
-        call_next: Callable,
-    ):
-        if AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED:
+    async def dispatch(self, request: Request, call_next: Callable):
+        try:
+            if _UNAUTHORIZED_ALLOWED or request.url.path in _ALWAYS_ALLOW_LIST:
+                request.state.auth = {}
+
+            else:
+                credentials = await self._get_credentials(request)
+
+                request.state.auth = {"credentials": credentials}
+
             return await call_next(request)
 
-        try:
-            authorization = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
+        except DenyException as deny:
+            display_exception("Auth Middleware Exception")
+
+            return DenyResponse(
+                status_code=deny.status_code,
+                detail=deny.content,
             )
+
+        except:  # pylint: disable=bare-except
+            display_exception("Auth Middleware Exception")
+
+            return DenyResponse(
+                status_code=500,
+                detail="Auth: Unexpected Error.",
+            )
+
+    async def _get_credentials(self, request: Request) -> Optional[str]:
+        try:
+            authorization = request.headers.get("authorization", None)
 
             headers = {"Authorization": authorization} if authorization else None
 
-            cookies = {"sAccessToken": request.cookies.get("sAccessToken")}
+            access_token = request.cookies.get("sAccessToken", None)
 
-            params = {
-                "action": "run_service",
-                "resource_type": self.resource_type,
-                "resource_id": self.resource_id,
-            }
+            cookies = {"sAccessToken": access_token} if access_token else None
 
-            project_id = request.query_params.get("project_id")
+            baggage = request.state.otel.get("baggage") if request.state.otel else {}
+
+            project_id = (
+                # CLEANEST
+                baggage.get("project_id")
+                # ALTERNATIVE
+                or request.query_params.get("project_id")
+            )
+
+            params = {"action": "run_service", "resource_type": "service"}
+
+            if self.resource_id:
+                params["resource_id"] = self.resource_id
 
             if project_id:
                 params["project_id"] = project_id
@@ -98,48 +124,57 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
                 sort_keys=True,
             )
 
-            policy = None
-            if AGENTA_SDK_AUTH_CACHE:
-                policy = cache.get(_hash)
+            if _CACHE_ENABLED:
+                credentials = _cache.get(_hash)
 
-            if not policy:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{self.host}/api/permissions/verify",
-                        headers=headers,
-                        cookies=cookies,
-                        params=params,
+                if credentials:
+                    return credentials
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.host}/api/permissions/verify",
+                    headers=headers,
+                    cookies=cookies,
+                    params=params,
+                )
+
+                if response.status_code == 401:
+                    raise DenyException(
+                        status_code=401,
+                        content="Invalid credentials",
+                    )
+                elif response.status_code == 403:
+                    raise DenyException(
+                        status_code=403,
+                        content="Service execution not allowed.",
+                    )
+                elif response.status_code != 200:
+                    raise DenyException(
+                        status_code=400,
+                        content="Auth: Unexpected Error.",
                     )
 
-                    if response.status_code != 200:
-                        cache.put(_hash, {"effect": "deny"})
-                        return Deny()
+                auth = response.json()
 
-                    auth = response.json()
+                if auth.get("effect") != "allow":
+                    raise DenyException(
+                        status_code=403,
+                        content="Service execution not allowed.",
+                    )
 
-                    if auth.get("effect") != "allow":
-                        cache.put(_hash, {"effect": "deny"})
-                        return Deny()
+                credentials = auth.get("credentials")
 
-                    policy = {
-                        "effect": "allow",
-                        "credentials": auth.get("credentials"),
-                    }
+                _cache.put(_hash, credentials)
 
-                    cache.put(_hash, policy)
+                return credentials
 
-            if not policy or policy.get("effect") == "deny":
-                return Deny()
+        except DenyException as deny:
+            raise deny
 
-            request.state.credentials = policy.get("credentials")
+        except Exception as exc:  # pylint: disable=bare-except
+            display_exception("Auth Middleware Exception (suppressed)")
 
-            return await call_next(request)
-
-        except:  # pylint: disable=bare-except
-            log.warning("------------------------------------------------------")
-            log.warning("Agenta SDK - handling auth middleware exception below:")
-            log.warning("------------------------------------------------------")
-            log.warning(format_exc().strip("\n"))
-            log.warning("------------------------------------------------------")
-
-            return Deny()
+            raise DenyException(
+                status_code=500,
+                content="Auth: Unexpected Error.",
+            ) from exc
