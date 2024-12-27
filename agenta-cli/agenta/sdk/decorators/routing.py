@@ -28,6 +28,7 @@ from agenta.sdk.context.tracing import (
 from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.helpers import get_current_version
 from agenta.sdk.types import (
     DictInput,
     FloatParam,
@@ -262,6 +263,8 @@ class entrypoint:
 
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
+
+        openapi_schema["agenta_sdk"] = {"version": get_current_version()}
 
         for _route in entrypoint.routes:
             self.override_schema(
