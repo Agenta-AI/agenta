@@ -9,6 +9,7 @@ _USE_CORS = getenv("AGENTA_USE_CORS", "enable").lower() in _TRUTHY
 
 class CORSMiddleware(_CORSMiddleware):
     def __init__(self, app: ASGIApp):
+        self.app = app
         if _USE_CORS:
             super().__init__(
                 app=app,
