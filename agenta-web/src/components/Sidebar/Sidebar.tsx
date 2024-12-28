@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
-import {Button, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
+import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
 import Logo from "../Logo/Logo"
 import Link from "next/link"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
@@ -12,7 +12,7 @@ import {JSSTheme} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 import {useSession} from "@/hooks/useSession"
-import {CaretDown, Gear, SignOut} from "@phosphor-icons/react"
+import {CaretDown, Gear, SidebarSimple, SignOut} from "@phosphor-icons/react"
 import AlertPopup from "../AlertPopup/AlertPopup"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import Avatar from "@/components/Avatar/Avatar"
@@ -28,7 +28,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         position: "sticky !important",
         bottom: "0px",
         top: "0px",
-
         "&>div:nth-of-type(2)": {
             background: `${theme.colorBgContainer} !important`,
         },
@@ -40,26 +39,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         height: "100%",
-        padding: "0 10px 10px",
+        padding: "10px",
         "& > div:nth-of-type(1)": {
-            margin: `${theme.padding}px 0`,
             display: "flex",
             justifyContent: "center",
         },
-        "& > div:nth-of-type(2)": {
+        "& > div:nth-of-type(3)": {
             display: "flex",
             justifyContent: "space-between",
             flexDirection: "column",
             flex: 1,
             overflowY: "auto",
-        },
-        "& .ant-menu-submenu-title": {
-            display: "flex",
-            alignItems: "center",
-            paddingInlineEnd: "20px",
-            "& .ant-menu-submenu-arrow": {
-                insetInlineEnd: "8px",
-            },
         },
         "& .ant-menu-item,.ant-menu-submenu-title": {
             padding: "0 16px !important",
@@ -258,82 +248,96 @@ const Sidebar: React.FC = () => {
 
     return (
         <div className={classes.siderWrapper}>
-            <Sider theme={appTheme} className={classes.sidebar} width={236}>
+            <Sider
+                theme={appTheme}
+                className={classes.sidebar}
+                collapsible
+                collapsed={collapsed}
+                width={236}
+                trigger={null}
+            >
                 <div className={classes.sliderContainer}>
-                    <div>
-                        {!isDemo() && (
-                            <Link data-cy="app-management-link" href="/apps">
-                                <Logo isOnlyIconLogo={collapsed} />
-                            </Link>
-                        )}
-                        {selectedOrg?.id && user?.id && isDemo() && (
-                            <Dropdown
-                                trigger={["hover"]}
-                                menu={{
-                                    items: [
-                                        ...orgs.map((org: any) => ({
-                                            key: org.id,
-                                            label: (
-                                                <Space>
-                                                    <Avatar size="small" name={org.name} />
-                                                    <Text>{org.name}</Text>
-                                                </Space>
-                                            ),
-                                        })),
-                                        {type: "divider"},
-                                        !project?.is_demo && {
-                                            key: "settings",
-                                            label: (
-                                                <Link
-                                                    href={"/settings"}
-                                                    className="flex items-center gap-2"
-                                                >
-                                                    <Gear size={16} />
-                                                    <Text>Settings</Text>
-                                                </Link>
-                                            ),
-                                        },
-                                        {
-                                            key: "logout",
-                                            label: (
-                                                <div className="flex items-center gap-2">
-                                                    <SignOut size={16} />
-                                                    <Text>Logout</Text>
-                                                </div>
-                                            ),
-                                            onClick: () => {
-                                                AlertPopup({
-                                                    title: "Logout",
-                                                    message: "Are you sure you want to logout?",
-                                                    onOk: logout,
-                                                })
+                    <div className="flex items-center gap-2">
+                        <div>
+                            {!isDemo() && (
+                                <Link data-cy="app-management-link" href="/apps">
+                                    <Logo isOnlyIconLogo={collapsed} />
+                                </Link>
+                            )}
+                            {selectedOrg?.id && user?.id && isDemo() && (
+                                <Dropdown
+                                    trigger={["hover"]}
+                                    menu={{
+                                        items: [
+                                            ...orgs.map((org: any) => ({
+                                                key: org.id,
+                                                label: (
+                                                    <Space>
+                                                        <Avatar size="small" name={org.name} />
+                                                        <Text>{org.name}</Text>
+                                                    </Space>
+                                                ),
+                                            })),
+                                            {type: "divider"},
+                                            !project?.is_demo && {
+                                                key: "settings",
+                                                label: (
+                                                    <Link
+                                                        href={"/settings"}
+                                                        className="flex items-center gap-2"
+                                                    >
+                                                        <Gear size={16} />
+                                                        <Text>Settings</Text>
+                                                    </Link>
+                                                ),
                                             },
+                                            {
+                                                key: "logout",
+                                                label: (
+                                                    <div className="flex items-center gap-2">
+                                                        <SignOut size={16} />
+                                                        <Text>Logout</Text>
+                                                    </div>
+                                                ),
+                                                onClick: () => {
+                                                    AlertPopup({
+                                                        title: "Logout",
+                                                        message: "Are you sure you want to logout?",
+                                                        onOk: logout,
+                                                    })
+                                                },
+                                            },
+                                        ],
+                                        selectedKeys: [selectedOrg.id],
+                                        onClick: ({key}) => {
+                                            if (["settings", "logout"].includes(key)) return
+                                            changeSelectedOrg(key)
                                         },
-                                    ],
-                                    selectedKeys: [selectedOrg.id],
-                                    onClick: ({key}) => {
-                                        if (["settings", "logout"].includes(key)) return
-                                        changeSelectedOrg(key)
-                                    },
-                                }}
-                            >
-                                <Button className={classes.avatarMainContainer}>
-                                    <div className={classes.avatarContainer}>
-                                        <Avatar className="text-lg" name={selectedOrg.name} />
+                                    }}
+                                >
+                                    <Button className={classes.avatarMainContainer}>
+                                        <div className={classes.avatarContainer}>
+                                            <Avatar className="text-lg" name={selectedOrg.name} />
 
-                                        {!collapsed && (
-                                            <div>
-                                                <Text>{selectedOrg.name}</Text>
-                                                <Text>{selectedOrg.type}</Text>
-                                            </div>
-                                        )}
-                                    </div>
+                                            {!collapsed && (
+                                                <div>
+                                                    <Text>{selectedOrg.name}</Text>
+                                                    <Text>{selectedOrg.type}</Text>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                    <CaretDown size={14} />
-                                </Button>
-                            </Dropdown>
-                        )}
+                                        <CaretDown size={14} />
+                                    </Button>
+                                </Dropdown>
+                            )}
+                        </div>
+                        <Button
+                            onClick={() => setCollapsed(!collapsed)}
+                            icon={<SidebarSimple size={14} />}
+                        />
                     </div>
+                    <Divider className="my-4" />
                     <ErrorBoundary fallback={<div />}>
                         <div>
                             <SidebarMenu
