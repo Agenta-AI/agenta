@@ -192,6 +192,7 @@ const Sidebar: React.FC = () => {
     const {project} = useProjectData()
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
+    const [isHovered, setIsHovered] = useState(false)
 
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
@@ -252,16 +253,22 @@ const Sidebar: React.FC = () => {
                 theme={appTheme}
                 className={classes.sidebar}
                 collapsible
-                collapsed={collapsed}
+                collapsed={collapsed && !isHovered}
                 width={236}
                 trigger={null}
+                onMouseOver={() => {
+                    if (collapsed) setIsHovered(true)
+                }}
+                onMouseOut={() => {
+                    if (collapsed) setIsHovered(false)
+                }}
             >
                 <div className={classes.sliderContainer}>
                     <div className="flex items-center gap-2">
                         <div>
                             {!isDemo() && (
                                 <Link data-cy="app-management-link" href="/apps">
-                                    <Logo isOnlyIconLogo={collapsed} />
+                                    <Logo isOnlyIconLogo={collapsed && !isHovered} />
                                 </Link>
                             )}
                             {selectedOrg?.id && user?.id && isDemo() && (
@@ -319,7 +326,7 @@ const Sidebar: React.FC = () => {
                                         <div className={classes.avatarContainer}>
                                             <Avatar className="text-lg" name={selectedOrg.name} />
 
-                                            {!collapsed && (
+                                            {!collapsed && !isHovered && (
                                                 <div>
                                                     <Text>{selectedOrg.name}</Text>
                                                     <Text>{selectedOrg.type}</Text>
@@ -332,10 +339,13 @@ const Sidebar: React.FC = () => {
                                 </Dropdown>
                             )}
                         </div>
-                        <Button
-                            onClick={() => setCollapsed(!collapsed)}
-                            icon={<SidebarSimple size={14} />}
-                        />
+                        {!collapsed || (collapsed && isHovered) ? (
+                            <Button
+                                onClick={() => setCollapsed(!collapsed)}
+                                icon={<SidebarSimple size={14} />}
+                                type={collapsed && isHovered ? "primary" : undefined}
+                            />
+                        ) : null}
                     </div>
                     <Divider className="my-4" />
                     <ErrorBoundary fallback={<div />}>
@@ -348,7 +358,7 @@ const Sidebar: React.FC = () => {
                                     onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
                                 }}
                                 items={topItems}
-                                collapsed={collapsed}
+                                collapsed={collapsed && !isHovered}
                             />
                             <SidebarMenu
                                 menuProps={{
@@ -358,7 +368,7 @@ const Sidebar: React.FC = () => {
                                     onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
                                 }}
                                 items={bottomItems}
-                                collapsed={collapsed}
+                                collapsed={collapsed && !isHovered}
                                 mode="vertical"
                             />
                         </div>
