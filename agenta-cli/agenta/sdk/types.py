@@ -11,9 +11,44 @@ from pydantic import BaseModel, Field, root_validator
 from agenta.sdk.assets import supported_llm_models
 
 
+class BaseConfigModel(BaseModel):
+    @classmethod
+    def model_json_schema(
+        cls,
+        by_alias: bool = True,
+        ref_template: str = "#/components/schemas/{model}",
+        schema_generator: Any = None,
+        mode: Any = None,
+    ) -> dict:
+        schema = super().model_json_schema(by_alias=by_alias, ref_template=ref_template)
+
+        for field_name, field in cls.model_fields.items():
+            if "multiple_choice" in field.json_schema_extra:
+                values: MultipleChoice = field.json_schema_extra["multiple_choice"]
+                choices = values.choices
+
+                if isinstance(choices, dict):
+                    schema["properties"][field_name]["x-parameter"] = "grouped_choice"
+                    schema["properties"][field_name]["choices"] = choices
+                elif isinstance(choices, list):
+                    schema["properties"][field_name]["x-parameter"] = "choice"
+                    schema["properties"][field_name]["enum"] = choices
+
+        return schema
+
+
 @dataclass
 class MultipleChoice:
     choices: Union[List[str], Dict[str, List[str]]]
+
+
+def MCField(  # pylint: disable=invalid-name
+    default: str,
+    choices: Union[List[str], Dict[str, List[str]]],
+) -> Field:
+    field = Field(default=default)
+    field.json_schema_extra = {"multiple_choice": MultipleChoice(choices)}
+    return field
 
 
 class LLMTokenUsage(BaseModel):
@@ -26,6 +61,7 @@ class BaseResponse(BaseModel):
     version: Optional[str] = "3.1"
     data: Optional[Union[str, Dict[str, Any]]] = None
     content_type: Optional[str] = "string"
+    tree_id: Optional[str] = None
     tree: Optional[AgentaNodesResponse] = None
 
 
@@ -247,6 +283,7 @@ class Prompt(BaseModel):
     frequency_penalty: float
     presence_penalty: float
 
+
 # -----------------------------------------------------
 # New Prompt model
 # -----------------------------------------------------
@@ -257,12 +294,14 @@ class ToolCall(BaseModel):
     type: Literal["function"] = "function"
     function: Dict[str, str]
 
+
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool", "function"]
     content: Optional[str] = None
     name: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
+
 
 class ResponseFormatText(BaseModel):
     type: Literal["text"]
@@ -286,7 +325,7 @@ class JSONSchema(BaseModel):
 
     model_config = {
         "populate_by_name": True,
-        "json_schema_extra": {"required": ["name", "schema"]}
+        "json_schema_extra": {"required": ["name", "schema"]},
     }
 
 
@@ -296,98 +335,106 @@ class ResponseFormatJSONSchema(BaseModel):
     json_schema: JSONSchema
 
 
-ResponseFormat = Union[ResponseFormatText, ResponseFormatJSONObject, ResponseFormatJSONSchema]
+ResponseFormat = Union[
+    ResponseFormatText, ResponseFormatJSONObject, ResponseFormatJSONSchema
+]
+
 
 class ModelConfig(BaseModel):
     """Configuration for model parameters"""
+
     model: Annotated[str, MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo",
-        description="ID of the model to use"
+        default="gpt-3.5-turbo", description="ID of the model to use"
     )
     temperature: Optional[float] = Field(
         default=None,
         ge=0.0,
         le=2.0,
-        description="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic"
+        description="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic",
     )
     max_tokens: Optional[int] = Field(
         default=None,
         ge=0,
-        description="The maximum number of tokens that can be generated in the chat completion"
+        description="The maximum number of tokens that can be generated in the chat completion",
     )
     top_p: Optional[float] = Field(
         default=None,
         ge=0.0,
         le=1.0,
-        description="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass"
+        description="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass",
     )
     frequency_penalty: Optional[float] = Field(
         default=None,
         ge=-2.0,
         le=2.0,
-        description="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far"
+        description="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far",
     )
     presence_penalty: Optional[float] = Field(
         default=None,
         ge=-2.0,
         le=2.0,
-        description="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far"
+        description="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far",
     )
     response_format: Optional[ResponseFormat] = Field(
         default=None,
-        description="An object specifying the format that the model must output"
+        description="An object specifying the format that the model must output",
     )
     stream: Optional[bool] = Field(
-        default=None,
-        description="If set, partial message deltas will be sent"
+        default=None, description="If set, partial message deltas will be sent"
     )
     tools: Optional[List[Dict]] = Field(
         default=None,
-        description="A list of tools the model may call. Currently, only functions are supported as a tool"
+        description="A list of tools the model may call. Currently, only functions are supported as a tool",
     )
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = Field(
-        default=None,
-        description="Controls which (if any) tool is called by the model"
+        default=None, description="Controls which (if any) tool is called by the model"
     )
+
 
 class PromptTemplateError(Exception):
     """Base exception for all PromptTemplate errors"""
+
     pass
+
 
 class InputValidationError(PromptTemplateError):
     """Raised when input validation fails"""
-    def __init__(self, message: str, missing: Optional[set] = None, extra: Optional[set] = None):
+
+    def __init__(
+        self, message: str, missing: Optional[set] = None, extra: Optional[set] = None
+    ):
         self.missing = missing
         self.extra = extra
         super().__init__(message)
 
+
 class TemplateFormatError(PromptTemplateError):
     """Raised when template formatting fails"""
+
     def __init__(self, message: str, original_error: Optional[Exception] = None):
         self.original_error = original_error
         super().__init__(message)
 
+
 class PromptTemplate(BaseModel):
     """A template for generating prompts with formatting capabilities"""
+
     messages: List[Message] = Field(
-        default=[
-            Message(role="system", content=""),
-            Message(role="user", content="")
-        ]
+        default=[Message(role="system", content=""), Message(role="user", content="")]
     )
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
     template_format: Literal["fstring", "jinja2", "curly"] = Field(
         default="fstring",
-        description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}"
+        description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",
     )
     input_keys: Optional[List[str]] = Field(
         default=None,
-        description="Optional list of input keys for validation. If not provided, any inputs will be accepted"
+        description="Optional list of input keys for validation. If not provided, any inputs will be accepted",
     )
     llm_config: ModelConfig = Field(
         default_factory=ModelConfig,
-        description="Configuration for the model parameters"
+        description="Configuration for the model parameters",
     )
 
     model_config = {
@@ -397,7 +444,6 @@ class PromptTemplate(BaseModel):
             }
         }
     }
-
 
     @root_validator(pre=True)
     def init_messages(cls, values):
@@ -418,26 +464,30 @@ class PromptTemplate(BaseModel):
                 return content.format(**kwargs)
             elif self.template_format == "jinja2":
                 from jinja2 import Template, TemplateError
+
                 try:
                     return Template(content).render(**kwargs)
                 except TemplateError as e:
                     raise TemplateFormatError(
                         f"Jinja2 template error in content: '{content}'. Error: {str(e)}",
-                        original_error=e
+                        original_error=e,
                     )
             elif self.template_format == "curly":
                 import re
+
                 result = content
                 for key, value in kwargs.items():
-                    result = re.sub(r'\{\{' + key + r'\}\}', str(value), result)
-                if re.search(r'\{\{.*?\}\}', result):
-                    unreplaced = re.findall(r'\{\{(.*?)\}\}', result)
+                    result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
+                if re.search(r"\{\{.*?\}\}", result):
+                    unreplaced = re.findall(r"\{\{(.*?)\}\}", result)
                     raise TemplateFormatError(
                         f"Unreplaced variables in curly template: {unreplaced}"
                     )
                 return result
             else:
-                raise TemplateFormatError(f"Unknown template format: {self.template_format}")
+                raise TemplateFormatError(
+                    f"Unknown template format: {self.template_format}"
+                )
         except KeyError as e:
             key = str(e).strip("'")
             raise TemplateFormatError(
@@ -445,11 +495,10 @@ class PromptTemplate(BaseModel):
             )
         except Exception as e:
             raise TemplateFormatError(
-                f"Error formatting template '{content}': {str(e)}",
-                original_error=e
+                f"Error formatting template '{content}': {str(e)}", original_error=e
             )
 
-    def format(self, **kwargs) -> 'PromptTemplate':
+    def format(self, **kwargs) -> "PromptTemplate":
         """
         Format the template with provided inputs.
         Only validates against input_keys if they are specified.
@@ -462,18 +511,20 @@ class PromptTemplate(BaseModel):
         if self.input_keys is not None:
             missing = set(self.input_keys) - set(kwargs.keys())
             extra = set(kwargs.keys()) - set(self.input_keys)
-            
+
             error_parts = []
             if missing:
-                error_parts.append(f"Missing required inputs: {', '.join(sorted(missing))}")
+                error_parts.append(
+                    f"Missing required inputs: {', '.join(sorted(missing))}"
+                )
             if extra:
                 error_parts.append(f"Unexpected inputs: {', '.join(sorted(extra))}")
-            
+
             if error_parts:
                 raise InputValidationError(
                     " | ".join(error_parts),
                     missing=missing if missing else None,
-                    extra=extra if extra else None
+                    extra=extra if extra else None,
                 )
 
         new_messages = []
@@ -484,24 +535,26 @@ class PromptTemplate(BaseModel):
                 except TemplateFormatError as e:
                     raise TemplateFormatError(
                         f"Error in message {i} ({msg.role}): {str(e)}",
-                        original_error=e.original_error
+                        original_error=e.original_error,
                     )
             else:
                 new_content = None
-                
-            new_messages.append(Message(
-                role=msg.role,
-                content=new_content,
-                name=msg.name,
-                tool_calls=msg.tool_calls,
-                tool_call_id=msg.tool_call_id
-            ))
-        
+
+            new_messages.append(
+                Message(
+                    role=msg.role,
+                    content=new_content,
+                    name=msg.name,
+                    tool_calls=msg.tool_calls,
+                    tool_call_id=msg.tool_call_id,
+                )
+            )
+
         return PromptTemplate(
             messages=new_messages,
             template_format=self.template_format,
             llm_config=self.llm_config,
-            input_keys=self.input_keys
+            input_keys=self.input_keys,
         )
 
     def to_openai_kwargs(self) -> dict:
@@ -514,25 +567,27 @@ class PromptTemplate(BaseModel):
         # Add optional parameters only if they are set
         if self.llm_config.temperature is not None:
             kwargs["temperature"] = self.llm_config.temperature
-            
+
         if self.llm_config.top_p is not None:
             kwargs["top_p"] = self.llm_config.top_p
 
         if self.llm_config.stream is not None:
             kwargs["stream"] = self.llm_config.stream
-            
+
         if self.llm_config.max_tokens is not None:
             kwargs["max_tokens"] = self.llm_config.max_tokens
-            
+
         if self.llm_config.frequency_penalty is not None:
             kwargs["frequency_penalty"] = self.llm_config.frequency_penalty
-            
+
         if self.llm_config.presence_penalty is not None:
             kwargs["presence_penalty"] = self.llm_config.presence_penalty
-            
+
         if self.llm_config.response_format:
-            kwargs["response_format"] = self.llm_config.response_format.dict(by_alias=True)
-            
+            kwargs["response_format"] = self.llm_config.response_format.dict(
+                by_alias=True
+            )
+
         if self.llm_config.tools:
             kwargs["tools"] = self.llm_config.tools
             # Only set tool_choice if tools are present

@@ -5,8 +5,9 @@ from .sdk.utils.preinit import PreInitObject
 import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
 
 from .sdk.types import (
+    BaseConfigModel,
     DictInput,
-    MultipleChoice,
+    MCField,
     FloatParam,
     IntParam,
     MultipleChoiceParam,
@@ -16,13 +17,14 @@ from .sdk.types import (
     FileInputURL,
     BinaryParam,
     Prompt,
+    PromptTemplate,
 )
 
 from .sdk.utils.logging import log as logging
 from .sdk.tracing import Tracing, get_tracer
 from .sdk.decorators.tracing import instrument
 from .sdk.tracing.conventions import Reference
-from .sdk.decorators.routing import entrypoint, app, route
+from .sdk.decorators.routing import app, route
 from .sdk.agenta_init import Config, AgentaSingleton, init as _init
 from .sdk.utils.costs import calculate_token_usage
 from .sdk.client import Agenta

@@ -5,6 +5,7 @@ from agenta.sdk.assets import supported_llm_models
 from pydantic import BaseModel, Field
 
 import os
+
 # Import mock if MOCK_LLM environment variable is set
 if os.getenv("MOCK_LLM", True):
     from mock_litellm import MockLiteLLM
@@ -30,9 +31,7 @@ ag.init()
 
 class MyConfig(BaseModel):
     temperature: float = Field(default=1, ge=0.0, le=2.0)
-    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo"
-    )
+    model: str = ag.MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
     max_tokens: int = Field(default=-1, ge=-1, le=4000)
     prompt_system: str = Field(default=prompts["system_prompt"])
     prompt_user: str = Field(default=prompts["user_prompt"])
@@ -89,7 +88,6 @@ async def generate(
     inputs: ag.DictInput = ag.DictInput(default_keys=["country"]),
 ):
     config = ag.ConfigManager.get_from_route(schema=MyConfig)
-    print("popo", config)
     try:
         prompt_user = config.prompt_user.format(**inputs)
     except Exception as e:
@@ -106,8 +104,4 @@ async def generate(
         )
 
     response = await llm_call(prompt_system=prompt_system, prompt_user=prompt_user)
-    return {
-        "message": response["message"],
-        "usage": response.get("usage", None),
-        "cost": response.get("cost", None),
-    }
+    return response["message"]

@@ -4,6 +4,7 @@ import agenta as ag
 from agenta.sdk.assets import supported_llm_models
 from pydantic import BaseModel, Field
 import os
+
 # Import mock if MOCK_LLM environment variable is set
 if os.getenv("MOCK_LLM", True):
     from mock_litellm import MockLiteLLM
@@ -22,9 +23,7 @@ ag.init()
 
 class MyConfig(BaseModel):
     temperature: float = Field(default=0.2, le=1, ge=0)
-    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo"
-    )
+    model: str = ag.MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
     max_tokens: int = Field(default=-1, ge=-1, le=4000)
     prompt_system: str = Field(default=SYSTEM_PROMPT)
 

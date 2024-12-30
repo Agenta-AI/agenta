@@ -4,17 +4,17 @@
 ### These request can be run using the Rest Client extension in vsCode
 
 ### Health Check
-GET {{baseUrl}}/{{service}}/health HTTP/1.1
+GET {{baseUrl}}/{{service}}/health
 
 ### OpenAPI
-GET {{baseUrl}}/{{service}}/openapi.json HTTP/1.1
+GET {{baseUrl}}/{{service}}/openapi.json
 
 ### Basic Text Response - Geography Assistant
-POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+POST {{baseUrl}}/{{service}}/test
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -41,11 +41,11 @@ Content-Type: application/json
 }
 
 ### JSON Object Response - Movie Information
-POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+POST {{baseUrl}}/{{service}}/test
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -72,11 +72,11 @@ Content-Type: application/json
 }
 
 ### JSON Schema Response - Recipe Generator
-POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+POST {{baseUrl}}/{{service}}/test
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -150,11 +150,11 @@ Content-Type: application/json
 }
 
 ### Function Calling with Tools - Weather Assistant
-POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+POST {{baseUrl}}/{{service}}/test
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -204,11 +204,11 @@ Content-Type: application/json
 }
 
 ### Function Calling with Multiple Tools - Smart Home Assistant
-POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+POST {{baseUrl}}/{{service}}/test
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
