@@ -7,7 +7,7 @@ services:
     environment:
       - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
       - AGENTA_HOST=http://host.docker.internal
-      - OPENAI_API_KEY=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
+      - OPENAI_API_KEY=sk-xxxx
 
     networks:
       - agenta-network
