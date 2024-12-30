@@ -5,9 +5,9 @@ interface DeployButtonProps extends ButtonProps {
     label?: string
 }
 
-const DeployButton = ({label, ...props}: DeployButtonProps) => {
+const DeployButton = ({label, type = "text", ...props}: DeployButtonProps) => {
     return (
-        <Button icon={<Rocket size={14} />} type={label ? "primary" : "text"} {...props}>
+        <Button icon={<Rocket size={14} />} type={type} {...props}>
             {label}
         </Button>
     )
