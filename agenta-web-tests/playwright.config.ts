@@ -1,13 +1,26 @@
 import { defineConfig } from "@playwright/test";
 import { allProjects } from "./playwright/config/projects";
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
 
-/**
- * Read environment variables from file.
- * https://github.com/motdotla/dotenv
- */
-// import dotenv from 'dotenv';
-// import path from 'path';
-// dotenv.config({ path: path.resolve(__dirname, '.env') });
+// Get current directory in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables from .env file
+dotenv.config({ path: resolve(__dirname, ".env") });
+
+// Verify required environment variables
+const requiredEnvVars = ["TESTMAIL_API_KEY", "TESTMAIL_NAMESPACE"];
+const missingEnvVars = requiredEnvVars.filter(
+  (varName) => !process.env[varName]
+);
+
+if (missingEnvVars.length > 0) {
+  console.error("Missing required environment variables:", missingEnvVars);
+  process.exit(1);
+}
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -29,7 +42,14 @@ export default defineConfig({
   reporter: "html",
 
   // Global test timeout
-  timeout: 30000,
+  timeout: 60000,
+  expect: {
+    /**
+     * Maximum time expect() should wait for the condition to be met.
+     * For example in `await expect(locator).toHaveText();`
+     */
+    timeout: 1 * 60 * 1000,
+  },
 
   use: {
     trace: "on-first-retry",
