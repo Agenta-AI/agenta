@@ -1,25 +1,13 @@
-import {
-    DotsThreeVertical,
-    MinusCircle,
-    ArrowsOut,
-    Play,
-    TreeView,
-    Timer,
-    PlusCircle,
-    CheckCircle,
-} from "@phosphor-icons/react"
-import {Button, Divider, Input, Tag, Typography} from "antd"
+import {Play} from "@phosphor-icons/react"
+import {Button, Divider, Input, Typography} from "antd"
+import PlaygroundVariableOutput from "./assets/PlaygroundVariableOutput"
+import PlaygroundVariableMenu from "./assets/PlaygroundVariableMenu"
 
 const {Text} = Typography
 
-type Output = "empty" | "error" | "generated"
-
 const PlaygroundVariables = () => {
-    const isOutput: Output = "empty"
+    const isOutput = "generated"
     const envVariables = "country"
-    const status = "success"
-    const time_end = "0.0453s"
-    const cost = "79 / $0.0053"
 
     return (
         <div className="flex flex-col gap-6">
@@ -32,11 +20,7 @@ const PlaygroundVariables = () => {
                     <Input.TextArea placeholder="Enter value" className="w-full pt-9" />
                 </div>
 
-                <div className="flex items-center gap-1">
-                    <Button icon={<ArrowsOut size={14} />} type="text" />
-                    <Button icon={<MinusCircle size={14} />} type="text" />
-                    <Button icon={<DotsThreeVertical size={14} />} type="text" />
-                </div>
+                <PlaygroundVariableMenu />
             </div>
 
             <div className="flex items-start justify-start gap-4">
@@ -44,36 +28,7 @@ const PlaygroundVariables = () => {
                     <Button icon={<Play size={14} />}>Run</Button>
                 </div>
 
-                {isOutput === "empty" ? (
-                    <Text type="secondary">Click to generate output</Text>
-                ) : isOutput === "error" ? (
-                    <Text type="danger">Error generating output</Text>
-                ) : (
-                    <div className="flex flex-col gap-3">
-                        <Text type="success">Output generated</Text>
-
-                        <div className="flex items-center gap-1">
-                            <Button icon={<TreeView size={14} />} />
-                            <Tag color="green" bordered={false} className="flex items-center gap-1">
-                                <CheckCircle size={14} /> {status}
-                            </Tag>
-                            <Tag
-                                color="default"
-                                bordered={false}
-                                className="flex items-center gap-1"
-                            >
-                                <Timer size={14} /> {time_end}
-                            </Tag>
-                            <Tag
-                                color="default"
-                                bordered={false}
-                                className="flex items-center gap-1"
-                            >
-                                <PlusCircle size={14} /> {cost}
-                            </Tag>
-                        </div>
-                    </div>
-                )}
+                <PlaygroundVariableOutput isOutput={isOutput} />
             </div>
 
             <div className="-mx-3">

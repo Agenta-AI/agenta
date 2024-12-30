@@ -37,8 +37,8 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
                         <PlaygroundVariantConfig variantId={variantId} />
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
-                        {/* <PlaygroundGenerations /> */}
-                        <PlaygroundVariantHistory />
+                        <PlaygroundGenerations />
+                        {/* <PlaygroundVariantHistory /> */}
                     </SplitterPanel>
                 </Splitter>
             </div>
