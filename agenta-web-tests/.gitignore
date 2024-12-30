@@ -10,14 +10,13 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-#Allow
-!.env
-node_modules/
+# test output
 /test-results/
 /playwright-report/
 /blob-report/
