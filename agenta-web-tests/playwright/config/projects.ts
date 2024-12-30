@@ -1,63 +1,77 @@
-import {devices, type Project} from "@playwright/test"
+import { devices, type Project } from "@playwright/test";
 import {
-    TestEnvironment,
-    TestFeatureScope,
-    type TestEnvironmentType,
-    environmentFeatures,
-} from "./testTags"
-import {deployments} from "./deployments"
+  TestEnvironment,
+  TestFeatureScope,
+  environmentFeatures,
+} from "./testTags";
+import { deployments } from "./deployments";
+import type PlaywrightConfig from "./types";
 
+/**
+ * Base configuration for all test projects
+ * Uses Chrome Desktop as the default browser
+ */
 const baseConfig = {
-    use: {
-        ...devices["Desktop Chrome"],
-    },
-}
+  use: {
+    ...devices["Desktop Chrome"],
+  },
+};
 
-function createFeaturePattern(
-    features: (typeof TestFeatureScope)[keyof typeof TestFeatureScope][],
-): RegExp {
-    const patterns = features.map((feature) => `@feature-scope:${feature}`)
-    return new RegExp(patterns.join("|"))
-}
+/**
+ * Creates a RegExp pattern to match feature-scoped tests
+ * @param features - Array of feature scope tags
+ * @returns RegExp pattern for matching test decorators
+ */
+const createFeaturePattern = (
+  features: PlaywrightConfig.TestFeatureScopeType[]
+): RegExp =>
+  new RegExp(features.map((feature) => `@feature-scope:${feature}`).join("|"));
 
-function createProjectConfig(env: TestEnvironmentType): Project {
-    const envConfig = environmentFeatures[env]
+/**
+ * Creates a project configuration for a specific environment
+ * @param env - Target environment type
+ * @returns Playwright project configuration
+ */
+const createProjectConfig = (
+  env: PlaywrightConfig.TestEnvironmentType
+): Project => ({
+  ...baseConfig,
+  name: env,
+  use: { ...baseConfig.use, baseURL: deployments[env] },
+  grep: createFeaturePattern(environmentFeatures[env].features),
+});
 
-    return {
-        ...baseConfig,
-        name: env,
-        use: {
-            ...baseConfig.use,
-            baseURL: deployments[env],
-        },
-        grep: createFeaturePattern(envConfig.features),
-    }
-}
+/**
+ * Creates a cloud-only variant of a project configuration
+ * @param env - Target environment type
+ * @returns Project configuration or null if not cloud-variant
+ */
+const createCloudOnlyVariant = (
+  env: PlaywrightConfig.TestEnvironmentType
+): Project | null => {
+  if (!environmentFeatures[env].isCloudVariant) return null;
 
-function createCloudOnlyVariant(env: TestEnvironmentType): Project | null {
-    const envConfig = environmentFeatures[env]
+  return {
+    ...baseConfig,
+    name: `${env}-cloud-only`,
+    use: { ...baseConfig.use, baseURL: deployments[env] },
+    grep: createFeaturePattern([TestFeatureScope.CLOUD_ONLY]),
+  };
+};
 
-    if (!envConfig.isCloudVariant) return null
-
-    return {
-        ...baseConfig,
-        name: `${env}-cloud-only`,
-        use: {
-            ...baseConfig.use,
-            baseURL: deployments[env],
-        },
-        grep: createFeaturePattern([TestFeatureScope.CLOUD_ONLY]),
-    }
-}
-
-// Generate base projects
+// Generate project configurations for all environments
 const baseProjects = Object.keys(TestEnvironment).map((env) =>
-    createProjectConfig(env as TestEnvironmentType),
-)
+  createProjectConfig(env as PlaywrightConfig.TestEnvironmentType)
+);
 
-// Generate cloud-only variants
 const cloudOnlyProjects = Object.keys(TestEnvironment)
-    .map((env) => createCloudOnlyVariant(env as TestEnvironmentType))
-    .filter((project): project is Project => project !== null)
+  .map((env) =>
+    createCloudOnlyVariant(env as PlaywrightConfig.TestEnvironmentType)
+  )
+  .filter((project): project is Project => project !== null);
 
-export const allProjects = [...baseProjects, ...cloudOnlyProjects]
+/**
+ * Combined project configurations for all environments
+ * Includes both base and cloud-only variants where applicable
+ */
+export const allProjects = [...baseProjects, ...cloudOnlyProjects];
