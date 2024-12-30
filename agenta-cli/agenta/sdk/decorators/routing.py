@@ -1,19 +1,20 @@
-from typing import Type, Any, Callable, Dict, Optional, Tuple, List
-from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
+from typing import Type, Any, Callable, Dict, Optional, Tuple
+from inspect import signature, iscoroutinefunction, Parameter
 from functools import wraps
 from traceback import format_exception
 from asyncio import sleep
+from json import dumps
+from uuid import UUID
 
-from tempfile import NamedTemporaryFile
-from annotated_types import Ge, Le, Gt, Lt
 from pydantic import BaseModel, HttpUrl, ValidationError
 
-from fastapi import Body, FastAPI, UploadFile, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 
+from agenta.sdk.middleware.inline import InlineMiddleware
+from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.middleware.config import ConfigMiddleware
 from agenta.sdk.middleware.auth import AuthMiddleware
 from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.config import ConfigMiddleware
-from agenta.sdk.middleware.vault import VaultMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
 from agenta.sdk.context.routing import (
@@ -25,22 +26,14 @@ from agenta.sdk.context.tracing import (
     tracing_context,
     TracingContext,
 )
-from agenta.sdk.router import router
-from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.sdk.utils.logging import log
-from agenta.sdk.types import (
-    DictInput,
-    FloatParam,
-    IntParam,
-    MultipleChoiceParam,
-    MultipleChoice,
-    GroupedMultipleChoiceParam,
-    TextParam,
-    MessagesInput,
-    FileInputURL,
-    BaseResponse,
-    BinaryParam,
+from agenta.sdk.utils.exceptions import (
+    display_exception,
+    suppress,
 )
+from agenta.sdk.router import router
+from agenta.sdk.utils.logging import log
+
+from agenta.sdk.types import BaseResponse
 
 import agenta as ag
 
@@ -57,219 +50,76 @@ class PathValidator(BaseModel):
 
 
 class route:  # pylint: disable=invalid-name
-    # This decorator is used to expose specific stages of a workflow (embedding, retrieval, summarization, etc.)
-    # as independent endpoints. It is designed for backward compatibility with existing code that uses
-    # the @entrypoint decorator, which has certain limitations. By using @route(), we can create new
-    # routes without altering the main workflow entrypoint. This helps in modularizing the services
-    # and provides flexibility in how we expose different functionalities as APIs.
-    def __init__(
-        self,
-        path: Optional[str] = "/",
-        config_schema: Optional[BaseModel] = None,
-    ):
-        self.config_schema: BaseModel = config_schema
-        path = "/" + path.strip("/").strip()
-        path = "" if path == "/" else path
-        PathValidator(url=f"http://example.com{path}")
-
-        self.route_path = path
-
-        self.e = None
-
-    def __call__(self, f):
-        self.e = entrypoint(
-            f,
-            route_path=self.route_path,
-            config_schema=self.config_schema,
-        )
-
-        return f
-
-
-class entrypoint:
     """
     Decorator class to wrap a function for HTTP POST, terminal exposure and enable tracing.
 
     This decorator generates the following endpoints:
 
     Playground Endpoints
-    - /generate                 with @entrypoint, @route("/"), @route(path="") # LEGACY
-    - /playground/run           with @entrypoint, @route("/"), @route(path="")
-    - /playground/run/{route}   with @route({route}), @route(path={route})
+    - /test                     with e.g. @route("/"), @route(path="")
+    - /test/{route}             with e.g. @route({route}), @route(path={route})
 
-    Deployed Endpoints:
-    - /generate_deployed        with @entrypoint, @route("/"), @route(path="") # LEGACY
-    - /run                      with @entrypoint, @route("/"), @route(path="")
-    - /run/{route}              with @route({route}), @route(path={route})
-
-    The rationale is:
-    - There may be multiple endpoints, based on the different routes.
-    - It's better to make it explicit that an endpoint is for the playground.
-    - Prefixing the routes with /run is more futureproof in case we add more endpoints.
+    Environment Endpoints:
+    - /run                      with e.g. @route("/"), @route(path="")
+    - /run/{route}              with e.g. @route({route}), @route(path={route})
 
     Example:
     ```python
         import agenta as ag
 
-        @ag.entrypoint
+        @ag.route()
         async def chain_of_prompts_llm(prompt: str):
             return ...
     ```
     """
 
     routes = list()
-
     _middleware = False
+
     _run_path = "/run"
     _test_path = "/test"
-    # LEGACY
-    _legacy_playground_run_path = "/playground/run"
-    _legacy_generate_path = "/generate"
-    _legacy_generate_deployed_path = "/generate_deployed"
+
+    _config_key = "ag_config"
 
     def __init__(
         self,
-        func: Callable[..., Any],
-        route_path: str = "",
+        path: Optional[str] = "/",
         config_schema: Optional[BaseModel] = None,
+        content_type: Optional[str] = None,
     ):
+        self.route_path = "/" + path.strip("/").strip()
+        self.route_path = "" if self.route_path == "/" else self.route_path
+        self.config_schema: BaseModel = config_schema
+        self.content_type = content_type
+
+        PathValidator(url=f"http://example.com{path}")
+
+        self.func = None
+        self.config = None
+        self.default_parameters = {}
+
+        self.parse_config()
+
+        if not route._middleware:
+            route._middleware = True
+            self.attach_middleware()
+
+    def __call__(
+        self,
+        func: Callable[..., Any],
+    ) -> Callable[..., Any]:
         self.func = func
-        self.route_path = route_path
-        self.config_schema = config_schema
 
-        signature_parameters = signature(func).parameters
-        config, default_parameters = self.parse_config()
+        self.create_run_route()
+        self.create_test_route()
 
-        ### --- Middleware --- #
-        if not entrypoint._middleware:
-            entrypoint._middleware = True
-
-            app.add_middleware(VaultMiddleware)
-            app.add_middleware(ConfigMiddleware)
-            app.add_middleware(AuthMiddleware)
-            app.add_middleware(OTelMiddleware)
-            app.add_middleware(CORSMiddleware)
-        ### ------------------ #
-
-        ### --- Run --- #
-        @wraps(func)
-        async def run_wrapper(request: Request, *args, **kwargs) -> Any:
-            # LEGACY
-            # TODO: Removing this implies breaking changes in :
-            # - calls to /generate_deployed
-            kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in ["config", "environment", "app"]
-            }
-            # LEGACY
-
-            kwargs, _ = self.process_kwargs(kwargs, default_parameters)
-            if request.state.config["parameters"] is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Config not found based on provided references.",
-                )
-
-
-            return await self.execute_wrapper(request, False, *args, **kwargs)
-
-        self.update_run_wrapper_signature(wrapper=run_wrapper)
-
-        run_route = f"{entrypoint._run_path}{route_path}"
-        app.post(run_route, response_model=BaseResponse)(run_wrapper)
-
-        # LEGACY
-        # TODO: Removing this implies breaking changes in :
-        # - calls to /generate_deployed must be replaced with calls to /run
-        if route_path == "":
-            run_route = entrypoint._legacy_generate_deployed_path
-            app.post(run_route, response_model=BaseResponse)(run_wrapper)
-        # LEGACY
-        ### ----------- #
-
-        ### --- Test --- #
-        @wraps(func)
-        async def test_wrapper(request: Request, *args, **kwargs) -> Any:
-            kwargs, config = self.process_kwargs(kwargs, default_parameters)
-
-            request.state.config["parameters"] = config
-            return await self.execute_wrapper(request, True, *args, **kwargs)
-
-        self.update_test_wrapper_signature(
-            wrapper=test_wrapper,
-            config_instance=config
-        )
-
-        test_route = f"{entrypoint._test_path}{route_path}"
-        app.post(test_route, response_model=BaseResponse)(test_wrapper)
-
-        # LEGACY
-        # TODO: Removing this implies breaking changes in :
-        # - calls to /generate must be replaced with calls to /test
-        if route_path == "":
-            test_route = entrypoint._legacy_generate_path
-            app.post(test_route, response_model=BaseResponse)(test_wrapper)
-        # LEGACY
-
-        # LEGACY
-        # TODO: Removing this implies no breaking changes
-        if route_path == "":
-            test_route = entrypoint._legacy_playground_run_path
-            app.post(test_route, response_model=BaseResponse)(test_wrapper)
-        # LEGACY
-        ### ------------ #
-
-        ### --- OpenAPI --- #
-        test_route = f"{entrypoint._test_path}{route_path}"
-        entrypoint.routes.append(
-            {
-                "func": func.__name__,
-                "endpoint": test_route,
-                "params": signature_parameters,
-                "config": config,
-            }
-        )
-
-        # LEGACY
-        if route_path == "":
-            test_route = entrypoint._legacy_generate_path
-            entrypoint.routes.append(
-                {
-                    "func": func.__name__,
-                    "endpoint": test_route,
-                    "params": (
-                        {**default_parameters, **signature_parameters}
-                        if not config
-                        else signature_parameters
-                    ),
-                    "config": config,
-                }
-            )
-        # LEGACY
-
-        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
-        openapi_schema = app.openapi()
-
-        for _route in entrypoint.routes:
-            if _route["config"] is not None:
-                self.override_config_in_schema(
-                    openapi_schema=openapi_schema,
-                    func_name=_route["func"],
-                    endpoint=_route["endpoint"],
-                    config=_route["config"],
-                )
-        ### --------------- #
+    # --- Route(r) Setup --- #
 
     def parse_config(self) -> Tuple[Optional[Type[BaseModel]], Dict[str, Any]]:
-        """Parse the config schema and return the config class and default parameters."""
-        config = None
-        default_parameters = {}
-
         if self.config_schema:
             try:
-                config = self.config_schema() if self.config_schema else None
-                default_parameters = config.dict() if config else {}
+                self.config = self.config_schema() if self.config_schema else None
+                self.default_parameters = self.config.dict() if self.config else {}
             except ValidationError as e:
                 raise ValueError(
                     f"Error initializing config_schema. Please ensure all required fields have default values: {str(e)}"
@@ -279,24 +129,77 @@ class entrypoint:
                     f"Unexpected error initializing config_schema: {str(e)}"
                 ) from e
 
-        return config, default_parameters
+    def attach_middleware(self):
+        app.add_middleware(InlineMiddleware)
+        app.add_middleware(VaultMiddleware)
+        app.add_middleware(ConfigMiddleware)
+        app.add_middleware(AuthMiddleware)
+        app.add_middleware(OTelMiddleware)
+        app.add_middleware(CORSMiddleware)
+
+    # --- Route Registration --- #
+
+    def create_run_route(self):
+        @wraps(self.func)
+        async def run_wrapper(request: Request, *args, **kwargs) -> Any:
+            kwargs, _ = self.process_kwargs(kwargs)
+
+            if (
+                request.state.config["parameters"] is None
+                or request.state.config["references"] is None
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Config not found based on provided references.",
+                )
+
+            return await self.execute_wrapper(request, *args, **kwargs)
+
+        self.update_wrapper_signature(wrapper=run_wrapper, add_config=False)
+
+        run_route = f"{route._run_path}{self.route_path}"
+        app.post(run_route, response_model=BaseResponse)(run_wrapper)
+
+    def create_test_route(self):
+        @wraps(self.func)
+        async def test_wrapper(request: Request, *args, **kwargs) -> Any:
+            kwargs, config = self.process_kwargs(kwargs)
+
+            request.state.inline = True
+            request.state.config["parameters"] = config
+
+            if request.state.config["references"]:
+                request.state.config["references"] = {
+                    k: v
+                    for k, v in request.state.config["references"].items()
+                    if k.startswith("application")
+                } or None
+
+            return await self.execute_wrapper(request, *args, **kwargs)
+
+        self.update_wrapper_signature(wrapper=test_wrapper, add_config=True)
+
+        test_route = f"{route._test_path}{self.route_path}"
+        app.post(test_route, response_model=BaseResponse)(test_wrapper)
 
     def process_kwargs(
-        self, kwargs: Dict[str, Any], default_parameters: Dict[str, Any]
+        self,
+        kwargs: Dict[str, Any],
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Remove the config parameters from the kwargs."""
-        # Extract agenta_config if present
-        config_params = kwargs.pop("agenta_config", {})
-        if isinstance(config_params, BaseModel):
-            config_params = config_params.dict()
-        # Merge with default parameters
-        config = {**default_parameters, **config_params}
+        config_params = kwargs.pop(route._config_key, {})  # TODO: rename this
+
+        if isinstance(config_params, BaseModel):  # TODO: explain this
+            config_params = config_params.model_dump()
+
+        config = {**self.default_parameters, **config_params}
+
         return kwargs, config
+
+    # --- Function Request/Response --- #
 
     async def execute_wrapper(
         self,
         request: Request,
-        inline: bool,
         *args,
         **kwargs,
     ):
@@ -308,6 +211,7 @@ class entrypoint:
         parameters = state.config.get("parameters")
         references = state.config.get("references")
         secrets = state.vault.get("secrets")
+        inline = state.inline
 
         with routing_context_manager(
             context=RoutingContext(
@@ -322,27 +226,19 @@ class entrypoint:
                     references=references,
                 )
             ):
-                result = await self.execute_function(inline, *args, **kwargs)
+                try:
+                    result = (
+                        await self.func(*args, **kwargs)
+                        if iscoroutinefunction(self.func)
+                        else self.func(*args, **kwargs)
+                    )
+
+                    return await self.handle_success(result, inline)
+
+                except Exception as error:  # pylint: disable=broad-except
+                    self.handle_failure(error)
 
         return result
-
-    async def execute_function(
-        self,
-        inline: bool,
-        *args,
-        **kwargs,
-    ):
-        try:
-            result = (
-                await self.func(*args, **kwargs)
-                if iscoroutinefunction(self.func)
-                else self.func(*args, **kwargs)
-            )
-
-            return await self.handle_success(result, inline)
-
-        except Exception as error:  # pylint: disable=broad-except
-            self.handle_failure(error)
 
     async def handle_success(
         self,
@@ -350,21 +246,38 @@ class entrypoint:
         inline: bool,
     ):
         data = None
+        content_type = self.content_type
         tree = None
-        content_type = "string"
+        tree_id = None
+
+        print(result)
+        print(content_type)
 
         with suppress():
-            if isinstance(result, (dict, list)):
-                content_type = "json"
-            data = self.patch_result(result)
+            if isinstance(result, str):
+                content_type = "text/plain"
+                data = result
+            elif not isinstance(result, str) and content_type == "text/plain":
+                data = dumps(result)
 
             if inline:
-                tree = await self.fetch_inline_trace(inline)
+                tree, tree_id = await self.fetch_inline_trace(inline)
 
         try:
-            return BaseResponse(data=data, tree=tree, content_type=content_type)
-        except:
-            return BaseResponse(data=data, content_type=content_type)
+            return BaseResponse(
+                data=data,
+                content_type=content_type,
+                tree=tree,
+                tree_id=tree_id,
+            )
+
+        except:  # pylint: disable=bare-except
+            display_exception("Response Exception")
+
+            return BaseResponse(
+                data=data,
+                content_type=content_type,
+            )
 
     def handle_failure(
         self,
@@ -372,217 +285,87 @@ class entrypoint:
     ):
         display_exception("Application Exception")
 
-        status_code = 500
-        message = str(error)
-        stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
-        detail = {"message": message, "stacktrace": stacktrace}
-
-        raise HTTPException(status_code=status_code, detail=detail)
-
-    def patch_result(
-        self,
-        result: Any,
-    ):
-        """
-        Patch the result to only include the message if the result is a FuncResponse-style dictionary with message, cost, and usage keys.
-
-        Example:
-        ```python
-        result = {
-            "message": "Hello, world!",
-            "cost": 0.5,
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 20,
-                "total_tokens": 30
-            }
-        }
-        result = patch_result(result)
-        print(result)
-        # Output: "Hello, world!"
-        ```
-        """
-        data = (
-            result["message"]
-            if isinstance(result, dict)
-            and all(key in result for key in ["message", "cost", "usage"])
-            else result
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": str(error),
+                "stacktrace": format_exception(
+                    error, value=error, tb=error.__traceback__
+                ),
+            },
         )
-
-        if data is None:
-            data = (
-                "Function executed successfully, but did return None. \n Are you sure you did not forget to return a value?",
-            )
-
-        if not isinstance(result, dict):
-            data = str(data)
-
-        return data
 
     async def fetch_inline_trace(
         self,
-        inline,
+        inline: bool,
     ):
-        WAIT_FOR_SPANS = True
-        TIMEOUT = 1
         TIMESTEP = 0.1
-        FINALSTEP = 0.001
-        NOFSTEPS = TIMEOUT / TIMESTEP
-
-        trace = None
+        NOFSTEPS = 1 / TIMESTEP
 
         context = tracing_context.get()
-
         link = context.link
 
-        trace_id = link.get("tree_id") if link else None
+        tree = None
+        _tree_id = link.get("tree_id") if link else None
+        tree_id = str(UUID(int=_tree_id)) if _tree_id else None
 
-        if trace_id is not None:
+        if _tree_id is not None:
             if inline:
-                if WAIT_FOR_SPANS:
-                    remaining_steps = NOFSTEPS
+                remaining_steps = NOFSTEPS
 
-                    while (
-                        not ag.tracing.is_inline_trace_ready(trace_id)
-                        and remaining_steps > 0
-                    ):
-                        await sleep(TIMESTEP)
+                while (
+                    not ag.tracing.is_inline_trace_ready(_tree_id)
+                    and remaining_steps > 0
+                ):
+                    await sleep(TIMESTEP)
 
-                        remaining_steps -= 1
+                    remaining_steps -= 1
 
-                    await sleep(FINALSTEP)
+                tree = ag.tracing.get_inline_trace(_tree_id)
 
-                trace = ag.tracing.get_inline_trace(trace_id)
-            else:
-                trace = {"trace_id": trace_id}
+        return tree, tree_id
 
-        return trace
-
-    # --- OpenAPI --- #
-
-    def add_request_to_signature(
-        self,
-        wrapper: Callable[..., Any],
-    ):
-        original_sig = signature(wrapper)
-        parameters = [
-            Parameter(
-                "request",
-                kind=Parameter.POSITIONAL_OR_KEYWORD,
-                annotation=Request,
-            ),
-            *original_sig.parameters.values(),
-        ]
-        new_sig = Signature(
-            parameters,
-            return_annotation=original_sig.return_annotation,
-        )
-        wrapper.__signature__ = new_sig
+    # --- Function Signature --- #
 
     def update_wrapper_signature(
-        self, wrapper: Callable[..., Any], updated_params: List
+        self,
+        wrapper: Callable[..., Any],
+        add_config: bool,
     ):
-        """
-        Updates the signature of a wrapper function with a new list of parameters.
-
-        Args:
-            wrapper (callable): A callable object, such as a function or a method, that requires a signature update.
-            updated_params (List[Parameter]): A list of `Parameter` objects representing the updated parameters
-                for the wrapper function.
-        """
-
-        wrapper_signature = signature(wrapper)
-        wrapper_signature = wrapper_signature.replace(parameters=updated_params)
-        wrapper.__signature__ = wrapper_signature  # type: ignore
-
-    def update_test_wrapper_signature(
-        self,
-        wrapper: Callable[..., Any],
-        config_instance: Type[BaseModel],  # TODO: change to our type
-    ) -> None:
-        """Update the function signature to include new parameters."""
-
-        updated_params: List[Parameter] = []
-        self.add_config_params_to_parser(updated_params, config_instance)
-        self.add_func_params_to_parser(updated_params)
-        self.update_wrapper_signature(wrapper, updated_params)
-        self.add_request_to_signature(wrapper)
-
-    def update_run_wrapper_signature(
-        self,
-        wrapper: Callable[..., Any],
-    ) -> None:
-        """Update the function signature to include new parameters."""
-
-        updated_params: List[Parameter] = []
-        self.add_func_params_to_parser(updated_params)
-        self.update_wrapper_signature(wrapper, updated_params)
-        self.add_request_to_signature(wrapper)
-
-    def add_config_params_to_parser(
-        self, updated_params: list, config_instance: Type[BaseModel]
-    ) -> None:
-        """Add configuration parameters to function signature."""
-        for name, field in config_instance.__fields__.items():
-            assert field.default is not None, f"Field {name} has no default value"
-        updated_params.append(
+        parameters = [
             Parameter(
-                name="agenta_config",
-                kind=Parameter.KEYWORD_ONLY,
-                annotation=type(config_instance),  # Get the actual class type
-                default=Body(config_instance),  # Use the instance directly
+                name="request",
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Request,
             )
-        )
+        ]
 
-    def add_func_params_to_parser(self, updated_params: list) -> None:
-        """Add function parameters to function signature."""
         for name, param in signature(self.func).parameters.items():
             assert (
                 len(param.default.__class__.__bases__) == 1
             ), f"Inherited standard type of {param.default.__class__} needs to be one."
-            updated_params.append(
+
+            parameters.append(
                 Parameter(
-                    name,
-                    Parameter.KEYWORD_ONLY,
-                    default=Body(..., embed=True),
-                    annotation=param.default.__class__.__bases__[
-                        0
-                    ],  # determines and get the base (parent/inheritance) type of the sdk-type at run-time. \
-                    # E.g __class__ is ag.MessagesInput() and accessing it parent type will return (<class 'list'>,), \
-                    # thus, why we are accessing the first item.
+                    name=name,
+                    kind=Parameter.KEYWORD_ONLY,
+                    default=Body(param.default, embed=True),
+                    annotation=param.default.__class__.__bases__[0],
+                    # ^ determines and gets the base (parent/inheritance) type of the SDK type at run-time.
                 )
             )
 
-    def override_config_in_schema(
-        self,
-        openapi_schema: dict,
-        func_name: str,
-        endpoint: str,
-        config: Type[BaseModel],
-    ):
-        """Override config in OpenAPI schema to add agenta-specific metadata."""
-        endpoint = endpoint[1:].replace("/", "_")
-        schema_key = f"Body_{func_name}_{endpoint}_post"
-        schema_to_override = openapi_schema["components"]["schemas"][schema_key]
-        
-        # Get the config class name to find its schema
-        config_class_name = type(config).__name__
-        config_schema = openapi_schema["components"]["schemas"][config_class_name]
-        
-        # Process each field in the config class
-        for field_name, field in config.__class__.__fields__.items():
-            # Check if field has Annotated metadata for MultipleChoice
-            if hasattr(field, "metadata") and field.metadata:
-                for meta in field.metadata:
-                    if isinstance(meta, MultipleChoice):
-                        choices = meta.choices
-                        if isinstance(choices, dict):
-                            config_schema["properties"][field_name].update({
-                                "x-parameter": "grouped_choice",
-                                "choices": choices
-                            })
-                        elif isinstance(choices, list):
-                            config_schema["properties"][field_name].update({
-                                "x-parameter": "choice",
-                                "enum": choices
-                            })
+        if self.config and add_config:
+            for name, field in self.config.model_fields.items():
+                assert field.default is not None, f"Field {name} has no default value"
+
+            parameters.append(
+                Parameter(
+                    name=self._config_key,
+                    kind=Parameter.KEYWORD_ONLY,
+                    annotation=type(self.config),  # Get the actual class type
+                    default=Body(self.config),  # Use the instance directly
+                )
+            )
+
+        wrapper.__signature__ = signature(wrapper).replace(parameters=parameters)

@@ -23,7 +23,7 @@ from .types import (
 from .tracing import Tracing, get_tracer
 from .decorators.tracing import instrument
 from .tracing.conventions import Reference
-from .decorators.routing import entrypoint, app, route
+from .decorators.routing import app, route
 from .agenta_init import Config, AgentaSingleton, init as _init
 from .utils.costs import calculate_token_usage
 from .managers.vault import VaultManager
