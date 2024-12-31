@@ -1,10 +1,11 @@
 import {DotsThreeVertical, MinusCircle, ArrowsOut, Copy, Database} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import {PlaygroundVariableMenuProps} from "./types"
+import clsx from "clsx"
 
-const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = () => {
+const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = ({className}) => {
     return (
-        <div className="flex items-center gap-1">
+        <div className={clsx("flex items-center gap-1", className)}>
             <Button icon={<ArrowsOut size={14} />} type="text" />
             <Button icon={<MinusCircle size={14} />} type="text" />
 
