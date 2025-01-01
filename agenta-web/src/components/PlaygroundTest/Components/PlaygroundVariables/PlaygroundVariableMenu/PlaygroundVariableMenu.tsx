@@ -1,12 +1,20 @@
+import {useState} from "react"
 import {DotsThreeVertical, MinusCircle, ArrowsOut, Copy, Database} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
 import {PlaygroundVariableMenuProps} from "./types"
 import clsx from "clsx"
+import PlaygroundGenerationFocusDrawer from "../../PlaygroundGenerationFocusDrawer"
 
 const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = ({className}) => {
+    const [isFocusMoodOpen, setIsFocusMoodOpen] = useState(false)
+
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <Button icon={<ArrowsOut size={14} />} type="text" />
+            <Button
+                icon={<ArrowsOut size={14} />}
+                type="text"
+                onClick={() => setIsFocusMoodOpen(true)}
+            />
             <Button icon={<MinusCircle size={14} />} type="text" />
 
             <Dropdown
@@ -34,6 +42,12 @@ const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = ({classNam
             >
                 <Button icon={<DotsThreeVertical size={14} />} type="text" />
             </Dropdown>
+
+            <PlaygroundGenerationFocusDrawer
+                open={isFocusMoodOpen}
+                onClose={() => setIsFocusMoodOpen(false)}
+                type="completion"
+            />
         </div>
     )
 }
