@@ -1,13 +1,13 @@
-import React, {useState, useEffect} from "react"
 import {Button, Drawer, Space, Typography} from "antd"
 import {Props} from "./types"
 import {CaretLeft, CaretRight, FloppyDiskBack} from "@phosphor-icons/react"
 import DeployButton from "../../assets/DeployButton"
 import Version from "../../assets/Version"
 import usePlayground from "../../hooks/usePlayground"
+import useDrawerWidth from "../../hooks/useDrawerWidth"
 
 const PlaygroundVariantFocusMood: React.FC<Props> = ({variantId, ...props}) => {
-    const [drawerWidth, setDrawerWidth] = useState<string>("100vw")
+    const {drawerWidth} = useDrawerWidth()
     const {variantName, revision} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
@@ -16,15 +16,6 @@ const PlaygroundVariantFocusMood: React.FC<Props> = ({variantId, ...props}) => {
             revision: variant?.revision,
         }),
     })
-
-    // Set the drawer width to be the full width of the screen minus the sider width
-    useEffect(() => {
-        const siderElement = document.querySelector(".ant-layout-sider")
-        if (siderElement) {
-            const siderWidth = siderElement.clientWidth
-            setDrawerWidth(`calc(100vw - ${siderWidth}px)`)
-        }
-    }, [])
 
     const onClose = (e: any) => {
         props?.onClose?.(e)
