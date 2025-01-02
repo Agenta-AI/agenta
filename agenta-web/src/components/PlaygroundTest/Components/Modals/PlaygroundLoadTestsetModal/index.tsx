@@ -4,10 +4,14 @@ import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
 import {Play} from "@phosphor-icons/react"
 import {Divider, Input, Menu, Modal, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {Props} from "./types"
+import {PlaygroundLoadTestsetModalProps} from "./types"
 import {useStyles} from "./styles"
 
-const PlaygroundLoadTestset: React.FC<Props> = ({testsetData, setTestsetData, ...props}) => {
+const PlaygroundLoadTestsetModal: React.FC<PlaygroundLoadTestsetModalProps> = ({
+    testsetData,
+    setTestsetData,
+    ...props
+}) => {
     const classes = useStyles()
     const {testsets} = useLoadTestsetsList()
     const [isLoadingTestset, setIsLoadingTestset] = useState(false)
@@ -156,4 +160,4 @@ const PlaygroundLoadTestset: React.FC<Props> = ({testsetData, setTestsetData, ..
     )
 }
 
-export default PlaygroundLoadTestset
+export default PlaygroundLoadTestsetModal

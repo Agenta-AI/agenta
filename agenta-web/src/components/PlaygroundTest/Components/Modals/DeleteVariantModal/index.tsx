@@ -1,11 +1,11 @@
 import {Modal, Typography} from "antd"
 import {Trash} from "@phosphor-icons/react"
-import {Props} from "./types"
+import {DeleteVariantModalProps} from "./types"
 import {useStyles} from "./styles"
 
 const {Text} = Typography
 
-const DeleteVariantModal: React.FC<Props> = ({...props}) => {
+const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({...props}) => {
     const classes = useStyles()
     const variantName = "app.v6"
     const deploymentNameEnv = "production"

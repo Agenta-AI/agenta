@@ -1,7 +1,7 @@
 import React, {useCallback, useMemo, useState, useTransition} from "react"
 import {message, Dropdown, Divider, Space, Button, Input} from "antd"
 import AddButton from "./../../assets/AddButton"
-import NewVariantModal from "../NewVariantModal"
+import CreateVariantModal from "../Modals/CreateVariantModal"
 import usePlayground from "../../hooks/usePlayground"
 import {useStyles} from "./styles"
 import {StateVariant} from "../../state/types"
@@ -95,7 +95,7 @@ const PlaygroundCreateNewVariant = () => {
                 <AddButton label={"Variant"} />
             </Dropdown>
 
-            <NewVariantModal
+            <CreateVariantModal
                 variants={variants as StateVariant[]}
                 isModalOpen={displayModal}
                 setIsModalOpen={setDisplayModal}

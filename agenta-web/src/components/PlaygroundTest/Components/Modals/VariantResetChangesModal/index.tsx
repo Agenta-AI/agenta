@@ -1,7 +1,7 @@
 import {Modal, Typography} from "antd"
-import {Props} from "./types"
+import {VariantResetChangesModalProps} from "./types"
 
-const VariantResetChangesModal: React.FC<Props> = ({...props}) => {
+const VariantResetChangesModal: React.FC<VariantResetChangesModalProps> = ({...props}) => {
     const onClose = (e: any) => {
         props.onCancel?.(e)
     }
