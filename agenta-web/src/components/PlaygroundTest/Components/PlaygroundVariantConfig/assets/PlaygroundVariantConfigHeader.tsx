@@ -22,6 +22,7 @@ const VariantRenameModal = dynamic(() => import("../../VariantRenameModal"), {ss
 const VariantResetChangesModal = dynamic(() => import("../../VariantResetChangesModal"), {
     ssr: false,
 })
+const DeleteVariantModal = dynamic(() => import("../../Modals/DeleteVariantModal"), {ssr: false})
 
 /**
  * Button to save variant changes when modifications are detected
@@ -75,6 +76,7 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
     const [isVariantRenameOpen, setIsVariantRenameOpen] = useState(false)
     const [isResetModalOpen, setIsResetModalOpen] = useState(false)
+    const [isdeleteVariantModalOpen, setIsDeleteVariantModalOpen] = useState(false)
     const {variantName, revision, variants} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
@@ -132,8 +134,14 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
                     setIsCommitModalOpen={setIsCommitModalOpen}
                     setIsResetModalOpen={setIsResetModalOpen}
                     setIsVariantRenameOpen={setIsVariantRenameOpen}
+                    setIsDeleteVariantModalOpen={setIsDeleteVariantModalOpen}
                 />
             </div>
+
+            <DeleteVariantModal
+                open={isdeleteVariantModalOpen}
+                onCancel={() => setIsDeleteVariantModalOpen(false)}
+            />
 
             <VariantResetChangesModal
                 open={isResetModalOpen}

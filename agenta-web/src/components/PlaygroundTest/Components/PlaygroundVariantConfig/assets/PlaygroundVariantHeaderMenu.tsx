@@ -7,6 +7,7 @@ import {
     FloppyDiskBack,
     PencilSimple,
     Rocket,
+    Trash,
 } from "@phosphor-icons/react"
 import {PlaygroundVariantHeaderMenuProps} from "./types"
 
@@ -16,6 +17,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     setIsResetModalOpen,
     setIsCommitModalOpen,
     setIsDeployOpen,
+    setIsDeleteVariantModalOpen,
 }) => {
     return (
         <Dropdown
@@ -50,6 +52,15 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                         },
                     },
                     {
+                        key: "rename",
+                        label: "Rename",
+                        icon: <PencilSimple size={16} />,
+                        onClick: (e) => {
+                            e.domEvent.stopPropagation()
+                            setIsVariantRenameOpen(true)
+                        },
+                    },
+                    {
                         key: "focus",
                         label: "Focus view",
                         icon: <ArrowsOut size={14} />,
@@ -68,12 +79,13 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                         },
                     },
                     {
-                        key: "rename",
-                        label: "Rename",
-                        icon: <PencilSimple size={16} />,
+                        key: "delete",
+                        danger: true,
+                        label: "Delete",
+                        icon: <Trash size={16} />,
                         onClick: (e) => {
                             e.domEvent.stopPropagation()
-                            setIsVariantRenameOpen(true)
+                            setIsDeleteVariantModalOpen(true)
                         },
                     },
                     {type: "divider"},
