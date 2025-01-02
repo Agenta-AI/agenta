@@ -98,7 +98,6 @@ const renderMap: RenderFunctions = {
 
     object: () => <Typography.Text>Object input not implemented</Typography.Text>,
     compound: (metadata) => {
-        console.log("metadata", metadata)   
         return <Typography.Text>Compound input not implemented</Typography.Text>
     },
 } as const
@@ -109,15 +108,20 @@ const PlaygroundVariantPropertyControl: React.FC<PlaygroundVariantPropertyContro
     className,
     as,
 }) => {
-    console.log("PlaygroundVariantPropertyControl", propertyId, variantId)
-
+    console.log(
+        "usePlayground[%cComponent%c] - PlaygroundVariantPropertyControl - RENDER!",
+        "color: orange",
+        "",
+        variantId,
+        propertyId
+    )
+    
     const {variantConfigProperty: property} = usePlayground({
         variantId,
         propertyId,
         hookId: "PlaygroundVariantPropertyControl",
     })
-
-    console.log("property", property)
+    
     if (!property) return null
 
     const {__metadata: metadata, value, handleChange} = property
