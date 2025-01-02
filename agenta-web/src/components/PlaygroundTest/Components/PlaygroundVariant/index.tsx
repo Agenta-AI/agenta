@@ -1,9 +1,9 @@
 import {memo} from "react"
 import dynamic from "next/dynamic"
-import {Typography} from "antd"
 import clsx from "clsx"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {PlaygroundVariantProps} from "./types"
+import PlaygroundVariantTestView from "../PlaygroundVariantTestView"
 
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
@@ -40,9 +40,8 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
                         <PlaygroundVariantConfig variantId={variantId} />
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
-                        <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                            Generation
-                        </Typography.Text>
+                        <PlaygroundVariantTestView variantId={variantId} />
+                        
                     </SplitterPanel>
                 </Splitter>
             </div>
