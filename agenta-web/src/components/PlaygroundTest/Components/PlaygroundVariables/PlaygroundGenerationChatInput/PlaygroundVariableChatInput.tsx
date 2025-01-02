@@ -13,7 +13,7 @@ const PlaygroundVariableChatInput: React.FC<PlaygroundVariableChatInputProps> = 
     ]
     return (
         <div className="w-full flex items-start justify-between gap-4 group/item">
-            <div className="w-full flex items-start gap-4">
+            <div className="w-full flex flex-col xl:flex-row xl:items-start gap-4">
                 <Select defaultValue="system" style={{width: 100}} options={options} />
 
                 {type === "input" ? (
@@ -21,7 +21,7 @@ const PlaygroundVariableChatInput: React.FC<PlaygroundVariableChatInputProps> = 
                 ) : type === "output" ? (
                     <PlaygroundVariableOutput isOutput={"generated"} />
                 ) : (
-                    <Typography.Text className="w-[80%]">
+                    <Typography.Text className="w-[90%] xl:w-[80%]">
                         Lorem ipsum dolor sit amet. Lorem ipsum, dolor sit amet consectetur
                         adipisicing elit. Qui commodi aperiam a architecto similique nemo recusandae
                         expedita nobis sint velit, tempore magnam ad fugiat, assumenda quasi sed
