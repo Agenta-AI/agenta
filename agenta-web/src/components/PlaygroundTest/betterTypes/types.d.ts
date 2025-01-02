@@ -168,6 +168,7 @@ export interface PromptConfig {
     templateFormat?: EnhancedConfigValue<"fstring" | "jinja2" | "curly">
     systemPrompt?: EnhancedConfigValue<string>
     userPrompt?: EnhancedConfigValue<string>
+    inputKeys: EnhancedConfigValue<string[]>
 }
 
 /** Enhanced Variant with embedded metadata */
