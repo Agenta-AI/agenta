@@ -1,12 +1,15 @@
 import {Button, Drawer, Space, Typography} from "antd"
-import {Props} from "./types"
+import {PlaygroundPromptFocusDrawerProps} from "./types"
 import {CaretLeft, CaretRight, FloppyDiskBack} from "@phosphor-icons/react"
-import DeployButton from "../../assets/DeployButton"
-import Version from "../../assets/Version"
-import usePlayground from "../../hooks/usePlayground"
-import useDrawerWidth from "../../hooks/useDrawerWidth"
+import DeployButton from "../../../assets/DeployButton"
+import Version from "../../../assets/Version"
+import usePlayground from "../../../hooks/usePlayground"
+import useDrawerWidth from "../../../hooks/useDrawerWidth"
 
-const PlaygroundVariantFocusMood: React.FC<Props> = ({variantId, ...props}) => {
+const PlaygroundPromptFocusDrawer: React.FC<PlaygroundPromptFocusDrawerProps> = ({
+    variantId,
+    ...props
+}) => {
     const {drawerWidth} = useDrawerWidth()
     const {variantName, revision} = usePlayground({
         variantId,
@@ -53,4 +56,4 @@ const PlaygroundVariantFocusMood: React.FC<Props> = ({variantId, ...props}) => {
     )
 }
 
-export default PlaygroundVariantFocusMood
+export default PlaygroundPromptFocusDrawer

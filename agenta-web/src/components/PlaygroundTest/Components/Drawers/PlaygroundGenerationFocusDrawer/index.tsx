@@ -1,10 +1,13 @@
 import {useState} from "react"
 import {Button, Drawer, Radio, Space, Typography} from "antd"
 import {CaretDown, CaretUp, FloppyDisk, Play} from "@phosphor-icons/react"
-import useDrawerWidth from "../../hooks/useDrawerWidth"
-import {Props} from "./types"
+import useDrawerWidth from "../../../hooks/useDrawerWidth"
+import {PlaygroundGenerationFocusDrawerProps} from "./types"
 
-const PlaygroundGenerationFocusDrawer: React.FC<Props> = ({type, ...props}) => {
+const PlaygroundGenerationFocusDrawer: React.FC<PlaygroundGenerationFocusDrawerProps> = ({
+    type,
+    ...props
+}) => {
     const [format, setFormat] = useState("pretty")
     const {drawerWidth} = useDrawerWidth()
 
