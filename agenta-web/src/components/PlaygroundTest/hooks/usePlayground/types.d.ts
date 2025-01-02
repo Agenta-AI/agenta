@@ -77,7 +77,7 @@ export interface PlaygroundVariantsResponse extends PlaygroundResponse {
     addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
 }
 
-export interface VariantUpdateFunction<T extends PlaygroundStateData = PlaygroundStateData> {
+export interface VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> {
     (state: T): Partial<EnhancedVariant> | undefined
 }
 

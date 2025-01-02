@@ -4,7 +4,7 @@ import {transformToEnhancedVariant} from "../../../betterTypes/transformer"
 
 import {type InitialStateType} from "../../../state/types"
 import {type OpenAPISpec} from "../../../betterTypes/openApiSchema"
-import {type EnhancedVariant} from "../../../betterTypes/types"
+import {PromptConfig, type EnhancedVariant} from "../../../betterTypes/types"
 
 /**
  * FETCHERS
@@ -21,15 +21,6 @@ export const openAPIJsonFetcher = async (variant: Pick<EnhancedVariant, "id">, s
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
-    // Add logging to see the complete schema structure
-    // console.log(
-    //     "full schema:",
-    //     JSON.stringify(
-    //         schema?.components?.schemas?.MyConfig?.properties?.llm_config?.properties,
-    //         null,
-    //         2,
-    //     ),
-    // )
     return {
         variantId: variant.id,
         schema: schema,
@@ -49,19 +40,16 @@ export const fetchAndUpdateVariant = async (variant: EnhancedVariant, service: s
         return variant
     } else if (schema) {
         const enhancedVariant = transformToEnhancedVariant(variant, schema as OpenAPISpec)
+
+        // Initialize input keys for each prompt
+        enhancedVariant.prompts?.forEach((prompt) => {
+            updatePromptInputKeys(prompt)
+        })
+
         console.log(
             "enhanced variant!",
             schema?.paths?.["/playground/run"]?.post?.requestBody?.content?.["application/json"]
                 ?.schema,
-            // JSON.stringify(
-            // schema?.paths?.["/playground/run"]?.post?.requestBody?.content?.["application/json"]
-            //     ?.schema,
-            //     null,
-            //     2,
-            // ),
-            // enhancedVariant,
-            // .prompts[0].llmConfig,
-            // JSON.stringify(enhancedVariant, null, 2),
             enhancedVariant.prompts,
         )
         // console.log("enhanced variant!", enhancedVariant)
@@ -203,18 +191,34 @@ export const createVariantCompare = (
     }
 }
 
-/**
- * Find a property by its ID in a variant's prompts
- */
+/** Recursively finds a property in an object by its ID */
+export const findPropertyInObject = (obj: any, propertyId: string): any => {
+    if (!obj || typeof obj !== "object") return undefined
+
+    // Check if current object has __id
+    if ("__id" in obj && obj.__id === propertyId) {
+        return obj
+    }
+
+    // Recursively search through object properties
+    for (const key in obj) {
+        const value = obj[key]
+        if (typeof value === "object") {
+            const found = findPropertyInObject(value, propertyId)
+            if (found) return found
+        }
+    }
+
+    return undefined
+}
+
+// Update findPropertyInVariant to use the new utility
 const findPropertyInVariant = (variant: EnhancedVariant, propertyId?: string) => {
     if (!propertyId || !variant) return undefined
 
     for (const prompt of variant.prompts) {
-        for (const prop of Object.values(prompt.llmConfig || {})) {
-            if (prop && typeof prop === "object" && "__id" in prop && prop.__id === propertyId) {
-                return prop
-            }
-        }
+        const found = findPropertyInObject(prompt, propertyId)
+        if (found) return found
     }
     return undefined
 }
@@ -299,4 +303,34 @@ export const setVariants = (currentVariants: EnhancedVariant[], newVariants: any
         return newVariants.map(setVariant)
     }
     return currentVariants
+}
+
+/** Extract variables from a message string using {{variable}} syntax */
+export function extractVariables(input: string): string[] {
+    // pattern for {{variableName}}
+    // const variablePattern = /\{\{\s*(\w+)\s*\}\}/g
+
+    // pattern for {variableName}
+    const variablePattern = /\{\s*(\w+)\s*\}/g
+    const variables: string[] = []
+
+    let match: RegExpExecArray | null
+    while ((match = variablePattern.exec(input)) !== null) {
+        variables.push(match[1])
+    }
+
+    return variables
+}
+
+/** Update input keys for a prompt based on its messages */
+export function updatePromptInputKeys(prompt: PromptConfig) {
+    const messagesContent = prompt.messages.value.map((message) => message.content.value || "")
+
+    const variables = messagesContent.map((message) => extractVariables(message)).flat()
+
+    if (prompt.inputKeys) {
+        prompt.inputKeys.value = variables
+    }
+
+    return variables
 }
