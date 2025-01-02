@@ -182,9 +182,9 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
     """
 
     assert app_id is not None, "app_id cannot be None"
-    app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
+
     async with engine.session() as session:
-        base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
+        base_query = select(AppDB).filter_by(id=uuid.UUID(app_id))
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
         return app
@@ -418,14 +418,14 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     """
 
     assert base_id is not None, "no base_id provided"
-    base_uuid = await get_object_uuid(object_id=base_id, table_name="bases")
+
     async with engine.session() as session:
         result = await session.execute(
             select(VariantBaseDB)
             .options(
                 joinedload(VariantBaseDB.image), joinedload(VariantBaseDB.deployment)
             )
-            .filter_by(id=uuid.UUID(base_uuid))
+            .filter_by(id=uuid.UUID(base_id))
         )
         base = result.scalars().first()
         if base is None:
@@ -1268,7 +1268,6 @@ async def list_app_variants(app_id: str):
         List[AppVariant]: List of AppVariant objects
     """
 
-    app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
     async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
@@ -1276,7 +1275,7 @@ async def list_app_variants(app_id: str):
                 joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
                 joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
             )
-            .filter_by(app_id=uuid.UUID(app_uuid))
+            .filter_by(app_id=uuid.UUID(app_id))
         )
         app_variants = result.scalars().all()
         return app_variants
@@ -3307,74 +3306,3 @@ async def check_if_evaluation_contains_failed_evaluation_scenarios(
         if not count:
             return False
         return count > 0
-
-
-async def get_object_uuid(object_id: str, table_name: str) -> str:
-    """
-    Checks if the given object_id is a valid MongoDB ObjectId and fetches the corresponding
-    UUID from the specified table. If the object_id is not a valid ObjectId, it is assumed
-    to be a PostgreSQL UUID and returned as is.
-
-    Args:
-        object_id (str): The ID of the object, which could be a MongoDB ObjectId or a PostgreSQL UUID.
-        table_name (str): The name of the table to fetch the UUID from.
-
-    Returns:
-        str: The corresponding object UUID.
-
-    Raises:
-        AssertionError: If the resulting object UUID is None.
-
-    """
-
-    from bson import ObjectId
-    from bson.errors import InvalidId
-
-    try:
-        # Ensure the object_id is a valid MongoDB ObjectId
-        if isinstance(ObjectId(object_id), ObjectId):
-            object_uuid_as_str = await fetch_corresponding_object_uuid(
-                table_name=table_name, object_id=object_id
-            )
-    except InvalidId:
-        # Use the object_id directly if it is not a valid MongoDB ObjectId
-        object_uuid_as_str = object_id
-
-    assert (
-        object_uuid_as_str is not None
-    ), f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
-    return object_uuid_as_str
-
-
-async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> str:
-    """
-    Fetches a corresponding object uuid.
-
-    Args:
-        table_name (str):  The table name
-        object_id (str):   The object identifier
-
-    Returns:
-        The corresponding object uuid as string.
-    """
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(IDsMappingDB).filter_by(table_name=table_name, objectid=object_id)
-        )
-        object_mapping = result.scalars().first()
-        return str(object_mapping.uuid)
-
-
-async def fetch_default_project() -> ProjectDB:
-    """
-    Fetch the default project from the database.
-
-    Returns:
-        ProjectDB: The default project instance.
-    """
-
-    async with engine.session() as session:
-        result = await session.execute(select(ProjectDB).filter_by(is_default=True))
-        default_project = result.scalars().first()
-        return default_project

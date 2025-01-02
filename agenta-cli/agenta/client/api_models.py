@@ -22,6 +22,9 @@ class Image(BaseModel):
     docker_id: str
     tags: str
 
+    id: str
+    project_id: Optional[str] = None
+
 
 class URI(BaseModel):
     uri: str
