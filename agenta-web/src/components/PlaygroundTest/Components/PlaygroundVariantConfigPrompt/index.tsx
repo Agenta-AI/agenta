@@ -25,11 +25,18 @@ import { PlaygroundVariantConfigPromptComponentProps } from "./types"
  */
 const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptComponentProps> = ({
     variantId,
-    promptIndex,
+    promptId,
     className,
 }) => {
     const defaultActiveKey = useRef(["1"])
 
+    console.log(
+        "usePlayground[%cComponent%c] - PlaygroundVariantConfigPrompt - RENDER!",
+        "color: orange",
+        "",
+        variantId,
+        promptId,
+    )
     const items = useMemo(() => [{
         key: "1",
         classNames: {
@@ -38,17 +45,17 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
         },
         label: (
             <PlaygroundVariantConfigPromptCollapseHeader
-                promptIndex={promptIndex}
                 variantId={variantId}
+                promptId={promptId}
             />
         ),
         children: (
             <PlaygroundVariantConfigPromptCollapseContent
-                promptIndex={promptIndex}
                 variantId={variantId}
+                promptId={promptId}
             />
         ),
-    }], [promptIndex, variantId])
+    }], [variantId, promptId])
 
     return (
         <Collapse
@@ -61,9 +68,6 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
             defaultActiveKey={defaultActiveKey.current}
             items={items}
             // Add specific Collapse onChange handler if needed
-            onChange={(keys) => {
-                // Handle collapse state changes
-            }}
         />
     )
 }

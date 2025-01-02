@@ -106,43 +106,43 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            const existingParameters =
-                                baseVariant.schema?.promptConfig?.[0].llm_config.value
+                            // const existingParameters =
+                            //     baseVariant.schema?.promptConfig?.[0].llm_config.value
 
-                            const newVariantBody: Partial<Variant> &
-                                Pick<Variant, "variantName" | "configName" | "baseId"> = {
-                                variantName: updateNewVariantName,
-                                templateVariantName: newTemplateVariantName,
-                                previousVariantName: baseVariant.variantName,
-                                persistent: false,
-                                parameters: existingParameters,
-                                baseId: baseVariant.baseId,
-                                baseName: baseVariant.baseName || newTemplateVariantName,
-                                configName: newVariantName,
-                            }
+                            // const newVariantBody: Partial<Variant> &
+                            //     Pick<Variant, "variantName" | "configName" | "baseId"> = {
+                            //     variantName: updateNewVariantName,
+                            //     templateVariantName: newTemplateVariantName,
+                            //     previousVariantName: baseVariant.variantName,
+                            //     persistent: false,
+                            //     parameters: existingParameters,
+                            //     baseId: baseVariant.baseId,
+                            //     baseName: baseVariant.baseName || newTemplateVariantName,
+                            //     configName: newVariantName,
+                            // }
 
-                            const {projectId} = getCurrentProject()
-                            const createVariantResponse = await fetcher?.(
-                                `/api/variants/from-base?project_id=${projectId}`,
-                                {
-                                    method: "POST",
-                                    body: JSON.stringify({
-                                        base_id: newVariantBody.baseId,
-                                        new_variant_name: newVariantBody.variantName,
-                                        new_config_name: newVariantBody.configName,
-                                        parameters: {},
-                                    }),
-                                },
-                            )
+                            // const {projectId} = getCurrentProject()
+                            // const createVariantResponse = await fetcher?.(
+                            //     `/api/variants/from-base?project_id=${projectId}`,
+                            //     {
+                            //         method: "POST",
+                            //         body: JSON.stringify({
+                            //             base_id: newVariantBody.baseId,
+                            //             new_variant_name: newVariantBody.variantName,
+                            //             new_config_name: newVariantBody.configName,
+                            //             parameters: {},
+                            //         }),
+                            //     },
+                            // )
 
-                            const newVariant = setVariant(createVariantResponse)
-                            const variantWithConfig = await fetchAndUpdateVariant(
-                                newVariant,
-                                service,
-                            )
+                            // const newVariant = setVariant(createVariantResponse)
+                            // const variantWithConfig = await fetchAndUpdateVariant(
+                            //     newVariant,
+                            //     service,
+                            // )
 
                             const clone = cloneDeep(state)
-                            clone.variants.push(variantWithConfig)
+                            // clone.variants.push(variantWithConfig)
 
                             return clone
                         },
@@ -159,13 +159,13 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
             const getVariantIds = useCallback(() => {
                 addToValueReferences("variantIds")
-                return getVariants()?.map((v) => v.variantId)
-            }, [swr, addToValueReferences, getVariants])
+                return getVariants()?.map((v) => v.id)
+            }, [addToValueReferences, getVariants])
 
             const getAddVariant = useCallback(() => {
                 addToValueReferences("addVariant")
                 return addVariant
-            }, [swr, addToValueReferences, addVariant])
+            }, [addToValueReferences, addVariant])
 
             Object.defineProperty(swr, "variants", {
                 get: getVariants,

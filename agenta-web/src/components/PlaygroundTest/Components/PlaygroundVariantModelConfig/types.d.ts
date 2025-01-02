@@ -1,15 +1,11 @@
+import type {PopoverProps} from "antd"
 import {BaseContainerProps} from "../types"
-import {StateVariant} from "../../state/types"
-import {Path} from "../../types/pathHelpers"
+import {EnhancedVariant} from "../../betterTypes/types"
 
 /** Property configuration for model parameters */
 export interface ModelConfigProperty {
     /** Unique key for property identification */
     key: string
-    /** Path to property configuration in variant state */
-    configKey: Path<StateVariant>
-    /** Path to property value in variant state */
-    valueKey: Path<StateVariant>
 }
 
 /**
@@ -18,9 +14,9 @@ export interface ModelConfigProperty {
  */
 export interface PlaygroundVariantModelConfigModalProps extends BaseContainerProps {
     /** ID of the variant being configured */
-    variantId: StateVariant["variantId"]
+    variantId: EnhancedVariant["id"]
     /** List of configurable model properties */
-    properties: ModelConfigProperty[]
+    propertyIds: string[]
     /** Handler for saving configuration changes */
     handleSave: () => void
     /** Handler for closing the modal */
@@ -49,11 +45,11 @@ export interface ModelConfigModalContentProps extends BaseContainerProps {
  * Props for the main model configuration component.
  * Controls the model settings interface including the modal toggle.
  */
-export interface PlaygroundVariantModelConfigProps extends BaseContainerProps {
+export interface PlaygroundVariantModelConfigProps extends PopoverProps {
     /** ID of the variant being configured */
-    variantId: StateVariant["variantId"]
-    /** Index of the prompt in configuration array */
-    promptIndex: number
+    variantId: EnhancedVariant["id"]
+    /** ID of the prompt being configured */
+    promptId: EnhancedVariant["prompts"][number]["id"]
 }
 
 export interface PlaygroundVariantModelConfigTitleProps extends BaseContainerProps {

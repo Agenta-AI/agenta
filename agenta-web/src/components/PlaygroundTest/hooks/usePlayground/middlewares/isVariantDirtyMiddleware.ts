@@ -10,7 +10,7 @@ import {
 import isEqual from "lodash/isEqual"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import cloneDeep from "lodash/cloneDeep"
-import {initialState} from "../assets/constants"
+import {initialState} from "@/components/PlaygroundTest/state"
 
 type MutateFunction<T extends PlaygroundStateData = PlaygroundStateData> = (
     state: T | Promise<T> | undefined,
@@ -43,12 +43,12 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     const dirtyStates = new Map<string, boolean>()
 
                     variants.forEach((variant) => {
-                        dirtyStates.set(variant.variantId, false)
+                        dirtyStates.set(variant.id, false)
                     })
 
                     return {
                         ...data,
-                        dataRef: new Map(variants.map((v) => [v.variantId, cloneDeep(v)])),
+                        dataRef: new Map(variants.map((v) => [v.id, cloneDeep(v)])),
                         dirtyStates,
                         variants,
                     }
@@ -124,21 +124,19 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
                             const clonedState = cloneDeep(newState)
                             const dataRef = clonedState.dataRef
-                            const variant = newState.variants.find(
-                                (v) => v.variantId === config.variantId,
-                            )
+                            const variant = newState.variants.find((v) => v.id === config.variantId)
 
                             if (variant && !isEqual(dataRef?.get(config.variantId), variant)) {
                                 const dirtyRef = clonedState.dirtyStates
                                     ? new Map(clonedState.dirtyStates)
                                     : new Map()
-                                dirtyRef.set(variant.variantId, true)
+                                dirtyRef.set(variant.id, true)
                                 clonedState.dirtyStates = dirtyRef
                             } else if (variant) {
                                 const dirtyRef = clonedState.dirtyStates
                                     ? new Map(clonedState.dirtyStates)
                                     : new Map()
-                                dirtyRef.set(variant.variantId, false)
+                                dirtyRef.set(variant.id, false)
                                 clonedState.dirtyStates = dirtyRef
                             }
 

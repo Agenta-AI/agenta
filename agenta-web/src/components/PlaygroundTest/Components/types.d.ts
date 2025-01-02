@@ -1,5 +1,5 @@
 import {HTMLAttributes} from "react"
-import {StateVariant} from "../state/types"
+import {EnhancedVariant} from "../betterTypes/types"
 
 /**
  * Base interface for components that render as HTML containers
@@ -13,5 +13,5 @@ export interface BaseContainerProps<T = HTMLDivElement> extends HTMLAttributes<T
 /** Props for components that need variant ID */
 export interface VariantIdProps {
     /** Unique identifier for the variant */
-    variantId: StateVariant["variantId"]
+    variantId: EnhancedVariant["id"]
 }

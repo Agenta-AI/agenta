@@ -27,6 +27,11 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
     className,
     ...divProps
 }) => {
+    console.log(
+        "usePlayground[%cComponent%c] - PlaygroundVariant - RENDER!",
+        "color: orange",
+        "",
+    )
     return (
         <div className={clsx("flex flex-col grow h-full overflow-hidden", className)} {...divProps}>
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
