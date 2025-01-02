@@ -10,32 +10,17 @@ import {
 } from "../types"
 import {message} from "antd"
 import cloneDeep from "lodash/cloneDeep"
-import {compareVariant, createVariantCompare, setVariant} from "../assets/helpers"
+import {
+    compareVariant,
+    createVariantCompare,
+    updatePromptInputKeys,
+    findPropertyInObject,
+} from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {EnhancedVariant} from "@/components/PlaygroundTest/betterTypes/types"
 import isEqual from "lodash/isEqual"
 
 export type ConfigValue = string | boolean | string[] | number | null
-
-const findPropertyInObject = (obj: any, propertyId: string): any => {
-    if (!obj || typeof obj !== "object") return undefined
-
-    // Check if current object has __id
-    if ("__id" in obj && obj.__id === propertyId) {
-        return obj
-    }
-
-    // Recursively search through object properties
-    for (const key in obj) {
-        const value = obj[key]
-        if (typeof value === "object") {
-            const found = findPropertyInObject(value, propertyId)
-            if (found) return found
-        }
-    }
-
-    return undefined
-}
 
 const playgroundVariantMiddleware: PlaygroundMiddleware = <
     Data extends PlaygroundStateData = PlaygroundStateData,
@@ -283,9 +268,15 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     swr.mutate(
                         async (state) => {
                             if (!state) return state
-                            const updateValues =
-                                typeof updates === "function" ? updates(state) : updates
+
                             const variant = state?.variants?.find((v) => v.id === variantId)
+                            const clonedVariant = cloneDeep(variant)
+
+                            if (!clonedVariant) return state
+
+                            const updateValues =
+                                typeof updates === "function" ? updates(clonedVariant) : updates
+
                             if (!variant || !state) return state
                             const updatedVariant: EnhancedVariant = {...variant, ...updateValues}
                             const clonedState = cloneDeep(state)
@@ -294,7 +285,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             )
                             clonedState.variants[index] = updatedVariant
 
-                            console.log("MUTATE VARIANT", updateValues)
+                            // Update input keys for all prompts
+                            for (const prompt of updatedVariant.prompts) {
+                                updatePromptInputKeys(prompt)
+                            }
+
                             return clonedState
                         },
                         {
@@ -307,8 +302,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             const handleParamUpdate = useCallback(
                 (e: {target: {value: ConfigValue}} | ConfigValue) => {
-                    mutateVariant((state) => {
-                        const variant = state.variants.find((v) => v.id === variantId)
+                    mutateVariant((variant) => {
+                        // const variant = state.variants.find((v) => v.id === variantId)
                         if (!variant) return {}
 
                         const val = e
