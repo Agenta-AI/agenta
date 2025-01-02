@@ -42,7 +42,7 @@ supported_llm_models = {
         "groq/mixtral-8x7b-32768",
         "groq/gemma-7b-it",
     ],
-    "Mistral AI": [
+    "Mistral": [
         "mistral/mistral-tiny",
         "mistral/mistral-small",
         "mistral/mistral-medium",
