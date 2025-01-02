@@ -1,0 +1,80 @@
+@host = http://127.0.0.1
+@base_url = {{host}}/api
+@port = 8888
+
+###
+
+GET {{base_url}}/apps
+Content-Type: application/json
+
+###
+
+# @name create_app
+POST {{base_url}}/apps
+Content-Type: application/json
+
+{
+  "app_name": "alooha"
+}
+
+###
+
+GET {{base_url}}/apps
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+# @name create_variant
+POST {{base_url}}/apps/{{create_app.response.body.app_id}}/variant/from-url
+Content-Type: application/json
+
+{
+  "variant_name": "app.url",
+  "url": "{{host}}:{{port}}",
+  "base_name": "app",
+  "config_name": "url"
+}
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+# @name update_variant_url
+PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/url?url={{host}}:{{port}}
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+# @name delete_variant
+DELETE {{base_url}}/variants/{{create_variant.response.body.variant_id}}
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+DELETE {{base_url}}/apps/{{create_app.response.body.app_id}}
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps
+Content-Type: application/json
+
+###

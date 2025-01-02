@@ -1,5 +1,3 @@
-
-
 @host = http://localhost
 @base_url = {{host}}/api/variants/configs
 
