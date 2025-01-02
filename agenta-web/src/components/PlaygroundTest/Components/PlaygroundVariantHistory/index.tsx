@@ -1,52 +1,30 @@
-import {Button, Typography} from "antd"
+import {Menu} from "antd"
 import {useStyles} from "./styles"
-import Version from "../../assets/Version"
-import DeployButton from "../../assets/DeployButton"
-import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import clsx from "clsx"
+import PlaygroundVariantHistoryHeader from "./assets/PlaygroundVariantHistoryHeader"
 
 const PlaygroundVariantHistory = () => {
     const classes = useStyles()
-    const lintOfRevisions = [2, 3, 5, 6, 7]
-    const slectedRevision = 5
+    const lintOfRevisions = ["2", "3", "5", "6", "7"]
+    const slectedRevision = "5"
 
     return (
         <>
-            <section className="flex justify-start items-center gap-2 px-4 py-2">
-                <Button>Close</Button>
-                <Typography className="text-[16px] leading-[18px] font-[600]">History</Typography>
-            </section>
+            <PlaygroundVariantHistoryHeader slectedRevision={slectedRevision} />
 
-            <section className="flex justify-between gap-2 p-4">
-                <aside className={classes.navigationContainer}>
-                    {lintOfRevisions.map((revision) => (
-                        <div
-                            className={clsx(
-                                classes.navigation,
-                                revision === slectedRevision && classes.selectedNavigation, // for selected revision
-                            )}
-                            key={revision}
-                        >
-                            v{revision}
-                        </div>
-                    ))}
-                </aside>
+            <section className="h-[94%] flex justify-between gap-2">
+                <div className={clsx("pt-4 pl-2", classes.menuContainer)}>
+                    <Menu
+                        items={lintOfRevisions.map((revision) => ({
+                            key: revision,
+                            label: revision,
+                        }))}
+                        defaultSelectedKeys={[slectedRevision]}
+                        className={clsx("w-[180px]", classes.menu)}
+                    />
+                </div>
 
-                <main className={classes.historyContainer}>
-                    <div
-                        className={clsx(
-                            "flex items-center justify-between px-3 py-3",
-                            classes.historyContainerHeader,
-                        )}
-                    >
-                        <Version revision={slectedRevision} />
-
-                        <div className="flex items-center gap-2">
-                            <DeployButton label="Deploy" type="primary" />
-                            <Button icon={<ArrowCounterClockwise size={14} />}>Revert</Button>
-                        </div>
-                    </div>
-                </main>
+                <main className={"p-4"}></main>
             </section>
         </>
     )
