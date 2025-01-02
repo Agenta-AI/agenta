@@ -1,9 +1,9 @@
 import {useState} from "react"
 import {Input, Modal} from "antd"
 import {Check} from "@phosphor-icons/react"
-import {Props} from "./types"
+import {VariantRenameModalProps} from "./types"
 
-const VariantRenameModal: React.FC<Props> = ({...props}) => {
+const VariantRenameModal: React.FC<VariantRenameModalProps> = ({...props}) => {
     const [rename, setRename] = useState("")
 
     const onClose = (e: any) => {

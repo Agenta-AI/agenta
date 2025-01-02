@@ -1,7 +1,7 @@
 import {useState} from "react"
 import {Play} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
-import PlaygroundLoadTestset from "../../PlaygroundLoadTestset"
+import PlaygroundLoadTestsetModal from "../../Modals/PlaygroundLoadTestsetModal"
 
 const PlaygroundGenerationHeader = () => {
     const [testsetData, setTestsetData] = useState<Record<string, any> | null>(null)
@@ -19,7 +19,7 @@ const PlaygroundGenerationHeader = () => {
                 </Button>
             </div>
 
-            <PlaygroundLoadTestset
+            <PlaygroundLoadTestsetModal
                 open={isTestsetModalOpen}
                 onCancel={() => setIsTestsetModalOpen(false)}
                 testsetData={testsetData}

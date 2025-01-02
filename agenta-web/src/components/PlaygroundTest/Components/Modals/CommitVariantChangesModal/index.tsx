@@ -1,10 +1,10 @@
 import {Input, Modal, Typography} from "antd"
 import {FloppyDiskBack} from "@phosphor-icons/react"
-import {Props} from "./types"
+import {CommitVariantChangesModalProps} from "./types"
 
 const {Text} = Typography
 
-const CommitVariantChangesModal: React.FC<Props> = ({...props}) => {
+const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({...props}) => {
     const variantName = "app.v6"
 
     const onClose = (e: any) => {

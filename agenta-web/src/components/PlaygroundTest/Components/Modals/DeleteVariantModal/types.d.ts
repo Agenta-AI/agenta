@@ -1,3 +1,3 @@
 import {ModalProps} from "antd"
 
-export interface Props extends ModalProps {}
+export interface DeleteVariantModalProps extends ModalProps {}

@@ -11,15 +11,15 @@ import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
 import Version from "@/components/PlaygroundTest/assets/Version"
 import PlaygroundVariantHeaderMenu from "./PlaygroundVariantHeaderMenu"
 
-const DeployVariantModal = dynamic(() => import("../../DeployVariantModal"), {ssr: false})
+const DeployVariantModal = dynamic(() => import("../../Modals/DeployVariantModal"), {ssr: false})
 const PlaygroundVariantFocusMood = dynamic(() => import("../../PlaygroundVariantFocusMood"), {
     ssr: false,
 })
-const CommitVariantChangesModal = dynamic(() => import("../../CommitVariantChangesModal"), {
+const CommitVariantChangesModal = dynamic(() => import("../../Modals/CommitVariantChangesModal"), {
     ssr: false,
 })
-const VariantRenameModal = dynamic(() => import("../../VariantRenameModal"), {ssr: false})
-const VariantResetChangesModal = dynamic(() => import("../../VariantResetChangesModal"), {
+const VariantRenameModal = dynamic(() => import("../../Modals/VariantRenameModal"), {ssr: false})
+const VariantResetChangesModal = dynamic(() => import("../../Modals/VariantResetChangesModal"), {
     ssr: false,
 })
 const DeleteVariantModal = dynamic(() => import("../../Modals/DeleteVariantModal"), {ssr: false})

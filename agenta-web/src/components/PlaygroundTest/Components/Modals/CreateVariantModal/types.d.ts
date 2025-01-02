@@ -1,4 +1,4 @@
-export type Props = {
+export type CreateVariantModalProps = {
     isModalOpen: boolean
     setIsModalOpen: (value: boolean) => void
     addTab: () => void

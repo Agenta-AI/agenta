@@ -1,13 +1,16 @@
 import React, {useMemo, useState} from "react"
-import {useRouter} from "next/router"
 import {Modal, Typography, Table, Input} from "antd"
-import {Props} from "./types"
+import {DeployVariantModalProps} from "./types"
 import {ColumnsType} from "antd/es/table"
 import {Rocket} from "@phosphor-icons/react"
 
 const {Text} = Typography
 
-const DeployVariantModal: React.FC<Props> = ({variant, environments, ...props}) => {
+const DeployVariantModal: React.FC<DeployVariantModalProps> = ({
+    variant,
+    environments,
+    ...props
+}) => {
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [current, setCurrent] = useState(0)
 

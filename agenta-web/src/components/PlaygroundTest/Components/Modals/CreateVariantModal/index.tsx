@@ -2,12 +2,12 @@
 
 import React, {useState} from "react"
 import {Modal, Input, Select, Typography} from "antd"
-import {Props} from "./assets/types"
-import {useStyles} from "./assets/styles"
+import {CreateVariantModalProps} from "./types"
+import {useStyles} from "./styles"
 
 const {Text} = Typography
 
-const NewVariantModal: React.FC<Props> = ({
+const CreateVariantModal: React.FC<CreateVariantModalProps> = ({
     isModalOpen,
     setIsModalOpen,
     addTab,
@@ -81,4 +81,4 @@ const NewVariantModal: React.FC<Props> = ({
     )
 }
 
-export default NewVariantModal
+export default CreateVariantModal
