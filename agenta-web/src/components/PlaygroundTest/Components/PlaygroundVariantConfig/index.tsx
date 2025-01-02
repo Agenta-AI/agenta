@@ -9,27 +9,27 @@ import type {PlaygroundVariantConfigProps} from "./types"
  * Renders the prompts section of a variant configuration
  * Uses the variantToPromptsSelector to get relevant prompt data
  */
-const PlaygroundConfigVariantPrompts = ({
-    variantId,
-}: Pick<PlaygroundVariantConfigProps, "variantId">) => {
-    const {prompts = []} = usePlayground({
-        variantId,
-        hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: variantToPromptsSelector,
-    })
+// const PlaygroundConfigVariantPrompts = ({
+//     variantId,
+// }: Pick<PlaygroundVariantConfigProps, "variantId">) => {
+//     const {prompts = []} = usePlayground({
+//         variantId,
+//         hookId: "PlaygroundConfigVariantPrompts",
+//         variantSelector: variantToPromptsSelector,
+//     })
 
-    return (
-        <div className="div flex flex-col gap-2 pb-10">
-            {prompts.map((prompt, promptIndex) => (
-                <PlaygroundVariantConfigPrompt
-                    key={prompt.key as string}
-                    promptIndex={promptIndex}
-                    variantId={variantId}
-                />
-            ))}
-        </div>
-    )
-}
+//     return (
+//         <div className="div flex flex-col gap-2 pb-10">
+//             {prompts.map((prompt, promptIndex) => (
+//                 <PlaygroundVariantConfigPrompt
+//                     key={prompt.key as string}
+//                     promptIndex={promptIndex}
+//                     variantId={variantId}
+//                 />
+//             ))}
+//         </div>
+//     )
+// }
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -50,6 +50,24 @@ const PlaygroundVariantConfig: React.FC<PlaygroundVariantConfigProps> = ({
     className,
     ...divProps
 }) => {
+    const {promptIds = []} = usePlayground({
+        variantId,
+        hookId: "PlaygroundConfigVariantPrompts",
+        variantSelector: (variant) => {
+            const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
+            return {
+                promptIds,
+            }
+        }
+    })
+
+    console.log(
+        "usePlayground[%cComponent%c] - PlaygroundVariantConfig - RENDER!",
+        "color: orange",
+        "",
+        promptIds
+    )
+    
     return (
         <div
             className={clsx(
@@ -63,7 +81,13 @@ const PlaygroundVariantConfig: React.FC<PlaygroundVariantConfigProps> = ({
             {...divProps}
         >
             <PlaygroundVariantConfigHeader variantId={variantId} />
-            <PlaygroundConfigVariantPrompts variantId={variantId} />
+            {promptIds.map((promptId) => (
+                <PlaygroundVariantConfigPrompt
+                    key={promptId as string}
+                    promptId={promptId}
+                    variantId={variantId}
+                />
+            ))}
         </div>
     )
 }

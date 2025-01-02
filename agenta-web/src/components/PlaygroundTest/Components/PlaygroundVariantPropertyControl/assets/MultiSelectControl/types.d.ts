@@ -1,14 +1,7 @@
+import {BaseOption, OptionGroup} from "../../../../betterTypes/baseTypes"
 import type {SelectProps} from "antd"
 
-type BaseOption = {
-    label: string
-    value: string
-}
-
-export type GroupedOptions = {
-    label: string
-    options: BaseOption[]
-}
+export type GroupedOptions = OptionGroup
 
 export type Options = BaseOption[] | Record<string, string[]>
 

@@ -1,4 +1,4 @@
-import {InitialStateType} from "../../../state/types"
+import {InitialStateType} from "./types"
 
 export const initialState: InitialStateType = {
     variants: [],

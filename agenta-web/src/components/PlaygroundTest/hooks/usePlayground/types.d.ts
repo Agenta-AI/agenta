@@ -1,21 +1,70 @@
-import {Map} from "immutable"
-import {SWRConfiguration, SWRResponse} from "swr"
-import {StateVariant} from "../../state/types"
-import {Variant} from "@/lib/Types"
-import {type SWRHook} from "swr"
-import {type AgentaFetcher, type FetcherOptions} from "@/lib/api/types"
+import type {Map} from "immutable"
+import type {SWRConfiguration, SWRResponse, SWRHook} from "swr"
+import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
+import type {EnhancedVariant, Enhanced} from "../../betterTypes/types"
 
-export type {Variant}
+/** Base hook configuration types */
+interface BaseHookConfig<T = unknown, Selected = unknown>
+    extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
+    compare?: (a: T | undefined, b: T | undefined) => boolean
+    fetcher?: AgentaFetcher
+    hookId?: string
+    projectId?: string
+    service?: string
+    cache?: Map<string, {data: T}>
+}
+
+/** Base hook response extending SWR */
+interface BaseHookResponse<T = unknown, Selected = unknown> extends SWRResponse<T, Error> {
+    isDirty?: boolean
+    selectedData?: Selected
+}
+
+/** Generic selector types */
+interface SelectorConfig<T = any, Selected = unknown> {
+    variantSelector?: (variant: EnhancedVariant) => Selected
+    stateSelector?: (state: T) => Selected
+}
+
 // Base state shape
 export interface PlaygroundStateData {
-    variants: StateVariant[]
+    variants: EnhancedVariant[]
     dirtyStates?: Map<string, boolean>
-    dataRef?: Map<string, StateVariant>
+    dataRef?: Map<string, EnhancedVariant>
     [key: string]: any
 }
 
+// Extend base hook response
+export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
+    extends BaseHookResponse<T, Selected> {}
+
+// Variants middleware extensions
+export interface PlaygroundVariantsResponse extends PlaygroundResponse {
+    variants?: EnhancedVariant[]
+    variantIds?: string[]
+    addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
+}
+
+// Single variant middleware extensions
+export interface PlaygroundVariantResponse extends PlaygroundVariantsResponse {
+    variant?: EnhancedVariant
+    deleteVariant?: () => Promise<void>
+    mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
+    saveVariant?: () => Promise<void>
+    variantConfig?: Enhanced<any>
+    variantConfigProperty?: EnhancedProperty
+}
+
+// Playground specific config
+export interface PlaygroundSWRConfig<T = PlaygroundStateData, Selected = unknown>
+    extends BaseHookConfig<T, Selected>,
+        SelectorConfig<T, Selected> {
+    variantId?: string
+    propertyId?: string
+}
+
 // Each middleware extends this to add its own properties
-export interface PlaygroundResponse<T = PlaygroundStateData, Selected = any>
+export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
     extends SWRResponse<T, Error> {
     isDirty?: boolean
     selectedData?: Selected
@@ -23,37 +72,31 @@ export interface PlaygroundResponse<T = PlaygroundStateData, Selected = any>
 
 // Variants middleware extensions
 export interface PlaygroundVariantsResponse extends PlaygroundResponse {
-    variants?: StateVariant[]
+    variants?: EnhancedVariant[]
     variantIds?: string[]
     addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
 }
 
 export interface VariantUpdateFunction<T extends PlaygroundStateData = PlaygroundStateData> {
-    (state: T): Partial<StateVariant> | undefined
+    (state: T): Partial<EnhancedVariant> | undefined
 }
 
 // Single variant middleware extensions
 export interface PlaygroundVariantResponse<T extends PlaygroundStateData = PlaygroundStateData>
     extends PlaygroundVariantsResponse {
-    variant?: StateVariant
+    variant?: EnhancedVariant
     deleteVariant?: () => Promise<void>
-    mutateVariant?: (updates: Partial<StateVariant> | VariantUpdateFunction<T>) => Promise<void>
+    mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction<T>) => Promise<void>
     saveVariant?: () => Promise<void>
-    variantConfig?: any // TODO: Type this properly based on your schema
-    variantConfigProperty?: {
-        property?: {
-            config: any // TODO: Type this properly
-            valueInfo: any // TODO: Type this properly
-            handleChange: (e: any) => void // TODO: Type this properly
-        }
-    }
+    variantConfig?: Enhanced<any>
+    variantConfigProperty?: EnhancedProperty
 }
 
 // Hook options extending SWR config
 export interface UsePlaygroundStateOptions<
     T extends PlaygroundStateData = PlaygroundStateData,
-    E = Error,
-> extends PlaygroundSWRConfig<T> {
+    Selected = unknown,
+> extends PlaygroundSWRConfig<T, Selected> {
     appId?: string
     hookId?: string
     debug?: boolean
@@ -62,24 +105,25 @@ export interface UsePlaygroundStateOptions<
     cache?: Map<string, {data: T}>
 }
 
-// Custom SWR configuration that allows undefined in compare function
-export interface PlaygroundSWRConfig<T extends PlaygroundStateData = PlaygroundStateData, S = any>
-    extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
-    compare?: (a: T | undefined, b: T | undefined) => boolean // Changed to always return boolean
+// Custom SWR configuration with generic Selected type
+export interface PlaygroundSWRConfig<
+    T extends PlaygroundStateData = PlaygroundStateData,
+    Selected = unknown,
+> extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
+    compare?: (a: T | undefined, b: T | undefined) => boolean
     fetcher?: AgentaFetcher
     variantId?: string
     hookId?: string
     projectId?: string
     service?: string
-    configKey?: keyof StateVariant
-    valueKey?: keyof StateVariant
-    cache?: Map<string, {data: T}> // Add this line
-    variantSelector?: VariantSelector<S> // Add this line
-    stateSelector?: StateSelector<S> // Add this line
+    cache?: Map<string, {data: T}>
+    variantSelector?: VariantSelector<Selected>
+    stateSelector?: StateSelector<Selected>
+    propertyId?: string
 }
 
-// Selector types
-export type VariantSelector<T = any> = (variant: StateVariant) => T
+// Generic selector types
+export type VariantSelector<T = any> = (variant: EnhancedVariant) => T
 export type StateSelector<T = any> = (state: PlaygroundStateData) => T
 
 export interface PlaygroundMiddlewareParams<T extends PlaygroundStateData = PlaygroundStateData> {
@@ -90,25 +134,48 @@ export interface PlaygroundMiddlewareParams<T extends PlaygroundStateData = Play
 
 // Update the base middleware type to match SWR's Middleware structure with proper constraints
 export type PlaygroundMiddleware = {
-    (
+    <Data extends PlaygroundStateData = PlaygroundStateData, Selected = unknown>(
         useSWRNext: SWRHook,
-    ): <Data extends PlaygroundStateData = PlaygroundStateData, S = any>(
+    ): (
         key: Key,
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
-        config: PlaygroundSWRConfig<Data, S>,
-    ) => PlaygroundResponse<Data, S>
+        config: PlaygroundSWRConfig<Data, Selected>,
+    ) => PlaygroundResponse<Data, Selected>
 }
 
-// Final hook return type combining all middleware responses
-export type UsePlaygroundReturn = PlaygroundVariantResponse & PlaygroundResponse
+// Final hook return type combining base responses with selected data
+export type UsePlaygroundReturn<Selected = unknown> = PlaygroundVariantResponse &
+    PlaygroundResponse<PlaygroundStateData, Selected> &
+    Selected
 
-// Response type will infer the selected type from the selector's return type
-export type InferSelectedData<T> = T extends PlaygroundSWRConfig & {
-    stateSelector?: (state: PlaygroundStateData) => infer R
+// Property control types
+export interface CompoundOption {
+    label: string
+    value: string
+    config: {
+        type: string
+        schema?: Record<string, unknown>
+        [key: string]: unknown
+    }
 }
-    ? R
-    : T extends PlaygroundSWRConfig & {
-            variantSelector?: (variant: StateVariant) => infer R
-        }
-      ? R
-      : never
+
+export interface PropertyMetadata {
+    type: "string" | "number" | "boolean" | "array" | "compound"
+    title?: string
+    description?: string
+    min?: number
+    max?: number
+    nullable?: boolean
+    options?: Array<CompoundOption>
+    itemMetadata?: {
+        type: string
+        properties: Record<string, unknown>
+    }
+}
+
+export interface EnhancedProperty {
+    value: any
+    __id: string
+    __metadata: PropertyMetadata
+    handleChange: (value: any) => void
+}

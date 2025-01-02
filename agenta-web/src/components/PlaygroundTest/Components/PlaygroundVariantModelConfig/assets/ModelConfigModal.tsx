@@ -8,8 +8,6 @@ import type {
     ModelConfigModalContentProps,
     ModelConfigModalActionsProps
 } from "../types"
-import type {Path} from "../../../types/pathHelpers"
-import type {StateVariant} from "../../../state/types"
 
 /**
  * Renders the modal action buttons for saving and canceling changes
@@ -71,7 +69,7 @@ const ModalContent: React.FC<ModelConfigModalContentProps> = ({
  */
 const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
     variantId,
-    properties,
+    propertyIds,
     handleSave,
     handleClose,
 }) => {
@@ -82,16 +80,14 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
 
     return (
         <ModalContent onClick={preventClickBubble}>
-            {properties.map((property) => {
+            {propertyIds.map((propertyId) => {
                 return (
-                    <PlaygroundVariantPropertyControl
-                        key={property.key}
-                        variantId={variantId}
-                        configKey={property.configKey as Path<StateVariant>}
-                        valueKey={property.valueKey as Path<StateVariant>}
-                    />
-                )
-            })}
+                <PlaygroundVariantPropertyControl
+                    key={propertyId}
+                    variantId={variantId}
+                    propertyId={propertyId}
+                />
+            )})}
             <ModalActions handleSave={handleSave} handleClose={handleClose} />
         </ModalContent>
     )

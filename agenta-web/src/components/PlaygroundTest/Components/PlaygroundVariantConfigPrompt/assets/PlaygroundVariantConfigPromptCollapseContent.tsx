@@ -1,9 +1,7 @@
 import AddButton from "../../../assets/AddButton"
 import PromptMessageConfig from "../../PromptMessageConfig"
-import type {StateVariant} from "@/components/PlaygroundTest/state/types"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import type {MessageConfig, PromptCollapseContentProps} from "../types"
-import type {Path} from "@/components/PlaygroundTest/types/pathHelpers"
+import type {PromptCollapseContentProps} from "../types"
 import clsx from "clsx"
 
 /**
@@ -19,44 +17,46 @@ import clsx from "clsx"
  */
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
     variantId,
-    promptIndex,
+    promptId,
     className,
     ...props
 }) => {
-    const {messageConfigs} = usePlayground<{messageConfigs: MessageConfig[]}>({
+    const {messageIds} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: (variant) => {
-            const messages = variant?.schema?.promptConfig?.[promptIndex]?.messages
+            
+            const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
+            const messages = prompt?.messages
+
             if (!messages) {
-                return {messageConfigs: []}
+                return {messageIds: []}
             }
 
             return {
-                messageConfigs: (Array.isArray(messages.value)
-                    ? messages.value
-                    : [messages.value]
-                ).map((_, index) => ({
-                    key: [messages.valueKey, index, variantId].join("-"),
-                    variantId,
-                    configKey: messages.configKey as Path<StateVariant>,
-                    valueKey: `${messages.valueKey}.[${index}]` as Path<StateVariant>,
-                })),
+                messageIds: messages.value.map((message) => message.__id)
             }
         },
     })
+
+    console.log(
+        "usePlayground[%cComponent%c] - PlaygroundVariantConfigPromptCollapseContent - RENDER!",
+        "color: orange",
+        "",
+        variantId,
+        messageIds,
+    )
 
     return (
         <div 
             className={clsx("flex flex-col gap-4", className)}
             {...props}
         >
-            {(messageConfigs || []).map((messageConfig) => (
+            {messageIds.map((messageId) => (
                 <PromptMessageConfig
-                    key={messageConfig.key}
-                    variantId={messageConfig.variantId}
-                    configKey={messageConfig.configKey}
-                    valueKey={messageConfig.valueKey}
+                    key={messageId}
+                    variantId={variantId}
+                    messageId={messageId}
                 />
             ))}
             <AddButton label="Message" />

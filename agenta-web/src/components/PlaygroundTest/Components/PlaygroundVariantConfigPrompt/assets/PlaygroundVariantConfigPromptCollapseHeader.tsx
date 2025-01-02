@@ -27,9 +27,9 @@ const PlaygroundVariantModelConfig = dynamic(
  * ```
  */
 const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeaderProps> = ({
-    promptIndex,
     variantId,
     className,
+    promptId,
     ...props
 }) => {
     return (
@@ -40,7 +40,7 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
             <div>Prompt</div>
             <PlaygroundVariantModelConfig
                 variantId={variantId}
-                promptIndex={promptIndex}
+                promptId={promptId}
             />
         </div>
     )

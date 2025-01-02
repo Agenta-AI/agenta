@@ -1,20 +1,19 @@
-import type {StateVariant} from "../../state/types"
-import type {Path} from "../../types/pathHelpers"
-import type {SchemaObject} from "../../types/shared"
+import {EnhancedVariant} from "../../betterTypes/types"
+import type {Enhanced} from "../../betterTypes/types"
+import type {PlaygroundVariantPropertyControlProps} from "./types"
+import {BaseContainerProps} from "../types"
+import type {PropertyMetadata} from "../../betterTypes/types"
 
-export interface PlaygroundVariantPropertyControlProps {
-    configKey: Path<StateVariant>
-    valueKey: Path<StateVariant>
-    variantId: string
-    as?: ControlComponentType
-}
-
-export type PropertyConfig = SchemaObject
-
-export interface PropertyData {
-    config: SchemaObject
-    valueInfo: unknown
-    handleChange: (e: {target: {value: ConfigValue}} | ConfigValue) => void
+/**
+ * Props for the property control component
+ */
+export interface PlaygroundVariantPropertyControlProps extends BaseContainerProps {
+    /** ID of the variant containing the property */
+    variantId: EnhancedVariant["id"]
+    /** Unique identifier for the property */
+    propertyId: string
+    /** Optional rendering variant for the control */
+    as?: "SimpleDropdownSelect" | "PromptMessageContent"
 }
 
 export type ControlComponentType =
@@ -48,3 +47,6 @@ export interface ControlComponents {
     BooleanControl: BaseControlProps
     PromptMessageContent: BaseControlProps
 }
+
+// Re-export the component props type
+export type {PlaygroundVariantPropertyControlProps}

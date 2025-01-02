@@ -10,11 +10,16 @@ import {
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import isEqual from "lodash/isEqual"
 
-const selectorMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
-    return <Data extends PlaygroundStateData = PlaygroundStateData>(
+const selectorMiddleware: PlaygroundMiddleware = <
+    Data extends PlaygroundStateData = PlaygroundStateData,
+    Selected = unknown,
+>(
+    useSWRNext: SWRHook,
+) => {
+    return (
         key: Key,
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
-        config: PlaygroundSWRConfig<Data>,
+        config: PlaygroundSWRConfig<Data, Selected>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
             const {logger, valueReferences, addToValueReferences} = usePlaygroundUtilities({
@@ -42,10 +47,10 @@ const selectorMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                         if (variantSelector && config.variantId) {
                             const prevVariant = (a?.variants || []).find(
-                                (v) => v.variantId === config.variantId,
+                                (v) => v.id === config.variantId,
                             )
                             const nextVariant = (b?.variants || []).find(
-                                (v) => v.variantId === config.variantId,
+                                (v) => v.id === config.variantId,
                             )
                             prevSelected = prevVariant ? variantSelector(prevVariant) : undefined
                             nextSelected = nextVariant ? variantSelector(nextVariant) : undefined
@@ -67,7 +72,7 @@ const selectorMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 const {variantSelector, stateSelector} = config
 
                 if (variantSelector && config.variantId && swr.data) {
-                    const variant = swr.data.variants.find((v) => v.variantId === config.variantId)
+                    const variant = swr.data.variants.find((v) => v.id === config.variantId)
                     return variant ? variantSelector(variant) : undefined
                 }
 
@@ -79,15 +84,21 @@ const selectorMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
             }, [swr.data, config])
 
             if (config.stateSelector || config.variantSelector) {
-                const selectedData = getSelectedData() || {}
-                const nativeKeys = new Set(Object.keys(swr))
-                Object.keys(selectedData).forEach((key) => {
-                    if (!nativeKeys.has(key)) {
-                        Object.defineProperty(swr, key, {
-                            get: () => selectedData[key],
-                        })
-                    }
-                })
+                const selectedData = getSelectedData()
+                if (selectedData) {
+                    // Spread selected data into SWR response
+                    Object.entries(selectedData).forEach(([key, value]) => {
+                        if (!(key in swr)) {
+                            Object.defineProperty(swr, key, {
+                                enumerable: true,
+                                get() {
+                                    addToValueReferences("selectedData")
+                                    return value
+                                },
+                            })
+                        }
+                    })
+                }
             }
 
             return swr
