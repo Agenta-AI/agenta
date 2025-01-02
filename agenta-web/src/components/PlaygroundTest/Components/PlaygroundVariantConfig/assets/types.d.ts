@@ -4,4 +4,5 @@ export type PlaygroundVariantHeaderMenuProps = {
     setIsResetModalOpen: (open: boolean) => void
     setIsCommitModalOpen: (open: boolean) => void
     setIsDeployOpen: (open: boolean) => void
+    setIsDeleteVariantModalOpen: (open: boolean) => void
 }
