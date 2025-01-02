@@ -3,7 +3,7 @@ import {DotsThreeVertical, MinusCircle, ArrowsOut, Copy, Database} from "@phosph
 import {Button, Dropdown} from "antd"
 import {PlaygroundVariableMenuProps} from "./types"
 import clsx from "clsx"
-import PlaygroundGenerationFocusDrawer from "../../PlaygroundGenerationFocusDrawer"
+import PlaygroundGenerationFocusDrawer from "../../Drawers/PlaygroundGenerationFocusDrawer"
 
 const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = ({className}) => {
     const [isFocusMoodOpen, setIsFocusMoodOpen] = useState(false)

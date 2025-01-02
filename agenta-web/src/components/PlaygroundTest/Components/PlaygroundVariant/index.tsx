@@ -1,6 +1,5 @@
 import {memo} from "react"
 import dynamic from "next/dynamic"
-import {Typography} from "antd"
 import clsx from "clsx"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {PlaygroundVariantProps} from "./types"
@@ -37,8 +36,8 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
                         <PlaygroundVariantConfig variantId={variantId} />
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
-                        {/* <PlaygroundGenerations /> */}
-                        <PlaygroundVariantHistory />
+                        <PlaygroundGenerations />
+                        {/* <PlaygroundVariantHistory /> */}
                     </SplitterPanel>
                 </Splitter>
             </div>

@@ -12,9 +12,12 @@ import Version from "@/components/PlaygroundTest/assets/Version"
 import PlaygroundVariantHeaderMenu from "./PlaygroundVariantHeaderMenu"
 
 const DeployVariantModal = dynamic(() => import("../../Modals/DeployVariantModal"), {ssr: false})
-const PlaygroundVariantFocusMood = dynamic(() => import("../../PlaygroundVariantFocusMood"), {
-    ssr: false,
-})
+const PlaygroundPromptFocusDrawer = dynamic(
+    () => import("../../Drawers/PlaygroundPromptFocusDrawer"),
+    {
+        ssr: false,
+    },
+)
 const CommitVariantChangesModal = dynamic(() => import("../../Modals/CommitVariantChangesModal"), {
     ssr: false,
 })
@@ -158,7 +161,7 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
                 onCancel={() => setIsCommitModalOpen(false)}
             />
 
-            <PlaygroundVariantFocusMood
+            <PlaygroundPromptFocusDrawer
                 variantId={variantId}
                 open={isFocusMoodOpen}
                 onClose={() => setIsFocusMoodOpen(false)}

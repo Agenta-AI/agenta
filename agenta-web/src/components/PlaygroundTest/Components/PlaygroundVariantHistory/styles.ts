@@ -7,7 +7,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     menuContainer: {
         borderRight: `1px solid ${theme.colorBorderSecondary}`,
-      
     },
     menu: {
         overflowY: "auto",
