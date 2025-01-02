@@ -12,20 +12,16 @@ const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
     const isBusy = useRef(false)
 
     useEffect(() => {
-        const startHandler = (newRoute: string) => {
-            isBusy.current = true
-        }
-        const endHandler = (newRoute: string) => {
-            isBusy.current = false
-        }
+        const startHandler = (_newRoute: string) => (isBusy.current = true)
+        const endHandler = (_newRoute: string) => (isBusy.current = false)
 
-        Router.events.on("routeChangeStart", startHandler)
-        Router.events.on("routeChangeComplete", endHandler)
+        router.events.on("routeChangeStart", startHandler)
+        router.events.on("routeChangeComplete", endHandler)
         return () => {
-            Router.events.off("routeChangeStart", startHandler)
-            Router.events.off("routeChangeComplete", endHandler)
+            router.events.off("routeChangeStart", startHandler)
+            router.events.off("routeChangeComplete", endHandler)
         }
-    }, [])
+    }, [router])
 
     useEffect(() => {
         if (isBusy.current) return
