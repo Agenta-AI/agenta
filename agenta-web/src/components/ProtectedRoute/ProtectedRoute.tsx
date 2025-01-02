@@ -1,6 +1,6 @@
 import {useSession} from "@/hooks/useSession"
 import {useRouter} from "next/router"
-import React, {PropsWithChildren, useEffect, useState} from "react"
+import React, {PropsWithChildren, useEffect, useRef, useState} from "react"
 import {useProjectData} from "@/contexts/project.context"
 
 const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
@@ -9,8 +9,22 @@ const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
     const {pathname} = router
     const [shouldRender, setShouldRender] = useState(false)
     const {isLoading, isProjectId} = useProjectData()
+    const isBusy = useRef(false)
 
     useEffect(() => {
+        const startHandler = (_newRoute: string) => (isBusy.current = true)
+        const endHandler = (_newRoute: string) => (isBusy.current = false)
+
+        router.events.on("routeChangeStart", startHandler)
+        router.events.on("routeChangeComplete", endHandler)
+        return () => {
+            router.events.off("routeChangeStart", startHandler)
+            router.events.off("routeChangeComplete", endHandler)
+        }
+    }, [router])
+
+    useEffect(() => {
+        if (isBusy.current) return
         if (loading || isLoading) {
             setShouldRender(false)
         } else {
@@ -30,7 +44,7 @@ const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
                 setShouldRender(!!isProjectId)
             }
         }
-    }, [pathname, isSignedIn, loading, isProjectId, isLoading])
+    }, [pathname, isSignedIn, loading, isProjectId, isLoading, router])
 
     return <>{shouldRender ? children : null}</>
 }
