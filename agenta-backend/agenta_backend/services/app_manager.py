@@ -360,7 +360,8 @@ async def terminate_and_remove_app_variant(
 
             if deployment:
                 try:
-                    await deployment_manager.stop_and_delete_service(deployment)
+                    if deployment.container_id:
+                        await deployment_manager.stop_and_delete_service(deployment)
                 except RuntimeError as e:
                     logger.error(f"Failed to stop and delete service {deployment} {e}")
 
@@ -385,13 +386,6 @@ async def terminate_and_remove_app_variant(
             logger.debug("remove_app_variant_from_db")
             await db_manager.remove_app_variant_from_db(app_variant_db, project_id)
 
-        app_variants = await db_manager.list_app_variants(app_id)
-        logger.debug(f"Count of app variants available: {len(app_variants)}")
-        if (
-            len(app_variants) == 0
-        ):  # remove app related resources if the length of the app variants hit 0
-            logger.debug("remove_app_related_resources")
-            await remove_app_related_resources(app_id, project_id)
     except Exception as e:
         logger.error(
             f"An error occurred while deleting app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}: {str(e)}"
