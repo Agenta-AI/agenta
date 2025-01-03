@@ -4,6 +4,8 @@ import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 import usePlayground from "../../hooks/usePlayground"
 import {variantToPromptsSelector} from "./assets/helpers"
 import type {PlaygroundVariantConfigProps} from "./types"
+import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
+import {Divider} from "antd"
 
 /**
  * Renders the prompts section of a variant configuration
@@ -27,6 +29,10 @@ const PlaygroundConfigVariantPrompts = ({
                     variantId={variantId}
                 />
             ))}
+
+            <Divider className="!my-1.5" />
+
+            <PlaygroundPromptToolsConfig />
         </div>
     )
 }
