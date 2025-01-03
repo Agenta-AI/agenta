@@ -39,6 +39,7 @@ if isCloudEE():
     )
     from agenta_backend.commons.models.api.api_models import (
         AppVariant_ as AppVariant,
+        ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
         EnvironmentRevision_ as EnvironmentRevision,
         EnvironmentOutput_ as EnvironmentOutput,
@@ -62,7 +63,7 @@ else:
     )
     from agenta_backend.models.api.api_models import (
         AppVariant,
-        Image,
+        ImageExtended,
         AppVariantResponse,
         EnvironmentRevision,
         EnvironmentOutput,
@@ -436,8 +437,8 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
     )
 
 
-def image_db_to_pydantic(image_db: ImageDB) -> Image:
-    image = ImageDB(
+def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
+    image = ImageExtended(
         docker_id=image_db.docker_id,
         project_id=str(image_db.project_id),
         tags=image_db.tags,
