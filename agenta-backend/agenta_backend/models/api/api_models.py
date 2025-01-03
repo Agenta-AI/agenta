@@ -189,9 +189,6 @@ class Image(BaseModel):
     docker_id: str
     tags: str
 
-    id: str
-    project_id: Optional[str] = None
-
 
 class AddVariantFromImagePayload(BaseModel):
     variant_name: str
@@ -199,6 +196,12 @@ class AddVariantFromImagePayload(BaseModel):
     tags: str
     base_name: Optional[str]
     config_name: Optional[str]
+
+
+class ImageExtended(Image):
+    # includes the mongodb image id
+    id: str
+    project_id: Optional[str] = None
 
 
 class TemplateImageInfo(BaseModel):
