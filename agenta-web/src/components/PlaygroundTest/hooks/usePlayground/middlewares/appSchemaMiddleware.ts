@@ -5,13 +5,13 @@ import {
     PlaygroundMiddleware,
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
-    Variant,
 } from "../types"
 import {useCallback} from "react"
 import cloneDeep from "lodash/cloneDeep"
-import {fetchAndUpdateVariants, setVariants} from "../assets/helpers"
+import {fetchAndUpdateVariants, fetchOpenApiSchemaJson, setVariants} from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {initialState} from "@/components/PlaygroundTest/state"
+import {Variant} from "@/lib/Types"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -57,12 +57,19 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 logger(`FETCH - FETCH`)
 
                 try {
-                    // Remove the generic type argument and add type assertion instead
-                    const response = (await globalFetcher(url, options)) as Variant[]
+                    const [variants, specResponse] = await Promise.all([
+                        globalFetcher(url, options) as Promise<Variant[]>,
+                        ...(!state.spec ? [fetchOpenApiSchemaJson(config.service)] : []),
+                    ])
+                    const spec = state.spec || specResponse.schema
+
+                    console.log("variants", variants)
                     state.variants = await fetchAndUpdateVariants(
-                        setVariants(state.variants, response),
-                        config.service,
+                        setVariants(state.variants, variants),
+                        spec,
                     )
+                    state.spec = specResponse.schema
+
                     return state
                 } catch (error) {
                     console.error("Error in openApiSchemaFetcher:", error)

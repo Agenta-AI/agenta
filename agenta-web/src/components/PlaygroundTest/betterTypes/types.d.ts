@@ -53,6 +53,94 @@ export interface ObjectMetadata extends BaseMetadata {
     additionalProperties?: boolean
 }
 
+/** Input schema for variants */
+export interface InputSchema extends ArrayMetadata {
+    type: "array"
+    itemMetadata: ObjectMetadata & {
+        properties: Record<string, StringMetadata>
+    }
+}
+
+/** API Response types for test runs */
+interface ExecutionMetrics {
+    duration: {total: number}
+    costs: {total: number}
+    tokens: {
+        prompt: number
+        completion: number
+        total: number
+    }
+}
+
+interface ExecutionNode {
+    lifecycle: {
+        created_at: string
+        updated_at: string | null
+        updated_by_id: string | null
+        updated_by: string | null
+    }
+    root: {id: string}
+    tree: {id: string; type: string | null}
+    node: {id: string; name: string; type: string}
+    parent: {id: string} | null
+    time: {start: string; end: string}
+    status: {code: string; message: string | null}
+    exception: unknown | null
+    data: {
+        inputs: Record<string, unknown>
+        outputs: string | Record<string, unknown>
+    }
+    metrics: {
+        acc: ExecutionMetrics
+        unit?: ExecutionMetrics
+    }
+    meta: {
+        configuration: Record<string, unknown>
+    }
+    refs: unknown | null
+    links: unknown | null
+    otel: {
+        kind: string
+        attributes: unknown | null
+        events: unknown[]
+        links: unknown | null
+    }
+    nodes: Record<string, ExecutionNode> | null
+}
+
+interface ExecutionTree {
+    nodes: ExecutionNode[]
+    version: string
+    count: number | null
+}
+
+interface ApiResponse {
+    version: string
+    data: string
+    content_type: string
+    tree: ExecutionTree
+}
+
+/** Result structure for test runs */
+export interface TestResult {
+    response?: ApiResponse
+    error?: string
+    metadata?: Record<string, unknown>
+}
+
+/** Input row configuration with enhanced primitive values */
+export interface EnhancedInputRowConfig extends EnhancedConfig<Record<string, string>> {
+    __metadata: ObjectMetadata
+    __result?: TestResult
+    [key: string]: EnhancedConfigValue<string> | string | ObjectMetadata | TestResult | undefined // Allow spreading values at root level
+}
+
+/** Input rows array configuration */
+export interface EnhancedInputConfig extends EnhancedConfig<Record<string, string>[]> {
+    __metadata: InputSchema
+    value: EnhancedInputRowConfig[]
+}
+
 /** Union of all metadata types */
 export type ConfigMetadata =
     | StringMetadata
@@ -148,8 +236,49 @@ export interface EnhancedMessageArray extends EnhancedConfig<ChatMessage[]> {
 }
 
 /** Prompt interface structure */
-export interface PromptConfig {
-    __id: string
+export interface PromptConfig
+    extends EnhancedConfig<{
+        messages: ChatMessage[]
+        llmConfig: {
+            model: string
+            temperature?: number
+            maxTokens?: number
+            topP?: number
+            frequencyPenalty?: number
+            presencePenalty?: number
+            stream?: boolean
+            responseFormat?: {
+                type: string
+            }
+            tools?: any[]
+            toolChoice?: "none" | "auto" | null
+        }
+        templateFormat?: "fstring" | "jinja2" | "curly"
+        systemPrompt?: string
+        userPrompt?: string
+        inputKeys: string[]
+    }> {
+    value: {
+        messages: ChatMessage[]
+        llmConfig: {
+            model: string
+            temperature?: number
+            maxTokens?: number
+            topP?: number
+            frequencyPenalty?: number
+            presencePenalty?: number
+            stream?: boolean
+            responseFormat?: {
+                type: string
+            }
+            tools?: any[]
+            toolChoice?: "none" | "auto" | null
+        }
+        templateFormat?: "fstring" | "jinja2" | "curly"
+        systemPrompt?: string
+        userPrompt?: string
+        inputKeys: string[]
+    }
     messages: EnhancedMessageArray
     llmConfig: Enhanced<{
         model: string
@@ -175,7 +304,7 @@ export interface PromptConfig {
 interface EnhancedVariant extends BaseVariant {
     isChat: boolean
     prompts: Array<PromptConfig>
-    inputs: Record<string, unknown>
+    inputs: EnhancedInputConfig
     messages: EnhancedMessageArray
 }
 

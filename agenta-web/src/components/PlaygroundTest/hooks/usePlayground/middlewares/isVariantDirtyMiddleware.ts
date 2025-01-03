@@ -11,6 +11,46 @@ import isEqual from "lodash/isEqual"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import cloneDeep from "lodash/cloneDeep"
 import {initialState} from "@/components/PlaygroundTest/state"
+import {EnhancedVariant} from "@/components/PlaygroundTest/betterTypes/types"
+
+/**
+ * Compare two variants ignoring specified properties
+ */
+const compareVariantsForDirtyState = (
+    variant1: EnhancedVariant | undefined,
+    variant2: EnhancedVariant | undefined,
+    ignoreKeys: string[] = ["inputs"],
+): boolean => {
+    if (!variant1 || !variant2) return variant1 === variant2
+
+    // Create clean copies without ignored properties
+    const cleanVariant1 = omitDeep(variant1, ignoreKeys)
+    const cleanVariant2 = omitDeep(variant2, ignoreKeys)
+
+    return isEqual(cleanVariant1, cleanVariant2)
+}
+
+/**
+ * Recursively omit specified keys from an object
+ */
+const omitDeep = (obj: any, keys: string[]): any => {
+    if (!obj || typeof obj !== "object") return obj
+
+    if (Array.isArray(obj)) {
+        return obj.map((item) => omitDeep(item, keys))
+    }
+
+    return Object.entries(obj).reduce(
+        (acc, [key, value]) => {
+            if (keys.includes(key)) return acc
+
+            acc[key] = typeof value === "object" ? omitDeep(value, keys) : value
+
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
 
 type MutateFunction<T extends PlaygroundStateData = PlaygroundStateData> = (
     state: T | Promise<T> | undefined,
@@ -126,7 +166,13 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             const dataRef = clonedState.dataRef
                             const variant = newState.variants.find((v) => v.id === config.variantId)
 
-                            if (variant && !isEqual(dataRef?.get(config.variantId), variant)) {
+                            if (
+                                variant &&
+                                !compareVariantsForDirtyState(
+                                    dataRef?.get(config.variantId),
+                                    variant,
+                                )
+                            ) {
                                 const dirtyRef = clonedState.dirtyStates
                                     ? new Map(clonedState.dirtyStates)
                                     : new Map()

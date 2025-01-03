@@ -13,12 +13,19 @@ import cloneDeep from "lodash/cloneDeep"
 import {
     compareVariant,
     createVariantCompare,
-    updatePromptInputKeys,
     findPropertyInObject,
+    findVariantById,
 } from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {EnhancedVariant} from "@/components/PlaygroundTest/betterTypes/types"
 import isEqual from "lodash/isEqual"
+import {
+    updateVariantPromptKeys,
+    syncVariantInputs,
+    getVariantInputKeys,
+} from "../assets/inputHelpers"
+import {transformToRequestBody} from "../../../betterTypes/transformers/reverseTransformer"
+import {parseValidationError} from "../../../assets/utilities/errors"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -162,83 +169,88 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         const variant = (state?.variants || []).find((v) => v.id === variantId)
                         if (!variant) return state
 
-                        // try {
-                        //     const promptConfig = variant.schema?.promptConfig?.[0]
-                        //     const llmConfig = promptConfig?.llm_config
-                        //     const messagesConfig = promptConfig?.messages
+                        // delete body.inputs
+                        // console.log("body for save!", body)
+                        try {
+                            const parameters = transformToRequestBody(variant)
+                            // const promptConfig = variant.schema?.promptConfig?.[0]
+                            // const llmConfig = promptConfig?.llm_config
+                            // const messagesConfig = promptConfig?.messages
 
-                        //     const saveResponse = await fetcher?.(
-                        //         `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
-                        //         {
-                        //             method: "PUT",
-                        //             body: {
-                        //                 parameters: {
-                        //                     inputs: [{name: "country"}],
-                        //                     ...llmConfig?.value,
-                        //                     ...messagesConfig?.value.reduce(
-                        //                         (
-                        //                             acc: {[key: string]: string},
-                        //                             cur: {
-                        //                                 role: string
-                        //                                 content: string
-                        //                             },
-                        //                         ) => ({
-                        //                             ...acc,
-                        //                             [`prompt_${cur.role}`]: cur.content,
-                        //                         }),
-                        //                         {} as {[key: string]: string},
-                        //                     ),
-                        //                 },
-                        //             },
-                        //         },
-                        //     )
+                            const saveResponse = await fetcher?.(
+                                `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
+                                {
+                                    method: "PUT",
+                                    body: {
+                                        parameters,
+                                        // parameters: {
+                                        //     inputs: [{name: "country"}],
+                                        //     ...llmConfig?.value,
+                                        //     ...messagesConfig?.value.reduce(
+                                        //         (
+                                        //             acc: {[key: string]: string},
+                                        //             cur: {
+                                        //                 role: string
+                                        //                 content: string
+                                        //             },
+                                        //         ) => ({
+                                        //             ...acc,
+                                        //             [`prompt_${cur.role}`]: cur.content,
+                                        //         }),
+                                        //         {} as {[key: string]: string},
+                                        //     ),
+                                        // },
+                                    },
+                                },
+                            )
 
-                        //     if (saveResponse && saveResponse?.status !== 200) {
-                        //         // error
-                        //         message.error("Failed to save variant")
-                        //     } else {
-                        //         const x = await fetcher?.(
-                        //             `/api/variants/${variant.id}?project_id=${projectId}`,
-                        //             {method: "GET"},
-                        //         )
+                            if (saveResponse && saveResponse?.status !== 200) {
+                                // error
+                                message.error("Failed to save variant")
+                            } else {
+                                console.log("saved variant", saveResponse)
+                                // const x = await fetcher?.(
+                                //     `/api/variants/${variant.id}?project_id=${projectId}`,
+                                //     {method: "GET"},
+                                // )
 
-                        //         const t = setVariant(x)
+                                // const t = setVariant(x)
 
-                        //         const clonedState = state
-                        //         // cloneDeep(state)
-                        //         const index = clonedState?.variants?.findIndex(
-                        //             (v) => v.id === variant.id,
-                        //         )
+                                // const clonedState = state
+                                // // cloneDeep(state)
+                                // const index = clonedState?.variants?.findIndex(
+                                //     (v) => v.id === variant.id,
+                                // )
 
-                        //         const updatedVariant = {
-                        //             ...variant,
-                        //             ...t,
-                        //         }
-                        //         clonedState.variants[index] = updatedVariant
+                                // const updatedVariant = {
+                                //     ...variant,
+                                //     ...t,
+                                // }
+                                // clonedState.variants[index] = updatedVariant
 
-                        //         message.success("Changes saved successfully!")
+                                // message.success("Changes saved successfully!")
 
-                        //         if (
-                        //             clonedState?.dirtyStates &&
-                        //             clonedState.dirtyStates.get(updatedVariant.id)
-                        //         ) {
-                        //             clonedState.dirtyStates = new Map(clonedState.dirtyStates)
-                        //             clonedState.dirtyStates.set(updatedVariant.id, false)
-                        //             clonedState.dataRef = new Map(clonedState.dataRef)
-                        //             clonedState.dataRef.set(
-                        //                 updatedVariant.id,
-                        //                 cloneDeep(updatedVariant),
-                        //             )
-                        //         }
+                                // if (
+                                //     clonedState?.dirtyStates &&
+                                //     clonedState.dirtyStates.get(updatedVariant.id)
+                                // ) {
+                                //     clonedState.dirtyStates = new Map(clonedState.dirtyStates)
+                                //     clonedState.dirtyStates.set(updatedVariant.id, false)
+                                //     clonedState.dataRef = new Map(clonedState.dataRef)
+                                //     clonedState.dataRef.set(
+                                //         updatedVariant.id,
+                                //         cloneDeep(updatedVariant),
+                                //     )
+                                // }
 
-                        //         return clonedState
-                        //     }
+                                // return clonedState
+                            }
 
-                        //     return state
-                        // } catch (err) {
-                        //     message.error("Failed to save variant")
-                        //     return state
-                        // }
+                            return state
+                        } catch (err) {
+                            message.error("Failed to save variant")
+                            return state
+                        }
                     },
                     {
                         revalidate: false,
@@ -247,15 +259,25 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             }, [fetcher, swr.mutate, projectId, variantId])
 
             /**
-             * Pure function to find a property by ID in a variant's prompts
+             * Pure function to find a property by ID in a variant's prompts or inputs
+             * TODO: IMPROVE PERFORMANCE
              */
             const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
                 if (!propertyId || !variant) return undefined
 
+                // Search in prompts
                 for (const prompt of variant.prompts) {
                     const found = findPropertyInObject(prompt, propertyId)
                     if (found) return found
                 }
+
+                // Search in input rows
+                const inputRows = variant.inputs?.value || []
+                for (const row of inputRows) {
+                    const found = findPropertyInObject(row, propertyId)
+                    if (found) return found
+                }
+
                 return undefined
             }
 
@@ -279,22 +301,31 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                             if (!variant || !state) return state
                             const updatedVariant: EnhancedVariant = {...variant, ...updateValues}
+
+                            // Get current input keys before update
+                            const previousInputKeys = getVariantInputKeys(variant)
+
+                            // Update prompt keys
+                            updateVariantPromptKeys(updatedVariant)
+
+                            // Get new input keys after update
+                            const newInputKeys = getVariantInputKeys(updatedVariant)
+
+                            // Only sync inputs if the keys have changed
+                            if (!isEqual(previousInputKeys, newInputKeys)) {
+                                syncVariantInputs(updatedVariant)
+                            }
+
                             const clonedState = cloneDeep(state)
                             const index = clonedState?.variants?.findIndex(
                                 (v) => v.id === variant.id,
                             )
-                            clonedState.variants[index] = updatedVariant
 
-                            // Update input keys for all prompts
-                            for (const prompt of updatedVariant.prompts) {
-                                updatePromptInputKeys(prompt)
-                            }
+                            clonedState.variants[index] = updatedVariant
 
                             return clonedState
                         },
-                        {
-                            revalidate: false,
-                        },
+                        {revalidate: false},
                     )
                 },
                 [swr.mutate, variantId],
@@ -336,6 +367,92 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                       }
                     : undefined
             }, [swr.data?.variants, config.propertyId, handleParamUpdate, variantId])
+
+            /**
+             * Runs a specific test row with the current variant configuration
+             * @param rowId - ID of the input row to run
+             */
+            const runVariantTestRow = useCallback(
+                async (rowId: string) => {
+                    swr.mutate(async (state) => {
+                        const clonedState = cloneDeep(state)
+
+                        if (!config.variantId || !clonedState) return state
+
+                        const variant = findVariantById(state, config.variantId)
+                        if (!variant) return state
+
+                        const variantIndex = clonedState.variants.findIndex(
+                            (v) => v.id === config.variantId,
+                        )
+                        if (variantIndex === -1) return state
+
+                        const inputRow = clonedState.variants[variantIndex].inputs.value.find(
+                            (row) => row.__id === rowId,
+                        )
+                        if (!inputRow) return state
+
+                        const requestBody = transformToRequestBody(variant, rowId)
+
+                        try {
+                            const response = await fetch(
+                                `http://localhost/${config.service}/generate`,
+                                {
+                                    method: "POST",
+                                    headers: {
+                                        "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify(requestBody),
+                                },
+                            )
+
+                            const data = await response.json()
+
+                            if (!response.ok) {
+                                const errorMessage = parseValidationError(data)
+                                inputRow.__result = {
+                                    response: undefined,
+                                    error: errorMessage,
+                                    metadata: {
+                                        timestamp: new Date().toISOString(),
+                                        statusCode: response.status,
+                                        rawError: data,
+                                    },
+                                }
+                                console.log("errorMessage 2?", data, errorMessage)
+                                message.error(errorMessage)
+                                return clonedState
+                            }
+
+                            // Store full response in the result
+                            inputRow.__result = {
+                                response: data,
+                                metadata: {
+                                    timestamp: new Date().toISOString(),
+                                    statusCode: response.status,
+                                },
+                            }
+
+                            return clonedState
+                        } catch (error) {
+                            inputRow.__result = {
+                                response: undefined,
+                                error:
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Unknown error occurred",
+                                metadata: {
+                                    timestamp: new Date().toISOString(),
+                                    type: "network_error",
+                                },
+                            }
+                            message.error("Failed to run test")
+                            return clonedState
+                        }
+                    })
+                },
+                [config.variantId, config.service],
+            )
 
             Object.defineProperty(swr, "variant", {
                 get() {
@@ -381,6 +498,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     checkInvalidSelector()
                     addToValueReferences("saveVariant")
                     return saveVariant
+                },
+            })
+
+            Object.defineProperty(swr, "runVariantTestRow", {
+                get() {
+                    checkInvalidSelector()
+                    addToValueReferences("runVariantTestRow")
+                    return runVariantTestRow
                 },
             })
 

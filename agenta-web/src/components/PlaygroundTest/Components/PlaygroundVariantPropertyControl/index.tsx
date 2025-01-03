@@ -8,38 +8,36 @@ import PromptMessageContent from "./assets/PromptMessageContent"
 import type {PlaygroundVariantPropertyControlProps} from "./types"
 import type {PropertyMetadata} from "../../betterTypes/types"
 import usePlayground from "../../hooks/usePlayground"
+import TextControl from "./assets/TextControl"
 
 // Type-safe render functions for each metadata type
 type RenderFunctions = {
     [K in PropertyMetadata["type"]]: (
-        metadata: Extract<PropertyMetadata, { type: K }>,
+        metadata: Extract<PropertyMetadata, {type: K}>,
         value: any,
         handleChange: (v: any) => void,
-        as?: string
+        as?: string,
     ) => React.ReactNode
 }
 
 const renderMap: RenderFunctions = {
     number: (metadata, value, handleChange) => {
         return (
-        <MinMaxControl
-            label={metadata.title || ""}
-            value={value}
-            onChange={handleChange}
-            min={metadata.min}
-            max={metadata.max}
-            step={metadata.isInteger ? 1 : 0.1}
-        />
-    )},
-    
+            <MinMaxControl
+                label={metadata.title || ""}
+                value={value}
+                onChange={handleChange}
+                min={metadata.min}
+                max={metadata.max}
+                step={metadata.isInteger ? 1 : 0.1}
+            />
+        )
+    },
+
     boolean: (metadata, value, handleChange) => (
-        <BooleanControl
-            label={metadata.title || ""}
-            value={value}
-            onChange={handleChange}
-        />
+        <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
     ),
-    
+
     string: (metadata, value, handleChange, as) => {
         if (metadata.options) {
             if (as === "SimpleDropdownSelect") {
@@ -61,7 +59,7 @@ const renderMap: RenderFunctions = {
                 />
             )
         }
-        
+
         if (as === "PromptMessageContent") {
             return (
                 <PromptMessageContent
@@ -71,11 +69,19 @@ const renderMap: RenderFunctions = {
                 />
             )
         }
+
+        return (
+            <TextControl
+                metadata={metadata}
+                value={value}
+                handleChange={handleChange}
+            />
+        )
     },
-    
+
     array: (metadata, value, handleChange) => {
-        if (!Array.isArray(value?.value)) return null;
-        
+        if (!Array.isArray(value?.value)) return null
+
         return (
             <div className="flex flex-col gap-2">
                 {value.value.map((item) => (
@@ -84,16 +90,16 @@ const renderMap: RenderFunctions = {
                             item.__metadata,
                             item.value,
                             (newValue) => {
-                                const newArray = [...value.value];
-                                const index = value.value.findIndex(v => v.__id === item.__id);
-                                newArray[index] = { ...item, value: newValue };
-                                handleChange({ value: newArray });
-                            }
+                                const newArray = [...value.value]
+                                const index = value.value.findIndex((v) => v.__id === item.__id)
+                                newArray[index] = {...item, value: newValue}
+                                handleChange({value: newArray})
+                            },
                         )}
                     </div>
                 ))}
             </div>
-        );
+        )
     },
 
     object: () => <Typography.Text>Object input not implemented</Typography.Text>,
@@ -113,16 +119,18 @@ const PlaygroundVariantPropertyControl: React.FC<PlaygroundVariantPropertyContro
         "color: orange",
         "",
         variantId,
-        propertyId
+        propertyId,
     )
-    
+
     const {variantConfigProperty: property} = usePlayground({
         variantId,
         propertyId,
         hookId: "PlaygroundVariantPropertyControl",
     })
-    
-    if (!property) return null
+
+    if (!property) {
+        return null
+    }
 
     const {__metadata: metadata, value, handleChange} = property
 
