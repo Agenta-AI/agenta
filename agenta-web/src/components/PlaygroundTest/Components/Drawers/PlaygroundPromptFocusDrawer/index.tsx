@@ -1,20 +1,27 @@
-import {Button, Drawer, Space, Typography} from "antd"
+import {Drawer, Divider} from "antd"
 import {PlaygroundPromptFocusDrawerProps} from "./types"
-import {CaretLeft, CaretRight, FloppyDiskBack} from "@phosphor-icons/react"
-import DeployButton from "../../../assets/DeployButton"
-import Version from "../../../assets/Version"
 import usePlayground from "../../../hooks/usePlayground"
 import useDrawerWidth from "../../../hooks/useDrawerWidth"
+import PlaygroundPromptFocusDrawerHeader from "./assets/PlaygroundPromptFocusDrawerHeader"
+import PlaygroundDeploymentConfig from "../../PlaygroundDeploymentConfig"
+import {variantToPromptsSelector} from "../../PlaygroundVariantConfig/assets/helpers"
+import PlaygroundVariantConfigPrompt from "../../PlaygroundVariantConfigPrompt"
+import PlaygroundPromptToolsConfig from "../../PlaygroundPromptToolsConfig"
 
 const PlaygroundPromptFocusDrawer: React.FC<PlaygroundPromptFocusDrawerProps> = ({
     variantId,
     ...props
 }) => {
     const {drawerWidth} = useDrawerWidth()
-    const {variantName, revision} = usePlayground({
+    const {
+        prompts = [],
+        variantName,
+        revision,
+    } = usePlayground({
         variantId,
-        hookId: "PlaygroundVariantConfigHeader",
+        hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: (variant) => ({
+            ...variantToPromptsSelector(variant),
             variantName: variant?.variantName,
             revision: variant?.revision,
         }),
@@ -29,29 +36,32 @@ const PlaygroundPromptFocusDrawer: React.FC<PlaygroundPromptFocusDrawerProps> = 
             <Drawer
                 placement={"right"}
                 width={drawerWidth}
+                classNames={{body: "!p-0"}}
                 onClose={onClose}
                 {...props}
                 title={
-                    <div className="!w-full flex items-center justify-between">
-                        <Space className="flex items-center gap-2">
-                            <div className="flex items-center gap-1">
-                                <Button icon={<CaretLeft size={14} />} type="text" />
-                                <Button icon={<CaretRight size={14} />} type="text" />
-                            </div>
-
-                            <Typography.Text>{variantName}</Typography.Text>
-                            <Version revision={revision} />
-                        </Space>
-                        <Space className="flex items-center gap-2">
-                            <DeployButton />
-
-                            <Button icon={<FloppyDiskBack size={14} />} type="primary">
-                                Commit
-                            </Button>
-                        </Space>
-                    </div>
+                    <PlaygroundPromptFocusDrawerHeader
+                        variantName={variantName}
+                        revision={revision}
+                    />
                 }
-            ></Drawer>
+            >
+                <PlaygroundDeploymentConfig />
+
+                <Divider className="!my-1.5" />
+
+                {prompts.map((prompt, promptIndex) => (
+                    <PlaygroundVariantConfigPrompt
+                        key={prompt.key as string}
+                        promptIndex={promptIndex}
+                        variantId={variantId}
+                    />
+                ))}
+
+                <Divider className="!my-1.5" />
+
+                <PlaygroundPromptToolsConfig />
+            </Drawer>
         </>
     )
 }

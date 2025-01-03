@@ -57,11 +57,8 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
 
     return (
         <Collapse
-            className={clsx(
-                "border-solid border-0 border-b border-[rgba(5,23,41,0.06)]",
-                "rounded-none",
-                className,
-            )}
+            ghost
+            className={clsx(className)}
             bordered={false}
             defaultActiveKey={defaultActiveKey.current}
             items={items}

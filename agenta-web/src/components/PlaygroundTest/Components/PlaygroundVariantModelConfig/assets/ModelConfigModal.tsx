@@ -79,52 +79,7 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
 
     return (
         <ModalContent onClick={preventClickBubble} className="!w-[300px]">
-            <section className="flex flex-col gap-4">
-                <div className="w-full flex flex-col gap-1">
-                    <Text>Model</Text>
-                    <Select
-                        showSearch
-                        placeholder="Selecct a model"
-                        className="w-full"
-                        popupClassName="w-full"
-                        value={model}
-                        onChange={(value) => setModel(value)}
-                        filterOption={(input, option) =>
-                            (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
-                        }
-                        options={[
-                            {value: "1", label: "Jack"},
-                            {value: "2", label: "Lucy"},
-                            {value: "3", label: "Tom"},
-                        ]}
-                    />
-                </div>
-
-                <div className="w-full flex flex-col gap-2">
-                    <div className="flex flex-col">
-                        <div className="w-full flex items-center justify-between">
-                            <Text>Temprature</Text>
-                            <InputNumber min={1} max={10} defaultValue={3} />
-                        </div>
-                        <Slider min={1} max={20} value={2} />
-                    </div>
-
-                    <div className="flex flex-col">
-                        <div className="w-full flex items-center justify-between">
-                            <Text>Max Tokens</Text>
-                            <InputNumber min={1} max={10} defaultValue={3} />
-                        </div>
-                        <Slider min={1} max={20} value={2} />
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                    <Text>Force JSON</Text>
-                    <Switch defaultChecked />
-                </div>
-            </section>
-
-            {/* {properties.map((property) => {
+            {properties.map((property) => {
                 return (
                     <PlaygroundVariantPropertyControl
                         key={property.key}
@@ -133,7 +88,7 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
                         valueKey={property.valueKey as Path<StateVariant>}
                     />
                 )
-            })} */}
+            })}
 
             <ModalActions handleSave={handleSave} handleClose={handleClose} />
         </ModalContent>
