@@ -29,6 +29,7 @@ interface SelectorConfig<T = any, Selected = unknown> {
 // Base state shape
 export interface PlaygroundStateData {
     variants: EnhancedVariant[]
+    spec?: OpenAPISpec
     dirtyStates?: Map<string, boolean>
     dataRef?: Map<string, EnhancedVariant>
     [key: string]: any
@@ -51,6 +52,7 @@ export interface PlaygroundVariantResponse extends PlaygroundVariantsResponse {
     deleteVariant?: () => Promise<void>
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
     saveVariant?: () => Promise<void>
+    runVariantTestRow?: (rowId: string) => Promise<void>
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty
 }

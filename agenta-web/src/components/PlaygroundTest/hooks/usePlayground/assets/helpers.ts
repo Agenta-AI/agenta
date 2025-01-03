@@ -1,10 +1,11 @@
 import isEqual from "lodash/isEqual"
 import {dereference} from "@scalar/openapi-parser"
 import {transformToEnhancedVariant} from "../../../betterTypes/transformer"
+import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 
 import {type InitialStateType} from "../../../state/types"
 import {type OpenAPISpec} from "../../../betterTypes/openApiSchema"
-import {PromptConfig, type EnhancedVariant} from "../../../betterTypes/types"
+import {type EnhancedVariant} from "../../../betterTypes/types"
 
 /**
  * FETCHERS
@@ -16,13 +17,12 @@ import {PromptConfig, type EnhancedVariant} from "../../../betterTypes/types"
  * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing variantId, parsed schema and any errors
  */
-export const openAPIJsonFetcher = async (variant: Pick<EnhancedVariant, "id">, service: string) => {
+export const fetchOpenApiSchemaJson = async (service: string) => {
     const openapiJsonResponse = await fetch(`http://localhost/${service}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
     return {
-        variantId: variant.id,
         schema: schema,
         errors,
     }
@@ -34,29 +34,15 @@ export const openAPIJsonFetcher = async (variant: Pick<EnhancedVariant, "id">, s
  * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing the updated variant
  */
-export const fetchAndUpdateVariant = async (variant: EnhancedVariant, service: string) => {
-    const {schema, errors} = await openAPIJsonFetcher(variant, service)
-    if (errors && errors.length) {
-        return variant
-    } else if (schema) {
-        const enhancedVariant = transformToEnhancedVariant(variant, schema as OpenAPISpec)
+export const fetchAndUpdateVariant = async (variant: EnhancedVariant, schema: OpenAPISpec) => {
+    const enhancedVariant = transformToEnhancedVariant(variant, schema)
 
-        // Initialize input keys for each prompt
-        enhancedVariant.prompts?.forEach((prompt) => {
-            updatePromptInputKeys(prompt)
-        })
+    // Update prompt keys and initialize inputs
+    updateVariantPromptKeys(enhancedVariant)
+    initializeVariantInputs(enhancedVariant)
 
-        console.log(
-            "enhanced variant!",
-            schema?.paths?.["/playground/run"]?.post?.requestBody?.content?.["application/json"]
-                ?.schema,
-            enhancedVariant.prompts,
-        )
-        // console.log("enhanced variant!", enhancedVariant)
-        return enhancedVariant
-    }
-
-    return variant
+    console.log("enhancedVariant", enhancedVariant, schema)
+    return enhancedVariant
 }
 
 /**
@@ -65,8 +51,9 @@ export const fetchAndUpdateVariant = async (variant: EnhancedVariant, service: s
  * @param service - Service endpoint to fetch OpenAPI specs from
  * @returns Promise containing updated variants with their schemas
  */
-export const fetchAndUpdateVariants = async (variants: EnhancedVariant[], service: string) => {
-    const updatePromises = variants.map((variant) => fetchAndUpdateVariant(variant, service))
+export const fetchAndUpdateVariants = async (variants: EnhancedVariant[], spec: OpenAPISpec) => {
+    // const specFetcher = await openAPIJsonFetcher(service)
+    const updatePromises = variants.map((variant) => fetchAndUpdateVariant(variant, spec))
     return await Promise.all(updatePromises)
 }
 
@@ -84,22 +71,6 @@ export const findVariantById = (
     state: InitialStateType | undefined,
     variantId: string,
 ): EnhancedVariant | undefined => state?.variants?.find((v) => v.id === variantId)
-
-/**
- * Compares two arrays of variants by their IDs
- * Used to determine if variant collections have the same members
- * @param variantsA - First array of variants
- * @param variantsB - Second array of variants
- * @returns boolean indicating if arrays contain the same variant IDs
- */
-export const compareVariants = (
-    variantsA: EnhancedVariant[] = [],
-    variantsB: EnhancedVariant[] = [],
-): boolean => {
-    const keysA = variantsA.map((v) => v.id)
-    const keysB = variantsB.map((v) => v.id)
-    return keysA.length === keysB.length && keysA.every((key) => keysB.includes(key))
-}
 
 /**
  * Creates a comparison function for base state objects
@@ -124,26 +95,6 @@ export const createBaseCompare = (
  * @returns Function that compares two variant states
  */
 export const createVariantsCompare = (
-    customCompare?: (a?: InitialStateType, b?: InitialStateType) => boolean,
-) => {
-    return (a?: InitialStateType, b?: InitialStateType): boolean => {
-        const test = () => {
-            const variantsA = a?.variants
-            const variantsB = b?.variants
-
-            if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
-                const keysA = variantsA.map((v) => v.id)
-                const keysB = variantsB.map((v) => v.id)
-
-                return keysA.length === keysB.length && keysA.every((key) => keysB.includes(key))
-            }
-            return isEqual(a, b)
-        }
-
-        return customCompare ? customCompare(a, b) : test()
-    }
-}
-export const createVariantIdsCompare = (
     customCompare?: (a?: InitialStateType, b?: InitialStateType) => boolean,
 ) => {
     return (a?: InitialStateType, b?: InitialStateType): boolean => {
@@ -285,7 +236,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
         isChat: false,
         prompts: [] as EnhancedVariant["prompts"],
         inputs: {} as EnhancedVariant["inputs"],
-        messages: [] as EnhancedVariant["messages"],
+        messages: {} as EnhancedVariant["messages"],
         name: "",
     } as EnhancedVariant
 }
@@ -303,34 +254,4 @@ export const setVariants = (currentVariants: EnhancedVariant[], newVariants: any
         return newVariants.map(setVariant)
     }
     return currentVariants
-}
-
-/** Extract variables from a message string using {{variable}} syntax */
-export function extractVariables(input: string): string[] {
-    // pattern for {{variableName}}
-    // const variablePattern = /\{\{\s*(\w+)\s*\}\}/g
-
-    // pattern for {variableName}
-    const variablePattern = /\{\s*(\w+)\s*\}/g
-    const variables: string[] = []
-
-    let match: RegExpExecArray | null
-    while ((match = variablePattern.exec(input)) !== null) {
-        variables.push(match[1])
-    }
-
-    return variables
-}
-
-/** Update input keys for a prompt based on its messages */
-export function updatePromptInputKeys(prompt: PromptConfig) {
-    const messagesContent = prompt.messages.value.map((message) => message.content.value || "")
-
-    const variables = messagesContent.map((message) => extractVariables(message)).flat()
-
-    if (prompt.inputKeys) {
-        prompt.inputKeys.value = variables
-    }
-
-    return variables
 }
