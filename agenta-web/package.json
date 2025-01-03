@@ -99,7 +99,7 @@
         "cypress": "^13.15.0",
         "husky": "^9.1.7",
         "node-mocks-http": "^1.12.2",
-        "prettier": "^3.2.5",
+        "prettier": "3.2.5",
         "prettier-plugin-tailwindcss": "^0.1"
     }
 }
