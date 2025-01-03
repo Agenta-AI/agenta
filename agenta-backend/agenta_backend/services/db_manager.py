@@ -3306,3 +3306,16 @@ async def check_if_evaluation_contains_failed_evaluation_scenarios(
         if not count:
             return False
         return count > 0
+
+
+async def fetch_default_project() -> ProjectDB:
+    """
+    Fetch the default project from the database.
+    Returns:
+        ProjectDB: The default project instance.
+    """
+
+    async with engine.session() as session:
+        result = await session.execute(select(ProjectDB).filter_by(is_default=True))
+        default_project = result.scalars().first()
+        return default_project
