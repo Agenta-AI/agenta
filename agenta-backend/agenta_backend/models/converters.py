@@ -442,6 +442,7 @@ def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
         docker_id=image_db.docker_id,
         project_id=str(image_db.project_id),
         tags=image_db.tags,
+        id=str(image_db.id),
     )
     return image
 
