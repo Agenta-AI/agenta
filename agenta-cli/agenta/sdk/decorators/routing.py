@@ -28,6 +28,7 @@ from agenta.sdk.context.tracing import (
 from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.helpers import get_current_version
 from agenta.sdk.types import (
     DictInput,
     FloatParam,
@@ -250,7 +251,7 @@ class entrypoint:
 
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
-
+        openapi_schema["agenta_sdk"] = {"version": get_current_version()}
         for _route in entrypoint.routes:
             if _route["config"] is not None:
                 self.override_config_in_schema(
@@ -292,6 +293,39 @@ class entrypoint:
         # Merge with default parameters
         config = {**default_parameters, **config_params}
         return kwargs, config
+
+    async def execute_wrapper(
+        self,
+        request: Request,
+        inline: bool,
+        *args,
+        **kwargs,
+    ):
+        if not request:
+            raise HTTPException(status_code=500, detail="Missing 'request'.")
+
+        state = request.state
+        credentials = state.auth.get("credentials")
+        parameters = state.config.get("parameters")
+        references = state.config.get("references")
+        secrets = state.vault.get("secrets")
+
+        with routing_context_manager(
+            context=RoutingContext(
+                parameters=parameters,
+                secrets=secrets,
+            )
+        ):
+            with tracing_context_manager(
+                context=TracingContext(
+                    credentials=credentials,
+                    parameters=parameters,
+                    references=references,
+                )
+            ):
+                result = await self.execute_function(inline, *args, **kwargs)
+
+        return result
 
     async def execute_wrapper(
         self,
