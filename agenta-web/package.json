@@ -67,7 +67,7 @@
         "js-beautify": "^1.14.8",
         "js-yaml": "^4.1.0",
         "lodash": "^4.17.21",
-        "next": "^14.2.16",
+        "next": "^14.2.22",
         "nextjs-cors": "^2.2.0",
         "papaparse": "^5.4.1",
         "postcss": "^8.4.35",
