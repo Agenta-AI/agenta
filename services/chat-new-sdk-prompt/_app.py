@@ -25,7 +25,7 @@ class MyConfig(BaseModel):
 @ag.instrument()
 async def generate(
     messages: List[Message],
-    inputs: Optional[Dict[str,str]]=None,
+    inputs: Optional[Dict[str, str]] = None,
 ):
     config = ag.ConfigManager.get_from_route(schema=MyConfig)
     if config.prompt.input_keys is not None:
@@ -43,10 +43,10 @@ async def generate(
     else:
         formatted_prompt = config.prompt
     openai_kwargs = formatted_prompt.to_openai_kwargs()
-    
-    if messages is not None: 
+
+    if messages is not None:
         openai_kwargs["messages"].extend(messages)
 
     response = await litellm.acompletion(**openai_kwargs)
-    
+
     return response.choices[0].message
