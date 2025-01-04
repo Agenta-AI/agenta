@@ -59,7 +59,7 @@ const CreateVariantModal: React.FC<CreateVariantModalProps> = ({
                         data-cy="new-variant-modal-select"
                         placeholder="Select a variant"
                         onChange={handleTemplateVariantChange}
-                        options={variants.map((variant) => ({
+                        options={variants?.map((variant) => ({
                             value: variant.variantName,
                             label: (
                                 <div data-cy="new-variant-modal-label">{variant.variantName}</div>

@@ -1,7 +1,7 @@
 import {Play} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
-import PlaygroundVariableOutput from "../../PlaygroundVariables/PlaygroundGenerationOutput/PlaygroundVariableOutput"
-import PlaygroundVariable from "../../PlaygroundVariables/PlaygroundVariable/PlaygroundVariable"
+import PlaygroundVariableOutput from "../../PlaygroundGenerationInputAndOutputConfigs/SingleView/PlaygroundGenerationOutput/PlaygroundVariableOutput"
+import PlaygroundVariable from "../../PlaygroundGenerationInputAndOutputConfigs/PlaygroundVariable/PlaygroundVariable"
 
 const PlaygroundGenerationCompletion = () => {
     const isOutput = "generated"

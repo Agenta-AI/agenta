@@ -1,7 +1,7 @@
 import {Plus} from "@phosphor-icons/react"
 import {Divider, Typography} from "antd"
-import PlaygroundVariable from "../../PlaygroundVariables/PlaygroundVariable/PlaygroundVariable"
-import PlaygroundVariableChatInput from "../../PlaygroundVariables/PlaygroundGenerationChatInput/PlaygroundVariableChatInput"
+import PlaygroundVariable from "../../PlaygroundGenerationInputAndOutputConfigs/PlaygroundVariable/PlaygroundVariable"
+import PlaygroundVariableChatInput from "../../PlaygroundGenerationInputAndOutputConfigs/SingleView/PlaygroundGenerationChatInput/PlaygroundVariableChatInput"
 
 const PlaygroundGenerationChat = () => {
     const envVariables = ["country", "name", "emal"]
