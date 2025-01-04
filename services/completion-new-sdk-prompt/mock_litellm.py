@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -23,17 +23,13 @@ class MockMessage:
 
 @dataclass
 class MockChoice:
-    message: MockMessage = MockMessage()
+    message: MockMessage = field(default_factory=MockMessage)
 
 
 @dataclass
 class MockCompletion:
-    choices: List[MockChoice] = None
-    usage: MockUsage = None
-
-    def __init__(self):
-        self.choices = [MockChoice()]
-        self.usage = MockUsage()
+    choices: List[MockChoice] = field(default_factory=lambda: [MockChoice()])
+    usage: MockUsage = field(default_factory=MockUsage)
 
 
 class MockLiteLLM:
