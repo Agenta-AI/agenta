@@ -16,6 +16,15 @@ class MultipleChoice:
     choices: Union[List[str], Dict[str, List[str]]]
 
 
+def MCField(  # pylint: disable=invalid-name
+    default: str,
+    choices: Union[List[str], Dict[str, List[str]]],
+) -> Field:
+    field = Field(default=default)
+    field.json_schema_extra = {"multiple_choice": MultipleChoice(choices)}
+    return field
+
+
 class LLMTokenUsage(BaseModel):
     completion_tokens: int
     prompt_tokens: int
@@ -27,6 +36,7 @@ class BaseResponse(BaseModel):
     data: Optional[Union[str, Dict[str, Any]]] = None
     content_type: Optional[str] = "string"
     tree: Optional[AgentaNodesResponse] = None
+    tree_id: Optional[str] = None
 
 
 class DictInput(dict):

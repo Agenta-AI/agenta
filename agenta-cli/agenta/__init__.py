@@ -5,6 +5,7 @@ from .sdk.utils.preinit import PreInitObject
 import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
 
 from .sdk.types import (
+    MCField,
     DictInput,
     MultipleChoice,
     FloatParam,
@@ -16,6 +17,7 @@ from .sdk.types import (
     FileInputURL,
     BinaryParam,
     Prompt,
+    PromptTemplate,
 )
 
 from .sdk.utils.logging import log as logging
