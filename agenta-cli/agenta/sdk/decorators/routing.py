@@ -123,6 +123,7 @@ class entrypoint:
     _middleware = False
     _run_path = "/run"
     _test_path = "/test"
+    _config_key = "ag_config"
     # LEGACY
     _legacy_playground_run_path = "/playground/run"
     _legacy_generate_path = "/generate"
@@ -172,7 +173,6 @@ class entrypoint:
                     detail="Config not found based on provided references.",
                 )
 
-
             return await self.execute_wrapper(request, False, *args, **kwargs)
 
         self.update_run_wrapper_signature(wrapper=run_wrapper)
@@ -197,10 +197,7 @@ class entrypoint:
             request.state.config["parameters"] = config
             return await self.execute_wrapper(request, True, *args, **kwargs)
 
-        self.update_test_wrapper_signature(
-            wrapper=test_wrapper,
-            config_instance=config
-        )
+        self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
 
         test_route = f"{entrypoint._test_path}{route_path}"
         app.post(test_route, response_model=BaseResponse)(test_wrapper)
@@ -287,7 +284,7 @@ class entrypoint:
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Remove the config parameters from the kwargs."""
         # Extract agenta_config if present
-        config_params = kwargs.pop("agenta_config", {})
+        config_params = kwargs.pop(self._config_key, {})
         if isinstance(config_params, BaseModel):
             config_params = config_params.dict()
         # Merge with default parameters
@@ -561,7 +558,7 @@ class entrypoint:
             assert field.default is not None, f"Field {name} has no default value"
         updated_params.append(
             Parameter(
-                name="agenta_config",
+                name=self._config_key,
                 kind=Parameter.KEYWORD_ONLY,
                 annotation=type(config_instance),  # Get the actual class type
                 default=Body(config_instance),  # Use the instance directly
@@ -598,11 +595,11 @@ class entrypoint:
         endpoint = endpoint[1:].replace("/", "_")
         schema_key = f"Body_{func_name}_{endpoint}_post"
         schema_to_override = openapi_schema["components"]["schemas"][schema_key]
-        
+
         # Get the config class name to find its schema
         config_class_name = type(config).__name__
         config_schema = openapi_schema["components"]["schemas"][config_class_name]
-        
+
         # Process each field in the config class
         for field_name, field in config.__class__.__fields__.items():
             # Check if field has Annotated metadata for MultipleChoice
@@ -611,12 +608,10 @@ class entrypoint:
                     if isinstance(meta, MultipleChoice):
                         choices = meta.choices
                         if isinstance(choices, dict):
-                            config_schema["properties"][field_name].update({
-                                "x-parameter": "grouped_choice",
-                                "choices": choices
-                            })
+                            config_schema["properties"][field_name].update(
+                                {"x-parameter": "grouped_choice", "choices": choices}
+                            )
                         elif isinstance(choices, list):
-                            config_schema["properties"][field_name].update({
-                                "x-parameter": "choice",
-                                "enum": choices
-                            })
+                            config_schema["properties"][field_name].update(
+                                {"x-parameter": "choice", "enum": choices}
+                            )
