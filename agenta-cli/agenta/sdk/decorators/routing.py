@@ -552,7 +552,6 @@ class entrypoint:
         # Get the config class name to find its schema
         config_class_name = type(config).__name__
         config_schema = openapi_schema["components"]["schemas"][config_class_name]
-
         # Process each field in the config class
         for field_name, field in config.__class__.__fields__.items():
             # Check if field has Annotated metadata for MultipleChoice
