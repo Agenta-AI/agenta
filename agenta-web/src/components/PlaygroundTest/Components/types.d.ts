@@ -1,5 +1,5 @@
 import {HTMLAttributes} from "react"
-import {EnhancedVariant} from "../betterTypes/types"
+import {EnhancedVariant} from "../assets/utilities/transformer/types"
 
 /**
  * Base interface for components that render as HTML containers

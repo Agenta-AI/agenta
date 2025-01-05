@@ -1,13 +1,7 @@
-import type {ArraySchema} from "../openApiSchema"
-import type {ArrayMetadata, ConfigMetadata} from "../types"
 import {createMetadata} from "./metadata"
 
-/** Safely convert numeric-keyed objects to arrays */
-export function ensureArray<T = unknown>(val: unknown): T[] {
-    if (Array.isArray(val)) return val as T[]
-    if (val && typeof val === "object") return Object.values(val) as T[]
-    return []
-}
+import type {ArraySchema, ArrayMetadata, ConfigMetadata} from "../types"
+import {generateId} from "../utilities/string"
 
 /** Create a new object instance based on metadata schema */
 export function createObjectFromMetadata(metadata: ConfigMetadata) {
@@ -25,7 +19,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
         }
 
         return {
-            __id: crypto.randomUUID(),
+            __id: generateId(),
             value: defaultValue,
             __metadata: metadata,
         }
@@ -34,7 +28,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
     // For primitive types
     if (["string", "number", "boolean"].includes(metadata.type)) {
         return {
-            __id: crypto.randomUUID(),
+            __id: generateId(),
             value: metadata.nullable ? null : "",
             __metadata: metadata,
         }
@@ -43,7 +37,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
     // For array types
     if (metadata.type === "array") {
         return {
-            __id: crypto.randomUUID(),
+            __id: generateId(),
             value: metadata.nullable ? null : [],
             __metadata: metadata,
         }
@@ -52,7 +46,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
     // For object types
     if (metadata.type === "object") {
         const obj: Record<string, any> = {
-            __id: crypto.randomUUID(),
+            __id: generateId(),
             __metadata: metadata,
         }
 

@@ -1,7 +1,10 @@
 import clsx from "clsx"
-import {Typography, Tag, Button} from "antd"
-import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import type {VariantHeaderProps, VariantActionButtonProps} from "../types"
+import {Tag, Button} from "antd"
+
+import usePlayground from "../../../hooks/usePlayground"
+import VariantsButton from "../../VariantsButton"
+
+import type {VariantConfigComponentProps, VariantActionButtonProps} from "../types"
 
 /**
  * Button to save variant changes when modifications are detected
@@ -38,19 +41,19 @@ const PlaygroundVariantDeleteButton: React.FC<VariantActionButtonProps> = ({vari
 /**
  * PlaygroundVariantConfigHeader displays the variant name, revision,
  * and action buttons for saving/deleting the variant.
- * 
+ *
  * @component
  * @example
  * ```tsx
  * <PlaygroundVariantConfigHeader variantId="variant-123" />
  * ```
  */
-const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
+const PlaygroundVariantConfigHeader: React.FC<VariantConfigComponentProps> = ({
     variantId,
     className,
     ...divProps
 }) => {
-    const {variantName, revision} = usePlayground({
+    const {revision} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
         variantSelector: (variant) => ({
@@ -62,18 +65,17 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
     return (
         <div
             className={clsx(
-                "w-full h-10 px-2.5",
-                "bg-[#f5f7fa]",
+                "w-full h-[48px] px-2.5",
                 "flex items-center justify-between",
+                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                 "sticky top-0 z-[1]",
-                className
+                'bg-white',
+                className,
             )}
             {...divProps}
         >
             <div className="flex items-center gap-2">
-                <Typography.Text className="text-[14px] leading-[22px] font-[500]">
-                    {variantName}
-                </Typography.Text>
+                <VariantsButton selectedVariant={variantId} />
                 <Tag color="default" bordered={false} className="bg-[rgba(5,23,41,0.06)]">
                     {`v${revision}`}
                 </Tag>

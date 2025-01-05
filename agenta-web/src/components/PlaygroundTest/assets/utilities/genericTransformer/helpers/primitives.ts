@@ -1,8 +1,16 @@
-import type {PrimitiveSchema, SchemaProperty} from "../openApiSchema"
-import type {ConfigMetadata, StringMetadata, NumberMetadata, BooleanMetadata} from "../types"
-import {isSchema} from "../utilities/schema"
 import {createBaseMetadata} from "./metadata"
 import {extractSchema} from "./schemaExtractors"
+
+import {isSchema} from "../utilities/schema"
+
+import type {
+    PrimitiveSchema,
+    SchemaProperty,
+    ConfigMetadata,
+    StringMetadata,
+    NumberMetadata,
+    BooleanMetadata,
+} from "../types"
 
 /**
  * Create primitive metadata with type checking.
@@ -20,7 +28,6 @@ export function createPrimitiveMetadata(schema: PrimitiveSchema | SchemaProperty
     const isInteger = extractedSchema.type === "integer"
     const type = isInteger ? "number" : extractedSchema.type
 
-    // Create base metadata with correct type
     const baseMetadata = {
         ...createBaseMetadata(extractedSchema),
         type,

@@ -1,8 +1,15 @@
-import type {ObjectSchema, SchemaProperty} from "../openApiSchema"
-import type {ObjectMetadata, StringMetadata, ConfigMetadata} from "../types"
-import {isSchema} from "../utilities/schema"
 import {extractSchema} from "./schemaExtractors"
 import {processProperties} from "./metadata"
+
+import {isSchema} from "../utilities/schema"
+
+import type {
+    ObjectSchema,
+    SchemaProperty,
+    ObjectMetadata,
+    StringMetadata,
+    ConfigMetadata,
+} from "../types"
 
 /**
  * Build base metadata for string schemas.
@@ -66,9 +73,7 @@ function processObjectProperties(
 ): Record<string, ConfigMetadata> {
     // Skip old item keys before calling the shared function
     const filteredProps = Object.fromEntries(
-        Object.entries(properties).filter(
-            ([key]) => !["system_prompt", "user_prompt"].includes(key),
-        ),
+        Object.entries(properties).filter(([key]) => ![""].includes(key)),
     )
     const processedProperties = processProperties(filteredProps)
     return processedProperties

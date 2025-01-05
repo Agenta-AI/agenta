@@ -1,33 +1,60 @@
 import {useCallback} from "react"
-import {Key, SWRHook} from "swr"
-import {type FetcherOptions} from "@/lib/api/types"
+
+import {message} from "antd"
+import cloneDeep from "lodash/cloneDeep"
+import isEqual from "lodash/isEqual"
+
 import {
+    compareVariant,
+    createVariantCompare,
+    findPropertyInObject,
+    findVariantById,
+    setVariant,
+} from "../assets/helpers"
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {
+    updateVariantPromptKeys,
+    syncVariantInputs,
+    getVariantInputKeys,
+} from "../assets/inputHelpers"
+import {parseValidationError} from "../../../assets/utilities/errors"
+import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
+
+import type {Key, SWRHook} from "swr"
+import {type FetcherOptions} from "@/lib/api/types"
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     VariantUpdateFunction,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
-import {
-    compareVariant,
-    createVariantCompare,
-    findPropertyInObject,
-    findVariantById,
-} from "../assets/helpers"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {EnhancedVariant} from "@/components/PlaygroundTest/betterTypes/types"
-import isEqual from "lodash/isEqual"
-import {
-    updateVariantPromptKeys,
-    syncVariantInputs,
-    getVariantInputKeys,
-} from "../assets/inputHelpers"
-import {transformToRequestBody} from "../../../betterTypes/transformers/reverseTransformer"
-import {parseValidationError} from "../../../assets/utilities/errors"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 export type ConfigValue = string | boolean | string[] | number | null
+
+/**
+ * Pure function to find a property by ID in a variant's prompts or inputs
+ * TODO: IMPROVE PERFORMANCE
+ */
+const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
+    if (!propertyId || !variant) return undefined
+
+    // Search in prompts
+    for (const prompt of variant.prompts) {
+        const found = findPropertyInObject(prompt, propertyId)
+        if (found) return found
+    }
+
+    // Search in input rows
+    const inputRows = variant.inputs?.value || []
+    for (const row of inputRows) {
+        const found = findPropertyInObject(row, propertyId)
+        if (found) return found
+    }
+
+    return undefined
+}
 
 const playgroundVariantMiddleware: PlaygroundMiddleware = <
     Data extends PlaygroundStateData = PlaygroundStateData,
@@ -115,7 +142,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             return compareVariant(a, b, variantId)
                         }
                     },
-                    [config, valueReferences],
+                    [config, logger, valueReferences],
                 ),
             } as PlaygroundSWRConfig<Data>)
 
@@ -160,7 +187,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         revalidate: false,
                     },
                 )
-            }, [swr.mutate, fetcher, projectId, variantId])
+            }, [swr, variantId, fetcher, projectId])
 
             const saveVariant = useCallback(async () => {
                 await swr.mutate(
@@ -169,37 +196,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         const variant = (state?.variants || []).find((v) => v.id === variantId)
                         if (!variant) return state
 
-                        // delete body.inputs
-                        // console.log("body for save!", body)
                         try {
                             const parameters = transformToRequestBody(variant)
-                            // const promptConfig = variant.schema?.promptConfig?.[0]
-                            // const llmConfig = promptConfig?.llm_config
-                            // const messagesConfig = promptConfig?.messages
-
                             const saveResponse = await fetcher?.(
                                 `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
                                 {
                                     method: "PUT",
                                     body: {
                                         parameters,
-                                        // parameters: {
-                                        //     inputs: [{name: "country"}],
-                                        //     ...llmConfig?.value,
-                                        //     ...messagesConfig?.value.reduce(
-                                        //         (
-                                        //             acc: {[key: string]: string},
-                                        //             cur: {
-                                        //                 role: string
-                                        //                 content: string
-                                        //             },
-                                        //         ) => ({
-                                        //             ...acc,
-                                        //             [`prompt_${cur.role}`]: cur.content,
-                                        //         }),
-                                        //         {} as {[key: string]: string},
-                                        //     ),
-                                        // },
                                     },
                                 },
                             )
@@ -208,42 +212,39 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 // error
                                 message.error("Failed to save variant")
                             } else {
-                                console.log("saved variant", saveResponse)
-                                // const x = await fetcher?.(
-                                //     `/api/variants/${variant.id}?project_id=${projectId}`,
-                                //     {method: "GET"},
-                                // )
+                                const saveResponse = await fetcher?.(
+                                    `/api/variants/${variant.id}?project_id=${projectId}`,
+                                    {method: "GET"},
+                                )
 
-                                // const t = setVariant(x)
+                                const t = setVariant(saveResponse)
 
-                                // const clonedState = state
-                                // // cloneDeep(state)
-                                // const index = clonedState?.variants?.findIndex(
-                                //     (v) => v.id === variant.id,
-                                // )
+                                const clonedState = state
+                                const index = clonedState?.variants?.findIndex(
+                                    (v) => v.id === variant.id,
+                                )
 
-                                // const updatedVariant = {
-                                //     ...variant,
-                                //     ...t,
-                                // }
-                                // clonedState.variants[index] = updatedVariant
+                                const updatedVariant = {
+                                    ...variant,
+                                    ...t,
+                                }
+                                clonedState.variants[index] = updatedVariant
+                                message.success("Changes saved successfully!")
 
-                                // message.success("Changes saved successfully!")
+                                if (
+                                    clonedState?.dirtyStates &&
+                                    clonedState.dirtyStates.get(updatedVariant.id)
+                                ) {
+                                    clonedState.dirtyStates = new Map(clonedState.dirtyStates)
+                                    clonedState.dirtyStates.set(updatedVariant.id, false)
+                                    clonedState.dataRef = new Map(clonedState.dataRef)
+                                    clonedState.dataRef.set(
+                                        updatedVariant.id,
+                                        cloneDeep(updatedVariant),
+                                    )
+                                }
 
-                                // if (
-                                //     clonedState?.dirtyStates &&
-                                //     clonedState.dirtyStates.get(updatedVariant.id)
-                                // ) {
-                                //     clonedState.dirtyStates = new Map(clonedState.dirtyStates)
-                                //     clonedState.dirtyStates.set(updatedVariant.id, false)
-                                //     clonedState.dataRef = new Map(clonedState.dataRef)
-                                //     clonedState.dataRef.set(
-                                //         updatedVariant.id,
-                                //         cloneDeep(updatedVariant),
-                                //     )
-                                // }
-
-                                // return clonedState
+                                return clonedState
                             }
 
                             return state
@@ -256,30 +257,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         revalidate: false,
                     },
                 )
-            }, [fetcher, swr.mutate, projectId, variantId])
-
-            /**
-             * Pure function to find a property by ID in a variant's prompts or inputs
-             * TODO: IMPROVE PERFORMANCE
-             */
-            const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
-                if (!propertyId || !variant) return undefined
-
-                // Search in prompts
-                for (const prompt of variant.prompts) {
-                    const found = findPropertyInObject(prompt, propertyId)
-                    if (found) return found
-                }
-
-                // Search in input rows
-                const inputRows = variant.inputs?.value || []
-                for (const row of inputRows) {
-                    const found = findPropertyInObject(row, propertyId)
-                    if (found) return found
-                }
-
-                return undefined
-            }
+            }, [swr, variantId, fetcher, projectId])
 
             /**
              * Updates the current variant with new properties
@@ -328,13 +306,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         {revalidate: false},
                     )
                 },
-                [swr.mutate, variantId],
+                [swr, variantId],
             )
 
             const handleParamUpdate = useCallback(
                 (e: {target: {value: ConfigValue}} | ConfigValue) => {
                     mutateVariant((variant) => {
-                        // const variant = state.variants.find((v) => v.id === variantId)
                         if (!variant) return {}
 
                         const val = e
@@ -342,7 +319,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 ? e.target.value
                                 : e
                             : null
-                        const updatedVariant = cloneDeep(variant)
+                        const updatedVariant = variant
                         const found = findPropertyById(updatedVariant, config.propertyId)
 
                         if (found) {
@@ -352,7 +329,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return updatedVariant
                     })
                 },
-                [variantId, config.propertyId, mutateVariant],
+                [config.propertyId, mutateVariant],
             )
 
             const getVariantConfigProperty = useCallback(() => {
@@ -419,7 +396,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         rawError: data,
                                     },
                                 }
-                                console.log("errorMessage 2?", data, errorMessage)
                                 message.error(errorMessage)
                                 return clonedState
                             }
@@ -451,7 +427,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     })
                 },
-                [config.variantId, config.service],
+                [swr, config.variantId, config.service],
             )
 
             Object.defineProperty(swr, "variant", {

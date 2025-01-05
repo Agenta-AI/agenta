@@ -1,18 +1,23 @@
-import clsx from "clsx"
-import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import {Typography, Input, Button} from "antd"
-import {GenerationRowViewProps} from "./types"
-import {getEnhancedProperties} from "@/components/PlaygroundTest/betterTypes/utilities/enhanced"
-import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
-import {Play} from "@phosphor-icons/react"
 import {useCallback} from "react"
+
+import clsx from "clsx"
+import {Play} from "@phosphor-icons/react"
+import {Typography, Button} from "antd"
+
+import usePlayground from "../../../../hooks/usePlayground"
+import { getEnhancedProperties } from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
+import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
+
+import type {GenerationRowViewProps} from "./types"
 
 const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps) => {
     const {result, variableIds, runVariantTestRow, canRun} = usePlayground({
         variantId,
         variantSelector: (variant) => {
             const inputRow = (variant.inputs?.value || []).find(
-                (inputRow) => inputRow.__id === rowId,
+                (inputRow) => {
+                    return inputRow.__id === rowId
+                },
             )
 
             const variables = getEnhancedProperties(inputRow)
@@ -60,7 +65,7 @@ const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps)
                 <div className="flex items-center w-[100px]">actions</div>
             </div>
             <div className="w-full flex gap-1 items-start">
-                <div className="w-[100px]">
+                <div className="w-[100px] shrink-0">
                     <Button
                         onClick={runRow}
                         variant="outlined"
@@ -87,6 +92,7 @@ const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps)
                         </Typography>
                     ) : null}
                 </div>
+                <div className="flex items-center w-[100px] shrink-0" />
             </div>
         </div>
     )

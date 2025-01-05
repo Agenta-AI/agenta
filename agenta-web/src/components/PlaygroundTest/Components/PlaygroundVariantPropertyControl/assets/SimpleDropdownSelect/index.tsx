@@ -1,28 +1,17 @@
 import {useMemo} from "react"
-import {Button, Dropdown, MenuProps} from "antd"
-import {CaretUpDown} from "@phosphor-icons/react"
-import clsx from "clsx"
 
-interface SimpleDropdownSelectProps {
-    value: string
-    options: Array<{
-        label: string
-        value: string
-        group?: string
-    }>
-    onChange: (value: string) => void
-    placeholder?: string
-    className?: string
-}
+import clsx from "clsx"
+import {Button, Dropdown} from "antd"
+import {CaretUpDown} from "@phosphor-icons/react"
+
+import type { SimpleDropdownSelectProps, MenuItemType } from "./types"
 
 const SimpleDropdownSelect = ({value, options, onChange, placeholder = "Select...", className}: SimpleDropdownSelectProps) => {
-    const menuItems= useMemo(() => {
+    const menuItems = useMemo(() => {
         return options.map(item => ({
-            key: item.value,
-            label: item.label,
-            onClick: () => onChange(item.value),
-            // type: item.group ? 'group' : undefined,
-        }))
+            ...item,
+            onClick: () => onChange(item.key as string),
+        })) as MenuItemType[]
     }, [options, onChange])
 
     return (

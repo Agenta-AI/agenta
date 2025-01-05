@@ -1,8 +1,11 @@
 import {memo, useCallback, useState, useEffect} from "react"
+
 import {Slider, InputNumber, Typography} from "antd"
-import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
-import { MinMaxControlProps } from "./types"
 import debounce from 'lodash/debounce'
+
+import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
+
+import type { MinMaxControlProps } from "./types"
 
 /**
  * A controlled input component that combines a slider and number input
@@ -22,9 +25,11 @@ const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlPr
      * Ensures min value fallback when null is provided
      */
     const debouncedOnChange = useCallback(
-        debounce((newValue: number | null) => {
-            onChange(newValue ?? min ?? null)
-        }, 300),
+        (newValue: number | null) => {
+            debounce(() => {
+                onChange(newValue ?? min ?? null)
+            }, 300)()
+        },
         [onChange, min]
     )
 

@@ -1,11 +1,13 @@
 import isEqual from "lodash/isEqual"
+import cloneDeep from "lodash/cloneDeep"
 import {dereference} from "@scalar/openapi-parser"
-import {transformToEnhancedVariant} from "../../../betterTypes/transformer"
+
+import {transformToEnhancedVariant} from "../../../assets/utilities/transformer/transformer"
 import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 
 import {type InitialStateType} from "../../../state/types"
-import {type OpenAPISpec} from "../../../betterTypes/openApiSchema"
-import {type EnhancedVariant} from "../../../betterTypes/types"
+import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * FETCHERS
@@ -34,14 +36,13 @@ export const fetchOpenApiSchemaJson = async (service: string) => {
  * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing the updated variant
  */
-export const fetchAndUpdateVariant = async (variant: EnhancedVariant, schema: OpenAPISpec) => {
+export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) => {
     const enhancedVariant = transformToEnhancedVariant(variant, schema)
 
     // Update prompt keys and initialize inputs
     updateVariantPromptKeys(enhancedVariant)
     initializeVariantInputs(enhancedVariant)
 
-    console.log("enhancedVariant", enhancedVariant, schema)
     return enhancedVariant
 }
 
@@ -51,10 +52,11 @@ export const fetchAndUpdateVariant = async (variant: EnhancedVariant, schema: Op
  * @param service - Service endpoint to fetch OpenAPI specs from
  * @returns Promise containing updated variants with their schemas
  */
-export const fetchAndUpdateVariants = async (variants: EnhancedVariant[], spec: OpenAPISpec) => {
+export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
     // const specFetcher = await openAPIJsonFetcher(service)
-    const updatePromises = variants.map((variant) => fetchAndUpdateVariant(variant, spec))
-    return await Promise.all(updatePromises)
+    const updates = variants.map((variant) => transformVariant(variant, spec))
+    return updates
+    // await Promise.all(updatePromises)
 }
 
 /**
@@ -214,13 +216,10 @@ export const compareVariant = (
     return createBaseCompare(customCompare)(a, b)
 }
 
-/**
- * Transforms raw variant data into a structured EnhancedVariant object
- * Handles snake_case to camelCase conversion and proper typing
- * @param variant - Raw variant data from API
- * @returns Structured EnhancedVariant object
- */
 export const setVariant = (variant: any): EnhancedVariant => {
+    const parameters = cloneDeep(variant.parameters)
+    delete parameters.agenta_config.input_keys
+
     return {
         id: variant.variant_id,
         appId: variant.app_id,
@@ -232,9 +231,10 @@ export const setVariant = (variant: any): EnhancedVariant => {
         configName: variant.config_name,
         projectId: variant.project_id,
         appName: variant.app_name,
-        parameters: variant.parameters,
+        parameters: {
+            agentaConfig: variant.parameters.agenta_config,
+        },
         isChat: false,
-        prompts: [] as EnhancedVariant["prompts"],
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
         name: "",

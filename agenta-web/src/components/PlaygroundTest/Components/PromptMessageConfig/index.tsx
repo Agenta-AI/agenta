@@ -1,15 +1,10 @@
 import clsx from "clsx"
-import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
-import type {PromptMessageConfigProps} from "./types"
-import { EnhancedArrayMessage } from "../../betterTypes/types"
-import usePlayground from "../../hooks/usePlayground"
 
-interface SelectedData {
-    message: {
-        role: EnhancedArrayMessage['role']['__id']
-        content: EnhancedArrayMessage['content']['__id']
-    } | undefined
-}
+import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
+import usePlayground from "../../hooks/usePlayground"
+import { componentLogger } from "../../assets/utilities/componentLogger"
+
+import type {PromptMessageConfigProps} from "./types"
 
 /**
  * PromptMessageConfig Component
@@ -30,7 +25,7 @@ const PromptMessageConfig = ({
     className,
     ...props
 }: PromptMessageConfigProps) => {
-    const {message} = usePlayground<SelectedData>({
+    const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
         variantSelector: (variant) => {
@@ -53,14 +48,7 @@ const PromptMessageConfig = ({
         return null
     }
 
-    console.log(
-        "usePlayground[%cComponent%c] - PromptMessageConfig - RENDER!",
-        "color: orange",
-        "",
-        variantId,
-        messageId,
-        message
-    )
+    componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
         <div 

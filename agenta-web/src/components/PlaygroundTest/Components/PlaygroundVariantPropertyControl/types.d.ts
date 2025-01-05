@@ -1,8 +1,16 @@
-import {EnhancedVariant} from "../../betterTypes/types"
-import type {Enhanced} from "../../betterTypes/types"
+import type {
+    ArrayMetadata,
+    BooleanMetadata,
+    CompoundMetadata,
+    EnhancedConfigValue,
+    NumberMetadata,
+    ObjectMetadata,
+    StringMetadata,
+    Enhanced,
+} from "../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {BaseContainerProps} from "../types"
 import type {PlaygroundVariantPropertyControlProps} from "./types"
-import {BaseContainerProps} from "../types"
-import type {PropertyMetadata} from "../../betterTypes/types"
 
 /**
  * Props for the property control component
@@ -50,3 +58,32 @@ export interface ControlComponents {
 
 // Re-export the component props type
 export type {PlaygroundVariantPropertyControlProps}
+
+export type PropertyTypeMap = {
+    string: {type: "string"; metadata: StringMetadata}
+    number: {type: "number"; metadata: NumberMetadata}
+    boolean: {type: "boolean"; metadata: BooleanMetadata}
+    array: {
+        type: "array"
+        metadata: ArrayMetadata
+        value: EnhancedConfigValue<any>[]
+    }
+    object: {type: "object"; metadata: ObjectMetadata}
+    compound: {type: "compound"; metadata: CompoundMetadata}
+}
+
+export type RenderFunctions = {
+    [K in keyof PropertyTypeMap]: (
+        metadata: PropertyTypeMap[K]["metadata"],
+        value: any,
+        handleChange: (v: any) => void,
+        as?: string,
+    ) => React.ReactElement | null
+}
+
+export type ArrayItemValue =
+    | {__metadata: StringMetadata; value: string}
+    | {__metadata: NumberMetadata; value: number}
+    | {__metadata: BooleanMetadata; value: boolean}
+    | {__metadata: ObjectMetadata; value: Record<string, unknown>}
+    | {__metadata: CompoundMetadata; value: string}

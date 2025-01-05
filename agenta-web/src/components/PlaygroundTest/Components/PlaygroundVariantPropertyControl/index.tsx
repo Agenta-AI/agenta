@@ -1,24 +1,19 @@
 import {memo} from "react"
+
 import {Typography} from "antd"
+
+import usePlayground from "../../hooks/usePlayground"
+import { componentLogger } from "../../assets/utilities/componentLogger"
+
 import MinMaxControl from "./assets/MinMaxControl"
 import BooleanControl from "./assets/BooleanControl"
 import MultiSelectControl from "./assets/MultiSelectControl"
 import SimpleDropdownSelect from "./assets/SimpleDropdownSelect"
 import PromptMessageContent from "./assets/PromptMessageContent"
-import type {PlaygroundVariantPropertyControlProps} from "./types"
-import type {PropertyMetadata} from "../../betterTypes/types"
-import usePlayground from "../../hooks/usePlayground"
 import TextControl from "./assets/TextControl"
 
-// Type-safe render functions for each metadata type
-type RenderFunctions = {
-    [K in PropertyMetadata["type"]]: (
-        metadata: Extract<PropertyMetadata, {type: K}>,
-        value: any,
-        handleChange: (v: any) => void,
-        as?: string,
-    ) => React.ReactNode
-}
+import type {PlaygroundVariantPropertyControlProps, RenderFunctions, ArrayItemValue} from "./types"
+import type { EnhancedConfigValue } from "../../assets/utilities/genericTransformer/types"
 
 const renderMap: RenderFunctions = {
     number: (metadata, value, handleChange) => {
@@ -70,13 +65,7 @@ const renderMap: RenderFunctions = {
             )
         }
 
-        return (
-            <TextControl
-                metadata={metadata}
-                value={value}
-                handleChange={handleChange}
-            />
-        )
+        return <TextControl metadata={metadata} value={value} handleChange={handleChange} />
     },
 
     array: (metadata, value, handleChange) => {
@@ -84,20 +73,51 @@ const renderMap: RenderFunctions = {
 
         return (
             <div className="flex flex-col gap-2">
-                {value.value.map((item) => (
-                    <div key={item.__id}>
-                        {renderMap[item.__metadata.type](
-                            item.__metadata,
-                            item.value,
-                            (newValue) => {
-                                const newArray = [...value.value]
-                                const index = value.value.findIndex((v) => v.__id === item.__id)
-                                newArray[index] = {...item, value: newValue}
-                                handleChange({value: newArray})
-                            },
-                        )}
-                    </div>
-                ))}
+                {value.value.map((item: EnhancedConfigValue<ArrayItemValue>) => {
+                    switch (item.__metadata.type) {
+                        case "string":
+                            return (
+                                <div key={item.__id}>
+                                    {renderMap.string(item.__metadata, item.value, (newValue) => {
+                                        updateArrayItem(
+                                            value.value,
+                                            item.__id,
+                                            newValue,
+                                            handleChange,
+                                        )
+                                    })}
+                                </div>
+                            )
+                        case "number":
+                            return (
+                                <div key={item.__id}>
+                                    {renderMap.number(item.__metadata, item.value, (newValue) => {
+                                        updateArrayItem(
+                                            value.value,
+                                            item.__id,
+                                            newValue,
+                                            handleChange,
+                                        )
+                                    })}
+                                </div>
+                            )
+                        case "boolean":
+                            return (
+                                <div key={item.__id}>
+                                    {renderMap.boolean(item.__metadata, item.value, (newValue) => {
+                                        updateArrayItem(
+                                            value.value,
+                                            item.__id,
+                                            newValue,
+                                            handleChange,
+                                        )
+                                    })}
+                                </div>
+                            )
+                        default:
+                            return null
+                    }
+                })}
             </div>
         )
     },
@@ -108,19 +128,13 @@ const renderMap: RenderFunctions = {
     },
 } as const
 
-const PlaygroundVariantPropertyControl: React.FC<PlaygroundVariantPropertyControlProps> = ({
+const PlaygroundVariantPropertyControl = ({
     propertyId,
     variantId,
     className,
     as,
-}) => {
-    console.log(
-        "usePlayground[%cComponent%c] - PlaygroundVariantPropertyControl - RENDER!",
-        "color: orange",
-        "",
-        variantId,
-        propertyId,
-    )
+}: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
+    componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
     const {variantConfigProperty: property} = usePlayground({
         variantId,
@@ -140,6 +154,20 @@ const PlaygroundVariantPropertyControl: React.FC<PlaygroundVariantPropertyContro
     }
 
     return <Typography.Text>Unknown type: {metadata.type}</Typography.Text>
+}
+
+const updateArrayItem = (
+    array: EnhancedConfigValue<ArrayItemValue>[],
+    id: string,
+    newValue: any,
+    handleChange: (v: any) => void,
+) => {
+    const newArray = [...array]
+    const index = array.findIndex((v) => v.__id === id)
+    if (index !== -1) {
+        newArray[index] = {...newArray[index], value: newValue}
+        handleChange({value: newArray})
+    }
 }
 
 export default memo(PlaygroundVariantPropertyControl)

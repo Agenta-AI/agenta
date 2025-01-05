@@ -1,14 +1,11 @@
+import {transformPrimitive} from "../../../assets/utilities/genericTransformer"
+import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
+
 import type {
-    EnhancedVariant,
-    PromptConfig,
-    EnhancedInputRowConfig,
-    InputSchema,
-    StringMetadata,
     ObjectMetadata,
-    EnhancedConfigValue,
-    ArrayMetadata,
-    TestResult,
-} from "../../../betterTypes/types"
+    StringMetadata,
+} from "../../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * Variable Management
@@ -42,7 +39,7 @@ export function extractVariables(input: string): string[] {
  * @param inputKeys - Array of input key names
  * @returns InputSchema with metadata for array of input rows
  */
-export function createInputSchema(inputKeys: string[]): InputSchema {
+export function createInputSchema(inputKeys: string[]): EnhancedVariant["inputs"]["__metadata"] {
     const properties: Record<string, StringMetadata> = Object.fromEntries(
         inputKeys.map((key) => [
             key,
@@ -82,13 +79,13 @@ export function createInputSchema(inputKeys: string[]): InputSchema {
 export function createInputRow(
     inputKeys: string[],
     metadata: ObjectMetadata,
-): EnhancedInputRowConfig {
+): EnhancedVariant["inputs"]["value"][number] {
     // Create enhanced values for each input key
     const enhancedValues = Object.fromEntries(
         inputKeys.map((key) => [
             key,
             {
-                __id: crypto.randomUUID(),
+                __id: generateId(),
                 __metadata: metadata.properties[key],
                 value: "",
             },
@@ -97,24 +94,11 @@ export function createInputRow(
 
     // Return object with properties spread at root level and initialize __result as undefined
     return {
-        __id: crypto.randomUUID(),
+        __id: generateId(),
         __metadata: metadata,
         __result: undefined,
         ...enhancedValues,
-    }
-}
-
-/**
- * Updates test result for a specific input row
- */
-export function updateInputRowResult(
-    row: EnhancedInputRowConfig,
-    result: TestResult,
-): EnhancedInputRowConfig {
-    return {
-        ...row,
-        __result: result,
-    }
+    } as EnhancedVariant["inputs"]["value"][number]
 }
 
 /**
@@ -127,12 +111,21 @@ export function updateInputRowResult(
  * @param prompt - Prompt configuration to update
  * @returns Array of extracted variable names
  */
-export function updatePromptInputKeys(prompt: PromptConfig) {
+export function updatePromptInputKeys(prompt: EnhancedVariant["prompts"][number]) {
     const messagesContent = prompt.messages.value.map((message) => message.content.value || "")
     const variables = messagesContent.map((message) => extractVariables(message)).flat()
 
     if (prompt.inputKeys) {
-        prompt.inputKeys.value = variables
+        prompt.inputKeys.value = variables.map((variable) => {
+            const existing = (prompt.inputKeys.value || []).find((key) => key.value === variable)
+            return (
+                existing ||
+                transformPrimitive(
+                    variable,
+                    createInputSchema(variables).itemMetadata.properties[variable],
+                )
+            )
+        })
     }
 
     return variables
@@ -163,27 +156,17 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
         new Set(variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || [])),
     )
 
-    const inputSchema = createInputSchema(allInputKeys)
-    const initialInputRow = createInputRow(allInputKeys, inputSchema.itemMetadata)
+    const inputStrings = Array.from(allInputKeys).map((enhancedKey) => enhancedKey.value)
+    const inputSchema = createInputSchema(inputStrings)
+    const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
 
     variant.inputs = {
-        __id: crypto.randomUUID(),
+        __id: generateId(),
         __metadata: inputSchema,
         value: [initialInputRow],
     }
 
     return variant
-}
-
-/** Create metadata object with ID */
-function createMetadataWithId<T extends ArrayMetadata>(
-    metadata: T,
-    id: string,
-): T & {__id: string} {
-    return {
-        ...metadata,
-        __id: id,
-    }
 }
 
 /**
@@ -194,30 +177,46 @@ export function syncVariantInputs(variant: EnhancedVariant) {
         variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
     )
 
-    const inputSchema = createInputSchema(Array.from(currentInputKeys))
-    const existingInputsId = variant.inputs?.__id || crypto.randomUUID()
+    const inputStrings = Array.from(currentInputKeys).map((enhancedKey) => enhancedKey.value)
+    const inputSchema = createInputSchema(inputStrings)
+
+    const existingInputsId = variant.inputs?.__id || generateId()
 
     // Create metadata with ID properly typed
-    const metadata = createMetadataWithId(inputSchema, existingInputsId)
+    const metadata = {
+        ...inputSchema,
+        __id: existingInputsId,
+    }
 
     // Update each row while preserving all IDs
     const updatedRows = (variant.inputs?.value || []).map((row) => {
-        const newRow: EnhancedInputRowConfig = {
+        const keys = [...inputStrings] as const
+        const newRow = {
             __id: row.__id,
-            __metadata: inputSchema.itemMetadata,
-        }
+            __metadata: inputSchema.itemMetadata.properties[Object.keys(row)[0]],
+            __result: undefined,
+        } as EnhancedVariant["inputs"]["value"][number]
 
         // For each current input key
-        Array.from(currentInputKeys).forEach((key) => {
+        keys.forEach((key) => {
             if (key in row) {
                 // If key existed before, preserve entire value object including ID
-                newRow[key] = row[key]
+                if (!!key && row[key]) {
+                    const _key = key as keyof typeof newRow
+                    if (typeof _key === "string") {
+                        newRow[_key] = row[_key]
+                    }
+                }
             } else {
                 // Only create new ID for truly new keys
-                newRow[key] = {
-                    __id: crypto.randomUUID(),
-                    __metadata: inputSchema.itemMetadata.properties[key],
-                    value: "",
+                const _key = key as keyof typeof newRow
+                if (typeof _key === "string") {
+                    newRow[_key] = {
+                        __id: generateId(),
+                        __metadata: inputSchema.itemMetadata.properties[key],
+                        // type: "string",
+                        // properties: {},
+                    } as EnhancedVariant["inputs"]["value"][number][typeof _key]
                 }
             }
         })
@@ -227,7 +226,7 @@ export function syncVariantInputs(variant: EnhancedVariant) {
 
     // Ensure at least one row exists
     if (updatedRows.length === 0) {
-        updatedRows.push(createInputRow(Array.from(currentInputKeys), inputSchema.itemMetadata))
+        updatedRows.push(createInputRow(inputStrings, inputSchema.itemMetadata))
     }
 
     variant.inputs = {
@@ -245,5 +244,8 @@ export function syncVariantInputs(variant: EnhancedVariant) {
  * @returns Set of unique input keys
  */
 export function getVariantInputKeys(variant: EnhancedVariant): Set<string> {
-    return new Set(variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [])
+    const inputKeys = new Set(
+        variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [],
+    )
+    return new Set(Array.from(inputKeys).map((key) => key.value))
 }

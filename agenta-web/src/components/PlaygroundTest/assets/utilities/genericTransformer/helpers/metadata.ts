@@ -1,13 +1,21 @@
-import type {SelectOptions, BaseOption, OptionGroup} from "../baseTypes"
-import type {SchemaProperty, PrimitiveSchema} from "../openApiSchema"
-import type {ConfigMetadata, SchemaType} from "../types"
-import {isSchema} from "../utilities/schema"
-import {toCamelCase} from "../utilities/string"
 import {processAnyOfSchema} from "./anyOf"
 import {processArraySchema} from "./arrays"
 import {processObjectSchema} from "./objects"
 import {createPrimitiveMetadata} from "./primitives"
 import {extractSchema} from "./schemaExtractors"
+
+import {isSchema} from "../utilities/schema"
+import {toCamelCase} from "../utilities/string"
+
+import type {
+    SelectOptions,
+    BaseOption,
+    OptionGroup,
+    SchemaProperty,
+    PrimitiveSchema,
+    ConfigMetadata,
+    SchemaType,
+} from "../types"
 
 /**
  * Iterate over schema properties and transform them into ConfigMetadata.

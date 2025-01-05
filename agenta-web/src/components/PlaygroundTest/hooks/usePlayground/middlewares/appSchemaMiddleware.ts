@@ -1,17 +1,21 @@
-import {Key, SWRHook, useSWRConfig} from "swr"
+import {useCallback} from "react"
+
+import {type Key, type SWRHook, useSWRConfig} from "swr"
+import cloneDeep from "lodash/cloneDeep"
+
+import {fetchOpenApiSchemaJson, setVariants, transformVariants} from "../assets/helpers"
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {initialState} from "../../../state"
+
 import {type FetcherOptions} from "@/lib/api/types"
-import {
+import {type Variant} from "@/lib/Types"
+import {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
 } from "../types"
-import {useCallback} from "react"
-import cloneDeep from "lodash/cloneDeep"
-import {fetchAndUpdateVariants, fetchOpenApiSchemaJson, setVariants} from "../assets/helpers"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {initialState} from "@/components/PlaygroundTest/state"
-import {Variant} from "@/lib/Types"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -61,14 +65,15 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         globalFetcher(url, options) as Promise<Variant[]>,
                         ...(!state.spec ? [fetchOpenApiSchemaJson(config.service)] : []),
                     ])
-                    const spec = state.spec || specResponse.schema
+                    const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
-                    console.log("variants", variants)
-                    state.variants = await fetchAndUpdateVariants(
-                        setVariants(state.variants, variants),
-                        spec,
-                    )
-                    state.spec = specResponse.schema
+                    if (!spec) {
+                        throw new Error("No spec found")
+                    }
+
+                    state.variants = transformVariants(setVariants(state.variants, variants), spec)
+                    state.spec = spec
+                    state.selected = [state.variants[0].id]
 
                     return state
                 } catch (error) {
@@ -89,7 +94,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         logger(`COMPARE - ENTER`, wrappedComparison, a, b)
                         return wrappedComparison ?? true
                     },
-                    [config],
+                    [config, logger],
                 ),
             })
         }

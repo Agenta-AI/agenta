@@ -1,3 +1,5 @@
+import type {BaseContainerProps} from "../../../types"
+
 export interface TextControlProps extends BaseContainerProps {
     metadata: PropertyMetadata
     value: string

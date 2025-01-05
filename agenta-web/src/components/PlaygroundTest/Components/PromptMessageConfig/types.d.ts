@@ -1,5 +1,5 @@
-import {BaseContainerProps} from "../types"
-import {EnhancedVariant} from "../../betterTypes/types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {BaseContainerProps} from "../types"
 
 /**
  * Props for the prompt message configuration component.

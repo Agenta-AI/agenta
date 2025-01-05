@@ -1,6 +1,7 @@
-import cloneDeep from "lodash/cloneDeep"
-import type {EnhancedVariant, Enhanced, ConfigMetadata, PromptConfig} from "../types"
-import {toSnakeCase} from "../utilities/string"
+import {toSnakeCase} from "../genericTransformer/utilities/string"
+
+import type {ConfigMetadata} from "../genericTransformer/types"
+import type {EnhancedVariant} from "./types"
 
 function shouldIncludeValue(value: unknown): boolean {
     if (value === null || value === undefined) return false
@@ -103,7 +104,7 @@ export function transformToRequestBody(variant: EnhancedVariant, inputRowId?: st
     const promptConfig = variant.prompts[0]
     const rawConfig = extractValueByMetadata(promptConfig)
     data.agenta_config = {
-        prompt: rawConfig as PromptConfig,
+        prompt: rawConfig as EnhancedVariant["prompts"][number],
     }
 
     // For non-chat variants, extract input values from the specified row

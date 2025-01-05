@@ -1,20 +1,22 @@
 import {useMemo} from "react"
-import useSWR, {type Middleware} from "swr"
-import Router from "next/router"
-import {getCurrentProject} from "@/contexts/project.context"
 
-import {
-    PlaygroundStateData,
-    UsePlaygroundStateOptions,
-    UsePlaygroundReturn,
-    VariantSelector,
-} from "./types"
+import Router from "next/router"
+import useSWR, {type Middleware} from "swr"
+import {getCurrentProject} from "@/contexts/project.context"
 
 import isVariantDirtyMiddleware from "./middlewares/isVariantDirtyMiddleware"
 import appSchemaMiddleware from "./middlewares/appSchemaMiddleware"
 import playgroundVariantsMiddleware from "./middlewares/playgroundVariantsMiddleware"
 import playgroundVariantMiddleware from "./middlewares/playgroundVariantMiddleware"
 import selectorMiddleware from "./middlewares/selectorMiddleware"
+import playgroundUIMiddleware from "./middlewares/playgroundUIMiddleware"
+
+import type {
+    PlaygroundStateData,
+    UsePlaygroundStateOptions,
+    UsePlaygroundReturn,
+    VariantSelector,
+} from "./types"
 
 const usePlayground = <Selected = unknown>(
     {
@@ -41,6 +43,7 @@ const usePlayground = <Selected = unknown>(
 
     const middlewares = useMemo(() => {
         return [
+            playgroundUIMiddleware as Middleware,
             playgroundVariantsMiddleware as Middleware,
             playgroundVariantMiddleware as Middleware,
             appSchemaMiddleware as Middleware,

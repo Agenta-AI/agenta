@@ -1,17 +1,10 @@
-import {Variant} from "@/lib/Types"
-import {SWRConfiguration, Key, Middleware} from "swr"
-import type {BaseSchema, StringSchema, NumberSchema, BooleanSchema, WithConfig} from "./shared"
-import {BaseVariant} from "../improvedTypes/stateVariant"
-import {EnhancedVariant} from "../betterTypes/types"
-import {OpenAPISpec} from "../betterTypes/openApiSchema"
+import type {OpenAPISpec} from "../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../assets/utilities/transformer/types"
 
 // State Types
 export interface InitialStateType {
     variants: EnhancedVariant[]
+    selected: string[]
     spec?: OpenAPISpec
-    selected?: EnhancedVariant
-    addVariant?: (baseVariantName: string, newVariantName: string) => void
-    deleteVariant?: () => void
-    saveVariant?: () => void
-    dirtyStates?: Map<string, boolean>
+    dirtyStates: Map<string, boolean>
 }
