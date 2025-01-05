@@ -1,6 +1,7 @@
 import clsx from "clsx"
 import {Input, Typography} from "antd"
-import {TextControlProps} from "./types"
+
+import type {TextControlProps} from "./types"
 
 const {TextArea} = Input
 

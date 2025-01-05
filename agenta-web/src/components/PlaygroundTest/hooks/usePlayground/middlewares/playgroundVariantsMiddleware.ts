@@ -1,18 +1,23 @@
 import {useCallback} from "react"
-import {Key, SWRHook} from "swr"
-import {
+
+import {message} from "antd"
+import cloneDeep from "lodash/cloneDeep"
+import {getCurrentProject} from "@/contexts/project.context"
+
+import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
+import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
+
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+
+import type {Key, SWRHook} from "swr"
+import type {FetcherOptions} from "@/lib/api/types"
+import type {Variant} from "@/lib/Types"
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
-import {Variant} from "@/lib/Types"
-import {getCurrentProject} from "@/contexts/project.context"
-import {createVariantsCompare, fetchAndUpdateVariant, setVariant} from "../assets/helpers"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {FetcherOptions} from "@/lib/api/types"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -62,7 +67,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                             }
                         }
                     },
-                    [config],
+                    [config, logger, valueReferences],
                 ),
             } as PlaygroundSWRConfig<Data>)
 
@@ -76,7 +81,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 }) => {
                     swr.mutate(
                         async (state) => {
-                            if (!state) return state
+                            if (!state || !state.spec) return state
                             const service = config.service
                             if (!service) return state
 
@@ -106,43 +111,41 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            // const existingParameters =
-                            //     baseVariant.schema?.promptConfig?.[0].llm_config.value
+                            const parameters = transformToRequestBody(baseVariant)
 
-                            // const newVariantBody: Partial<Variant> &
-                            //     Pick<Variant, "variantName" | "configName" | "baseId"> = {
-                            //     variantName: updateNewVariantName,
-                            //     templateVariantName: newTemplateVariantName,
-                            //     previousVariantName: baseVariant.variantName,
-                            //     persistent: false,
-                            //     parameters: existingParameters,
-                            //     baseId: baseVariant.baseId,
-                            //     baseName: baseVariant.baseName || newTemplateVariantName,
-                            //     configName: newVariantName,
-                            // }
+                            const newVariantBody: Partial<Variant> &
+                                Pick<Variant, "variantName" | "configName" | "baseId"> = {
+                                variantName: updateNewVariantName,
+                                templateVariantName: newTemplateVariantName,
+                                previousVariantName: baseVariant.variantName,
+                                persistent: false,
+                                parameters,
+                                baseId: baseVariant.baseId,
+                                baseName: baseVariant.baseName || newTemplateVariantName,
+                                configName: newVariantName,
+                            }
 
-                            // const {projectId} = getCurrentProject()
-                            // const createVariantResponse = await fetcher?.(
-                            //     `/api/variants/from-base?project_id=${projectId}`,
-                            //     {
-                            //         method: "POST",
-                            //         body: JSON.stringify({
-                            //             base_id: newVariantBody.baseId,
-                            //             new_variant_name: newVariantBody.variantName,
-                            //             new_config_name: newVariantBody.configName,
-                            //             parameters: {},
-                            //         }),
-                            //     },
-                            // )
+                            const {projectId} = getCurrentProject()
+                            const createVariantResponse = await fetcher?.(
+                                `/api/variants/from-base?project_id=${projectId}`,
+                                {
+                                    method: "POST",
+                                    body: JSON.stringify({
+                                        base_id: newVariantBody.baseId,
+                                        new_variant_name: newVariantBody.variantName,
+                                        new_config_name: newVariantBody.configName,
+                                        parameters: newVariantBody.parameters,
+                                    }),
+                                },
+                            )
 
-                            // const newVariant = setVariant(createVariantResponse)
-                            // const variantWithConfig = await fetchAndUpdateVariant(
-                            //     newVariant,
-                            //     service,
-                            // )
+                            const variantWithConfig = transformVariant(
+                                setVariant(createVariantResponse),
+                                state.spec,
+                            )
 
                             const clone = cloneDeep(state)
-                            // clone.variants.push(variantWithConfig)
+                            clone.variants.push(variantWithConfig)
 
                             return clone
                         },

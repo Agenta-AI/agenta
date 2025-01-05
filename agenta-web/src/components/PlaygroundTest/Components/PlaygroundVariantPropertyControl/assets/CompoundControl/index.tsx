@@ -1,13 +1,5 @@
 import {Select, Form} from 'antd'
-import type {CompoundOption} from '../../../hooks/usePlayground/types'
-
-interface CompoundControlProps {
-    value: any
-    options: CompoundOption[]
-    onChange: (value: any) => void
-    nullable?: boolean
-    placeholder?: string
-}
+import { CompoundControlProps } from './types'
 
 const CompoundControl: React.FC<CompoundControlProps> = ({
     value,
@@ -18,7 +10,7 @@ const CompoundControl: React.FC<CompoundControlProps> = ({
 }) => {
     const handleChange = (selectedValue: string) => {
         const option = options.find(opt => opt.value === selectedValue)
-        onChange(option ? { type: selectedValue, ...option.config } : null)
+        onChange(option ? {...option.config, type: selectedValue } : null)
     }
 
     return (

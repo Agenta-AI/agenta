@@ -2,5 +2,6 @@ import {InitialStateType} from "./types"
 
 export const initialState: InitialStateType = {
     variants: [],
-    selected: undefined,
+    selected: [],
+    dirtyStates: new Map<string, boolean>(),
 }

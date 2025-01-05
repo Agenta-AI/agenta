@@ -1,13 +1,13 @@
-import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import {Input, Typography} from "antd"
-import clsx from "clsx"
-import {GenerationTestViewProps} from "./types"
-import GenerationRowView from "../GenerationRowView"
-import AddButton from "@/components/PlaygroundTest/assets/AddButton"
 import {useCallback} from "react"
-import {createInputRow} from "@/components/PlaygroundTest/hooks/usePlayground/assets/inputHelpers"
 
-const {TextArea} = Input
+import AddButton from "../../../../assets/AddButton"
+import usePlayground from "../../../../hooks/usePlayground"
+import {createInputRow} from "../../../../hooks/usePlayground/assets/inputHelpers"
+
+import GenerationRowView from "../GenerationRowView"
+import { componentLogger } from "../../../../assets/utilities/componentLogger"
+
+import type {GenerationTestViewProps} from "./types"
 
 const GenerationTestView = ({variantId, ...props}: GenerationTestViewProps) => {
     const {inputRowIds, mutateVariant} = usePlayground({
@@ -37,18 +37,12 @@ const GenerationTestView = ({variantId, ...props}: GenerationTestViewProps) => {
         })
     }, [mutateVariant])
 
-    console.log(
-        "usePlayground[%cComponent%c] - GenerationTestView - RENDER!",
-        "color: orange",
-        "",
-        variantId,
-        inputRowIds,
-    )
+    componentLogger("GenerationTestView", variantId, inputRowIds)
 
     return (
         <div className="flex flex-col gap-4">
             {inputRowIds.map((inputRowId) => {
-                return <GenerationRowView variantId={variantId} rowId={inputRowId} />
+                return <GenerationRowView key={inputRowId} variantId={variantId} rowId={inputRowId} />
             })}
             <AddButton label="Input" onClick={addNewInputRow} />
         </div>

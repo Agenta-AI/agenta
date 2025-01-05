@@ -1,15 +1,14 @@
-import type {SchemaProperty, OpenAPISpec} from "../openApiSchema"
 import type {
     ConfigMetadata,
     Enhanced,
-    EnhancedArrayItem,
-    EnhancedArrayValue,
-    EnhancedPrimitiveArrayItem,
     ObjectMetadata,
-} from "../types"
-import {generateId, toCamelCase} from "../utilities/string"
-import {isSchema} from "../utilities/schema"
-import {createMetadata} from "./metadata"
+    SchemaProperty,
+    OpenAPISpec,
+    ObjectSchema,
+} from "./types"
+import {generateId, toCamelCase} from "./utilities/string"
+import {isSchema} from "./utilities/schema"
+import {createMetadata} from "./helpers/metadata"
 
 function getSchemaProperties(schema: SchemaProperty): Record<string, SchemaProperty> | undefined {
     return isSchema.object(schema) ? schema.properties : undefined
@@ -72,14 +71,11 @@ function metadataToSchema(metadata: ConfigMetadata): SchemaProperty {
     }
 }
 
-function transformArray<T>(
-    value: T[],
-    metadata: ConfigMetadata & {type: "array"},
-): EnhancedArrayValue<T> {
+function transformArray<T>(value: T[], metadata: ConfigMetadata & {type: "array"}) {
     return {
         __id: generateId(),
         __metadata: metadata,
-        value: value.map((item): EnhancedArrayItem<T> => {
+        value: value.map((item): Enhanced<T> => {
             if (metadata.itemMetadata.type === "object" && typeof item === "object") {
                 const schema = metadataToSchema(metadata.itemMetadata)
                 const properties = isSchema.object(schema) ? schema.properties || {} : {}
@@ -93,14 +89,14 @@ function transformArray<T>(
                     __id: generateId(),
                     __metadata: metadata.itemMetadata,
                     ...transformedObject,
-                } as EnhancedArrayItem<T>
+                } as Enhanced<T>
             }
 
             return {
                 __id: generateId(),
                 __metadata: metadata.itemMetadata,
                 value: item,
-            } as EnhancedPrimitiveArrayItem<T>
+            } as Enhanced<T>
         }),
     }
 }
@@ -115,14 +111,14 @@ function transformValue<T>(
 
     // Handle arrays
     if (metadata.type === "array" && Array.isArray(value)) {
-        return transformArray(value, metadata as ConfigMetadata & {type: "array"}) as Enhanced<T>
+        return transformArray(value, metadata) as Enhanced<T>
     }
 
     // Handle objects
     if (metadata.type === "object" && typeof value === "object" && value !== null) {
         const properties = getSchemaProperties(schema)
         if (!properties) {
-            return transformPrimitive(value, metadata)
+            return transformPrimitive<T>(value, metadata)
         }
 
         return {
@@ -135,7 +131,7 @@ function transformValue<T>(
     return transformPrimitive(value, metadata)
 }
 
-function transformPrimitive<T>(value: T, metadata: ConfigMetadata): Enhanced<T> {
+export function transformPrimitive<T>(value: T, metadata: ConfigMetadata): Enhanced<T> {
     return {
         value,
         __id: generateId(),
@@ -163,4 +159,44 @@ export function detectChatVariantFromOpenAISchema(openApiSpec: OpenAPISpec): boo
 }
 
 // Export other utility functions
-export {createMetadata} from "./metadata"
+export {createMetadata} from "./helpers/metadata"
+
+export function mergeWithSchema<T>(
+    schema: ObjectSchema,
+    defaultValues: Partial<T>,
+    savedValues?: Partial<T>,
+    ignoreKeys?: string[],
+): T {
+    if (!savedValues) return defaultValues as T
+
+    const result = {} as {[K in keyof T]: T[K]}
+    const schemaProperties = schema.properties || {}
+
+    for (const key of Object.keys(schemaProperties)) {
+        // Skip ignored keys
+        if (ignoreKeys?.includes(key)) continue
+
+        const schemaProperty = schemaProperties[key]
+        const propertyKey = key as keyof T
+
+        if (schemaProperty.type === "object" && "properties" in schemaProperty) {
+            // Recursively merge nested objects
+            result[propertyKey] = mergeWithSchema(
+                schemaProperty,
+                (defaultValues[propertyKey] || {}) as any,
+                savedValues[propertyKey] as any,
+            )
+        } else if (schemaProperty.type === "array") {
+            // Handle arrays - prefer saved values, fallback to defaults
+            result[propertyKey] = (savedValues[propertyKey] ||
+                defaultValues[propertyKey] ||
+                []) as T[keyof T]
+        } else {
+            // For primitive types, prefer saved values with fallback to defaults
+            result[propertyKey] = (savedValues[propertyKey] ??
+                defaultValues[propertyKey]) as T[keyof T]
+        }
+    }
+
+    return result as T
+}

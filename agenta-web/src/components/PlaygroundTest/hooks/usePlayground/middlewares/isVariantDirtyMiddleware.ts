@@ -1,17 +1,21 @@
 import {useCallback, useRef} from "react"
-import {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
+
+import isEqual from "lodash/isEqual"
+import cloneDeep from "lodash/cloneDeep"
+
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+
+import {initialState} from "../../../state"
+
+import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
 import {type FetcherOptions} from "@/lib/api/types"
-import {
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import isEqual from "lodash/isEqual"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import cloneDeep from "lodash/cloneDeep"
-import {initialState} from "@/components/PlaygroundTest/state"
-import {EnhancedVariant} from "@/components/PlaygroundTest/betterTypes/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * Compare two variants ignoring specified properties
@@ -116,7 +120,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             return isDirtyA === isDirtyB
                         }
                     },
-                    [valueReferences, config],
+                    [config, valueReferences, logger],
                 ),
             } as PlaygroundSWRConfig<Data>)
 
@@ -136,7 +140,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                         {revalidate: false},
                     )
                 },
-                [swr.mutate],
+                [swr],
             )
 
             const wrappedMutate = useCallback<KeyedMutator<Data>>(
@@ -201,7 +205,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                 checkInvalidSelector()
                 addToValueReferences("setIsDirty")
                 return setIsDirty
-            }, [swr, setIsDirty, checkInvalidSelector, addToValueReferences])
+            }, [setIsDirty, checkInvalidSelector, addToValueReferences])
 
             Object.defineProperty(swr, "mutate", {
                 get: () => {

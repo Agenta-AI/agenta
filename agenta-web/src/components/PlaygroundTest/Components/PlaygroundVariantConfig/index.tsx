@@ -1,35 +1,11 @@
 import clsx from "clsx"
+
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 import usePlayground from "../../hooks/usePlayground"
-import {variantToPromptsSelector} from "./assets/helpers"
-import type {PlaygroundVariantConfigProps} from "./types"
+import { componentLogger } from "../../assets/utilities/componentLogger"
 
-/**
- * Renders the prompts section of a variant configuration
- * Uses the variantToPromptsSelector to get relevant prompt data
- */
-// const PlaygroundConfigVariantPrompts = ({
-//     variantId,
-// }: Pick<PlaygroundVariantConfigProps, "variantId">) => {
-//     const {prompts = []} = usePlayground({
-//         variantId,
-//         hookId: "PlaygroundConfigVariantPrompts",
-//         variantSelector: variantToPromptsSelector,
-//     })
-
-//     return (
-//         <div className="div flex flex-col gap-2 pb-10">
-//             {prompts.map((prompt, promptIndex) => (
-//                 <PlaygroundVariantConfigPrompt
-//                     key={prompt.key as string}
-//                     promptIndex={promptIndex}
-//                     variantId={variantId}
-//                 />
-//             ))}
-//         </div>
-//     )
-// }
+import type {VariantConfigComponentProps} from "./types"
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -45,7 +21,7 @@ import type {PlaygroundVariantConfigProps} from "./types"
  * <PlaygroundVariantConfig variantId="variant-123" />
  * ```
  */
-const PlaygroundVariantConfig: React.FC<PlaygroundVariantConfigProps> = ({
+const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
     variantId,
     className,
     ...divProps
@@ -61,17 +37,12 @@ const PlaygroundVariantConfig: React.FC<PlaygroundVariantConfigProps> = ({
         }
     })
 
-    console.log(
-        "usePlayground[%cComponent%c] - PlaygroundVariantConfig - RENDER!",
-        "color: orange",
-        "",
-        promptIds
-    )
+    componentLogger("PlaygroundVariantConfig", variantId, promptIds)
     
     return (
         <div
             className={clsx(
-                "grow w-full h-full overflow-y-auto",
+                "w-full",
                 "[&_.ant-collapse]:!bg-[transparent]",
                 "[&_.ant-collapse-expand-icon]:!self-center",
                 "[&_.ant-collapse-content-box]:!px-4",

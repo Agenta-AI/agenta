@@ -1,5 +1,6 @@
 import clsx from "clsx"
 import {Button, Typography} from "antd"
+
 import type {PlaygroundVariantModelConfigTitleProps} from "../types"
 
 /**

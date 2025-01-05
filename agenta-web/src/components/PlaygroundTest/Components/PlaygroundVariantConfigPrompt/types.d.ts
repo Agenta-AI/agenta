@@ -1,6 +1,6 @@
 import {type CollapseProps} from "antd"
 import {BaseContainerProps} from "../types"
-import {EnhancedVariant} from "../../betterTypes/types"
+import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 export interface PlaygroundVariantConfigPromptComponentProps extends CollapseProps {
     /** Unique identifier for the variant being configured */

@@ -1,14 +1,10 @@
-import {BaseOption, OptionGroup} from "../../../../betterTypes/baseTypes"
 import type {SelectProps} from "antd"
 
-export type GroupedOptions = OptionGroup
-
-export type Options = BaseOption[] | Record<string, string[]>
-
-export interface SelectControlProps {
-    mode?: SelectProps["mode"]
+export interface SelectControlProps extends Omit<SelectProps, "onChange"> {
     label: string
-    options: Options
-    value?: string | string[]
+    options: SelectProps["options"] | Record<string, string[]>
     onChange?: (value: string | string[]) => void
 }
+
+// Export Ant Design types for convenience
+export type {SelectProps}

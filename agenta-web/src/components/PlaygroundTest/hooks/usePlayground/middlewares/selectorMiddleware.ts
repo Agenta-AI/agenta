@@ -1,14 +1,17 @@
 import {useCallback} from "react"
-import {Key, SWRHook} from "swr"
+
+import isEqual from "lodash/isEqual"
+
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+
 import {type FetcherOptions} from "@/lib/api/types"
-import {
+import type {Key, SWRHook} from "swr"
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import isEqual from "lodash/isEqual"
 
 const selectorMiddleware: PlaygroundMiddleware = <
     Data extends PlaygroundStateData = PlaygroundStateData,
@@ -63,7 +66,7 @@ const selectorMiddleware: PlaygroundMiddleware = <
                         logger(`COMPARE - SELECTED`, _isEqual, prevSelected, nextSelected)
                         return _isEqual
                     },
-                    [config, valueReferences],
+                    [config, logger, valueReferences],
                 ),
             })
 
@@ -81,7 +84,7 @@ const selectorMiddleware: PlaygroundMiddleware = <
                 }
 
                 return undefined
-            }, [swr.data, config])
+            }, [addToValueReferences, config, swr.data])
 
             if (config.stateSelector || config.variantSelector) {
                 const selectedData = getSelectedData()

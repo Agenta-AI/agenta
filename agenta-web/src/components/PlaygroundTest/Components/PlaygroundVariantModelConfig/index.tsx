@@ -1,12 +1,17 @@
 import {memo, useState, useCallback} from "react"
+
 import {Button, Popover} from "antd"
+import {CaretDown} from "@phosphor-icons/react"
+
+import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import usePlayground from "../../hooks/usePlayground"
 import ModelConfigModal from "./assets/ModelConfigModal"
-import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
+
+import {getEnhancedProperties} from "../../assets/utilities/genericTransformer/utilities/enhanced"
+import { componentLogger } from "../../assets/utilities/componentLogger"
+
 import type {PlaygroundVariantModelConfigProps} from "./types"
-import {CaretDown} from "@phosphor-icons/react"
-import {EnhancedVariant} from "../../betterTypes/types"
-import { getEnhancedProperties } from "../../betterTypes/utilities/enhanced"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 /**
  * PlaygroundVariantModelConfig Component
@@ -59,14 +64,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
     // Local state for modal visibility
     const [isModalOpen, setIsModalOpen] = useState(false)
 
-    console.log(
-        "usePlayground[%cComponent%c] - PlaygroundVariantModelConfig - RENDER!",
-        "color: orange",
-        "",
-        promptId,
-        propertyIds.length,
-        modelName,
-    )
+    componentLogger("PlaygroundVariantModelConfig", variantId, promptId, propertyIds, modelName)
 
     const saveModelConfig = useCallback(() => saveVariant?.(), [saveVariant])
 
@@ -85,7 +83,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
     const handleResetDefaults = useCallback(async () => {
         // await saveModelConfig?.()
         handleModalClose()
-    }, [])
+    }, [handleModalClose])
 
     return (
         <Popover

@@ -1,7 +1,9 @@
 import type {Map} from "immutable"
 import type {SWRConfiguration, SWRResponse, SWRHook} from "swr"
 import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
-import type {EnhancedVariant, Enhanced} from "../../betterTypes/types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {Enhanced} from "../../assets/utilities/genericTransformer/types"
+import {InitialStateType} from "../../state/types"
 
 /** Base hook configuration types */
 interface BaseHookConfig<T = unknown, Selected = unknown>
@@ -27,10 +29,7 @@ interface SelectorConfig<T = any, Selected = unknown> {
 }
 
 // Base state shape
-export interface PlaygroundStateData {
-    variants: EnhancedVariant[]
-    spec?: OpenAPISpec
-    dirtyStates?: Map<string, boolean>
+export interface PlaygroundStateData extends InitialStateType {
     dataRef?: Map<string, EnhancedVariant>
     [key: string]: any
 }
@@ -41,7 +40,7 @@ export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
 
 // Variants middleware extensions
 export interface PlaygroundVariantsResponse extends PlaygroundResponse {
-    variants?: EnhancedVariant[]
+    variants?: PlaygroundStateData["variants"]
     variantIds?: string[]
     addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
 }
@@ -87,9 +86,12 @@ export interface VariantUpdateFunction<T extends EnhancedVariant = EnhancedVaria
 export interface PlaygroundVariantResponse<T extends PlaygroundStateData = PlaygroundStateData>
     extends PlaygroundVariantsResponse {
     variant?: EnhancedVariant
+    displayedVariants?: string[]
     deleteVariant?: () => Promise<void>
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction<T>) => Promise<void>
     saveVariant?: () => Promise<void>
+    setSelectedVariant?: (variantId: string) => void
+    addVariantToDisplay?: (variantId: string) => void
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty
 }
@@ -148,6 +150,7 @@ export type PlaygroundMiddleware = {
 // Final hook return type combining base responses with selected data
 export type UsePlaygroundReturn<Selected = unknown> = PlaygroundVariantResponse &
     PlaygroundResponse<PlaygroundStateData, Selected> &
+    UIState<PlaygroundStateData, Selected> &
     Selected
 
 // Property control types
@@ -180,4 +183,14 @@ export interface EnhancedProperty {
     __id: string
     __metadata: PropertyMetadata
     handleChange: (value: any) => void
+}
+
+export type ViewType = "single" | "comparison"
+
+export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData, Selected = unknown>
+    extends PlaygroundResponse<Data, Selected> {
+    displayedVariants?: string[]
+    viewType?: ViewType
+    setSelectedVariant?: (variantId: string) => void
+    addVariantToDisplay?: (variantId: string) => void
 }

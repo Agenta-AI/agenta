@@ -1,21 +1,25 @@
-import { useCallback } from "react"
+import {useCallback} from "react"
+import clsx from "clsx"
+import {Typography} from "antd"
+
+import usePlayground from "../../../hooks/usePlayground"
 import AddButton from "../../../assets/AddButton"
 import PromptMessageConfig from "../../PromptMessageConfig"
-import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
+import {createObjectFromMetadata} from "../../../assets/utilities/genericTransformer/helpers/arrays"
+import { componentLogger } from "../../../assets/utilities/componentLogger"
+
 import type {PromptCollapseContentProps} from "../types"
-import { createObjectFromMetadata } from "@/components/PlaygroundTest/betterTypes/transformers/arrays"
-import clsx from "clsx"
-import type { ArrayMetadata, EnhancedArrayMessage } from "../../../betterTypes/types"
-import {Typography} from "antd"
+import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
+
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
  * for a single prompt's messages.
- * 
+ *
  * Features:
  * - Displays a list of configurable messages for the prompt
  * - Allows adding new messages
  * - Manages message configurations through the playground state
- * 
+ *
  * @component
  */
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
@@ -24,11 +28,10 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     className,
     ...props
 }) => {
-    const {messageIds, mutateVariant, inputKeys} = usePlayground({
+    const {inputKeys, messageIds, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: (variant) => {
-            
             const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
             const messages = prompt?.messages
 
@@ -38,7 +41,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
 
             return {
                 messageIds: messages.value.map((message) => message.__id),
-                inputKeys: prompt.inputKeys.value || []
+                inputKeys: prompt.inputKeys.value || [],
             }
         },
     })
@@ -52,7 +55,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
             const metadata = (variantPrompt?.messages.__metadata as ArrayMetadata).itemMetadata
 
             if (variantPrompt && messages && metadata) {
-                const newMessage = createObjectFromMetadata(metadata) as EnhancedArrayMessage
+                const newMessage = createObjectFromMetadata(metadata) as (typeof messages)[number]
                 if (newMessage) {
                     messages.push(newMessage)
                 }
@@ -62,35 +65,24 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         })
     }, [mutateVariant, promptId])
 
-    console.log(
-        "usePlayground[%cComponent%c] - PlaygroundVariantConfigPromptCollapseContent - RENDER!",
-        "color: orange",
-        "",
+    componentLogger(
+        "PlaygroundVariantConfigPromptCollapseContent",
         variantId,
         messageIds,
-        inputKeys
+        inputKeys,
     )
 
     return (
-        <div 
-            className={clsx("flex flex-col gap-4", className)}
-            {...props}
-        >
+        <div className={clsx("flex flex-col gap-4", className)} {...props}>
             {messageIds.map((messageId) => (
-                <PromptMessageConfig
-                    key={messageId}
-                    variantId={variantId}
-                    messageId={messageId}
-                />
+                <PromptMessageConfig key={messageId} variantId={variantId} messageId={messageId} />
             ))}
             <AddButton label="Message" onClick={addNewMessage} />
 
             <div className="flex flex-col gap-2">
                 <Typography.Text strong>Input keys:</Typography.Text>
                 {(inputKeys || []).map((inputKey) => (
-                    <div key={inputKey}>
-                        {inputKey}
-                    </div>
+                    <div key={inputKey.value}>{inputKey.value}</div>
                 ))}
             </div>
         </div>

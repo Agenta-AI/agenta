@@ -5,7 +5,7 @@ import type {
     ObjectSchema,
     AnyOfSchema,
     ObjectWithConstSchema,
-} from "../openApiSchema"
+} from "../types"
 
 /** Base type guard for schema type checking */
 export const hasType = (
@@ -48,6 +48,9 @@ export const isSchema = {
             typeProperty.type === "string" &&
             "const" in typeProperty
         )
+    },
+    null: (schema: SchemaProperty): schema is SchemaProperty & {type: "null"} => {
+        return hasType(schema) && schema.type === "null"
     },
 }
 

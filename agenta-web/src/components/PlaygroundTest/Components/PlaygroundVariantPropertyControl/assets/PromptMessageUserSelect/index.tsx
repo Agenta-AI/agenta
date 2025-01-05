@@ -1,13 +1,10 @@
 import {useMemo} from "react"
+
 import {Button, Dropdown, MenuProps} from "antd"
 import {CaretUpDown} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-interface PromptMessageUserSelectProps {
-    value: string;
-    options: string[];
-    onChange: (value: string) => void;
-}
+import type { PromptMessageUserSelectProps } from "./types"
 
 const PromptMessageUserSelect = ({value, options, onChange}: PromptMessageUserSelectProps) => {
     const menuItems: MenuProps["items"] = useMemo(() => {

@@ -1,19 +1,27 @@
-import {SchemaType} from "../baseTypes"
-import type {SchemaProperty, AnyOfSchema, ObjectSchema} from "../openApiSchema"
 import {isSchema, hasType} from "../utilities/schema"
 
-export interface ExtractedSchema {
-    schema: SchemaProperty
-    parentTitle?: string
-    parentDescription?: string
-    isNullable: boolean
+import type {
+    SchemaType,
+    SchemaProperty,
+    AnyOfSchema,
+    ExtractedSchema,
+    PrimitiveSchemaType,
+} from "../types"
+
+function isPrimitiveSchemaType(type: SchemaType | undefined): type is PrimitiveSchemaType {
+    if (!type) return false
+    return !["object", "array", "compound"].includes(type)
 }
 
 function createPrimitiveSchema(
     parentMetadata: Omit<AnyOfSchema, "anyOf">,
     selectedSchema: SchemaProperty,
-    schemaType: Exclude<SchemaType, "object" | "array" | "compound">,
+    schemaType: SchemaType | undefined,
 ): SchemaProperty {
+    if (!isPrimitiveSchemaType(schemaType)) {
+        throw new Error(`Invalid primitive schema type: ${schemaType}`)
+    }
+
     const choices =
         ("choices" in selectedSchema && selectedSchema.choices) ||
         ("choices" in parentMetadata && parentMetadata.choices) ||
@@ -33,7 +41,6 @@ function createPrimitiveSchema(
         description: selectedSchema.description || parentMetadata.description,
         default: selectedSchema.default ?? parentMetadata.default,
         enum: selectedSchema.enum as string[] | undefined,
-        // @ts-ignore
         choices: processedChoices,
     }
 }
@@ -64,7 +71,9 @@ function combineSchemas(
                     default: selectedSchema.default ?? parentMetadata.default,
                 }
             default:
-                // @ts-ignore
+                if (!isPrimitiveSchemaType(schemaType)) {
+                    throw new Error(`Invalid schema type: ${schemaType}`)
+                }
                 return createPrimitiveSchema(parentMetadata, selectedSchema, schemaType)
         }
     }
@@ -138,33 +147,6 @@ export function extractFromAnyOf(anyOfSchema: AnyOfSchema): ExtractedSchema {
     return {
         schema: combinedSchema,
         isNullable,
-    }
-}
-
-/**
- * Extracts schema information from an ObjectSchema.
- * @param objectSchema - The ObjectSchema to extract from.
- * @returns An ExtractedSchema object containing the schema and metadata.
- *
- * An ObjectSchema is a type of schema used in OpenAPI specifications to represent a JSON object.
- * It defines the properties of the object, each of which can have its own schema. ObjectSchemas
- * are useful for defining complex data structures with nested properties.
- *
- * Example:
- * {
- *   "type": "object",
- *   "properties": {
- *     "name": { "type": "string" },
- *     "age": { "type": "integer" }
- *   }
- * }
- *
- * In this example, the schema defines an object with two properties: `name` (a string) and `age` (an integer).
- */
-export function extractFromObject(objectSchema: ObjectSchema): ExtractedSchema {
-    return {
-        schema: objectSchema,
-        isNullable: false,
     }
 }
 
