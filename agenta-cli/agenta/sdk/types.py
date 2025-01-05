@@ -20,8 +20,12 @@ def MCField(  # pylint: disable=invalid-name
     default: str,
     choices: Union[List[str], Dict[str, List[str]]],
 ) -> Field:
-    field = Field(default=default)
-    field.json_schema_extra = {"multiple_choice": MultipleChoice(choices)}
+    field = Field(default=default, description="ID of the model to use")
+    if isinstance(choices, dict):
+        field.json_schema_extra = {"choices": choices, "x-parameter": "grouped_choice"}
+    elif isinstance(choices, list):
+        field.json_schema_extra = {"choices": choices, "x-parameter": "choice"}
+
     return field
 
 
@@ -317,9 +321,11 @@ ResponseFormat = Union[
 class ModelConfig(BaseModel):
     """Configuration for model parameters"""
 
-    model: Annotated[str, MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo", description="ID of the model to use"
+    model: str = MCField(
+        default="gpt-3.5-turbo",
+        choices=supported_llm_models,
     )
+
     temperature: Optional[float] = Field(
         default=None,
         ge=0.0,
