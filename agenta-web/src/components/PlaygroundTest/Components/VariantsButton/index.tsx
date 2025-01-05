@@ -45,7 +45,7 @@ const VariantsList = ({selectedVariant, displayedVariants = [], onSelect, closeM
         const value = e.target.value
         setQuery(value)
         debouncedSearch(value)
-    }, [])
+    }, [debouncedSearch])
 
     return (
         <div className="flex flex-col gap-2">

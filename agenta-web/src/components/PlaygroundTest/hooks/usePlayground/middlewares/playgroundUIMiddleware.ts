@@ -85,7 +85,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             }
                         }
                     },
-                    [config, logger],
+                    [config, logger, valueReferences],
                 ),
             } as PlaygroundSWRConfig<Data>)
 
@@ -97,7 +97,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
             const getViewType = useCallback((): ViewType => {
                 addToValueReferences("viewType")
                 return (swr.data?.selected?.length || 0) > 1 ? "comparison" : "single"
-            }, [swr.data])
+            }, [addToValueReferences, swr.data?.selected?.length])
 
             const setSelectedDisplayVariant = useCallback(
                 (variantId: string) => {
