@@ -1,3 +1,5 @@
+import {useCallback} from "react"
+
 import clsx from "clsx"
 import {Tag, Button} from "antd"
 
@@ -5,6 +7,7 @@ import usePlayground from "../../../hooks/usePlayground"
 import VariantsButton from "../../VariantsButton"
 
 import type {VariantConfigComponentProps, VariantActionButtonProps} from "../types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * Button to save variant changes when modifications are detected
@@ -56,10 +59,13 @@ const PlaygroundVariantConfigHeader: React.FC<VariantConfigComponentProps> = ({
     const {revision} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
-        variantSelector: (variant) => ({
-            variantName: variant?.variantName,
-            revision: variant?.revision,
-        }),
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => ({
+                variantName: variant?.variantName,
+                revision: variant?.revision,
+            }),
+            [],
+        ),
     })
 
     return (
@@ -69,7 +75,7 @@ const PlaygroundVariantConfigHeader: React.FC<VariantConfigComponentProps> = ({
                 "flex items-center justify-between",
                 "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                 "sticky top-0 z-[1]",
-                'bg-white',
+                "bg-white",
                 className,
             )}
             {...divProps}

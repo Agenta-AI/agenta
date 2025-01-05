@@ -5,20 +5,19 @@ import {Play} from "@phosphor-icons/react"
 import {Typography, Button} from "antd"
 
 import usePlayground from "../../../../hooks/usePlayground"
-import { getEnhancedProperties } from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
+import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
 import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
 
 import type {GenerationRowViewProps} from "./types"
+import type {EnhancedVariant} from "../../../../assets/utilities/transformer/types"
 
 const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps) => {
     const {result, variableIds, runVariantTestRow, canRun} = usePlayground({
         variantId,
-        variantSelector: (variant) => {
-            const inputRow = (variant.inputs?.value || []).find(
-                (inputRow) => {
-                    return inputRow.__id === rowId
-                },
-            )
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            const inputRow = (variant.inputs?.value || []).find((inputRow) => {
+                return inputRow.__id === rowId
+            })
 
             const variables = getEnhancedProperties(inputRow)
             const variableIds = variables.map((p) => p.__id)
@@ -29,7 +28,7 @@ const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps)
                 canRun,
                 result: inputRow?.__result,
             }
-        },
+        }, [rowId]),
     })
 
     const runRow = useCallback(async () => {

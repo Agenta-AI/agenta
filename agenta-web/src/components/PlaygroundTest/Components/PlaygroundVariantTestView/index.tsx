@@ -1,10 +1,13 @@
+import {useCallback} from "react"
+
+import dynamic from "next/dynamic"
 import clsx from "clsx"
 
 import usePlayground from "../../hooks/usePlayground"
 import {Typography} from "antd"
 
 import type {PlaygroundVariantTestViewProps} from "./types"
-import dynamic from "next/dynamic"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 const ChatTestView = dynamic(() => import("./Components/ChatTestView"), {ssr: false})
 const GenerationTestView = dynamic(() => import("./Components/GenerationTestView"), {ssr: false})
@@ -16,11 +19,11 @@ const PlaygroundVariantTestView = ({
 }: PlaygroundVariantTestViewProps) => {
     const {isChat} = usePlayground({
         variantId,
-        variantSelector: (variant) => {
+        variantSelector: useCallback((variant: EnhancedVariant) => {
             return {
                 isChat: variant.isChat,
             }
-        },
+        }, []),
     })
     return (
         <div className={clsx("px-2 w-full", className)} {...props}>

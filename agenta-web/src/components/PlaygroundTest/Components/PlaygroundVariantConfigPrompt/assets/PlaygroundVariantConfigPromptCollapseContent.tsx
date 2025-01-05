@@ -1,4 +1,5 @@
 import {useCallback} from "react"
+
 import clsx from "clsx"
 import {Typography} from "antd"
 
@@ -10,6 +11,7 @@ import { componentLogger } from "../../../assets/utilities/componentLogger"
 
 import type {PromptCollapseContentProps} from "../types"
 import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -31,7 +33,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     const {inputKeys, messageIds, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: (variant) => {
+        variantSelector: useCallback((variant: EnhancedVariant) => {
             const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
             const messages = prompt?.messages
 
@@ -43,7 +45,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 messageIds: messages.value.map((message) => message.__id),
                 inputKeys: prompt.inputKeys.value || [],
             }
-        },
+        }, [promptId]),
     })
 
     const addNewMessage = useCallback(() => {
