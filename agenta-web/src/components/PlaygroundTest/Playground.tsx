@@ -1,9 +1,9 @@
 import {useRouter} from "next/router"
 import dynamic from "next/dynamic"
-import { SWRDevTools } from "swr-devtools";
+import {SWRDevTools} from "swr-devtools"
 
-import PlaygroundMainView from "./Components/ArdaMainView"
-import { componentLogger } from "./assets/utilities/componentLogger";
+import PlaygroundMainView from "./Components/MainLayout"
+import {componentLogger} from "./assets/utilities/componentLogger"
 import usePlayground from "./hooks/usePlayground"
 
 import {AVAILABLE_SERVICES} from "./assets/constants"
@@ -16,7 +16,7 @@ const Playground: React.FC = () => {
     usePlayground({
         hookId: "playground",
     })
-    
+
     componentLogger("Playground", service)
 
     if (!service || !AVAILABLE_SERVICES.includes(service)) {
@@ -25,11 +25,9 @@ const Playground: React.FC = () => {
                 <h1>Service not found</h1>
                 <p>available services are:</p>
                 <ul>
-                    {
-                        AVAILABLE_SERVICES.map((service) => (
-                            <li key={service}>{service}</li>
-                        ))
-                    }
+                    {AVAILABLE_SERVICES.map((service) => (
+                        <li key={service}>{service}</li>
+                    ))}
                 </ul>
             </div>
         )
