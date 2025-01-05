@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, memo} from "react"
 
 import clsx from "clsx"
 
@@ -9,6 +9,7 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {VariantConfigComponentProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import useDelayChildren from "../../hooks/useDelayChildren"
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -40,6 +41,8 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
         }, []),
     })
 
+    const showChildren = useDelayChildren()
+
     componentLogger("PlaygroundVariantConfig", variantId, promptIds)
 
     return (
@@ -54,16 +57,20 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
             )}
             {...divProps}
         >
-            <PlaygroundVariantConfigHeader variantId={variantId} />
-            {promptIds.map((promptId) => (
-                <PlaygroundVariantConfigPrompt
-                    key={promptId as string}
-                    promptId={promptId}
-                    variantId={variantId}
-                />
-            ))}
+            {showChildren && (
+                <>
+                    <PlaygroundVariantConfigHeader variantId={variantId} />
+                    {promptIds.map((promptId) => (
+                        <PlaygroundVariantConfigPrompt
+                            key={promptId as string}
+                            promptId={promptId}
+                            variantId={variantId}
+                        />
+                    ))}
+                </>
+            )}
         </div>
     )
 }
 
-export default PlaygroundVariantConfig
+export default memo(PlaygroundVariantConfig)
