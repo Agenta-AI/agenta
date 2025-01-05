@@ -1,10 +1,13 @@
 import dynamic from "next/dynamic"
 import clsx from "clsx"
-import usePlayground from "../../hooks/usePlayground"
-import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
-import PlaygroundVariantTestView from "../PlaygroundVariantTestView"
-import { BaseContainerProps } from "../types"
 
+import usePlayground from "../../hooks/usePlayground"
+import type {BaseContainerProps} from "../types"
+
+const PlaygroundVariantConfig = dynamic(() => import("../PlaygroundVariantConfig"), {ssr: false})
+const PlaygroundVariantTestView = dynamic(() => import("../PlaygroundVariantTestView"), {
+    ssr: false,
+})
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
 
