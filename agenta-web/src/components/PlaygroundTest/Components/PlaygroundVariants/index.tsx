@@ -2,6 +2,7 @@ import dynamic from "next/dynamic"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 import type {BaseContainerProps} from "../types"
+import PlaygroundComparisionView from "../PlaygroundComparisionView"
 
 const PlaygroundVariant = dynamic(() => import("../PlaygroundVariant"), {ssr: false})
 
@@ -31,9 +32,10 @@ const PlaygroundVariants = ({className, ...props}: BaseContainerProps) => {
             className={clsx(["flex flex-col gap-2 w-full grow overflow-hidden"], className)}
             {...props}
         >
-            {(variantIds || []).map((variantId) => {
+            {/* {(variantIds || []).map((variantId) => {
                 return <PlaygroundVariant key={variantId} variantId={variantId} />
-            })}
+            })} */}
+            <PlaygroundComparisionView variantIds={variantIds as string[]} />
         </div>
     )
 }
