@@ -5,20 +5,21 @@ import usePlayground from "../../../../hooks/usePlayground"
 import {createInputRow} from "../../../../hooks/usePlayground/assets/inputHelpers"
 
 import GenerationRowView from "../GenerationRowView"
-import { componentLogger } from "../../../../assets/utilities/componentLogger"
+import {componentLogger} from "../../../../assets/utilities/componentLogger"
 
 import type {GenerationTestViewProps} from "./types"
+import type {EnhancedVariant} from "../../../../assets/utilities/transformer/types"
 
 const GenerationTestView = ({variantId, ...props}: GenerationTestViewProps) => {
     const {inputRowIds, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: (variant) => {
+        variantSelector: useCallback((variant: EnhancedVariant) => {
             const inputRows = variant.inputs?.value || []
             return {
                 inputRowIds: (inputRows || []).map((inputRow) => inputRow.__id),
             }
-        },
+        }, []),
     })
 
     const addNewInputRow = useCallback(() => {
@@ -42,7 +43,9 @@ const GenerationTestView = ({variantId, ...props}: GenerationTestViewProps) => {
     return (
         <div className="flex flex-col gap-4">
             {inputRowIds.map((inputRowId) => {
-                return <GenerationRowView key={inputRowId} variantId={variantId} rowId={inputRowId} />
+                return (
+                    <GenerationRowView key={inputRowId} variantId={variantId} rowId={inputRowId} />
+                )
             })}
             <AddButton label="Input" onClick={addNewInputRow} />
         </div>

@@ -1,3 +1,5 @@
+import { useCallback } from "react"
+
 import clsx from "clsx"
 
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
@@ -5,6 +7,7 @@ import usePlayground from "../../hooks/usePlayground"
 import { componentLogger } from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
+import type { EnhancedVariant } from "../../assets/utilities/transformer/types"
 
 /**
  * PromptMessageConfig Component
@@ -28,7 +31,7 @@ const PromptMessageConfig = ({
     const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
-        variantSelector: (variant) => {
+        variantSelector: useCallback((variant: EnhancedVariant) => {
             for (const prompt of variant.prompts || []) {
                 const message = prompt.messages?.value.find(msg => msg.__id === messageId)
                 if (message) {
@@ -41,7 +44,7 @@ const PromptMessageConfig = ({
                 }
             }
             return { message: undefined }
-        },
+        }, [messageId]),
     })
 
     if (!message) {

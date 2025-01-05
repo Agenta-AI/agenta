@@ -1,11 +1,14 @@
+import {useCallback} from "react"
+
 import clsx from "clsx"
 
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 import usePlayground from "../../hooks/usePlayground"
-import { componentLogger } from "../../assets/utilities/componentLogger"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {VariantConfigComponentProps} from "./types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -29,16 +32,16 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
     const {promptIds = []} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: (variant) => {
+        variantSelector: useCallback((variant: EnhancedVariant) => {
             const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
             return {
                 promptIds,
             }
-        }
+        }, []),
     })
 
     componentLogger("PlaygroundVariantConfig", variantId, promptIds)
-    
+
     return (
         <div
             className={clsx(

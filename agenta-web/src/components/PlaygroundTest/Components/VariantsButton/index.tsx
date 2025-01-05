@@ -9,6 +9,7 @@ import usePlayground from "../../hooks/usePlayground"
 import NewVariantButton from "../NewVariantButton"
 
 import type { VariantsButtonProps, VariantsListProps } from "./types"
+import type { EnhancedVariant } from "../../assets/utilities/transformer/types"
 
 const VariantsList = ({selectedVariant, displayedVariants = [], onSelect, closeModal}: VariantsListProps) => {
     const [query, setQuery] = useState("")
@@ -122,9 +123,9 @@ const VariantsButton = ({
     // Local state for modal visibility
     const {variantName} = usePlayground({
         variantId: selectedVariant,
-        variantSelector: (variant) => ({
+        variantSelector: useCallback((variant: EnhancedVariant) => ({
             variantName: variant.variantName,
-        }),
+        }), []),
     })
     const [isModalOpen, setIsModalOpen] = useState(false)
 
