@@ -41,7 +41,7 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
         }, []),
     })
 
-    const showChildren = useDelayChildren()
+    const showChildren = useDelayChildren(10)
 
     componentLogger("PlaygroundVariantConfig", variantId, promptIds)
 
