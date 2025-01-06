@@ -110,8 +110,7 @@ const SidebarMenu: React.FC<{
 
     const transformItems = useCallback(
         (items: SidebarConfig[]): any => {
-            // @ts-ignore
-            return items.flatMap((item) => {
+            return items.flatMap((item): any => {
                 if (item.submenu) {
                     return {
                         key: item.key,
