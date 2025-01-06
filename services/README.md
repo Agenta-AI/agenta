@@ -2,6 +2,10 @@
 
 This directory contains various versions of Agenta's LLM services, each offering distinct capabilities and interfaces for language model interactions.
 
+# Set up
+
+- Modify the openapi environment variable in the docker compose files for the services you want to use.
+
 ## Service Overview
 
 ### Legacy Services

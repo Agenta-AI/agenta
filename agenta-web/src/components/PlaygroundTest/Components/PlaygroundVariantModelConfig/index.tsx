@@ -1,13 +1,17 @@
 import {memo, useState, useCallback} from "react"
+
 import {Button, Popover} from "antd"
-import clsx from "clsx"
+import {CaretDown} from "@phosphor-icons/react"
+
+import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import usePlayground from "../../hooks/usePlayground"
 import ModelConfigModal from "./assets/ModelConfigModal"
-import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
-import type {PlaygroundVariantModelConfigProps, ModelConfigProperty} from "./types"
-import {CaretDown} from "@phosphor-icons/react"
-import {LLMConfig} from "../../types/openApiTypes"
-import {StateVariant} from "../../state/types"
+
+import {getEnhancedProperties} from "../../assets/utilities/genericTransformer/utilities/enhanced"
+import {componentLogger} from "../../assets/utilities/componentLogger"
+
+import type {PlaygroundVariantModelConfigProps} from "./types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 /**
  * PlaygroundVariantModelConfig Component
@@ -32,42 +36,37 @@ import {StateVariant} from "../../state/types"
  */
 const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> = ({
     variantId,
-    promptIndex,
+    promptId,
     className,
-    ...props
+    ...popoverProps // Collect remaining props for Popover
 }) => {
+    const variantSelector = useCallback(
+        (variant: EnhancedVariant) => {
+            const prompt = variant.prompts.find((p) => p.__id === promptId)
+            const llmConfig = prompt?.llmConfig
+            return {
+                propertyIds: (
+                    getEnhancedProperties(llmConfig, ["tools", "toolChoice", "responseFormat"]) ||
+                    []
+                ).map((p) => p.__id),
+                modelName: llmConfig?.model?.value,
+            }
+        },
+        [promptId],
+    )
+
+    const {propertyIds, modelName, saveVariant} = usePlayground({
+        variantId,
+        hookId: "PlaygroundVariantModelConfig",
+        variantSelector,
+    })
+
     // Local state for modal visibility
     const [isModalOpen, setIsModalOpen] = useState(false)
 
-    // Get model configuration from playground state
-    const {properties, modelName, saveVariant} = usePlayground({
-        variantId,
-        hookId: "PlaygroundVariantModelConfig",
-        variantSelector: (variant) => {
-            // Extract model configuration properties from variant
-            const prompt = variant?.schema?.promptConfig?.[promptIndex]
-            const llmConfig = prompt?.llm_config
-            const llmConfigValue: LLMConfig = (llmConfig?.value as LLMConfig) || ({} as LLMConfig)
-            const llmConfigProperties = llmConfig?.config
+    componentLogger("PlaygroundVariantModelConfig", variantId, promptId, propertyIds, modelName)
 
-            // Transform configuration into property array
-            return {
-                properties: llmConfigProperties
-                    ? (Object.keys(llmConfigProperties) as (keyof LLMConfig)[]).map((key) => {
-                          return {
-                              key,
-                              configKey: `${llmConfig.configKey}.${key}` as keyof StateVariant,
-                              valueKey: `${llmConfig.valueKey}.${key}` as keyof StateVariant,
-                              value: llmConfigProperties[key]?.default || null,
-                          }
-                      })
-                    : [],
-                modelName: llmConfigValue?.model,
-            }
-        },
-    })
-
-    const saveModelConfig = useCallback(() => saveVariant?.(), [saveVariant, promptIndex])
+    const saveModelConfig = useCallback(() => saveVariant?.(), [saveVariant])
 
     const handleModalOpen = useCallback((e?: React.MouseEvent): void => {
         e?.preventDefault()
@@ -84,38 +83,32 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
     const handleResetDefaults = useCallback(async () => {
         // await saveModelConfig?.()
         handleModalClose()
-    }, [])
+    }, [handleModalClose])
 
     return (
-        <>
-            <Popover
-                open={isModalOpen}
-                onOpenChange={setIsModalOpen}
-                trigger={["click"]}
-                placement="bottomRight"
-                arrow={false}
-                title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
-                content={
+        <Popover
+            {...popoverProps} // Pass through Popover props
+            open={isModalOpen}
+            onOpenChange={setIsModalOpen}
+            trigger={["click"]}
+            arrow={false}
+            title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
+            content={
+                isModalOpen ? (
                     <ModelConfigModal
                         variantId={variantId}
-                        properties={properties}
+                        propertyIds={propertyIds || []}
                         handleClose={handleModalClose}
                         handleSave={handleSave}
                     />
-                }
-                overlayClassName={clsx([
-                    "[&_.ant-popover-inner-content]:px-3 [&_.ant-popover-inner-content]:pb-3 [&_.ant-popover-inner-content]:pt-1",
-                    "[&._ant-popover-title]:mb-0",
-                    "[&_.ant-popover-inner]:p-0",
-                    "[&_.ant-popover-title_>_div]:p-2",
-                    "[&_.ant-popover-title]:p-1 [&_.ant-popover-title]:border-solid [&_.ant-popover-title]:border-0 [&_.ant-popover-title]:border-b [&_.ant-popover-title]:border-[#0517290f]",
-                ])}
-            >
-                <Button onClick={handleModalOpen}>
-                    {modelName ?? "Choose a model"} <CaretDown size={14} />
-                </Button>
-            </Popover>
-        </>
+                ) : null
+            }
+            className={className}
+        >
+            <Button onClick={handleModalOpen}>
+                {modelName ?? "Choose a model"} <CaretDown size={14} />
+            </Button>
+        </Popover>
     )
 }
 

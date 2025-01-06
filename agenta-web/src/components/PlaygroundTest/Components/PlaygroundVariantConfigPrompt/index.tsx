@@ -1,9 +1,13 @@
 import {useMemo, useRef} from "react"
+
 import clsx from "clsx"
 import {Collapse} from "antd"
+
 import PlaygroundVariantConfigPromptCollapseHeader from "./assets/PlaygroundVariantConfigPromptCollapseHeader"
 import PlaygroundVariantConfigPromptCollapseContent from "./assets/PlaygroundVariantConfigPromptCollapseContent"
-import {PlaygroundVariantConfigPromptComponentProps} from "./types"
+import {componentLogger} from "../../assets/utilities/componentLogger"
+
+import type {PlaygroundVariantConfigPromptComponentProps} from "./types"
 
 /**
  * PlaygroundVariantConfigPrompt renders a collapsible configuration section for a single prompt.
@@ -25,10 +29,12 @@ import {PlaygroundVariantConfigPromptComponentProps} from "./types"
  */
 const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptComponentProps> = ({
     variantId,
-    promptIndex,
+    promptId,
     className,
 }) => {
     const defaultActiveKey = useRef(["1"])
+
+    componentLogger("PlaygroundVariantConfigPrompt", variantId, promptId)
 
     const items = useMemo(
         () => [
@@ -40,32 +46,31 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                 },
                 label: (
                     <PlaygroundVariantConfigPromptCollapseHeader
-                        promptIndex={promptIndex}
                         variantId={variantId}
+                        promptId={promptId}
                     />
                 ),
                 children: (
                     <PlaygroundVariantConfigPromptCollapseContent
-                        promptIndex={promptIndex}
                         variantId={variantId}
+                        promptId={promptId}
                     />
                 ),
             },
         ],
-        [promptIndex, variantId],
+        [variantId, promptId],
     )
 
     return (
         <Collapse
-            ghost
-            className={clsx(className)}
+            className={clsx(
+                "border-solid border-0 border-b border-[rgba(5,23,41,0.06)]",
+                "rounded-none",
+                className,
+            )}
             bordered={false}
             defaultActiveKey={defaultActiveKey.current}
             items={items}
-            // Add specific Collapse onChange handler if needed
-            onChange={(keys) => {
-                // Handle collapse state changes
-            }}
         />
     )
 }

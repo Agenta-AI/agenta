@@ -1,15 +1,15 @@
+from sre_parse import NOT_LITERAL_UNI_IGNORE
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List
-from inspect import signature, iscoroutinefunction, Signature, Parameter, _empty
+from inspect import signature, iscoroutinefunction, Signature, Parameter
 from functools import wraps
 from traceback import format_exception
 from asyncio import sleep
-
-from tempfile import NamedTemporaryFile
-from annotated_types import Ge, Le, Gt, Lt
+from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
 
-from fastapi import Body, FastAPI, UploadFile, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 
+from agenta.sdk.middleware.inline import InlineMiddleware
 from agenta.sdk.middleware.auth import AuthMiddleware
 from agenta.sdk.middleware.otel import OTelMiddleware
 from agenta.sdk.middleware.config import ConfigMiddleware
@@ -28,18 +28,11 @@ from agenta.sdk.context.tracing import (
 from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.helpers import get_current_version
 from agenta.sdk.types import (
-    DictInput,
-    FloatParam,
-    IntParam,
-    MultipleChoiceParam,
     MultipleChoice,
-    GroupedMultipleChoiceParam,
-    TextParam,
-    MessagesInput,
-    FileInputURL,
     BaseResponse,
-    BinaryParam,
+    MCField,
 )
 
 import agenta as ag
@@ -122,6 +115,7 @@ class entrypoint:
     _middleware = False
     _run_path = "/run"
     _test_path = "/test"
+    _config_key = "ag_config"
     # LEGACY
     _legacy_playground_run_path = "/playground/run"
     _legacy_generate_path = "/generate"
@@ -143,7 +137,7 @@ class entrypoint:
         ### --- Middleware --- #
         if not entrypoint._middleware:
             entrypoint._middleware = True
-
+            app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
             app.add_middleware(ConfigMiddleware)
             app.add_middleware(AuthMiddleware)
@@ -165,14 +159,16 @@ class entrypoint:
             # LEGACY
 
             kwargs, _ = self.process_kwargs(kwargs, default_parameters)
-            if request.state.config["parameters"] is None:
+            if (
+                request.state.config["parameters"] is None
+                or request.state.config["references"] is None
+            ):
                 raise HTTPException(
                     status_code=400,
                     detail="Config not found based on provided references.",
                 )
 
-
-            return await self.execute_wrapper(request, False, *args, **kwargs)
+            return await self.execute_wrapper(request, *args, **kwargs)
 
         self.update_run_wrapper_signature(wrapper=run_wrapper)
 
@@ -192,14 +188,17 @@ class entrypoint:
         @wraps(func)
         async def test_wrapper(request: Request, *args, **kwargs) -> Any:
             kwargs, config = self.process_kwargs(kwargs, default_parameters)
-
+            request.state.inline = True
             request.state.config["parameters"] = config
-            return await self.execute_wrapper(request, True, *args, **kwargs)
+            if request.state.config["references"]:
+                request.state.config["references"] = {
+                    k: v
+                    for k, v in request.state.config["references"].items()
+                    if k.startswith("application")
+                } or None
+            return await self.execute_wrapper(request, *args, **kwargs)
 
-        self.update_test_wrapper_signature(
-            wrapper=test_wrapper,
-            config_instance=config
-        )
+        self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
 
         test_route = f"{entrypoint._test_path}{route_path}"
         app.post(test_route, response_model=BaseResponse)(test_wrapper)
@@ -250,7 +249,7 @@ class entrypoint:
 
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
-
+        openapi_schema["agenta_sdk"] = {"version": get_current_version()}
         for _route in entrypoint.routes:
             if _route["config"] is not None:
                 self.override_config_in_schema(
@@ -286,7 +285,7 @@ class entrypoint:
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Remove the config parameters from the kwargs."""
         # Extract agenta_config if present
-        config_params = kwargs.pop("agenta_config", {})
+        config_params = kwargs.pop(self._config_key, {})
         if isinstance(config_params, BaseModel):
             config_params = config_params.dict()
         # Merge with default parameters
@@ -296,7 +295,6 @@ class entrypoint:
     async def execute_wrapper(
         self,
         request: Request,
-        inline: bool,
         *args,
         **kwargs,
     ):
@@ -308,6 +306,7 @@ class entrypoint:
         parameters = state.config.get("parameters")
         references = state.config.get("references")
         secrets = state.vault.get("secrets")
+        inline = state.inline
 
         with routing_context_manager(
             context=RoutingContext(
@@ -322,27 +321,17 @@ class entrypoint:
                     references=references,
                 )
             ):
-                result = await self.execute_function(inline, *args, **kwargs)
+                try:
+                    result = (
+                        await self.func(*args, **kwargs)
+                        if iscoroutinefunction(self.func)
+                        else self.func(*args, **kwargs)
+                    )
 
-        return result
+                    return await self.handle_success(result, inline)
 
-    async def execute_function(
-        self,
-        inline: bool,
-        *args,
-        **kwargs,
-    ):
-        try:
-            result = (
-                await self.func(*args, **kwargs)
-                if iscoroutinefunction(self.func)
-                else self.func(*args, **kwargs)
-            )
-
-            return await self.handle_success(result, inline)
-
-        except Exception as error:  # pylint: disable=broad-except
-            self.handle_failure(error)
+                except Exception as error:  # pylint: disable=broad-except
+                    self.handle_failure(error)
 
     async def handle_success(
         self,
@@ -351,17 +340,23 @@ class entrypoint:
     ):
         data = None
         tree = None
+        content_type = "text/plain"
+        tree_id = None
 
         with suppress():
+            if isinstance(result, (dict, list)):
+                content_type = "application/json"
             data = self.patch_result(result)
 
             if inline:
-                tree = await self.fetch_inline_trace(inline)
+                tree, tree_id = await self.fetch_inline_trace(inline)
 
         try:
-            return BaseResponse(data=data, tree=tree)
+            return BaseResponse(
+                data=data, tree=tree, content_type=content_type, tree_id=tree_id
+            )
         except:
-            return BaseResponse(data=data)
+            return BaseResponse(data=data, content_type=content_type)
 
     def handle_failure(
         self,
@@ -370,11 +365,12 @@ class entrypoint:
         display_exception("Application Exception")
 
         status_code = 500
-        message = str(error)
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
-        detail = {"message": message, "stacktrace": stacktrace}
 
-        raise HTTPException(status_code=status_code, detail=detail)
+        raise HTTPException(
+            status_code=status_code,
+            detail={"message": str(error), "stacktrace": stacktrace},
+        )
 
     def patch_result(
         self,
@@ -418,42 +414,33 @@ class entrypoint:
 
     async def fetch_inline_trace(
         self,
-        inline,
+        inline: bool,
     ):
-        WAIT_FOR_SPANS = True
         TIMEOUT = 1
         TIMESTEP = 0.1
-        FINALSTEP = 0.001
         NOFSTEPS = TIMEOUT / TIMESTEP
-
-        trace = None
 
         context = tracing_context.get()
 
         link = context.link
 
-        trace_id = link.get("tree_id") if link else None
+        tree = None
+        _tree_id = link.get("tree_id") if link else None
+        tree_id = str(UUID(int=_tree_id)) if _tree_id else None
 
-        if trace_id is not None:
+        if _tree_id is not None:
             if inline:
-                if WAIT_FOR_SPANS:
-                    remaining_steps = NOFSTEPS
+                remaining_steps = NOFSTEPS
+                while (
+                    not ag.tracing.is_inline_trace_ready(tree_id)
+                    and remaining_steps > 0
+                ):
+                    await sleep(TIMESTEP)
 
-                    while (
-                        not ag.tracing.is_inline_trace_ready(trace_id)
-                        and remaining_steps > 0
-                    ):
-                        await sleep(TIMESTEP)
+                    remaining_steps -= 1
 
-                        remaining_steps -= 1
-
-                    await sleep(FINALSTEP)
-
-                trace = ag.tracing.get_inline_trace(trace_id)
-            else:
-                trace = {"trace_id": trace_id}
-
-        return trace
+                tree = ag.tracing.get_inline_trace(tree_id)
+        return tree, tree_id
 
     # --- OpenAPI --- #
 
@@ -524,7 +511,7 @@ class entrypoint:
             assert field.default is not None, f"Field {name} has no default value"
         updated_params.append(
             Parameter(
-                name="agenta_config",
+                name=self._config_key,
                 kind=Parameter.KEYWORD_ONLY,
                 annotation=type(config_instance),  # Get the actual class type
                 default=Body(config_instance),  # Use the instance directly
@@ -561,11 +548,10 @@ class entrypoint:
         endpoint = endpoint[1:].replace("/", "_")
         schema_key = f"Body_{func_name}_{endpoint}_post"
         schema_to_override = openapi_schema["components"]["schemas"][schema_key]
-        
+
         # Get the config class name to find its schema
         config_class_name = type(config).__name__
         config_schema = openapi_schema["components"]["schemas"][config_class_name]
-        
         # Process each field in the config class
         for field_name, field in config.__class__.__fields__.items():
             # Check if field has Annotated metadata for MultipleChoice
@@ -574,12 +560,10 @@ class entrypoint:
                     if isinstance(meta, MultipleChoice):
                         choices = meta.choices
                         if isinstance(choices, dict):
-                            config_schema["properties"][field_name].update({
-                                "x-parameter": "grouped_choice",
-                                "choices": choices
-                            })
+                            config_schema["properties"][field_name].update(
+                                {"x-parameter": "grouped_choice", "choices": choices}
+                            )
                         elif isinstance(choices, list):
-                            config_schema["properties"][field_name].update({
-                                "x-parameter": "choice",
-                                "enum": choices
-                            })
+                            config_schema["properties"][field_name].update(
+                                {"x-parameter": "choice", "enum": choices}
+                            )

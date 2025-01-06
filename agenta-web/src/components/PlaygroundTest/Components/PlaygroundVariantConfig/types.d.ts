@@ -1,8 +1,7 @@
 import {BaseContainerProps} from "../types"
 import {MouseEvent} from "react"
 
-/** Props for the variant configuration header */
-export interface VariantHeaderProps extends BaseContainerProps {
+export interface VariantConfigComponentProps extends BaseContainerProps {
     /** ID of the variant being configured */
     variantId: string
 }
@@ -13,20 +12,8 @@ export interface VariantActionButtonProps {
     variantId: string
 }
 
-/** Props for the main variant configuration component */
-export interface PlaygroundVariantConfigProps extends BaseContainerProps {
-    /** ID of the variant being configured */
-    variantId: string
-}
-
 /** Props for the variants container */
 export interface PlaygroundVariantsContainerProps extends BaseContainerProps {
     /** Array of variant IDs to display */
     variantIds: string[]
-}
-
-/** Props for individual variant wrapper */
-export interface VariantWrapperProps extends BaseContainerProps {
-    /** ID of the variant */
-    variantId: string
 }

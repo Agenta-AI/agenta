@@ -1,17 +1,21 @@
-import {Key, SWRHook, useSWRConfig} from "swr"
+import {useCallback} from "react"
+
+import {type Key, type SWRHook, useSWRConfig} from "swr"
+import cloneDeep from "lodash/cloneDeep"
+
+import {fetchOpenApiSchemaJson, setVariants, transformVariants} from "../assets/helpers"
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {initialState} from "../../../state"
+
 import {type FetcherOptions} from "@/lib/api/types"
-import {
+import {type Variant} from "@/lib/Types"
+import {type OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
-    Variant,
 } from "../types"
-import {useCallback} from "react"
-import cloneDeep from "lodash/cloneDeep"
-import {initialState} from "../assets/constants"
-import {fetchAndUpdateVariants, setVariants} from "../assets/helpers"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -28,45 +32,58 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 },
             })
 
-            const openApiSchemaFetcher = async (
-                url: string,
-                options?: FetcherOptions,
-            ): Promise<Data> => {
-                const cache = config.cache || new Map()
-                if (!url || !globalFetcher) {
-                    return initialState as Data
-                }
-                const cachedValue = cache.get(url)?.data
-                if (!config.service) {
-                    return cachedValue || (initialState as Data)
-                }
+            const openApiSchemaFetcher = useCallback(
+                async (url: string, options?: FetcherOptions): Promise<Data> => {
+                    const cache = config.cache || new Map()
+                    if (!url || !globalFetcher) {
+                        return initialState as Data
+                    }
+                    const cachedValue = cache.get(url)?.data
+                    if (!config.service) {
+                        return cachedValue || (initialState as Data)
+                    }
 
-                logger(`FETCH - ENTER`)
+                    logger(`FETCH - ENTER`)
 
-                if (cachedValue) {
-                    logger(`FETCH - RETURN CACHE AND DO NOT REFETCH`, cachedValue)
-                    return cachedValue
-                }
+                    if (cachedValue) {
+                        logger(`FETCH - RETURN CACHE AND DO NOT REFETCH`, cachedValue)
+                        return cachedValue
+                    }
 
-                let state = cloneDeep(cachedValue || initialState) as Data
+                    let state = cloneDeep(cachedValue || initialState) as Data
 
-                if (!fetcher) {
-                    return state
-                }
+                    if (!fetcher) {
+                        return state
+                    }
 
-                logger(`FETCH - FETCH`)
+                    logger(`FETCH - FETCH`)
 
-                try {
-                    // Remove the generic type argument and add type assertion instead
-                    const response = (await globalFetcher(url, options)) as Variant[]
-                    state.variants = setVariants(state.variants, response)
-                    await fetchAndUpdateVariants(state.variants, config.service)
-                    return state
-                } catch (error) {
-                    console.error("Error in openApiSchemaFetcher:", error)
-                    return state
-                }
-            }
+                    try {
+                        const [variants, specResponse] = await Promise.all([
+                            globalFetcher(url, options) as Promise<Variant[]>,
+                            ...(!state.spec ? [fetchOpenApiSchemaJson(config.service)] : []),
+                        ])
+                        const spec = state.spec || (specResponse.schema as OpenAPISpec)
+
+                        if (!spec) {
+                            throw new Error("No spec found")
+                        }
+
+                        state.variants = transformVariants(
+                            setVariants(state.variants, variants),
+                            spec,
+                        )
+                        state.spec = spec
+                        state.selected = [state.variants[0].id]
+
+                        return state
+                    } catch (error) {
+                        console.error("Error in openApiSchemaFetcher:", error)
+                        return state
+                    }
+                },
+                [config.cache, config.service, fetcher, logger],
+            )
 
             return useSWRNext(key, openApiSchemaFetcher, {
                 ...config,
@@ -80,7 +97,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         logger(`COMPARE - ENTER`, wrappedComparison, a, b)
                         return wrappedComparison ?? true
                     },
-                    [config],
+                    [config, logger],
                 ),
             })
         }

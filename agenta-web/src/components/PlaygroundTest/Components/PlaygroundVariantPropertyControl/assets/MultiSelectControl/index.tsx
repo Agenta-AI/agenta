@@ -1,7 +1,10 @@
 import {memo, useMemo} from "react"
-import {BaseOption, GroupedOptions, SelectControlProps} from "./types"
-import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
+
 import {Select, Typography} from "antd"
+
+import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
+
+import type {SelectControlProps} from "./types"
 
 /**
  * A select control component that supports both single and multiple selection modes.
@@ -17,7 +20,7 @@ const SelectControl = ({mode, label, options: _options, value, onChange}: Select
      * Transforms raw options into standardized select options
      * Handles both array-based and group-based option structures
      */
-    const options = useMemo((): (BaseOption | GroupedOptions)[] => {
+    const options = useMemo(() => {
         if (!_options) return []
         if (Array.isArray(_options)) {
             return _options

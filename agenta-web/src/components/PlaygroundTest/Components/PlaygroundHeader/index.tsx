@@ -1,9 +1,10 @@
-import {memo} from "react"
-import dynamic from "next/dynamic"
-import {Typography} from "antd"
+import {Typography, message} from "antd"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
+import VariantsButton from "../VariantsButton"
+
 import type {BaseContainerProps} from "../types"
+import dynamic from "next/dynamic"
 const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCreateNewVariant"), {
     ssr: false,
 })
@@ -25,14 +26,18 @@ const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCrea
  * ```
  */
 const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}) => {
-    const {variants} = usePlayground()
+    const [, contextHolder] = message.useMessage()
+
+    const {addVariantToDisplay, displayedVariants, variants} = usePlayground()
 
     // Only render if variants are available
     return !!variants ? (
         <>
+            {contextHolder}
             <div
                 className={clsx(
-                    "flex justify-between items-center gap-4 px-4 py-2 bg-[#F5F7FA]",
+                    "flex items-center justify-between gap-4 px-2.5 py-2",
+                    "bg-[#f5f7fa]",
                     className,
                 )}
                 {...divProps}
@@ -40,11 +45,15 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                 <Typography className="text-[16px] leading-[18px] font-[600]">
                     Playground
                 </Typography>
-
-                <PlaygroundCreateNewVariant />
+                <VariantsButton
+                    displayedVariants={displayedVariants}
+                    onSelect={(variant) => {
+                        addVariantToDisplay?.(variant)
+                    }}
+                />
             </div>
         </>
     ) : null
 }
 
-export default memo(PlaygroundHeader)
+export default PlaygroundHeader

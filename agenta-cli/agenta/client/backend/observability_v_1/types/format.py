@@ -2,4 +2,4 @@
 
 import typing
 
-Format = typing.Union[typing.Literal["opentelemetry", "agenta"], typing.Any]
+Format = typing.Union[typing.Literal["legacy", "agenta"], typing.Any]

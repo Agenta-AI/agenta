@@ -1,10 +1,17 @@
+import {useCallback} from "react"
+
+import clsx from "clsx"
+import {Typography} from "antd"
+
+import usePlayground from "../../../hooks/usePlayground"
 import AddButton from "../../../assets/AddButton"
 import PromptMessageConfig from "../../PromptMessageConfig"
-import type {StateVariant} from "@/components/PlaygroundTest/state/types"
-import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import type {MessageConfig, PromptCollapseContentProps} from "../types"
-import type {Path} from "@/components/PlaygroundTest/types/pathHelpers"
-import clsx from "clsx"
+import {createObjectFromMetadata} from "../../../assets/utilities/genericTransformer/helpers/arrays"
+import {componentLogger} from "../../../assets/utilities/componentLogger"
+
+import type {PromptCollapseContentProps} from "../types"
+import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -19,44 +26,70 @@ import clsx from "clsx"
  */
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
     variantId,
-    promptIndex,
+    promptId,
     className,
     ...props
 }) => {
-    const {messageConfigs} = usePlayground<{messageConfigs: MessageConfig[]}>({
+    const {inputKeys, messageIds, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: (variant) => {
-            const messages = variant?.schema?.promptConfig?.[promptIndex]?.messages
-            if (!messages) {
-                return {messageConfigs: []}
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
+                const messages = prompt?.messages
+
+                if (!messages) {
+                    return {messageIds: []}
+                }
+
+                return {
+                    messageIds: messages.value.map((message) => message.__id),
+                    inputKeys: prompt.inputKeys.value || [],
+                }
+            },
+            [promptId],
+        ),
+    })
+
+    const addNewMessage = useCallback(() => {
+        if (!mutateVariant) return
+
+        mutateVariant((draft) => {
+            const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
+            const messages = variantPrompt?.messages.value
+            const metadata = (variantPrompt?.messages.__metadata as ArrayMetadata).itemMetadata
+
+            if (variantPrompt && messages && metadata) {
+                const newMessage = createObjectFromMetadata(metadata) as (typeof messages)[number]
+                if (newMessage) {
+                    messages.push(newMessage)
+                }
             }
 
-            return {
-                messageConfigs: (Array.isArray(messages.value)
-                    ? messages.value
-                    : [messages.value]
-                ).map((_, index) => ({
-                    key: [messages.valueKey, index, variantId].join("-"),
-                    variantId,
-                    configKey: messages.configKey as Path<StateVariant>,
-                    valueKey: `${messages.valueKey}.[${index}]` as Path<StateVariant>,
-                })),
-            }
-        },
-    })
+            return draft
+        })
+    }, [mutateVariant, promptId])
+
+    componentLogger(
+        "PlaygroundVariantConfigPromptCollapseContent",
+        variantId,
+        messageIds,
+        inputKeys,
+    )
 
     return (
         <div className={clsx("flex flex-col gap-4", className)} {...props}>
-            {(messageConfigs || []).map((messageConfig) => (
-                <PromptMessageConfig
-                    key={messageConfig.key}
-                    variantId={messageConfig.variantId}
-                    configKey={messageConfig.configKey}
-                    valueKey={messageConfig.valueKey}
-                />
+            {messageIds.map((messageId) => (
+                <PromptMessageConfig key={messageId} variantId={variantId} messageId={messageId} />
             ))}
-            <AddButton label="Message" />
+            <AddButton label="Message" onClick={addNewMessage} />
+
+            <div className="flex flex-col gap-2">
+                <Typography.Text strong>Input keys:</Typography.Text>
+                {(inputKeys || []).map((inputKey) => (
+                    <div key={inputKey.value}>{inputKey.value}</div>
+                ))}
+            </div>
         </div>
     )
 }
