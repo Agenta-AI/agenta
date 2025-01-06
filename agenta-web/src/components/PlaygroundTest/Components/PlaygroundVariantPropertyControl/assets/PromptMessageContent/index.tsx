@@ -1,7 +1,7 @@
 import clsx from "clsx"
 import {Input} from "antd"
 
-import type { PromptMessageContentProps } from "./types"
+import type {PromptMessageContentProps} from "./types"
 
 const {TextArea} = Input
 

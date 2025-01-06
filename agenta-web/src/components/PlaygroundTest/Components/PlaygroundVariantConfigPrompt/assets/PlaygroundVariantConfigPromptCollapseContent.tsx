@@ -7,7 +7,7 @@ import usePlayground from "../../../hooks/usePlayground"
 import AddButton from "../../../assets/AddButton"
 import PromptMessageConfig from "../../PromptMessageConfig"
 import {createObjectFromMetadata} from "../../../assets/utilities/genericTransformer/helpers/arrays"
-import { componentLogger } from "../../../assets/utilities/componentLogger"
+import {componentLogger} from "../../../assets/utilities/componentLogger"
 
 import type {PromptCollapseContentProps} from "../types"
 import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
@@ -33,19 +33,22 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     const {inputKeys, messageIds, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
-            const messages = prompt?.messages
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
+                const messages = prompt?.messages
 
-            if (!messages) {
-                return {messageIds: []}
-            }
+                if (!messages) {
+                    return {messageIds: []}
+                }
 
-            return {
-                messageIds: messages.value.map((message) => message.__id),
-                inputKeys: prompt.inputKeys.value || [],
-            }
-        }, [promptId]),
+                return {
+                    messageIds: messages.value.map((message) => message.__id),
+                    inputKeys: prompt.inputKeys.value || [],
+                }
+            },
+            [promptId],
+        ),
     })
 
     const addNewMessage = useCallback(() => {

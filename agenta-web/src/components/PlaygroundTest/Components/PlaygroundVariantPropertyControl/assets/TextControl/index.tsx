@@ -14,7 +14,9 @@ const TextControl = ({className, metadata, value, handleChange, as}: TextControl
             )}
             // {...props}
         >
-            <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">{metadata.title}</Typography>
+            <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">
+                {metadata.title}
+            </Typography>
             <TextArea
                 value={value}
                 onChange={handleChange}
