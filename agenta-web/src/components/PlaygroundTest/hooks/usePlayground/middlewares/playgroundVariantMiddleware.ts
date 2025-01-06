@@ -29,7 +29,8 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import useWebWorker from "../../useWebWorker"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -145,6 +146,63 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     [config, logger, valueReferences],
                 ),
             } as PlaygroundSWRConfig<Data>)
+
+            const handleWebWorkerMessage = useCallback(
+                (message: {
+                    type: string
+                    payload: {
+                        variant: EnhancedVariant
+                        rowId: string
+                        service: string
+                        result?: {
+                            response?: ApiResponse
+                            error?: string
+                            metadata: {
+                                timestamp: string
+                                statusCode?: number
+                                rawError?: any
+                            }
+                        }
+                    }
+                }) => {
+                    const variantId = config.variantId
+
+                    if (!variantId || !message.payload.result) return
+                    if (message.type === "runVariantInputRowResult") {
+                        const rowId = message.payload.rowId
+
+                        swr.mutate((state) => {
+                            const clonedState = cloneDeep(state)
+                            if (!clonedState) return state
+
+                            const variant = findVariantById(state, variantId)
+                            if (!variant) return clonedState
+
+                            const variantIndex = clonedState.variants.findIndex(
+                                (v) => v.id === config.variantId,
+                            )
+                            if (variantIndex === -1) return clonedState
+
+                            const inputRow = clonedState.variants[variantIndex].inputs.value.find(
+                                (row) => row.__id === rowId,
+                            )
+
+                            if (!inputRow) return clonedState
+
+                            inputRow.__result = message.payload.result
+                            inputRow.__isLoading = false
+
+                            return clonedState
+                        })
+                    }
+                },
+                [config.variantId, swr],
+            )
+
+            const {postMessageToWorker, createWorkerMessage} = useWebWorker(
+                handleWebWorkerMessage,
+                valueReferences.current.includes("runVariantTestRow"),
+            )
 
             /**
              * Deletes the current variant from the server and updates local state
@@ -354,7 +412,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     swr.mutate(async (state) => {
                         const clonedState = cloneDeep(state)
 
-                        if (!config.variantId || !clonedState) return state
+                        if (!config.variantId || !config.service || !clonedState) return state
 
                         const variant = findVariantById(state, config.variantId)
                         if (!variant) return state
@@ -369,65 +427,76 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         )
                         if (!inputRow) return state
 
-                        const requestBody = transformToRequestBody(variant, rowId)
+                        inputRow.__isLoading = true
+                        postMessageToWorker(
+                            createWorkerMessage("runVariantInputRow", {
+                                variant,
+                                rowId,
+                                service: config.service,
+                            }),
+                        )
 
-                        try {
-                            const response = await fetch(
-                                `http://localhost/${config.service}/generate`,
-                                {
-                                    method: "POST",
-                                    headers: {
-                                        "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify(requestBody),
-                                },
-                            )
+                        return clonedState
 
-                            const data = await response.json()
+                        // const requestBody = transformToRequestBody(variant, rowId)
 
-                            if (!response.ok) {
-                                const errorMessage = parseValidationError(data)
-                                inputRow.__result = {
-                                    response: undefined,
-                                    error: errorMessage,
-                                    metadata: {
-                                        timestamp: new Date().toISOString(),
-                                        statusCode: response.status,
-                                        rawError: data,
-                                    },
-                                }
-                                message.error(errorMessage)
-                                return clonedState
-                            }
+                        // try {
+                        //     const response = await fetch(
+                        //         `http://localhost/${config.service}/generate`,
+                        //         {
+                        //             method: "POST",
+                        //             headers: {
+                        //                 "Content-Type": "application/json",
+                        //             },
+                        //             body: JSON.stringify(requestBody),
+                        //         },
+                        //     )
 
-                            // Store full response in the result
-                            inputRow.__result = {
-                                response: data,
-                                metadata: {
-                                    timestamp: new Date().toISOString(),
-                                    statusCode: response.status,
-                                },
-                            }
+                        //     const data = await response.json()
 
-                            return clonedState
-                        } catch (error) {
-                            inputRow.__result = {
-                                response: undefined,
-                                error:
-                                    error instanceof Error
-                                        ? error.message
-                                        : "Unknown error occurred",
-                                metadata: {
-                                    timestamp: new Date().toISOString(),
-                                    type: "network_error",
-                                },
-                            }
-                            message.error("Failed to run test")
-                            return clonedState
-                        }
+                        //     if (!response.ok) {
+                        //         const errorMessage = parseValidationError(data)
+                        //         inputRow.__result = {
+                        //             response: undefined,
+                        //             error: errorMessage,
+                        //             metadata: {
+                        //                 timestamp: new Date().toISOString(),
+                        //                 statusCode: response.status,
+                        //                 rawError: data,
+                        //             },
+                        //         }
+                        //         message.error(errorMessage)
+                        //         return clonedState
+                        //     }
+
+                        //     // Store full response in the result
+                        //     inputRow.__result = {
+                        //         response: data,
+                        //         metadata: {
+                        //             timestamp: new Date().toISOString(),
+                        //             statusCode: response.status,
+                        //         },
+                        //     }
+
+                        //     return clonedState
+                        // } catch (error) {
+                        //     inputRow.__result = {
+                        //         response: undefined,
+                        //         error:
+                        //             error instanceof Error
+                        //                 ? error.message
+                        //                 : "Unknown error occurred",
+                        //         metadata: {
+                        //             timestamp: new Date().toISOString(),
+                        //             type: "network_error",
+                        //         },
+                        //     }
+                        //     message.error("Failed to run test")
+                        //     return clonedState
+                        // }
                     })
                 },
-                [swr, config.variantId, config.service],
+                [swr, config.variantId, config.service, postMessageToWorker, createWorkerMessage],
             )
 
             Object.defineProperty(swr, "variant", {
@@ -452,7 +521,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     return getVariantConfigProperty()
                 },
             })
-
             Object.defineProperty(swr, "deleteVariant", {
                 get() {
                     checkInvalidSelector()
@@ -460,7 +528,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     return deleteVariant
                 },
             })
-
             Object.defineProperty(swr, "mutateVariant", {
                 get() {
                     checkInvalidSelector()
@@ -468,7 +535,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     return mutateVariant
                 },
             })
-
             Object.defineProperty(swr, "saveVariant", {
                 get() {
                     checkInvalidSelector()
@@ -476,7 +542,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     return saveVariant
                 },
             })
-
             Object.defineProperty(swr, "runVariantTestRow", {
                 get() {
                     checkInvalidSelector()
