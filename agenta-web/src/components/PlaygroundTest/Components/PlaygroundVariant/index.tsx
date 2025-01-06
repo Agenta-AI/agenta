@@ -4,10 +4,10 @@ import clsx from "clsx"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {PlaygroundVariantProps} from "./types"
 import PlaygroundGenerations from "../PlaygroundGenerations"
-import PlaygroundVariantHistory from "../PlaygroundVariantHistory"
 
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
+const PlaygroundVariantHistory = dynamic(() => import("../PlaygroundVariantHistory"), {ssr: false})
 
 /**
  * PlaygroundVariant renders a single variant instance in the playground.
@@ -37,7 +37,7 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
                         <PlaygroundGenerations />
-                        {/* <PlaygroundVariantHistory /> */}
+                        {/* <PlaygroundVariantHistory variantId={variantId} /> */}
                     </SplitterPanel>
                 </Splitter>
             </div>

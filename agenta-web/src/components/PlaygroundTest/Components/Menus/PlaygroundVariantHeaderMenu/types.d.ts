@@ -1,4 +1,6 @@
-export type PlaygroundVariantHeaderMenuProps = {
+import {DropDownProps} from "antd"
+
+export interface PlaygroundVariantHeaderMenuProps extends DropDownProps {
     setIsFocusMoodOpen: (open: boolean) => void
     setIsVariantRenameOpen: (open: boolean) => void
     setIsResetModalOpen: (open: boolean) => void

@@ -15,7 +15,11 @@ const PlaygroundDeploymentConfig: React.FC<PlaygroundDeploymentConfigProps> = ({
                 children: (
                     <div className="flex items-center gap-2">
                         {[1, 2, 3].map((item) => (
-                            <Version revision={item} />
+                            <Version
+                                type="deployment"
+                                revision={item}
+                                deploymentName="production"
+                            />
                         ))}
                     </div>
                 ),
@@ -23,15 +27,7 @@ const PlaygroundDeploymentConfig: React.FC<PlaygroundDeploymentConfigProps> = ({
         ],
         [],
     )
-    return (
-        <Collapse
-            ghost
-            defaultActiveKey={["1"]}
-            bordered={false}
-            items={items}
-            {...props}
-        />
-    )
+    return <Collapse ghost defaultActiveKey={["1"]} bordered={false} items={items} {...props} />
 }
 
 export default PlaygroundDeploymentConfig

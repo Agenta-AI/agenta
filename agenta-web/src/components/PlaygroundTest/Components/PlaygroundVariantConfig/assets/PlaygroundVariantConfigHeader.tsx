@@ -3,14 +3,17 @@ import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Button, Select} from "antd"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import type {VariantHeaderProps, VariantActionButtonProps} from "../types"
+import type {VariantHeaderProps} from "../types"
 import {Variant} from "@/lib/Types"
 import {ArrowsOut, FloppyDiskBack} from "@phosphor-icons/react"
 
 import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
 import Version from "@/components/PlaygroundTest/assets/Version"
-import PlaygroundVariantHeaderMenu from "./PlaygroundVariantHeaderMenu"
 
+const PlaygroundVariantHeaderMenu = dynamic(
+    () => import("../../Menus/PlaygroundVariantHeaderMenu"),
+    {ssr: false},
+)
 const DeployVariantModal = dynamic(() => import("../../Modals/DeployVariantModal"), {ssr: false})
 const PlaygroundPromptFocusDrawer = dynamic(
     () => import("../../Drawers/PlaygroundPromptFocusDrawer"),
@@ -29,48 +32,6 @@ const VariantResetChangesModal = dynamic(() => import("../../Modals/VariantReset
 })
 const DeleteVariantModal = dynamic(() => import("../../Modals/DeleteVariantModal"), {ssr: false})
 
-/**
- * Button to save variant changes when modifications are detected
- */
-const PlaygroundVariantSaveButton: React.FC<VariantActionButtonProps> = ({variantId}) => {
-    const {saveVariant, isDirty} = usePlayground({
-        variantId,
-        hookId: "PlaygroundVariantSaveButton",
-    })
-
-    return isDirty ? (
-        <Button type="primary" size="small" onClick={saveVariant}>
-            Save
-        </Button>
-    ) : null
-}
-
-/**
- * Button to delete variant if it's not the last variant of an app
- */
-const PlaygroundVariantDeleteButton: React.FC<VariantActionButtonProps> = ({variantId}) => {
-    const {variantIds, deleteVariant} = usePlayground({
-        variantId,
-        hookId: "PlaygroundVariantDeleteButton",
-    })
-
-    return !!variantIds && variantIds.length > 1 ? (
-        <Button type="default" color="primary" size="small" onClick={deleteVariant}>
-            Delete
-        </Button>
-    ) : null
-}
-
-/**
- * PlaygroundVariantConfigHeader displays the variant name, revision,
- * and action buttons for saving/deleting the variant.
- *
- * @component
- * @example
- * ```tsx
- * <PlaygroundVariantConfigHeader variantId="variant-123" />
- * ```
- */
 const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
     variantId,
     className,
@@ -115,8 +76,6 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
                 <Version revision={revision} />
             </div>
             <div className="flex items-center gap-2">
-                {/* <PlaygroundVariantSaveButton variantId={variantId} />
-                <PlaygroundVariantDeleteButton variantId={variantId} /> */}
                 <Button
                     icon={<ArrowsOut size={14} />}
                     type="text"
