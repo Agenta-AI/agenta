@@ -14,6 +14,7 @@ import SelectTestsetSection from "./SelectTestsetSection"
 import SelectVariantSection from "./SelectVariantSection"
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {useVaultSecret} from "@/hooks/useVaultSecret"
 
 const AdvancedSettingsPopover: any = dynamicComponent(
     "pages/evaluations/NewEvaluation/AdvancedSettingsPopover",
@@ -73,6 +74,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
+    const {secrets} = useVaultSecret()
 
     const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
     const handlePanelChange = (key: string | string[]) => {
@@ -163,7 +165,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             variant_ids: selectedVariantIds,
             evaluators_configs: selectedEvalConfigs,
             rate_limit: rateLimitValues,
-            lm_providers_keys: apiKeyObject(),
+            lm_providers_keys: apiKeyObject(secrets),
             correct_answer_column: correctAnswerColumn,
         })
             .then(onSuccess)
