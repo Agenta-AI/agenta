@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useState, useCallback} from "react"
 import {useRouter} from "next/router"
 import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
 import Logo from "../Logo/Logo"
@@ -108,72 +108,71 @@ const SidebarMenu: React.FC<{
 }> = ({items, menuProps, collapsed, mode = "inline"}) => {
     const classes = useStyles()
 
-    const transformItems = useMemo(
-        () =>
-            (items: SidebarConfig[]): any => {
-                // @ts-ignore
-                return items.flatMap((item) => {
-                    if (item.submenu) {
-                        return {
-                            key: item.key,
+    const transformItems = useCallback(
+        (items: SidebarConfig[]): any => {
+            // @ts-ignore
+            return items.flatMap((item) => {
+                if (item.submenu) {
+                    return {
+                        key: item.key,
+                        icon: item.icon,
+                        label: (
+                            <>
+                                {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            </>
+                        ),
+                        children: transformItems(item.submenu),
+                        disabled: item.isCloudFeature,
+                        onTitleClick: item.onClick,
+                        title: (
+                            <Tooltip title={item.cloudFeatureTooltip} placement="right">
+                                {item.title}
+                            </Tooltip>
+                        ),
+                    }
+                } else if (item.header) {
+                    return {
+                        type: "group",
+                        label: (
+                            <div key={item.key} className={classes.menuHeader}>
+                                {item.title}
+                            </div>
+                        ),
+                    }
+                } else {
+                    const node = (
+                        <Link
+                            data-cy={item.key}
+                            className={classes.menuLinks}
+                            href={item.link || "#"}
+                            onClick={item.onClick}
+                            target={item.link?.startsWith("http") ? "_blank" : undefined}
+                        >
+                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                        </Link>
+                    )
+
+                    return [
+                        {
                             icon: item.icon,
+                            key: item.key,
                             label: (
                                 <>
-                                    {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                                    {collapsed ? (
+                                        node
+                                    ) : (
+                                        <Tooltip title={item.tooltip} placement="right">
+                                            {node}
+                                        </Tooltip>
+                                    )}
                                 </>
                             ),
-                            children: transformItems(item.submenu),
-                            disabled: item.isCloudFeature,
-                            onTitleClick: item.onClick,
-                            title: (
-                                <Tooltip title={item.cloudFeatureTooltip} placement="right">
-                                    {item.title}
-                                </Tooltip>
-                            ),
-                        }
-                    } else if (item.header) {
-                        return {
-                            type: "group",
-                            label: (
-                                <div key={item.key} className={classes.menuHeader}>
-                                    {item.title}
-                                </div>
-                            ),
-                        }
-                    } else {
-                        const node = (
-                            <Link
-                                data-cy={item.key}
-                                className={classes.menuLinks}
-                                href={item.link || "#"}
-                                onClick={item.onClick}
-                                target={item.link?.startsWith("http") ? "_blank" : undefined}
-                            >
-                                {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                            </Link>
-                        )
-
-                        return [
-                            {
-                                icon: item.icon,
-                                key: item.key,
-                                label: (
-                                    <>
-                                        {collapsed ? (
-                                            node
-                                        ) : (
-                                            <Tooltip title={item.tooltip} placement="right">
-                                                {node}
-                                            </Tooltip>
-                                        )}
-                                    </>
-                                ),
-                            },
-                            item.divider && {type: "divider", className: "!my-4"},
-                        ]
-                    }
-                })
-            },
+                        },
+                        item.divider && {type: "divider", className: "!my-4"},
+                    ]
+                }
+            })
+        },
         [items, collapsed],
     )
 
@@ -247,6 +246,50 @@ const Sidebar: React.FC = () => {
         setOpenKey(openKeys[0])
     }, [openKeys[0]])
 
+    const dropdownItems = useMemo(() => {
+        if (selectedOrg?.id && user?.id && isDemo()) {
+            return [
+                ...orgs.map((org: any) => ({
+                    key: org.id,
+                    label: (
+                        <Space>
+                            <Avatar size="small" name={org.name} />
+                            <Text>{org.name}</Text>
+                        </Space>
+                    ),
+                })),
+                {type: "divider"},
+                !project?.is_demo && {
+                    key: "settings",
+                    label: (
+                        <Link href={"/settings"} className="flex items-center gap-2">
+                            <Gear size={16} />
+                            <Text>Settings</Text>
+                        </Link>
+                    ),
+                },
+                {
+                    key: "logout",
+                    label: (
+                        <div className="flex items-center gap-2">
+                            <SignOut size={16} />
+                            <Text>Logout</Text>
+                        </div>
+                    ),
+                    onClick: () => {
+                        AlertPopup({
+                            title: "Logout",
+                            message: "Are you sure you want to logout?",
+                            onOk: logout,
+                        })
+                    },
+                },
+            ]
+        } else {
+            return []
+        }
+    }, [logout, orgs, project?.is_demo, selectedOrg?.id, user?.id])
+
     return (
         <div className={classes.siderWrapper}>
             <Sider
@@ -275,46 +318,7 @@ const Sidebar: React.FC = () => {
                                 <Dropdown
                                     trigger={["hover"]}
                                     menu={{
-                                        items: [
-                                            ...orgs.map((org: any) => ({
-                                                key: org.id,
-                                                label: (
-                                                    <Space>
-                                                        <Avatar size="small" name={org.name} />
-                                                        <Text>{org.name}</Text>
-                                                    </Space>
-                                                ),
-                                            })),
-                                            {type: "divider"},
-                                            !project?.is_demo && {
-                                                key: "settings",
-                                                label: (
-                                                    <Link
-                                                        href={"/settings"}
-                                                        className="flex items-center gap-2"
-                                                    >
-                                                        <Gear size={16} />
-                                                        <Text>Settings</Text>
-                                                    </Link>
-                                                ),
-                                            },
-                                            {
-                                                key: "logout",
-                                                label: (
-                                                    <div className="flex items-center gap-2">
-                                                        <SignOut size={16} />
-                                                        <Text>Logout</Text>
-                                                    </div>
-                                                ),
-                                                onClick: () => {
-                                                    AlertPopup({
-                                                        title: "Logout",
-                                                        message: "Are you sure you want to logout?",
-                                                        onOk: logout,
-                                                    })
-                                                },
-                                            },
-                                        ],
+                                        items: dropdownItems,
                                         selectedKeys: [selectedOrg.id],
                                         onClick: ({key}) => {
                                             if (["settings", "logout"].includes(key)) return
