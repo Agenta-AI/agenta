@@ -60,7 +60,7 @@ const VariantsList = ({selectedVariant, displayedVariants = [], onSelect, closeM
                         onChange={handleSearch}
                         className="pl-8"
                         placeholder="Search variants"
-                        bordered={false}
+                        variant="borderless"
                     />
                 </div>
                 <NewVariantButton>
