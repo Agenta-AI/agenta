@@ -27,7 +27,7 @@ const PlaygroundVariantTestView = ({
         }, []),
     })
 
-    const showChildren = useDelayChildren()
+    const showChildren = useDelayChildren(10)
 
     return (
         <div className={clsx("px-2 w-full", className)} {...props}>
