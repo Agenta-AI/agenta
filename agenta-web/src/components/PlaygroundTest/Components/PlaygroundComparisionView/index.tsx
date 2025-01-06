@@ -5,6 +5,7 @@ import PlaygroundComparisionCompletionOutput from "../PlaygroundGenerationInputA
 import {Play} from "@phosphor-icons/react"
 import {PlaygroundComparisionViewProps} from "./types"
 import PlaygroundComparisionVariantNavigation from "./assets/PlaygroundComparisionVariantNavigation/PlaygroundComparisionVariantNavigation"
+import PlaygroundComparisionPromptConfig from "./assets/PlaygroundComparisionPromptConfig/PlaygroundComparisionPromptConfig"
 
 const PlaygroundComparisionView: React.FC<PlaygroundComparisionViewProps> = ({variantIds}) => {
     return (
@@ -13,12 +14,9 @@ const PlaygroundComparisionView: React.FC<PlaygroundComparisionViewProps> = ({va
                 <PlaygroundComparisionVariantNavigation />
 
                 {(variantIds || []).map((variantId) => (
-                    <div
-                        className="[&::-webkit-scrollbar]:*:w-0 w-[400px] h-full overflow-y-auto *:!overflow-x-hidden"
-                        key={variantId}
-                    >
+                    <PlaygroundComparisionPromptConfig>
                         <PlaygroundVariantConfig variantId={variantId as string} />
-                    </div>
+                    </PlaygroundComparisionPromptConfig>
                 ))}
             </section>
 

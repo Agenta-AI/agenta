@@ -14,9 +14,11 @@ import PlaygroundVariantHeaderMenu from "./PlaygroundVariantHeaderMenu"
 const DeployVariantModal = dynamic(() => import("../../Modals/DeployVariantModal"), {ssr: false})
 const PlaygroundPromptFocusDrawer = dynamic(
     () => import("../../Drawers/PlaygroundPromptFocusDrawer"),
-    {
-        ssr: false,
-    },
+    {ssr: false},
+)
+const PlaygroundComparisionPromptFocusDrawer = dynamic(
+    () => import("../../Drawers/PlaygroundComparisionPromptFocusDrawer"),
+    {ssr: false},
 )
 const CommitVariantChangesModal = dynamic(() => import("../../Modals/CommitVariantChangesModal"), {
     ssr: false,
