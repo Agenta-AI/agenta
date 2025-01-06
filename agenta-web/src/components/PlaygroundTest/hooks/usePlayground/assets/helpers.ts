@@ -1,11 +1,13 @@
 import isEqual from "lodash/isEqual"
-import {openapi, dereference} from "@scalar/openapi-parser"
-import {accessKeyInVariant, parseVariantSchema} from "../../../assets/helpers"
+import cloneDeep from "lodash/cloneDeep"
+import {dereference} from "@scalar/openapi-parser"
 
-import type {InitialStateType, StateVariant} from "../../../state/types"
-import {type Variant} from "@/lib/Types"
-import {type OpenAPI} from "@scalar/openapi-types"
-import {type OpenAPISpec} from "../../..//types/openApiSpec"
+import {transformToEnhancedVariant} from "../../../assets/utilities/transformer/transformer"
+import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
+
+import {type InitialStateType} from "../../../state/types"
+import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * FETCHERS
@@ -17,17 +19,12 @@ import {type OpenAPISpec} from "../../..//types/openApiSpec"
  * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing variantId, parsed schema and any errors
  */
-export const openAPIJsonFetcher = async (variant: Pick<Variant, "variantId">, service: string) => {
+export const fetchOpenApiSchemaJson = async (service: string) => {
     const openapiJsonResponse = await fetch(`http://localhost/${service}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
-    const doc = responseJson as OpenAPI.Document
-
-    const {schema, errors} = await dereference(doc)
-
-    console.log("schema", schema)
+    const {schema, errors} = await dereference(responseJson)
 
     return {
-        variantId: variant.variantId,
         schema: schema,
         errors,
     }
@@ -39,12 +36,14 @@ export const openAPIJsonFetcher = async (variant: Pick<Variant, "variantId">, se
  * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing the updated variant
  */
-export const fetchAndUpdateVariant = async (variant: StateVariant, service: string) => {
-    const json = await openAPIJsonFetcher(variant, service)
-    if (json.schema) {
-        variant.schema = parseVariantSchema(variant, json.schema as OpenAPISpec)
-    }
-    return variant
+export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) => {
+    const enhancedVariant = transformToEnhancedVariant(variant, schema)
+
+    // Update prompt keys and initialize inputs
+    updateVariantPromptKeys(enhancedVariant)
+    initializeVariantInputs(enhancedVariant)
+
+    return enhancedVariant
 }
 
 /**
@@ -53,10 +52,11 @@ export const fetchAndUpdateVariant = async (variant: StateVariant, service: stri
  * @param service - Service endpoint to fetch OpenAPI specs from
  * @returns Promise containing updated variants with their schemas
  */
-export const fetchAndUpdateVariants = async (variants: StateVariant[], service: string) => {
-    const updatePromises = variants.map((variant) => fetchAndUpdateVariant(variant, service))
-    await Promise.all(updatePromises)
-    return variants
+export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
+    // const specFetcher = await openAPIJsonFetcher(service)
+    const updates = variants.map((variant) => transformVariant(variant, spec))
+    return updates
+    // await Promise.all(updatePromises)
 }
 
 /**
@@ -72,45 +72,7 @@ export const fetchAndUpdateVariants = async (variants: StateVariant[], service: 
 export const findVariantById = (
     state: InitialStateType | undefined,
     variantId: string,
-): StateVariant | undefined => state?.variants?.find((v) => v.variantId === variantId)
-
-/**
- * Compares two arrays of variants by their IDs
- * Used to determine if variant collections have the same members
- * @param variantsA - First array of variants
- * @param variantsB - Second array of variants
- * @returns boolean indicating if arrays contain the same variant IDs
- */
-export const compareVariants = (
-    variantsA: StateVariant[] = [],
-    variantsB: StateVariant[] = [],
-): boolean => {
-    const keysA = variantsA.map((v) => v.variantId)
-    const keysB = variantsB.map((v) => v.variantId)
-    return keysA.length === keysB.length && keysA.every((key) => keysB.includes(key))
-}
-
-/**
- * Compares a specific configuration key between two variants
- * @param variantA - First variant
- * @param variantB - Second variant
- * @param configKey - Configuration key to compare
- * @param variantId - ID of the variant being compared
- * @returns boolean indicating if the config values are equal
- */
-export const compareVariantConfig = (
-    variantA: StateVariant | undefined,
-    variantB: StateVariant | undefined,
-    configKey: keyof StateVariant,
-    variantId: string,
-): boolean => {
-    if (!variantA || !variantB) return variantA === variantB
-
-    const paramsA = accessKeyInVariant(configKey, variantA)
-    const paramsB = accessKeyInVariant(configKey, variantB)
-
-    return isEqual(paramsA, paramsB)
-}
+): EnhancedVariant | undefined => state?.variants?.find((v) => v.id === variantId)
 
 /**
  * Creates a comparison function for base state objects
@@ -143,28 +105,8 @@ export const createVariantsCompare = (
             const variantsB = b?.variants
 
             if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
-                const keysA = variantsA.map((v) => v.variantId)
-                const keysB = variantsB.map((v) => v.variantId)
-
-                return keysA.length === keysB.length && keysA.every((key) => keysB.includes(key))
-            }
-            return isEqual(a, b)
-        }
-
-        return customCompare ? customCompare(a, b) : test()
-    }
-}
-export const createVariantIdsCompare = (
-    customCompare?: (a?: InitialStateType, b?: InitialStateType) => boolean,
-) => {
-    return (a?: InitialStateType, b?: InitialStateType): boolean => {
-        const test = () => {
-            const variantsA = a?.variants
-            const variantsB = b?.variants
-
-            if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
-                const keysA = variantsA.map((v) => v.variantId)
-                const keysB = variantsB.map((v) => v.variantId)
+                const keysA = variantsA.map((v) => v.id)
+                const keysB = variantsB.map((v) => v.id)
 
                 return keysA.length === keysB.length && keysA.every((key) => keysB.includes(key))
             }
@@ -190,8 +132,8 @@ export const createVariantCompare = (
             const variantsB = b?.variants
 
             if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
-                const keysA = variantsA.map((v) => v.variantId)
-                const keysB = variantsB.map((v) => v.variantId)
+                const keysA = variantsA.map((v) => v.id)
+                const keysB = variantsB.map((v) => v.id)
 
                 return isEqual(keysA, keysB)
             }
@@ -202,29 +144,70 @@ export const createVariantCompare = (
     }
 }
 
+/** Recursively finds a property in an object by its ID */
+export const findPropertyInObject = (obj: any, propertyId: string): any => {
+    if (!obj || typeof obj !== "object") return undefined
+
+    // Check if current object has __id
+    if ("__id" in obj && obj.__id === propertyId) {
+        return obj
+    }
+
+    // Recursively search through object properties
+    for (const key in obj) {
+        const value = obj[key]
+        if (typeof value === "object") {
+            const found = findPropertyInObject(value, propertyId)
+            if (found) return found
+        }
+    }
+
+    return undefined
+}
+
+// Update findPropertyInVariant to use the new utility
+const findPropertyInVariant = (variant: EnhancedVariant, propertyId?: string) => {
+    if (!propertyId || !variant) return undefined
+
+    for (const prompt of variant.prompts) {
+        const found = findPropertyInObject(prompt, propertyId)
+        if (found) return found
+    }
+    return undefined
+}
+
+/**
+ * Compares two variants based on a specific property
+ */
+export const compareVariantProperty = (
+    variantA: EnhancedVariant | undefined,
+    variantB: EnhancedVariant | undefined,
+    propertyId: string,
+): boolean => {
+    if (!variantA || !variantB) return variantA === variantB
+
+    const propA = findPropertyInVariant(variantA, propertyId)
+    const propB = findPropertyInVariant(variantB, propertyId)
+
+    return isEqual(propA?.value, propB?.value)
+}
+
 /**
  * Compares specific variants within state objects
- * Can compare entire variants or specific config keys
- * @param a - First state object
- * @param b - Second state object
- * @param variantId - ID of the variant to compare
- * @param customCompare - Optional custom comparison function
- * @param configKey - Optional specific config key to compare
- * @returns boolean indicating if the variants are equal
  */
 export const compareVariant = (
     a: InitialStateType | undefined,
     b: InitialStateType | undefined,
     variantId: string,
     customCompare?: (a?: InitialStateType, b?: InitialStateType) => boolean,
-    configKey?: keyof StateVariant,
+    propertyId?: string,
 ): boolean => {
     const variantA = findVariantById(a, variantId)
     const variantB = findVariantById(b, variantId)
 
     if (!!variantA && !!variantB && !isEqual(variantA, variantB)) {
-        if (configKey) {
-            return compareVariantConfig(variantA, variantB, configKey, variantId)
+        if (propertyId) {
+            return compareVariantProperty(variantA, variantB, propertyId)
         }
         return isEqual(variantA, variantB)
     } else if (!!variantA && !!variantB && isEqual(variantA, variantB)) {
@@ -233,16 +216,19 @@ export const compareVariant = (
     return createBaseCompare(customCompare)(a, b)
 }
 
-/**
- * Transforms raw variant data into a structured StateVariant object
- * Handles snake_case to camelCase conversion and proper typing
- * @param variant - Raw variant data from API
- * @returns Structured StateVariant object
- */
-export const setVariant = (variant: any): StateVariant => {
+export const setVariant = (variant: any): EnhancedVariant => {
+    // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
+    // TODO: REMOVE THIS BEFORE RELEASE.
+    if (variant.parameters.agenta_config) {
+        variant.parameters.ag_config = variant.parameters.agenta_config
+        delete variant.parameters.agenta_config
+    }
+    const parameters = cloneDeep(variant.parameters)
+    delete parameters.ag_config.input_keys
+
     return {
+        id: variant.variant_id,
         appId: variant.app_id,
-        variantId: variant.variant_id,
         baseId: variant.base_id,
         baseName: variant.base_name,
         variantName: variant.variant_name,
@@ -251,18 +237,24 @@ export const setVariant = (variant: any): StateVariant => {
         configName: variant.config_name,
         projectId: variant.project_id,
         appName: variant.app_name,
-        parameters: variant.parameters,
-    } as StateVariant
+        parameters: {
+            agentaConfig: variant.parameters.ag_config || {},
+        },
+        isChat: false,
+        inputs: {} as EnhancedVariant["inputs"],
+        messages: {} as EnhancedVariant["messages"],
+        name: "",
+    } as EnhancedVariant
 }
 
 /**
- * Bulk transforms an array of raw variants into StateVariant objects
+ * Bulk transforms an array of raw variants into EnhancedVariant objects
  * Only updates if the new variants are different from current ones
- * @param currentVariants - Current array of StateVariant objects
+ * @param currentVariants - Current array of EnhancedVariant objects
  * @param newVariants - New array of raw variant data
- * @returns Array of transformed StateVariant objects or current variants if unchanged
+ * @returns Array of transformed EnhancedVariant objects or current variants if unchanged
  */
-export const setVariants = (currentVariants: StateVariant[], newVariants: any[]) => {
+export const setVariants = (currentVariants: EnhancedVariant[], newVariants: any[]) => {
     const areEqual = isEqual(currentVariants, newVariants)
     if (!areEqual) {
         return newVariants.map(setVariant)

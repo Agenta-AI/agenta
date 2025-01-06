@@ -336,5 +336,4 @@ class Forward:
             output_document.settings_values = input_document.settings_values
 
 
-class Backward:
-    ...
+class Backward: ...

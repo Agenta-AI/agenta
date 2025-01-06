@@ -1,14 +1,14 @@
-import {useState} from "react"
+import {useCallback, useState} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Button, Select} from "antd"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import type {VariantHeaderProps} from "../types"
 import {Variant} from "@/lib/Types"
 import {ArrowsOut, FloppyDiskBack} from "@phosphor-icons/react"
 
 import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
 import Version from "@/components/PlaygroundTest/assets/Version"
+import { EnhancedVariant } from "@/components/PlaygroundTest/assets/utilities/transformer/types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -32,7 +32,7 @@ const VariantResetChangesModal = dynamic(() => import("../../Modals/VariantReset
 })
 const DeleteVariantModal = dynamic(() => import("../../Modals/DeleteVariantModal"), {ssr: false})
 
-const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
+const PlaygroundVariantConfigHeader: React.FC<any> = ({
     variantId,
     className,
     ...divProps
@@ -46,18 +46,23 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
     const {variantName, revision, variants} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
-        variantSelector: (variant) => ({
-            variantName: variant?.variantName,
-            revision: variant?.revision,
-        }),
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => ({
+                variantName: variant?.variantName,
+                revision: variant?.revision,
+            }),
+            [],
+        ),
     })
 
     return (
         <section
             className={clsx(
-                "w-full h-12 px-2.5",
+                "w-full h-[48px] px-2.5",
                 "flex items-center justify-between",
+                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                 "sticky top-0 z-[1]",
+                "bg-white",
                 className,
             )}
             {...divProps}
@@ -69,7 +74,7 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
                     placeholder="Select a person"
                     options={variants?.map((variant) => ({
                         label: variant.variantName,
-                        value: variant.variantId,
+                        value: variant.baseId,
                     }))}
                 />
 
@@ -131,7 +136,7 @@ const PlaygroundVariantConfigHeader: React.FC<VariantHeaderProps> = ({
             <DeployVariantModal
                 open={isDeployOpen}
                 onCancel={() => setIsDeployOpen(false)}
-                variant={variants?.[0] as Variant}
+                variant={variants?.[0] as any}
                 environments={[]}
             />
         </section>

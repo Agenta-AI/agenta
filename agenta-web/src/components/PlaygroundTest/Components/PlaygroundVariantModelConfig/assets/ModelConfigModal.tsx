@@ -1,6 +1,8 @@
-import {memo, useCallback, useState, type MouseEvent} from "react"
+import {memo, useCallback, type MouseEvent} from "react"
+
 import clsx from "clsx"
-import {Button, InputNumber, Select, Slider, Switch, Typography} from "antd"
+import {Button} from "antd"
+
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 
 import type {
@@ -8,10 +10,6 @@ import type {
     ModelConfigModalContentProps,
     ModelConfigModalActionsProps,
 } from "../types"
-import type {Path} from "../../../types/pathHelpers"
-import type {StateVariant} from "../../../state/types"
-
-const {Text} = Typography
 
 /**
  * Renders the modal action buttons for saving and canceling changes
@@ -22,7 +20,7 @@ const ModalActions: React.FC<ModelConfigModalActionsProps> = ({
     className,
     ...props
 }) => (
-    <div className={clsx("flex items-center justify-end gap-2 mt-5", className)} {...props}>
+    <div className={clsx("flex items-center justify-end gap-2 mt-4", className)} {...props}>
         <Button onClick={handleClose}>Cancel</Button>
         <Button onClick={handleSave} variant="solid" color="default">
             Save
@@ -66,26 +64,23 @@ const ModalContent: React.FC<ModelConfigModalContentProps> = ({
  */
 const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
     variantId,
-    properties,
+    propertyIds,
     handleSave,
     handleClose,
 }) => {
-    const [model, setModel] = useState("")
-
     const preventClickBubble = useCallback((e: MouseEvent<HTMLElement>) => {
         e.preventDefault()
         e.stopPropagation()
     }, [])
 
     return (
-        <ModalContent onClick={preventClickBubble} className="!w-[300px]">
-            {properties.map((property) => {
+        <ModalContent onClick={preventClickBubble}>
+            {propertyIds.map((propertyId) => {
                 return (
                     <PlaygroundVariantPropertyControl
-                        key={property.key}
+                        key={propertyId}
                         variantId={variantId}
-                        configKey={property.configKey as Path<StateVariant>}
-                        valueKey={property.valueKey as Path<StateVariant>}
+                        propertyId={propertyId}
                     />
                 )
             })}

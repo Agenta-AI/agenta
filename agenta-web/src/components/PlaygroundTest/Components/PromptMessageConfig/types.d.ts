@@ -1,6 +1,5 @@
-import {BaseContainerProps} from "../types"
-import {StateVariant} from "../../state/types"
-import {Path} from "../../types/pathHelpers"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {BaseContainerProps} from "../types"
 
 /**
  * Props for the prompt message configuration component.
@@ -9,15 +8,7 @@ import {Path} from "../../types/pathHelpers"
  */
 export interface PromptMessageConfigProps extends BaseContainerProps {
     /** Unique identifier for the variant being configured */
-    variantId: StateVariant["variantId"]
-    /**
-     * Path to the configuration object in variant state.
-     * Used to access the schema and configuration settings.
-     */
-    configKey: Path<StateVariant>
-    /**
-     * Path to the value in variant state.
-     * Used to access and modify the actual message data.
-     */
-    valueKey: Path<StateVariant>
+    variantId: EnhancedVariant["id"]
+    /** Unique identifier for the message being configured */
+    messageId: string
 }

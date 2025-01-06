@@ -12,7 +12,7 @@ const usePlaygroundUtilities = ({
     const logger = useCallback(
         (log: string, ...args: any[]) => {
             if (!debug) return
-            console.log(
+            console.debug(
                 `usePlayground[%cMiddleware%c] - ${config.name} for ${config?.hookId} : ${log}`,
                 "color: red",
                 "",

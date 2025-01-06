@@ -1,8 +1,13 @@
+import {useCallback} from "react"
+
 import clsx from "clsx"
+
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
+import usePlayground from "../../hooks/usePlayground"
+import {componentLogger} from "../../assets/utilities/componentLogger"
+
 import type {PromptMessageConfigProps} from "./types"
-import type {StateVariant} from "../../state/types"
-import type {Path} from "../../types/pathHelpers"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 /**
  * PromptMessageConfig Component
@@ -16,24 +21,40 @@ import type {Path} from "../../types/pathHelpers"
  *
  * @param props - {@link PromptMessageConfigProps}
  * @param props.variantId - Unique identifier for the variant being configured
- * @param props.configKey - Path to the configuration object in variant state
- * @param props.valueKey - Path to the value in variant state
  */
 const PromptMessageConfig = ({
     variantId,
-    configKey,
-    valueKey,
+    messageId,
     className,
     ...props
 }: PromptMessageConfigProps) => {
-    console.log(
-        "usePlayground[%cComponent%c] - PromptMessageConfig - RENDER!",
-        "color: orange",
-        "",
+    const {message} = usePlayground({
         variantId,
-        configKey,
-        valueKey,
-    )
+        hookId: "PromptMessageConfig",
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                for (const prompt of variant.prompts || []) {
+                    const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
+                    if (message) {
+                        return {
+                            message: {
+                                role: message.role.__id,
+                                content: message.content.__id,
+                            },
+                        }
+                    }
+                }
+                return {message: undefined}
+            },
+            [messageId],
+        ),
+    })
+
+    if (!message) {
+        return null
+    }
+
+    componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
         <div
@@ -44,14 +65,12 @@ const PromptMessageConfig = ({
             {...props}
         >
             <PlaygroundVariantPropertyControl
-                configKey={`${configKey}.role` as Path<StateVariant>}
-                valueKey={`${valueKey}.role` as Path<StateVariant>}
+                propertyId={message.role}
                 variantId={variantId}
                 as="SimpleDropdownSelect"
             />
             <PlaygroundVariantPropertyControl
-                configKey={`${configKey}.content` as Path<StateVariant>}
-                valueKey={`${valueKey}.content` as Path<StateVariant>}
+                propertyId={message.content}
                 variantId={variantId}
                 as="PromptMessageContent"
             />

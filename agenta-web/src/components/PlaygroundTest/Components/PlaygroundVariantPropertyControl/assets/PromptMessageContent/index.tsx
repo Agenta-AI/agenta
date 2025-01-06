@@ -1,13 +1,9 @@
 import clsx from "clsx"
 import {Input} from "antd"
 
-const {TextArea} = Input
+import type {PromptMessageContentProps} from "./types"
 
-interface PromptMessageContentProps {
-    value: string
-    placeholder?: string
-    onChange: (value: string) => void
-}
+const {TextArea} = Input
 
 const PromptMessageContent = ({value, placeholder, onChange}: PromptMessageContentProps) => {
     return (

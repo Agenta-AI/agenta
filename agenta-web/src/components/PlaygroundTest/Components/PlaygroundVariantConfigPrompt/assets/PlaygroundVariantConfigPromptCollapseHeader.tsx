@@ -1,6 +1,8 @@
 import dynamic from "next/dynamic"
-import type {PromptCollapseHeaderProps} from "../types"
+
 import clsx from "clsx"
+
+import type {PromptCollapseHeaderProps} from "../types"
 
 // Load model config component dynamically
 const PlaygroundVariantModelConfig = dynamic(() => import("../../PlaygroundVariantModelConfig"), {
@@ -24,15 +26,15 @@ const PlaygroundVariantModelConfig = dynamic(() => import("../../PlaygroundVaria
  * ```
  */
 const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeaderProps> = ({
-    promptIndex,
     variantId,
     className,
+    promptId,
     ...props
 }) => {
     return (
         <div className={clsx("w-full flex items-center justify-between", className)} {...props}>
             <div>Prompt</div>
-            <PlaygroundVariantModelConfig variantId={variantId} promptIndex={promptIndex} />
+            <PlaygroundVariantModelConfig variantId={variantId} promptId={promptId} />
         </div>
     )
 }

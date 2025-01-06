@@ -1,23 +1,24 @@
 import {useMemo} from "react"
-import useSWR, {type Middleware} from "swr"
-import Router from "next/router"
-import {getCurrentProject} from "@/contexts/project.context"
 
-import {
-    PlaygroundStateData,
-    UsePlaygroundStateOptions,
-    UsePlaygroundReturn,
-    InferSelectedData,
-} from "./types"
+import Router from "next/router"
+import useSWR, {type Middleware} from "swr"
+import {getCurrentProject} from "@/contexts/project.context"
 
 import isVariantDirtyMiddleware from "./middlewares/isVariantDirtyMiddleware"
 import appSchemaMiddleware from "./middlewares/appSchemaMiddleware"
 import playgroundVariantsMiddleware from "./middlewares/playgroundVariantsMiddleware"
 import playgroundVariantMiddleware from "./middlewares/playgroundVariantMiddleware"
 import selectorMiddleware from "./middlewares/selectorMiddleware"
-import {StateVariant} from "../../state/types"
+import playgroundUIMiddleware from "./middlewares/playgroundUIMiddleware"
 
-const usePlayground = <Selected>(
+import type {
+    PlaygroundStateData,
+    UsePlaygroundStateOptions,
+    UsePlaygroundReturn,
+    VariantSelector,
+} from "./types"
+
+const usePlayground = <Selected = unknown>(
     {
         service = (Router.query.service as string) || "",
         appId = (Router.query.app_id as string) || "",
@@ -25,15 +26,13 @@ const usePlayground = <Selected>(
         ...rest
     }: Omit<UsePlaygroundStateOptions, "stateSelector" | "variantSelector"> & {
         stateSelector?: (state: PlaygroundStateData) => Selected
-        variantSelector?: (variant: StateVariant) => Selected
+        variantSelector?: VariantSelector<Selected>
     } = {
         service: (Router.query.service as string) || "",
         appId: (Router.query.app_id as string) || "",
         projectId: getCurrentProject().projectId,
-        hookId: "",
-        debug: false,
     },
-): Omit<UsePlaygroundReturn, "selectedData"> & InferSelectedData<typeof rest> => {
+) => {
     /**
      * Key for the SWR cache
      */
@@ -44,6 +43,7 @@ const usePlayground = <Selected>(
 
     const middlewares = useMemo(() => {
         return [
+            playgroundUIMiddleware as Middleware,
             playgroundVariantsMiddleware as Middleware,
             playgroundVariantMiddleware as Middleware,
             appSchemaMiddleware as Middleware,
@@ -52,15 +52,19 @@ const usePlayground = <Selected>(
         ]
     }, [])
 
-    const swr = useSWR<PlaygroundStateData, Error, UsePlaygroundStateOptions>(key, {
+    const swr = useSWR<
+        PlaygroundStateData,
+        Error,
+        UsePlaygroundStateOptions<PlaygroundStateData, Selected>
+    >(key, {
         use: middlewares,
         service,
         projectId,
         compare: undefined,
         ...rest,
-    }) as UsePlaygroundReturn
+    })
 
-    return swr as Omit<UsePlaygroundReturn, "selectedData"> & InferSelectedData<typeof rest>
+    return swr as UsePlaygroundReturn<Selected>
 }
 
 export default usePlayground

@@ -1,28 +1,72 @@
 import {useCallback} from "react"
-import {Key, SWRHook} from "swr"
-import {type FetcherOptions} from "@/lib/api/types"
+
+import {message} from "antd"
+import cloneDeep from "lodash/cloneDeep"
+import isEqual from "lodash/isEqual"
+
 import {
+    compareVariant,
+    createVariantCompare,
+    findPropertyInObject,
+    findVariantById,
+    setVariant,
+} from "../assets/helpers"
+import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {
+    updateVariantPromptKeys,
+    syncVariantInputs,
+    getVariantInputKeys,
+} from "../assets/inputHelpers"
+import {parseValidationError} from "../../../assets/utilities/errors"
+import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
+
+import type {Key, SWRHook} from "swr"
+import {type FetcherOptions} from "@/lib/api/types"
+import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
     VariantUpdateFunction,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import {StateVariant} from "../../../state/types"
-import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
-import {compareVariant, createVariantCompare, setVariant} from "../assets/helpers"
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {accessKeyInVariant, setKeyInVariant} from "@/components/PlaygroundTest/assets/helpers"
-import {isSchemaObject} from "@/components/PlaygroundTest/Components/PlaygroundVariantPropertyControl/assets/helpers"
+import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import useWebWorker from "../../useWebWorker"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
-const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
-    return <Data extends PlaygroundStateData = PlaygroundStateData>(
+/**
+ * Pure function to find a property by ID in a variant's prompts or inputs
+ * TODO: IMPROVE PERFORMANCE
+ */
+const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
+    if (!propertyId || !variant) return undefined
+
+    // Search in prompts
+    for (const prompt of variant.prompts) {
+        const found = findPropertyInObject(prompt, propertyId)
+        if (found) return found
+    }
+
+    // Search in input rows
+    const inputRows = variant.inputs?.value || []
+    for (const row of inputRows) {
+        const found = findPropertyInObject(row, propertyId)
+        if (found) return found
+    }
+
+    return undefined
+}
+
+const playgroundVariantMiddleware: PlaygroundMiddleware = <
+    Data extends PlaygroundStateData = PlaygroundStateData,
+    Selected = unknown,
+>(
+    useSWRNext: SWRHook,
+) => {
+    return (
         key: Key,
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
-        config: PlaygroundSWRConfig<Data>,
+        config: PlaygroundSWRConfig<Data, Selected>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
             const {logger, valueReferences, addToValueReferences, checkInvalidSelector} =
@@ -62,48 +106,103 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                             return wrappedComparison ?? true
                         }
 
-                        const {configKey, valueKey, variantId} = config
+                        const {variantId} = config
                         if (wrappedComparison) {
                             logger(
                                 `COMPARE - VARIANT REFERENCED - return wrapped`,
                                 wrappedComparison,
                             )
                             return true
+                        }
+
+                        if (!variantId) return wrappedComparison
+
+                        logger(
+                            `COMPARE - VARIANT REFERENCED - return COMPARISON`,
+                            wrappedComparison,
+                        )
+
+                        const isConfigReferenced = valueReferences.current.includes("variantConfig")
+                        const isConfigPropertyReferenced =
+                            valueReferences.current.includes("variantConfigProperty")
+
+                        if (isConfigPropertyReferenced) {
+                            // Compare variants by checking if the specific property changed
+                            const prevVariant = (a?.variants || []).find((v) => v.id === variantId)
+                            const nextVariant = (b?.variants || []).find((v) => v.id === variantId)
+
+                            const prevProperty =
+                                prevVariant && findPropertyById(prevVariant, config.propertyId)
+                            const nextProperty =
+                                nextVariant && findPropertyById(nextVariant, config.propertyId)
+
+                            return isEqual(prevProperty?.value, nextProperty?.value)
+                        } else if (isConfigReferenced) {
+                            return createVariantCompare()(a, b)
                         } else {
-                            if (!variantId) {
-                                return wrappedComparison
-                            }
-
-                            logger(
-                                `COMPARE - VARIANT REFERENCED - return COMPARISON`,
-                                wrappedComparison,
-                            )
-
-                            const isConfigReferenced =
-                                valueReferences.current.includes("variantConfig")
-                            const isConfigPropertyReferenced =
-                                valueReferences.current.includes("variantConfigProperty")
-
-                            if (isConfigPropertyReferenced && configKey && valueKey) {
-                                logger(`COMPARE - VARIANT CONFIG PROPERTY REFERENCED`)
-                                return (
-                                    compareVariant(a, b, variantId, undefined, configKey) &&
-                                    compareVariant(a, b, variantId, undefined, valueKey)
-                                )
-                            } else if (isConfigReferenced) {
-                                logger(`COMPARE - VARIANT CONFIG REFERENCED`)
-                                // TODO REPLACE THIS
-                                return createVariantCompare()(a, b)
-                            } else {
-                                logger(`COMPARE - VARIANT REFERENCED`, createVariantCompare()(a, b))
-                                // return createVariantCompare()(a, b)
-                                return compareVariant(a, b, variantId)
-                            }
+                            return compareVariant(a, b, variantId)
                         }
                     },
-                    [config, valueReferences],
+                    [config, logger, valueReferences],
                 ),
             } as PlaygroundSWRConfig<Data>)
+
+            const handleWebWorkerMessage = useCallback(
+                (message: {
+                    type: string
+                    payload: {
+                        variant: EnhancedVariant
+                        rowId: string
+                        service: string
+                        result?: {
+                            response?: ApiResponse
+                            error?: string
+                            metadata: {
+                                timestamp: string
+                                statusCode?: number
+                                rawError?: any
+                            }
+                        }
+                    }
+                }) => {
+                    const variantId = config.variantId
+
+                    if (!variantId || !message.payload.result) return
+                    if (message.type === "runVariantInputRowResult") {
+                        const rowId = message.payload.rowId
+
+                        swr.mutate((state) => {
+                            const clonedState = cloneDeep(state)
+                            if (!clonedState) return state
+
+                            const variant = findVariantById(state, variantId)
+                            if (!variant) return clonedState
+
+                            const variantIndex = clonedState.variants.findIndex(
+                                (v) => v.id === config.variantId,
+                            )
+                            if (variantIndex === -1) return clonedState
+
+                            const inputRow = clonedState.variants[variantIndex].inputs.value.find(
+                                (row) => row.__id === rowId,
+                            )
+
+                            if (!inputRow) return clonedState
+
+                            inputRow.__result = message.payload.result
+                            inputRow.__isLoading = false
+
+                            return clonedState
+                        })
+                    }
+                },
+                [config.variantId, swr],
+            )
+
+            const {postMessageToWorker, createWorkerMessage} = useWebWorker(
+                handleWebWorkerMessage,
+                valueReferences.current.includes("runVariantTestRow"),
+            )
 
             /**
              * Deletes the current variant from the server and updates local state
@@ -112,14 +211,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
             const deleteVariant = useCallback(async () => {
                 await swr.mutate(
                     async (state) => {
-                        const variant = (swr.data?.variants || []).find(
-                            (v) => v.variantId === variantId,
-                        )
+                        const variant = (swr.data?.variants || []).find((v) => v.id === variantId)
                         if (!variant) return state
 
                         try {
                             const deleteResponse = await fetcher?.(
-                                `/api/variants/${variant.variantId}?project_id=${projectId}`,
+                                `/api/variants/${variant.id}?project_id=${projectId}`,
                                 {
                                     method: "DELETE",
                                 },
@@ -131,8 +228,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                             }
 
                             const clonedState = cloneDeep(state)
-                            clonedState?.variants?.forEach((v: StateVariant) => {
-                                if (v.variantId === variant.variantId) {
+                            clonedState?.variants?.forEach((v: EnhancedVariant) => {
+                                if (v.id === variant.id) {
                                     const index = clonedState.variants.indexOf(v)
                                     clonedState.variants.splice(index, 1)
                                 }
@@ -148,44 +245,23 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                         revalidate: false,
                     },
                 )
-            }, [swr.mutate, fetcher, projectId, variantId])
+            }, [swr, variantId, fetcher, projectId])
 
             const saveVariant = useCallback(async () => {
                 await swr.mutate(
                     async (state) => {
                         if (!state) return state
-                        const variant = (state?.variants || []).find(
-                            (v) => v.variantId === variantId,
-                        )
+                        const variant = (state?.variants || []).find((v) => v.id === variantId)
                         if (!variant) return state
 
                         try {
-                            const promptConfig = variant.schema?.promptConfig?.[0]
-                            const llmConfig = promptConfig?.llm_config
-                            const messagesConfig = promptConfig?.messages
-
+                            const parameters = transformToRequestBody(variant)
                             const saveResponse = await fetcher?.(
-                                `/api/variants/${variant.variantId}/parameters?project_id=${projectId}`,
+                                `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
                                 {
                                     method: "PUT",
                                     body: {
-                                        parameters: {
-                                            inputs: [{name: "country"}],
-                                            ...llmConfig?.value,
-                                            ...messagesConfig?.value.reduce(
-                                                (
-                                                    acc: {[key: string]: string},
-                                                    cur: {
-                                                        role: string
-                                                        content: string
-                                                    },
-                                                ) => ({
-                                                    ...acc,
-                                                    [`prompt_${cur.role}`]: cur.content,
-                                                }),
-                                                {} as {[key: string]: string},
-                                            ),
-                                        },
+                                        parameters,
                                     },
                                 },
                             )
@@ -194,17 +270,16 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                                 // error
                                 message.error("Failed to save variant")
                             } else {
-                                const x = await fetcher?.(
-                                    `/api/variants/${variant.variantId}?project_id=${projectId}`,
+                                const saveResponse = await fetcher?.(
+                                    `/api/variants/${variant.id}?project_id=${projectId}`,
                                     {method: "GET"},
                                 )
 
-                                const t = setVariant(x)
+                                const t = setVariant(saveResponse)
 
                                 const clonedState = state
-                                // cloneDeep(state)
                                 const index = clonedState?.variants?.findIndex(
-                                    (v) => v.variantId === variant.variantId,
+                                    (v) => v.id === variant.id,
                                 )
 
                                 const updatedVariant = {
@@ -212,18 +287,17 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                                     ...t,
                                 }
                                 clonedState.variants[index] = updatedVariant
-
                                 message.success("Changes saved successfully!")
 
                                 if (
                                     clonedState?.dirtyStates &&
-                                    clonedState.dirtyStates.get(updatedVariant.variantId)
+                                    clonedState.dirtyStates.get(updatedVariant.id)
                                 ) {
                                     clonedState.dirtyStates = new Map(clonedState.dirtyStates)
-                                    clonedState.dirtyStates.set(updatedVariant.variantId, false)
+                                    clonedState.dirtyStates.set(updatedVariant.id, false)
                                     clonedState.dataRef = new Map(clonedState.dataRef)
                                     clonedState.dataRef.set(
-                                        updatedVariant.variantId,
+                                        updatedVariant.id,
                                         cloneDeep(updatedVariant),
                                     )
                                 }
@@ -241,105 +315,195 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                         revalidate: false,
                     },
                 )
-            }, [fetcher, swr.mutate, projectId, variantId])
+            }, [swr, variantId, fetcher, projectId])
 
             /**
              * Updates the current variant with new properties
              * @param updates - Partial variant object containing the properties to update
              */
             const mutateVariant = useCallback(
-                async (updates: Partial<StateVariant> | VariantUpdateFunction) => {
+                async (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => {
                     swr.mutate(
                         async (state) => {
                             if (!state) return state
+
+                            const variant = state?.variants?.find((v) => v.id === variantId)
+                            const clonedVariant = cloneDeep(variant)
+
+                            if (!clonedVariant) return state
+
                             const updateValues =
-                                typeof updates === "function" ? updates(state) : updates
-                            const variant = state?.variants?.find((v) => v.variantId === variantId)
+                                typeof updates === "function" ? updates(clonedVariant) : updates
+
                             if (!variant || !state) return state
-                            const updatedVariant: StateVariant = {...variant, ...updateValues}
+                            const updatedVariant: EnhancedVariant = {...variant, ...updateValues}
+
+                            // Get current input keys before update
+                            const previousInputKeys = getVariantInputKeys(variant)
+
+                            // Update prompt keys
+                            updateVariantPromptKeys(updatedVariant)
+
+                            // Get new input keys after update
+                            const newInputKeys = getVariantInputKeys(updatedVariant)
+
+                            // Only sync inputs if the keys have changed
+                            if (!isEqual(previousInputKeys, newInputKeys)) {
+                                syncVariantInputs(updatedVariant)
+                            }
+
                             const clonedState = cloneDeep(state)
                             const index = clonedState?.variants?.findIndex(
-                                (v) => v.variantId === variant.variantId,
+                                (v) => v.id === variant.id,
                             )
+
                             clonedState.variants[index] = updatedVariant
 
                             return clonedState
                         },
-                        {
-                            revalidate: false,
-                        },
+                        {revalidate: false},
                     )
                 },
-                [swr.mutate, variantId],
+                [swr, variantId],
             )
 
             const handleParamUpdate = useCallback(
                 (e: {target: {value: ConfigValue}} | ConfigValue) => {
-                    const valueKey = config.valueKey
-                    if (!valueKey) {
-                        throw new Error(
-                            "Cannot update variant value without a valueKey in the config",
-                        )
-                    }
-                    mutateVariant((state) => {
-                        const variant = state.variants.find((v) => v.variantId === variantId)
-                        if (!variant) return {} // Return empty object instead of undefined
+                    mutateVariant((variant) => {
+                        if (!variant) return {}
 
                         const val = e
                             ? typeof e === "object" && "target" in e
                                 ? e.target.value
                                 : e
                             : null
+                        const updatedVariant = variant
+                        const found = findPropertyById(updatedVariant, config.propertyId)
 
-                        const updatedVariant = cloneDeep(variant)
-                        setKeyInVariant(valueKey, updatedVariant, val)
+                        if (found) {
+                            found.value = val
+                        }
+
                         return updatedVariant
                     })
                 },
-                [variantId, config.valueKey, mutateVariant],
+                [config.propertyId, mutateVariant],
             )
 
-            const getPropertyConfig = useCallback(() => {
-                const configKey = config.configKey
-                if (!configKey) {
-                    throw new Error("Cannot get variant config without a configKey in the config")
-                }
-                const variant = swr.data?.variants.find((v) => v.variantId === variantId)
-                const rawConfig = variant ? accessKeyInVariant(configKey, variant) : undefined
-                return rawConfig && isSchemaObject(rawConfig) ? rawConfig : undefined
-            }, [swr.data, config.configKey, variantId])
-
             const getVariantConfigProperty = useCallback(() => {
-                const valueKey = config.valueKey
-                if (!valueKey) {
-                    throw new Error(
-                        "Cannot get variant config property without a valueKey in the config",
-                    )
-                }
+                const variant = swr.data?.variants.find((v) => v.id === variantId)
+                if (!variant) return {}
+                const found = findPropertyById(variant, config.propertyId)
 
-                const variant = swr.data?.variants.find((v) => v.variantId === variantId)
-                const _config = getPropertyConfig()
-
-                const valueInfo = variant
-                    ? accessKeyInVariant(valueKey, cloneDeep(variant))
+                return found
+                    ? {
+                          ...found,
+                          handleChange: handleParamUpdate,
+                      }
                     : undefined
+            }, [swr.data?.variants, config.propertyId, handleParamUpdate, variantId])
 
-                return {
-                    property: _config
-                        ? {
-                              config: _config,
-                              valueInfo,
-                              handleChange: handleParamUpdate,
-                          }
-                        : undefined,
-                }
-            }, [swr.data, variantId, config.valueKey, handleParamUpdate])
+            /**
+             * Runs a specific test row with the current variant configuration
+             * @param rowId - ID of the input row to run
+             */
+            const runVariantTestRow = useCallback(
+                async (rowId: string) => {
+                    swr.mutate(async (state) => {
+                        const clonedState = cloneDeep(state)
+
+                        if (!config.variantId || !config.service || !clonedState) return state
+
+                        const variant = findVariantById(state, config.variantId)
+                        if (!variant) return state
+
+                        const variantIndex = clonedState.variants.findIndex(
+                            (v) => v.id === config.variantId,
+                        )
+                        if (variantIndex === -1) return state
+
+                        const inputRow = clonedState.variants[variantIndex].inputs.value.find(
+                            (row) => row.__id === rowId,
+                        )
+                        if (!inputRow) return state
+
+                        inputRow.__isLoading = true
+                        postMessageToWorker(
+                            createWorkerMessage("runVariantInputRow", {
+                                variant,
+                                rowId,
+                                service: config.service,
+                            }),
+                        )
+
+                        return clonedState
+
+                        // const requestBody = transformToRequestBody(variant, rowId)
+
+                        // try {
+                        //     const response = await fetch(
+                        //         `http://localhost/${config.service}/generate`,
+                        //         {
+                        //             method: "POST",
+                        //             headers: {
+                        //                 "Content-Type": "application/json",
+                        //             },
+                        //             body: JSON.stringify(requestBody),
+                        //         },
+                        //     )
+
+                        //     const data = await response.json()
+
+                        //     if (!response.ok) {
+                        //         const errorMessage = parseValidationError(data)
+                        //         inputRow.__result = {
+                        //             response: undefined,
+                        //             error: errorMessage,
+                        //             metadata: {
+                        //                 timestamp: new Date().toISOString(),
+                        //                 statusCode: response.status,
+                        //                 rawError: data,
+                        //             },
+                        //         }
+                        //         message.error(errorMessage)
+                        //         return clonedState
+                        //     }
+
+                        //     // Store full response in the result
+                        //     inputRow.__result = {
+                        //         response: data,
+                        //         metadata: {
+                        //             timestamp: new Date().toISOString(),
+                        //             statusCode: response.status,
+                        //         },
+                        //     }
+
+                        //     return clonedState
+                        // } catch (error) {
+                        //     inputRow.__result = {
+                        //         response: undefined,
+                        //         error:
+                        //             error instanceof Error
+                        //                 ? error.message
+                        //                 : "Unknown error occurred",
+                        //         metadata: {
+                        //             timestamp: new Date().toISOString(),
+                        //             type: "network_error",
+                        //         },
+                        //     }
+                        //     message.error("Failed to run test")
+                        //     return clonedState
+                        // }
+                    })
+                },
+                [swr, config.variantId, config.service, postMessageToWorker, createWorkerMessage],
+            )
 
             Object.defineProperty(swr, "variant", {
                 get() {
                     checkInvalidSelector()
                     addToValueReferences("variant")
-                    const variant = swr.data?.variants.find((v) => v.variantId === config.variantId)
+                    const variant = swr.data?.variants.find((v) => v.id === config.variantId)
                     return variant
                 },
             })
@@ -348,7 +512,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                 get() {
                     checkInvalidSelector()
                     addToValueReferences("variantConfig")
-                    // return swr.data?.variants.find((v) => v.variantId === config.variantId)
                 },
             })
             Object.defineProperty(swr, "variantConfigProperty", {
@@ -356,10 +519,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                     checkInvalidSelector()
                     addToValueReferences("variantConfigProperty")
                     return getVariantConfigProperty()
-                    // return swr.data?.variants.find((v) => v.variantId === config.variantId)
                 },
             })
-
             Object.defineProperty(swr, "deleteVariant", {
                 get() {
                     checkInvalidSelector()
@@ -367,7 +528,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                     return deleteVariant
                 },
             })
-
             Object.defineProperty(swr, "mutateVariant", {
                 get() {
                     checkInvalidSelector()
@@ -375,12 +535,18 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) 
                     return mutateVariant
                 },
             })
-
             Object.defineProperty(swr, "saveVariant", {
                 get() {
                     checkInvalidSelector()
                     addToValueReferences("saveVariant")
                     return saveVariant
+                },
+            })
+            Object.defineProperty(swr, "runVariantTestRow", {
+                get() {
+                    checkInvalidSelector()
+                    addToValueReferences("runVariantTestRow")
+                    return runVariantTestRow
                 },
             })
 
