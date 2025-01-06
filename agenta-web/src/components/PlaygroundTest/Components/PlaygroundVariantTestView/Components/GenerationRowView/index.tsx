@@ -12,7 +12,7 @@ import type {GenerationRowViewProps} from "./types"
 import type {EnhancedVariant} from "../../../../assets/utilities/transformer/types"
 
 const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps) => {
-    const {result, variableIds, runVariantTestRow, canRun} = usePlayground({
+    const {result, variableIds, runVariantTestRow, canRun, isRunning} = usePlayground({
         variantId,
         variantSelector: useCallback((variant: EnhancedVariant) => {
             const inputRow = (variant.inputs?.value || []).find((inputRow) => {
@@ -27,6 +27,7 @@ const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps)
                 variableIds,
                 canRun,
                 result: inputRow?.__result,
+                isRunning: inputRow?.__isLoading,
             }
         }, [rowId]),
     })
@@ -70,14 +71,18 @@ const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps)
                         variant="outlined"
                         color="default"
                         className="self-start"
-                        disabled={!canRun}
+                        disabled={!canRun || isRunning}
                     >
                         <Play size={14} />
                         Run
                     </Button>
                 </div>
                 <div>
-                    {!result ? (
+                    {isRunning ? (
+                        <Typography className="font-[400] text-[12px] leading-[20px] text-[#BDC7D1]">
+                            Running...
+                        </Typography>
+                    ) : !result ? (
                         <Typography className="font-[400] text-[12px] leading-[20px] text-[#BDC7D1]">
                             Click run to generate output
                         </Typography>
