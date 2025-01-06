@@ -1,9 +1,10 @@
 import {useState} from "react"
-import {DotsThreeVertical, MinusCircle, ArrowsOut, Copy, Database} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+import {MinusCircle, ArrowsOut} from "@phosphor-icons/react"
+import {Button} from "antd"
 import {PlaygroundVariableMenuProps} from "./types"
 import clsx from "clsx"
 import PlaygroundGenerationFocusDrawer from "../../Drawers/PlaygroundGenerationFocusDrawer"
+import PlaygroundGenerationVariableMenu from "../../Menus/PlaygroundGenerationVariableMenu"
 
 const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = ({className}) => {
     const [isFocusMoodOpen, setIsFocusMoodOpen] = useState(false)
@@ -17,31 +18,7 @@ const PlaygroundVariableMenu: React.FC<PlaygroundVariableMenuProps> = ({classNam
             />
             <Button icon={<MinusCircle size={14} />} type="text" />
 
-            <Dropdown
-                trigger={["click"]}
-                menu={{
-                    items: [
-                        {
-                            key: "duplicate",
-                            label: "Duplicate",
-                            icon: <Copy size={14} />,
-                            onClick: (e) => {
-                                e.domEvent.stopPropagation()
-                            },
-                        },
-                        {
-                            key: "test-set",
-                            label: "Add to test set",
-                            icon: <Database size={14} />,
-                            onClick: (e) => {
-                                e.domEvent.stopPropagation()
-                            },
-                        },
-                    ],
-                }}
-            >
-                <Button icon={<DotsThreeVertical size={14} />} type="text" />
-            </Dropdown>
+            <PlaygroundGenerationVariableMenu />
 
             <PlaygroundGenerationFocusDrawer
                 open={isFocusMoodOpen}

@@ -1,17 +1,15 @@
-import {Button, Dropdown, Typography} from "antd"
+import {Button, Typography} from "antd"
+import dynamic from "next/dynamic"
 import {useStyles} from "../styles"
 import {PlaygroundVariantHistoryHeaderProps} from "./types"
 import Version from "../../../assets/Version"
 import DeployButton from "../../../assets/DeployButton"
-import {
-    ArrowCounterClockwise,
-    ArrowsOut,
-    Copy,
-    DotsThreeVertical,
-    Rocket,
-    X,
-} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, X} from "@phosphor-icons/react"
 import clsx from "clsx"
+const PlaygroundVariantHistoryHeaderMenu = dynamic(
+    () => import("../../Menus/PlaygroundVariantHistoryHeaderMenu"),
+    {ssr: false},
+)
 
 const PlaygroundVariantHistoryHeader: React.FC<PlaygroundVariantHistoryHeaderProps> = ({
     slectedRevision,
@@ -35,50 +33,8 @@ const PlaygroundVariantHistoryHeader: React.FC<PlaygroundVariantHistoryHeaderPro
             <div className="flex items-center gap-2">
                 <DeployButton label="Deploy" type="primary" />
                 <Button icon={<ArrowCounterClockwise size={14} />}>Revert</Button>
-                <Dropdown
-                    trigger={["click"]}
-                    overlayStyle={{width: 170}}
-                    menu={{
-                        items: [
-                            {
-                                key: "deploy",
-                                label: "Deploy",
-                                icon: <Rocket size={14} />,
-                                onClick: (e) => {
-                                    e.domEvent.stopPropagation()
-                                },
-                            },
-                            {
-                                key: "focus",
-                                label: "Focus view",
-                                icon: <ArrowsOut size={14} />,
-                                onClick: (e) => {
-                                    e.domEvent.stopPropagation()
-                                },
-                            },
-                            {type: "divider"},
-                            {
-                                key: "clone",
-                                label: "Clone",
-                                icon: <Copy size={16} />,
-                                onClick: (e) => {
-                                    e.domEvent.stopPropagation()
-                                },
-                            },
 
-                            {type: "divider"},
-                            {
-                                key: "close",
-                                label: "Close panel",
-                                onClick: (e) => {
-                                    e.domEvent.stopPropagation()
-                                },
-                            },
-                        ],
-                    }}
-                >
-                    <Button icon={<DotsThreeVertical size={14} />} type="text" />
-                </Dropdown>
+                <PlaygroundVariantHistoryHeaderMenu />
             </div>
         </section>
     )

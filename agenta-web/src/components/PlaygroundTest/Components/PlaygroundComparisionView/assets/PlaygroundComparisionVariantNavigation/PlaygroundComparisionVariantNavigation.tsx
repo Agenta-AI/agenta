@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/sortable"
 import PlaygroundCompasisionNavigationCard from "../PlaygroundCompasisionNavigationCard/PlaygroundCompasisionNavigationCard"
 import {Typography} from "antd"
-import PlaygroundCreateNewVariant from "../../../PlaygroundCreateNewVariant"
+import PlaygroundCreateNewVariant from "../../../Menus/PlaygroundCreateNewVariant"
 
 const PlaygroundComparisionVariantNavigation = () => {
     const [items, setItems] = useState([1, 2, 3])

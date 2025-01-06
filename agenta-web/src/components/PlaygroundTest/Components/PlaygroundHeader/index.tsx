@@ -1,9 +1,12 @@
-import React, {memo} from "react"
+import {memo} from "react"
+import dynamic from "next/dynamic"
 import {Typography} from "antd"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 import type {BaseContainerProps} from "../types"
-import PlaygroundCreateNewVariant from "../PlaygroundCreateNewVariant"
+const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCreateNewVariant"), {
+    ssr: false,
+})
 
 /**
  * PlaygroundHeader manages the creation of new variants in the playground.

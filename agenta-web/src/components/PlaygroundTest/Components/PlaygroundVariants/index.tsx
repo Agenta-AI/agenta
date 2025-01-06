@@ -35,7 +35,9 @@ const PlaygroundVariants = ({className, ...props}: BaseContainerProps) => {
             {/* {(variantIds || []).map((variantId) => {
                 return <PlaygroundVariant key={variantId} variantId={variantId} />
             })} */}
-            <PlaygroundComparisionView variantIds={variantIds as string[]} />
+
+            <PlaygroundVariant variantId={variantIds?.[0] as string} />
+            {/* <PlaygroundComparisionView variantIds={variantIds as string[]} /> */}
         </div>
     )
 }

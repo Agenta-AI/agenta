@@ -1,10 +1,11 @@
 import React, {useCallback, useMemo, useState, useTransition} from "react"
+import dynamic from "next/dynamic"
 import {message, Dropdown, Divider, Space, Button, Input} from "antd"
-import AddButton from "./../../assets/AddButton"
-import CreateVariantModal from "../Modals/CreateVariantModal"
-import usePlayground from "../../hooks/usePlayground"
+import AddButton from "../../../assets/AddButton"
+import usePlayground from "../../../hooks/usePlayground"
 import {useStyles} from "./styles"
-import {StateVariant} from "../../state/types"
+import {StateVariant} from "../../../state/types"
+const CreateVariantModal = dynamic(() => import("../../Modals/CreateVariantModal"), {ssr: false})
 
 const PlaygroundCreateNewVariant = () => {
     const [displayModal, _setDisplayModal] = useState(false)
