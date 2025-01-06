@@ -43,9 +43,9 @@ export type EnhancedObjectConfig<T> = Common & {
 }
 
 /** Generic enhanced configuration type */
-export type Enhanced<T> =
-    T extends Array<infer U>
-        ? EnhancedArrayValue<U>
-        : T extends Record<string, any>
-          ? EnhancedObjectConfig<T>
-          : EnhancedConfigValue<T> & Common
+export type Enhanced<T> = (T extends Array<infer U>
+    ? EnhancedArrayValue<U>
+    : T extends Record<string, any>
+      ? EnhancedObjectConfig<T>
+      : EnhancedConfigValue<T>) &
+    Common
