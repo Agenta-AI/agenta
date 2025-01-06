@@ -103,7 +103,7 @@ export function transformToRequestBody(variant: EnhancedVariant, inputRowId?: st
     // Get the first prompt configuration
     const promptConfig = variant.prompts[0]
     const rawConfig = extractValueByMetadata(promptConfig)
-    data.agenta_config = {
+    data.ag_config = {
         prompt: rawConfig as EnhancedVariant["prompts"][number],
     }
 

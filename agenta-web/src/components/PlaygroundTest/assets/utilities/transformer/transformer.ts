@@ -48,9 +48,9 @@ export function transformToEnhancedVariant(
         throw new Error("Invalid OpenAPI schema")
     }
 
-    const agentaConfig = requestSchema.properties?.agenta_config as AgentaConfigSchema
+    const agentaConfig = requestSchema.properties?.ag_config as AgentaConfigSchema
     if (!agentaConfig?.properties?.prompt) {
-        throw new Error("Invalid agenta_config schema")
+        throw new Error("Invalid ag_config schema")
     }
 
     // Merge schema defaults with saved configuration
@@ -59,7 +59,7 @@ export function transformToEnhancedVariant(
     // Type assertion after validation
     const typedConfig = agentaConfig as AgentaConfigSchema
     if (!typedConfig.properties?.prompt) {
-        throw new Error("Invalid agenta_config schema: missing prompt properties")
+        throw new Error("Invalid ag_config schema: missing prompt properties")
     }
 
     const isChat =
