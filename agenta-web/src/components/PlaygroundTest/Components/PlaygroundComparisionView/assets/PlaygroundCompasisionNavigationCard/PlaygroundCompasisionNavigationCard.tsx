@@ -3,15 +3,31 @@ import {PlusCircle, Timer, X} from "@phosphor-icons/react"
 import Version from "../../../../assets/Version"
 import {useStyles} from "./styles"
 import clsx from "clsx"
+import {useSortable} from "@dnd-kit/sortable"
+import {CSS} from "@dnd-kit/utilities"
 
 const {Text} = Typography
 
-const PlaygroundCompasisionNavigationCard = () => {
+const PlaygroundCompasisionNavigationCard = ({id}: any) => {
     const classes = useStyles()
+    const {attributes, listeners, setNodeRef, transform, transition} = useSortable({id})
+
     const time_end = "0.0453s"
     const cost = "79 / $0.0053"
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+    }
+
     return (
-        <div className={clsx("w-full flex flex-col gap-3", classes.card)}>
+        <div
+            ref={setNodeRef}
+            style={style}
+            {...attributes}
+            {...listeners}
+            className={clsx("w-full flex flex-col gap-3 cursor-move *:select-none", classes.card)}
+        >
             <div className="flex items-center justify-between">
                 <Text>Variant A</Text>
                 <Button icon={<X size={14} />} type="text" />

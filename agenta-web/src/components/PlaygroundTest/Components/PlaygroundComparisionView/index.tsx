@@ -1,34 +1,20 @@
 import {Button, Typography} from "antd"
-import PlaygroundCreateNewVariant from "../PlaygroundCreateNewVariant"
-import PlaygroundCompasisionNavigationCard from "./assets/PlaygroundCompasisionNavigationCard/PlaygroundCompasisionNavigationCard"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import PlaygroundComparisionCompletionInput from "../PlaygroundGenerationInputAndOutputConfigs/ComparisionView/PlaygroundComparisionCompletionInput"
 import PlaygroundComparisionCompletionOutput from "../PlaygroundGenerationInputAndOutputConfigs/ComparisionView/PlaygroundComparisionCompletionOuput"
 import {Play} from "@phosphor-icons/react"
 import {PlaygroundComparisionViewProps} from "./types"
-
-const {Text} = Typography
+import PlaygroundComparisionVariantNavigation from "./assets/PlaygroundComparisionVariantNavigation/PlaygroundComparisionVariantNavigation"
 
 const PlaygroundComparisionView: React.FC<PlaygroundComparisionViewProps> = ({variantIds}) => {
     return (
         <main className="w-full h-full flex flex-col">
             <section className="w-full flex-1 overflow-hidden flex items-start">
-                <div className="w-[400px] h-full overflow-y-auto">
-                    <div className="w-full flex items-center justify-between p-2 !border-b border-gray-300">
-                        <Text>Varaints</Text>
-                        <PlaygroundCreateNewVariant />
-                    </div>
-
-                    <div className="flex flex-col gap-2 p-2">
-                        <PlaygroundCompasisionNavigationCard />
-                        <PlaygroundCompasisionNavigationCard />
-                        <PlaygroundCompasisionNavigationCard />
-                    </div>
-                </div>
+                <PlaygroundComparisionVariantNavigation />
 
                 {(variantIds || []).map((variantId) => (
                     <div
-                        className="w-[400px] h-full overflow-y-auto *:!overflow-x-hidden"
+                        className="[&::-webkit-scrollbar]:*:w-0 w-[400px] h-full overflow-y-auto *:!overflow-x-hidden"
                         key={variantId}
                     >
                         <PlaygroundVariantConfig variantId={variantId as string} />
