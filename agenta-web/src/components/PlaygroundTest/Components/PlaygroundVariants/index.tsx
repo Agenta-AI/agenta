@@ -2,7 +2,7 @@ import dynamic from "next/dynamic"
 import clsx from "clsx"
 
 import usePlayground from "../../hooks/usePlayground"
-import { componentLogger } from "../../assets/utilities/componentLogger"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {BaseContainerProps} from "../types"
 

@@ -1,17 +1,17 @@
-import { useCallback } from "react"
+import {useCallback} from "react"
 
 import clsx from "clsx"
 
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import usePlayground from "../../hooks/usePlayground"
-import { componentLogger } from "../../assets/utilities/componentLogger"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
-import type { EnhancedVariant } from "../../assets/utilities/transformer/types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 /**
  * PromptMessageConfig Component
- * 
+ *
  * Renders a configuration interface for a single prompt message, including:
  * - Role selector (user/assistant/system)
  * - Content editor for the message
@@ -23,7 +23,7 @@ import type { EnhancedVariant } from "../../assets/utilities/transformer/types"
  * @param props.variantId - Unique identifier for the variant being configured
  */
 const PromptMessageConfig = ({
-    variantId, 
+    variantId,
     messageId,
     className,
     ...props
@@ -31,20 +31,23 @@ const PromptMessageConfig = ({
     const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            for (const prompt of variant.prompts || []) {
-                const message = prompt.messages?.value.find(msg => msg.__id === messageId)
-                if (message) {
-                    return { 
-                        message: {
-                            role: message.role.__id,
-                            content: message.content.__id,
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                for (const prompt of variant.prompts || []) {
+                    const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
+                    if (message) {
+                        return {
+                            message: {
+                                role: message.role.__id,
+                                content: message.content.__id,
+                            },
                         }
                     }
                 }
-            }
-            return { message: undefined }
-        }, [messageId]),
+                return {message: undefined}
+            },
+            [messageId],
+        ),
     })
 
     if (!message) {
@@ -54,8 +57,11 @@ const PromptMessageConfig = ({
     componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
-        <div 
-            className={clsx("relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]", className)}
+        <div
+            className={clsx(
+                "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]",
+                className,
+            )}
             {...props}
         >
             <PlaygroundVariantPropertyControl

@@ -8,7 +8,7 @@ import usePlayground from "../../hooks/usePlayground"
 import ModelConfigModal from "./assets/ModelConfigModal"
 
 import {getEnhancedProperties} from "../../assets/utilities/genericTransformer/utilities/enhanced"
-import { componentLogger } from "../../assets/utilities/componentLogger"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PlaygroundVariantModelConfigProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"

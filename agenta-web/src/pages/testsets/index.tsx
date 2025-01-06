@@ -1,5 +1,5 @@
-import React, {useMemo, useState} from "react"
-import TestsetModal from "@/components/pages/testset/modals"
+import {type Key, useMemo, useState} from "react"
+import dynamic from "next/dynamic"
 import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
@@ -13,6 +13,10 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import dayjs from "dayjs"
 import {useAppsData} from "@/contexts/app.context"
+
+const TestsetModal = dynamic(() => import("@/components/pages/testset/modals"), {
+    ssr: false,
+})
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
@@ -55,7 +59,7 @@ const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
     const {apps, isLoading: isAppsLoading} = useAppsData()
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
@@ -64,7 +68,7 @@ const Testset = () => {
     const [current, setCurrent] = useState(0)
 
     const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[]) => {
+        onChange: (selectedRowKeys: Key[]) => {
             setSelectedRowKeys(selectedRowKeys)
         },
     }

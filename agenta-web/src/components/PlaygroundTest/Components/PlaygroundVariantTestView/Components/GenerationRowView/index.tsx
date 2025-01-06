@@ -14,22 +14,25 @@ import type {EnhancedVariant} from "../../../../assets/utilities/transformer/typ
 const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps) => {
     const {result, variableIds, runVariantTestRow, canRun, isRunning} = usePlayground({
         variantId,
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            const inputRow = (variant.inputs?.value || []).find((inputRow) => {
-                return inputRow.__id === rowId
-            })
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                const inputRow = (variant.inputs?.value || []).find((inputRow) => {
+                    return inputRow.__id === rowId
+                })
 
-            const variables = getEnhancedProperties(inputRow)
-            const variableIds = variables.map((p) => p.__id)
-            const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
+                const variables = getEnhancedProperties(inputRow)
+                const variableIds = variables.map((p) => p.__id)
+                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
-            return {
-                variableIds,
-                canRun,
-                result: inputRow?.__result,
-                isRunning: inputRow?.__isLoading,
-            }
-        }, [rowId]),
+                return {
+                    variableIds,
+                    canRun,
+                    result: inputRow?.__result,
+                    isRunning: inputRow?.__isLoading,
+                }
+            },
+            [rowId],
+        ),
     })
 
     const runRow = useCallback(async () => {

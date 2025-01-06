@@ -1,5 +1,5 @@
 import {Typography} from "antd"
-import { ChatTestViewProps } from "./types";
+import {ChatTestViewProps} from "./types"
 
 const ChatTestView = (props: ChatTestViewProps) => {
     return (
@@ -7,8 +7,8 @@ const ChatTestView = (props: ChatTestViewProps) => {
             <Typography.Text className="text-[14px] leading-[22px] font-[500]">
                 ChatTestView
             </Typography.Text>
-        </div>  
+        </div>
     )
 }
 
-export default ChatTestView;
+export default ChatTestView

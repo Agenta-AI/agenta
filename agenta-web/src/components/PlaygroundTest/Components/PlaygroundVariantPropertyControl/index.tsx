@@ -3,7 +3,7 @@ import {memo} from "react"
 import {Typography} from "antd"
 
 import usePlayground from "../../hooks/usePlayground"
-import { componentLogger } from "../../assets/utilities/componentLogger"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import MinMaxControl from "./assets/MinMaxControl"
 import BooleanControl from "./assets/BooleanControl"
@@ -13,7 +13,7 @@ import PromptMessageContent from "./assets/PromptMessageContent"
 import TextControl from "./assets/TextControl"
 
 import type {PlaygroundVariantPropertyControlProps, RenderFunctions, ArrayItemValue} from "./types"
-import type { EnhancedConfigValue } from "../../assets/utilities/genericTransformer/types"
+import type {EnhancedConfigValue} from "../../assets/utilities/genericTransformer/types"
 
 const renderMap: RenderFunctions = {
     number: (metadata, value, handleChange) => {

@@ -120,7 +120,7 @@ type LayoutProps = {
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
-    const {currentApp, isLoading} = useAppsData()
+    const {currentApp, isLoading, error} = useAppsData()
     const [footerRef, {height: footerHeight}] = useElementSize()
     const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
@@ -208,9 +208,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [appTheme])
 
     // wait unitl we have the app id, if its an app route
-    if (isAppRoute && !appId) return null
+    if (isAppRoute && (!appId || !project)) return null
 
-    if (appId && !currentApp && !isLoading)
+    if (appId && !currentApp && !isLoading && !error)
         return (
             <div className={classes.notFoundContainer}>
                 <Typography.Text>404 - Page Not Found</Typography.Text>
@@ -262,9 +262,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 <Sidebar />
                                 <Layout className={classes.layout}>
                                     <div>
-                                        <div className={clsx(classes.breadcrumbContainer, {
-                                            '[&&]:!mb-0': isNewPlayground
-                                        })}>
+                                        <div
+                                            className={clsx(classes.breadcrumbContainer, {
+                                                "[&&]:!mb-0": isNewPlayground,
+                                            })}
+                                        >
                                             <Breadcrumb
                                                 items={[
                                                     {
@@ -282,9 +284,12 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                                 <Text>agenta v{packageJsonData.version}</Text>
                                             </div>
                                         </div>
-                                        <Content className={clsx(classes.content, {
-                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0": isNewPlayground
-                                        })}>
+                                        <Content
+                                            className={clsx(classes.content, {
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isNewPlayground,
+                                            })}
+                                        >
                                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                                 <ConfigProvider
                                                     theme={{

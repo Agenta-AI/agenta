@@ -3,13 +3,15 @@ import dynamic from "next/dynamic"
 import clsx from "clsx"
 
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
-import { componentLogger } from "../../assets/utilities/componentLogger"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PlaygroundVariantProps} from "./types"
 
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
-const PlaygroundVariantTestView = dynamic(() => import("../PlaygroundVariantTestView"), {ssr: false})
+const PlaygroundVariantTestView = dynamic(() => import("../PlaygroundVariantTestView"), {
+    ssr: false,
+})
 
 /**
  * PlaygroundVariant renders a single variant instance in the playground.

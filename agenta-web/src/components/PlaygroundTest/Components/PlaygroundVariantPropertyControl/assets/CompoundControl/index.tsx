@@ -1,16 +1,16 @@
-import {Select, Form} from 'antd'
-import { CompoundControlProps } from './types'
+import {Select, Form} from "antd"
+import {CompoundControlProps} from "./types"
 
 const CompoundControl: React.FC<CompoundControlProps> = ({
     value,
     options,
     onChange,
     nullable,
-    placeholder
+    placeholder,
 }) => {
     const handleChange = (selectedValue: string) => {
-        const option = options.find(opt => opt.value === selectedValue)
-        onChange(option ? {...option.config, type: selectedValue } : null)
+        const option = options.find((opt) => opt.value === selectedValue)
+        onChange(option ? {...option.config, type: selectedValue} : null)
     }
 
     return (

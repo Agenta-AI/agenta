@@ -8,10 +8,15 @@ import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 import NewVariantButton from "../NewVariantButton"
 
-import type { VariantsButtonProps, VariantsListProps } from "./types"
-import type { EnhancedVariant } from "../../assets/utilities/transformer/types"
+import type {VariantsButtonProps, VariantsListProps} from "./types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
-const VariantsList = ({selectedVariant, displayedVariants = [], onSelect, closeModal}: VariantsListProps) => {
+const VariantsList = ({
+    selectedVariant,
+    displayedVariants = [],
+    onSelect,
+    closeModal,
+}: VariantsListProps) => {
     const [query, setQuery] = useState("")
     const [debouncedQuery, setDebouncedQuery] = useState("")
 
@@ -41,11 +46,14 @@ const VariantsList = ({selectedVariant, displayedVariants = [], onSelect, closeM
         )
     }, [variantsList, debouncedQuery])
 
-    const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value
-        setQuery(value)
-        debouncedSearch(value)
-    }, [debouncedSearch])
+    const handleSearch = useCallback(
+        (e: React.ChangeEvent<HTMLInputElement>) => {
+            const value = e.target.value
+            setQuery(value)
+            debouncedSearch(value)
+        },
+        [debouncedSearch],
+    )
 
     return (
         <div className="flex flex-col gap-2">
@@ -74,14 +82,15 @@ const VariantsList = ({selectedVariant, displayedVariants = [], onSelect, closeM
                     <li className="p-2 text-gray-500 text-center">No variants found</li>
                 ) : (
                     filteredVariants.map((variant) => {
-                        const isSelected = variant.variantId === selectedVariant || displayedVariants.includes(variant.variantId)
+                        const isSelected =
+                            variant.variantId === selectedVariant ||
+                            displayedVariants.includes(variant.variantId)
                         return (
                             <li
                                 className={clsx([
                                     "p-2 hover:bg-[rgba(5,23,41,0.03)] relative",
                                     {
-                                        "bg-[rgba(5,23,41,0.06)]":
-                                        isSelected,
+                                        "bg-[rgba(5,23,41,0.06)]": isSelected,
                                     },
                                 ])}
                                 key={variant.variantId}
@@ -123,9 +132,12 @@ const VariantsButton = ({
     // Local state for modal visibility
     const {variantName} = usePlayground({
         variantId: selectedVariant,
-        variantSelector: useCallback((variant: EnhancedVariant) => ({
-            variantName: variant.variantName,
-        }), []),
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => ({
+                variantName: variant.variantName,
+            }),
+            [],
+        ),
     })
     const [isModalOpen, setIsModalOpen] = useState(false)
 
