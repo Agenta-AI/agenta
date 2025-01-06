@@ -3,14 +3,8 @@ import {useMemo} from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 const LOGOS = {
-    dark: {
-        complete: "/assets/dark-complete-transparent-CROPPED.png",
-        onlyIcon: "/assets/dark-logo.svg",
-    },
-    light: {
-        complete: "/assets/light-complete-transparent-CROPPED.png",
-        onlyIcon: "/assets/light-logo.svg",
-    },
+    dark: "/assets/dark-complete-transparent-CROPPED.png",
+    light: "/assets/light-complete-transparent-CROPPED.png",
 }
 
 const Logo: React.FC<Partial<React.ComponentProps<typeof Image>> & {isOnlyIconLogo?: boolean}> = (
@@ -20,10 +14,25 @@ const Logo: React.FC<Partial<React.ComponentProps<typeof Image>> & {isOnlyIconLo
     const {isOnlyIconLogo, ...imageProps} = props
 
     const logoSrc = useMemo(() => LOGOS[appTheme], [appTheme])
-    return isOnlyIconLogo ? (
-        <Image width={40} height={51} {...imageProps} src={logoSrc.onlyIcon} alt="Agenta Logo" />
-    ) : (
-        <Image width={154.8} height={51} {...imageProps} src={logoSrc.complete} alt="Agenta Logo" />
+
+    return (
+        <div
+            className={`overflow-hidden h-[51px] transition-width duration-300 ease-in-out ${
+                isOnlyIconLogo ? "w-[40px]" : "w-[154.8px]"
+            }`}
+        >
+            <Image
+                {...imageProps}
+                src={logoSrc}
+                alt="Agenta Logo"
+                width={154.8}
+                height={51}
+                style={{
+                    transition: "transform 0.3s ease",
+                    transform: isOnlyIconLogo ? "translateX(-5px)" : "translateX(0)",
+                }}
+            />
+        </div>
     )
 }
 
