@@ -94,12 +94,14 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             arrow={false}
             title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
             content={
-                <ModelConfigModal
-                    variantId={variantId}
-                    propertyIds={propertyIds || []}
-                    handleClose={handleModalClose}
-                    handleSave={handleSave}
-                />
+                isModalOpen ? (
+                    <ModelConfigModal
+                        variantId={variantId}
+                        propertyIds={propertyIds || []}
+                        handleClose={handleModalClose}
+                        handleSave={handleSave}
+                    />
+                ) : null
             }
             className={className}
         >
