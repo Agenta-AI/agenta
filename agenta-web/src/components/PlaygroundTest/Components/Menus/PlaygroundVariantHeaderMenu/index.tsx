@@ -24,24 +24,6 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     const items: MenuProps["items"] = useMemo(
         () => [
             {
-                key: "commit",
-                label: "Commit",
-                icon: <FloppyDiskBack size={14} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    setIsCommitModalOpen(true)
-                },
-            },
-            {
-                key: "deploy",
-                label: "Deploy",
-                icon: <Rocket size={14} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    setIsDeployOpen(true)
-                },
-            },
-            {
                 key: "history",
                 label: "History",
                 icon: <ArrowCounterClockwise size={14} />,
@@ -56,15 +38,6 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                     setIsVariantRenameOpen(true)
-                },
-            },
-            {
-                key: "focus",
-                label: "Focus view",
-                icon: <ArrowsOut size={14} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    setIsFocusMoodOpen(true)
                 },
             },
             {type: "divider"},

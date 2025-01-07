@@ -1,7 +1,6 @@
 import {Typography, message} from "antd"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
-import VariantsButton from "../VariantsButton"
 
 import type {BaseContainerProps} from "../types"
 import dynamic from "next/dynamic"
@@ -45,7 +44,8 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                 <Typography className="text-[16px] leading-[18px] font-[600]">
                     Playground
                 </Typography>
-                <VariantsButton
+
+                <PlaygroundCreateNewVariant
                     displayedVariants={displayedVariants}
                     onSelect={(variant) => {
                         addVariantToDisplay?.(variant)
