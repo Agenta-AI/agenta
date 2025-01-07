@@ -4,9 +4,9 @@ import {message} from "antd"
 
 import usePlayground from "../../hooks/usePlayground"
 import AddButton from "../../assets/AddButton"
-import NewVariantModal from "../NewVariantModal"
 
 import {NewVariantButtonProps} from "./types"
+import CreateVariantModal from "../Modals/CreateVariantModal"
 
 /**
  * Button to add a new variant
@@ -65,7 +65,7 @@ const NewVariantButton = ({children}: NewVariantButtonProps) => {
                     }}
                 />
             )}
-            <NewVariantModal
+            <CreateVariantModal
                 variants={variants || []}
                 isModalOpen={displayModal}
                 setIsModalOpen={setDisplayModal}

@@ -37,9 +37,7 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: useCallback((variant: EnhancedVariant) => {
             const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
-            return {
-                promptIds,
-            }
+            return {promptIds}
         }, []),
     })
 

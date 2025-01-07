@@ -9,14 +9,6 @@ const PlaygroundVariantHistoryHeaderMenu: React.FC<PlaygroundVariantHistoryHeade
     const items: MenuProps["items"] = useMemo(
         () => [
             {
-                key: "deploy",
-                label: "Deploy",
-                icon: <Rocket size={14} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                },
-            },
-            {
                 key: "focus",
                 label: "Focus view",
                 icon: <ArrowsOut size={14} />,
@@ -24,20 +16,11 @@ const PlaygroundVariantHistoryHeaderMenu: React.FC<PlaygroundVariantHistoryHeade
                     e.domEvent.stopPropagation()
                 },
             },
-            {type: "divider"},
+
             {
                 key: "clone",
                 label: "Clone",
                 icon: <Copy size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                },
-            },
-
-            {type: "divider"},
-            {
-                key: "close",
-                label: "Close panel",
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                 },

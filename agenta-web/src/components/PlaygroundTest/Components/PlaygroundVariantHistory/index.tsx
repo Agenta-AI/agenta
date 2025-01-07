@@ -6,16 +6,17 @@ import PlaygroundVariantHistoryHeader from "./assets/PlaygroundVariantHistoryHea
 import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 import usePlayground from "../../hooks/usePlayground"
-import {variantToPromptsSelector} from "../PlaygroundVariantConfig/assets/helpers"
+import { useCallback } from "react"
+import { EnhancedVariant } from "../../assets/utilities/transformer/types"
 
 const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({variantId}) => {
-    const {prompts = []} = usePlayground({
+    const {promptIds = []} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantHistory",
-        variantSelector: (variant) => ({
-            ...variantToPromptsSelector(variant),
-            variantName: variant?.variantName,
-        }),
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
+            return {promptIds}
+        }, []),
     })
     const classes = useStyles()
     const lintOfRevisions = ["2", "3", "5", "6", "7"]
@@ -38,10 +39,10 @@ const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({vari
                 </div>
 
                 <main className="w-full p-1 pr-4">
-                    {prompts.map((prompt, promptIndex) => (
+                    {promptIds.map((promptId) => (
                         <PlaygroundVariantConfigPrompt
-                            key={prompt.key as string}
-                            promptIndex={promptIndex}
+                            key={promptId as string}
+                            promptId={promptId}
                             variantId={variantId}
                         />
                     ))}
