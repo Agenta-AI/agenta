@@ -211,10 +211,13 @@ async def create_app(
     """
     try:
         if isCloudEE():
-            api_key_from_headers = request.headers.get("Authorization")
+            api_key_from_headers = request.headers.get("Authorization", None)
             if api_key_from_headers is not None:
+                api_key = api_key_from_headers.split(" ")[
+                    -1
+                ]  # ["ApiKey", "xxxxx.xxxxxx"]
                 await check_apikey_action_access(
-                    api_key_from_headers,
+                    api_key,
                     request.state.user_id,
                     Permission.CREATE_APPLICATION,
                 )
@@ -656,6 +659,8 @@ async def create_app_and_variant_from_template(
             if isCloudEE()
             else "Step 7: Starting variant and injecting environment variables"
         )
+
+        envvars = {}
         if isCloudEE():
             supported_llm_prodviders_keys = [
                 "OPENAI_API_KEY",
@@ -671,21 +676,27 @@ async def create_app_and_variant_from_template(
                 "GROQ_API_KEY",
                 "GEMINI_API_KEY",
             ]
+
             missing_keys = [
                 key for key in supported_llm_prodviders_keys if not os.environ.get(key)
             ]
+
             if missing_keys:
                 missing_keys_str = ", ".join(missing_keys)
                 raise Exception(
                     f"Unable to start app container. The following environment variables are missing: {missing_keys_str}. Please file an issue by clicking on the button below."
                 )
 
-            envvars = {**(payload.env_vars or {})}
+            if not isCloudEE():
+                envvars = {**(payload.env_vars or {})}
+
             for key in supported_llm_prodviders_keys:
                 if not envvars.get(key):
                     envvars[key] = os.environ[key]
+
         else:
             envvars = {} if payload.env_vars is None else payload.env_vars
+
         await app_manager.start_variant(
             app_variant_db,
             str(app.project_id),
