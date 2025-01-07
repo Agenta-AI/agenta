@@ -316,7 +316,11 @@ const Sidebar: React.FC = () => {
                             style={{
                                 transition: "transform 0.3s ease",
                                 transform:
-                                    collapsed && !isHovered ? "translateX(74px)" : "translateX(0)",
+                                    collapsed && !isHovered
+                                        ? isDemo()
+                                            ? "translate(91px)"
+                                            : "translateX(74px)"
+                                        : "translateX(0)",
                             }}
                         >
                             <div>
@@ -337,19 +341,19 @@ const Sidebar: React.FC = () => {
                                             },
                                         }}
                                     >
-                                        <Button className={classes.avatarMainContainer}>
+                                        <Button
+                                            className={`${classes.avatarMainContainer} ${collapsed && !isHovered ? "border-none" : ""}`}
+                                        >
                                             <div className={classes.avatarContainer}>
                                                 <Avatar
                                                     className="text-lg"
                                                     name={selectedOrg.name}
                                                 />
 
-                                                {!collapsed && !isHovered && (
-                                                    <div>
-                                                        <Text>{selectedOrg.name}</Text>
-                                                        <Text>{selectedOrg.type}</Text>
-                                                    </div>
-                                                )}
+                                                <div>
+                                                    <Text>{selectedOrg.name}</Text>
+                                                    <Text>{selectedOrg.type}</Text>
+                                                </div>
                                             </div>
 
                                             <CaretDown size={14} />
@@ -359,7 +363,10 @@ const Sidebar: React.FC = () => {
                             </div>
 
                             <Button
-                                onClick={() => setCollapsed(!collapsed)}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    setCollapsed(!collapsed)
+                                }}
                                 icon={<SidebarSimple size={14} />}
                                 type={collapsed && isHovered ? "primary" : undefined}
                             />
