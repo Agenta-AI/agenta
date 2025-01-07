@@ -306,50 +306,66 @@ const Sidebar: React.FC = () => {
                 }}
             >
                 <div className={classes.sliderContainer}>
-                    <div className="flex items-center gap-2">
-                        <div>
-                            {!isDemo() && (
-                                <Link data-cy="app-management-link" href="/apps">
-                                    <Logo isOnlyIconLogo={collapsed && !isHovered} />
-                                </Link>
-                            )}
-                            {selectedOrg?.id && user?.id && isDemo() && (
-                                <Dropdown
-                                    trigger={["hover"]}
-                                    menu={{
-                                        items: dropdownItems,
-                                        selectedKeys: [selectedOrg.id],
-                                        onClick: ({key}) => {
-                                            if (["settings", "logout"].includes(key)) return
-                                            changeSelectedOrg(key)
-                                        },
-                                    }}
-                                >
-                                    <Button className={classes.avatarMainContainer}>
-                                        <div className={classes.avatarContainer}>
-                                            <Avatar className="text-lg" name={selectedOrg.name} />
+                    <div
+                        className={` overflow-hidden h-[51px] transition-width duration-300 ease-in-out ${
+                            collapsed && !isHovered ? "w-[40px]" : "w-full"
+                        }`}
+                    >
+                        <div
+                            className={`flex items-center gap-2`}
+                            style={{
+                                transition: "transform 0.3s ease",
+                                transform:
+                                    collapsed && !isHovered ? "translateX(74px)" : "translateX(0)",
+                            }}
+                        >
+                            <div>
+                                {!isDemo() && (
+                                    <Link data-cy="app-management-link" href="/apps">
+                                        <Logo isOnlyIconLogo={collapsed && !isHovered} />
+                                    </Link>
+                                )}
+                                {selectedOrg?.id && user?.id && isDemo() && (
+                                    <Dropdown
+                                        trigger={["hover"]}
+                                        menu={{
+                                            items: dropdownItems,
+                                            selectedKeys: [selectedOrg.id],
+                                            onClick: ({key}) => {
+                                                if (["settings", "logout"].includes(key)) return
+                                                changeSelectedOrg(key)
+                                            },
+                                        }}
+                                    >
+                                        <Button className={classes.avatarMainContainer}>
+                                            <div className={classes.avatarContainer}>
+                                                <Avatar
+                                                    className="text-lg"
+                                                    name={selectedOrg.name}
+                                                />
 
-                                            {!collapsed && !isHovered && (
-                                                <div>
-                                                    <Text>{selectedOrg.name}</Text>
-                                                    <Text>{selectedOrg.type}</Text>
-                                                </div>
-                                            )}
-                                        </div>
+                                                {!collapsed && !isHovered && (
+                                                    <div>
+                                                        <Text>{selectedOrg.name}</Text>
+                                                        <Text>{selectedOrg.type}</Text>
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                        <CaretDown size={14} />
-                                    </Button>
-                                </Dropdown>
-                            )}
-                        </div>
-                        {!collapsed || (collapsed && isHovered) ? (
+                                            <CaretDown size={14} />
+                                        </Button>
+                                    </Dropdown>
+                                )}
+                            </div>
+
                             <Button
                                 onClick={() => setCollapsed(!collapsed)}
                                 icon={<SidebarSimple size={14} />}
                                 type={collapsed && isHovered ? "primary" : undefined}
                             />
-                        ) : null}
+                        </div>
                     </div>
+
                     <Divider className="my-4" />
                     <ErrorBoundary fallback={<div />}>
                         <div>
