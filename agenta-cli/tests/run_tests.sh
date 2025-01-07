@@ -1,22 +1,56 @@
 #!/bin/bash
 
-set -e
+# Define default values for the server
+HOST="127.0.0.1"
+PORT="8888"
+TEST_TARGET="specs/*"
+PYTEST_OPTIONS=""
+MARKERS=""
+APP=""
 
-# Function to prompt for a variable if not already set
-check_and_request_var() {
-  local var_name=$1
-  local var_value=${!var_name}  # Use indirect variable reference to get value
-  if [ -z "$var_value" ]; then
-    read -p "Enter value for $var_name: " var_value
-    export $var_name="$var_value"
-    export BASE_URL="http://127.0.0.1" # required for sdk routing test suites
-  fi
+# Function to display usage
+usage() {
+    echo "Usage: $0 [-h host] [-p port] [-t test_target] [-o pytest_options] [-m markers] [-a app] [-k key]"
+    echo "  -h host           Specify the FastAPI server host. Default is 127.0.0.1."
+    echo "  -p port           Specify the FastAPI server port. Default is 8000."
+    echo "  -t test_target    Specify the pytest test target to run. Default is 'specs'."
+    echo "  -o pytest_options Pass additional options to pytest."
+    echo "  -m markers        Specify marker expressions (e.g., 'smoke or integration')."
+    echo "  -a app            Specify the FastAPI app to run."
+    echo "  -k key            Specify the API key."
+    exit 1
 }
 
-# Check for required variables and prompt if missing
-check_and_request_var "OPENAI_API_KEY"
-check_and_request_var "AGENTA_HOST"
+# Parse command-line arguments
+while getopts "h:p:t:o:m:a:k:" opt; do
+    case ${opt} in
+        h) HOST="$OPTARG" ;;
+        p) PORT="$OPTARG" ;;
+        t) TEST_TARGET="$OPTARG" ;;
+        o) PYTEST_OPTIONS="$OPTARG" ;;
+        m) MARKERS="$OPTARG" ;;
+        a) APP="$OPTARG" ;;
+        k) API_KEY="$OPTARG" ;;
+        *) usage ;;
+    esac
+done
 
-# Run test commands
-pytest -n 2 -v ./management/* ./sdk_routing/* 
-pytest -v ./cli/*
+if [[ -z "$APP" ]]; then
+    echo "Error: Please specify the FastAPI app to run with the -a option."
+    usage
+fi
+
+# Start the FastAPI server
+./start_server.sh -h "$HOST" -p "$PORT" -a "$APP"
+
+# Export the base URL as an environment variable
+export BASE_URL="http://${HOST}:${PORT}"
+
+# Export the API key as an environment variable
+export API_KEY="$API_KEY"
+
+# Run pytest tests with markers
+./run_pytest.sh -t "$TEST_TARGET" -o "$PYTEST_OPTIONS" -m "$MARKERS" -a "$APP"
+
+# Stop the FastAPI server
+./stop_server.sh

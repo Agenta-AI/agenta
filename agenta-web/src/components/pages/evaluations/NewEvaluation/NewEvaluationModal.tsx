@@ -75,6 +75,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     const {secrets} = useVaultSecret()
+
     const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
     const handlePanelChange = (key: string | string[]) => {
         setActivePanel((prevKey) => (prevKey === key ? null : (key as string)))
