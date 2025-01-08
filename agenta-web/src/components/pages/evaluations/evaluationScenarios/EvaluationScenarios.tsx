@@ -13,8 +13,7 @@ import {
     fetchAllEvaluators,
 } from "@/services/evaluations/api"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
-import {ColDef, ICellRendererParams} from "ag-grid-community"
-import {AgGridReact} from "ag-grid-react"
+import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
 import React, {useEffect, useMemo, useRef, useState} from "react"
@@ -36,6 +35,7 @@ import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {escapeNewlines} from "@/lib/helpers/fileManipulations"
 import {getStringOrJson} from "@/lib/helpers/utils"
+import AgGridReact, {type AgGridReactType} from "@/lib/helpers/agGrid"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -66,7 +66,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
     const [scenarios, setScenarios] = useState<_EvaluationScenario[]>([])
     const [fetching, setFetching] = useState(false)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
-    const gridRef = useRef<AgGridReact<_EvaluationScenario>>()
+    const [gridRef, setGridRef] = useState<AgGridReactType<_EvaluationScenario>>()
     const evalaution = scenarios[0]?.evaluation
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
@@ -287,14 +287,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
                 setScenarios(scenarios)
                 setEvaluators(evaluators)
                 setTimeout(() => {
-                    if (!gridRef.current) return
+                    if (!gridRef) return
 
                     const ids: string[] =
-                        gridRef.current.api
+                        gridRef.api
                             .getColumns()
                             ?.filter((column) => column.getColDef().field === "results")
                             ?.map((item) => item.getColId()) || []
-                    gridRef.current.api.autoSizeColumns(ids, false)
+                    gridRef.api.autoSizeColumns(ids, false)
                     setFetching(false)
                 }, 100)
             })
@@ -303,13 +303,14 @@ const EvaluationScenarios: React.FC<Props> = () => {
     }
 
     useEffect(() => {
+        if (!gridRef) return
         fetcher()
-    }, [appId, evaluationId])
+    }, [appId, gridRef, evaluationId])
 
     const onExport = () => {
-        if (!gridRef.current) return
+        if (!gridRef) return
         const {currentApp} = getAppValues()
-        gridRef.current.api.exportDataAsCsv({
+        gridRef.api.exportDataAsCsv({
             fileName: `${currentApp?.app_name}_${evalaution.variants[0].variantName}.csv`,
             processHeaderCallback: (params) => {
                 if (params.column.getColDef().headerName === "Output") {
@@ -422,7 +423,7 @@ const EvaluationScenarios: React.FC<Props> = () => {
                     data-cy="evalaution-scenarios-table"
                 >
                     <AgGridReact<_EvaluationScenario>
-                        ref={gridRef as any}
+                        gridRef={setGridRef}
                         rowData={scenarios}
                         columnDefs={colDefs}
                         getRowId={(params) => params.data.id}

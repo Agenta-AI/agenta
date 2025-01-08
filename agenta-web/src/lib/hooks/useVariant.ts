@@ -1,7 +1,7 @@
 import {useState, useEffect, useRef} from "react"
 import {Variant, Parameter} from "@/lib/Types"
 import {getAllVariantParameters, updateInputParams} from "@/lib/helpers/variantHelper"
-import {PERMISSION_ERR_MSG} from "../helpers/axiosConfig"
+import {PERMISSION_ERR_MSG} from "../api/assets/axiosConfig"
 import {createNewVariant, fetchVariantLogs, updateVariantParams} from "@/services/playground/api"
 
 /**

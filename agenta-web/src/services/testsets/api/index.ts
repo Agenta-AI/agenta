@@ -1,5 +1,5 @@
 import useSWR from "swr"
-import axios from "@/lib/helpers/axiosConfig"
+import axios from "@/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {axiosFetcher} from "@/services/api"
 import {getCurrentProject} from "@/contexts/project.context"
@@ -14,11 +14,10 @@ import {getCurrentProject} from "@/contexts/project.context"
 export const useLoadTestsetsList = () => {
     const {projectId} = getCurrentProject()
 
-    const {data, error, mutate, isLoading} = useSWR(
-        `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`,
-        axiosFetcher,
-        {revalidateOnFocus: false, shouldRetryOnError: false},
-    )
+    const {data, error, mutate, isLoading} = useSWR(`/api/testsets?project_id=${projectId}`, {
+        revalidateOnFocus: false,
+        shouldRetryOnError: false,
+    })
 
     return {
         testsets: data || [],
