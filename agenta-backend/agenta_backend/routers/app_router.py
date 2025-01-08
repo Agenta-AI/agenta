@@ -28,6 +28,7 @@ from agenta_backend.models.api.api_models import (
     CreateAppOutput,
     AddVariantFromImagePayload,
     AddVariantFromURLPayload,
+    AddVariantFromKeyPayload,
 )
 
 if isCloudEE():
@@ -251,6 +252,7 @@ async def create_app(
 
         app_db = await db_manager.create_app_and_envs(
             payload.app_name,
+            service_key=payload.service_key,
             project_id=request.state.project_id,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
@@ -486,6 +488,32 @@ async def add_variant_from_url(
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{app_id}/variant/from-key/", operation_id="add_variant_from_key")
+async def add_variant_from_key(
+    app_id: str,
+    payload: AddVariantFromKeyPayload,
+    request: Request,
+):
+    try:
+        url = app_manager.get_service_url_from_key(payload.key)
+
+        if not url:
+            raise HTTPException(status_code=400, detail="Service key not supported")
+
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    payload = AddVariantFromURLPayload(
+        variant_name=payload.variant_name,
+        url=url,
+        base_name=payload.base_name,
+        config_name=payload.config_name,
+    )
+
+    return await add_variant_from_url(app_id, payload, request)
 
 
 @router.delete("/{app_id}/", operation_id="remove_app")
