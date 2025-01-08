@@ -1,7 +1,7 @@
 import {Tooltip} from "antd"
 import {createUseStyles} from "react-jss"
 import {EditOutlined} from "@ant-design/icons"
-import {ICellRendererParams} from "ag-grid-community"
+import {type ICellRendererParams} from "@ag-grid-community/core"
 
 const useStylesCell = createUseStyles({
     cellContainer: {

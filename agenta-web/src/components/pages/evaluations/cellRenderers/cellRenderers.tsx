@@ -12,7 +12,7 @@ import {
     FullscreenOutlined,
     InfoCircleOutlined,
 } from "@ant-design/icons"
-import {ICellRendererParams} from "ag-grid-community"
+import {type ICellRendererParams} from "@ag-grid-community/core"
 import {GlobalToken, Space, Tooltip, Typography, message, theme} from "antd"
 import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"

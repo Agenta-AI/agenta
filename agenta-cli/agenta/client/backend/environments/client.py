@@ -70,6 +70,9 @@ class EnvironmentsClient:
                 "environment_name": environment_name,
                 "variant_id": variant_id,
             },
+            headers={
+                "content-type": "application/json",
+            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -161,6 +164,9 @@ class AsyncEnvironmentsClient:
             json={
                 "environment_name": environment_name,
                 "variant_id": variant_id,
+            },
+            headers={
+                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
