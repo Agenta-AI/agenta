@@ -1,15 +1,30 @@
+import {useCallback, useState} from "react"
 import {Input, Modal, Typography} from "antd"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {CommitVariantChangesModalProps} from "./types"
+import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
 
 const {Text} = Typography
 
-const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({...props}) => {
-    const variantName = "app.v6"
+const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
+    variantId,
+    ...props
+}) => {
+    const {variant, saveVariant} = usePlayground({
+        variantId,
+        hookId: "CommitVariantChangesModal",
+    })
+    const [note, setNote] = useState("")
 
-    const onClose = (e: any) => {
-        props.onCancel?.(e)
-    }
+    const onClose = useCallback(() => {
+        props.onCancel?.({} as any)
+    }, [])
+
+    // TODO: add loading state here
+    const onSaveVariantChnages = useCallback(async () => {
+        await saveVariant?.()
+        onClose()
+    }, [])
 
     return (
         <Modal
@@ -17,24 +32,25 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({..
             destroyOnClose
             title="Commit changes"
             onCancel={onClose}
-            okText={
-                <div className="flex items-center gap-1">
-                    <FloppyDiskBack size={14} className="-mb-[3px]" /> Commit
-                </div>
-            }
+            okText="Commit"
+            onOk={onSaveVariantChnages}
+            okButtonProps={{icon: <FloppyDiskBack size={14} />}}
+            classNames={{footer: "flex items-center justify-end"}}
             {...props}
         >
             <section className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
                     <Text>You are about to new version</Text>
 
-                    <Text>{variantName}</Text>
+                    <Text>{variant?.variantName}</Text>
                 </div>
                 <div className="flex flex-col gap-1">
                     <Text>Notes (optional)</Text>
                     <Input.TextArea
                         placeholder="Describe the changes that you have done for this version"
                         className="w-full"
+                        value={note}
+                        onChange={(e) => setNote(e.target.value)}
                     />
                 </div>
             </section>

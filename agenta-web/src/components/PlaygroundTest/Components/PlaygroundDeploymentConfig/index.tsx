@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 import {Collapse} from "antd"
-import Version from "../../assets/Version"
+import DeploymentTag from "../../assets/DeploymentTag"
 import {PlaygroundDeploymentConfigProps} from "./types"
 
 const PlaygroundDeploymentConfig: React.FC<PlaygroundDeploymentConfigProps> = ({...props}) => {
@@ -15,11 +15,7 @@ const PlaygroundDeploymentConfig: React.FC<PlaygroundDeploymentConfigProps> = ({
                 children: (
                     <div className="flex items-center gap-2">
                         {[1, 2, 3].map((item) => (
-                            <Version
-                                type="deployment"
-                                revision={item}
-                                deploymentName="production"
-                            />
+                            <DeploymentTag revision={item} deploymentName="production" />
                         ))}
                     </div>
                 ),
