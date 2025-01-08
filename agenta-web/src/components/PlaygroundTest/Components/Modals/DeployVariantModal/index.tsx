@@ -1,115 +1,61 @@
-import React, {useMemo, useState} from "react"
-import {Modal, Typography, Table, Input} from "antd"
+import {useCallback, useMemo, useState} from "react"
+import dynamic from "next/dynamic"
+import {Modal} from "antd"
 import {DeployVariantModalProps} from "./types"
-import {ColumnsType} from "antd/es/table"
 import {Rocket} from "@phosphor-icons/react"
-
-const {Text} = Typography
+import DeploymentEnviromentTable from "./assets/DeploymentEnviromentTable"
+import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
+const ConfirmDeploymentNote = dynamic(() => import("./assets/ConfirmDeploymentNote"), {ssr: false})
 
 const DeployVariantModal: React.FC<DeployVariantModalProps> = ({
-    variant,
+    variantId,
     environments,
     ...props
 }) => {
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const {variant} = usePlayground({variantId, hookId: "DeployVariantModal"})
+    const [selectedEnvs, setSelectedEnvs] = useState<string[]>([])
+    const [note, setNote] = useState("")
     const [current, setCurrent] = useState(0)
 
-    const onClose = (e: any) => {
-        props.onCancel?.(e)
-        setCurrent(0)
-    }
-
-    const rowSelection = useMemo(
-        () => ({
-            onChange: (selectedRowKeys: React.Key[]) => {
-                setSelectedRowKeys(selectedRowKeys)
-            },
-        }),
-        [],
-    )
-
-    const columns: ColumnsType = useMemo(
-        () => [
-            {
-                title: "Environment",
-                dataIndex: "environment",
-                key: "environment",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-            },
-            {
-                title: "Current deployment",
-                dataIndex: "deployment",
-                key: "deployment",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-            },
-        ],
-        [],
-    )
+    const onClose = useCallback(() => {
+        props.onCancel?.({} as any)
+    }, [])
 
     const steps = useMemo(
         () => [
             {
                 title: "Deploy variant",
-                onClick: () => {
-                    setCurrent(1)
-                },
+                onClick: () => setCurrent(1),
                 component: (
-                    <>
-                        <Text>Select an environment to deploy app.default v2.1</Text>
-
-                        <Table
-                            rowSelection={{
-                                type: "checkbox",
-                                columnWidth: 48,
-                                ...rowSelection,
-                            }}
-                            data-cy="app-testset-list"
-                            className={`ph-no-capture`}
-                            columns={columns}
-                            // dataSource={filteredTestset}
-                            rowKey="_id"
-                            pagination={false}
-                        />
-                    </>
+                    <DeploymentEnviromentTable
+                        // environments={}
+                        selectedEnvs={selectedEnvs}
+                        setSelectedEnvs={setSelectedEnvs}
+                        variantId={variantId}
+                        variant={variant}
+                    />
                 ),
             },
             {
                 title: "Confirm deployment",
                 onClick: () => {},
-                component: (
-                    <>
-                        <div className="flex flex-col gap-1">
-                            <Text>You are about to deploy staging environment</Text>
-                            <Text>Revision v6</Text>
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <Text>Notes (optional)</Text>
-                            <Input.TextArea
-                                placeholder="Describe why you are deploying"
-                                className="w-full"
-                            />
-                        </div>
-                    </>
-                ),
+                component: <ConfirmDeploymentNote value={note} setValue={setNote} />,
             },
         ],
-        [current, rowSelection],
+        [current],
     )
 
     return (
         <Modal
-            title={steps[current]?.title}
-            onCancel={onClose}
-            okText="Deploy"
-            onOk={steps[current]?.onClick}
-            okButtonProps={{icon: <Rocket size={14} />}}
             centered
             destroyOnClose
+            okText="Deploy"
+            onCancel={onClose}
+            title={steps[current]?.title}
+            afterClose={() => setCurrent(0)}
+            onOk={steps[current]?.onClick}
+            okButtonProps={{icon: <Rocket size={14} />, disabled: !selectedEnvs.length}}
+            classNames={{footer: "flex items-center justify-end"}}
             {...props}
         >
             <section className="flex flex-col gap-4">{steps[current]?.component}</section>

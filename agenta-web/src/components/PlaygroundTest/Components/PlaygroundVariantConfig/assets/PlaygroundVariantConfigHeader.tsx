@@ -1,14 +1,13 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Button, Select} from "antd"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
-import {Variant} from "@/lib/Types"
 import {ArrowsOut, FloppyDiskBack} from "@phosphor-icons/react"
 
 import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
 import Version from "@/components/PlaygroundTest/assets/Version"
-import {EnhancedVariant} from "@/components/PlaygroundTest/assets/utilities/transformer/types"
+import {PlaygroundStateData} from "@/components/PlaygroundTest/hooks/usePlayground/types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -39,24 +38,35 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
     const [isVariantRenameOpen, setIsVariantRenameOpen] = useState(false)
     const [isResetModalOpen, setIsResetModalOpen] = useState(false)
     const [isdeleteVariantModalOpen, setIsDeleteVariantModalOpen] = useState(false)
-    const {variantName, revision, variants} = usePlayground({
+    const {variantsList, setSelectedVariant, variant} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => ({
-                variantName: variant?.variantName,
-                revision: variant?.revision,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => ({
+                variantsList: state.variants.map((variant) => ({
+                    variantId: variant.id,
+                    variantName: variant.variantName,
+                    revision: variant?.revision,
+                })),
             }),
             [],
         ),
     })
+
+    const listOfVariants = useMemo(
+        () =>
+            variantsList?.map((variant) => ({
+                label: variant.variantName,
+                value: variant.variantId,
+            })),
+        [],
+    )
 
     return (
         <section
             className={clsx(
                 "w-full h-[48px] px-2.5",
                 "flex items-center justify-between",
-                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                 "sticky top-0 z-[1]",
                 "bg-white",
                 className,
@@ -66,15 +76,13 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
             <div className="flex items-center gap-2">
                 <Select
                     style={{width: 120}}
-                    value={variantId}
-                    placeholder="Select a person"
-                    options={variants?.map((variant) => ({
-                        label: variant.variantName,
-                        value: variant.baseId,
-                    }))}
+                    value={variant?.variantName}
+                    onChange={(value) => setSelectedVariant?.(value)}
+                    placeholder="Select variant"
+                    options={listOfVariants}
                 />
 
-                <Version revision={revision} />
+                <Version revision={variant?.revision as number} />
             </div>
             <div className="flex items-center gap-2">
                 <Button
@@ -107,6 +115,7 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
             <DeleteVariantModal
                 open={isdeleteVariantModalOpen}
                 onCancel={() => setIsDeleteVariantModalOpen(false)}
+                variantId={variantId}
             />
 
             <VariantResetChangesModal
@@ -117,11 +126,13 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
             <VariantRenameModal
                 open={isVariantRenameOpen}
                 onCancel={() => setIsVariantRenameOpen(false)}
+                variantId={variantId}
             />
 
             <CommitVariantChangesModal
                 open={isCommitModalOpen}
                 onCancel={() => setIsCommitModalOpen(false)}
+                variantId={variantId}
             />
 
             <PlaygroundPromptFocusDrawer
@@ -133,7 +144,7 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
             <DeployVariantModal
                 open={isDeployOpen}
                 onCancel={() => setIsDeployOpen(false)}
-                variant={variants?.[0] as any}
+                variantId={variantId}
                 environments={[]}
             />
         </section>

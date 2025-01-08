@@ -1,31 +1,38 @@
-import {useState} from "react"
+import {useCallback, useState} from "react"
 import {Input, Modal} from "antd"
 import {Check} from "@phosphor-icons/react"
 import {VariantRenameModalProps} from "./types"
+import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
 
-const VariantRenameModal: React.FC<VariantRenameModalProps> = ({...props}) => {
+const VariantRenameModal: React.FC<VariantRenameModalProps> = ({variantId, ...props}) => {
     const [rename, setRename] = useState("")
+    const {mutateVariant} = usePlayground({
+        variantId,
+        hookId: "PlaygroundVariantConfigHeader",
+    })
 
-    const onClose = (e: any) => {
-        props.onCancel?.(e)
+    const onClose = () => {
+        props.onCancel?.({} as any)
     }
+
+    const onRenameVariant = useCallback(() => {}, [])
 
     return (
         <Modal
             centered
             destroyOnClose
+            okText="Confirm"
             onCancel={onClose}
+            onOk={onRenameVariant}
             title="Rename variant"
-            okText={
-                <div className="flex items-center gap-1">
-                    <Check size={14} className="-mb-[3px]" /> Confirm
-                </div>
-            }
+            okButtonProps={{icon: <Check size={14} />}}
+            classNames={{footer: "flex items-center justify-end"}}
             {...props}
         >
             <div className="mt-4 mb-6">
                 <Input
-                    placeholder="Input"
+                    addonBefore="app."
+                    placeholder="Type variant name..."
                     value={rename}
                     onChange={(e) => setRename(e.target.value)}
                 />
