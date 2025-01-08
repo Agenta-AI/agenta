@@ -155,6 +155,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         variant: EnhancedVariant
                         rowId: string
                         appId: string
+                        apiUrl: string
                         service: string
                         result?: {
                             response?: ApiResponse
@@ -436,8 +437,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 variant,
                                 rowId,
                                 service: config.service,
-                                appId: config.appId,
-                                apiUrl: getAgentaApiUrl(),
+                                appId: config.appId!,
+                                apiUrl: getAgentaApiUrl()!,
                             }),
                         )
 
