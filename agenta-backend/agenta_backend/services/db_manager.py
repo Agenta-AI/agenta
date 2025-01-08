@@ -706,30 +706,61 @@ async def create_deployment(
             raise Exception(f"Error while creating deployment: {e}")
 
 
-async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
+async def get_app_type_from_template_id(template_id: Optional[str]) -> Optional[str]:
     """Get the application type from the specified template.
 
     Args:
         template_id (Optional[str]): The ID of the template
 
     Returns:
-        AppType (str): The determined application type. Defaults to AppType.CUSTOM.
+        AppType (Optional[str]): The determined application type. Defaults to None.
     """
 
     if template_id is None:
-        return AppType.CUSTOM
+        return None
 
     template_db = await get_template(template_id=template_id)
     if "Completion Prompt" in template_db.title:
         return AppType.COMPLETION_TEMPLATE
     elif "Chat Prompt" in template_db.title:
         return AppType.CHAT_TEMPLATE
+
+    return None
+
+
+async def get_app_type_from_service_key(service_key: Optional[str]) -> Optional[str]:
+    """Get the application type from the specified service.
+
+    Args:
+        service_key (Optional[str]): The key of the service
+
+    Returns:
+        AppType (Optional[str]): The determined application type. Defaults to None.
+    """
+
+    if service_key in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+        return service_key
+
+    return None
+
+
+async def get_app_type(
+    template_id: Optional[str] = None,
+    service_key: Optional[str] = None,
+) -> str:
+    if template_id:
+        return await get_app_type_from_template_id(template_id=template_id)
+
+    if service_key:
+        return await get_app_type_from_service_key(service_key=service_key)
+
     return AppType.CUSTOM
 
 
 async def create_app_and_envs(
     app_name: str,
     template_id: Optional[str] = None,
+    service_key: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> AppDB:
     """
@@ -753,7 +784,11 @@ async def create_app_and_envs(
     if app is not None:
         raise ValueError("App with the same name already exists")
 
-    app_type = await get_app_type_from_template_by_id(template_id=template_id)
+    app_type = await get_app_type(
+        template_id=template_id,
+        service_key=service_key,
+    )
+
     async with engine.session() as session:
         app = AppDB(
             app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
