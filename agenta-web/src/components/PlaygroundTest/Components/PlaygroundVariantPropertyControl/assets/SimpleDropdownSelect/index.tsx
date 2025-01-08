@@ -24,7 +24,7 @@ const SimpleDropdownSelect = ({
         <Dropdown menu={{items: menuItems}} trigger={["click"]}>
             <Button
                 className={clsx(
-                    "rounded-md bg-white mt-1 mx-2 px-2 border-0 flex items-center",
+                    "rounded-md bg-white capitalize mt-1 mx-2 px-2 border-0 flex items-center",
                     className,
                 )}
             >

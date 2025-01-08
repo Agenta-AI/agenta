@@ -8,7 +8,7 @@ import {ArrowsOut, FloppyDiskBack} from "@phosphor-icons/react"
 
 import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
 import Version from "@/components/PlaygroundTest/assets/Version"
-import { EnhancedVariant } from "@/components/PlaygroundTest/assets/utilities/transformer/types"
+import {EnhancedVariant} from "@/components/PlaygroundTest/assets/utilities/transformer/types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -32,11 +32,7 @@ const VariantResetChangesModal = dynamic(() => import("../../Modals/VariantReset
 })
 const DeleteVariantModal = dynamic(() => import("../../Modals/DeleteVariantModal"), {ssr: false})
 
-const PlaygroundVariantConfigHeader: React.FC<any> = ({
-    variantId,
-    className,
-    ...divProps
-}) => {
+const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...divProps}) => {
     const [isDeployOpen, setIsDeployOpen] = useState(false)
     const [isFocusMoodOpen, setIsFocusMoodOpen] = useState(false)
     const [isCommitModalOpen, setIsCommitModalOpen] = useState(false)
@@ -93,6 +89,7 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({
                     icon={<FloppyDiskBack size={14} />}
                     type="primary"
                     onClick={() => setIsCommitModalOpen(true)}
+                    size="small"
                 >
                     Commit
                 </Button>

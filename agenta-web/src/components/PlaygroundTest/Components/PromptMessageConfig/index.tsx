@@ -8,6 +8,7 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 
 /**
  * PromptMessageConfig Component
@@ -26,6 +27,7 @@ const PromptMessageConfig = ({
     variantId,
     messageId,
     className,
+    deleteMessage,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -57,24 +59,34 @@ const PromptMessageConfig = ({
     componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
-        <div
-            className={clsx(
-                "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]",
-                className,
-            )}
-            {...props}
-        >
-            <PlaygroundVariantPropertyControl
-                propertyId={message.role}
-                variantId={variantId}
-                as="SimpleDropdownSelect"
-            />
-            <PlaygroundVariantPropertyControl
-                propertyId={message.content}
-                variantId={variantId}
-                as="PromptMessageContent"
-            />
-        </div>
+        <>
+            <div
+                className={clsx(
+                    "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)] group/item",
+                    className,
+                )}
+                {...props}
+            >
+                <div className="w-full flex items-center justify-between">
+                    <PlaygroundVariantPropertyControl
+                        propertyId={message.role}
+                        variantId={variantId}
+                        as="SimpleDropdownSelect"
+                    />
+
+                    <PromptMessageContentOptions
+                        className="invisible group-hover/item:visible"
+                        deleteMessage={deleteMessage}
+                        messageId={messageId}
+                    />
+                </div>
+                <PlaygroundVariantPropertyControl
+                    propertyId={message.content}
+                    variantId={variantId}
+                    as="PromptMessageContent"
+                />
+            </div>
+        </>
     )
 }
 

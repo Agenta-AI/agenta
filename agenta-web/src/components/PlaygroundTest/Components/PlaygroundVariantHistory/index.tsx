@@ -6,8 +6,8 @@ import PlaygroundVariantHistoryHeader from "./assets/PlaygroundVariantHistoryHea
 import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 import usePlayground from "../../hooks/usePlayground"
-import { useCallback } from "react"
-import { EnhancedVariant } from "../../assets/utilities/transformer/types"
+import {useCallback} from "react"
+import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({variantId}) => {
     const {promptIds = []} = usePlayground({
