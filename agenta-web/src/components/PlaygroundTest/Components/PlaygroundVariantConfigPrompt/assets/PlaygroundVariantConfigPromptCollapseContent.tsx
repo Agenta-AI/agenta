@@ -70,6 +70,27 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         })
     }, [mutateVariant, promptId])
 
+    const deleteMessage = useCallback(
+        (messageId: string) => {
+            if (!mutateVariant) return
+
+            mutateVariant((draft) => {
+                const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
+                const messages = variantPrompt?.messages.value
+
+                if (variantPrompt && messages) {
+                    // Filter out the message with the specified ID
+                    variantPrompt.messages.value = messages.filter(
+                        (message) => message.__id !== messageId,
+                    )
+                }
+
+                return draft
+            })
+        },
+        [mutateVariant, promptId],
+    )
+
     componentLogger(
         "PlaygroundVariantConfigPromptCollapseContent",
         variantId,
@@ -80,7 +101,12 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     return (
         <div className={clsx("flex flex-col gap-4", className)} {...props}>
             {messageIds.map((messageId) => (
-                <PromptMessageConfig key={messageId} variantId={variantId} messageId={messageId} />
+                <PromptMessageConfig
+                    key={messageId}
+                    variantId={variantId}
+                    messageId={messageId}
+                    deleteMessage={deleteMessage}
+                />
             ))}
             <AddButton label="Message" onClick={addNewMessage} />
 

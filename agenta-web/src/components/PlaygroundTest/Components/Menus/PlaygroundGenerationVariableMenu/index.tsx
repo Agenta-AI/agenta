@@ -3,7 +3,6 @@ import {DotsThreeVertical, Copy, Database} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {PlaygroundGenerationVariableMenuProps} from "./types"
 
-
 const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMenuProps> = ({
     ...props
 }) => {
