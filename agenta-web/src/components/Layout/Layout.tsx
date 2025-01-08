@@ -18,7 +18,7 @@ import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
 import {useProjectData} from "@/contexts/project.context"
-import {dynamicContext} from "@/lib/helpers/dynamic"
+import {useOrgData} from "@/contexts/org.context"
 
 const {Content, Footer} = Layout
 const {Text} = Typography
@@ -128,15 +128,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
     const [modal, contextHolder] = Modal.useModal()
-
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {changeSelectedOrg} = useOrgData()
-
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -224,7 +216,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
 
     const handleBackToWorkspaceSwitch = () => {
         const project = projects.find((p) => p.user_role === "owner")
-        if (project && !project.is_demo) {
+        if (project && !project.is_demo && project.organization_id) {
             changeSelectedOrg(project.organization_id)
         }
     }
