@@ -10,6 +10,10 @@ import {AVAILABLE_SERVICES} from "./assets/constants"
 
 const PlaygroundHeader = dynamic(() => import("./Components/PlaygroundHeader"), {ssr: false})
 
+const DevToolsWrapper = ({children}: {children: JSX.Element}) => {
+    return process.env.NODE_ENV === "development" ? <SWRDevTools>{children}</SWRDevTools> : children
+}
+
 const Playground: React.FC = () => {
     const router = useRouter()
     const service = router.query.service as string
@@ -34,12 +38,12 @@ const Playground: React.FC = () => {
     }
 
     return (
-        <SWRDevTools>
+        <DevToolsWrapper>
             <div className="flex flex-col w-full h-[calc(100dvh-70px)] overflow-hidden">
                 <PlaygroundHeader />
                 <PlaygroundMainView />
             </div>
-        </SWRDevTools>
+        </DevToolsWrapper>
     )
 }
 
