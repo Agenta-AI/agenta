@@ -1,6 +1,6 @@
 import axios from "@/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
-import {Org, OrgDetails} from "@/lib/types_ee"
+import {Org, OrgDetails} from "@/lib/Types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
