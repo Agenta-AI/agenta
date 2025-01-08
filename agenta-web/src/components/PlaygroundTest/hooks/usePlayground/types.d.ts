@@ -120,6 +120,7 @@ export interface PlaygroundSWRConfig<
     hookId?: string
     projectId?: string
     service?: string
+    appId?: string
     cache?: Map<string, {data: T}>
     variantSelector?: VariantSelector<Selected>
     stateSelector?: StateSelector<Selected>
