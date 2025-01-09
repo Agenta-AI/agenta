@@ -94,7 +94,7 @@ def format_llm_provider_keys(
         Dict[str, str]: formatted llm provided keys
 
     Example:
-        Input: {<LMProvidersEnum.mistralai: 'MISTRAL_API_KEY'>: '...', ...}
+        Input: {<LMProvidersEnum.mistral: 'MISTRAL_API_KEY'>: '...', ...}
         Output:  {'MISTRAL_API_KEY': '...', ...}
     """
 

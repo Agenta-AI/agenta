@@ -7,7 +7,7 @@ import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import {notification} from "antd"
 import Router from "next/router"
-import {getAllProviderLlmKeys, getApikeys} from "./llmProviders"
+import {getApikeys, LlmProvider} from "./llmProviders"
 import yaml from "js-yaml"
 
 if (typeof window !== "undefined") {
@@ -50,9 +50,7 @@ export const EvaluationTypeLabels: Record<EvaluationType, string> = {
     [EvaluationType.rag_context_relevancy]: "RAG Context Relevancy",
 }
 
-export const apiKeyObject = () => {
-    const apiKeys = getAllProviderLlmKeys()
-
+export const apiKeyObject = (apiKeys: LlmProvider[]) => {
     if (!apiKeys) return {}
 
     return apiKeys.reduce((acc: GenericObject, {key, name}: GenericObject) => {
