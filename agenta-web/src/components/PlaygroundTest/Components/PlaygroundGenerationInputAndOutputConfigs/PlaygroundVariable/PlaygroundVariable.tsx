@@ -22,7 +22,16 @@ const PlaygroundVariable: React.FC<PlaygroundVariableProps> = ({
                 <Input.TextArea placeholder="Enter value" className="w-full pt-9" />
             </div>
 
-            {isMenu && <PlaygroundVariableMenu className="invisible group-hover/item:visible" />}
+            {/**
+             * TODO: FIX THIS WITH CORRECT PROP EXPECTATIONS
+             * */}
+            {isMenu && (
+                <PlaygroundVariableMenu
+                    className="invisible group-hover/item:visible"
+                    variantId={""}
+                    rowId={""}
+                />
+            )}
         </div>
     )
 }
