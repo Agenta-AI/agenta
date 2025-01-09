@@ -209,11 +209,6 @@ services:
             file: ./services/chat-old-sdk/docker-compose.yml
             service: chat-old-sdk
 
-    completion-stateless-sdk:
-        extends:
-            file: ./services/completion-stateless-sdk/docker-compose.yml
-            service: completion-stateless-sdk
-
     completion-new-sdk:
         extends:
             file: ./services/completion-new-sdk/docker-compose.yml
