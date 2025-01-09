@@ -15,7 +15,11 @@ const PlaygroundDeploymentConfig: React.FC<PlaygroundDeploymentConfigProps> = ({
                 children: (
                     <div className="flex items-center gap-2">
                         {[1, 2, 3].map((item) => (
-                            <DeploymentTag revision={item} deploymentName="production" />
+                            <DeploymentTag
+                                key={`PlaygroundDeploymentConfig-item-${item}`}
+                                revision={item}
+                                deploymentName="production"
+                            />
                         ))}
                     </div>
                 ),

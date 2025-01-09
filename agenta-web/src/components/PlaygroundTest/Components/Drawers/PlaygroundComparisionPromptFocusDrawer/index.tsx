@@ -56,7 +56,7 @@ const PlaygroundComparisionPromptFocusDrawer: React.FC<
 
                     <div className="w-full flex items-start">
                         {(variantIds || []).map((variantId) => (
-                            <PlaygroundComparisionPromptConfig>
+                            <PlaygroundComparisionPromptConfig key={variantId}>
                                 <PlaygroundVariantConfig variantId={variantId as string} />
                             </PlaygroundComparisionPromptConfig>
                         ))}
