@@ -14,7 +14,7 @@ POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -45,7 +45,7 @@ POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -76,7 +76,7 @@ POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -154,7 +154,7 @@ POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
@@ -208,7 +208,7 @@ POST {{baseUrl}}/{{service}}/generate HTTP/1.1
 Content-Type: application/json
 
 {
-  "agenta_config": {
+  "ag_config": {
     "prompt": {
       "llm_config": {
         "model": "gpt-4",
