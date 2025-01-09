@@ -1,0 +1,26 @@
+services:
+  completion-old-sdk:
+    build: .
+    volumes:
+      - .:/app
+      - ../../agenta-cli:/agenta-cli
+    environment:
+      - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
+      - AGENTA_HOST=http://host.docker.internal
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - agenta-network
+    labels:
+      - "traefik.http.routers.completion-old-sdk.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/completion-old-sdk/`)"
+      - "traefik.http.routers.completion-old-sdk.entrypoints=web-secure"
+      - "traefik.http.middlewares.completion-old-sdk-strip.stripprefix.prefixes=/completion-old-sdk"
+      - "traefik.http.middlewares.completion-old-sdk-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.completion-old-sdk.middlewares=completion-old-sdk-strip"
+      - "traefik.http.services.completion-old-sdk.loadbalancer.server.port=80"
+      - "traefik.http.routers.completion-old-sdk.service=completion-old-sdk"
+      - "traefik.http.routers.completion-old-sdk.tls=true"
+      - "traefik.http.routers.completion-old-sdk.tls.certresolver=myResolver"
+
+networks:
+  agenta-network:
+    external: true
