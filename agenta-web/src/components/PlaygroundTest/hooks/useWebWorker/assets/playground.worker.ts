@@ -6,13 +6,15 @@ async function runVariantInputRow(payload: {
     variant: EnhancedVariant
     rowId: string
     service: string
+    appId: string
+    apiUrl: string
 }) {
-    const {variant, rowId, service} = payload
+    const {variant, rowId, service, appId, apiUrl} = payload
     const requestBody = transformToRequestBody(variant, rowId)
     let result
 
     try {
-        const response = await fetch(`http://localhost/${service}/generate`, {
+        const response = await fetch(`${apiUrl}/${service}/generate`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
