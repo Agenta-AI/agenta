@@ -1,7 +1,6 @@
 import {useCallback} from "react"
 
 import clsx from "clsx"
-import {Typography} from "antd"
 
 import usePlayground from "../../../hooks/usePlayground"
 import AddButton from "../../../assets/AddButton"
@@ -12,6 +11,7 @@ import {componentLogger} from "../../../assets/utilities/componentLogger"
 import type {PromptCollapseContentProps} from "../types"
 import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {Alert} from "antd"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -108,14 +108,15 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     deleteMessage={deleteMessage}
                 />
             ))}
-            <AddButton label="Message" onClick={addNewMessage} />
 
-            <div className="flex flex-col gap-2">
-                <Typography.Text strong>Input keys:</Typography.Text>
-                {(inputKeys || []).map((inputKey) => (
-                    <div key={inputKey.value}>{inputKey.value}</div>
-                ))}
-            </div>
+            <Alert
+                closable
+                message="Add a new variable by wrapping variable name with {{ and }}."
+                type="info"
+                showIcon
+            />
+
+            <AddButton size="small" label="Message" onClick={addNewMessage} />
         </div>
     )
 }
