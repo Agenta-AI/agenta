@@ -387,7 +387,7 @@ async def add_variant_from_image(
                     status_code=403,
                 )
 
-        variant_db = await app_manager.add_variant_based_on_image(
+        variant_db = await app_manager.add_variant_from_image(
             app=app,
             project_id=str(app.project_id),
             variant_name=payload.variant_name,
@@ -458,7 +458,7 @@ async def add_variant_from_url(
                     status_code=403,
                 )
 
-        variant_db = await app_manager.add_variant_based_on_url(
+        variant_db = await app_manager.add_variant_from_url(
             app=app,
             project_id=str(app.project_id),
             variant_name=payload.variant_name,
@@ -620,7 +620,7 @@ async def create_app_and_variant_from_template(
         )
         repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
         image_name = f"{repo_name}:{template_db.name}"
-        app_variant_db = await app_manager.add_variant_based_on_image(
+        app_variant_db = await app_manager.add_variant_from_image(
             app=app,
             project_id=str(app.project_id),
             variant_name="app.default",
