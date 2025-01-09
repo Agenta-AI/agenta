@@ -482,7 +482,7 @@ async def update_variant_parameters(
         raise e from None
 
 
-async def add_variant_based_on_image(
+async def add_variant_from_image(
     app: AppDB,
     project_id: str,
     variant_name: str,
@@ -614,7 +614,7 @@ async def add_variant_based_on_image(
     return db_app_variant
 
 
-async def add_variant_based_on_url(
+async def add_variant_from_url(
     app: AppDB,
     project_id: str,
     variant_name: str,
