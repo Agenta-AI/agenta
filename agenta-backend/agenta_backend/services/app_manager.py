@@ -681,7 +681,7 @@ async def add_variant_from_url(
     db_base = await db_manager.create_new_variant_base(
         app=app,
         project_id=project_id,
-        base_name=base_name,  # the first variant always has default base
+        base_name=base_name, 
     )
 
     # Create app variant
