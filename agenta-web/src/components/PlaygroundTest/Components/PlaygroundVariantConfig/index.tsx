@@ -10,8 +10,6 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 import type {VariantConfigComponentProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import useDelayChildren from "../../hooks/useDelayChildren"
-import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
-import {Divider} from "antd"
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -69,10 +67,6 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
                     ))}
                 </>
             )}
-
-            <Divider className="!my-1.5" />
-
-            <PlaygroundPromptToolsConfig />
         </div>
     )
 }

@@ -60,13 +60,7 @@ const PromptMessageConfig = ({
 
     return (
         <>
-            <div
-                className={clsx(
-                    "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)] group/item",
-                    className,
-                )}
-                {...props}
-            >
+            <div className={clsx("flex flex-col gap-1 group/item", className)} {...props}>
                 <div className="w-full flex items-center justify-between">
                     <PlaygroundVariantPropertyControl
                         propertyId={message.role}
@@ -77,6 +71,8 @@ const PromptMessageConfig = ({
                     <PromptMessageContentOptions
                         className="invisible group-hover/item:visible"
                         deleteMessage={deleteMessage}
+                        propertyId={message.content}
+                        variantId={variantId}
                         messageId={messageId}
                     />
                 </div>

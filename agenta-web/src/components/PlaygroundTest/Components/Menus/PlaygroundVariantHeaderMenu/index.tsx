@@ -27,6 +27,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 key: "history",
                 label: "History",
                 icon: <ArrowCounterClockwise size={14} />,
+                disabled: true,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                 },

@@ -5,7 +5,6 @@ import usePlayground from "../../hooks/usePlayground"
 import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {BaseContainerProps} from "../types"
-import PlaygroundComparisionView from "../PlaygroundComparisionView"
 
 const PlaygroundVariant = dynamic(() => import("../PlaygroundVariant"), {ssr: false})
 
@@ -33,9 +32,6 @@ const PlaygroundVariants = ({className, ...props}: BaseContainerProps) => {
             {(displayedVariants || []).map((variantId) => {
                 return <PlaygroundVariant key={variantId} variantId={variantId} />
             })}
-
-            {/* <PlaygroundVariant variantId={variantIds?.[0] as string} /> */}
-            {/* <PlaygroundComparisionView variantIds={variantIds as string[]} /> */}
         </div>
     )
 }

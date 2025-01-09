@@ -6,7 +6,6 @@ import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PlaygroundVariantProps} from "./types"
-import PlaygroundGenerations from "../PlaygroundGenerations"
 
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
@@ -44,8 +43,6 @@ const PlaygroundVariant: React.FC<PlaygroundVariantProps> = ({
                         <PlaygroundVariantConfig variantId={variantId} />
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
-                        {/* <PlaygroundGenerations /> */}
-                        {/* <PlaygroundVariantHistory variantId={variantId} /> */}
                         <PlaygroundVariantTestView variantId={variantId} />
                     </SplitterPanel>
                 </Splitter>
