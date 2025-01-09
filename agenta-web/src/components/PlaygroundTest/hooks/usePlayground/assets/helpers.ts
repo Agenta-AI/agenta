@@ -8,6 +8,7 @@ import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 import {type InitialStateType} from "../../../state/types"
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 /**
  * FETCHERS
@@ -20,7 +21,7 @@ import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
  * @returns Promise containing variantId, parsed schema and any errors
  */
 export const fetchOpenApiSchemaJson = async (service: string) => {
-    const openapiJsonResponse = await fetch(`http://localhost/${service}/openapi.json`)
+    const openapiJsonResponse = await fetch(`${getAgentaApiUrl()}/${service}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 

@@ -31,6 +31,7 @@ import type {
 } from "../types"
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -153,6 +154,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     payload: {
                         variant: EnhancedVariant
                         rowId: string
+                        appId: string
+                        apiUrl: string
                         service: string
                         result?: {
                             response?: ApiResponse
@@ -428,75 +431,28 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         if (!inputRow) return state
 
                         inputRow.__isLoading = true
+
                         postMessageToWorker(
                             createWorkerMessage("runVariantInputRow", {
                                 variant,
                                 rowId,
                                 service: config.service,
+                                appId: config.appId!,
+                                apiUrl: getAgentaApiUrl()!,
                             }),
                         )
 
                         return clonedState
-
-                        // const requestBody = transformToRequestBody(variant, rowId)
-
-                        // try {
-                        //     const response = await fetch(
-                        //         `http://localhost/${config.service}/generate`,
-                        //         {
-                        //             method: "POST",
-                        //             headers: {
-                        //                 "Content-Type": "application/json",
-                        //             },
-                        //             body: JSON.stringify(requestBody),
-                        //         },
-                        //     )
-
-                        //     const data = await response.json()
-
-                        //     if (!response.ok) {
-                        //         const errorMessage = parseValidationError(data)
-                        //         inputRow.__result = {
-                        //             response: undefined,
-                        //             error: errorMessage,
-                        //             metadata: {
-                        //                 timestamp: new Date().toISOString(),
-                        //                 statusCode: response.status,
-                        //                 rawError: data,
-                        //             },
-                        //         }
-                        //         message.error(errorMessage)
-                        //         return clonedState
-                        //     }
-
-                        //     // Store full response in the result
-                        //     inputRow.__result = {
-                        //         response: data,
-                        //         metadata: {
-                        //             timestamp: new Date().toISOString(),
-                        //             statusCode: response.status,
-                        //         },
-                        //     }
-
-                        //     return clonedState
-                        // } catch (error) {
-                        //     inputRow.__result = {
-                        //         response: undefined,
-                        //         error:
-                        //             error instanceof Error
-                        //                 ? error.message
-                        //                 : "Unknown error occurred",
-                        //         metadata: {
-                        //             timestamp: new Date().toISOString(),
-                        //             type: "network_error",
-                        //         },
-                        //     }
-                        //     message.error("Failed to run test")
-                        //     return clonedState
-                        // }
                     })
                 },
-                [swr, config.variantId, config.service, postMessageToWorker, createWorkerMessage],
+                [
+                    swr,
+                    config.variantId,
+                    config.service,
+                    config.appId,
+                    postMessageToWorker,
+                    createWorkerMessage,
+                ],
             )
 
             Object.defineProperty(swr, "variant", {
