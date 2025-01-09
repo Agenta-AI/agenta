@@ -30,8 +30,15 @@ const PlaygroundVariableChatInput: React.FC<PlaygroundVariableChatInputProps> = 
                 )}
             </div>
 
+            {/**
+             * TODO: FIX THIS WITH CORRECT PROP EXPECTATIONS
+             * */}
             {type !== "input" && (
-                <PlaygroundVariableMenu className="invisible group-hover/item:visible" />
+                <PlaygroundVariableMenu
+                    className="invisible group-hover/item:visible"
+                    variantId={""}
+                    rowId={""}
+                />
             )}
         </div>
     )
