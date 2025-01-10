@@ -1,5 +1,5 @@
 @baseUrl = http://localhost
-@service = chat-new-sdk-prompt
+@service = chat
 
 ### These request can be run using the Rest Client extension in vsCode
 
