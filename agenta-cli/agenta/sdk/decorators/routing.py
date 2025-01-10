@@ -310,11 +310,13 @@ class entrypoint:
         references = state.config.get("references")
         secrets = state.vault.get("secrets")
         inline = state.inline
+        mock = state.mock
 
         with routing_context_manager(
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,
+                mock=mock,
             )
         ):
             with tracing_context_manager(
