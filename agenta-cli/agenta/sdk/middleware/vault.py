@@ -18,7 +18,11 @@ from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 import agenta as ag
 
 
-_PROVIDER_KINDS = [kind for kind in get_args(ProviderKind) if isinstance(kind, str)]
+_PROVIDER_KINDS = []
+
+for arg in ProviderKind.__args__:  # type: ignore
+    if hasattr(arg, "__args__"):
+        _PROVIDER_KINDS.extend(arg.__args__)
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
 
@@ -81,11 +85,15 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         local_secrets: List[SecretDTO] = []
 
+        print(_PROVIDER_KINDS)
+
         try:
             for provider_kind in _PROVIDER_KINDS:
                 provider = provider_kind
                 key_name = f"{provider.upper()}_API_KEY"
                 key = getenv(key_name)
+
+                print(key_name, key)
 
                 if not key:
                     continue
