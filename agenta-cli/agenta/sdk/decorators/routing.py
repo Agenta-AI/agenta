@@ -9,11 +9,12 @@ from pydantic import BaseModel, HttpUrl, ValidationError
 
 from fastapi import Body, FastAPI, HTTPException, Request
 
+from agenta.sdk.middleware.mock import MockMiddleware
 from agenta.sdk.middleware.inline import InlineMiddleware
-from agenta.sdk.middleware.auth import AuthMiddleware
-from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.config import ConfigMiddleware
 from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.middleware.config import ConfigMiddleware
+from agenta.sdk.middleware.otel import OTelMiddleware
+from agenta.sdk.middleware.auth import AuthMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
 from agenta.sdk.context.routing import (
@@ -137,11 +138,12 @@ class entrypoint:
         ### --- Middleware --- #
         if not entrypoint._middleware:
             entrypoint._middleware = True
+            app.add_middleware(MockMiddleware)
             app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
             app.add_middleware(ConfigMiddleware)
-            app.add_middleware(AuthMiddleware)
             app.add_middleware(OTelMiddleware)
+            app.add_middleware(AuthMiddleware)
             app.add_middleware(CORSMiddleware)
         ### ------------------ #
 
@@ -278,23 +280,18 @@ class entrypoint:
                     f"Unexpected error initializing config_schema: {str(e)}"
                 ) from e
 
-        print(config, default_parameters)
-
         return config, default_parameters
 
     def process_kwargs(
         self, kwargs: Dict[str, Any], default_parameters: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Remove the config parameters from the kwargs."""
-        print("--------------")
         # Extract agenta_config if present
         config_params = kwargs.pop(self._config_key, {})
         if isinstance(config_params, BaseModel):
             config_params = config_params.dict()
         # Merge with default parameters
         config = {**default_parameters, **config_params}
-
-        print(kwargs, config)
 
         return kwargs, config
 
@@ -313,11 +310,13 @@ class entrypoint:
         references = state.config.get("references")
         secrets = state.vault.get("secrets")
         inline = state.inline
+        mock = state.mock
 
         with routing_context_manager(
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,
+                mock=mock,
             )
         ):
             with tracing_context_manager(
@@ -513,9 +512,10 @@ class entrypoint:
         self, updated_params: list, config_instance: Type[BaseModel]
     ) -> None:
         """Add configuration parameters to function signature."""
-        print(config_instance)
+
         for name, field in config_instance.model_fields.items():
             assert field.default is not None, f"Field {name} has no default value"
+
         updated_params.append(
             Parameter(
                 name=self._config_key,
