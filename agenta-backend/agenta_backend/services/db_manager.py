@@ -483,7 +483,7 @@ async def create_new_variant_base(
     app: AppDB,
     project_id: str,
     base_name: str,
-    image: ImageDB,
+    image: Optional[ImageDB] = None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
@@ -501,7 +501,7 @@ async def create_new_variant_base(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
             base_name=base_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
         )
 
         session.add(base)
@@ -536,10 +536,10 @@ async def create_new_app_variant(
     user: UserDB,
     variant_name: str,
     project_id: str,
-    image: ImageDB,
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
+    image: Optional[ImageDB] = None,
 ) -> AppVariantDB:
     """Create a new variant.
 
@@ -566,7 +566,7 @@ async def create_new_app_variant(
             modified_by_id=user.id,
             revision=0,
             variant_name=variant_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
             base_id=base.id,
             base_name=base_name,
             config_name=config.config_name,
@@ -666,10 +666,10 @@ async def create_image(
 async def create_deployment(
     app_id: str,
     project_id: str,
-    container_name: str,
-    container_id: str,
     uri: str,
     status: str,
+    container_name: Optional[str] = "",
+    container_id: Optional[str] = "",
 ) -> DeploymentDB:
     """Create a new deployment.
 
@@ -701,34 +701,66 @@ async def create_deployment(
             await session.refresh(deployment)
 
             return deployment
+
         except Exception as e:
             raise Exception(f"Error while creating deployment: {e}")
 
 
-async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
+async def get_app_type_from_template_id(template_id: Optional[str]) -> Optional[str]:
     """Get the application type from the specified template.
 
     Args:
         template_id (Optional[str]): The ID of the template
 
     Returns:
-        AppType (str): The determined application type. Defaults to AppType.CUSTOM.
+        AppType (Optional[str]): The determined application type. Defaults to None.
     """
 
     if template_id is None:
-        return AppType.CUSTOM
+        return None
 
     template_db = await get_template(template_id=template_id)
     if "Completion Prompt" in template_db.title:
         return AppType.COMPLETION_TEMPLATE
     elif "Chat Prompt" in template_db.title:
         return AppType.CHAT_TEMPLATE
+
+    return None
+
+
+async def get_app_type_from_template_key(template_key: Optional[str]) -> Optional[str]:
+    """Get the application type from the specified service.
+
+    Args:
+        template_key (Optional[str]): The key of the service
+
+    Returns:
+        AppType (Optional[str]): The determined application type. Defaults to None.
+    """
+
+    if template_key in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+        return template_key
+
+    return None
+
+
+async def get_app_type(
+    template_id: Optional[str] = None,
+    template_key: Optional[str] = None,
+) -> str:
+    if template_id:
+        return await get_app_type_from_template_id(template_id=template_id)
+
+    if template_key:
+        return await get_app_type_from_template_key(template_key=template_key)
+
     return AppType.CUSTOM
 
 
 async def create_app_and_envs(
     app_name: str,
     template_id: Optional[str] = None,
+    template_key: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> AppDB:
     """
@@ -752,7 +784,11 @@ async def create_app_and_envs(
     if app is not None:
         raise ValueError("App with the same name already exists")
 
-    app_type = await get_app_type_from_template_by_id(template_id=template_id)
+    app_type = await get_app_type(
+        template_id=template_id,
+        template_key=template_key,
+    )
+
     async with engine.session() as session:
         app = AppDB(
             app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
