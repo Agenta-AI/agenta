@@ -252,7 +252,7 @@ async def create_app(
 
         app_db = await db_manager.create_app_and_envs(
             payload.app_name,
-            service_key=payload.service_key,
+            template_key=payload.template_key,
             project_id=request.state.project_id,
         )
         return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
@@ -499,12 +499,16 @@ async def add_variant_from_key(
     try:
         url = app_manager.get_service_url_from_template_key(payload.key)
 
-        if not url:
-            raise HTTPException(status_code=400, detail="Service key not supported")
+    except NotImplementedError as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
         logger.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+    if not url:
+        raise HTTPException(status_code=400, detail="Service key not supported")
 
     payload = AddVariantFromURLPayload(
         variant_name=payload.variant_name,

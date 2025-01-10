@@ -728,31 +728,31 @@ async def get_app_type_from_template_id(template_id: Optional[str]) -> Optional[
     return None
 
 
-async def get_app_type_from_service_key(service_key: Optional[str]) -> Optional[str]:
+async def get_app_type_from_template_key(template_key: Optional[str]) -> Optional[str]:
     """Get the application type from the specified service.
 
     Args:
-        service_key (Optional[str]): The key of the service
+        template_key (Optional[str]): The key of the service
 
     Returns:
         AppType (Optional[str]): The determined application type. Defaults to None.
     """
 
-    if service_key in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
-        return service_key
+    if template_key in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+        return template_key
 
     return None
 
 
 async def get_app_type(
     template_id: Optional[str] = None,
-    service_key: Optional[str] = None,
+    template_key: Optional[str] = None,
 ) -> str:
     if template_id:
         return await get_app_type_from_template_id(template_id=template_id)
 
-    if service_key:
-        return await get_app_type_from_service_key(service_key=service_key)
+    if template_key:
+        return await get_app_type_from_template_key(template_key=template_key)
 
     return AppType.CUSTOM
 
@@ -760,7 +760,7 @@ async def get_app_type(
 async def create_app_and_envs(
     app_name: str,
     template_id: Optional[str] = None,
-    service_key: Optional[str] = None,
+    template_key: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> AppDB:
     """
@@ -786,7 +786,7 @@ async def create_app_and_envs(
 
     app_type = await get_app_type(
         template_id=template_id,
-        service_key=service_key,
+        template_key=template_key,
     )
 
     async with engine.session() as session:

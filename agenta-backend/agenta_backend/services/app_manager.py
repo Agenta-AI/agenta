@@ -731,7 +731,7 @@ def get_service_url_from_template_key(
         return None
 
     if not SERVICE_URL_TEMPLATE:
-        return None
+        raise NotImplementedError("Service URL could be generated.")
 
     # We need to map a `template_key` to a `service_path`.
     # We could have an explicit map, like {`key`: `path`},

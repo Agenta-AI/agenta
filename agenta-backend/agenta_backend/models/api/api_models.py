@@ -58,7 +58,7 @@ class VariantAction(BaseModel):
 
 class CreateApp(BaseModel):
     app_name: str
-    service_key: Optional[str] = None
+    template_key: Optional[str] = None
     project_id: Optional[str] = None
     workspace_id: Optional[str] = None
 
