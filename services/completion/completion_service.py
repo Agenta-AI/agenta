@@ -36,9 +36,19 @@ async def generate(
                 status_code=422,
                 detail=f"Invalid inputs. Expected: {sorted(required_keys)}, got: {sorted(provided_keys)}",
             )
+
+    api_key = ag.SecretsManager.get_api_key_for_model(ag.config.model)
+
+    if not api_key:
+        raise ValueError(f"API key not found for model {ag.config.model}")
+
     response = await litellm.acompletion(
-        **config.prompt.format(**inputs).to_openai_kwargs()
+        **{
+            "api_key": api_key,
+            **config.prompt.format(**inputs).to_openai_kwargs(),
+        }
     )
+
     message = response.choices[0].message
 
     if message.content is not None:
