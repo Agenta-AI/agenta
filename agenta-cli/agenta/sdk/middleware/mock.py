@@ -21,7 +21,7 @@ class MockMiddleware(BaseHTTPMiddleware):
         with suppress():
             baggage = request.state.otel.get("baggage") if request.state.otel else {}
 
-            mock = str(
+            mock = (
                 # CLEANEST
                 baggage.get("mock")
                 # ALTERNATIVE

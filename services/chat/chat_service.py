@@ -1,13 +1,19 @@
 from typing import Dict, List, Optional
+
+from pydantic import BaseModel, Field
 from fastapi import HTTPException
+import litellm
 
 import agenta as ag
-import litellm
+
 from agenta.sdk.types import PromptTemplate, Message
-from pydantic import BaseModel, Field
+from agenta.sdk.litellm import mockllm
+
 
 litellm.drop_params = True
 litellm.callbacks = [ag.callbacks.litellm_handler()]
+
+mockllm.litellm = litellm
 
 ag.init()
 
@@ -47,12 +53,14 @@ async def generate(
     if messages is not None:
         openai_kwargs["messages"].extend(messages)
 
-    api_key = ag.SecretsManager.get_api_key_for_model(ag.config.model)
+    api_key = ag.SecretsManager.get_api_key_for_model(config.prompt.llm_config.model)
 
     if not api_key:
-        raise ValueError(f"API key not found for model {ag.config.model}")
+        raise ValueError(
+            f"API key not found for model {config.prompt.llm_config.model}"
+        )
 
-    response = await litellm.acompletion(
+    response = await mockllm.acompletion(
         **{
             "api_key": api_key,
             **openai_kwargs,
