@@ -22,6 +22,9 @@ from agenta_backend.services import (
     db_manager,
 )
 
+from agenta_backend.models.shared_models import AppType
+
+
 from agenta_backend.utils.common import (
     isEE,
     isCloudProd,
@@ -51,6 +54,8 @@ if isCloudEE():
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+SERVICE_URL_TEMPLATE = os.environ.get("SERVICE_URL_TEMPLATE")
 
 
 async def start_variant(
@@ -717,3 +722,22 @@ async def add_variant_from_url(
     logger.debug("End: Successfully created variant: %s", db_app_variant)
 
     return db_app_variant
+
+
+def get_service_url_from_key(
+    key: str,
+) -> str:
+    if key not in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+        return None
+
+    if not SERVICE_URL_TEMPLATE:
+        return None
+
+    # We need to map a `template_key` to a `service_path`.
+    # We could have an explicit map, like {`key`: `path`}, or make use of the `app_type` like here.
+    # This may evolve over time if and when we change `app_type` values.
+    path = key.replace("SERVICE:", "")
+
+    url = SERVICE_URL_TEMPLATE.format(path=path)
+
+    return url
