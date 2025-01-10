@@ -1,25 +1,16 @@
 import {useCallback} from "react"
-import dynamic from "next/dynamic"
 
 import clsx from "clsx"
 import {Play} from "@phosphor-icons/react"
 import {Typography, Button} from "antd"
 
-import usePlayground from "../../../../hooks/usePlayground"
-import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
-import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
+import type {GenerationRowViewProps} from "./types"
+import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
+import {EnhancedVariant} from "@/components/PlaygroundTest/assets/utilities/transformer/types"
+import {getEnhancedProperties} from "@/components/PlaygroundTest/assets/utilities/genericTransformer/utilities/enhanced"
+import PlaygroundVariantPropertyControl from "@/components/PlaygroundTest/Components/PlaygroundVariantPropertyControl"
 
-import type {GenerationCompletionRowProps} from "./types"
-import type {EnhancedVariant} from "../../../../assets/utilities/transformer/types"
-import GenerationOutputText from "../GenerationOutputText"
-const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
-    ssr: false,
-})
-const GenerationVariableOptions = dynamic(() => import("../GenerationVariableOptions"), {
-    ssr: false,
-})
-
-const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationCompletionRowProps) => {
+const GenerationRowView = ({variantId, rowId, ...props}: GenerationRowViewProps) => {
     const {result, variableIds, runVariantTestRow, canRun, isRunning} = usePlayground({
         variantId,
         variantSelector: useCallback(
@@ -53,7 +44,6 @@ const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationComplet
                 "flex flex-col gap-4",
                 "p-4",
                 "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                "group/item",
             ])}
             {...props}
         >
@@ -74,13 +64,8 @@ const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationComplet
                         )
                     })}
                 </div>
-                <GenerationVariableOptions
-                    variantId={variantId}
-                    rowId={rowId}
-                    className="invisible group-hover/item:visible"
-                />
+                <div className="flex items-center w-[100px]">actions</div>
             </div>
-
             <div className="w-full flex gap-1 items-start">
                 <div className="w-[100px] shrink-0">
                     <Button
@@ -89,25 +74,28 @@ const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationComplet
                         color="default"
                         className="self-start"
                         disabled={!canRun || isRunning}
-                        size="small"
                     >
                         <Play size={14} />
                         Run
                     </Button>
                 </div>
-                <div className="flex flex-col gap-4">
+                <div>
                     {isRunning ? (
-                        <GenerationOutputText text="Running..." />
+                        <Typography className="font-[400] text-[12px] leading-[20px] text-[#BDC7D1]">
+                            Running...
+                        </Typography>
                     ) : !result ? (
-                        <GenerationOutputText text="Click run to generate output" />
+                        <Typography className="font-[400] text-[12px] leading-[20px] text-[#BDC7D1]">
+                            Click run to generate output
+                        </Typography>
                     ) : result.error ? (
-                        <GenerationOutputText type="danger" text={result.error} />
+                        <Typography className="font-[400] text-[12px] leading-[20px] text-[#D61010]">
+                            {result.error}
+                        </Typography>
                     ) : result.response ? (
-                        <>
-                            <GenerationOutputText type="success" text={result.response.data} />
-
-                            <GenerationResultUtils />
-                        </>
+                        <Typography className="font-[400] text-[12px] leading-[20px]">
+                            {result.response.data}
+                        </Typography>
                     ) : null}
                 </div>
                 <div className="flex items-center w-[100px] shrink-0" />
@@ -116,4 +104,4 @@ const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationComplet
     )
 }
 
-export default GenerationCompletionRow
+export default GenerationRowView
