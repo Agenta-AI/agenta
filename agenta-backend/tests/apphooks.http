@@ -30,7 +30,7 @@ Content-Type: application/json
 ###
 
 # @name create_variant
-POST {{base_url}}/apps/{{create_app.response.body.app_id}}/variant/from-url
+POST {{base_url}}/apps/{{create_app.response.body.app_id}}/variant/from-service
 Content-Type: application/json
 
 {
@@ -48,7 +48,7 @@ Content-Type: application/json
 ###
 
 # @name update_variant_url
-PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/url?url={{host}}:{{port}}
+PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/service?url={{host}}:{{port}}
 Content-Type: application/json
 
 ###

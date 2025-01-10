@@ -686,7 +686,7 @@ async def add_variant_from_url(
     db_base = await db_manager.create_new_variant_base(
         app=app,
         project_id=project_id,
-        base_name=base_name, 
+        base_name=base_name,
     )
 
     # Create app variant
@@ -724,7 +724,7 @@ async def add_variant_from_url(
     return db_app_variant
 
 
-def get_service_url_from_key(
+def get_service_url_from_template_key(
     key: str,
 ) -> str:
     if key not in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
@@ -734,7 +734,8 @@ def get_service_url_from_key(
         return None
 
     # We need to map a `template_key` to a `service_path`.
-    # We could have an explicit map, like {`key`: `path`}, or make use of the `app_type` like here.
+    # We could have an explicit map, like {`key`: `path`},
+    # or make use of the `app_type` like here.
     # This may evolve over time if and when we change `app_type` values.
     path = key.replace("SERVICE:", "")
 

@@ -421,7 +421,7 @@ async def add_variant_from_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{app_id}/variant/from-url/", operation_id="add_variant_from_url")
+@router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
 async def add_variant_from_url(
     app_id: str,
     payload: AddVariantFromURLPayload,
@@ -490,14 +490,14 @@ async def add_variant_from_url(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{app_id}/variant/from-key/", operation_id="add_variant_from_key")
+@router.post("/{app_id}/variant/from-template/", operation_id="add_variant_from_key")
 async def add_variant_from_key(
     app_id: str,
     payload: AddVariantFromKeyPayload,
     request: Request,
 ):
     try:
-        url = app_manager.get_service_url_from_key(payload.key)
+        url = app_manager.get_service_url_from_template_key(payload.key)
 
         if not url:
             raise HTTPException(status_code=400, detail="Service key not supported")
