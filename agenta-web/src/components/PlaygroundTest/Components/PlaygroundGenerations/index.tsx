@@ -1,13 +1,12 @@
-import PlaygroundGenerationCompletion from "./assets/PlaygroundGenerationCompletion"
-import PlaygroundGenerationHeader from "./assets/PlaygroundGenerationHeader"
-import PlaygroundGenerationVariableConfig from "./assets/PlaygroundGenerationVariableConfig"
+import GenerationCompletion from "./assets/GenerationCompletion"
+import GeneratoinHeader from "./assets/GeneratoinHeader"
 import {PlaygroundGenerationsProps} from "./types"
 
 const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({variantId}) => {
     return (
         <div>
-            <PlaygroundGenerationHeader />
-            <PlaygroundGenerationCompletion variantId={variantId} />
+            <GeneratoinHeader />
+            <GenerationCompletion variantId={variantId} />
         </div>
     )
 }

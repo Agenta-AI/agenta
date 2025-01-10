@@ -3,15 +3,14 @@ import clsx from "clsx"
 
 import usePlayground from "../../hooks/usePlayground"
 import type {BaseContainerProps} from "../types"
-import PlaygroundGenerations from "../PlaygroundGenerations"
-import PlaygroundComparisionVariantNavigation from "../PlaygroundComparisionView/assets/PlaygroundComparisionVariantNavigation/PlaygroundComparisionVariantNavigation"
 import {Button, Typography} from "antd"
 import {Play} from "@phosphor-icons/react"
-import PlaygroundComparisionCompletionOutput from "../PlaygroundGenerationInputAndOutputConfigs/ComparisionView/PlaygroundComparisionCompletionOuput"
-import PlaygroundComparisionCompletionInput from "../PlaygroundGenerationInputAndOutputConfigs/ComparisionView/PlaygroundComparisionCompletionInput"
+import GenerationComparisionCompletionOuput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionOuput"
+import GenerationComparisionCompletionInput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionInput"
+import PromptComparisionVariantNavigation from "../PlaygroundPromptComparisionView/PromptComparisionVariantNavigation"
 
 const PlaygroundVariantConfig = dynamic(() => import("../PlaygroundVariantConfig"), {ssr: false})
-const PlaygroundVariantTestView = dynamic(() => import("../PlaygroundVariantTestView"), {
+const PlaygroundGenerations = dynamic(() => import("../PlaygroundGenerations"), {
     ssr: false,
 })
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
@@ -34,7 +33,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 },
                             ])}
                         >
-                            {isComparisonView && <PlaygroundComparisionVariantNavigation />}
+                            {isComparisonView && <PromptComparisionVariantNavigation />}
                             {(displayedVariants || []).map((variantId) => {
                                 return (
                                     <div
@@ -76,7 +75,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         >
                             {isComparisonView && (
                                 <div className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto">
-                                    <PlaygroundComparisionCompletionInput />
+                                    <GenerationComparisionCompletionInput />
                                 </div>
                             )}
                             {(displayedVariants || []).map((variantId) => {
@@ -91,7 +90,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         ])}
                                     >
                                         {isComparisonView ? (
-                                            <PlaygroundComparisionCompletionOutput />
+                                            <GenerationComparisionCompletionOuput />
                                         ) : (
                                             <PlaygroundGenerations variantId={variantId} />
                                         )}

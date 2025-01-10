@@ -14,12 +14,9 @@ const PlaygroundVariantHeaderMenu = dynamic(
     {ssr: false},
 )
 const DeployVariantModal = dynamic(() => import("../../Modals/DeployVariantModal"), {ssr: false})
-const PlaygroundPromptFocusDrawer = dynamic(
-    () => import("../../Drawers/PlaygroundPromptFocusDrawer"),
-    {ssr: false},
-)
-const PlaygroundComparisionPromptFocusDrawer = dynamic(
-    () => import("../../Drawers/PlaygroundComparisionPromptFocusDrawer"),
+const PromptFocusDrawer = dynamic(() => import("../../Drawers/PromptFocusDrawer"), {ssr: false})
+const PromptComparisionFocusDrawer = dynamic(
+    () => import("../../Drawers/PromptComparisionFocusDrawer"),
     {ssr: false},
 )
 const CommitVariantChangesModal = dynamic(() => import("../../Modals/CommitVariantChangesModal"), {
@@ -135,7 +132,7 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
                 variantId={variantId}
             />
 
-            <PlaygroundPromptFocusDrawer
+            <PromptFocusDrawer
                 variantId={variantId}
                 open={isFocusMoodOpen}
                 onClose={() => setIsFocusMoodOpen(false)}
