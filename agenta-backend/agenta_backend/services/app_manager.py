@@ -733,6 +733,9 @@ def get_service_url_from_key(
     if not SERVICE_URL_TEMPLATE:
         return None
 
+    # We need to map a `template_key` to a `service_path`.
+    # We could have an explicit map, like {`key`: `path`}, or make use of the `app_type` like here.
+    # This may evolve over time if and when we change `app_type` values.
     path = key.replace("SERVICE:", "")
 
     url = SERVICE_URL_TEMPLATE.format(path=path)
