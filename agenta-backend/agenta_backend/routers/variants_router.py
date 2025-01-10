@@ -314,7 +314,7 @@ async def update_variant_image(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/{variant_id}/url/", operation_id="update_variant_url")
+@router.put("/{variant_id}/service/", operation_id="update_variant_url")
 async def update_variant_url(
     variant_id: str,
     url: str,
