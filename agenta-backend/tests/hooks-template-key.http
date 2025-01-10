@@ -14,11 +14,13 @@ POST {{base_url}}/apps
 Content-Type: application/json
 
 {
-  "app_name": "alooha"
+  "app_name": "ahaalo",
+  "template_key": "SERVICE:completion"
 }
 
 ###
 
+# @name list_apps
 GET {{base_url}}/apps
 Content-Type: application/json
 
@@ -30,30 +32,25 @@ Content-Type: application/json
 ###
 
 # @name create_variant
-POST {{base_url}}/apps/{{create_app.response.body.app_id}}/variant/from-service
+POST {{base_url}}/apps/{{create_app.response.body.app_id}}/variant/from-template
 Content-Type: application/json
 
 {
-  "variant_name": "app.url",
-  "url": "{{host}}:{{port}}",
+  "variant_name": "app.key",
+  "key": "SERVICE:completion",
   "base_name": "app",
-  "config_name": "url"
+  "config_name": "key"
 }
 
 ###
 
+# @name list_variants
 GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
 Content-Type: application/json
 
 ###
 
-# @name update_variant_url
-PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/service?url={{host}}:{{port}}
-Content-Type: application/json
-
-###
-
-GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+GET {{list_variants.response.body.0.uri}}/health
 Content-Type: application/json
 
 ###
@@ -69,7 +66,7 @@ Content-Type: application/json
 
 ###
 
-DELETE {{base_url}}/apps/{{create_app.response.body.app_id}}
+DELETE {{base_url}}/apps/{{list_apps.response.body.0.app_id}}
 Content-Type: application/json
 
 ###
