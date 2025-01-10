@@ -6,10 +6,8 @@ from fastapi import Request, FastAPI
 
 from agenta.sdk.utils.exceptions import suppress
 
-from agenta.sdk.utils.constants import TRUTHY
 
-
-class InlineMiddleware(BaseHTTPMiddleware):
+class MockMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: FastAPI):
         super().__init__(app)
 
@@ -18,21 +16,18 @@ class InlineMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        request.state.inline = False
+        request.state.mock = None
 
         with suppress():
             baggage = request.state.otel.get("baggage") if request.state.otel else {}
 
-            inline = (
-                str(
-                    # CLEANEST
-                    baggage.get("inline")
-                    # ALTERNATIVE
-                    or request.query_params.get("inline")
-                )
-                in TRUTHY
+            mock = str(
+                # CLEANEST
+                baggage.get("mock")
+                # ALTERNATIVE
+                or request.query_params.get("mock")
             )
 
-            request.state.inline = inline
+            request.state.mock = mock
 
         return await call_next(request)
