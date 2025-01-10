@@ -29,7 +29,7 @@ services:
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
             - AGENTA_PORT=${AGENTA_PORT:-80}
-            - SERVICE_URL_TEMPLATE=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}/{path}-new-sdk
+            - SERVICE_URL_TEMPLATE=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}/{path}
         command:
             [
                 "uvicorn",

@@ -1,0 +1,24 @@
+services:
+  chat:
+    build: .
+    volumes:
+      - .:/app
+      - ../../agenta-cli:/agenta-cli
+    environment:
+      - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
+      - AGENTA_HOST=http://host.docker.internal
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - agenta-network
+    labels:
+      - "traefik.http.routers.chat.rule=PathPrefix(`/chat/`)"
+      - "traefik.http.routers.chat.entrypoints=web"
+      - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/chat"
+      - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.chat.middlewares=chat-strip"
+      - "traefik.http.services.chat.loadbalancer.server.port=80"
+      - "traefik.http.routers.chat.service=chat"
+
+networks:
+  agenta-network:
+    external: true
