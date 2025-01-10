@@ -1,6 +1,6 @@
 from uvicorn import run
 import agenta
-import _app  # This will register the routes with the FastAPI application
+import completion_service  # This will register the routes with the FastAPI application
 import os
 
 

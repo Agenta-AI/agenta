@@ -198,35 +198,35 @@ services:
             postgres:
                 condition: service_healthy
 
+    completion:
+        extends:
+            file: ./services/completion/docker-compose.yml
+            service: completion
+    
+    chat:
+        extends:
+            file: ./services/chat/docker-compose.yml
+            service: chat
+
     completion-old-sdk:
         extends:
-            file: ./services/completion-old-sdk/docker-compose.yml
+            file: ./services/testing/completion-old-sdk/docker-compose.yml
             service: completion-old-sdk
 
     chat-old-sdk:
         extends:
-            file: ./services/chat-old-sdk/docker-compose.yml
+            file: ./services/testing/chat-old-sdk/docker-compose.yml
             service: chat-old-sdk
 
     completion-new-sdk:
         extends:
-            file: ./services/completion-new-sdk/docker-compose.yml
+            file: ./services/testing/completion-new-sdk/docker-compose.yml
             service: completion-new-sdk
     
     chat-new-sdk:
         extends:
-            file: ./services/chat-new-sdk/docker-compose.yml
+            file: ./services/testing/chat-new-sdk/docker-compose.yml
             service: chat-new-sdk
-
-    completion-new-sdk-prompt:
-        extends:
-            file: ./services/completion-new-sdk-prompt/docker-compose.yml
-            service: completion-new-sdk-prompt
-    
-    chat-new-sdk-prompt:
-        extends:
-            file: ./services/chat-new-sdk-prompt/docker-compose.yml
-            service: chat-new-sdk-prompt
 
 networks:
     agenta-network:
