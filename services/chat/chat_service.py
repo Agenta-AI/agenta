@@ -47,10 +47,12 @@ async def generate(
     if messages is not None:
         openai_kwargs["messages"].extend(messages)
 
-    api_key = ag.SecretsManager.get_api_key_for_model(ag.config.model)
+    api_key = ag.SecretsManager.get_api_key_for_model(config.prompt.llm_config.model)
 
     if not api_key:
-        raise ValueError(f"API key not found for model {ag.config.model}")
+        raise ValueError(
+            f"API key not found for model {config.prompt.llm_config.model}"
+        )
 
     response = await litellm.acompletion(
         **{
