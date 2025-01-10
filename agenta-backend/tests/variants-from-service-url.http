@@ -37,7 +37,7 @@ Content-Type: application/json
 
 {
   "variant_name": "app.url",
-  "url": "http://localhost/completion-new-sdk",
+  "url": "http://localhost/completion-new-sdk-prompt",
   "base_name": "app",
   "config_name": "url"
 }
@@ -50,7 +50,6 @@ Content-Type: application/json
 ###
 
 # @name update_variant_url
-#PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/service?url={{host}}:{{port}}
 PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/service?url=http://localhost/completion-new-sdk
 Content-Type: application/json
 
