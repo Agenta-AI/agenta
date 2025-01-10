@@ -15,4 +15,4 @@ ENV PYTHONPATH=/agenta-cli:$PYTHONPATH
 
 EXPOSE 80
 
-CMD ["./entrypoint.sh"]
+CMD ["python", "main.py"]
