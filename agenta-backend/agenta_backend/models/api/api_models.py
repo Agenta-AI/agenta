@@ -58,6 +58,7 @@ class VariantAction(BaseModel):
 
 class CreateApp(BaseModel):
     app_name: str
+    service_key: Optional[str] = None
     project_id: Optional[str] = None
     workspace_id: Optional[str] = None
 
@@ -116,6 +117,7 @@ class AppVariantResponse(BaseModel):
 
 
 class AppVariantRevision(BaseModel):
+    id: Optional[str] = None
     revision: int
     modified_by: str
     config: ConfigDB
@@ -194,6 +196,20 @@ class AddVariantFromImagePayload(BaseModel):
     variant_name: str
     docker_id: str
     tags: str
+    base_name: Optional[str]
+    config_name: Optional[str]
+
+
+class AddVariantFromURLPayload(BaseModel):
+    variant_name: str
+    url: str
+    base_name: Optional[str]
+    config_name: Optional[str]
+
+
+class AddVariantFromKeyPayload(BaseModel):
+    variant_name: str
+    key: str
     base_name: Optional[str]
     config_name: Optional[str]
 
