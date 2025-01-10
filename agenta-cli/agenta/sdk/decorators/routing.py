@@ -9,11 +9,12 @@ from pydantic import BaseModel, HttpUrl, ValidationError
 
 from fastapi import Body, FastAPI, HTTPException, Request
 
+from agenta.sdk.middleware.mock import MockMiddleware
 from agenta.sdk.middleware.inline import InlineMiddleware
-from agenta.sdk.middleware.auth import AuthMiddleware
-from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.config import ConfigMiddleware
 from agenta.sdk.middleware.vault import VaultMiddleware
+from agenta.sdk.middleware.config import ConfigMiddleware
+from agenta.sdk.middleware.otel import OTelMiddleware
+from agenta.sdk.middleware.auth import AuthMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
 from agenta.sdk.context.routing import (
@@ -137,11 +138,12 @@ class entrypoint:
         ### --- Middleware --- #
         if not entrypoint._middleware:
             entrypoint._middleware = True
+            app.add_middleware(MockMiddleware)
             app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
             app.add_middleware(ConfigMiddleware)
-            app.add_middleware(AuthMiddleware)
             app.add_middleware(OTelMiddleware)
+            app.add_middleware(AuthMiddleware)
             app.add_middleware(CORSMiddleware)
         ### ------------------ #
 
