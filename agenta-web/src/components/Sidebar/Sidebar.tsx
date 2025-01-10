@@ -17,6 +17,7 @@ import AlertPopup from "../AlertPopup/AlertPopup"
 import {dynamicContext} from "@/lib/helpers/dynamic"
 import Avatar from "@/components/Avatar/Avatar"
 import {useProjectData} from "@/contexts/project.context"
+import clsx from "clsx"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -307,23 +308,18 @@ const Sidebar: React.FC = () => {
             >
                 <div className={classes.sliderContainer}>
                     <div
-                        className={` overflow-hidden h-[51px] transition-width duration-300 ease-in-out ${
+                        className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
                             collapsed && !isHovered ? "w-[40px]" : "w-full"
                         }`}
                     >
                         <div
-                            className={`flex items-center gap-2`}
-                            style={{
-                                transition: "transform 0.3s ease",
-                                transform:
-                                    collapsed && !isHovered
-                                        ? isDemo()
-                                            ? "translate(91px)"
-                                            : "translateX(74px)"
-                                        : "translateX(0)",
-                            }}
+                            className={clsx([
+                                "flex items-center gap-2",
+                                "transition-width duration-[inherit] ease-in-out",
+                                "w-full",
+                            ])}
                         >
-                            <div>
+                            <div className="transition-width duration-[inherit] ease-in-out w-full">
                                 {!isDemo() && (
                                     <Link data-cy="app-management-link" href="/apps">
                                         <Logo isOnlyIconLogo={collapsed && !isHovered} />
