@@ -85,15 +85,11 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         local_secrets: List[SecretDTO] = []
 
-        print(_PROVIDER_KINDS)
-
         try:
             for provider_kind in _PROVIDER_KINDS:
                 provider = provider_kind
                 key_name = f"{provider.upper()}_API_KEY"
                 key = getenv(key_name)
-
-                print(key_name, key)
 
                 if not key:
                     continue

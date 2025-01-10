@@ -280,23 +280,18 @@ class entrypoint:
                     f"Unexpected error initializing config_schema: {str(e)}"
                 ) from e
 
-        print(config, default_parameters)
-
         return config, default_parameters
 
     def process_kwargs(
         self, kwargs: Dict[str, Any], default_parameters: Dict[str, Any]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Remove the config parameters from the kwargs."""
-        print("--------------")
         # Extract agenta_config if present
         config_params = kwargs.pop(self._config_key, {})
         if isinstance(config_params, BaseModel):
             config_params = config_params.dict()
         # Merge with default parameters
         config = {**default_parameters, **config_params}
-
-        print(kwargs, config)
 
         return kwargs, config
 
@@ -515,9 +510,10 @@ class entrypoint:
         self, updated_params: list, config_instance: Type[BaseModel]
     ) -> None:
         """Add configuration parameters to function signature."""
-        print(config_instance)
+
         for name, field in config_instance.model_fields.items():
             assert field.default is not None, f"Field {name} has no default value"
+
         updated_params.append(
             Parameter(
                 name=self._config_key,
