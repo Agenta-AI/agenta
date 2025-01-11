@@ -53,16 +53,18 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                     </SplitterPanel>
                     <SplitterPanel className="!h-full">
                         {isComparisonView && (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-[#F5F7FA]">
+                            <div className="flex items-center justify-between gap-2 px-4 py-2 bg-[#F5F7FA]">
                                 <Typography className="text-[16px] leading-[18px] font-[600]">
                                     Generations
                                 </Typography>
 
-                                <Button size="small">Clear</Button>
+                                <div className="flex items-center gap-2">
+                                    <Button size="small">Clear</Button>
 
-                                <Button type="primary" icon={<Play size={14} />} size="small">
-                                    Run
-                                </Button>
+                                    <Button type="primary" icon={<Play size={14} />} size="small">
+                                        Run
+                                    </Button>
+                                </div>
                             </div>
                         )}
                         <div
@@ -74,10 +76,28 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             ])}
                         >
                             {isComparisonView && (
-                                <div className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto">
-                                    <GenerationComparisionCompletionInput />
-                                </div>
+                                <>
+                                    {(displayedVariants || []).map((variantId) => {
+                                        return (
+                                            <div
+                                                key={variantId}
+                                                className={clsx([
+                                                    {
+                                                        "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto":
+                                                            isComparisonView,
+                                                    },
+                                                ])}
+                                            >
+                                                <GenerationComparisionCompletionInput
+                                                    variantId={variantId}
+                                                    className="w-[400px] h-full overflow-y-auto *:!overflow-x-hidden"
+                                                />
+                                            </div>
+                                        )
+                                    })}
+                                </>
                             )}
+
                             {(displayedVariants || []).map((variantId) => {
                                 return (
                                     <div
@@ -90,7 +110,9 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         ])}
                                     >
                                         {isComparisonView ? (
-                                            <GenerationComparisionCompletionOuput />
+                                            <GenerationComparisionCompletionOuput
+                                                variantId={variantId}
+                                            />
                                         ) : (
                                             <PlaygroundGenerations variantId={variantId} />
                                         )}
