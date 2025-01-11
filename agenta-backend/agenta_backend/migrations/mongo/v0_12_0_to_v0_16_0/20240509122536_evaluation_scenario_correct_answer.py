@@ -341,4 +341,5 @@ class Forward:
             del input_document.__dict__["correct_answer"]
 
 
-class Backward: ...
+class Backward:
+    ...
