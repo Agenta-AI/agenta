@@ -1,6 +1,15 @@
 import React, {useEffect, useMemo, useState} from "react"
-import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
-import Sidebar from "../Sidebar/Sidebar"
+import {
+    Breadcrumb,
+    Button,
+    ConfigProvider,
+    Layout,
+    Modal,
+    Skeleton,
+    Space,
+    Typography,
+    theme,
+} from "antd"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
 import {isDemo} from "@/lib/helpers/utils"
@@ -18,7 +27,9 @@ import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
 import {Lightning} from "@phosphor-icons/react"
 import packageJsonData from "../../../package.json"
 import {useProjectData} from "@/contexts/project.context"
-import {dynamicContext} from "@/lib/helpers/dynamic"
+import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
+
+const Sidebar: any = dynamicComponent("Sidebar/Sidebar", () => <Skeleton className="w-[236px]" />)
 
 const {Content, Footer} = Layout
 const {Text} = Typography
