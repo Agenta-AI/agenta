@@ -42,6 +42,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 open={isFocusMoodOpen}
                 onClose={() => setIsFocusMoodOpen(false)}
                 type="completion"
+                variantId={variantId}
             />
         </div>
     )

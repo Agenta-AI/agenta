@@ -4,7 +4,7 @@ import PlaygroundComparisionGenerationOutputHeader from "../assets/GenerationCom
 import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 
-const GenerationComparisionCompletionOuput = () => {
+const GenerationComparisionCompletionOuput = ({variantId}: any) => {
     const classes = useStyles()
     return (
         <div className={clsx("w-[400px] h-full overflow-y-auto *:!overflow-x-hidden")}>

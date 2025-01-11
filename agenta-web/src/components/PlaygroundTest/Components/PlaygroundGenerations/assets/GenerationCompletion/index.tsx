@@ -7,8 +7,9 @@ import {useCallback} from "react"
 import GenerationCompletionRow from "../GenerationCompletionRow"
 import {Button} from "antd"
 import {GenerationCompletionProps} from "./types"
+import clsx from "clsx"
 
-const GenerationCompletion = ({variantId}: GenerationCompletionProps) => {
+const GenerationCompletion = ({variantId, className}: GenerationCompletionProps) => {
     const {inputRowIds, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
@@ -39,7 +40,7 @@ const GenerationCompletion = ({variantId}: GenerationCompletionProps) => {
     componentLogger("GenerationTestView", variantId, inputRowIds)
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className={clsx("flex flex-col gap-4", className)}>
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
@@ -50,10 +51,10 @@ const GenerationCompletion = ({variantId}: GenerationCompletionProps) => {
                 )
             })}
 
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
                 <AddButton size="small" label="Input" onClick={addNewInputRow} />
                 <Button size="small">Add all to test set</Button>
-            </div>
+            </div> */}
         </div>
     )
 }

@@ -3,10 +3,17 @@ import {Button, Drawer, Radio, Space, Typography} from "antd"
 import {CaretDown, CaretUp, FloppyDisk, Play} from "@phosphor-icons/react"
 import useDrawerWidth from "../../../hooks/useDrawerWidth"
 import {GenerationFocusDrawerProps} from "./types"
+import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
+import GenerationComparisionCompletionInput from "../../PlaygroundGenerationComparisionView/GenerationComparisionCompletionInput"
 
-const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({type, ...props}) => {
+const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
+    type,
+    variantId,
+    ...props
+}) => {
     const [format, setFormat] = useState("pretty")
     const {drawerWidth} = useDrawerWidth()
+    const {viewType, displayedVariants} = usePlayground()
 
     const onClose = (e: any) => {
         props?.onClose?.(e)
@@ -17,6 +24,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({type, ...p
                 placement={"right"}
                 width={drawerWidth}
                 onClose={onClose}
+                classNames={{body: "!p-0"}}
                 {...props}
                 title={
                     <div className="!w-full flex items-center justify-between">
@@ -45,7 +53,9 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({type, ...p
                         </Space>
                     </div>
                 }
-            ></Drawer>
+            >
+                <GenerationComparisionCompletionInput variantId={variantId} />
+            </Drawer>
         </>
     )
 }

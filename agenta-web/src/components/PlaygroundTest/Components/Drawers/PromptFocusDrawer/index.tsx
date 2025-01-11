@@ -1,10 +1,9 @@
 import {useCallback} from "react"
-import {Drawer, Divider} from "antd"
+import {Drawer} from "antd"
 import {PromptFocusDrawerProps} from "./types"
 import usePlayground from "../../../hooks/usePlayground"
 import useDrawerWidth from "../../../hooks/useDrawerWidth"
 import PromptFocusDrawerHeader from "./assets/PromptFocusDrawerHeader"
-import PlaygroundDeploymentConfig from "../../PlaygroundDeploymentConfig"
 import PlaygroundVariantConfigPrompt from "../../PlaygroundVariantConfigPrompt"
 import {EnhancedVariant} from "@/components/PlaygroundTest/assets/utilities/transformer/types"
 
@@ -37,10 +36,6 @@ const PromptFocusDrawer: React.FC<PromptFocusDrawerProps> = ({variantId, ...prop
                 {...props}
                 title={<PromptFocusDrawerHeader variantName={variantName} revision={revision} />}
             >
-                <PlaygroundDeploymentConfig />
-
-                <Divider className="!my-1.5" />
-
                 {promptIds.map((promptId) => (
                     <PlaygroundVariantConfigPrompt
                         key={promptId as string}

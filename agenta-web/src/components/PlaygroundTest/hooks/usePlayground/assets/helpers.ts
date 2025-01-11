@@ -219,12 +219,6 @@ export const compareVariant = (
 export const setVariant = (variant: any): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
-    if (variant.parameters.agenta_config) {
-        variant.parameters.ag_config = variant.parameters.agenta_config
-        delete variant.parameters.agenta_config
-    }
-    const parameters = cloneDeep(variant.parameters)
-    delete parameters.ag_config.input_keys
 
     return {
         id: variant.variant_id,
