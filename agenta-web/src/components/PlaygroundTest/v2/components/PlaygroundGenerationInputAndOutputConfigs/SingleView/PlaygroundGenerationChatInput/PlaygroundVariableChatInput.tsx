@@ -30,6 +30,9 @@ const PlaygroundVariableChatInput: React.FC<PlaygroundVariableChatInputProps> = 
                 )}
             </div>
 
+            {/**
+             * TODO: FIX THIS WITH CORRECT PROP EXPECTATIONS
+             * */}
             {type !== "input" && (
                 <GenerationVariableOptions
                     variantId=""

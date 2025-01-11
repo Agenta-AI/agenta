@@ -8,6 +8,7 @@ import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 import {type InitialStateType} from "../../../state/types"
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 
 /**
  * FETCHERS
@@ -20,7 +21,7 @@ import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
  * @returns Promise containing variantId, parsed schema and any errors
  */
 export const fetchOpenApiSchemaJson = async (service: string) => {
-    const openapiJsonResponse = await fetch(`http://localhost/${service}/openapi.json`)
+    const openapiJsonResponse = await fetch(`${getAgentaApiUrl()}/${service}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
@@ -219,6 +220,10 @@ export const compareVariant = (
 export const setVariant = (variant: any): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
+    if (variant.parameters.agenta_config) {
+        variant.parameters.ag_config = variant.parameters.agenta_config
+        delete variant.parameters.agenta_config
+    }
 
     return {
         id: variant.variant_id,

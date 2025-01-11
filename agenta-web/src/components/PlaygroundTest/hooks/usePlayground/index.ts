@@ -60,6 +60,7 @@ const usePlayground = <Selected = unknown>(
         use: middlewares,
         service,
         projectId,
+        appId,
         compare: undefined,
         ...rest,
     })
