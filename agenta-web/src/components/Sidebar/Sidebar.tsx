@@ -14,9 +14,9 @@ import {useProfileData} from "@/contexts/profile.context"
 import {useSession} from "@/hooks/useSession"
 import {CaretDown, Gear, SignOut} from "@phosphor-icons/react"
 import AlertPopup from "../AlertPopup/AlertPopup"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import Avatar from "@/components/Avatar/Avatar"
 import {useProjectData} from "@/contexts/project.context"
+import {useOrgData} from "@/contexts/org.context"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -287,14 +287,7 @@ const Sidebar: React.FC = () => {
     const {user} = useProfileData()
     const {logout} = useSession()
     const {project} = useProjectData()
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
-
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
 
     const {topItems, bottomItems} = useMemo(() => {
         const topItems: SidebarConfig[] = []
@@ -368,18 +361,20 @@ const Sidebar: React.FC = () => {
                                             ),
                                         })),
                                         {type: "divider"},
-                                        !project?.is_demo && {
-                                            key: "settings",
-                                            label: (
-                                                <Link
-                                                    href={"/settings"}
-                                                    className="flex items-center gap-2"
-                                                >
-                                                    <Gear size={16} />
-                                                    <Text>Settings</Text>
-                                                </Link>
-                                            ),
-                                        },
+                                        !project?.is_demo
+                                            ? {
+                                                  key: "settings",
+                                                  label: (
+                                                      <Link
+                                                          href={"/settings"}
+                                                          className="flex items-center gap-2"
+                                                      >
+                                                          <Gear size={16} />
+                                                          <Text>Settings</Text>
+                                                      </Link>
+                                                  ),
+                                              }
+                                            : null,
                                         {
                                             key: "logout",
                                             label: (
