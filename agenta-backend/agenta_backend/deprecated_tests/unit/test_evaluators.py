@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from agenta_backend.tests.unit.test_traces import (
+from agenta_backend.deprecated_tests.unit.test_traces import (
     simple_rag_trace,
     simple_rag_trace_for_baseresponse_v3,
 )
