@@ -1,5 +1,5 @@
 from agenta_backend.dbs.postgres.shared.engine import Engine
-from agenta_backend.tests.models import models
+from agenta_backend.deprecated_tests.models import models
 
 
 class TestDBEngine(Engine):
