@@ -5,11 +5,10 @@ import {parseValidationError} from "../../../assets/utilities/errors"
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
     rowId: string
-    service: string
     appId: string
     uri: string
 }) {
-    const {variant, rowId, service, appId, uri, secrets} = payload
+    const {variant, rowId, uri} = payload
     const requestBody = transformToRequestBody(variant, rowId)
     let result
 

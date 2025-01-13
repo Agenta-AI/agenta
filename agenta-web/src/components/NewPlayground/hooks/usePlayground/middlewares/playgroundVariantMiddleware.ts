@@ -155,7 +155,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         rowId: string
                         appId: string
                         uri: string
-                        service: string
                         result?: {
                             response?: ApiResponse
                             error?: string
@@ -414,7 +413,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     swr.mutate(async (state) => {
                         const clonedState = cloneDeep(state)
 
-                        if (!config.variantId || !config.service || !clonedState) return state
+                        if (!config.variantId || !clonedState) return state
 
                         const variant = findVariantById(state, config.variantId)
                         if (!variant) return state
@@ -435,9 +434,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             createWorkerMessage("runVariantInputRow", {
                                 variant,
                                 rowId,
-                                service: config.service,
                                 appId: config.appId!,
-                                // apiUrl: getAgentaApiUrl()!,
                                 uri: variant.uri,
                             }),
                         )
@@ -445,14 +442,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return clonedState
                     })
                 },
-                [
-                    swr,
-                    config.variantId,
-                    config.service,
-                    config.appId,
-                    postMessageToWorker,
-                    createWorkerMessage,
-                ],
+                [swr, config.variantId, config.appId, postMessageToWorker, createWorkerMessage],
             )
 
             Object.defineProperty(swr, "variant", {

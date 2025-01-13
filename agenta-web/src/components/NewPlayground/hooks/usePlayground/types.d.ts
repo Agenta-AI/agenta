@@ -12,7 +12,6 @@ interface BaseHookConfig<T = unknown, Selected = unknown>
     fetcher?: AgentaFetcher
     hookId?: string
     projectId?: string
-    service?: string
     cache?: Map<string, {data: T}>
 }
 
@@ -119,7 +118,6 @@ export interface PlaygroundSWRConfig<
     variantId?: string
     hookId?: string
     projectId?: string
-    service?: string
     appId?: string
     cache?: Map<string, {data: T}>
     variantSelector?: VariantSelector<Selected>
