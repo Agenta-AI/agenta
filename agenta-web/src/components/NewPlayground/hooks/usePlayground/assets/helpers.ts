@@ -8,7 +8,14 @@ import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 import {type InitialStateType} from "../../../state/types"
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {getAgentaApiUrl} from "@/lib/helpers/utils"
+
+const uriFixer = (uri: string) => {
+    if (!uri.includes("/services/")) {
+        uri = uri.replace("/chat", "/services/chat")
+        uri = uri.replace("/completion", "/services/completion")
+    }
+    return uri
+}
 
 /**
  * FETCHERS
@@ -20,7 +27,7 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
  * @returns Promise containing variantId, parsed schema and any errors
  */
 export const fetchOpenApiSchemaJson = async (uri: string) => {
-    const openapiJsonResponse = await fetch(`${uri}/openapi.json`)
+    const openapiJsonResponse = await fetch(`${uriFixer(uri)}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
@@ -221,7 +228,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
 
     return {
         id: variant.variant_id,
-        uri: variant.uri,
+        uri: uriFixer(variant.uri),
         appId: variant.app_id,
         baseId: variant.base_id,
         baseName: variant.base_name,
