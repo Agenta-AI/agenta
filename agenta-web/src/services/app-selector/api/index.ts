@@ -183,9 +183,9 @@ export const createAndStartTemplate = async ({
                 return
             }
             throw error
+        } finally {
+            onStatusChange?.("success", "", app?.app_id)
         }
-
-        onStatusChange?.("success", "", app?.app_id)
     } catch (error) {
         onStatusChange?.("error", error)
     }
