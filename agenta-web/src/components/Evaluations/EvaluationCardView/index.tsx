@@ -18,7 +18,7 @@ import {useLocalStorage} from "usehooks-ts"
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import debounce from "lodash/debounce"
 import {EvaluationType} from "@/lib/enums"
-import ParamsForm from "@/components/Playground/ParamsForm/ParamsForm"
+import ParamsForm from "@/components/OldPlayground/ParamsForm/ParamsForm"
 import {useVariants} from "@/lib/hooks/useVariant"
 
 export const VARIANT_COLORS = [

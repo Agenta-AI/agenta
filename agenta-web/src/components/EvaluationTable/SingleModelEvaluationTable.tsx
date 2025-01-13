@@ -42,7 +42,7 @@ import {
 import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import debounce from "lodash/debounce"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
-import ParamsForm from "../Playground/ParamsForm/ParamsForm"
+import ParamsForm from "../OldPlayground/ParamsForm/ParamsForm"
 import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"

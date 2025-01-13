@@ -169,7 +169,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             }
             return prev
         })
-    }, [status])
+    }, [appId, details, router, status])
 
     return (
         <Modal

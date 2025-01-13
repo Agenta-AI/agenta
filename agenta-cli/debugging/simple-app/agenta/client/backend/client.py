@@ -91,13 +91,17 @@ class AgentaApi:
         self._client_wrapper = SyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=httpx_client
-            if httpx_client is not None
-            else httpx.Client(
-                timeout=_defaulted_timeout, follow_redirects=follow_redirects
-            )
-            if follow_redirects is not None
-            else httpx.Client(timeout=_defaulted_timeout),
+            httpx_client=(
+                httpx_client
+                if httpx_client is not None
+                else (
+                    httpx.Client(
+                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
+                    )
+                    if follow_redirects is not None
+                    else httpx.Client(timeout=_defaulted_timeout)
+                )
+            ),
             timeout=_defaulted_timeout,
         )
         self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
@@ -1620,13 +1624,17 @@ class AsyncAgentaApi:
         self._client_wrapper = AsyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=httpx_client
-            if httpx_client is not None
-            else httpx.AsyncClient(
-                timeout=_defaulted_timeout, follow_redirects=follow_redirects
-            )
-            if follow_redirects is not None
-            else httpx.AsyncClient(timeout=_defaulted_timeout),
+            httpx_client=(
+                httpx_client
+                if httpx_client is not None
+                else (
+                    httpx.AsyncClient(
+                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
+                    )
+                    if follow_redirects is not None
+                    else httpx.AsyncClient(timeout=_defaulted_timeout)
+                )
+            ),
             timeout=_defaulted_timeout,
         )
         self.observability = AsyncObservabilityClient(
