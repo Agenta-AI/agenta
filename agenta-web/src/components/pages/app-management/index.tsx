@@ -71,8 +71,6 @@ const AppManagement: React.FC = () => {
     const [{data: templates = [], isLoading: isLoadingTemplates}, noTemplateMessage] =
         useTemplates()
 
-    console.log("APPS", apps, templates)
-
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
             setUseOrgData(() => context.useOrgData)
