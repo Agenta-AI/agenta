@@ -20,7 +20,6 @@ import type {
 
 const usePlayground = <Selected = unknown>(
     {
-        service = (Router.query.service as string) || "",
         appId = (Router.query.app_id as string) || "",
         projectId = getCurrentProject().projectId,
         ...rest
@@ -28,7 +27,6 @@ const usePlayground = <Selected = unknown>(
         stateSelector?: (state: PlaygroundStateData) => Selected
         variantSelector?: VariantSelector<Selected>
     } = {
-        service: (Router.query.service as string) || "",
         appId: (Router.query.app_id as string) || "",
         projectId: getCurrentProject().projectId,
     },
@@ -58,7 +56,6 @@ const usePlayground = <Selected = unknown>(
         UsePlaygroundStateOptions<PlaygroundStateData, Selected>
     >(key, {
         use: middlewares,
-        service,
         projectId,
         appId,
         compare: undefined,
