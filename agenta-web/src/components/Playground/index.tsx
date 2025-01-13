@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useMemo } from "react"
 
 import dynamic from 'next/dynamic'
 import { useRouter } from "next/router"
@@ -13,20 +13,23 @@ const OldPlayground = dynamic(() => import("../OldPlayground/Playground"), { ssr
 const PlaygroundRouter = () => {
     const router = useRouter()
     const appId = router.query.app_id
-    const [app, setApp] = useState<ListAppsItem | null>(null)
-    const {isLoading} = useSWR(`${getAgentaApiUrl()}/api/apps`, {
-        onSuccess: useCallback((data) => {
-            const _app = data.find((app) => app.app_id === appId)
-            setApp(_app)
-        }, [appId])
-    })
-    
+    const {isLoading, data} = useSWR(`${getAgentaApiUrl()}/api/apps`)
+
+    const app = useMemo(() => {
+        return (data || [])?.find((item: ListAppsItem) => item.app_id === appId)
+    }, [appId, data])
+
     if (isLoading) {
         return <div>Loading...</div>
     } else if (!!app) {
         if (app.app_type?.includes('(old)')) {
             return <OldPlayground />
         } else {
+            if (!router.query.playground) {
+                router.replace(`${router.asPath}?playground=new-playground`, undefined, {
+                    shallow: true
+                })
+            }
             return <NewPlayground />
         }
     } else {
