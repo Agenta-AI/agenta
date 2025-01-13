@@ -59,10 +59,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     logger(`FETCH - FETCH`)
 
                     try {
-                        const [variants, specResponse] = await Promise.all([
+                        const [variants] = await Promise.all([
                             globalFetcher(url, options) as Promise<Variant[]>,
-                            ...(!state.spec ? [fetchOpenApiSchemaJson(config.service)] : []),
                         ])
+                        const uri = variants[0].uri
+                        const specResponse = await fetchOpenApiSchemaJson(uri)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {

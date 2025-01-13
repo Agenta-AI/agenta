@@ -32,6 +32,7 @@ import type {
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {useVaultSecret} from "@/hooks/useVaultSecret"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -70,6 +71,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
         config: PlaygroundSWRConfig<Data, Selected>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
+            const {secrets} = useVaultSecret()
+            console.log("test?", secrets)
             const {logger, valueReferences, addToValueReferences, checkInvalidSelector} =
                 usePlaygroundUtilities({
                     config: {
@@ -155,7 +158,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         variant: EnhancedVariant
                         rowId: string
                         appId: string
-                        apiUrl: string
+                        uri: string
+                        secrets?: any
                         service: string
                         result?: {
                             response?: ApiResponse
@@ -438,7 +442,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 rowId,
                                 service: config.service,
                                 appId: config.appId!,
-                                apiUrl: getAgentaApiUrl()!,
+                                secrets,
+                                // apiUrl: getAgentaApiUrl()!,
+                                uri: variant.uri,
                             }),
                         )
 
@@ -452,6 +458,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     config.appId,
                     postMessageToWorker,
                     createWorkerMessage,
+                    secrets,
                 ],
             )
 
