@@ -19,7 +19,13 @@ const GenerationVariableOptions = dynamic(() => import("../GenerationVariableOpt
     ssr: false,
 })
 
-const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationCompletionRowProps) => {
+const GenerationCompletionRow = ({
+    variantId,
+    rowId,
+    className,
+    inputOnly,
+    ...props
+}: GenerationCompletionRowProps) => {
     const {result, variableIds, runVariantTestRow, canRun, isRunning, viewType} = usePlayground({
         variantId,
         variantSelector: useCallback(
@@ -47,7 +53,7 @@ const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationComplet
         await runVariantTestRow?.(rowId)
     }, [runVariantTestRow, rowId])
 
-    if (viewType === "comparison") {
+    if (viewType === "single") {
         return (
             <div
                 className={clsx([
@@ -118,61 +124,50 @@ const GenerationCompletionRow = ({variantId, rowId, ...props}: GenerationComplet
     }
 
     return (
-        <div
-            className={clsx([
-                "flex flex-col gap-4",
-                "p-2",
-                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                "group/item",
-            ])}
-            {...props}
-        >
-            <div className="flex gap-1 items-start">
-                <div className="flex flex-col grow gap-2">
-                    {variableIds.map((variableId) => {
-                        return (
-                            <PlaygroundVariantPropertyControl
-                                key={variableId}
-                                variantId={variantId}
-                                propertyId={variableId}
-                            />
-                        )
-                    })}
+        <>
+            <div
+                className={clsx([
+                    "flex flex-col gap-4",
+                    "p-2",
+                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    "group/item",
+                    className,
+                ])}
+                {...props}
+            >
+                <div className="flex gap-1 items-start">
+                    <div className="flex flex-col grow gap-2">
+                        {variableIds.map((variableId) => {
+                            return (
+                                <PlaygroundVariantPropertyControl
+                                    key={variableId}
+                                    variantId={variantId}
+                                    propertyId={variableId}
+                                />
+                            )
+                        })}
+                    </div>
                 </div>
             </div>
 
-            {/* <div className="w-full flex gap-1 items-start">
-                <div className="w-[100px] shrink-0">
+            {!inputOnly && (
+                <div
+                    className={clsx(
+                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] h-[48px] flex items-center px-2",
+                        className,
+                    )}
+                >
                     <Button
                         onClick={runRow}
-                        variant="outlined"
-                        color="default"
-                        className="self-start"
                         disabled={!canRun || isRunning}
                         size="small"
+                        icon={<Play size={14} />}
                     >
-                        <Play size={14} />
                         Run
                     </Button>
                 </div>
-                <div className="flex flex-col gap-4">
-                    {isRunning ? (
-                        <GenerationOutputText text="Running..." />
-                    ) : !result ? (
-                        <GenerationOutputText text="Click run to generate output" />
-                    ) : result.error ? (
-                        <GenerationOutputText type="danger" text={result.error} />
-                    ) : result.response ? (
-                        <>
-                            <GenerationOutputText type="success" text={result.response.data} />
-
-                            <GenerationResultUtils />
-                        </>
-                    ) : null}
-                </div>
-                <div className="flex items-center w-[100px] shrink-0" />
-            </div> */}
-        </div>
+            )}
+        </>
     )
 }
 

@@ -9,8 +9,13 @@ import {Button} from "antd"
 import {GenerationCompletionProps} from "./types"
 import clsx from "clsx"
 
-const GenerationCompletion = ({variantId, className}: GenerationCompletionProps) => {
-    const {inputRowIds, mutateVariant} = usePlayground({
+const GenerationCompletion = ({
+    variantId,
+    className,
+    rowClassName,
+    inputOnly,
+}: GenerationCompletionProps) => {
+    const {inputRowIds, mutateVariant, viewType} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: useCallback((variant: EnhancedVariant) => {
@@ -40,21 +45,30 @@ const GenerationCompletion = ({variantId, className}: GenerationCompletionProps)
     componentLogger("GenerationTestView", variantId, inputRowIds)
 
     return (
-        <div className={clsx("flex flex-col gap-4", className)}>
+        <div className={clsx(["flex flex-col", {"gap-4": viewType === "single"}], className)}>
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
                         key={inputRowId}
                         variantId={variantId}
                         rowId={inputRowId}
+                        className={rowClassName}
+                        inputOnly={inputOnly}
                     />
                 )
             })}
 
-            {/* <div className="flex items-center gap-2">
-                <AddButton size="small" label="Input" onClick={addNewInputRow} />
-                <Button size="small">Add all to test set</Button>
-            </div> */}
+            {!inputOnly && (
+                <div
+                    className={clsx([
+                        "flex items-center gap-2 mx-2",
+                        {"mt-2": viewType === "comparison"},
+                    ])}
+                >
+                    <AddButton size="small" label="Input" onClick={addNewInputRow} />
+                    {viewType === "single" && <Button size="small">Add all to test set</Button>}
+                </div>
+            )}
         </div>
     )
 }
