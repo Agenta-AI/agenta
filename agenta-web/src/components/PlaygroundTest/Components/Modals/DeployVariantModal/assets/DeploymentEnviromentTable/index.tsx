@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 import {Typography, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import DeploymentTag from "@/components/PlaygroundTest/assets/DeploymentTag"
@@ -10,19 +10,9 @@ const DeploymentEnviromentTable = ({
     setSelectedEnvs,
     variantId,
     variant,
+    environments,
+    isLoading,
 }: DeploymentEnviromentTableProps) => {
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-
-    const rowSelection = useMemo(
-        () => ({
-            onChange: (selectedRowKeys: React.Key[]) => {
-                setSelectedRowKeys(selectedRowKeys)
-                setSelectedEnvs(selectedRowKeys as string[])
-            },
-        }),
-        [],
-    )
-
     const columns: ColumnsType<Environment> = useMemo(
         () => [
             {
@@ -48,7 +38,7 @@ const DeploymentEnviromentTable = ({
                                 <DeploymentTag
                                     deploymentName="Variant"
                                     deployedVariantId={variantId}
-                                    className="!w-auto"
+                                    className="w-[140px] flex items-center justify-center"
                                 />
                             ) : (
                                 <Tag color="default" bordered={false}>
@@ -60,7 +50,7 @@ const DeploymentEnviromentTable = ({
                 },
             },
         ],
-        [],
+        [environments],
     )
 
     return (
@@ -73,13 +63,16 @@ const DeploymentEnviromentTable = ({
                 rowSelection={{
                     type: "checkbox",
                     columnWidth: 48,
-                    ...rowSelection,
+                    onChange: (selectedRowKeys: React.Key[]) => {
+                        setSelectedEnvs(selectedRowKeys as string[])
+                    },
                 }}
                 data-cy="app-testset-list"
+                loading={isLoading}
                 className={`ph-no-capture`}
                 columns={columns}
-                dataSource={[]}
-                rowKey="_id"
+                dataSource={environments}
+                rowKey="name"
                 pagination={false}
                 bordered
             />

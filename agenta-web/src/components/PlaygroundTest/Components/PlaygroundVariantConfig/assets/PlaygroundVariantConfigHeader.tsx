@@ -5,15 +5,14 @@ import {Button, Select} from "antd"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
 import {ArrowsOut, FloppyDiskBack} from "@phosphor-icons/react"
 
-import DeployButton from "@/components/PlaygroundTest/assets/DeployButton"
 import Version from "@/components/PlaygroundTest/assets/Version"
 import {PlaygroundStateData} from "@/components/PlaygroundTest/hooks/usePlayground/types"
+import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
     {ssr: false},
 )
-const DeployVariantModal = dynamic(() => import("../../Modals/DeployVariantModal"), {ssr: false})
 const PromptFocusDrawer = dynamic(() => import("../../Drawers/PromptFocusDrawer"), {ssr: false})
 const PromptComparisionFocusDrawer = dynamic(
     () => import("../../Drawers/PromptComparisionFocusDrawer"),
@@ -88,7 +87,7 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
                     onClick={() => setIsFocusMoodOpen(true)}
                 />
 
-                <DeployButton onClick={() => setIsDeployOpen(true)} />
+                <DeployVariantButton variantId={variantId} />
 
                 <Button
                     icon={<FloppyDiskBack size={14} />}
@@ -136,13 +135,6 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
                 variantId={variantId}
                 open={isFocusMoodOpen}
                 onClose={() => setIsFocusMoodOpen(false)}
-            />
-
-            <DeployVariantModal
-                open={isDeployOpen}
-                onCancel={() => setIsDeployOpen(false)}
-                variantId={variantId}
-                environments={[]}
             />
         </section>
     )
