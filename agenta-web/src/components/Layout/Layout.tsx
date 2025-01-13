@@ -139,7 +139,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
         })
     }, [])
 
-    const isNewPlayground = router.pathname.includes("/playground") && router.query.playground === "new-playground"
+    const isNewPlayground =
+        router.pathname.includes("/playground") && router.query.playground === "new-playground"
 
     useEffect(() => {
         if (user && isDemo()) {
