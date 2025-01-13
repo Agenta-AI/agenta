@@ -33,6 +33,7 @@ export interface VariantParameters {
 /** Base variant interface */
 export interface BaseVariant {
     id: string
+    uri: string
     name: string
     version?: string
     createdAt?: string
