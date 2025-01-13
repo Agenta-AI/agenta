@@ -9,7 +9,7 @@ const {TextArea} = Input
 const TextControl = ({className, metadata, value, handleChange, as}: TextControlProps) => {
     const {viewType} = usePlayground()
 
-    if (viewType === "comparison") {
+    if (viewType === "single") {
         return (
             <div
                 className={clsx(
@@ -34,7 +34,7 @@ const TextControl = ({className, metadata, value, handleChange, as}: TextControl
 
     return (
         <div
-            className={clsx("relative bg-[#f5f7fa]", className)}
+            className={clsx("relative bg-transparent", className)}
             // {...props}
         >
             <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">

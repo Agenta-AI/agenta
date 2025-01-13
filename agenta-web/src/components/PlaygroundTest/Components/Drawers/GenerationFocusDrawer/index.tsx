@@ -1,10 +1,13 @@
 import {useState} from "react"
-import {Button, Drawer, Radio, Space, Typography} from "antd"
-import {CaretDown, CaretUp, FloppyDisk, Play} from "@phosphor-icons/react"
+import {Drawer} from "antd"
 import useDrawerWidth from "../../../hooks/useDrawerWidth"
 import {GenerationFocusDrawerProps} from "./types"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
 import GenerationComparisionCompletionInput from "../../PlaygroundGenerationComparisionView/GenerationComparisionCompletionInput"
+import GenerationComparisionCompletionOuput from "../../PlaygroundGenerationComparisionView/GenerationComparisionCompletionOuput"
+import GenerationFocusDrawerHeader from "./assets/GenerationFocusDrawerHeader"
+import GenerationOutputNavigator from "./assets/GenerationOutputNavigator"
+import clsx from "clsx"
 
 const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
     type,
@@ -19,44 +22,38 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
         props?.onClose?.(e)
     }
     return (
-        <>
-            <Drawer
-                placement={"right"}
-                width={drawerWidth}
-                onClose={onClose}
-                classNames={{body: "!p-0"}}
-                {...props}
-                title={
-                    <div className="!w-full flex items-center justify-between">
-                        <Space className="flex items-center gap-2">
-                            <div className="flex items-center gap-1">
-                                <Button icon={<CaretUp size={14} />} type="text" />
-                                <Button icon={<CaretDown size={14} />} type="text" />
-                            </div>
+        <Drawer
+            placement={"right"}
+            width={drawerWidth}
+            onClose={onClose}
+            classNames={{body: "!p-0"}}
+            {...props}
+            title={
+                <GenerationFocusDrawerHeader
+                    format={format}
+                    setFormat={setFormat}
+                    variantId={variantId}
+                />
+            }
+        >
+            <GenerationComparisionCompletionInput
+                variantId={variantId}
+                rowClassName="!border-none"
+                inputOnly={true}
+            />
+            <GenerationOutputNavigator />
 
-                            <Typography.Text>Generation</Typography.Text>
-                        </Space>
-                        <Space className="flex items-center gap-2">
-                            <div>
-                                <Radio.Group
-                                    value={format}
-                                    onChange={(e) => setFormat(e.target.value)}
-                                >
-                                    <Radio.Button value="pretty">Pretty</Radio.Button>
-                                    <Radio.Button value="json">JSON</Radio.Button>
-                                    <Radio.Button value="yaml">YAML</Radio.Button>
-                                </Radio.Group>
-                            </div>
-
-                            <Button icon={<Play size={14} />}>Re run</Button>
-                            <Button icon={<FloppyDisk size={14} />}>Add to test set</Button>
-                        </Space>
+            <div className="w-full flex items-start overflow-x-auto">
+                {(displayedVariants || []).map((variantId) => (
+                    <div className={clsx({"w-[400px]": viewType === "comparison"})}>
+                        <GenerationComparisionCompletionOuput
+                            variantId={variantId}
+                            focusDisable={true}
+                        />
                     </div>
-                }
-            >
-                <GenerationComparisionCompletionInput variantId={variantId} />
-            </Drawer>
-        </>
+                ))}
+            </div>
+        </Drawer>
     )
 }
 

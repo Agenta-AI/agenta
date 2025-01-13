@@ -3,12 +3,14 @@ import clsx from "clsx"
 
 import usePlayground from "../../hooks/usePlayground"
 import type {BaseContainerProps} from "../types"
-import {Button, Typography} from "antd"
-import {Play} from "@phosphor-icons/react"
 import GenerationComparisionCompletionOuput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionOuput"
 import GenerationComparisionCompletionInput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionInput"
-import PromptComparisionVariantNavigation from "../PlaygroundPromptComparisionView/PromptComparisionVariantNavigation"
+import GenerationComparisonHeader from "../PlaygroundGenerationComparisionView/GenerationComparisonHeader"
 
+const PromptComparisionVariantNavigation = dynamic(
+    () => import("../PlaygroundPromptComparisionView/PromptComparisionVariantNavigation"),
+    {ssr: false},
+)
 const PlaygroundVariantConfig = dynamic(() => import("../PlaygroundVariantConfig"), {ssr: false})
 const PlaygroundGenerations = dynamic(() => import("../PlaygroundGenerations"), {
     ssr: false,
@@ -21,11 +23,14 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
     const isComparisonView = viewType === "comparison"
 
     return (
-        <div className={clsx("flex flex-col grow h-full overflow-hidden", className)} {...divProps}>
+        <main
+            className={clsx("flex flex-col grow h-full overflow-hidden", className)}
+            {...divProps}
+        >
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter className="h-full" layout={isComparisonView ? "vertical" : "horizontal"}>
                     <SplitterPanel defaultSize="40%" min="20%" max="70%" className="!h-full">
-                        <div
+                        <section
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": viewType === "single",
@@ -49,25 +54,15 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     </div>
                                 )
                             })}
-                        </div>
+                        </section>
                     </SplitterPanel>
-                    <SplitterPanel className="!h-full">
-                        {isComparisonView && (
-                            <div className="flex items-center justify-between gap-2 px-4 py-2 bg-[#F5F7FA]">
-                                <Typography className="text-[16px] leading-[18px] font-[600]">
-                                    Generations
-                                </Typography>
 
-                                <div className="flex items-center gap-2">
-                                    <Button size="small">Clear</Button>
+                    <SplitterPanel
+                        className={clsx("!h-full", {"overflow-y-hidden": isComparisonView})}
+                    >
+                        {isComparisonView && <GenerationComparisonHeader />}
 
-                                    <Button type="primary" icon={<Play size={14} />} size="small">
-                                        Run
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                        <div
+                        <section
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": viewType === "single",
@@ -75,28 +70,20 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 },
                             ])}
                         >
-                            {isComparisonView && (
-                                <>
-                                    {(displayedVariants || []).map((variantId) => {
-                                        return (
-                                            <div
-                                                key={variantId}
-                                                className={clsx([
-                                                    {
-                                                        "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto":
-                                                            isComparisonView,
-                                                    },
-                                                ])}
-                                            >
-                                                <GenerationComparisionCompletionInput
-                                                    variantId={variantId}
-                                                    className="w-[400px] h-full overflow-y-auto *:!overflow-x-hidden"
-                                                />
-                                            </div>
-                                        )
-                                    })}
-                                </>
-                            )}
+                            {isComparisonView &&
+                                (displayedVariants?.slice(0, 1) || []).map((variantId) => {
+                                    return (
+                                        <div
+                                            key={variantId}
+                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto"
+                                        >
+                                            <GenerationComparisionCompletionInput
+                                                variantId={variantId}
+                                                rowClassName="bg-[#f5f7fa]"
+                                            />
+                                        </div>
+                                    )
+                                })}
 
                             {(displayedVariants || []).map((variantId) => {
                                 return (
@@ -119,11 +106,11 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     </div>
                                 )
                             })}
-                        </div>
+                        </section>
                     </SplitterPanel>
                 </Splitter>
             </div>
-        </div>
+        </main>
     )
 }
 

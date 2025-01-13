@@ -78,6 +78,7 @@ export type RenderFunctions = {
         value: any,
         handleChange: (v: any) => void,
         as?: string,
+        className?: string,
     ) => React.ReactElement | null
 }
 
