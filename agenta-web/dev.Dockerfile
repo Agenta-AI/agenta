@@ -21,10 +21,10 @@ RUN npx next telemetry disable
 # Expose the necessary port
 EXPOSE 3000
 
-# Start Next.js in development mode
+# Start Next.js in production mode
 CMD \
-    if [ -f yarn.lock ]; then yarn dev; \
-    elif [ -f package-lock.json ]; then npm run dev; \
-    elif [ -f pnpm-lock.yaml ]; then pnpm dev; \
+    if [ -f yarn.lock ]; then yarn build && yarn start; \
+    elif [ -f package-lock.json ]; then npm run build && npm run start; \
+    elif [ -f pnpm-lock.yaml ]; then pnpm build && pnpm start; \
     else yarn dev; \
     fi
