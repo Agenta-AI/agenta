@@ -45,7 +45,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
 
             <div className="w-full flex items-start overflow-x-auto">
                 {(displayedVariants || []).map((variantId) => (
-                    <div className={clsx({"w-[400px]": viewType === "comparison"})}>
+                    <div key={variantId} className={clsx({"w-[400px]": viewType === "comparison"})}>
                         <GenerationComparisionCompletionOuput
                             variantId={variantId}
                             focusDisable={true}
