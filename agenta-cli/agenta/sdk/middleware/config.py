@@ -40,7 +40,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        request.state.config = {}
+        request.state.config = {"parameters": None, "references": None}
 
         with suppress():
             parameters, references = await self._get_config(request)
@@ -116,13 +116,14 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
         for ref_key in ["application_ref", "variant_ref", "environment_ref"]:
             refs = config.get(ref_key)
-            ref_prefix = ref_key.split("_", maxsplit=1)[0]
+            if refs:
+                ref_prefix = ref_key.split("_", maxsplit=1)[0]
 
-            for ref_part_key in ["id", "slug", "version"]:
-                ref_part = refs.get(ref_part_key)
+                for ref_part_key in ["id", "slug", "version"]:
+                    ref_part = refs.get(ref_part_key)
 
-                if ref_part:
-                    references[ref_prefix + "." + ref_part_key] = ref_part
+                    if ref_part:
+                        references[ref_prefix + "." + ref_part_key] = ref_part
 
         _cache.put(_hash, {"parameters": parameters, "references": references})
 

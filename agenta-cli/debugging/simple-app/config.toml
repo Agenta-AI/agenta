@@ -1,0 +1,6 @@
+app_name = "asdf"
+app_id = "0193bbaa-4f2b-7510-9170-9bdf95249ca0"
+backend_host = "https://cloud.agenta.ai"
+api_key = "dWdKluoL.fc56608c5e0ce7b262e9e9a795b6a5e9371200c573cafbd975ebb6b4368b6032"
+variants = []
+variant_ids = []

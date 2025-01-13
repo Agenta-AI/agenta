@@ -1,0 +1,4 @@
+docker_registry_url="127.0.0.1:5001"
+registry="agenta-server"
+backend_url_suffix="api"
+allow_origins="http://localhost:3000,http://localhost:3001,http://cloud.agenta.ai,https://cloud.agenta.ai"

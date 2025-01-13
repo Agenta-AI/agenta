@@ -22,6 +22,9 @@ from agenta_backend.services import (
     db_manager,
 )
 
+from agenta_backend.models.shared_models import AppType
+
+
 from agenta_backend.utils.common import (
     isEE,
     isCloudProd,
@@ -51,6 +54,8 @@ if isCloudEE():
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+SERVICE_URL_TEMPLATE = os.environ.get("SERVICE_URL_TEMPLATE")
 
 
 async def start_variant(
@@ -136,56 +141,6 @@ async def start_variant(
     return URI(uri=deployment.uri)  # type: ignore
 
 
-async def update_variant_image(
-    app_variant_db: AppVariantDB, project_id: str, image: Image, user_uid: str
-):
-    """Updates the image for app variant in the database.
-
-    Arguments:
-        app_variant (AppVariantDB): the app variant to update
-        project_id (str): The ID of the project
-        image (Image): the image to update
-        user_uid (str): The ID of the user updating the image
-    """
-
-    valid_image = await deployment_manager.validate_image(image)
-    if not valid_image:
-        raise ValueError("Image could not be found in registry.")
-
-    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
-    deployment = await db_manager.get_deployment_by_id(str(base.deployment_id))
-
-    await deployment_manager.stop_and_delete_service(deployment)
-    await db_manager.remove_deployment(str(deployment.id))
-
-    if isOss():
-        await deployment_manager.remove_image(base.image)
-
-    await db_manager.remove_image(base.image, project_id)
-
-    # Create a new image instance
-    db_image = await db_manager.create_image(
-        image_type="image",
-        project_id=project_id,
-        tags=image.tags,
-        docker_id=image.docker_id,
-        deletable=True,
-    )
-    # Update base with new image
-    await db_manager.update_base(str(app_variant_db.base_id), image_id=db_image.id)
-    # Update variant to remove configuration
-    await db_manager.update_variant_parameters(
-        str(app_variant_db.id), parameters={}, project_id=project_id, user_uid=user_uid
-    )
-    # Update variant with new image
-    app_variant_db = await db_manager.update_app_variant(
-        app_variant_id=str(app_variant_db.id), image_id=db_image.id
-    )
-
-    # Start variant
-    await start_variant(app_variant_db, project_id, user_uid=user_uid)
-
-
 async def update_last_modified_by(
     user_uid: str, object_id: str, object_type: str, project_id: str
 ) -> None:
@@ -235,6 +190,110 @@ async def update_last_modified_by(
             "updated_at": datetime.now(timezone.utc),
         },
     )
+
+
+async def update_variant_image(
+    app_variant_db: AppVariantDB, project_id: str, image: Image, user_uid: str
+):
+    """Updates the image for app variant in the database.
+
+    Arguments:
+        app_variant (AppVariantDB): the app variant to update
+        project_id (str): The ID of the project
+        image (Image): the image to update
+        user_uid (str): The ID of the user updating the image
+    """
+
+    valid_image = await deployment_manager.validate_image(image)
+    if not valid_image:
+        raise ValueError("Image could not be found in registry.")
+
+    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
+    deployment = await db_manager.get_deployment_by_id(str(base.deployment_id))
+
+    if deployment.container_id:
+        await deployment_manager.stop_and_delete_service(deployment)
+
+    await db_manager.remove_deployment(str(deployment.id))
+
+    if base.image:
+        if isOss():
+            await deployment_manager.remove_image(base.image)
+
+        await db_manager.remove_image(base.image, project_id)
+
+    # Create a new image instance
+    db_image = await db_manager.create_image(
+        image_type="image",
+        project_id=project_id,
+        tags=image.tags,
+        docker_id=image.docker_id,
+        deletable=True,
+    )
+    # Update base with new image
+    await db_manager.update_base(str(app_variant_db.base_id), image_id=db_image.id)
+    # Update variant to remove configuration
+    await db_manager.update_variant_parameters(
+        str(app_variant_db.id), parameters={}, project_id=project_id, user_uid=user_uid
+    )
+    # Update variant with new image
+    app_variant_db = await db_manager.update_app_variant(
+        app_variant_id=str(app_variant_db.id), image_id=db_image.id
+    )
+
+    # Start variant
+    await start_variant(app_variant_db, project_id, user_uid=user_uid)
+
+
+async def update_variant_url(
+    app_variant_db: AppVariantDB, project_id: str, url: str, user_uid: str
+):
+    """Updates the URL for app variant in the database.
+
+    Arguments:
+        app_variant (AppVariantDB): the app variant to update
+        project_id (str): The ID of the project
+        url (str): the URL to update
+        user_uid (str): The ID of the user updating the URL
+    """
+
+    parsed_url = urlparse(url).geturl()
+
+    base = await db_manager.fetch_base_by_id(str(app_variant_db.base_id))
+    deployment = await db_manager.get_deployment_by_id(str(base.deployment_id))
+
+    if deployment.container_id:
+        await deployment_manager.stop_and_delete_service(deployment)
+
+    await db_manager.remove_deployment(str(deployment.id))
+
+    if base.image:
+        if isOss():
+            await deployment_manager.remove_image(base.image)
+
+        await db_manager.remove_image(base.image, project_id)
+
+    await db_manager.update_variant_parameters(
+        str(app_variant_db.id), parameters={}, project_id=project_id, user_uid=user_uid
+    )
+
+    app_variant_db = await db_manager.update_app_variant(
+        app_variant_id=str(app_variant_db.id), url=parsed_url
+    )
+
+    deployment = await db_manager.create_deployment(
+        app_id=str(app_variant_db.app.id),
+        project_id=project_id,
+        uri=parsed_url,
+        status="running",
+    )
+
+    await db_manager.update_base(
+        str(app_variant_db.base_id),
+        deployment_id=deployment.id,
+    )
+
+    return URI(uri=deployment.uri)
 
 
 async def terminate_and_remove_app_variant(
@@ -306,7 +365,8 @@ async def terminate_and_remove_app_variant(
 
             if deployment:
                 try:
-                    await deployment_manager.stop_and_delete_service(deployment)
+                    if deployment.container_id:
+                        await deployment_manager.stop_and_delete_service(deployment)
                 except RuntimeError as e:
                     logger.error(f"Failed to stop and delete service {deployment} {e}")
 
@@ -331,13 +391,6 @@ async def terminate_and_remove_app_variant(
             logger.debug("remove_app_variant_from_db")
             await db_manager.remove_app_variant_from_db(app_variant_db, project_id)
 
-        app_variants = await db_manager.list_app_variants(app_id)
-        logger.debug(f"Count of app variants available: {len(app_variants)}")
-        if (
-            len(app_variants) == 0
-        ):  # remove app related resources if the length of the app variants hit 0
-            logger.debug("remove_app_related_resources")
-            await remove_app_related_resources(app_id, project_id)
     except Exception as e:
         logger.error(
             f"An error occurred while deleting app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}: {str(e)}"
@@ -434,7 +487,7 @@ async def update_variant_parameters(
         raise e from None
 
 
-async def add_variant_based_on_image(
+async def add_variant_from_image(
     app: AppDB,
     project_id: str,
     variant_name: str,
@@ -468,7 +521,8 @@ async def add_variant_based_on_image(
     """
 
     logger.debug("Start: Creating app variant based on image")
-    logger.debug("Step 1: Validating input parameters")
+
+    logger.debug("Validating input parameters")
     if (
         app in [None, ""]
         or variant_name in [None, ""]
@@ -481,22 +535,25 @@ async def add_variant_based_on_image(
             raise ValueError("OSS: Tags is None")
 
     db_image = None
-    # Check if docker_id_or_template_uri is a URL or not
+    logger.debug("Parsing URL")
     parsed_url = urlparse(docker_id_or_template_uri)
 
     # Check if app variant already exists
-    logger.debug("Step 2: Checking if app variant already exists")
+    logger.debug("Checking if app variant already exists")
     variants = await db_manager.list_app_variants_for_app_id(
-        app_id=str(app.id), project_id=project_id
+        app_id=str(app.id),
+        project_id=project_id,
     )
+
     already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
     if already_exists:
         logger.error("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")
 
     # Retrieve user and image objects
-    logger.debug("Step 3: Retrieving user and image objects")
+    logger.debug("Retrieving user and image objects")
     user_instance = await db_manager.get_user(user_uid)
+
     if parsed_url.scheme and parsed_url.netloc:
         db_image = await db_manager.get_orga_image_instance_by_uri(
             template_uri=docker_id_or_template_uri,
@@ -527,13 +584,13 @@ async def add_variant_based_on_image(
             )
 
     # Create config
-    logger.debug("Step 5: Creating config")
+    logger.debug("Creating config")
     config_db = await db_manager.create_new_config(
         config_name=config_name, parameters={}
     )
 
     # Create base
-    logger.debug("Step 6: Creating base")
+    logger.debug("Creating base")
     if not base_name:
         base_name = variant_name.split(".")[
             0
@@ -546,7 +603,7 @@ async def add_variant_based_on_image(
     )
 
     # Create app variant
-    logger.debug("Step 7: Creating app variant")
+    logger.debug("Creating app variant")
     db_app_variant = await db_manager.create_new_app_variant(
         app=app,
         user=user_instance,
@@ -558,4 +615,130 @@ async def add_variant_based_on_image(
         base_name=base_name,
     )
     logger.debug("End: Successfully created db_app_variant: %s", db_app_variant)
+
     return db_app_variant
+
+
+async def add_variant_from_url(
+    app: AppDB,
+    project_id: str,
+    variant_name: str,
+    url: str,
+    user_uid: str,
+    base_name: Optional[str] = None,
+    config_name: str = "default",
+) -> AppVariantDB:
+    """
+    Adds a new variant to the app based on the specified URL.
+
+    Args:
+        app (AppDB): The app to add the variant to.
+        project_id (str): The ID of the project.
+        variant_name (str): The name of the new variant.
+        url (str): The URL to use for the new variant.
+        base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
+        config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
+        user_uid (str): The UID of the user.
+
+    Returns:
+        AppVariantDB: The newly created app variant.
+
+    Raises:
+        ValueError: If the app variant or URL is None, or if an app variant with the same name already exists.
+        HTTPException: If an error occurs while creating the app variant.
+    """
+
+    logger.debug("Start: Creating app variant based on url")
+
+    logger.debug("Validating input parameters")
+    if app in [None, ""] or variant_name in [None, ""] or url in [None, ""]:
+        raise ValueError("App variant, variant name, or URL is None")
+
+    logger.debug("Parsing URL")
+    parsed_url = urlparse(url).geturl()
+
+    logger.debug("Checking if app variant already exists")
+    variants = await db_manager.list_app_variants_for_app_id(
+        app_id=str(app.id),
+        project_id=project_id,
+    )
+
+    already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
+    if already_exists:
+        logger.error("App variant with the same name already exists")
+        raise ValueError("App variant with the same name already exists")
+
+    logger.debug("Retrieving user and image objects")
+    user_instance = await db_manager.get_user(user_uid)
+
+    # Create config
+    logger.debug("Creating config")
+    config_db = await db_manager.create_new_config(
+        config_name=config_name, parameters={}
+    )
+
+    # Create base
+    logger.debug("Creating base")
+    if not base_name:
+        base_name = variant_name.split(".")[
+            0
+        ]  # TODO: Change this in SDK2 to directly use base_name
+    db_base = await db_manager.create_new_variant_base(
+        app=app,
+        project_id=project_id,
+        base_name=base_name,
+    )
+
+    # Create app variant
+    logger.debug("Creating app variant")
+    db_app_variant = await db_manager.create_new_app_variant(
+        app=app,
+        user=user_instance,
+        variant_name=variant_name,
+        project_id=project_id,
+        base=db_base,
+        config=config_db,
+        base_name=base_name,
+    )
+
+    deployment = await db_manager.create_deployment(
+        app_id=str(db_app_variant.app.id),
+        project_id=project_id,
+        uri=parsed_url,
+        status="running",
+    )
+
+    await db_manager.update_base(
+        str(db_app_variant.base_id),
+        deployment_id=deployment.id,
+    )
+
+    await db_manager.deploy_to_environment(
+        environment_name="production",
+        variant_id=str(db_app_variant.id),
+        user_uid=user_uid,
+    )
+
+    logger.debug("End: Successfully created variant: %s", db_app_variant)
+
+    return db_app_variant
+
+
+def get_service_url_from_template_key(
+    key: str,
+) -> str:
+    if key not in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+        return None
+
+    if not SERVICE_URL_TEMPLATE:
+        raise NotImplementedError("Service URL could be generated.")
+
+    # We need to map a `template_key` to a `service_path`.
+    # We could have an explicit map, like {`key`: `path`},
+    # or make use of the `app_type` like here.
+    # This may evolve over time if and when we change `app_type` values.
+    path = key.replace("SERVICE:", "")
+
+    url = SERVICE_URL_TEMPLATE.format(path=path)
+
+    return url

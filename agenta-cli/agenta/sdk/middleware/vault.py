@@ -1,6 +1,6 @@
 from os import getenv
 from json import dumps
-from typing import Callable, Dict, Optional, List, Any
+from typing import Callable, Dict, Optional, List, Any, get_args
 
 import httpx
 from fastapi import FastAPI, Request
@@ -18,25 +18,11 @@ from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 import agenta as ag
 
 
-# ProviderKind (agenta.client.backend.types.provider_kind import ProviderKind) defines a type hint that allows \
-# for a fixed set of string literals representing various provider names, alongside `typing.Any`.
-PROVIDER_KINDS = []
+_PROVIDER_KINDS = []
 
-# Rationale behind the following:
-# -------------------------------
-# You cannot loop directly over the values in `typing.Literal` because:
-# - `Literal` is not iterable.
-# - `ProviderKind.__args__` includes `Literal` and `Any`, but the actual string values
-#   are nested within the `Literal`'s own `__args__` attribute.
-
-# To solve this, we programmatically extract the values from `Literal` while retaining
-# the structure of ProviderKind. This ensures:
-# 1. We don't modify the original `ProviderKind` type definition.
-# 2. We dynamically access the literal values for use at runtime when necessary.
 for arg in ProviderKind.__args__:  # type: ignore
     if hasattr(arg, "__args__"):
-        PROVIDER_KINDS.extend(arg.__args__)
-
+        _PROVIDER_KINDS.extend(arg.__args__)
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
 
@@ -100,7 +86,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         local_secrets: List[SecretDTO] = []
 
         try:
-            for provider_kind in PROVIDER_KINDS:
+            for provider_kind in _PROVIDER_KINDS:
                 provider = provider_kind
                 key_name = f"{provider.upper()}_API_KEY"
                 key = getenv(key_name)
@@ -108,7 +94,8 @@ class VaultMiddleware(BaseHTTPMiddleware):
                 if not key:
                     continue
 
-                secret = SecretDTO(  # 'kind' attribute in SecretDTO defaults to 'provider_kind'
+                secret = SecretDTO(
+                    # kind=...  # defaults to 'provider_kind'
                     data=ProviderKeyDTO(
                         provider=provider,
                         key=key,
