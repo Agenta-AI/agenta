@@ -22,9 +22,9 @@ services:
     networks:
       - agenta-network
     labels:
-      - "traefik.http.routers.completion.rule=PathPrefix(`/completion/`)"
+      - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
       - "traefik.http.routers.completion.entrypoints=web"
-      - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/completion"
+      - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
       - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
       - "traefik.http.routers.completion.middlewares=completion-strip"
       - "traefik.http.services.completion.loadbalancer.server.port=80"
