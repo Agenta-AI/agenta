@@ -86,7 +86,7 @@ Cypress.Commands.add("cleanupVariantAndTestset", () => {
 
 Cypress.Commands.add("addingOpenaiKey", () => {
     cy.visit("/settings")
-    console.log("ADDING API KEY", !!apiKey)
+    cy.task("log", `ADDING API KEY: ${!!apiKey}`)
     cy.get('[data-cy="openai-api-input"]').eq(0).type(apiKey)
     cy.get('[data-cy="openai-api-save"]').eq(0).click()
 })
