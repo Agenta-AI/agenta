@@ -1,18 +1,17 @@
-import {useCallback, useState} from "react"
-import {MinusCircle, ArrowsOut} from "@phosphor-icons/react"
+import {useCallback} from "react"
+import {MinusCircle} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {GenerationVariableOptionsProps} from "./types"
 import clsx from "clsx"
-import GenerationFocusDrawer from "../../../Drawers/GenerationFocusDrawer"
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
 import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
+import GenerationFocusDrawerButton from "../../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
 
 const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
     variantId,
     className,
 }) => {
-    const [isFocusMoodOpen, setIsFocusMoodOpen] = useState(false)
     const {mutateVariant} = usePlayground({
         variantId,
         hookId: "GenerationVariableOptions",
@@ -29,21 +28,10 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <Button
-                icon={<ArrowsOut size={14} />}
-                type="text"
-                onClick={() => setIsFocusMoodOpen(true)}
-            />
+            <GenerationFocusDrawerButton rowId={rowId} variantIds={variantId} />
             <Button icon={<MinusCircle size={14} />} type="text" onClick={deleteInputRow} />
 
             <PlaygroundGenerationVariableMenu />
-
-            <GenerationFocusDrawer
-                open={isFocusMoodOpen}
-                onClose={() => setIsFocusMoodOpen(false)}
-                type="completion"
-                variantId={variantId}
-            />
         </div>
     )
 }

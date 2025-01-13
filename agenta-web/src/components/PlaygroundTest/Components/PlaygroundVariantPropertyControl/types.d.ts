@@ -22,6 +22,7 @@ export interface PlaygroundVariantPropertyControlProps extends BaseContainerProp
     propertyId: string
     /** Optional rendering variant for the control */
     as?: "SimpleDropdownSelect" | "PromptMessageContent"
+    view?: string
 }
 
 export type ControlComponentType =
@@ -79,6 +80,7 @@ export type RenderFunctions = {
         handleChange: (v: any) => void,
         as?: string,
         className?: string,
+        view?: string,
     ) => React.ReactElement | null
 }
 

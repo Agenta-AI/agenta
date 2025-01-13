@@ -24,6 +24,7 @@ const GenerationCompletionRow = ({
     rowId,
     className,
     inputOnly,
+    view,
     ...props
 }: GenerationCompletionRowProps) => {
     const {result, variableIds, runVariantTestRow, canRun, isRunning, viewType} = usePlayground({
@@ -53,7 +54,7 @@ const GenerationCompletionRow = ({
         await runVariantTestRow?.(rowId)
     }, [runVariantTestRow, rowId])
 
-    if (viewType === "single") {
+    if (viewType === "single" && view !== "focus") {
         return (
             <div
                 className={clsx([
@@ -143,6 +144,7 @@ const GenerationCompletionRow = ({
                                     key={variableId}
                                     variantId={variantId}
                                     propertyId={variableId}
+                                    view={view}
                                 />
                             )
                         })}
