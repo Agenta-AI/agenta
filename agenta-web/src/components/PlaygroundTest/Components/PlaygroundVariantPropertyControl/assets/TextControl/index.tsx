@@ -6,10 +6,10 @@ import usePlayground from "@/components/PlaygroundTest/hooks/usePlayground"
 
 const {TextArea} = Input
 
-const TextControl = ({className, metadata, value, handleChange, as}: TextControlProps) => {
+const TextControl = ({className, metadata, value, handleChange, as, view}: TextControlProps) => {
     const {viewType} = usePlayground()
 
-    if (viewType === "single") {
+    if (viewType === "single" && view !== "focus") {
         return (
             <div
                 className={clsx(

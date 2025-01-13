@@ -33,7 +33,7 @@ const renderMap: RenderFunctions = {
         <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
     ),
 
-    string: (metadata, value, handleChange, as, className) => {
+    string: (metadata, value, handleChange, as, className, view) => {
         if (metadata.options) {
             if (as === "SimpleDropdownSelect") {
                 return (
@@ -71,6 +71,7 @@ const renderMap: RenderFunctions = {
                 value={value}
                 handleChange={handleChange}
                 className={className}
+                view={view}
             />
         )
     },
@@ -140,6 +141,7 @@ const PlaygroundVariantPropertyControl = ({
     variantId,
     className,
     as,
+    view,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
@@ -157,7 +159,7 @@ const PlaygroundVariantPropertyControl = ({
 
     const renderer = renderMap[metadata.type]
     if (renderer) {
-        return renderer(metadata as any, value, handleChange, as, className)
+        return renderer(metadata as any, value, handleChange, as, className, view)
     }
 
     return <Typography.Text>Unknown type: {metadata.type}</Typography.Text>

@@ -9,12 +9,7 @@ import {Button} from "antd"
 import {GenerationCompletionProps} from "./types"
 import clsx from "clsx"
 
-const GenerationCompletion = ({
-    variantId,
-    className,
-    rowClassName,
-    inputOnly,
-}: GenerationCompletionProps) => {
+const GenerationCompletion = ({variantId, className, rowClassName}: GenerationCompletionProps) => {
     const {inputRowIds, mutateVariant, viewType} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
@@ -53,22 +48,19 @@ const GenerationCompletion = ({
                         variantId={variantId}
                         rowId={inputRowId}
                         className={rowClassName}
-                        inputOnly={inputOnly}
                     />
                 )
             })}
 
-            {!inputOnly && (
-                <div
-                    className={clsx([
-                        "flex items-center gap-2 mx-2",
-                        {"mt-2": viewType === "comparison"},
-                    ])}
-                >
-                    <AddButton size="small" label="Input" onClick={addNewInputRow} />
-                    {viewType === "single" && <Button size="small">Add all to test set</Button>}
-                </div>
-            )}
+            <div
+                className={clsx([
+                    "flex items-center gap-2 mx-2",
+                    {"mt-2": viewType === "comparison"},
+                ])}
+            >
+                <AddButton size="small" label="Input" onClick={addNewInputRow} />
+                {viewType === "single" && <Button size="small">Add all to test set</Button>}
+            </div>
         </div>
     )
 }

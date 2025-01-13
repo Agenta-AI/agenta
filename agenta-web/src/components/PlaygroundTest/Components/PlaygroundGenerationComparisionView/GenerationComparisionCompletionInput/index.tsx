@@ -8,7 +8,6 @@ const GenerationComparisionCompletionInput = ({
     variantId,
     className,
     rowClassName,
-    inputOnly,
 }: GenerationComparisionCompletionInputProps) => {
     const classes = useStyles()
 
@@ -19,7 +18,6 @@ const GenerationComparisionCompletionInput = ({
                 variantId={variantId}
                 className={clsx(className)}
                 rowClassName={rowClassName}
-                inputOnly={inputOnly}
             />
         </div>
     )

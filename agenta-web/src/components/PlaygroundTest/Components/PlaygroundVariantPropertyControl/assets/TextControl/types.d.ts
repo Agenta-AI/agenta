@@ -5,4 +5,5 @@ export interface TextControlProps extends BaseContainerProps {
     value: string
     handleChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
     as?: React.ElementType
+    view?: string
 }
