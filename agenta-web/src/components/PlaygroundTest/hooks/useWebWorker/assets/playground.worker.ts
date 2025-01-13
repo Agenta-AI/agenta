@@ -7,19 +7,24 @@ async function runVariantInputRow(payload: {
     rowId: string
     service: string
     appId: string
-    apiUrl: string
+    uri: string
+    secrets: any
 }) {
-    const {variant, rowId, service, appId, apiUrl} = payload
+    const {variant, rowId, service, appId, uri, secrets} = payload
     const requestBody = transformToRequestBody(variant, rowId)
     let result
 
+    let updatedUri = uri.replace("/completion", "/services/completion")
+    updatedUri = updatedUri.replace("/chat", "/services/chat")
+    console.log("WHAT IS URI?", updatedUri, uri, requestBody)
+
     try {
-        const response = await fetch(`${apiUrl}/${service}/generate`, {
+        const response = await fetch(`${uri}/generate`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify(requestBody),
+            body: JSON.stringify({...requestBody, secrets}),
         })
 
         const data = await response.json()

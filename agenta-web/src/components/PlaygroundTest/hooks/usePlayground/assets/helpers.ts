@@ -20,8 +20,8 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
  * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing variantId, parsed schema and any errors
  */
-export const fetchOpenApiSchemaJson = async (service: string) => {
-    const openapiJsonResponse = await fetch(`${getAgentaApiUrl()}/${service}/openapi.json`)
+export const fetchOpenApiSchemaJson = async (uri: string) => {
+    const openapiJsonResponse = await fetch(`${uri}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
@@ -227,6 +227,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
 
     return {
         id: variant.variant_id,
+        uri: variant.uri,
         appId: variant.app_id,
         baseId: variant.base_id,
         baseName: variant.base_name,
