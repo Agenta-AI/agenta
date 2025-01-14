@@ -2,22 +2,16 @@ import {useMemo} from "react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {
     ArrowCounterClockwise,
-    ArrowsOut,
     Copy,
     DotsThreeVertical,
-    FloppyDiskBack,
     PencilSimple,
-    Rocket,
     Trash,
 } from "@phosphor-icons/react"
 import {PlaygroundVariantHeaderMenuProps} from "./types"
 
 const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = ({
-    setIsFocusMoodOpen,
     setIsVariantRenameOpen,
     setIsResetModalOpen,
-    setIsCommitModalOpen,
-    setIsDeployOpen,
     setIsDeleteVariantModalOpen,
     ...props
 }) => {
