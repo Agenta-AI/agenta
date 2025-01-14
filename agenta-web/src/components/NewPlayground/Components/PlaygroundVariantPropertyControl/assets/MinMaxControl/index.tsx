@@ -6,6 +6,7 @@ import debounce from "lodash/debounce"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 
 import type {MinMaxControlProps} from "./types"
+import {useDebounceValue} from "usehooks-ts"
 
 /**
  * A controlled input component that combines a slider and number input
@@ -19,40 +20,37 @@ import type {MinMaxControlProps} from "./types"
 const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlProps) => {
     // Internal state for smooth UI updates
     const [localValue, setLocalValue] = useState<number | null>(value ?? null)
+    const [query] = useDebounceValue(localValue, 300)
 
-    /**
-     * Debounced callback to prevent rapid state updates to parent
-     * Ensures min value fallback when null is provided
-     */
-    const debouncedOnChange = useCallback(
-        (newValue: number | null) => {
-            debounce(() => {
-                onChange(newValue ?? min ?? null)
-            }, 300)()
-        },
-        [onChange, min],
-    )
+    useEffect(() => {
+        if (query !== null) {
+            onChange(query)
+        }
+    }, [onChange, query])
 
     /**
      * Syncs internal state with external value changes
      * Important for controlled component behavior
      */
     useEffect(() => {
-        setLocalValue(value ?? null)
+        setLocalValue((prevValue) => {
+            const newValue = value || null
+            if (newValue !== prevValue) {
+                return newValue
+            }
+            return prevValue
+        })
     }, [value])
 
     /**
      * Unified change handler for both input methods
      * Provides immediate visual feedback while debouncing actual state updates
      */
-    const handleValueChange = useCallback(
-        (newValue: number | null | undefined) => {
-            const processedValue = newValue === undefined ? null : newValue
-            setLocalValue(processedValue) // Update UI immediately
-            debouncedOnChange(processedValue) // Debounce update to parent
-        },
-        [debouncedOnChange],
-    )
+    const handleValueChange = useCallback((newValue: number | null | undefined) => {
+        const processedValue = newValue === undefined ? null : newValue
+        setLocalValue(processedValue) // Update UI immediately
+        // debouncedOnChange(processedValue) // Debounce update to parent
+    }, [])
 
     return (
         <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
