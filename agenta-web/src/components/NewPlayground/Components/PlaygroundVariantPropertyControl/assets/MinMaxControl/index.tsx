@@ -1,7 +1,6 @@
-import {memo, useCallback, useState, useEffect} from "react"
-
+import {memo, useCallback} from "react"
 import {Slider, InputNumber, Typography} from "antd"
-import debounce from "lodash/debounce"
+import {useDebounceInput} from "@/hooks/useDebounceInput"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 
@@ -17,29 +16,12 @@ import type {MinMaxControlProps} from "./types"
  * - Falls back to min value when null/undefined is provided
  */
 const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlProps) => {
-    // Internal state for smooth UI updates
-    const [localValue, setLocalValue] = useState<number | null>(value ?? null)
-
-    /**
-     * Debounced callback to prevent rapid state updates to parent
-     * Ensures min value fallback when null is provided
-     */
-    const debouncedOnChange = useCallback(
-        (newValue: number | null) => {
-            debounce(() => {
-                onChange(newValue ?? min ?? null)
-            }, 300)()
-        },
-        [onChange, min],
+    const [localValue, setLocalValue] = useDebounceInput<number | null>(
+        value ?? null,
+        onChange,
+        300,
+        null,
     )
-
-    /**
-     * Syncs internal state with external value changes
-     * Important for controlled component behavior
-     */
-    useEffect(() => {
-        setLocalValue(value ?? null)
-    }, [value])
 
     /**
      * Unified change handler for both input methods
@@ -48,10 +30,9 @@ const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlPr
     const handleValueChange = useCallback(
         (newValue: number | null | undefined) => {
             const processedValue = newValue === undefined ? null : newValue
-            setLocalValue(processedValue) // Update UI immediately
-            debouncedOnChange(processedValue) // Debounce update to parent
+            setLocalValue(processedValue)
         },
-        [debouncedOnChange],
+        [setLocalValue],
     )
 
     return (
