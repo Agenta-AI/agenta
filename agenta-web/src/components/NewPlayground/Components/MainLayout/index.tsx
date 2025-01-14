@@ -3,6 +3,7 @@ import clsx from "clsx"
 
 import usePlayground from "../../hooks/usePlayground"
 import type {BaseContainerProps} from "../types"
+import {componentLogger} from "../../assets/utilities/componentLogger"
 
 const PlaygroundVariantConfig = dynamic(() => import("../PlaygroundVariantConfig"), {ssr: false})
 const PlaygroundVariantTestView = dynamic(() => import("../PlaygroundVariantTestView"), {
@@ -13,6 +14,7 @@ const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Pa
 
 const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
     const {viewType, displayedVariants} = usePlayground()
+    componentLogger("PlaygroundMainView", viewType, displayedVariants)
     return (
         <div className={clsx("flex flex-col grow h-full overflow-hidden", className)} {...divProps}>
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
@@ -30,7 +32,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 },
                             ])}
                         >
-                            {(displayedVariants || []).map((variantId) => {
+                            {displayedVariants!.map((variantId) => {
                                 return (
                                     <div
                                         key={variantId}
@@ -56,7 +58,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 },
                             ])}
                         >
-                            {(displayedVariants || []).map((variantId) => {
+                            {displayedVariants!.map((variantId) => {
                                 return (
                                     <div
                                         key={variantId}

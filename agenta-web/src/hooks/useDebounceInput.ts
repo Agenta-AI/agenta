@@ -1,5 +1,6 @@
 import {useState, useEffect} from "react"
-import {useDebounceValue} from "usehooks-ts"
+import {useDebounceCallback, useDebounceValue} from "usehooks-ts"
+import useLazyEffect from "./useLazyEffect"
 
 /**
  * A custom hook that provides debounced input handling with synchronized local and parent state.
@@ -54,13 +55,18 @@ export function useDebounceInput<T>(
     defaultValue: T,
 ) {
     const [localValue, setLocalValue] = useState<T>(value ?? defaultValue)
-    const [query] = useDebounceValue(localValue, delay)
+    const [query, setQuery] = useDebounceValue(localValue, delay)
+
+    // const debounced = useDebounceCallback(onChange, 500)
 
     useEffect(() => {
+        // console.log("useDebounceInput: ", query)
+        // onChange(query)
         onChange(query)
-    }, [onChange, query])
+    }, [query])
 
     useEffect(() => {
+        setQuery(value)
         setLocalValue((prevValue) => {
             const newValue = value ?? defaultValue
             if (newValue !== prevValue) {
