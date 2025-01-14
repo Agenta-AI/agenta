@@ -327,30 +327,30 @@ class ModelConfig(BaseModel):
     )
 
     temperature: Optional[float] = Field(
-        default=None,
+        default=1,
         ge=0.0,
         le=2.0,
         description="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic",
     )
     max_tokens: Optional[int] = Field(
-        default=None,
+        default=-1,
         ge=0,
         description="The maximum number of tokens that can be generated in the chat completion",
     )
     top_p: Optional[float] = Field(
-        default=None,
+        default=0.5,
         ge=0.0,
         le=1.0,
         description="An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass",
     )
     frequency_penalty: Optional[float] = Field(
-        default=None,
+        default=0,
         ge=-2.0,
         le=2.0,
         description="Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far",
     )
     presence_penalty: Optional[float] = Field(
-        default=None,
+        default=0,
         ge=-2.0,
         le=2.0,
         description="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far",
