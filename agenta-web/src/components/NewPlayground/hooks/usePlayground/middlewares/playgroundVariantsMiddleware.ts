@@ -18,6 +18,7 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
+import useWebWorker from "../../useWebWorker"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -167,6 +168,43 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 addToValueReferences("addVariant")
                 return addVariant
             }, [addToValueReferences, addVariant])
+
+            const {postMessageToWorker, createWorkerMessage} = useWebWorker(
+                // @ts-ignore
+                swr.handleWebWorkerMessage,
+                valueReferences.current.includes("runVariantTestRow"),
+            )
+
+            Object.defineProperty(swr, "runAllTests", {
+                get: () => {
+                    addToValueReferences("runAllTests")
+                    const runAll = () => {
+                        swr.mutate(async (state) => {
+                            const clonedState = cloneDeep(state)
+
+                            if (!clonedState) return state
+
+                            for (const variant of clonedState.variants) {
+                                for (const inputRow of variant.inputs.value) {
+                                    inputRow.__isLoading = true
+                                    postMessageToWorker(
+                                        createWorkerMessage("runVariantInputRow", {
+                                            variant,
+                                            rowId: inputRow.__id,
+                                            appId: config.appId!,
+                                            uri: variant.uri,
+                                        }),
+                                    )
+                                }
+                            }
+
+                            return clonedState
+                        })
+                    }
+
+                    return runAll
+                },
+            })
 
             Object.defineProperty(swr, "variants", {
                 get: getVariants,
