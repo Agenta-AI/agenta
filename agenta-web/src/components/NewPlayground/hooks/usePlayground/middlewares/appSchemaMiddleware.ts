@@ -39,9 +39,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         return initialState as Data
                     }
                     const cachedValue = cache.get(url)?.data
-                    if (!config.service) {
-                        return cachedValue || (initialState as Data)
-                    }
 
                     logger(`FETCH - ENTER`)
 
@@ -59,10 +56,16 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     logger(`FETCH - FETCH`)
 
                     try {
-                        const [variants, specResponse] = await Promise.all([
+                        const [variants] = await Promise.all([
                             globalFetcher(url, options) as Promise<Variant[]>,
-                            ...(!state.spec ? [fetchOpenApiSchemaJson(config.service)] : []),
                         ])
+                        const uri = variants[0].uri
+
+                        if (!uri) {
+                            throw new Error("No uri found for the new app type")
+                        }
+
+                        const specResponse = await fetchOpenApiSchemaJson(uri)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
@@ -82,7 +85,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         return state
                     }
                 },
-                [config.cache, config.service, fetcher, logger],
+                [config.cache, fetcher, logger],
             )
 
             return useSWRNext(key, openApiSchemaFetcher, {

@@ -8,7 +8,14 @@ import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 import {type InitialStateType} from "../../../state/types"
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {getAgentaApiUrl} from "@/lib/helpers/utils"
+
+const uriFixer = (uri: string) => {
+    if (!uri.includes("/services/")) {
+        uri = uri.replace("/chat", "/services/chat")
+        uri = uri.replace("/completion", "/services/completion")
+    }
+    return uri
+}
 
 /**
  * FETCHERS
@@ -17,11 +24,10 @@ import {getAgentaApiUrl} from "@/lib/helpers/utils"
 /**
  * Fetches OpenAPI specification for a given variant from a service
  * @param variant - Variant object containing at least the variantId
- * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing variantId, parsed schema and any errors
  */
-export const fetchOpenApiSchemaJson = async (service: string) => {
-    const openapiJsonResponse = await fetch(`${getAgentaApiUrl()}/${service}/openapi.json`)
+export const fetchOpenApiSchemaJson = async (uri: string) => {
+    const openapiJsonResponse = await fetch(`${uriFixer(uri)}/openapi.json`)
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
@@ -34,7 +40,6 @@ export const fetchOpenApiSchemaJson = async (service: string) => {
 /**
  * Fetches and updates OpenAPI schema for a single variant
  * @param variant - The variant to fetch and update schema for
- * @param service - Service endpoint to fetch OpenAPI spec from
  * @returns Promise containing the updated variant
  */
 export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) => {
@@ -50,14 +55,10 @@ export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) 
 /**
  * Fetches and updates OpenAPI schemas for multiple variants in parallel
  * @param variants - Array of variants to fetch and update schemas for
- * @param service - Service endpoint to fetch OpenAPI specs from
  * @returns Promise containing updated variants with their schemas
  */
 export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
-    // const specFetcher = await openAPIJsonFetcher(service)
-    const updates = variants.map((variant) => transformVariant(variant, spec))
-    return updates
-    // await Promise.all(updatePromises)
+    return variants.map((variant) => transformVariant(variant, spec))
 }
 
 /**
@@ -227,6 +228,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
 
     return {
         id: variant.variant_id,
+        uri: uriFixer(variant.uri),
         appId: variant.app_id,
         baseId: variant.base_id,
         baseName: variant.base_name,

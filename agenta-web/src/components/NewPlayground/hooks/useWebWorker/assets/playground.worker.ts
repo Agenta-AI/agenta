@@ -5,16 +5,15 @@ import {parseValidationError} from "../../../assets/utilities/errors"
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
     rowId: string
-    service: string
     appId: string
-    apiUrl: string
+    uri: string
 }) {
-    const {variant, rowId, service, appId, apiUrl} = payload
+    const {variant, rowId, uri} = payload
     const requestBody = transformToRequestBody(variant, rowId)
     let result
 
     try {
-        const response = await fetch(`${apiUrl}/${service}/generate`, {
+        const response = await fetch(`${uri}/generate`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

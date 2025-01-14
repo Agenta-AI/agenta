@@ -1,89 +1,12 @@
 import {Typography, Input, Card, Radio, Space, Button, Flex, Modal, notification} from "antd"
-import {createUseStyles} from "react-jss"
-import {JSSTheme, Template} from "@/lib/Types"
+
 import {isAppNameInputValid} from "@/lib/helpers/utils"
+import {useStyles} from "./assets/styles"
+import {AddAppFromTemplatedModalProps} from "./types"
+import {useCallback} from "react"
+import {getTemplateKey} from "../../assets/helpers"
 
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    modalContainer: {
-        transition: "width 0.3s ease",
-        "& .ant-modal-content": {
-            overflow: "hidden",
-            borderRadius: 16,
-            "& > .ant-modal-close": {
-                top: 16,
-            },
-        },
-    },
-    modal: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 24,
-    },
-    modalError: {
-        color: theme.colorError,
-        marginTop: 2,
-    },
-    headerText: {
-        "& .ant-typography": {
-            lineHeight: theme.lineHeightLG,
-            fontSize: theme.fontSizeHeading4,
-            fontWeight: theme.fontWeightStrong,
-        },
-    },
-    title: {
-        fontSize: theme.fontSizeLG,
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeightLG,
-    },
-    label: {
-        fontWeight: theme.fontWeightMedium,
-    },
-    card: {
-        width: 208,
-        height: 180,
-        cursor: "pointer",
-        transitionDuration: "0.3s",
-        "&:hover": {
-            boxShadow: theme.boxShadow,
-        },
-        "& > .ant-card-head": {
-            minHeight: 0,
-            padding: theme.paddingSM,
-
-            "& .ant-card-head-title": {
-                fontSize: theme.fontSize,
-                fontWeight: theme.fontWeightMedium,
-                lineHeight: theme.lineHeight,
-            },
-        },
-        "& > .ant-card-body": {
-            padding: theme.paddingSM,
-            "& > .ant-typography": {
-                color: theme.colorTextSecondary,
-            },
-        },
-    },
-    inputName: {
-        borderColor: `${theme.colorError} !important`,
-        "&  .ant-input-clear-icon": {
-            color: theme.colorError,
-        },
-    },
-}))
-
-type Props = {
-    newApp: string
-    setNewApp: React.Dispatch<React.SetStateAction<string>>
-    templates: Template[]
-    noTemplateMessage: string
-    onCardClick: (template: Template) => void
-    appNameExist: boolean
-    templateId: string | undefined
-    handleTemplateCardClick: (template_id: string) => Promise<void>
-    fetchingTemplate: boolean
-} & React.ComponentProps<typeof Modal>
 
 const AddAppFromTemplatedModal = ({
     newApp,
@@ -92,22 +15,16 @@ const AddAppFromTemplatedModal = ({
     noTemplateMessage,
     onCardClick,
     appNameExist,
-    templateId,
+    templateKey,
     handleTemplateCardClick,
     fetchingTemplate,
     ...props
-}: Props) => {
+}: AddAppFromTemplatedModalProps) => {
     const classes = useStyles()
 
     const isError = appNameExist || (newApp.length > 0 && !isAppNameInputValid(newApp))
 
-    const handleEnterKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === "Enter" && templateId) {
-            handleCreateApp()
-        }
-    }
-
-    const handleCreateApp = () => {
+    const handleCreateApp = useCallback(() => {
         if (appNameExist) {
             notification.warning({
                 message: "Template Selection",
@@ -121,7 +38,7 @@ const AddAppFromTemplatedModal = ({
                 duration: 3,
             })
         } else if (!fetchingTemplate && newApp.length > 0 && isAppNameInputValid(newApp)) {
-            handleTemplateCardClick(templateId as string)
+            handleTemplateCardClick(templateKey as string)
         } else {
             notification.warning({
                 message: "Template Selection",
@@ -129,7 +46,16 @@ const AddAppFromTemplatedModal = ({
                 duration: 3,
             })
         }
-    }
+    }, [appNameExist, fetchingTemplate, handleTemplateCardClick, newApp, templateKey])
+
+    const handleEnterKeyPress = useCallback(
+        (event: React.KeyboardEvent<HTMLInputElement>) => {
+            if (event.key === "Enter" && templateKey) {
+                handleCreateApp()
+            }
+        },
+        [handleCreateApp, templateKey],
+    )
 
     return (
         <Modal
@@ -189,9 +115,7 @@ const AddAppFromTemplatedModal = ({
                                     key={temp.id}
                                     data-cy="app-template-card"
                                     title={temp.image.title}
-                                    extra={
-                                        <Radio checked={temp.id?.includes(templateId as string)} />
-                                    }
+                                    extra={<Radio checked={getTemplateKey(temp) === templateKey} />}
                                     className={classes.card}
                                     onClick={() => {
                                         onCardClick(temp)
@@ -207,7 +131,7 @@ const AddAppFromTemplatedModal = ({
                 <div className="flex justify-end">
                     <Button
                         type="primary"
-                        disabled={!newApp || isError || !templateId}
+                        disabled={!newApp || isError || !templateKey}
                         data-cy="create-app-from-template-button"
                         onClick={handleCreateApp}
                     >
