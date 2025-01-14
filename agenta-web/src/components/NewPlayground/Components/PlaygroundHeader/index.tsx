@@ -27,7 +27,7 @@ const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCrea
 const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}) => {
     const [, contextHolder] = message.useMessage()
 
-    const {addVariantToDisplay, displayedVariants, variants} = usePlayground()
+    const {toggleVariantDisplay, displayedVariants, variants} = usePlayground()
 
     // Only render if variants are available
     return !!variants ? (
@@ -47,9 +47,7 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
 
                 <PlaygroundCreateNewVariant
                     displayedVariants={displayedVariants}
-                    onSelect={(variant) => {
-                        addVariantToDisplay?.(variant)
-                    }}
+                    onSelect={toggleVariantDisplay}
                 />
             </div>
         </>

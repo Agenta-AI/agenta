@@ -90,7 +90,6 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction<T>) => Promise<void>
     saveVariant?: () => Promise<void>
     setSelectedVariant?: (variantId: string) => void
-    addVariantToDisplay?: (variantId: string) => void
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty
 }
@@ -191,5 +190,5 @@ export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData,
     displayedVariants?: string[]
     viewType?: ViewType
     setSelectedVariant?: (variantId: string) => void
-    addVariantToDisplay?: (variantId: string) => void
+    toggleVariantDisplay?: (variantId: string, display?: boolean) => void
 }
