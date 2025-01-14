@@ -82,8 +82,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     swr.mutate(
                         async (state) => {
                             if (!state || !state.spec) return state
-                            const service = config.service
-                            if (!service) return state
 
                             const baseVariant = state.variants.find(
                                 (variant) => variant.variantName === baseVariantName,
@@ -152,7 +150,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                         {revalidate: false},
                     )
                 },
-                [config.service, fetcher, swr],
+                [fetcher, swr],
             )
 
             const getVariants = useCallback(() => {
