@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import {message} from "antd"
 import cloneDeep from "lodash/cloneDeep"
@@ -402,7 +402,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                           handleChange: handleParamUpdate,
                       }
                     : undefined
-            }, [swr.data?.variants, config.propertyId, handleParamUpdate, variantId])
+            }, [swr, variantId, config.propertyId, handleParamUpdate])
 
             /**
              * Runs a specific test row with the current variant configuration
