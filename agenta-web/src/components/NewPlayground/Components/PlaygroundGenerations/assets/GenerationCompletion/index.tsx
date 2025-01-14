@@ -5,7 +5,6 @@ import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {useCallback} from "react"
 import GenerationCompletionRow from "../GenerationCompletionRow"
-import {Button} from "antd"
 import {GenerationCompletionProps} from "./types"
 import clsx from "clsx"
 
@@ -59,7 +58,6 @@ const GenerationCompletion = ({variantId, className, rowClassName}: GenerationCo
                 ])}
             >
                 <AddButton size="small" label="Input" onClick={addNewInputRow} />
-                {viewType === "single" && <Button size="small">Add all to test set</Button>}
             </div>
         </div>
     )

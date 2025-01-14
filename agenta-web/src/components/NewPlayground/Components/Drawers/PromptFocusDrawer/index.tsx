@@ -34,7 +34,13 @@ const PromptFocusDrawer: React.FC<PromptFocusDrawerProps> = ({variantId, ...prop
                 classNames={{body: "!p-0"}}
                 onClose={onClose}
                 {...props}
-                title={<PromptFocusDrawerHeader variantName={variantName} revision={revision} />}
+                title={
+                    <PromptFocusDrawerHeader
+                        variantId={variantId}
+                        variantName={variantName}
+                        revision={revision}
+                    />
+                }
             >
                 {promptIds.map((promptId) => (
                     <PlaygroundVariantConfigPrompt

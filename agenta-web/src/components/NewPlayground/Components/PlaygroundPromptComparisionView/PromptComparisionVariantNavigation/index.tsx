@@ -42,7 +42,7 @@ const PromptComparisionVariantNavigation = () => {
     return (
         <>
             <div className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto">
-                <div className="w-full flex items-center justify-between p-2 !border-b border-gray-300">
+                <div className="w-full flex items-center justify-between p-2 !border-b border-gray-300 sticky top-0 z-[1] bg-white">
                     <Typography.Text>Varaints</Typography.Text>
                     <PlaygroundCreateNewVariant />
                 </div>

@@ -6,7 +6,7 @@ import clsx from "clsx"
 import {CreateNewVariantListProps, VariantItem} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {useStyles} from "./styles"
-import NewVariantButton from "../../../NewVariantButton"
+import NewVariantButton from "../../../Modals/CreateVariantModal/assets/NewVariantButton"
 
 const CreateNewVariantList = ({
     selectedVariant,
