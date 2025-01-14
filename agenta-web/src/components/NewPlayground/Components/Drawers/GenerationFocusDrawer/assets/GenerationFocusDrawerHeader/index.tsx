@@ -37,17 +37,28 @@ const GenerationFocusDrawerHeader = ({
             </Space>
             <Space className="flex items-center gap-2">
                 <div>
-                    <Radio.Group value={format} onChange={(e) => setFormat(e.target.value)}>
-                        <Radio.Button value="pretty">Pretty</Radio.Button>
-                        <Radio.Button value="json">JSON</Radio.Button>
-                        <Radio.Button value="yaml">YAML</Radio.Button>
+                    <Radio.Group
+                        value={format}
+                        onChange={(e) => setFormat(e.target.value)}
+                        size="small"
+                    >
+                        <Radio.Button value="PRETTY">Pretty</Radio.Button>
+                        <Radio.Button value="JSON">JSON</Radio.Button>
+                        <Radio.Button value="YAML">YAML</Radio.Button>
                     </Radio.Group>
                 </div>
 
-                <Button icon={<Play size={14} />} disabled={isRunning} onClick={runRow}>
+                <Button
+                    icon={<Play size={14} />}
+                    disabled={isRunning}
+                    onClick={runRow}
+                    size="small"
+                >
                     Re run
                 </Button>
-                <Button icon={<FloppyDisk size={14} />}>Add to test set</Button>
+                <Button icon={<FloppyDisk size={14} />} size="small">
+                    Add to test set
+                </Button>
             </Space>
         </section>
     )

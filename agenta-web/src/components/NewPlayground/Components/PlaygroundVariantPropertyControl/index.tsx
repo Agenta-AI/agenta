@@ -42,6 +42,7 @@ const renderMap: RenderFunctions = {
                         options={metadata.options}
                         onChange={handleChange}
                         placeholder={metadata.description}
+                        className={className}
                     />
                 )
             }

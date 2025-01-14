@@ -16,8 +16,10 @@ import {
 import VariantNavigationCard from "./assets/VariantNavigationCard"
 import {Typography} from "antd"
 import PlaygroundCreateNewVariant from "../../Menus/PlaygroundCreateNewVariant"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 const PromptComparisionVariantNavigation = () => {
+    const {displayedVariants} = usePlayground()
     const [items, setItems] = useState([1, 2, 3])
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -42,9 +44,11 @@ const PromptComparisionVariantNavigation = () => {
     return (
         <>
             <div className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto">
-                <div className="w-full flex items-center justify-between p-2 !border-b border-gray-300 sticky top-0 z-[1] bg-white">
+                <div className="w-full h-[48px] flex items-center justify-between px-2 sticky top-0 z-[1] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
                     <Typography.Text>Varaints</Typography.Text>
-                    <PlaygroundCreateNewVariant />
+                    <div>
+                        <PlaygroundCreateNewVariant />
+                    </div>
                 </div>
 
                 <div className="flex flex-col gap-2 p-2">
@@ -54,8 +58,8 @@ const PromptComparisionVariantNavigation = () => {
                         onDragEnd={handleDragEnd}
                     >
                         <SortableContext items={items} strategy={verticalListSortingStrategy}>
-                            {items.map((id) => (
-                                <VariantNavigationCard key={id} id={id} />
+                            {displayedVariants?.map((variantId, idx) => (
+                                <VariantNavigationCard key={idx} id={idx} variantId={variantId} />
                             ))}
                         </SortableContext>
                     </DndContext>
