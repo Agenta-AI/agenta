@@ -270,7 +270,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 try {
                     // first set the mutation state of the variant to true
                     swr.mutate(
-                        () => {
+                        (state) => {
                             const clonedState = cloneDeep(state)
                             const variant = findVariantById(clonedState, variantId!)
                             if (!variant) throw new Error("Variant not found")
@@ -451,17 +451,18 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @param rowId - ID of the input row to run
              */
             const runVariantTestRow = useCallback(
-                async (rowId: string) => {
+                async (rowId: string, variantId?: string) => {
                     swr.mutate(async (state) => {
+                        const _variantId = variantId ?? config.variantId
                         const clonedState = cloneDeep(state)
 
-                        if (!config.variantId || !clonedState) return state
+                        if (!_variantId || !clonedState) return state
 
-                        const variant = findVariantById(state, config.variantId)
+                        const variant = findVariantById(state, _variantId)
                         if (!variant) return state
 
                         const variantIndex = clonedState.variants.findIndex(
-                            (v) => v.id === config.variantId,
+                            (v) => v.id === _variantId,
                         )
                         if (variantIndex === -1) return state
 
@@ -535,6 +536,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     checkInvalidSelector()
                     addToValueReferences("runVariantTestRow")
                     return runVariantTestRow
+                },
+            })
+            Object.defineProperty(swr, "handleWebWorkerMessage", {
+                get() {
+                    return handleWebWorkerMessage
                 },
             })
 
