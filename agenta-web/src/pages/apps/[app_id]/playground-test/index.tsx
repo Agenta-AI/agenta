@@ -1,4 +1,4 @@
-import NewPlayground from "@/components/PlaygroundTest/Playground"
+import NewPlayground from "@/components/NewPlayground/Playground"
 export default function PlaygroundTestPage() {
     return <NewPlayground />
 }
