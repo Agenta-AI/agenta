@@ -115,15 +115,24 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 [swr],
             )
 
-            const addVariantToDisplayList = useCallback(
-                (variantId: string) => {
+            const toggleVariantDisplay = useCallback(
+                (variantId: string, display: boolean) => {
                     swr.mutate(
                         (state) => {
                             if (!state) return state
-                            const newSelected = Array.from(new Set([...state.selected, variantId]))
-                            return {
-                                ...state,
-                                selected: newSelected,
+                            const isInView = state.selected.includes(variantId)
+                            const _display = display ?? !isInView
+
+                            if (_display) {
+                                return {
+                                    ...state,
+                                    selected: Array.from(new Set([...state.selected, variantId])),
+                                }
+                            } else {
+                                return {
+                                    ...state,
+                                    selected: state.selected.filter((id) => id !== variantId),
+                                }
                             }
                         },
                         {revalidate: false},
@@ -148,10 +157,10 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     },
                     enumerable: true,
                 },
-                addVariantToDisplay: {
+                toggleVariantDisplay: {
                     get: () => {
-                        addToValueReferences("addVariantToDisplay")
-                        return addVariantToDisplayList
+                        addToValueReferences("toggleVariantDisplay")
+                        return toggleVariantDisplay
                     },
                     enumerable: true,
                 },
