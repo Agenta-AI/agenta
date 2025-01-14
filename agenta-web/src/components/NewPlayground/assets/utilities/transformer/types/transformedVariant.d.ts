@@ -11,4 +11,5 @@ export interface EnhancedVariant<
     prompts: T[]
     inputs: Enhanced<InputType<string[]>[]>
     messages: Enhanced<Message[]>
+    __isMutating?: boolean
 }
