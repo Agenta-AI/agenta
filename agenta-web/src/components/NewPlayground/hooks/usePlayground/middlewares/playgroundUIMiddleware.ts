@@ -1,7 +1,5 @@
 import {useCallback} from "react"
-
 import isEqual from "lodash/isEqual"
-
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import type {Key, SWRHook} from "swr"
@@ -16,6 +14,32 @@ import type {
     ViewType,
 } from "../types"
 
+/**
+ * Middleware for managing UI state in the playground.
+ * Handles variant display states and view type transitions.
+ *
+ * @description
+ * This middleware extends the SWR hook with UI-specific functionality:
+ * - Manages which variants are currently displayed
+ * - Controls single/comparison view modes
+ * - Handles variant selection and toggle states
+ *
+ * @example
+ * ```tsx
+ * // Using the UI middleware
+ * const { displayedVariants, viewType, setSelectedVariant } = usePlayground()
+ *
+ * // Toggle variant display
+ * const handleVariantToggle = (variantId) => {
+ *   toggleVariantDisplay(variantId)
+ * }
+ *
+ * // Check current view type
+ * if (viewType === 'comparison') {
+ *   // Render comparison view
+ * }
+ * ```
+ */
 const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData, Selected = unknown>(
         key: Key,
@@ -34,6 +58,10 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 },
             })
 
+            /**
+             * Enhanced SWR hook with UI-specific comparison logic
+             * Prevents unnecessary rerenders when only UI state changes
+             */
             const swr = useSWRNext(key, fetcher, {
                 ...config,
                 revalidateOnMount:
@@ -42,6 +70,10 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         valueReferences.current.includes("displayedVariants") ||
                         valueReferences.current.includes("viewType")
                     ),
+                /**
+                 * Custom comparison function that handles UI state changes
+                 * Only triggers rerender when relevant UI state changes
+                 */
                 compare: useCallback(
                     (a?: Data, b?: Data) => {
                         const uiStateReferenced =
@@ -89,16 +121,29 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 ),
             } as PlaygroundSWRConfig<Data>)
 
+            /**
+             * Returns array of variant IDs that are currently being displayed
+             * Used for managing which variants are visible in the UI
+             */
             const getDisplayedVariants = useCallback((): string[] => {
                 addToValueReferences("displayedVariants")
                 return swr.data?.selected || []
             }, [addToValueReferences, swr.data])
 
+            /**
+             * Determines current view type based on number of displayed variants
+             * @returns 'comparison' if multiple variants are displayed, 'single' otherwise
+             */
             const getViewType = useCallback((): ViewType => {
                 addToValueReferences("viewType")
                 return (swr.data?.selected?.length || 0) > 1 ? "comparison" : "single"
             }, [addToValueReferences, swr.data?.selected?.length])
 
+            /**
+             * Sets a single variant as the selected display variant
+             * Useful for switching to single view mode
+             * @param variantId - ID of the variant to display
+             */
             const setSelectedDisplayVariant = useCallback(
                 (variantId: string) => {
                     swr.mutate(
@@ -115,6 +160,12 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 [swr],
             )
 
+            /**
+             * Toggles the display state of a variant
+             * Can be used to show/hide variants in comparison view
+             * @param variantId - ID of the variant to toggle
+             * @param display - Optional forced display state
+             */
             const toggleVariantDisplay = useCallback(
                 (variantId: string, display: boolean) => {
                     swr.mutate(
@@ -141,6 +192,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 [swr],
             )
 
+            // Define getters for UI state and actions
             return Object.defineProperties(swr, {
                 displayedVariants: {
                     get: getDisplayedVariants,
