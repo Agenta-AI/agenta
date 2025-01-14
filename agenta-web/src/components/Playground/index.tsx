@@ -33,7 +33,6 @@ const PlaygroundRouter = () => {
             return <NewPlayground />
         }
     } else {
-        router.push("/apps")
         return null
     }
 }
