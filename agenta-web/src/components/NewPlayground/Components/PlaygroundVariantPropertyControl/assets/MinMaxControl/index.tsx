@@ -1,12 +1,10 @@
-import {memo, useCallback, useState, useEffect} from "react"
-
+import {memo, useCallback} from "react"
 import {Slider, InputNumber, Typography} from "antd"
-import debounce from "lodash/debounce"
+import {useDebounceInput} from "@/hooks/useDebounceInput"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 
 import type {MinMaxControlProps} from "./types"
-import {useDebounceValue} from "usehooks-ts"
 
 /**
  * A controlled input component that combines a slider and number input
@@ -18,39 +16,24 @@ import {useDebounceValue} from "usehooks-ts"
  * - Falls back to min value when null/undefined is provided
  */
 const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlProps) => {
-    // Internal state for smooth UI updates
-    const [localValue, setLocalValue] = useState<number | null>(value ?? null)
-    const [query] = useDebounceValue(localValue, 300)
-
-    useEffect(() => {
-        if (query !== null) {
-            onChange(query)
-        }
-    }, [onChange, query])
-
-    /**
-     * Syncs internal state with external value changes
-     * Important for controlled component behavior
-     */
-    useEffect(() => {
-        setLocalValue((prevValue) => {
-            const newValue = value || null
-            if (newValue !== prevValue) {
-                return newValue
-            }
-            return prevValue
-        })
-    }, [value])
+    const [localValue, setLocalValue] = useDebounceInput<number | null>(
+        value ?? null,
+        onChange,
+        300,
+        null,
+    )
 
     /**
      * Unified change handler for both input methods
      * Provides immediate visual feedback while debouncing actual state updates
      */
-    const handleValueChange = useCallback((newValue: number | null | undefined) => {
-        const processedValue = newValue === undefined ? null : newValue
-        setLocalValue(processedValue) // Update UI immediately
-        // debouncedOnChange(processedValue) // Debounce update to parent
-    }, [])
+    const handleValueChange = useCallback(
+        (newValue: number | null | undefined) => {
+            const processedValue = newValue === undefined ? null : newValue
+            setLocalValue(processedValue)
+        },
+        [setLocalValue],
+    )
 
     return (
         <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
