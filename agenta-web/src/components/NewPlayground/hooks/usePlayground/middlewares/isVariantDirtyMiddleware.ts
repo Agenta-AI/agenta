@@ -23,7 +23,7 @@ import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 const compareVariantsForDirtyState = (
     variant1: EnhancedVariant | undefined,
     variant2: EnhancedVariant | undefined,
-    ignoreKeys: string[] = ["inputs"],
+    ignoreKeys: string[] = ["inputs", "__isMutating"],
 ): boolean => {
     if (!variant1 || !variant2) return variant1 === variant2
 
