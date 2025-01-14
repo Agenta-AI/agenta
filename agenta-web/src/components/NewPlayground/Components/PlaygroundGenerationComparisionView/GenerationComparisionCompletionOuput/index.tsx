@@ -5,6 +5,7 @@ import GenerationResultUtils from "../../PlaygroundGenerations/assets/Generation
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisionCompletionOuputProps} from "./types"
 import GenerationFocusDrawerButton from "../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
+import {getYamlOrJson} from "@/lib/helpers/utils"
 
 const GenerationComparisionCompletionOuput = ({
     variantId,
@@ -12,8 +13,11 @@ const GenerationComparisionCompletionOuput = ({
     focusDisable = false,
     result,
     isRunning,
+    format,
 }: GenerationComparisionCompletionOuputProps) => {
     const classes = useStyles()
+    const isPretty = format === "PRETTY"
+
     return (
         <>
             <div className={clsx("group/item", className)}>
@@ -25,7 +29,14 @@ const GenerationComparisionCompletionOuput = ({
                     ) : !result ? (
                         <GenerationOutputText text="Click run to generate output" />
                     ) : result.error ? (
-                        <GenerationOutputText type="danger" text={result.error} />
+                        <GenerationOutputText
+                            type="danger"
+                            text={
+                                isPretty
+                                    ? result.error
+                                    : getYamlOrJson(format, result.metadata.rawError)
+                            }
+                        />
                     ) : result.response ? (
                         <GenerationOutputText type="success" text={result.response.data} />
                     ) : null}

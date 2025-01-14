@@ -30,6 +30,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 key: "rename",
                 label: "Rename",
                 icon: <PencilSimple size={16} />,
+                disabled: true,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                     setIsVariantRenameOpen(true)
@@ -40,6 +41,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 key: "clone",
                 label: "Clone",
                 icon: <Copy size={16} />,
+                disabled: true,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                 },
@@ -58,6 +60,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
             {
                 key: "reset",
                 label: "Reset",
+                disabled: true,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                     setIsResetModalOpen(true)

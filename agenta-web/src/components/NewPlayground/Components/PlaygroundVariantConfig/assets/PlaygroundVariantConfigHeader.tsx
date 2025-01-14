@@ -57,6 +57,7 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
                 "flex items-center justify-between",
                 "sticky top-0 z-[1]",
                 "bg-white",
+                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                 className,
             )}
             {...divProps}
