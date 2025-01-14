@@ -1,7 +1,7 @@
 import {useCallback} from "react"
 import usePlayground from "../../hooks/usePlayground"
 import GenerationCompletion from "./assets/GenerationCompletion"
-import GeneratoinHeader from "./assets/GeneratoinHeader"
+import GenerationHeader from "./assets/GenerationHeader"
 import {PlaygroundGenerationsProps} from "./types"
 import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import GenerationChat from "./assets/GenerationChat"
@@ -16,7 +16,7 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({variantId}
 
     return (
         <div>
-            <GeneratoinHeader />
+            <GenerationHeader />
             {isChat ? <GenerationChat /> : <GenerationCompletion variantId={variantId} />}
         </div>
     )

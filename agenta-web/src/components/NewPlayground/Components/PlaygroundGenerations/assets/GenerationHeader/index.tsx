@@ -4,7 +4,7 @@ import {Button, Typography} from "antd"
 import LoadTestsetModal from "../../../Modals/LoadTestsetModal"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
-const GeneratoinHeader = () => {
+const GenerationHeader = () => {
     const {runAllTests} = usePlayground()
     const [testsetData, setTestsetData] = useState<Record<string, any> | null>(null)
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
@@ -34,4 +34,4 @@ const GeneratoinHeader = () => {
     )
 }
 
-export default GeneratoinHeader
+export default GenerationHeader
