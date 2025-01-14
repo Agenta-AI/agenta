@@ -43,6 +43,10 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 onClose={() => setIsFocusMoodOpen(false)}
                 type="completion"
                 variantId={variantId}
+                rowId=""
+                inputRows={[]}
+                loadNextRow={() => {}}
+                loadPrevRow={() => {}}
             />
         </div>
     )
