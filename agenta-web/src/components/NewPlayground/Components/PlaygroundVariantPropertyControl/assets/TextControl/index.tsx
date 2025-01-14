@@ -1,5 +1,7 @@
 import clsx from "clsx"
 import {Input, Typography} from "antd"
+import {useCallback, ChangeEvent} from "react"
+import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
 
 import type {TextControlProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
@@ -8,6 +10,15 @@ const {TextArea} = Input
 
 const TextControl = ({className, metadata, value, handleChange, as, view}: TextControlProps) => {
     const {viewType} = usePlayground()
+
+    const [localValue, setLocalValue] = useDebounceInput<string>(value, handleChange, 300, "")
+
+    const handleLocalValueChange = useCallback(
+        (e: ChangeEvent<HTMLTextAreaElement>) => {
+            setLocalValue(e.target.value)
+        },
+        [setLocalValue],
+    )
 
     if (viewType === "single" && view !== "focus") {
         return (
@@ -22,8 +33,8 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                     {metadata.title}
                 </Typography>
                 <TextArea
-                    value={value}
-                    onChange={handleChange}
+                    value={localValue}
+                    onChange={handleLocalValueChange}
                     className={clsx(["border-0", "focus:ring-0"])}
                     placeholder={metadata.description}
                     autoSize={{minRows: 3}}
@@ -41,8 +52,8 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                 {metadata.title}
             </Typography>
             <TextArea
-                value={value}
-                onChange={handleChange}
+                value={localValue}
+                onChange={handleLocalValueChange}
                 className={clsx([
                     "border-0",
                     "focus:ring-0",
