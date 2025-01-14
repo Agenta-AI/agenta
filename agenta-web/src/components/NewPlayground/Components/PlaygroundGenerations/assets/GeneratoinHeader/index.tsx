@@ -16,6 +16,7 @@ const GeneratoinHeader = () => {
                 <Button size="small" onClick={() => setIsTestsetModalOpen(true)}>
                     Load Test set
                 </Button>
+                <Button size="small">Add all to test set</Button>
                 <Button size="small" type="primary" icon={<Play size={14} />}>
                     Run all
                 </Button>

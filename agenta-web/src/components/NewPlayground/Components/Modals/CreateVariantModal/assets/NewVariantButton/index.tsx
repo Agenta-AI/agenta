@@ -2,11 +2,11 @@ import {isValidElement, cloneElement, useState, useTransition, useCallback, useM
 
 import {message} from "antd"
 
-import usePlayground from "../../hooks/usePlayground"
-import AddButton from "../../assets/AddButton"
+import usePlayground from "../../../../../hooks/usePlayground"
+import AddButton from "../../../../../assets/AddButton"
 
 import {NewVariantButtonProps} from "./types"
-import CreateVariantModal from "../Modals/CreateVariantModal"
+import CreateVariantModal from "../.."
 
 /**
  * Button to add a new variant
