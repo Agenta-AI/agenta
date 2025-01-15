@@ -4,6 +4,7 @@ import {Button, Dropdown, MenuProps} from "antd"
 import {PlaygroundGenerationVariableMenuProps} from "./types"
 
 const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMenuProps> = ({
+    duplicateInputRow,
     ...props
 }) => {
     const items: MenuProps["items"] = useMemo(
@@ -14,6 +15,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                 icon: <Copy size={14} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
+                    duplicateInputRow()
                 },
             },
             {
