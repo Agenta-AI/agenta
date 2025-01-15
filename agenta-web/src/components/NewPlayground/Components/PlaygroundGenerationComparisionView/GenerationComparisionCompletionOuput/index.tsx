@@ -8,17 +8,21 @@ import GenerationFocusDrawerButton from "../../Drawers/GenerationFocusDrawer/com
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {useCallback} from "react"
+import {getYamlOrJson} from "@/lib/helpers/utils"
+import {OutputFormat} from "../../Drawers/GenerationFocusDrawer/types"
 
 const GenerationComparisionCompletionOuputRow = ({
     rowId,
     focusDisable,
     className,
     variantId,
+    format,
 }: {
     rowId: string
     focusDisable: boolean
     className?: string
     variantId: string
+    format?: OutputFormat
 }) => {
     const classes = useStyles()
     const {result, isRunning} = usePlayground({
@@ -48,7 +52,17 @@ const GenerationComparisionCompletionOuputRow = ({
                 ) : !result ? (
                     <GenerationOutputText text="Click run to generate output" />
                 ) : result.error ? (
-                    <GenerationOutputText type="danger" text={result.error} />
+                    <GenerationOutputText
+                        type="danger"
+                        text={
+                            format === "PRETTY"
+                                ? result.error
+                                : getYamlOrJson(
+                                      format as "JSON" | "YAML",
+                                      result?.metadata?.rawError,
+                                  )
+                        }
+                    />
                 ) : result.response ? (
                     <GenerationOutputText type="success" text={result.response.data} />
                 ) : null}

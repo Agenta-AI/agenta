@@ -1,7 +1,7 @@
 import {useCallback, useState} from "react"
 import {Drawer} from "antd"
 import useDrawerWidth from "../../../hooks/useDrawerWidth"
-import {GenerationFocusDrawerProps} from "./types"
+import {GenerationFocusDrawerProps, OutputFormat} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import GenerationComparisionCompletionOuput from "../../PlaygroundGenerationComparisionView/GenerationComparisionCompletionOuput"
 import GenerationFocusDrawerHeader from "./assets/GenerationFocusDrawerHeader"
@@ -20,7 +20,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
     inputRows,
     ...props
 }) => {
-    const [format, setFormat] = useState("pretty")
+    const [format, setFormat] = useState<OutputFormat>("PRETTY")
     const {drawerWidth} = useDrawerWidth()
 
     const {result, variableIds, runVariantTestRow, canRun, isRunning, displayedVariants, viewType} =
@@ -100,6 +100,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
                         result={result}
                         isRunning={isRunning}
                         className={clsx("w-full", {"w-[400px]": viewType === "comparison"})}
+                        format={format}
                     />
                 ))}
             </div>

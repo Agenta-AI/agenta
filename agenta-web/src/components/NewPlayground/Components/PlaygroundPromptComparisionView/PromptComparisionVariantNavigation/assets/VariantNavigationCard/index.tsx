@@ -1,3 +1,4 @@
+import {useCallback, useMemo} from "react"
 import {Button, Tag, Typography} from "antd"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
 import {useStyles} from "./styles"
@@ -6,19 +7,28 @@ import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import Version from "@/components/NewPlayground/assets/Version"
 import {VariantNavigationCardProps} from "./types"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 const {Text} = Typography
 
-const VariantNavigationCard = ({id, className}: VariantNavigationCardProps) => {
+const VariantNavigationCard = ({variantId, id, className}: VariantNavigationCardProps) => {
     const classes = useStyles()
+    const {toggleVariantDisplay} = usePlayground()
     const {attributes, listeners, setNodeRef, transform, transition} = useSortable({id})
 
     const time_end = "0.0453s"
     const cost = "79 / $0.0053"
 
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
+    const style = useMemo(
+        () => ({
+            transform: CSS.Transform.toString(transform),
+            transition,
+        }),
+        [],
+    )
+
+    const onRemoveVariant = (variantId: string) => {
+        toggleVariantDisplay?.(variantId, false)
     }
 
     return (
@@ -35,7 +45,11 @@ const VariantNavigationCard = ({id, className}: VariantNavigationCardProps) => {
         >
             <div className="flex items-center justify-between">
                 <Text>Variant A</Text>
-                <Button icon={<X size={14} />} type="text" />
+                <Button
+                    icon={<X size={14} />}
+                    type="text"
+                    onClick={() => onRemoveVariant(variantId)}
+                />
             </div>
             <div className="flex items-center justify-between">
                 <Text>Name</Text>

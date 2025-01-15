@@ -19,7 +19,7 @@ const CreateNewVariantList = ({
     const [query, setQuery] = useState("")
     const [debouncedQuery, setDebouncedQuery] = useState("")
 
-    const {variantsList, setSelectedVariant} = usePlayground({
+    const {variantsList, toggleVariantDisplay} = usePlayground({
         stateSelector: (state) => ({
             variantsList: state.variants.map((variant) => ({
                 variantId: variant.id,
@@ -54,11 +54,11 @@ const CreateNewVariantList = ({
         [debouncedSearch],
     )
 
-    const onAddVariant = (variant: VariantItem) => {
+    const onAddVariant = (variant: VariantItem, isSelected: boolean) => {
         if (onSelect) {
             onSelect(variant.variantId)
         } else {
-            setSelectedVariant?.(variant.variantId)
+            toggleVariantDisplay?.(variant.variantId, !isSelected)
         }
 
         closeModal?.()
@@ -93,7 +93,7 @@ const CreateNewVariantList = ({
                         return (
                             <li
                                 key={variant.variantId}
-                                onClick={() => onAddVariant(variant)}
+                                onClick={() => onAddVariant(variant, isSelected)}
                                 className={clsx([
                                     classes.variant,
                                     isSelected && classes.selectedVaraint,

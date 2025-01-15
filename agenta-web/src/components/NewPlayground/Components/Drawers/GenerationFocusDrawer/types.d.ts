@@ -10,3 +10,5 @@ export interface GenerationFocusDrawerProps extends DrawerProps {
     loadPrevRow: () => void
     inputRows: Enhanced<InputType<string[]>>[]
 }
+
+export type OutputFormat = "PRETTY" | "JSON" | "YAML"
