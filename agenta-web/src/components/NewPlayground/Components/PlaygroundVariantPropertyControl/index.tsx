@@ -1,4 +1,4 @@
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import {Typography} from "antd"
 
@@ -13,7 +13,15 @@ import PromptMessageContent from "./assets/PromptMessageContent"
 import TextControl from "./assets/TextControl"
 
 import type {PlaygroundVariantPropertyControlProps, RenderFunctions, ArrayItemValue} from "./types"
-import type {EnhancedConfigValue} from "../../assets/utilities/genericTransformer/types"
+import type {
+    Enhanced,
+    EnhancedConfigValue,
+    EnhancedObjectConfig,
+} from "../../assets/utilities/genericTransformer/types"
+import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
+import {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
+import cloneDeep from "lodash/cloneDeep"
 
 const renderMap: RenderFunctions = {
     number: (metadata, value, handleChange) => {
@@ -136,20 +144,89 @@ const renderMap: RenderFunctions = {
     },
 } as const
 
+// TODO: RENAME TO PlaygroundPropertyControl
 const PlaygroundVariantPropertyControl = ({
     propertyId,
     variantId,
     className,
     as,
     view,
+    rowId,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
-    const {variantConfigProperty: property} = usePlayground({
-        variantId,
-        propertyId,
+    const {
+        mutate,
+        handleParamUpdate: updateVariantProperty,
+        baseProperty,
+    } = usePlayground({
         hookId: "PlaygroundVariantPropertyControl",
+        stateSelector: (state) => {
+            const object = !!rowId
+                ? state.generationData.value.find((v) => v.__id === rowId)
+                : variantId
+                  ? state.variants.find((v) => v.id === variantId)
+                  : null
+
+            if (!object) {
+                return {}
+            } else {
+                const property = !!rowId
+                    ? (findPropertyInObject(object, propertyId) as EnhancedObjectConfig<any>)
+                    : (findPropertyById(
+                          object as EnhancedVariant,
+                          propertyId,
+                      ) as EnhancedObjectConfig<any>)
+                return {baseProperty: property}
+            }
+        },
     })
+
+    const property = useMemo(() => {
+        if (!baseProperty) return null
+
+        const {__metadata, value} = baseProperty
+
+        const handler = rowId
+            ? (e: any) => {
+                  mutate(
+                      (draft) => {
+                          const clonedState = cloneDeep(draft)
+                          if (!clonedState) return draft
+
+                          const val = e
+                              ? typeof e === "object" && "target" in e
+                                  ? e.target.value
+                                  : e
+                              : null
+
+                          const object = clonedState.generationData.value.find(
+                              (v) => v.__id === rowId,
+                          )
+                          if (!object) return
+
+                          const property = findPropertyInObject(object, propertyId) as Enhanced<any>
+                          if (!property) return
+
+                          property.value = val
+
+                          return clonedState
+                      },
+                      {
+                          revalidate: false,
+                      },
+                  )
+              }
+            : (newValue: any) => {
+                  updateVariantProperty?.(newValue, baseProperty.__id, variantId)
+              }
+
+        return {
+            __metadata,
+            value,
+            handleChange: handler,
+        }
+    }, [baseProperty, updateVariantProperty, variantId])
 
     if (!property) {
         return null

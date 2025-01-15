@@ -5,7 +5,7 @@ import LoadTestsetModal from "../../../Modals/LoadTestsetModal"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 const GenerationHeader = () => {
-    const {runAllTests} = usePlayground()
+    const {runTests} = usePlayground()
     const [testsetData, setTestsetData] = useState<Record<string, any> | null>(null)
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
 
@@ -19,7 +19,12 @@ const GenerationHeader = () => {
                     Load Test set
                 </Button>
                 <Button size="small">Add all to test set</Button>
-                <Button size="small" type="primary" icon={<Play size={14} />} onClick={runAllTests}>
+                <Button
+                    size="small"
+                    type="primary"
+                    icon={<Play size={14} />}
+                    onClick={() => runTests?.()}
+                >
                     Run all
                 </Button>
             </div>

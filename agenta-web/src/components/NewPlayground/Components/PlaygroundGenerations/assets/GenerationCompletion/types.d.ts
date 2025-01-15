@@ -1,5 +1,5 @@
 export type GenerationCompletionProps = {
-    variantId: string
+    variantId?: string
     className?: string
     rowClassName?: string
 }

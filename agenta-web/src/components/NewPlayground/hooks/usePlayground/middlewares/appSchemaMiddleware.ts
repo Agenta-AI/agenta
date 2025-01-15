@@ -16,6 +16,7 @@ import type {
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
 } from "../types"
+import {initializeComparisonInputs} from "../assets/comparisonHelpers"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -78,7 +79,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         )
                         state.spec = spec
                         state.selected = [state.variants[0].id]
-
+                        state.generationData = initializeComparisonInputs(state.variants)
                         return state
                     } catch (error) {
                         console.error("Error in openApiSchemaFetcher:", error)
