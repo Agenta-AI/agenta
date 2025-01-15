@@ -499,18 +499,19 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             Object.defineProperty(swr, "variant", {
                 get() {
-                    checkInvalidSelector()
                     addToValueReferences("variant")
-                    const variant = swr.data?.variants.find((v) => v.id === config.variantId)
-                    return variant
+                    if (config.variantId) {
+                        const variant = swr.data?.variants.find((v) => v.id === config.variantId)
+                        return variant
+                    } else {
+                        return undefined
+                    }
                 },
             })
 
             Object.defineProperty(swr, "handleParamUpdate", {
                 get() {
-                    // checkInvalidSelector()
                     addToValueReferences("variantConfig")
-
                     return handleParamUpdate
                 },
             })
@@ -550,7 +551,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             })
             Object.defineProperty(swr, "runVariantTestRow", {
                 get() {
-                    // checkInvalidSelector()
                     addToValueReferences("runVariantTestRow")
                     return runVariantTestRow
                 },
