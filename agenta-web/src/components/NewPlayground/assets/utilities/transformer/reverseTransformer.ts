@@ -98,7 +98,10 @@ function extractInputValues(inputRow: Record<string, any>): Record<string, strin
 /**
  * Transform EnhancedVariant back to API request shape
  */
-export function transformToRequestBody(variant: EnhancedVariant, inputRowId?: string) {
+export function transformToRequestBody(
+    variant: EnhancedVariant,
+    inputRow?: EnhancedVariant["inputs"]["value"][number],
+): Record<string, any> {
     const data = {} as Record<string, any>
     // Get the first prompt configuration
     const promptConfig = variant.prompts[0]
@@ -107,13 +110,8 @@ export function transformToRequestBody(variant: EnhancedVariant, inputRowId?: st
         prompt: rawConfig as EnhancedVariant["prompts"][number],
     }
 
-    // For non-chat variants, extract input values from the specified row
-    if (!variant.isChat && inputRowId) {
-        data.inputs = {}
-        const inputRow = variant.inputs.value.find((row) => row.__id === inputRowId)
-        if (inputRow) {
-            data.inputs = extractInputValues(inputRow)
-        }
+    if (inputRow) {
+        data.inputs = extractInputValues(inputRow)
     }
 
     return data
