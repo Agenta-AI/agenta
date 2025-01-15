@@ -4,7 +4,6 @@ import {Button, Typography} from "antd"
 import LoadTestsetModal from "../../../Modals/LoadTestsetModal"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {SetStateAction} from "jotai"
-import cloneDeep from "lodash/cloneDeep"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
@@ -18,7 +17,7 @@ const GenerationHeader = () => {
 
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 // access the existing generation metadata to pull correct keys from testset rows
@@ -53,7 +52,7 @@ const GenerationHeader = () => {
     const clearGeneration = useCallback(() => {
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 const generationMetadata = clonedState.generationData.__metadata

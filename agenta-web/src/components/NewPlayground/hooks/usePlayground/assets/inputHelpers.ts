@@ -249,9 +249,9 @@ export function syncVariantInputs(
  * @param variant - Variant to get input keys from
  * @returns Set of unique input keys
  */
-export function getVariantInputKeys(variant: EnhancedVariant): Set<string> {
+export function getVariantInputKeys(variant: EnhancedVariant): Array<string> {
     const inputKeys = new Set(
         variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [],
     )
-    return new Set(Array.from(inputKeys).map((key) => key.value))
+    return Array.from(new Set(Array.from(inputKeys).map((key) => key.value)))
 }
