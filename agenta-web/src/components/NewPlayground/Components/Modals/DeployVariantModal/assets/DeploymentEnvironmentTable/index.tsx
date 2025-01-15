@@ -67,7 +67,6 @@ const DeploymentEnvironmentTable = ({
                         setSelectedEnvs(selectedRowKeys as string[])
                     },
                 }}
-                data-cy="app-testset-list"
                 loading={isLoading}
                 className={`ph-no-capture`}
                 columns={columns}

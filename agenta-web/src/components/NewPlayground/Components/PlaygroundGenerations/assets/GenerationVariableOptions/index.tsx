@@ -13,6 +13,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
     variantId,
     className,
+    result,
 }) => {
     const {mutate} = usePlayground({
         variantId,
@@ -71,7 +72,10 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
             <GenerationFocusDrawerButton rowId={rowId} variantIds={variantId} />
             <Button icon={<MinusCircle size={14} />} type="text" onClick={deleteInputRow} />
 
-            <PlaygroundGenerationVariableMenu duplicateInputRow={duplicateInputRow} />
+            <PlaygroundGenerationVariableMenu
+                duplicateInputRow={duplicateInputRow}
+                result={result}
+            />
         </div>
     )
 }
