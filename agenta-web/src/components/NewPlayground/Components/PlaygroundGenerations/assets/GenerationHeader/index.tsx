@@ -22,12 +22,18 @@ const GenerationHeader = () => {
 
                 if (!clonedState) return state
 
+                // access the existing generation metadata to pull correct keys from testset rows
                 const generationMetadata = clonedState.generationData.__metadata
+
+                // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
                     const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
                     const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+
+                    // set the values of the new generation row inputs to the values of the testset row
                     for (const key of inputKeys) {
-                        ;(newRow[key] as Enhanced<string>).value = row[key]
+                        const newRowProperty = newRow[key] as Enhanced<string>
+                        newRowProperty.value = row[key]
                     }
 
                     return newRow
