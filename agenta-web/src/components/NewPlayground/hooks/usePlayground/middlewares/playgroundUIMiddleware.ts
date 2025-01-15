@@ -1,5 +1,5 @@
 import {useCallback} from "react"
-import isEqual from "lodash/isEqual"
+import isEqual from "fast-deep-equal"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import type {Key, SWRHook} from "swr"
