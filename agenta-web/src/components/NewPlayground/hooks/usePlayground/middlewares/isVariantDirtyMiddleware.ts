@@ -1,6 +1,6 @@
 import {useCallback, useRef} from "react"
 
-import isEqual from "lodash/isEqual"
+import isEqual from "fast-deep-equal"
 import cloneDeep from "lodash/cloneDeep"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"

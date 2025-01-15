@@ -1,5 +1,4 @@
-import isEqual from "lodash/isEqual"
-import cloneDeep from "lodash/cloneDeep"
+import isEqual from "fast-deep-equal"
 import {dereference} from "@scalar/openapi-parser"
 
 import {transformToEnhancedVariant} from "../../../assets/utilities/transformer/transformer"
