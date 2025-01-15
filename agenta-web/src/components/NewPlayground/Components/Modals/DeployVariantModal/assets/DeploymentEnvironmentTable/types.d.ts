@@ -5,7 +5,7 @@ import {
 } from "@/components/NewPlayground/assets/utilities/transformer/types"
 import {Environment, Variant} from "@/lib/Types"
 
-export type DeploymentEnviromentTableProps = {
+export type DeploymentEnvironmentTableProps = {
     environments: Environment[]
     selectedEnvs: string[]
     setSelectedEnvs: React.Dispatch<React.SetStateAction<string[]>>

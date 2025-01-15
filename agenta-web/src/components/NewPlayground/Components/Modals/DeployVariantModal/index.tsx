@@ -3,7 +3,7 @@ import router from "next/router"
 import {message, Modal} from "antd"
 import {DeployVariantModalProps} from "./types"
 import {Rocket} from "@phosphor-icons/react"
-import DeploymentEnviromentTable from "./assets/DeploymentEnviromentTable"
+import DeploymentEnvironmentTable from "./assets/DeploymentEnvironmentTable"
 import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {createPublishVariant, useEnvironments} from "@/services/deployment/api"
@@ -41,14 +41,14 @@ const DeployVariantModal = ({variantId, ...props}: DeployVariantModalProps) => {
         } finally {
             setIsLoading(false)
         }
-    }, [createPublishVariant])
+    }, [createPublishVariant, selectedEnvs])
 
     const steps = useMemo(
         () => [
             {
                 title: "Deploy variant",
                 component: (
-                    <DeploymentEnviromentTable
+                    <DeploymentEnvironmentTable
                         environments={environments}
                         selectedEnvs={selectedEnvs}
                         setSelectedEnvs={setSelectedEnvs}
