@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 import {TestSet, testset} from "@/lib/Types"
 import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
 import {Play} from "@phosphor-icons/react"
@@ -6,6 +6,7 @@ import {Divider, Input, Menu, Modal, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {LoadTestsetModalProps} from "./types"
 import {useStyles} from "./styles"
+import useLazyEffect from "@/hooks/useLazyEffect"
 
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     testsetData,
@@ -15,14 +16,19 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     const classes = useStyles()
     const {testsets} = useLoadTestsetsList()
     const [isLoadingTestset, setIsLoadingTestset] = useState(false)
-    const [selectedTestset, setSelectedTestset] = useState(testsets[0]?._id)
+    const [selectedTestset, setSelectedTestset] = useState("")
     const [testsetCsvData, setTestsetCsvData] = useState<TestSet["csvdata"][]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [searchTerm, setSearchTerm] = useState("")
 
-    useEffect(() => {
-        testsetFetcher()
-    }, [selectedTestset])
+    useLazyEffect(() => {
+        if (selectedTestset) {
+            testsetFetcher()
+        } else {
+            setSelectedTestset(testsets[0]?._id)
+            testsetFetcher(testsets[0]?._id)
+        }
+    }, [selectedTestset, testsets])
 
     const filteredTestset = useMemo(() => {
         if (!searchTerm) return testsets
@@ -31,37 +37,46 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
         )
     }, [searchTerm, testsets])
 
-    const testsetFetcher = async () => {
-        try {
-            setIsLoadingTestset(true)
-            const data = await fetchTestset(selectedTestset)
-            setTestsetCsvData(data.csvdata)
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setIsLoadingTestset(false)
-        }
-    }
-
-    const rowSelection = {
-        selectedRowKeys,
-        onChange: (keys: React.Key[]) => {
-            setSelectedRowKeys(keys)
+    const testsetFetcher = useCallback(
+        async (testsetId?: string) => {
+            try {
+                setIsLoadingTestset(true)
+                const data = await fetchTestset(selectedTestset || (testsetId as string))
+                setTestsetCsvData(data.csvdata)
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setIsLoadingTestset(false)
+            }
         },
-    }
+        [fetchTestset],
+    )
 
-    const onClose = () => {
+    const rowSelection = useMemo(
+        () => ({
+            selectedRowKeys,
+            onChange: (keys: React.Key[]) => {
+                setSelectedRowKeys(keys)
+            },
+        }),
+        [selectedRowKeys],
+    )
+
+    const onClose = useCallback(() => {
         props.onCancel?.({} as any)
-    }
+        setSelectedRowKeys([])
+    }, [])
 
-    const loadTestCase = () => {
-        const selectedTestCase = testsetCsvData.find((_, index) => index === selectedRowKeys[0])
-
+    const loadTestset = useCallback(() => {
+        const selectedTestCase = testsetCsvData.filter((_, index) =>
+            selectedRowKeys.includes(index),
+        )
+        console.log(selectedTestCase)
         if (selectedTestCase) {
             setTestsetData(selectedTestCase)
             onClose()
         }
-    }
+    }, [selectedRowKeys])
 
     const columnDef = useMemo(() => {
         const columns: ColumnsType<TestSet["csvdata"]> = []
@@ -91,15 +106,17 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     return (
         <Modal
             centered
+            destroyOnClose
             width={1150}
             className={classes.container}
+            afterClose={() => setSelectedRowKeys([])}
             title="Load Test set"
             okText="Load test set"
             okButtonProps={{
                 icon: <Play />,
                 iconPosition: "end",
                 disabled: !selectedRowKeys.length,
-                onClick: loadTestCase,
+                onClick: loadTestset,
                 loading: isLoadingTestset,
             }}
             {...props}

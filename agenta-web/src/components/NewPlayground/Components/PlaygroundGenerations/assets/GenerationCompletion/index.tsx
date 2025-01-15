@@ -11,6 +11,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 
 const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
     const {inputRowIds, mutate, viewType} = usePlayground({
+        variantId,
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const inputRows = state.generationData.value || []
             return {
