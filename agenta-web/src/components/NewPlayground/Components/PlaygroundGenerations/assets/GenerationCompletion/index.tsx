@@ -20,8 +20,6 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
     })
 
     const addNewInputRow = useCallback(() => {
-        console.log("add new input row")
-
         mutate((state) => {
             const clonedState = cloneDeep(state)
             if (!clonedState) return state

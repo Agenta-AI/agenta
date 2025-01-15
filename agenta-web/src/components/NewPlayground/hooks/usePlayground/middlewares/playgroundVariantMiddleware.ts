@@ -2,7 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {message} from "antd"
 import cloneDeep from "lodash/cloneDeep"
-import isEqual from "lodash/isEqual"
+import isEqual from "fast-deep-equal"
 
 import {
     compareVariant,
