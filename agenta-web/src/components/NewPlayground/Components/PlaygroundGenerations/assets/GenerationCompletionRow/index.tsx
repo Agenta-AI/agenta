@@ -56,7 +56,6 @@ const GenerationCompletionRow = ({
     })
 
     const runRow = useCallback(async () => {
-        console.log("AYO?")
         runTests?.(rowId, variantId)
     }, [runTests, variantId, rowId])
 
