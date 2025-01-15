@@ -34,7 +34,10 @@ const GenerationComparisionCompletionOuput = ({
                             text={
                                 isPretty
                                     ? result.error
-                                    : getYamlOrJson(format, result.metadata.rawError)
+                                    : getYamlOrJson(
+                                          format as "JSON" | "YAML",
+                                          result.metadata.rawError,
+                                      )
                             }
                         />
                     ) : result.response ? (
