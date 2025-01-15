@@ -1,13 +1,14 @@
 import {useCallback} from "react"
 
 import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
+import {useAtom} from "jotai"
 import {getCurrentProject} from "@/contexts/project.context"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {specAtom} from "@/components/NewPlayground/state"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -27,6 +28,8 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
         config: PlaygroundSWRConfig<Data>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
+            const [spec] = useAtom(specAtom)
+
             const {logger, valueReferences, addToValueReferences} = usePlaygroundUtilities({
                 config: {
                     ...config,
@@ -82,7 +85,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 }) => {
                     swr.mutate(
                         async (state) => {
-                            if (!state || !state.spec) return state
+                            if (!state || !spec) return state
 
                             const baseVariant = state.variants.find(
                                 (variant) => variant.variantName === baseVariantName,
@@ -140,13 +143,12 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
                             const variantWithConfig = transformVariant(
                                 setVariant(createVariantResponse),
-                                state.spec,
+                                spec,
                             )
 
-                            const clone = cloneDeep(state)
-                            clone.variants.push(variantWithConfig)
+                            state.variants.push(variantWithConfig)
 
-                            return clone
+                            return state
                         },
                         {revalidate: false},
                     )
@@ -182,7 +184,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     const runTests = (rowId?: string, variantId?: string) => {
                         swr.mutate(
                             async (state) => {
-                                const clonedState = cloneDeep(state)
+                                const clonedState = structuredClone(state)
                                 if (!clonedState) return state
                                 const visibleVariants = variantId
                                     ? [variantId]

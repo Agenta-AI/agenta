@@ -1,6 +1,7 @@
 import {useCallback} from "react"
-import isEqual from "fast-deep-equal"
+
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {isPlaygroundEqual} from "../assets/helpers"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -104,7 +105,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                         `COMPARE - DISPLAYED VARIANTS REFERENCED - return COMPARISON`,
                                         wrappedComparison,
                                     )
-                                    return isEqual(a?.selected, b?.selected)
+                                    return isPlaygroundEqual(a?.selected, b?.selected)
                                 } else if (isViewTypeReferenced) {
                                     logger(
                                         `COMPARE - VIEW TYPE REFERENCED - return COMPARISON`,

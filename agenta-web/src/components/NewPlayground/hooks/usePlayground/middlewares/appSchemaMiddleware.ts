@@ -1,11 +1,10 @@
 import {useCallback} from "react"
 
 import {type Key, type SWRHook, useSWRConfig} from "swr"
-import cloneDeep from "lodash/cloneDeep"
 
 import {fetchOpenApiSchemaJson, setVariants, transformVariants} from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {initialState} from "../../../state"
+import {initialState, specAtom} from "../../../state"
 
 import {type FetcherOptions} from "@/lib/api/types"
 import {type Variant} from "@/lib/Types"
@@ -17,6 +16,7 @@ import type {
     PlaygroundSWRConfig,
 } from "../types"
 import {initializeComparisonInputs} from "../assets/comparisonHelpers"
+import {useAtom} from "jotai"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -24,6 +24,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
         config: PlaygroundSWRConfig<Data>,
     ) => {
+        const [, setSpec] = useAtom(specAtom)
         const {fetcher: globalFetcher} = useSWRConfig()
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
             const {logger} = usePlaygroundUtilities({
@@ -48,7 +49,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         return cachedValue
                     }
 
-                    let state = cloneDeep(cachedValue || initialState) as Data
+                    let state = structuredClone(cachedValue || initialState) as Data
 
                     if (!fetcher) {
                         return state
@@ -67,6 +68,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         }
 
                         const specResponse = await fetchOpenApiSchemaJson(uri)
+                        // write(specResponse.schema)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
@@ -77,9 +79,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             setVariants(state.variants, variants),
                             spec,
                         )
-                        state.spec = spec
+                        setSpec(spec)
                         state.selected = [state.variants[0].id]
                         state.generationData = initializeComparisonInputs(state.variants)
+
+                        console.log("STATE:", state)
                         return state
                     } catch (error) {
                         console.error("Error in openApiSchemaFetcher:", error)

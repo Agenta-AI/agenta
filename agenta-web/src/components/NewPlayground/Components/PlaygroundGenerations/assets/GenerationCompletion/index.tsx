@@ -6,7 +6,6 @@ import {useCallback} from "react"
 import GenerationCompletionRow from "../GenerationCompletionRow"
 import {GenerationCompletionProps} from "./types"
 import clsx from "clsx"
-import cloneDeep from "lodash/cloneDeep"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
@@ -22,7 +21,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
 
     const addNewInputRow = useCallback(() => {
         mutate((state) => {
-            const clonedState = cloneDeep(state)
+            const clonedState = structuredClone(state)
             if (!clonedState) return state
 
             const itemMetadata = clonedState?.generationData.__metadata.itemMetadata
