@@ -17,7 +17,8 @@ import type {PlaygroundVariantPropertyControlProps} from "./types"
  */
 export interface PlaygroundVariantPropertyControlProps extends BaseContainerProps {
     /** ID of the variant containing the property */
-    variantId: EnhancedVariant["id"]
+    variantId?: EnhancedVariant["id"]
+    rowId?: string
     /** Unique identifier for the property */
     propertyId: string
     /** Optional rendering variant for the control */

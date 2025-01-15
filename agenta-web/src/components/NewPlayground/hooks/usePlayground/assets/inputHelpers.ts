@@ -96,7 +96,8 @@ export function createInputRow(
     return {
         __id: generateId(),
         __metadata: metadata,
-        __result: undefined,
+        __result: undefined, // TODO: DEPRECATED
+        __runs: {},
         ...enhancedValues,
     } as EnhancedVariant["inputs"]["value"][number]
 }
@@ -172,15 +173,19 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
 /**
  * Synchronizes variant inputs structure with current prompt variables
  */
-export function syncVariantInputs(variant: EnhancedVariant) {
+export function syncVariantInputs(
+    variant: EnhancedVariant,
+    generationData: EnhancedVariant["inputs"],
+) {
     const currentInputKeys = new Set(
         variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
     )
 
     const inputStrings = Array.from(currentInputKeys).map((enhancedKey) => enhancedKey.value)
+
     const inputSchema = createInputSchema(inputStrings)
 
-    const existingInputsId = variant.inputs?.__id || generateId()
+    const existingInputsId = generationData?.__id || generateId()
 
     // Create metadata with ID properly typed
     const metadata = {
@@ -189,11 +194,12 @@ export function syncVariantInputs(variant: EnhancedVariant) {
     }
 
     // Update each row while preserving all IDs
-    const updatedRows = (variant.inputs?.value || []).map((row) => {
+    const updatedRows = (generationData?.value || []).map((row) => {
         const keys = [...inputStrings] as const
         const newRow = {
             __id: row.__id,
-            __metadata: inputSchema.itemMetadata.properties[Object.keys(row)[0]],
+            __metadata: row.__metadata,
+            // inputSchema.itemMetadata.properties[Object.keys(row)[0]],
             __result: undefined,
         } as EnhancedVariant["inputs"]["value"][number]
 
@@ -229,13 +235,13 @@ export function syncVariantInputs(variant: EnhancedVariant) {
         updatedRows.push(createInputRow(inputStrings, inputSchema.itemMetadata))
     }
 
-    variant.inputs = {
+    generationData = {
         __id: existingInputsId,
-        __metadata: metadata, // Now properly typed
+        __metadata: metadata,
         value: updatedRows,
     }
 
-    return variant
+    return generationData
 }
 
 /**

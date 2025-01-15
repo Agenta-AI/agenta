@@ -77,10 +77,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                             key={variantId}
                                             className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto"
                                         >
-                                            <GenerationComparisionCompletionInput
-                                                variantId={variantId}
-                                                rowClassName="bg-[#f5f7fa]"
-                                            />
+                                            <GenerationComparisionCompletionInput rowClassName="bg-[#f5f7fa]" />
                                         </div>
                                     )
                                 })}
