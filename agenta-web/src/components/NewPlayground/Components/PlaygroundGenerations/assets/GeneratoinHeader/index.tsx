@@ -2,8 +2,10 @@ import {useState} from "react"
 import {Play} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import LoadTestsetModal from "../../../Modals/LoadTestsetModal"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 const GeneratoinHeader = () => {
+    const {runAllTests} = usePlayground()
     const [testsetData, setTestsetData] = useState<Record<string, any> | null>(null)
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
 
@@ -17,7 +19,7 @@ const GeneratoinHeader = () => {
                     Load Test set
                 </Button>
                 <Button size="small">Add all to test set</Button>
-                <Button size="small" type="primary" icon={<Play size={14} />}>
+                <Button size="small" type="primary" icon={<Play size={14} />} onClick={runAllTests}>
                     Run all
                 </Button>
             </div>

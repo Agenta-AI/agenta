@@ -210,112 +210,154 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @returns Promise that resolves when the deletion is complete
              */
             const deleteVariant = useCallback(async () => {
-                await swr.mutate(
-                    async (state) => {
-                        const variant = (swr.data?.variants || []).find((v) => v.id === variantId)
-                        if (!variant) return state
-
-                        try {
-                            const deleteResponse = await fetcher?.(
-                                `/api/variants/${variant.id}?project_id=${projectId}`,
-                                {
-                                    method: "DELETE",
-                                },
-                            )
-
-                            if (deleteResponse && deleteResponse?.status !== 200) {
-                                // error
-                                message.error("Failed to delete variant")
-                            }
-
+                try {
+                    // first set the mutation state of the variant to true
+                    swr.mutate(
+                        (state) => {
                             const clonedState = cloneDeep(state)
-                            clonedState?.variants?.forEach((v: EnhancedVariant) => {
-                                if (v.id === variant.id) {
-                                    const index = clonedState.variants.indexOf(v)
-                                    clonedState.variants.splice(index, 1)
-                                }
-                            })
+                            const variant = findVariantById(clonedState, variantId!)
+                            if (!variant) throw new Error("Variant not found")
+
+                            variant.__isMutating = true
 
                             return clonedState
-                        } catch (err) {
-                            message.error("Failed to delete variant")
-                            return state
-                        }
-                    },
-                    {
-                        revalidate: false,
-                    },
-                )
+                        },
+                        {
+                            revalidate: false,
+                        },
+                    ).then(() => {
+                        // then continue with the operation
+                        swr.mutate(async (state) => {
+                            const variant = (swr.data?.variants || []).find(
+                                (v) => v.id === variantId,
+                            )
+                            if (!variant) return state
+
+                            try {
+                                const deleteResponse = await fetcher?.(
+                                    `/api/variants/${variant.id}?project_id=${projectId}`,
+                                    {
+                                        method: "DELETE",
+                                    },
+                                )
+
+                                if (deleteResponse && deleteResponse?.status !== 200) {
+                                    // error
+                                    message.error("Failed to delete variant")
+                                }
+
+                                const clonedState = cloneDeep(state)
+                                clonedState?.variants?.forEach((v: EnhancedVariant) => {
+                                    if (v.id === variant.id) {
+                                        const index = clonedState.variants.indexOf(v)
+                                        clonedState.variants.splice(index, 1)
+                                    }
+                                })
+
+                                return clonedState
+                            } catch (err) {
+                                message.error("Failed to delete variant")
+                                return state
+                            }
+                        })
+                    })
+                } catch (err) {
+                    message.error("Failed to delete variant")
+                }
             }, [swr, variantId, fetcher, projectId])
 
             const saveVariant = useCallback(async () => {
-                await swr.mutate(
-                    async (state) => {
-                        if (!state) return state
-                        const variant = (state?.variants || []).find((v) => v.id === variantId)
-                        if (!variant) return state
+                try {
+                    // first set the mutation state of the variant to true
+                    swr.mutate(
+                        (state) => {
+                            const clonedState = cloneDeep(state)
+                            const variant = findVariantById(clonedState, variantId!)
+                            if (!variant) throw new Error("Variant not found")
 
-                        try {
-                            const parameters = transformToRequestBody(variant)
-                            const saveResponse = await fetcher?.(
-                                `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
-                                {
-                                    method: "PUT",
-                                    body: {
-                                        parameters,
-                                    },
-                                },
-                            )
-
-                            if (saveResponse && saveResponse?.status !== 200) {
-                                // error
-                                message.error("Failed to save variant")
-                            } else {
-                                const saveResponse = await fetcher?.(
-                                    `/api/variants/${variant.id}?project_id=${projectId}`,
-                                    {method: "GET"},
+                            variant.__isMutating = true
+                            return clonedState
+                        },
+                        {
+                            revalidate: false,
+                        },
+                    ).then(async (data) => {
+                        // then continue with the operation
+                        swr.mutate(
+                            async (state) => {
+                                if (!state) return state
+                                const variant = (state?.variants || []).find(
+                                    (v) => v.id === variantId,
                                 )
+                                if (!variant) return state
 
-                                const t = setVariant(saveResponse)
-
-                                const clonedState = state
-                                const index = clonedState?.variants?.findIndex(
-                                    (v) => v.id === variant.id,
-                                )
-
-                                const updatedVariant = {
-                                    ...variant,
-                                    ...t,
-                                }
-                                clonedState.variants[index] = updatedVariant
-                                message.success("Changes saved successfully!")
-
-                                if (
-                                    clonedState?.dirtyStates &&
-                                    clonedState.dirtyStates.get(updatedVariant.id)
-                                ) {
-                                    clonedState.dirtyStates = new Map(clonedState.dirtyStates)
-                                    clonedState.dirtyStates.set(updatedVariant.id, false)
-                                    clonedState.dataRef = new Map(clonedState.dataRef)
-                                    clonedState.dataRef.set(
-                                        updatedVariant.id,
-                                        cloneDeep(updatedVariant),
+                                try {
+                                    const parameters = transformToRequestBody(variant)
+                                    const saveResponse = await fetcher?.(
+                                        `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
+                                        {
+                                            method: "PUT",
+                                            body: {
+                                                parameters,
+                                            },
+                                        },
                                     )
+
+                                    if (saveResponse && saveResponse?.status !== 200) {
+                                        // error
+                                        message.error("Failed to save variant")
+                                    } else {
+                                        const saveResponse = await fetcher?.(
+                                            `/api/variants/${variant.id}?project_id=${projectId}`,
+                                            {method: "GET"},
+                                        )
+
+                                        const t = setVariant(saveResponse)
+
+                                        const clonedState = state
+                                        const index = clonedState?.variants?.findIndex(
+                                            (v) => v.id === variant.id,
+                                        )
+
+                                        const updatedVariant = {
+                                            ...variant,
+                                            ...t,
+                                        }
+                                        updatedVariant.__isMutating = false
+                                        clonedState.variants[index] = updatedVariant
+                                        message.success("Changes saved successfully!")
+
+                                        if (
+                                            clonedState?.dirtyStates &&
+                                            clonedState.dirtyStates.get(updatedVariant.id)
+                                        ) {
+                                            clonedState.dirtyStates = new Map(
+                                                clonedState.dirtyStates,
+                                            )
+                                            clonedState.dirtyStates.set(updatedVariant.id, false)
+                                            clonedState.dataRef = new Map(clonedState.dataRef)
+                                            clonedState.dataRef.set(
+                                                updatedVariant.id,
+                                                cloneDeep(updatedVariant),
+                                            )
+                                        }
+                                        return clonedState
+                                    }
+
+                                    return state
+                                } catch (err) {
+                                    message.error("Failed to save variant")
+                                    return state
                                 }
-
-                                return clonedState
-                            }
-
-                            return state
-                        } catch (err) {
-                            message.error("Failed to save variant")
-                            return state
-                        }
-                    },
-                    {
-                        revalidate: false,
-                    },
-                )
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        )
+                    })
+                } catch (err) {
+                    message.error("Failed to save variant")
+                }
             }, [swr, variantId, fetcher, projectId])
 
             /**
@@ -409,17 +451,18 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @param rowId - ID of the input row to run
              */
             const runVariantTestRow = useCallback(
-                async (rowId: string) => {
+                async (rowId: string, variantId?: string) => {
                     swr.mutate(async (state) => {
+                        const _variantId = variantId ?? config.variantId
                         const clonedState = cloneDeep(state)
 
-                        if (!config.variantId || !clonedState) return state
+                        if (!_variantId || !clonedState) return state
 
-                        const variant = findVariantById(state, config.variantId)
+                        const variant = findVariantById(state, _variantId)
                         if (!variant) return state
 
                         const variantIndex = clonedState.variants.findIndex(
-                            (v) => v.id === config.variantId,
+                            (v) => v.id === _variantId,
                         )
                         if (variantIndex === -1) return state
 
@@ -493,6 +536,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     checkInvalidSelector()
                     addToValueReferences("runVariantTestRow")
                     return runVariantTestRow
+                },
+            })
+            Object.defineProperty(swr, "handleWebWorkerMessage", {
+                get() {
+                    return handleWebWorkerMessage
                 },
             })
 
