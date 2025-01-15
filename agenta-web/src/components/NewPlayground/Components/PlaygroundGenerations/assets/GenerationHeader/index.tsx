@@ -19,7 +19,6 @@ const GenerationHeader = () => {
         mutate(
             (state) => {
                 const clonedState = cloneDeep(state)
-
                 if (!clonedState) return state
 
                 // access the existing generation metadata to pull correct keys from testset rows
@@ -51,12 +50,33 @@ const GenerationHeader = () => {
         setTestsetData(d)
     }, [])
 
+    const clearGeneration = useCallback(() => {
+        mutate(
+            (state) => {
+                const clonedState = cloneDeep(state)
+                if (!clonedState) return state
+
+                const generationMetadata = clonedState.generationData.__metadata
+                const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
+                const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                clonedState.generationData.value = [newRow]
+
+                return clonedState
+            },
+            {
+                revalidate: false,
+            },
+        )
+    }, [])
+
     return (
         <section className="h-[48px] flex justify-between items-center gap-4 px-4 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
             <Typography className="text-[16px] leading-[18px] font-[600]">Generations</Typography>
 
             <div className="flex items-center gap-2">
-                <Button size="small">Clear</Button>
+                <Button size="small" onClick={clearGeneration}>
+                    Clear
+                </Button>
                 <Button size="small" onClick={() => setIsTestsetModalOpen(true)}>
                     Load Test set
                 </Button>
