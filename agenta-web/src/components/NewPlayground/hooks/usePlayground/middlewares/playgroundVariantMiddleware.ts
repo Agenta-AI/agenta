@@ -38,7 +38,7 @@ export type ConfigValue = string | boolean | string[] | number | null
  * Pure function to find a property by ID in a variant's prompts or inputs
  * TODO: IMPROVE PERFORMANCE
  */
-const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
+export const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
     if (!propertyId || !variant) return undefined
 
     // Search in prompts
@@ -166,8 +166,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 }) => {
-                    const variantId = config.variantId
-
+                    const variantId = message.payload.variant.id
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
                         const rowId = message.payload.rowId
@@ -176,28 +175,22 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             const clonedState = cloneDeep(state)
                             if (!clonedState) return state
 
-                            const variant = findVariantById(state, variantId)
-                            if (!variant) return clonedState
-
-                            const variantIndex = clonedState.variants.findIndex(
-                                (v) => v.id === config.variantId,
-                            )
-                            if (variantIndex === -1) return clonedState
-
-                            const inputRow = clonedState.variants[variantIndex].inputs.value.find(
+                            const testRow = clonedState.generationData.value.find(
                                 (row) => row.__id === rowId,
                             )
 
-                            if (!inputRow) return clonedState
+                            if (!testRow || !testRow.__runs) return clonedState
 
-                            inputRow.__result = message.payload.result
-                            inputRow.__isLoading = false
+                            testRow.__runs[variantId] = {
+                                __result: message.payload.result,
+                                __isRunning: false,
+                            }
 
                             return clonedState
                         })
                     }
                 },
-                [config.variantId, swr],
+                [swr],
             )
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
@@ -365,12 +358,19 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @param updates - Partial variant object containing the properties to update
              */
             const mutateVariant = useCallback(
-                async (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => {
+                async (
+                    updates: Partial<EnhancedVariant> | VariantUpdateFunction,
+                    variantId?: string,
+                ) => {
                     swr.mutate(
                         async (state) => {
-                            if (!state) return state
+                            const clonedState = cloneDeep(state)
 
-                            const variant = state?.variants?.find((v) => v.id === variantId)
+                            if (!clonedState) return state
+
+                            const variant = state?.variants?.find(
+                                (v) => v.id === (variantId ?? config.variantId),
+                            )
                             const clonedVariant = cloneDeep(variant)
 
                             if (!clonedVariant) return state
@@ -392,10 +392,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                             // Only sync inputs if the keys have changed
                             if (!isEqual(previousInputKeys, newInputKeys)) {
-                                syncVariantInputs(updatedVariant)
+                                clonedState.generationData = syncVariantInputs(
+                                    updatedVariant,
+                                    clonedState.generationData,
+                                )
                             }
 
-                            const clonedState = cloneDeep(state)
                             const index = clonedState?.variants?.findIndex(
                                 (v) => v.id === variant.id,
                             )
@@ -411,7 +413,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             )
 
             const handleParamUpdate = useCallback(
-                (e: {target: {value: ConfigValue}} | ConfigValue) => {
+                (
+                    e: {target: {value: ConfigValue}} | ConfigValue,
+                    propertyId?: string,
+                    variantId?: string,
+                ) => {
                     mutateVariant((variant) => {
                         if (!variant) return {}
 
@@ -421,14 +427,17 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 : e
                             : null
                         const updatedVariant = variant
-                        const found = findPropertyById(updatedVariant, config.propertyId)
+                        const found = findPropertyById(
+                            updatedVariant,
+                            propertyId ?? config.propertyId,
+                        )
 
                         if (found) {
                             found.value = val
                         }
 
                         return updatedVariant
-                    })
+                    }, variantId ?? config.variantId)
                 },
                 [config.propertyId, mutateVariant],
             )
@@ -497,6 +506,15 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 },
             })
 
+            Object.defineProperty(swr, "handleParamUpdate", {
+                get() {
+                    // checkInvalidSelector()
+                    addToValueReferences("variantConfig")
+
+                    return handleParamUpdate
+                },
+            })
+
             Object.defineProperty(swr, "variantConfig", {
                 get() {
                     checkInvalidSelector()
@@ -519,7 +537,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             })
             Object.defineProperty(swr, "mutateVariant", {
                 get() {
-                    checkInvalidSelector()
                     addToValueReferences("mutateVariant")
                     return mutateVariant
                 },
@@ -533,7 +550,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             })
             Object.defineProperty(swr, "runVariantTestRow", {
                 get() {
-                    checkInvalidSelector()
+                    // checkInvalidSelector()
                     addToValueReferences("runVariantTestRow")
                     return runVariantTestRow
                 },

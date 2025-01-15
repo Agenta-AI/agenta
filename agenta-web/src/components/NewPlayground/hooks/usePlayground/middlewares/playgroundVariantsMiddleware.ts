@@ -172,37 +172,71 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
                 // @ts-ignore
                 swr.handleWebWorkerMessage,
-                valueReferences.current.includes("runVariantTestRow"),
+                valueReferences.current.includes("runVariantTestRow") ||
+                    valueReferences.current.includes("runTests"),
             )
 
-            Object.defineProperty(swr, "runAllTests", {
+            Object.defineProperty(swr, "runTests", {
                 get: () => {
-                    addToValueReferences("runAllTests")
-                    const runAll = () => {
-                        swr.mutate(async (state) => {
-                            const clonedState = cloneDeep(state)
+                    addToValueReferences("runTests")
+                    const runTests = (rowId?: string, variantId?: string) => {
+                        swr.mutate(
+                            async (state) => {
+                                const clonedState = cloneDeep(state)
+                                if (!clonedState) return state
+                                const visibleVariants = variantId
+                                    ? [variantId]
+                                    : clonedState.selected
+                                const testRows = rowId
+                                    ? [
+                                          clonedState.generationData.value.find(
+                                              (r) => r.__id === rowId,
+                                          ),
+                                      ]
+                                    : clonedState.generationData.value
 
-                            if (!clonedState) return state
+                                for (const testRow of testRows) {
+                                    for (const variantId of visibleVariants) {
+                                        const variant = clonedState.variants.find(
+                                            (v) => v.id === variantId,
+                                        )
+                                        if (!variant || !testRow) continue
 
-                            for (const variant of clonedState.variants) {
-                                for (const inputRow of variant.inputs.value) {
-                                    inputRow.__isLoading = true
-                                    postMessageToWorker(
-                                        createWorkerMessage("runVariantInputRow", {
-                                            variant,
-                                            rowId: inputRow.__id,
-                                            appId: config.appId!,
-                                            uri: variant.uri,
-                                        }),
-                                    )
+                                        if (!testRow.__runs) {
+                                            testRow.__runs = {}
+                                        }
+
+                                        if (!testRow.__runs[variantId]) {
+                                            testRow.__runs[variantId] = {
+                                                __isRunning: true,
+                                                __result: undefined,
+                                            }
+                                        } else {
+                                            testRow.__runs[variantId].__isRunning = true
+                                        }
+                                        testRow.__runs[variantId].__isRunning = true
+
+                                        postMessageToWorker(
+                                            createWorkerMessage("runVariantInputRow", {
+                                                variant,
+                                                inputRow: testRow,
+                                                rowId: testRow.__id,
+                                                appId: config.appId!,
+                                                uri: variant.uri,
+                                            }),
+                                        )
+                                    }
                                 }
-                            }
 
-                            return clonedState
-                        })
+                                return clonedState
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        )
                     }
 
-                    return runAll
+                    return runTests
                 },
             })
 

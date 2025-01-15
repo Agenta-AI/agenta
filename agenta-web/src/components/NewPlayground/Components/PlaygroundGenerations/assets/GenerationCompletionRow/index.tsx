@@ -12,6 +12,7 @@ import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantProperty
 import type {GenerationCompletionRowProps} from "./types"
 import type {EnhancedVariant} from "../../../../assets/utilities/transformer/types"
 import GenerationOutputText from "../GenerationOutputText"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -27,36 +28,39 @@ const GenerationCompletionRow = ({
     view,
     ...props
 }: GenerationCompletionRowProps) => {
-    const {result, variableIds, runVariantTestRow, canRun, isRunning, viewType, isChat} =
-        usePlayground({
-            variantId,
-            variantSelector: useCallback(
-                (variant: EnhancedVariant) => {
-                    const inputRow = (variant.inputs?.value || []).find((inputRow) => {
-                        return inputRow.__id === rowId
-                    })
+    const {result, variableIds, runTests, canRun, isRunning, viewType, variant} = usePlayground({
+        variantId,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRow = state.generationData.value.find((inputRow) => {
+                    return inputRow.__id === rowId
+                })
 
-                    const variables = getEnhancedProperties(inputRow)
-                    const variableIds = variables.map((p) => p.__id)
-                    const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
+                const variables = getEnhancedProperties(inputRow)
+                // console.log("inputRow", inputRow, variables)
+                const variableIds = variables.map((p) => p.__id)
+                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
-                    return {
-                        isChat: variant.isChat,
-                        variableIds,
-                        canRun,
-                        result: inputRow?.__result,
-                        isRunning: inputRow?.__isLoading,
-                    }
-                },
-                [rowId],
-            ),
-        })
+                const result = variantId ? inputRow?.__runs?.[variantId]?.__result : null
+                const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
+
+                return {
+                    variableIds,
+                    canRun,
+                    result,
+                    isRunning,
+                }
+            },
+            [rowId],
+        ),
+    })
 
     const runRow = useCallback(async () => {
-        await runVariantTestRow?.(rowId)
-    }, [runVariantTestRow, rowId])
+        console.log("AYO?")
+        runTests?.(rowId, variantId)
+    }, [runTests, variantId, rowId])
 
-    if (viewType === "single" && view !== "focus") {
+    if (viewType === "single" && view !== "focus" && variantId) {
         return (
             <div
                 className={clsx([
@@ -69,7 +73,7 @@ const GenerationCompletionRow = ({
             >
                 <div
                     className={clsx("flex gap-1 items-start", {
-                        "flex flex-col gap-4 w-full": isChat,
+                        "flex flex-col gap-4 w-full": variant?.isChat,
                     })}
                 >
                     <div className="w-[100px]">
@@ -84,6 +88,7 @@ const GenerationCompletionRow = ({
                                     key={variableId}
                                     variantId={variantId}
                                     propertyId={variableId}
+                                    rowId={rowId}
                                 />
                             )
                         })}
@@ -159,6 +164,7 @@ const GenerationCompletionRow = ({
                                     variantId={variantId}
                                     propertyId={variableId}
                                     view={view}
+                                    rowId={rowId}
                                 />
                             )
                         })}

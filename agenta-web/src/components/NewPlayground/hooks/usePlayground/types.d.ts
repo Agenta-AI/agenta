@@ -54,7 +54,7 @@ export interface PlaygroundVariantsResponse extends PlaygroundResponse {
     variants?: EnhancedVariant[]
     variantIds?: string[]
     addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
-    runAllTests?: () => void
+    runTests?: (rowId?: string, variantId?: string) => void
 }
 
 export interface VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> {
@@ -71,6 +71,7 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
     saveVariant?: () => Promise<void>
     setSelectedVariant?: (variantId: string) => void
     runVariantTestRow?: (rowId: string) => Promise<void>
+    handleParamUpdate?: (value: any, propertyId: string, variantId?: string) => void
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty
 }
