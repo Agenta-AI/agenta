@@ -17,7 +17,7 @@ const SimpleDropdownSelect = ({
         return options.map((item) => ({
             ...item,
             className: "capitalize",
-            onClick: () => onChange(item.key as string),
+            onClick: () => onChange(item.value as string),
         })) as MenuItemType[]
     }, [options, onChange])
 
