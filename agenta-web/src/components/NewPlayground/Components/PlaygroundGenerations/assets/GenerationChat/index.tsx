@@ -33,6 +33,7 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
+                        key={inputRowId}
                         variantId={variantId}
                         rowId={inputRowId}
                         inputOnly={true}
@@ -46,6 +47,7 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
                     <div className="flex flex-col gap-6">
                         {messages.map((msg) => (
                             <GenerationChatRow
+                                key={msg.__id}
                                 variantId={variantId}
                                 message={msg}
                                 disabled={true}
