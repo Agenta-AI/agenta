@@ -4,11 +4,12 @@ import {GenerationComparisionCompletionInputProps} from "./types"
 
 const GenerationComparisionCompletionInput = ({
     rowClassName,
+    variantId,
 }: GenerationComparisionCompletionInputProps) => {
     return (
         <div>
             <PlaygroundComparisionGenerationInputHeader />
-            <GenerationCompletion className={rowClassName} />
+            <GenerationCompletion variantId={variantId} className={rowClassName} />
         </div>
     )
 }
