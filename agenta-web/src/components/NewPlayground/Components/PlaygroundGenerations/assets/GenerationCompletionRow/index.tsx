@@ -27,28 +27,30 @@ const GenerationCompletionRow = ({
     view,
     ...props
 }: GenerationCompletionRowProps) => {
-    const {result, variableIds, runVariantTestRow, canRun, isRunning, viewType} = usePlayground({
-        variantId,
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
-                const inputRow = (variant.inputs?.value || []).find((inputRow) => {
-                    return inputRow.__id === rowId
-                })
+    const {result, variableIds, runVariantTestRow, canRun, isRunning, viewType, isChat} =
+        usePlayground({
+            variantId,
+            variantSelector: useCallback(
+                (variant: EnhancedVariant) => {
+                    const inputRow = (variant.inputs?.value || []).find((inputRow) => {
+                        return inputRow.__id === rowId
+                    })
 
-                const variables = getEnhancedProperties(inputRow)
-                const variableIds = variables.map((p) => p.__id)
-                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
+                    const variables = getEnhancedProperties(inputRow)
+                    const variableIds = variables.map((p) => p.__id)
+                    const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
-                return {
-                    variableIds,
-                    canRun,
-                    result: inputRow?.__result,
-                    isRunning: inputRow?.__isLoading,
-                }
-            },
-            [rowId],
-        ),
-    })
+                    return {
+                        isChat: variant.isChat,
+                        variableIds,
+                        canRun,
+                        result: inputRow?.__result,
+                        isRunning: inputRow?.__isLoading,
+                    }
+                },
+                [rowId],
+            ),
+        })
 
     const runRow = useCallback(async () => {
         await runVariantTestRow?.(rowId)
@@ -65,13 +67,17 @@ const GenerationCompletionRow = ({
                 ])}
                 {...props}
             >
-                <div className="flex gap-1 items-start">
+                <div
+                    className={clsx("flex gap-1 items-start", {
+                        "flex flex-col gap-4 w-full": isChat,
+                    })}
+                >
                     <div className="w-[100px]">
                         <Typography className="font-[500] text-[12px] leading-[20px]">
                             Variables
                         </Typography>
                     </div>
-                    <div className="flex flex-col grow gap-2">
+                    <div className="flex flex-col grow gap-2 w-full">
                         {variableIds.map((variableId) => {
                             return (
                                 <PlaygroundVariantPropertyControl
@@ -82,44 +88,52 @@ const GenerationCompletionRow = ({
                             )
                         })}
                     </div>
-                    <GenerationVariableOptions
-                        variantId={variantId}
-                        rowId={rowId}
-                        className="invisible group-hover/item:visible"
-                    />
+
+                    {!inputOnly && (
+                        <GenerationVariableOptions
+                            variantId={variantId}
+                            rowId={rowId}
+                            className="invisible group-hover/item:visible"
+                        />
+                    )}
                 </div>
 
-                <div className="w-full flex gap-1 items-start">
-                    <div className="w-[100px] shrink-0">
-                        <Button
-                            onClick={runRow}
-                            variant="outlined"
-                            color="default"
-                            className="self-start"
-                            disabled={!canRun || isRunning}
-                            size="small"
-                        >
-                            <Play size={14} />
-                            Run
-                        </Button>
-                    </div>
-                    <div className="flex flex-col gap-4">
-                        {isRunning ? (
-                            <GenerationOutputText text="Running..." />
-                        ) : !result ? (
-                            <GenerationOutputText text="Click run to generate output" />
-                        ) : result.error ? (
-                            <GenerationOutputText type="danger" text={result.error} />
-                        ) : result.response ? (
-                            <>
-                                <GenerationOutputText type="success" text={result.response.data} />
+                {!inputOnly && (
+                    <div className="w-full flex gap-1 items-start">
+                        <div className="w-[100px] shrink-0">
+                            <Button
+                                onClick={runRow}
+                                variant="outlined"
+                                color="default"
+                                className="self-start"
+                                disabled={!canRun || isRunning}
+                                size="small"
+                            >
+                                <Play size={14} />
+                                Run
+                            </Button>
+                        </div>
+                        <div className="flex flex-col gap-4">
+                            {isRunning ? (
+                                <GenerationOutputText text="Running..." />
+                            ) : !result ? (
+                                <GenerationOutputText text="Click run to generate output" />
+                            ) : result.error ? (
+                                <GenerationOutputText type="danger" text={result.error} />
+                            ) : result.response ? (
+                                <>
+                                    <GenerationOutputText
+                                        type="success"
+                                        text={result.response.data}
+                                    />
 
-                                <GenerationResultUtils />
-                            </>
-                        ) : null}
+                                    <GenerationResultUtils />
+                                </>
+                            ) : null}
+                        </div>
+                        <div className="flex items-center w-[100px] shrink-0" />
                     </div>
-                    <div className="flex items-center w-[100px] shrink-0" />
-                </div>
+                )}
             </div>
         )
     }
