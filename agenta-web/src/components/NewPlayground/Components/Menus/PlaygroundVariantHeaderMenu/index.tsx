@@ -8,11 +8,10 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 import {PlaygroundVariantHeaderMenuProps} from "./types"
+import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = ({
-    setIsVariantRenameOpen,
-    setIsResetModalOpen,
-    setIsDeleteVariantModalOpen,
+    variantId,
     ...props
 }) => {
     const items: MenuProps["items"] = useMemo(
@@ -33,7 +32,6 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 disabled: true,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    setIsVariantRenameOpen(true)
                 },
             },
             {type: "divider"},
@@ -49,12 +47,12 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
             {
                 key: "delete",
                 danger: true,
-                label: "Delete",
+                label: (
+                    <DeleteVariantButton variantId={variantId}>
+                        <div>Delete</div>
+                    </DeleteVariantButton>
+                ),
                 icon: <Trash size={16} />,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
-                    setIsDeleteVariantModalOpen(true)
-                },
             },
             {type: "divider"},
             {
@@ -63,7 +61,6 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 disabled: true,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    setIsResetModalOpen(true)
                 },
             },
             {
