@@ -10,7 +10,6 @@ import {getEnhancedProperties} from "../../../../assets/utilities/genericTransfo
 import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
 
 import type {GenerationCompletionRowProps} from "./types"
-import type {EnhancedVariant} from "../../../../assets/utilities/transformer/types"
 import GenerationOutputText from "../GenerationOutputText"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
@@ -37,7 +36,6 @@ const GenerationCompletionRow = ({
                 })
 
                 const variables = getEnhancedProperties(inputRow)
-                // console.log("inputRow", inputRow, variables)
                 const variableIds = variables.map((p) => p.__id)
                 const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
@@ -98,6 +96,7 @@ const GenerationCompletionRow = ({
                             variantId={variantId}
                             rowId={rowId}
                             className="invisible group-hover/item:visible"
+                            result={result}
                         />
                     )}
                 </div>

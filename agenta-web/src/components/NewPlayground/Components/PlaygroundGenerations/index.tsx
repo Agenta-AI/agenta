@@ -16,7 +16,7 @@ const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({variantId}
 
     return (
         <div>
-            <GenerationHeader />
+            <GenerationHeader variantId={variantId} />
             {isChat ? (
                 <GenerationChat variantId={variantId} />
             ) : (
