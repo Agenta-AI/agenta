@@ -30,7 +30,7 @@ import type {
 } from "../types"
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -483,6 +483,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 rowId,
                                 appId: config.appId!,
                                 uri: variant.uri,
+                                allMetadata: getAllMetadata(),
                             }),
                         )
 
