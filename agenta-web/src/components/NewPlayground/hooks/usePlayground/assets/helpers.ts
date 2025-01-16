@@ -31,10 +31,7 @@ export const omitDeep = (obj: any, keys: string[]): any => {
 }
 
 export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
-    const cleanA = omitDeep(a, ["spec", "__metadata"])
-    const cleanB = omitDeep(b, ["spec", "__metadata"])
-
-    return isEqual(cleanA, cleanB)
+    return isEqual(a, b)
 }
 
 const uriFixer = (uri: string) => {
@@ -86,6 +83,7 @@ export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) 
  * @returns Promise containing updated variants with their schemas
  */
 export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
+    // TODO: Parallelize this with Promise.all
     return variants.map((variant) => transformVariant(variant, spec))
 }
 

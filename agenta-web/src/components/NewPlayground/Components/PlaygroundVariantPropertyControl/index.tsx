@@ -21,6 +21,7 @@ import type {
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
+import {getMetadataLazy} from "../../state"
 
 const renderMap: RenderFunctions = {
     number: (metadata, value, handleChange) => {
@@ -222,7 +223,7 @@ const PlaygroundVariantPropertyControl = ({
               }
 
         return {
-            __metadata,
+            __metadata: getMetadataLazy(__metadata),
             value,
             handleChange: handler,
         }

@@ -129,6 +129,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
                             if (!clonedState || !state) return state
 
+                            const dataRef = clonedState.dataRef
                             let newState: Data
 
                             if (typeof data === "function") {
@@ -142,10 +143,9 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                     ...(data as Partial<Data>),
                                 }
                             } else {
-                                newState = state
+                                newState = clonedState
                             }
 
-                            const dataRef = clonedState.dataRef
                             const variant = newState.variants.find((v) => v.id === config.variantId)
 
                             if (
@@ -168,7 +168,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                 clonedState.dirtyStates = dirtyRef
                             }
 
-                            return clonedState
+                            return newState
                         },
                         {
                             revalidate: false,

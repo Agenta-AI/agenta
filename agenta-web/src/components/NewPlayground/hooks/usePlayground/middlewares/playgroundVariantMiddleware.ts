@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 
 import {message} from "antd"
 
@@ -30,6 +30,7 @@ import type {
 } from "../types"
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -444,6 +445,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 return found
                     ? {
                           ...found,
+                          __metadata: getMetadataLazy(found.__metadata),
                           handleChange: handleParamUpdate,
                       }
                     : undefined
