@@ -148,7 +148,7 @@ const GenerationCompletionRow = ({
                     "flex flex-col gap-4",
                     "p-2",
                     "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                    "group/item",
+                    "group/item h-24",
                     className,
                 ])}
                 {...props}
