@@ -430,21 +430,21 @@ class entrypoint:
         link = context.link
 
         tree = None
-        _tree_id = link.get("tree_id") if link else None
-        tree_id = str(UUID(int=_tree_id)) if _tree_id else None
+        _tree_id = link.get("tree_id") if link else None # in int format
+        tree_id = str(UUID(int=_tree_id)) if _tree_id else None # in uuid_as_str format
 
         if _tree_id is not None:
             if inline:
                 remaining_steps = NOFSTEPS
                 while (
-                    not ag.tracing.is_inline_trace_ready(tree_id)
+                    not ag.tracing.is_inline_trace_ready(_tree_id)
                     and remaining_steps > 0
                 ):
                     await sleep(TIMESTEP)
 
                     remaining_steps -= 1
 
-                tree = ag.tracing.get_inline_trace(tree_id)
+        tree = ag.tracing.get_inline_trace(_tree_id)
         return tree, tree_id
 
     # --- OpenAPI --- #
