@@ -444,7 +444,7 @@ class entrypoint:
 
                     remaining_steps -= 1
 
-        tree = ag.tracing.get_inline_trace(_tree_id)
+                tree = ag.tracing.get_inline_trace(_tree_id)
         return tree, tree_id
 
     # --- OpenAPI --- #
