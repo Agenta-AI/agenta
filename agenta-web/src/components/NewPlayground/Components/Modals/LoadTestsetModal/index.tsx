@@ -7,6 +7,7 @@ import {ColumnsType} from "antd/es/table"
 import {LoadTestsetModalProps} from "./types"
 import {useStyles} from "./styles"
 import useLazyEffect from "@/hooks/useLazyEffect"
+import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     testsetData,
@@ -22,13 +23,11 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     const [searchTerm, setSearchTerm] = useState("")
 
     useLazyEffect(() => {
-        if (selectedTestset) {
-            testsetFetcher()
-        } else {
+        if (testsets.length > 0) {
             setSelectedTestset(testsets[0]?._id)
             testsetFetcher(testsets[0]?._id)
         }
-    }, [selectedTestset, testsets])
+    }, [testsets])
 
     const filteredTestset = useMemo(() => {
         if (!searchTerm) return testsets
@@ -38,10 +37,10 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     }, [searchTerm, testsets])
 
     const testsetFetcher = useCallback(
-        async (testsetId?: string) => {
+        async (testsetId: string) => {
             try {
                 setIsLoadingTestset(true)
-                const data = await fetchTestset(selectedTestset || (testsetId as string))
+                const data = await fetchTestset(testsetId)
                 setTestsetCsvData(data.csvdata)
             } catch (error) {
                 console.error(error)
@@ -71,12 +70,20 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
         const selectedTestCase = testsetCsvData.filter((_, index) =>
             selectedRowKeys.includes(index),
         )
-        console.log(selectedTestCase)
         if (selectedTestCase) {
             setTestsetData(selectedTestCase)
             onClose()
         }
     }, [selectedRowKeys])
+
+    const onChangeTestset = useCallback(
+        ({key}: any) => {
+            setSelectedRowKeys([])
+            testsetFetcher(key)
+            setSelectedTestset(key)
+        },
+        [testsetFetcher],
+    )
 
     const columnDef = useMemo(() => {
         const columns: ColumnsType<TestSet["csvdata"]> = []
@@ -121,58 +128,59 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
             }}
             {...props}
         >
-            <div className="flex gap-4 flex-1 mt-4">
-                <div className={classes.sidebar}>
-                    <Input.Search
-                        placeholder="Search"
-                        allowClear
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+            {!testsets.length ? (
+                <NoResultsFound />
+            ) : (
+                <div className="flex gap-4 flex-1 mt-4">
+                    <div className={classes.sidebar}>
+                        <Input.Search
+                            placeholder="Search"
+                            allowClear
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
 
-                    <Divider className="m-0" />
+                        <Divider className="m-0" />
 
-                    <Menu
-                        items={filteredTestset.map((testset: testset) => ({
-                            key: testset._id,
-                            label: testset.name,
-                        }))}
-                        onSelect={({key}) => {
-                            setSelectedTestset(key)
-                            setSelectedRowKeys([])
-                        }}
-                        defaultSelectedKeys={[selectedTestset]}
-                        className={classes.menu}
-                    />
+                        <Menu
+                            items={filteredTestset.map((testset: testset) => ({
+                                key: testset._id,
+                                label: testset.name,
+                            }))}
+                            onSelect={onChangeTestset}
+                            defaultSelectedKeys={[selectedTestset]}
+                            className={classes.menu}
+                        />
+                    </div>
+
+                    <Divider type="vertical" className="m-0 h-full" />
+
+                    <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
+                        <Typography.Text className={classes.subTitle}>
+                            Select a testcase
+                        </Typography.Text>
+
+                        <Table
+                            rowSelection={{type: "checkbox", ...rowSelection}}
+                            loading={isLoadingTestset}
+                            dataSource={testsetCsvData.map((data, index) => ({...data, id: index}))}
+                            columns={columnDef}
+                            className="flex-1"
+                            bordered
+                            rowKey={"id"}
+                            pagination={false}
+                            scroll={{y: 500, x: "max-content"}}
+                            onRow={(_, rowIndex) => ({
+                                className: "cursor-pointer",
+                                onClick: () => {
+                                    if (rowIndex !== undefined) {
+                                        setSelectedRowKeys([rowIndex])
+                                    }
+                                },
+                            })}
+                        />
+                    </div>
                 </div>
-
-                <Divider type="vertical" className="m-0 h-full" />
-
-                <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
-                    <Typography.Text className={classes.subTitle}>
-                        Select a testcase
-                    </Typography.Text>
-
-                    <Table
-                        rowSelection={{type: "checkbox", ...rowSelection}}
-                        loading={isLoadingTestset}
-                        dataSource={testsetCsvData.map((data, index) => ({...data, id: index}))}
-                        columns={columnDef}
-                        className="flex-1"
-                        bordered
-                        rowKey={"id"}
-                        pagination={false}
-                        scroll={{y: 500, x: "max-content"}}
-                        onRow={(_, rowIndex) => ({
-                            className: "cursor-pointer",
-                            onClick: () => {
-                                if (rowIndex !== undefined) {
-                                    setSelectedRowKeys([rowIndex])
-                                }
-                            },
-                        })}
-                    />
-                </div>
-            </div>
+            )}
         </Modal>
     )
 }

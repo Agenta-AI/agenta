@@ -1,16 +1,18 @@
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {parseValidationError} from "../../../assets/utilities/errors"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
+    allMetadata: Record<string, ConfigMetadata>
     inputRow: EnhancedVariant["inputs"]["value"][number]
     rowId: string
     appId: string
     uri: string
 }) {
-    const {variant, rowId, uri, inputRow} = payload
-    const requestBody = transformToRequestBody(variant, inputRow)
+    const {variant, rowId, uri, inputRow, allMetadata} = payload
+    const requestBody = transformToRequestBody(variant, inputRow, allMetadata)
     let result
 
     try {
@@ -23,6 +25,7 @@ async function runVariantInputRow(payload: {
         })
 
         const data = await response.json()
+        console.log("TEST!", data, response.ok)
         if (!response.ok) {
             const errorMessage = parseValidationError(data)
             result = {

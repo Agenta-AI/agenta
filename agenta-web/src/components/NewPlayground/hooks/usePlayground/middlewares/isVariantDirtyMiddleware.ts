@@ -1,11 +1,9 @@
 import {useCallback, useRef} from "react"
 
-import isEqual from "fast-deep-equal"
-import cloneDeep from "lodash/cloneDeep"
-
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import {initialState} from "../../../state"
+import {isPlaygroundEqual, omitDeep} from "../assets/helpers"
 
 import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
 import {type FetcherOptions} from "@/lib/api/types"
@@ -31,29 +29,7 @@ const compareVariantsForDirtyState = (
     const cleanVariant1 = omitDeep(variant1, ignoreKeys)
     const cleanVariant2 = omitDeep(variant2, ignoreKeys)
 
-    return isEqual(cleanVariant1, cleanVariant2)
-}
-
-/**
- * Recursively omit specified keys from an object
- */
-const omitDeep = (obj: any, keys: string[]): any => {
-    if (!obj || typeof obj !== "object") return obj
-
-    if (Array.isArray(obj)) {
-        return obj.map((item) => omitDeep(item, keys))
-    }
-
-    return Object.entries(obj).reduce(
-        (acc, [key, value]) => {
-            if (keys.includes(key)) return acc
-
-            acc[key] = typeof value === "object" ? omitDeep(value, keys) : value
-
-            return acc
-        },
-        {} as Record<string, any>,
-    )
+    return isPlaygroundEqual(cleanVariant1, cleanVariant2)
 }
 
 type MutateFunction<T extends PlaygroundStateData = PlaygroundStateData> = (
@@ -92,7 +68,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
                     return {
                         ...data,
-                        dataRef: new Map(variants.map((v) => [v.id, cloneDeep(v)])),
+                        dataRef: new Map(variants.map((v) => [v.id, structuredClone(v)])),
                         dirtyStates,
                         variants,
                     }
@@ -149,25 +125,27 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
                     return mutate(
                         async (state) => {
-                            if (!state) return state
+                            const clonedState = structuredClone(state)
 
+                            if (!clonedState || !state) return state
+
+                            const dataRef = clonedState.dataRef
                             let newState: Data
+
                             if (typeof data === "function") {
                                 const updateFn = data as MutateFunction<Data>
-                                const result = await updateFn(cloneDeep(state))
-                                newState = result ?? state
+                                const result = await updateFn(clonedState)
+                                newState = result ?? clonedState
                             } else if (data !== undefined) {
                                 // Handle partial state update
                                 newState = {
-                                    ...state,
+                                    ...clonedState,
                                     ...(data as Partial<Data>),
                                 }
                             } else {
-                                newState = state
+                                newState = clonedState
                             }
 
-                            const clonedState = cloneDeep(newState)
-                            const dataRef = clonedState.dataRef
                             const variant = newState.variants.find((v) => v.id === config.variantId)
 
                             if (
@@ -190,8 +168,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                 clonedState.dirtyStates = dirtyRef
                             }
 
-                            logger("WRAPPED MUTATE", state, clonedState)
-                            return clonedState
+                            return newState
                         },
                         {
                             revalidate: false,

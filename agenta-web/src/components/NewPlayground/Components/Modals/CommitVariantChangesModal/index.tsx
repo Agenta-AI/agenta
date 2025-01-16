@@ -20,8 +20,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         props.onCancel?.({} as any)
     }, [])
 
-    // TODO: add loading state here
-    const onSaveVariantChnages = useCallback(async () => {
+    const onSaveVariantChanges = useCallback(async () => {
         await saveVariant?.()
         onClose()
     }, [])
@@ -33,7 +32,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             title="Commit changes"
             onCancel={onClose}
             okText="Commit"
-            onOk={onSaveVariantChnages}
+            confirmLoading={variant?.__isMutating}
+            onOk={onSaveVariantChanges}
             okButtonProps={{icon: <FloppyDiskBack size={14} />}}
             classNames={{footer: "flex items-center justify-end"}}
             {...props}

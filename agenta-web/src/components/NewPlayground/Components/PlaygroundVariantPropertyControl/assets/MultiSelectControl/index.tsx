@@ -38,10 +38,16 @@ const SelectControl = ({mode, label, options: _options, value, onChange}: Select
         <PlaygroundVariantPropertyControlWrapper>
             <Typography.Text>{label}</Typography.Text>
             <Select<string | string[]>
+                showSearch
                 mode={mode}
                 value={value}
                 onChange={onChange}
                 options={options}
+                filterOption={(input, option) =>
+                    (option?.label?.toLocaleString() ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                }
             />
         </PlaygroundVariantPropertyControlWrapper>
     )
