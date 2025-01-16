@@ -4,12 +4,12 @@ import {Play} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {SetStateAction} from "jotai"
-import cloneDeep from "lodash/cloneDeep"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {GenerationHeaderProps} from "./types"
 const LoadTestsetModal = dynamic(() => import("../../../Modals/LoadTestsetModal"))
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const {results, isRunning, mutate, runTests} = usePlayground({
@@ -40,7 +40,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
 
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 // access the existing generation metadata to pull correct keys from testset rows
@@ -48,8 +48,9 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
 
                 // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
-                    const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
-                    const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                    const metadata = getMetadataLazy(generationMetadata)?.itemMetadata
+                    const inputKeys = Object.keys(metadata.properties)
+                    const newRow = createInputRow(inputKeys, metadata)
 
                     // set the values of the new generation row inputs to the values of the testset row
                     for (const key of inputKeys) {
@@ -75,12 +76,13 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const clearGeneration = useCallback(() => {
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 const generationMetadata = clonedState.generationData.__metadata
-                const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
-                const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                const metadata = getMetadataLazy(generationMetadata)?.itemMetadata
+                const inputKeys = Object.keys(metadata.properties)
+                const newRow = createInputRow(inputKeys, metadata)
                 clonedState.generationData.value = [newRow]
 
                 return clonedState

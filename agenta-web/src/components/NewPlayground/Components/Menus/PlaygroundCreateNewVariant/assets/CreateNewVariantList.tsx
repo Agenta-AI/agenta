@@ -54,7 +54,7 @@ const CreateNewVariantList = ({
         [debouncedSearch],
     )
 
-    const onAddVariant = (variant: VariantItem, isSelected: boolean) => {
+    const onAddVariant = useCallback((variant: VariantItem, isSelected: boolean) => {
         if (onSelect) {
             onSelect(variant.variantId)
         } else {
@@ -62,7 +62,7 @@ const CreateNewVariantList = ({
         }
 
         closeModal?.()
-    }
+    }, [])
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>

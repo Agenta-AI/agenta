@@ -1,5 +1,6 @@
 import {transformPrimitive} from "../../../assets/utilities/genericTransformer"
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
+import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
 
 import type {
     ObjectMetadata,
@@ -82,20 +83,26 @@ export function createInputRow(
 ): EnhancedVariant["inputs"]["value"][number] {
     // Create enhanced values for each input key
     const enhancedValues = Object.fromEntries(
-        inputKeys.map((key) => [
-            key,
-            {
-                __id: generateId(),
-                __metadata: metadata.properties[key],
-                value: "",
-            },
-        ]),
+        inputKeys.map((key) => {
+            const metadataHash = hashMetadata(metadata.properties[key])
+
+            return [
+                key,
+                {
+                    __id: generateId(),
+                    __metadata: metadataHash,
+                    value: "",
+                },
+            ]
+        }),
     )
+
+    const metadataHash = hashMetadata(metadata)
 
     // Return object with properties spread at root level and initialize __result as undefined
     return {
         __id: generateId(),
-        __metadata: metadata,
+        __metadata: metadataHash,
         __result: undefined, // TODO: DEPRECATED
         __runs: {},
         ...enhancedValues,
@@ -161,9 +168,11 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
     const inputSchema = createInputSchema(inputStrings)
     const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
 
+    const metadataHash = hashMetadata(inputSchema)
+
     variant.inputs = {
         __id: generateId(),
-        __metadata: inputSchema,
+        __metadata: metadataHash,
         value: [initialInputRow],
     }
 
@@ -196,10 +205,11 @@ export function syncVariantInputs(
     // Update each row while preserving all IDs
     const updatedRows = (generationData?.value || []).map((row) => {
         const keys = [...inputStrings] as const
+        const metadataHash = hashMetadata(row.__metadata)
+
         const newRow = {
             __id: row.__id,
-            __metadata: row.__metadata,
-            // inputSchema.itemMetadata.properties[Object.keys(row)[0]],
+            __metadata: metadataHash,
             __result: undefined,
         } as EnhancedVariant["inputs"]["value"][number]
 
@@ -216,12 +226,13 @@ export function syncVariantInputs(
             } else {
                 // Only create new ID for truly new keys
                 const _key = key as keyof typeof newRow
+
+                const metadataHash = hashMetadata(inputSchema.itemMetadata.properties[key])
+
                 if (typeof _key === "string") {
                     newRow[_key] = {
                         __id: generateId(),
-                        __metadata: inputSchema.itemMetadata.properties[key],
-                        // type: "string",
-                        // properties: {},
+                        __metadata: metadataHash,
                     } as EnhancedVariant["inputs"]["value"][number][typeof _key]
                 }
             }
@@ -235,9 +246,11 @@ export function syncVariantInputs(
         updatedRows.push(createInputRow(inputStrings, inputSchema.itemMetadata))
     }
 
+    const metadataHash = hashMetadata(metadata)
+
     generationData = {
         __id: existingInputsId,
-        __metadata: metadata,
+        __metadata: metadataHash,
         value: updatedRows,
     }
 
@@ -249,9 +262,9 @@ export function syncVariantInputs(
  * @param variant - Variant to get input keys from
  * @returns Set of unique input keys
  */
-export function getVariantInputKeys(variant: EnhancedVariant): Set<string> {
+export function getVariantInputKeys(variant: EnhancedVariant): Array<string> {
     const inputKeys = new Set(
         variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [],
     )
-    return new Set(Array.from(inputKeys).map((key) => key.value))
+    return Array.from(new Set(Array.from(inputKeys).map((key) => key.value)))
 }

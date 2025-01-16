@@ -1,14 +1,13 @@
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 
 import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
-import isEqual from "fast-deep-equal"
 
 import {
     compareVariant,
     createVariantCompare,
     findPropertyInObject,
     findVariantById,
+    isPlaygroundEqual,
     setVariant,
 } from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
@@ -31,6 +30,7 @@ import type {
 } from "../types"
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
+import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -136,7 +136,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             const nextProperty =
                                 nextVariant && findPropertyById(nextVariant, config.propertyId)
 
-                            return isEqual(prevProperty?.value, nextProperty?.value)
+                            return isPlaygroundEqual(prevProperty?.value, nextProperty?.value)
                         } else if (isConfigReferenced) {
                             return createVariantCompare()(a, b)
                         } else {
@@ -171,9 +171,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     if (message.type === "runVariantInputRowResult") {
                         const rowId = message.payload.rowId
 
-                        swr.mutate((state) => {
-                            const clonedState = cloneDeep(state)
-                            if (!clonedState) return state
+                        swr.mutate((clonedState) => {
+                            if (!clonedState) return clonedState
 
                             const testRow = clonedState.generationData.value.find(
                                 (row) => row.__id === rowId,
@@ -206,8 +205,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 try {
                     // first set the mutation state of the variant to true
                     swr.mutate(
-                        (state) => {
-                            const clonedState = cloneDeep(state)
+                        (clonedState) => {
                             const variant = findVariantById(clonedState, variantId!)
                             if (!variant) throw new Error("Variant not found")
 
@@ -239,7 +237,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.error("Failed to delete variant")
                                 }
 
-                                const clonedState = cloneDeep(state)
+                                const clonedState = structuredClone(state)
                                 clonedState?.variants?.forEach((v: EnhancedVariant) => {
                                     if (v.id === variant.id) {
                                         const index = clonedState.variants.indexOf(v)
@@ -264,7 +262,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     // first set the mutation state of the variant to true
                     swr.mutate(
                         (state) => {
-                            const clonedState = cloneDeep(state)
+                            const clonedState = structuredClone(state)
                             const variant = findVariantById(clonedState, variantId!)
                             if (!variant) throw new Error("Variant not found")
 
@@ -331,7 +329,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                             clonedState.dataRef = new Map(clonedState.dataRef)
                                             clonedState.dataRef.set(
                                                 updatedVariant.id,
-                                                cloneDeep(updatedVariant),
+                                                structuredClone(updatedVariant),
                                             )
                                         }
                                         return clonedState
@@ -362,52 +360,49 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     updates: Partial<EnhancedVariant> | VariantUpdateFunction,
                     variantId?: string,
                 ) => {
-                    swr.mutate(
-                        async (state) => {
-                            const clonedState = cloneDeep(state)
+                    swr.mutate(async (clonedState) => {
+                        if (!clonedState) return clonedState
 
-                            if (!clonedState) return state
+                        const clonedVariant = clonedState?.variants?.find(
+                            (v) => v.id === (variantId ?? config.variantId),
+                        )
 
-                            const variant = state?.variants?.find(
-                                (v) => v.id === (variantId ?? config.variantId),
+                        if (!clonedVariant) return clonedState
+
+                        // Get current input keys before update
+                        const previousInputKeys = getVariantInputKeys(clonedVariant)
+
+                        const updateValues =
+                            typeof updates === "function" ? updates(clonedVariant) : updates
+
+                        // if (!variant || !state) return state
+                        const updatedVariant: EnhancedVariant = {
+                            ...clonedVariant,
+                            ...updateValues,
+                        }
+
+                        // Update prompt keys
+                        updateVariantPromptKeys(updatedVariant)
+
+                        // Get new input keys after update
+                        const newInputKeys = getVariantInputKeys(updatedVariant)
+
+                        // Only sync inputs if the keys have changed
+                        if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
+                            clonedState.generationData = syncVariantInputs(
+                                updatedVariant,
+                                clonedState.generationData,
                             )
-                            const clonedVariant = cloneDeep(variant)
+                        }
 
-                            if (!clonedVariant) return state
+                        const index = clonedState?.variants?.findIndex(
+                            (v) => v.id === clonedVariant.id,
+                        )
 
-                            const updateValues =
-                                typeof updates === "function" ? updates(clonedVariant) : updates
+                        clonedState.variants[index] = updatedVariant
 
-                            if (!variant || !state) return state
-                            const updatedVariant: EnhancedVariant = {...variant, ...updateValues}
-
-                            // Get current input keys before update
-                            const previousInputKeys = getVariantInputKeys(variant)
-
-                            // Update prompt keys
-                            updateVariantPromptKeys(updatedVariant)
-
-                            // Get new input keys after update
-                            const newInputKeys = getVariantInputKeys(updatedVariant)
-
-                            // Only sync inputs if the keys have changed
-                            if (!isEqual(previousInputKeys, newInputKeys)) {
-                                clonedState.generationData = syncVariantInputs(
-                                    updatedVariant,
-                                    clonedState.generationData,
-                                )
-                            }
-
-                            const index = clonedState?.variants?.findIndex(
-                                (v) => v.id === variant.id,
-                            )
-
-                            clonedState.variants[index] = updatedVariant
-
-                            return clonedState
-                        },
-                        {revalidate: false},
-                    )
+                        return clonedState
+                    })
                 },
                 [swr, variantId],
             )
@@ -450,6 +445,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 return found
                     ? {
                           ...found,
+                          __metadata: getMetadataLazy(found.__metadata),
                           handleChange: handleParamUpdate,
                       }
                     : undefined
@@ -461,24 +457,23 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              */
             const runVariantTestRow = useCallback(
                 async (rowId: string, variantId?: string) => {
-                    swr.mutate(async (state) => {
+                    swr.mutate(async (clonedState) => {
                         const _variantId = variantId ?? config.variantId
-                        const clonedState = cloneDeep(state)
 
-                        if (!_variantId || !clonedState) return state
+                        if (!_variantId || !clonedState) return clonedState
 
-                        const variant = findVariantById(state, _variantId)
-                        if (!variant) return state
+                        const variant = findVariantById(clonedState, _variantId)
+                        if (!variant) return clonedState
 
                         const variantIndex = clonedState.variants.findIndex(
                             (v) => v.id === _variantId,
                         )
-                        if (variantIndex === -1) return state
+                        if (variantIndex === -1) return clonedState
 
                         const inputRow = clonedState.variants[variantIndex].inputs.value.find(
                             (row) => row.__id === rowId,
                         )
-                        if (!inputRow) return state
+                        if (!inputRow) return clonedState
 
                         inputRow.__isLoading = true
 
@@ -488,6 +483,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 rowId,
                                 appId: config.appId!,
                                 uri: variant.uri,
+                                allMetadata: getAllMetadata(),
                             }),
                         )
 

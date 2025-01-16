@@ -6,7 +6,6 @@ import clsx from "clsx"
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import GenerationFocusDrawerButton from "../../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
-import {cloneDeep} from "lodash"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 
 const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
@@ -23,7 +22,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     const deleteInputRow = useCallback(() => {
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 const generationRows = clonedState.generationData.value
@@ -40,7 +39,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     const duplicateInputRow = useCallback(() => {
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 const itemMetadata = clonedState.generationData.__metadata.itemMetadata
@@ -54,7 +53,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 if (existingRow) {
                     inputKeys.forEach((key) => {
                         if (existingRow[key] !== undefined) {
-                            newRow[key] = cloneDeep(existingRow[key])
+                            newRow[key] = structuredClone(existingRow[key])
                         }
                     })
                 }

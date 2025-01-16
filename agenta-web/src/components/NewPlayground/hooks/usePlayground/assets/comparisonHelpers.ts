@@ -1,7 +1,9 @@
-import type {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
 import {createInputRow, createInputSchema} from "./inputHelpers"
 import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
-import {EnhancedConfigValue} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
+
+import type {EnhancedConfigValue} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
 
 /**
  * Extracts all unique input keys from a collection of variants
@@ -30,9 +32,11 @@ export const initializeComparisonInputs = (variants: EnhancedVariant[]) => {
     const inputSchema = createInputSchema(inputStrings)
     const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
 
+    const metadataHash = hashMetadata(inputSchema)
+
     return {
         __id: generateId(),
-        __metadata: inputSchema,
+        __metadata: metadataHash,
         value: [initialInputRow],
     }
 }

@@ -1,7 +1,5 @@
 import {useCallback} from "react"
 
-import isEqual from "fast-deep-equal"
-
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import {type FetcherOptions} from "@/lib/api/types"
@@ -12,6 +10,7 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
+import {isPlaygroundEqual} from "../assets/helpers"
 
 const selectorMiddleware: PlaygroundMiddleware = <
     Data extends PlaygroundStateData = PlaygroundStateData,
@@ -62,7 +61,7 @@ const selectorMiddleware: PlaygroundMiddleware = <
                             nextSelected = b ? stateSelector(b) : undefined
                         }
 
-                        const _isEqual = isEqual(prevSelected, nextSelected)
+                        const _isEqual = isPlaygroundEqual(prevSelected, nextSelected)
                         logger(`COMPARE - SELECTED`, _isEqual, prevSelected, nextSelected)
                         return _isEqual
                     },
