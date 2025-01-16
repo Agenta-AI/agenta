@@ -17,7 +17,6 @@ import {$createCodeLineNode, $isCodeLineNode, CodeLineNode} from "../CodeNode/Co
 import {getIndentationRules} from "./indentationRules"
 import {updateCodeGutter} from "../CodeNode/CodeHighlighter/utils/gutter"
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function handleLineBreak(_event: KeyboardEvent, _editor: LexicalEditor) {
     const selection = $getSelection()
     if (!$isRangeSelection(selection)) return false
