@@ -1,14 +1,13 @@
 import {useCallback} from "react"
 
 import {message} from "antd"
-import {useAtom} from "jotai"
 import {getCurrentProject} from "@/contexts/project.context"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {specAtom} from "@/components/NewPlayground/state"
+import {getSpecLazy} from "@/components/NewPlayground/state"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -28,8 +27,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
         config: PlaygroundSWRConfig<Data>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
-            const [spec] = useAtom(specAtom)
-
             const {logger, valueReferences, addToValueReferences} = usePlaygroundUtilities({
                 config: {
                     ...config,
@@ -85,6 +82,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 }) => {
                     swr.mutate(
                         async (state) => {
+                            const spec = getSpecLazy()
                             if (!state || !spec) return state
 
                             const baseVariant = state.variants.find(

@@ -7,6 +7,7 @@ import GenerationCompletionRow from "../GenerationCompletionRow"
 import {GenerationCompletionProps} from "./types"
 import clsx from "clsx"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
     const {inputRowIds, mutate, viewType} = usePlayground({
@@ -20,11 +21,13 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
     })
 
     const addNewInputRow = useCallback(() => {
-        mutate((state) => {
-            const clonedState = structuredClone(state)
-            if (!clonedState) return state
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
 
-            const itemMetadata = clonedState?.generationData.__metadata.itemMetadata
+            const itemMetadata = getMetadataLazy(
+                clonedState?.generationData.__metadata,
+            ).itemMetadata
+            console.log("itemMetadata", itemMetadata)
             const inputKeys = Object.keys(itemMetadata.properties)
             const newRow = createInputRow(inputKeys, itemMetadata)
 

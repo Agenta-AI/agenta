@@ -6,6 +6,7 @@ import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {SetStateAction} from "jotai"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 const GenerationHeader = () => {
     const {mutate, runTests} = usePlayground()
@@ -25,8 +26,9 @@ const GenerationHeader = () => {
 
                 // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
-                    const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
-                    const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                    const metadata = getMetadataLazy(generationMetadata)?.itemMetadata
+                    const inputKeys = Object.keys(metadata.properties)
+                    const newRow = createInputRow(inputKeys, metadata)
 
                     // set the values of the new generation row inputs to the values of the testset row
                     for (const key of inputKeys) {
@@ -56,8 +58,9 @@ const GenerationHeader = () => {
                 if (!clonedState) return state
 
                 const generationMetadata = clonedState.generationData.__metadata
-                const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
-                const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                const metadata = getMetadataLazy(generationMetadata)?.itemMetadata
+                const inputKeys = Object.keys(metadata.properties)
+                const newRow = createInputRow(inputKeys, metadata)
                 clonedState.generationData.value = [newRow]
 
                 return clonedState

@@ -129,7 +129,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
             const getDisplayedVariants = useCallback((): string[] => {
                 addToValueReferences("displayedVariants")
                 return swr.data?.selected || []
-            }, [addToValueReferences, swr.data])
+            }, [addToValueReferences, swr])
 
             /**
              * Determines current view type based on number of displayed variants
@@ -176,10 +176,13 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             const _display = display ?? !isInView
 
                             if (_display) {
-                                return {
+                                const newState = {
                                     ...state,
-                                    selected: Array.from(new Set([...state.selected, variantId])),
+                                    selected: [
+                                        ...Array.from(new Set([...state.selected, variantId])),
+                                    ],
                                 }
+                                return newState
                             } else {
                                 return {
                                     ...state,
