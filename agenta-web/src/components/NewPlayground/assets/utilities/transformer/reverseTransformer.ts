@@ -1,6 +1,6 @@
 import {toSnakeCase} from "../genericTransformer/utilities/string"
 
-import type {ConfigMetadata} from "../genericTransformer/types"
+// import type {ConfigMetadata} from "../genericTransformer/types"
 import type {EnhancedVariant} from "./types"
 
 function shouldIncludeValue(value: unknown): boolean {
@@ -12,7 +12,10 @@ function shouldIncludeValue(value: unknown): boolean {
 /**
  * Extract raw value based on metadata type
  */
-function extractValueByMetadata(enhanced: Record<string, any> | null | undefined): unknown {
+function extractValueByMetadata(
+    enhanced: Record<string, any> | null | undefined,
+    allMetadata: Record<string, unknown>,
+): unknown {
     // Handle null/undefined
     if (!enhanced) return null
 
@@ -21,25 +24,26 @@ function extractValueByMetadata(enhanced: Record<string, any> | null | undefined
         return enhanced
     }
 
+    const metadata = allMetadata ? allMetadata[enhanced.__metadata] : null
+
     // Handle primitive enhanced values
     if (
         "value" in enhanced &&
-        (!enhanced.__metadata ||
-            enhanced.__metadata.type === "string" ||
-            enhanced.__metadata.type === "number" ||
-            enhanced.__metadata.type === "boolean")
+        (!metadata ||
+            metadata.type === "string" ||
+            metadata.type === "number" ||
+            metadata.type === "boolean")
     ) {
         return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
     }
 
-    const metadata = enhanced.__metadata as ConfigMetadata
     if (!metadata) {
         // If no metadata, return object without __ properties and null values
         const obj = Object.entries(enhanced)
             .filter(([key]) => !key.startsWith("__"))
             .reduce(
                 (acc, [key, val]) => {
-                    const extracted = extractValueByMetadata(val)
+                    const extracted = extractValueByMetadata(val, allMetadata)
                     if (shouldIncludeValue(extracted)) {
                         acc[toSnakeCase(key)] = extracted
                     }
@@ -55,7 +59,7 @@ function extractValueByMetadata(enhanced: Record<string, any> | null | undefined
         case "array": {
             if (!Array.isArray(enhanced.value)) return undefined
             const arr = enhanced.value
-                .map((item: Record<string, any>) => extractValueByMetadata(item))
+                .map((item: Record<string, any>) => extractValueByMetadata(item, allMetadata))
                 .filter(shouldIncludeValue)
             return arr.length > 0 ? arr : undefined
         }
@@ -64,7 +68,7 @@ function extractValueByMetadata(enhanced: Record<string, any> | null | undefined
                 .filter(([key]) => !key.startsWith("__"))
                 .reduce(
                     (acc, [key, val]) => {
-                        const extracted = extractValueByMetadata(val)
+                        const extracted = extractValueByMetadata(val, allMetadata)
                         if (shouldIncludeValue(extracted)) {
                             acc[toSnakeCase(key)] = extracted
                         }
@@ -101,11 +105,12 @@ function extractInputValues(inputRow: Record<string, any>): Record<string, strin
 export function transformToRequestBody(
     variant: EnhancedVariant,
     inputRow?: EnhancedVariant["inputs"]["value"][number],
+    allMetadata?: Record<string, unknown>,
 ): Record<string, any> {
     const data = {} as Record<string, any>
     // Get the first prompt configuration
     const promptConfig = variant.prompts[0]
-    const rawConfig = extractValueByMetadata(promptConfig)
+    const rawConfig = extractValueByMetadata(promptConfig, allMetadata)
     data.ag_config = {
         prompt: rawConfig as EnhancedVariant["prompts"][number],
     }

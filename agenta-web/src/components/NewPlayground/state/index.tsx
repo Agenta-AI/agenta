@@ -10,6 +10,9 @@ export const metadataAtom = atom<Record<string, unknown>>({})
 export const getMetadataLazy = (hash: string) => {
     return atomStore.get(metadataAtom)[hash] || null
 }
+export const getAllMetadata = (hash: string) => {
+    return atomStore.get(metadataAtom) || null
+}
 
 class TaskQueue {
     private queue: Promise<void> = Promise.resolve()

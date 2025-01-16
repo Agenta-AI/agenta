@@ -7,7 +7,7 @@ import {transformToRequestBody} from "../../../assets/utilities/transformer/reve
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {getSpecLazy} from "@/components/NewPlayground/state"
+import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -223,6 +223,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                 rowId: testRow.__id,
                                                 appId: config.appId!,
                                                 uri: variant.uri,
+                                                allMetadata: getAllMetadata(),
                                             }),
                                         )
                                     }
