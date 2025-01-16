@@ -4,5 +4,5 @@ export type GenerationVariableOptionsProps = {
     className?: string
     variantId: string
     rowId: string
-    result: TestResult | null | undefined
+    result?: TestResult | null | undefined
 }
