@@ -1,15 +1,43 @@
 import {useCallback, useState} from "react"
+import dynamic from "next/dynamic"
 import {Play} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
-import LoadTestsetModal from "../../../Modals/LoadTestsetModal"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {SetStateAction} from "jotai"
-import cloneDeep from "lodash/cloneDeep"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {
+    ArrayMetadata,
+    Enhanced,
+    EnhancedObjectConfig,
+    ObjectMetadata,
+} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {InputType} from "@/components/NewPlayground/assets/utilities/transformer/types"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {GenerationHeaderProps} from "./types"
+const LoadTestsetModal = dynamic(() => import("../../../Modals/LoadTestsetModal"))
 
-const GenerationHeader = () => {
-    const {mutate, runTests} = usePlayground()
+const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
+    const {results, isRunning, mutate, runTests} = usePlayground({
+        variantId,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRows = state.generationData.value
+
+                // TODO: use the results to get all the responses to save on the Testset
+                const results = inputRows.map((inputRow) =>
+                    variantId ? inputRow?.__runs?.[variantId]?.__result : null,
+                )
+                const isRunning = inputRows.some((inputRow) =>
+                    variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                )
+
+                return {results, isRunning}
+            },
+            [variantId],
+        ),
+    })
+
     const [testsetData, setTestsetData] = useState<Record<string, any> | null>(null)
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
 
@@ -18,7 +46,7 @@ const GenerationHeader = () => {
 
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 // access the existing generation metadata to pull correct keys from testset rows
@@ -26,8 +54,14 @@ const GenerationHeader = () => {
 
                 // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
-                    const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
-                    const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                    const parentMetadata =
+                        getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)
+                    const metadata = parentMetadata?.itemMetadata
+
+                    if (!metadata) return null
+
+                    const inputKeys = Object.keys(metadata.properties)
+                    const newRow = createInputRow(inputKeys, metadata)
 
                     // set the values of the new generation row inputs to the values of the testset row
                     for (const key of inputKeys) {
@@ -38,7 +72,9 @@ const GenerationHeader = () => {
                     return newRow
                 })
 
-                clonedState.generationData.value = newGenerationRows
+                clonedState.generationData.value = newGenerationRows.filter(
+                    (row) => !!row,
+                ) as EnhancedObjectConfig<InputType<string[]>>[]
 
                 return clonedState
             },
@@ -53,19 +89,21 @@ const GenerationHeader = () => {
     const clearGeneration = useCallback(() => {
         mutate(
             (state) => {
-                const clonedState = cloneDeep(state)
+                const clonedState = structuredClone(state)
                 if (!clonedState) return state
 
                 const generationMetadata = clonedState.generationData.__metadata
-                const inputKeys = Object.keys(generationMetadata?.itemMetadata.properties)
-                const newRow = createInputRow(inputKeys, generationMetadata?.itemMetadata)
+                const metadata =
+                    getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)?.itemMetadata
+                if (!metadata) return clonedState
+
+                const inputKeys = Object.keys(metadata.properties)
+                const newRow = createInputRow(inputKeys, metadata)
                 clonedState.generationData.value = [newRow]
 
                 return clonedState
             },
-            {
-                revalidate: false,
-            },
+            {revalidate: false},
         )
     }, [])
 
@@ -74,18 +112,23 @@ const GenerationHeader = () => {
             <Typography className="text-[16px] leading-[18px] font-[600]">Generations</Typography>
 
             <div className="flex items-center gap-2">
-                <Button size="small" onClick={clearGeneration}>
+                <Button size="small" onClick={clearGeneration} disabled={isRunning}>
                     Clear
                 </Button>
                 <Button size="small" onClick={() => setIsTestsetModalOpen(true)}>
                     Load Test set
                 </Button>
-                <Button size="small">Add all to test set</Button>
+
+                <Button size="small" disabled={isRunning || !results?.[0]?.response?.data}>
+                    Add all to test set
+                </Button>
+
                 <Button
                     size="small"
                     type="primary"
                     icon={<Play size={14} />}
                     onClick={() => runTests?.()}
+                    loading={isRunning}
                 >
                     Run all
                 </Button>

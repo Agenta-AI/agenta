@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import {Alert} from "antd"
 import clsx from "clsx"
 
 import usePlayground from "../../../hooks/usePlayground"
@@ -7,11 +8,11 @@ import AddButton from "../../../assets/AddButton"
 import PromptMessageConfig from "../../PromptMessageConfig"
 import {createObjectFromMetadata} from "../../../assets/utilities/genericTransformer/helpers/arrays"
 import {componentLogger} from "../../../assets/utilities/componentLogger"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 import type {PromptCollapseContentProps} from "../types"
-import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {Alert} from "antd"
+import {ArrayMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -57,7 +58,10 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         mutateVariant((draft) => {
             const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
             const messages = variantPrompt?.messages.value
-            const metadata = (variantPrompt?.messages.__metadata as ArrayMetadata).itemMetadata
+            const parentMetadata = getMetadataLazy<ArrayMetadata>(
+                variantPrompt?.messages.__metadata,
+            )
+            const metadata = parentMetadata?.itemMetadata
 
             if (variantPrompt && messages && metadata) {
                 const newMessage = createObjectFromMetadata(metadata) as (typeof messages)[number]

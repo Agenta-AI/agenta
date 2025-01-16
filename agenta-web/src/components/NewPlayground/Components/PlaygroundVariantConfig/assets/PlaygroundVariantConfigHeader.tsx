@@ -1,51 +1,36 @@
-import {useCallback, useMemo, useState} from "react"
+import {useMemo} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Select} from "antd"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 import Version from "@/components/NewPlayground/assets/Version"
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 import PromptFocusButton from "../../Drawers/PromptFocusDrawer/assets/PromptFocusButton"
 import PromptComparisonFocusButton from "../../Drawers/PromptComparisionFocusDrawer/assets/PromptComparisonFocusButton"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
+import {PlaygroundVariantConfigHeaderProps} from "./types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
     {ssr: false},
 )
 
-const VariantRenameModal = dynamic(() => import("../../Modals/VariantRenameModal"), {ssr: false})
-const VariantResetChangesModal = dynamic(() => import("../../Modals/VariantResetChangesModal"), {
-    ssr: false,
-})
-const DeleteVariantModal = dynamic(() => import("../../Modals/DeleteVariantModal"), {ssr: false})
-
-const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...divProps}) => {
-    const [isVariantRenameOpen, setIsVariantRenameOpen] = useState(false)
-    const [isResetModalOpen, setIsResetModalOpen] = useState(false)
-    const [isdeleteVariantModalOpen, setIsDeleteVariantModalOpen] = useState(false)
-    const {variantsList, setSelectedVariant, variant, viewType} = usePlayground({
+const PlaygroundVariantConfigHeader = ({
+    variantId,
+    className,
+    ...divProps
+}: PlaygroundVariantConfigHeaderProps) => {
+    const {setSelectedVariant, variant, viewType, variants} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => ({
-                variantsList: state.variants.map((variant) => ({
-                    variantId: variant.id,
-                    variantName: variant.variantName,
-                    revision: variant?.revision,
-                })),
-            }),
-            [],
-        ),
     })
 
     const listOfVariants = useMemo(
         () =>
-            variantsList?.map((variant) => ({
+            variants?.map((variant) => ({
                 label: variant.variantName,
-                value: variant.variantId,
+                value: variant.id,
             })),
         [],
     )
@@ -64,11 +49,15 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
         >
             <div className="flex items-center gap-2">
                 <Select
+                    showSearch
                     style={{width: 120}}
-                    value={variant?.variantName}
+                    value={variant?.id}
                     onChange={(value) => setSelectedVariant?.(value)}
                     placeholder="Select variant"
                     options={listOfVariants}
+                    filterOption={(input, option) =>
+                        (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                    }
                 />
 
                 <Version revision={variant?.revision as number} />
@@ -89,29 +78,8 @@ const PlaygroundVariantConfigHeader: React.FC<any> = ({variantId, className, ...
                     size="small"
                 />
 
-                <PlaygroundVariantHeaderMenu
-                    setIsResetModalOpen={setIsResetModalOpen}
-                    setIsVariantRenameOpen={setIsVariantRenameOpen}
-                    setIsDeleteVariantModalOpen={setIsDeleteVariantModalOpen}
-                />
+                <PlaygroundVariantHeaderMenu variantId={variantId} />
             </div>
-
-            <DeleteVariantModal
-                open={isdeleteVariantModalOpen}
-                onCancel={() => setIsDeleteVariantModalOpen(false)}
-                variantId={variantId}
-            />
-
-            <VariantResetChangesModal
-                open={isResetModalOpen}
-                onCancel={() => setIsResetModalOpen(false)}
-            />
-
-            <VariantRenameModal
-                open={isVariantRenameOpen}
-                onCancel={() => setIsVariantRenameOpen(false)}
-                variantId={variantId}
-            />
         </section>
     )
 }

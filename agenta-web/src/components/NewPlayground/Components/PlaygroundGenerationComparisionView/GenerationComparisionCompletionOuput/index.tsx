@@ -41,7 +41,6 @@ const GenerationComparisionCompletionOuputRow = ({
         ),
     })
 
-    console.log("GenerationComparisionCompletionOuputRow", result, isRunning)
     return (
         <div className={clsx("group/item", className)}>
             <PlaygroundComparisionGenerationOutputHeader />
@@ -55,7 +54,7 @@ const GenerationComparisionCompletionOuputRow = ({
                     <GenerationOutputText
                         type="danger"
                         text={
-                            format === "PRETTY"
+                            !format || format === "PRETTY"
                                 ? result.error
                                 : getYamlOrJson(
                                       format as "JSON" | "YAML",
@@ -74,18 +73,18 @@ const GenerationComparisionCompletionOuputRow = ({
                         rowId=""
                     />
                 )}
-
-                {result?.response && (
-                    <div
-                        className={clsx(
-                            "w-ful h-[48px] flex items-center px-2",
-                            classes.containerBorder,
-                        )}
-                    >
-                        <GenerationResultUtils />
-                    </div>
-                )}
             </div>
+
+            {result?.response && (
+                <div
+                    className={clsx(
+                        "w-ful h-[48px] flex items-center px-2",
+                        classes.containerBorder,
+                    )}
+                >
+                    <GenerationResultUtils result={result} />
+                </div>
+            )}
         </div>
     )
 }

@@ -5,6 +5,7 @@ import {PlaygroundGenerationVariableMenuProps} from "./types"
 
 const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMenuProps> = ({
     duplicateInputRow,
+    result,
     ...props
 }) => {
     const items: MenuProps["items"] = useMemo(
@@ -21,6 +22,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
             {
                 key: "test-set",
                 label: "Add to test set",
+                disabled: !result?.response?.data,
                 icon: <Database size={14} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()

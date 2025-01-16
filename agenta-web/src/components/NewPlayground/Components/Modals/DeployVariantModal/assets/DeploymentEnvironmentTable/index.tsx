@@ -2,17 +2,17 @@ import {useMemo} from "react"
 import {Typography, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import DeploymentTag from "@/components/NewPlayground/assets/DeploymentTag"
-import {DeploymentEnviromentTableProps} from "./types"
+import {DeploymentEnvironmentTableProps} from "./types"
 import {Environment} from "@/lib/Types"
 
-const DeploymentEnviromentTable = ({
+const DeploymentEnvironmentTable = ({
     selectedEnvs,
     setSelectedEnvs,
     variantId,
     variant,
     environments,
     isLoading,
-}: DeploymentEnviromentTableProps) => {
+}: DeploymentEnvironmentTableProps) => {
     const columns: ColumnsType<Environment> = useMemo(
         () => [
             {
@@ -67,7 +67,6 @@ const DeploymentEnviromentTable = ({
                         setSelectedEnvs(selectedRowKeys as string[])
                     },
                 }}
-                data-cy="app-testset-list"
                 loading={isLoading}
                 className={`ph-no-capture`}
                 columns={columns}
@@ -80,4 +79,4 @@ const DeploymentEnviromentTable = ({
     )
 }
 
-export default DeploymentEnviromentTable
+export default DeploymentEnvironmentTable

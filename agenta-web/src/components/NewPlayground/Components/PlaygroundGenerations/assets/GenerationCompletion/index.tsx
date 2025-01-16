@@ -1,13 +1,20 @@
+import {useCallback} from "react"
+
+import clsx from "clsx"
+
 import AddButton from "@/components/NewPlayground/assets/AddButton"
 import {componentLogger} from "@/components/NewPlayground/assets/utilities/componentLogger"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {useCallback} from "react"
 import GenerationCompletionRow from "../GenerationCompletionRow"
-import {GenerationCompletionProps} from "./types"
-import clsx from "clsx"
-import cloneDeep from "lodash/cloneDeep"
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
+
+import type {GenerationCompletionProps} from "./types"
+import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import type {
+    ArrayMetadata,
+    ObjectMetadata,
+} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
     const {inputRowIds, mutate, viewType} = usePlayground({
@@ -21,11 +28,15 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
     })
 
     const addNewInputRow = useCallback(() => {
-        mutate((state) => {
-            const clonedState = cloneDeep(state)
-            if (!clonedState) return state
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
 
-            const itemMetadata = clonedState?.generationData.__metadata.itemMetadata
+            const _metadata = getMetadataLazy<ArrayMetadata>(clonedState?.generationData.__metadata)
+
+            const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
+
+            if (!itemMetadata) return clonedState
+
             const inputKeys = Object.keys(itemMetadata.properties)
             const newRow = createInputRow(inputKeys, itemMetadata)
 

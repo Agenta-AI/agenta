@@ -1,11 +1,10 @@
 import {useCallback} from "react"
 
 import {type Key, type SWRHook, useSWRConfig} from "swr"
-import cloneDeep from "lodash/cloneDeep"
 
 import {fetchOpenApiSchemaJson, setVariants, transformVariants} from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {initialState} from "../../../state"
+import {initialState, specAtom, atomStore} from "../../../state"
 
 import {type FetcherOptions} from "@/lib/api/types"
 import {type Variant} from "@/lib/Types"
@@ -48,7 +47,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         return cachedValue
                     }
 
-                    let state = cloneDeep(cachedValue || initialState) as Data
+                    let state = structuredClone(cachedValue || initialState) as Data
 
                     if (!fetcher) {
                         return state
@@ -67,6 +66,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         }
 
                         const specResponse = await fetchOpenApiSchemaJson(uri)
+                        // write(specResponse.schema)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
@@ -77,9 +77,10 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             setVariants(state.variants, variants),
                             spec,
                         )
-                        state.spec = spec
+                        atomStore.set(specAtom, () => spec)
                         state.selected = [state.variants[0].id]
                         state.generationData = initializeComparisonInputs(state.variants)
+
                         return state
                     } catch (error) {
                         console.error("Error in openApiSchemaFetcher:", error)
