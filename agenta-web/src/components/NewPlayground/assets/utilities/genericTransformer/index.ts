@@ -1,3 +1,5 @@
+import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
+
 import type {
     ConfigMetadata,
     Enhanced,
@@ -72,10 +74,14 @@ function metadataToSchema(metadata: ConfigMetadata): SchemaProperty {
 }
 
 function transformArray<T>(value: T[], metadata: ConfigMetadata & {type: "array"}) {
+    const metadataHash = hashMetadata(metadata)
+
     return {
         __id: generateId(),
-        __metadata: metadata,
+        __metadata: metadataHash,
         value: value.map((item): Enhanced<T> => {
+            const itemMetadataHash = hashMetadata(metadata.itemMetadata)
+
             if (metadata.itemMetadata.type === "object" && typeof item === "object") {
                 const schema = metadataToSchema(metadata.itemMetadata)
                 const properties = isSchema.object(schema) ? schema.properties || {} : {}
@@ -87,14 +93,14 @@ function transformArray<T>(value: T[], metadata: ConfigMetadata & {type: "array"
 
                 return {
                     __id: generateId(),
-                    __metadata: metadata.itemMetadata,
+                    __metadata: itemMetadataHash,
                     ...transformedObject,
                 } as Enhanced<T>
             }
 
             return {
                 __id: generateId(),
-                __metadata: metadata.itemMetadata,
+                __metadata: itemMetadataHash,
                 value: item,
             } as Enhanced<T>
         }),
@@ -121,9 +127,11 @@ function transformValue<T>(
             return transformPrimitive<T>(value, metadata)
         }
 
+        const metadataHash = hashMetadata(metadata)
+
         return {
             __id: generateId(),
-            __metadata: metadata,
+            __metadata: metadataHash,
             ...transformObjectValue(value, properties),
         } as Enhanced<T>
     }
@@ -132,10 +140,12 @@ function transformValue<T>(
 }
 
 export function transformPrimitive<T>(value: T, metadata: ConfigMetadata): Enhanced<T> {
+    const metadataHash = hashMetadata(metadata)
+
     return {
         value,
         __id: generateId(),
-        __metadata: metadata,
+        __metadata: metadataHash,
     } as Enhanced<T>
 }
 

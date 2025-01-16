@@ -21,7 +21,7 @@ import type {
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
-import cloneDeep from "lodash/cloneDeep"
+import {getMetadataLazy} from "../../state"
 
 const renderMap: RenderFunctions = {
     number: (metadata, value, handleChange) => {
@@ -192,7 +192,7 @@ const PlaygroundVariantPropertyControl = ({
             ? (e: any) => {
                   mutate(
                       (draft) => {
-                          const clonedState = cloneDeep(draft)
+                          const clonedState = structuredClone(draft)
                           if (!clonedState) return draft
 
                           const val = e
@@ -223,7 +223,7 @@ const PlaygroundVariantPropertyControl = ({
               }
 
         return {
-            __metadata,
+            __metadata: getMetadataLazy(__metadata),
             value,
             handleChange: handler,
         }
