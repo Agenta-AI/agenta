@@ -42,7 +42,6 @@ export class CodeLineNode extends ElementNode {
         this.__hidden = hidden
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     createDOM(_config: EditorConfig): HTMLElement {
         const element = document.createElement("div")
         element.className = "code-line"
