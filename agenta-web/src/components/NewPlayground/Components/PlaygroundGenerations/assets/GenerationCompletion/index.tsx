@@ -27,7 +27,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
             const itemMetadata = getMetadataLazy(
                 clonedState?.generationData.__metadata,
             ).itemMetadata
-            console.log("itemMetadata", itemMetadata)
+
             const inputKeys = Object.keys(itemMetadata.properties)
             const newRow = createInputRow(inputKeys, itemMetadata)
 
