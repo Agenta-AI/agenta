@@ -285,7 +285,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 if (!variant) return state
 
                                 try {
-                                    const parameters = transformToRequestBody(variant)
+                                    const parameters = transformToRequestBody(
+                                        variant,
+                                        undefined,
+                                        getAllMetadata(),
+                                    )
                                     const saveResponse = await fetcher?.(
                                         `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
                                         {
