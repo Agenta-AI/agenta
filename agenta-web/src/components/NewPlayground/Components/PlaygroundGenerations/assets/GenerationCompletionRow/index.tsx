@@ -130,7 +130,7 @@ const GenerationCompletionRow = ({
                                         text={result.response.data}
                                     />
 
-                                    <GenerationResultUtils />
+                                    <GenerationResultUtils result={result} />
                                 </>
                             ) : null}
                         </div>

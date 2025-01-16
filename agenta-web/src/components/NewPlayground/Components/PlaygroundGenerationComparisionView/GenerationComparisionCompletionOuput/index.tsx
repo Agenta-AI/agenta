@@ -82,7 +82,7 @@ const GenerationComparisionCompletionOuputRow = ({
                         classes.containerBorder,
                     )}
                 >
-                    <GenerationResultUtils />
+                    <GenerationResultUtils result={result} />
                 </div>
             )}
         </div>
