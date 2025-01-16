@@ -111,7 +111,11 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            const parameters = transformToRequestBody(baseVariant)
+                            const parameters = transformToRequestBody(
+                                baseVariant,
+                                undefined,
+                                getAllMetadata(),
+                            )
 
                             const newVariantBody: Partial<Variant> &
                                 Pick<Variant, "variantName" | "configName" | "baseId"> = {

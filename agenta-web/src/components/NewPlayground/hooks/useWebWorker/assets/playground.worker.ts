@@ -1,10 +1,11 @@
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {parseValidationError} from "../../../assets/utilities/errors"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
-    allMetadata: Record<string, unknown>
+    allMetadata: Record<string, ConfigMetadata>
     inputRow: EnhancedVariant["inputs"]["value"][number]
     rowId: string
     appId: string
