@@ -27,9 +27,9 @@ export interface BooleanMetadata extends BaseMetadata {
     default?: boolean
 }
 
-export interface ArrayMetadata extends BaseMetadata {
+export interface ArrayMetadata<T extends ConfigMetadata = ConfigMetadata> extends BaseMetadata {
     type: "array"
-    itemMetadata: ConfigMetadata // Allow all metadata types for array items
+    itemMetadata: T // Allow all metadata types for array items
     minItems?: number
     maxItems?: number
 }
