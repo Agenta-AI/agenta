@@ -1,17 +1,21 @@
 import {InitialStateType} from "./types"
 import {atom, createStore} from "jotai"
 
+import type {ConfigMetadata} from "../assets/utilities/genericTransformer/types"
+
 // Create an atom store
 export const atomStore = createStore()
 
 // Atom to store metadata
-export const metadataAtom = atom<Record<string, unknown>>({})
+export const metadataAtom = atom<Record<string, ConfigMetadata>>({})
 // Lazy reader for metadata
-export const getMetadataLazy = (hash: string) => {
-    return atomStore.get(metadataAtom)[hash] || null
+export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string): T | null => {
+    if (!hash) return null
+
+    return (atomStore.get(metadataAtom)[hash] as T) || null
 }
-export const getAllMetadata = (hash: string) => {
-    return atomStore.get(metadataAtom) || null
+export const getAllMetadata = (): Record<string, ConfigMetadata> => {
+    return atomStore.get(metadataAtom) || {}
 }
 
 class TaskQueue {

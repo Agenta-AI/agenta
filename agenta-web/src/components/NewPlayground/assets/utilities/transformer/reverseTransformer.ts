@@ -1,3 +1,4 @@
+import {ConfigMetadata} from "../genericTransformer/types"
 import {toSnakeCase} from "../genericTransformer/utilities/string"
 
 // import type {ConfigMetadata} from "../genericTransformer/types"
@@ -14,7 +15,7 @@ function shouldIncludeValue(value: unknown): boolean {
  */
 function extractValueByMetadata(
     enhanced: Record<string, any> | null | undefined,
-    allMetadata: Record<string, unknown>,
+    allMetadata: Record<string, ConfigMetadata>,
 ): unknown {
     // Handle null/undefined
     if (!enhanced) return null
@@ -105,7 +106,7 @@ function extractInputValues(inputRow: Record<string, any>): Record<string, strin
 export function transformToRequestBody(
     variant: EnhancedVariant,
     inputRow?: EnhancedVariant["inputs"]["value"][number],
-    allMetadata?: Record<string, unknown>,
+    allMetadata: Record<string, ConfigMetadata> = {},
 ): Record<string, any> {
     const data = {} as Record<string, any>
     // Get the first prompt configuration
