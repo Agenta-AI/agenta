@@ -235,6 +235,10 @@ const PlaygroundVariantPropertyControl = ({
 
     const {__metadata: metadata, value, handleChange} = property
 
+    if (!metadata) {
+        return <Typography.Text>unable to find metadata for property</Typography.Text>
+    }
+
     const renderer = renderMap[metadata.type]
     if (renderer) {
         return renderer(metadata as any, value, handleChange, as, className, view)

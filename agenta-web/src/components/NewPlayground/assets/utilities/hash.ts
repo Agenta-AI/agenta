@@ -25,7 +25,7 @@ export const hashMetadata = (metadata: any) => {
     }
 }
 
-export const validateHash = (value, storedHash) => {
+export const validateHash = (value: any, storedHash: string) => {
     const weakHash = stableHash(value)
     const safeHash = crypto.createHash("MD5").update(weakHash).digest("hex")
     return safeHash === storedHash

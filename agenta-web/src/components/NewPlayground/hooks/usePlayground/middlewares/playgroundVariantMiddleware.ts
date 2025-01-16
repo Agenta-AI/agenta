@@ -31,6 +31,7 @@ import type {
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
 import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -152,6 +153,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     type: string
                     payload: {
                         variant: EnhancedVariant
+                        allMetadata: Record<string, ConfigMetadata>
                         rowId: string
                         appId: string
                         uri: string

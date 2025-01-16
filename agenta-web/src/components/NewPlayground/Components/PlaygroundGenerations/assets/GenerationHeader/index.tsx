@@ -5,8 +5,14 @@ import LoadTestsetModal from "../../../Modals/LoadTestsetModal"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {SetStateAction} from "jotai"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {
+    ArrayMetadata,
+    Enhanced,
+    EnhancedObjectConfig,
+    ObjectMetadata,
+} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {InputType} from "@/components/NewPlayground/assets/utilities/transformer/types"
 
 const GenerationHeader = () => {
     const {mutate, runTests} = usePlayground()
@@ -26,7 +32,12 @@ const GenerationHeader = () => {
 
                 // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
-                    const metadata = getMetadataLazy(generationMetadata)?.itemMetadata
+                    const parentMetadata =
+                        getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)
+                    const metadata = parentMetadata?.itemMetadata
+
+                    if (!metadata) return null
+
                     const inputKeys = Object.keys(metadata.properties)
                     const newRow = createInputRow(inputKeys, metadata)
 
@@ -39,7 +50,9 @@ const GenerationHeader = () => {
                     return newRow
                 })
 
-                clonedState.generationData.value = newGenerationRows
+                clonedState.generationData.value = newGenerationRows.filter(
+                    (row) => !!row,
+                ) as EnhancedObjectConfig<InputType<string[]>>[]
 
                 return clonedState
             },
@@ -58,7 +71,10 @@ const GenerationHeader = () => {
                 if (!clonedState) return state
 
                 const generationMetadata = clonedState.generationData.__metadata
-                const metadata = getMetadataLazy(generationMetadata)?.itemMetadata
+                const metadata =
+                    getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)?.itemMetadata
+                if (!metadata) return clonedState
+
                 const inputKeys = Object.keys(metadata.properties)
                 const newRow = createInputRow(inputKeys, metadata)
                 clonedState.generationData.value = [newRow]
