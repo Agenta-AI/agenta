@@ -63,7 +63,12 @@ const PromptComparisonVariantNavigation = ({...props}: PromptComparisonVariantNa
                     >
                         <SortableContext items={items} strategy={verticalListSortingStrategy}>
                             {displayedVariants?.map((variantId, idx) => (
-                                <VariantNavigationCard key={idx} id={idx} variantId={variantId} />
+                                <VariantNavigationCard
+                                    key={idx}
+                                    id={idx}
+                                    variantId={variantId}
+                                    indexName={String.fromCharCode(65 + idx)}
+                                />
                             ))}
                         </SortableContext>
                     </DndContext>
