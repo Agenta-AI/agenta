@@ -1,5 +1,5 @@
 import {useCallback} from "react"
-import {MinusCircle} from "@phosphor-icons/react"
+import {Copy, MinusCircle} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {GenerationVariableOptionsProps} from "./types"
 import clsx from "clsx"
@@ -13,8 +13,9 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     variantId,
     className,
     result,
+    inputText,
 }) => {
-    const {mutate} = usePlayground({
+    const {mutate, viewType} = usePlayground({
         variantId,
         hookId: "GenerationVariableOptions",
     })
@@ -68,13 +69,32 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <GenerationFocusDrawerButton rowId={rowId} variantIds={variantId} />
-            <Button icon={<MinusCircle size={14} />} type="text" onClick={deleteInputRow} />
-
-            <PlaygroundGenerationVariableMenu
-                duplicateInputRow={duplicateInputRow}
-                result={result}
+            <Button
+                icon={<MinusCircle size={14} />}
+                type="text"
+                onClick={deleteInputRow}
+                size="small"
             />
+            {viewType === "single" ? (
+                <>
+                    <GenerationFocusDrawerButton
+                        rowId={rowId}
+                        variantIds={variantId}
+                        size="small"
+                    />
+                    <PlaygroundGenerationVariableMenu
+                        duplicateInputRow={duplicateInputRow}
+                        result={result}
+                    />
+                </>
+            ) : (
+                <Button
+                    icon={<Copy size={14} />}
+                    type="text"
+                    onClick={() => navigator.clipboard.writeText(inputText as string)}
+                    size="small"
+                />
+            )}
         </div>
     )
 }

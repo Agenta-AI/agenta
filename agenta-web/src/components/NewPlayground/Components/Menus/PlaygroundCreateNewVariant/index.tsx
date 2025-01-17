@@ -9,6 +9,7 @@ const PlaygroundCreateNewVariant: React.FC<PlaygroundCreateNewVariantProps> = ({
     displayedVariants,
     onSelect,
     selectedVariant,
+    buttonProps,
     ...popoverProps
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -30,7 +31,7 @@ const PlaygroundCreateNewVariant: React.FC<PlaygroundCreateNewVariantProps> = ({
             }
             className={className}
         >
-            <AddButton label="Variants" />
+            <AddButton {...buttonProps} />
         </Popover>
     )
 }

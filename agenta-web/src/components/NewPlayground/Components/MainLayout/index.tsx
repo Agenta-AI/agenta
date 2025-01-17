@@ -7,7 +7,7 @@ import GenerationComparisionCompletionOuput from "../PlaygroundGenerationCompari
 import GenerationComparisionCompletionInput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionInput"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisionView/GenerationComparisonHeader"
 
-const PromptComparisionVariantNavigation = dynamic(
+const PromptComparisonVariantNavigation = dynamic(
     () => import("../PlaygroundPromptComparisionView/PromptComparisionVariantNavigation"),
     {ssr: false},
 )
@@ -34,18 +34,21 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": viewType === "single",
-                                    "grow w-full h-full overflow-x-auto flex": isComparisonView,
+                                    "grow w-full h-full overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
+                                        isComparisonView,
                                 },
                             ])}
                         >
-                            {isComparisonView && <PromptComparisionVariantNavigation />}
+                            {isComparisonView && (
+                                <PromptComparisonVariantNavigation className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0" />
+                            )}
                             {(displayedVariants || []).map((variantId) => {
                                 return (
                                     <div
                                         key={variantId}
                                         className={clsx([
                                             {
-                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto":
+                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0":
                                                     isComparisonView,
                                             },
                                         ])}
@@ -75,7 +78,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     return (
                                         <div
                                             key={variantId}
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto"
+                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0"
                                         >
                                             <GenerationComparisionCompletionInput
                                                 variantId={variantId}
@@ -85,13 +88,13 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     )
                                 })}
 
-                            {(displayedVariants || []).map((variantId) => {
+                            {(displayedVariants || []).map((variantId, index) => {
                                 return (
                                     <div
                                         key={variantId}
                                         className={clsx([
                                             {
-                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto":
+                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0":
                                                     isComparisonView,
                                             },
                                         ])}
@@ -99,6 +102,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         {isComparisonView ? (
                                             <GenerationComparisionCompletionOuput
                                                 variantId={variantId}
+                                                indexName={String.fromCharCode(65 + index)}
                                             />
                                         ) : (
                                             <PlaygroundGenerations variantId={variantId} />

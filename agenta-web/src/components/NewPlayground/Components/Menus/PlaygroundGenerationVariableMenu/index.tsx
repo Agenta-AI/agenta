@@ -33,7 +33,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
     )
     return (
         <Dropdown trigger={["click"]} menu={{items}} {...props}>
-            <Button icon={<DotsThreeVertical size={14} />} type="text" />
+            <Button icon={<DotsThreeVertical size={14} />} type="text" size="small" />
         </Dropdown>
     )
 }
