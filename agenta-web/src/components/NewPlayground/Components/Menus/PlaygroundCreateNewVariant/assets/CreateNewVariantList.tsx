@@ -12,7 +12,6 @@ const CreateNewVariantList = ({
     selectedVariant,
     displayedVariants = [],
     onSelect,
-    closeModal,
     className,
 }: CreateNewVariantListProps) => {
     const classes = useStyles()
@@ -54,15 +53,16 @@ const CreateNewVariantList = ({
         [debouncedSearch],
     )
 
-    const onAddVariant = useCallback((variant: VariantItem, isSelected: boolean) => {
-        if (onSelect) {
-            onSelect(variant.variantId)
-        } else {
-            toggleVariantDisplay?.(variant.variantId, !isSelected)
-        }
-
-        closeModal?.()
-    }, [])
+    const onAddVariant = useCallback(
+        (variant: VariantItem, isSelected: boolean) => {
+            if (onSelect) {
+                onSelect(variant.variantId)
+            } else {
+                toggleVariantDisplay?.(variant.variantId, !isSelected)
+            }
+        },
+        [displayedVariants],
+    )
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
@@ -81,7 +81,7 @@ const CreateNewVariantList = ({
                 </NewVariantButton>
             </div>
 
-            <ul className="list-none p-0 m-0 max-h-[300px] overflow-y-auto">
+            <ul className="list-none p-0 m-0 max-h-[300px] overflow-y-auto flex flex-col gap-1">
                 {filteredVariants.length === 0 ? (
                     <li className="text-center">No variants found</li>
                 ) : (

@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Select} from "antd"
@@ -10,6 +10,7 @@ import PromptFocusButton from "../../Drawers/PromptFocusDrawer/assets/PromptFocu
 import PromptComparisonFocusButton from "../../Drawers/PromptComparisonFocusDrawer/assets/PromptComparisonFocusButton"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -21,19 +22,20 @@ const PlaygroundVariantConfigHeader = ({
     className,
     ...divProps
 }: PlaygroundVariantConfigHeaderProps) => {
-    const {setSelectedVariant, variant, viewType, variants} = usePlayground({
+    const {variantOptions, setSelectedVariant, variant, viewType} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
-    })
+        stateSelector: useCallback((state: PlaygroundStateData) => {
+            const variants = state.variants
 
-    const listOfVariants = useMemo(
-        () =>
-            variants?.map((variant) => ({
-                label: variant.variantName,
-                value: variant.id,
-            })),
-        [],
-    )
+            return {
+                variantOptions: (variants || []).map((variant) => ({
+                    label: variant.variantName,
+                    value: variant.id,
+                })),
+            }
+        }, []),
+    })
 
     return (
         <section
@@ -55,7 +57,7 @@ const PlaygroundVariantConfigHeader = ({
                     onChange={(value) => setSelectedVariant?.(value)}
                     size="small"
                     placeholder="Select variant"
-                    options={listOfVariants}
+                    options={variantOptions}
                     filterOption={(input, option) =>
                         (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
                     }

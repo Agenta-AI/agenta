@@ -46,7 +46,6 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
 
         mutate(
             (clonedState) => {
-                // const clonedState = structuredClone(state)
                 if (!clonedState) return clonedState
 
                 // access the existing generation metadata to pull correct keys from testset rows
@@ -89,7 +88,6 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const clearGeneration = useCallback(() => {
         mutate(
             (clonedState) => {
-                // const clonedState = structuredClone(state)
                 if (!clonedState) return clonedState
 
                 const generationMetadata = clonedState.generationData.inputs.__metadata

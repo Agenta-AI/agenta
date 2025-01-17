@@ -5,11 +5,16 @@ import {GenerationComparisonCompletionInputProps} from "./types"
 const GenerationComparisonCompletionInput = ({
     rowClassName,
     variantId,
+    className,
 }: GenerationComparisonCompletionInputProps) => {
     return (
         <div>
-            <PlaygroundComparisonGenerationInputHeader />
-            <GenerationCompletion variantId={variantId} className={rowClassName} />
+            <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[1] bg-white" />
+            <GenerationCompletion
+                variantId={variantId}
+                className={className}
+                rowClassName={rowClassName}
+            />
         </div>
     )
 }

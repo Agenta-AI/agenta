@@ -1,5 +1,5 @@
 import {Button} from "antd"
-import {MinusCircle, Copy, Image} from "@phosphor-icons/react"
+import {MinusCircle, Copy} from "@phosphor-icons/react"
 import {PromptMessageContentOptionsProps} from "./types"
 import clsx from "clsx"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
@@ -15,6 +15,7 @@ const PromptMessageContentOptions = ({
     propertyId,
     variantId,
     rowId,
+    isMessageDeletable,
 }: PromptMessageContentOptionsProps) => {
     const {baseProperty: property} = usePlayground({
         // variantId,
@@ -60,6 +61,7 @@ const PromptMessageContentOptions = ({
                 icon={<MinusCircle size={14} />}
                 type="text"
                 onClick={() => deleteMessage?.(messageId)}
+                disabled={isMessageDeletable}
             />
         </div>
     )

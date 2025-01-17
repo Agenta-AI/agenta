@@ -6,6 +6,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         width: "100%",
         height: 40,
         borderBottom: `1px solid ${theme.colorBorderSecondary}`,
+        borderRight: `1px solid ${theme.colorBorderSecondary}`,
         padding: `0px 16px`,
         display: "flex",
         gap: 4,

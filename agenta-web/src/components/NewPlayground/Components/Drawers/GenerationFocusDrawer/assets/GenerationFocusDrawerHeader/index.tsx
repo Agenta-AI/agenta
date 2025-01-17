@@ -1,7 +1,8 @@
 import {Button, Radio, Space, Typography} from "antd"
-import {CaretDown, CaretUp, FloppyDisk, Play} from "@phosphor-icons/react"
+import {CaretDown, CaretUp, FloppyDisk} from "@phosphor-icons/react"
 import {GenerationFocusDrawerHeaderProps} from "./types"
 import clsx from "clsx"
+import RunButton from "@/components/NewPlayground/assets/RunButton"
 
 const GenerationFocusDrawerHeader = ({
     format,
@@ -48,14 +49,8 @@ const GenerationFocusDrawerHeader = ({
                     </Radio.Group>
                 </div>
 
-                <Button
-                    icon={<Play size={14} />}
-                    disabled={isRunning}
-                    onClick={runRow}
-                    size="small"
-                >
-                    Re run
-                </Button>
+                <RunButton onClick={runRow} disabled={isRunning} />
+
                 <Button icon={<FloppyDisk size={14} />} size="small">
                     Add to test set
                 </Button>
