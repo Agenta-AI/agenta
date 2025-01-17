@@ -8,4 +8,5 @@ export type GenerationComparisionCompletionOuputProps = {
     result?: Enhanced<InputType<string[]>> | undefined
     isRunning?: boolean | undefined
     format?: OutputFormat
+    indexName?: string
 }

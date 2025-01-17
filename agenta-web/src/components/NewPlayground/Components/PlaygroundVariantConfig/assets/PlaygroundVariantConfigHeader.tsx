@@ -53,6 +53,7 @@ const PlaygroundVariantConfigHeader = ({
                     style={{width: 120}}
                     value={variant?.id}
                     onChange={(value) => setSelectedVariant?.(value)}
+                    size="small"
                     placeholder="Select variant"
                     options={listOfVariants}
                     filterOption={(input, option) =>

@@ -212,7 +212,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             if (!variant) throw new Error("Variant not found")
 
                             variant.__isMutating = true
-
                             return clonedState
                         },
                         {

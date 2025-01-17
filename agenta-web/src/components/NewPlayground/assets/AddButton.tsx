@@ -2,13 +2,18 @@ import {Button, type ButtonProps} from "antd"
 import {Plus} from "@phosphor-icons/react"
 
 interface AddButtonProps extends ButtonProps {
-    label: string
+    label?: string
 }
 
 const AddButton = ({label, ...props}: AddButtonProps) => {
     return (
-        <Button variant="outlined" color="default" className="self-start" {...props}>
-            <Plus size={14} />
+        <Button
+            variant="outlined"
+            color="default"
+            icon={<Plus size={14} />}
+            className="self-start"
+            {...props}
+        >
             {label}
         </Button>
     )

@@ -1,6 +1,6 @@
 import clsx from "clsx"
 import {useStyles} from "../styles"
-import PlaygroundComparisionGenerationOutputHeader from "../assets/GenerationComparisionOutputHeader"
+import GenerationComparisionOutputHeader from "../assets/GenerationComparisionOutputHeader"
 import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisionCompletionOuputProps} from "./types"
@@ -10,6 +10,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 import {useCallback} from "react"
 import {getYamlOrJson} from "@/lib/helpers/utils"
 import {OutputFormat} from "../../Drawers/GenerationFocusDrawer/types"
+import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
 
 const GenerationComparisionCompletionOuputRow = ({
     rowId,
@@ -25,27 +26,51 @@ const GenerationComparisionCompletionOuputRow = ({
     format?: OutputFormat
 }) => {
     const classes = useStyles()
-    const {result, isRunning} = usePlayground({
+    const {result, isRunning, variableIds} = usePlayground({
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const inputRow = state.generationData.value.find((inputRow) => {
                     return inputRow.__id === rowId
                 })
                 const variantRun = inputRow?.__runs?.[variantId]
+                const variables = getEnhancedProperties(inputRow)
+                const variableIds = variables.map((p) => p.__id)
+
                 return {
                     result: variantRun?.__result,
                     isRunning: variantRun?.__isRunning,
+                    variableIds,
                 }
             },
             [rowId, variantId],
         ),
     })
 
-    return (
-        <div className={clsx("group/item", className)}>
-            <PlaygroundComparisionGenerationOutputHeader />
+    /*
+      The container height is calculated to ensure that the Output-component and Input-component heights are synchronized.
+      - 96 represents the static height of each input container.
+      - 1 accounts for the border height of each input container.
+      - 48 is the height of the Run button section in the input container, which is only added when there is no response.
 
-            <div className={clsx("w-full h-24 py-2 px-4 relative", classes.containerBorder)}>
+      If there is a response, the height is calculated as:
+      containerHeight = variableIds.length * 96 + 1
+
+      If there is no response, the height includes the Run button section:
+      containerHeight = variableIds.length * 96 + 1 + 48
+   */
+    const containerHeight = result?.response
+        ? variableIds.length * 96 + 1
+        : variableIds.length * 96 + 1 + 48
+
+    return (
+        <div className={className}>
+            <div
+                style={{height: containerHeight}}
+                className={clsx(
+                    "w-full py-2 px-4 relative group/item overflow-y-auto [&::-webkit-scrollbar]:w-0",
+                    classes.containerBorder,
+                )}
+            >
                 {isRunning ? (
                     <GenerationOutputText text="Running..." />
                 ) : !result ? (
@@ -69,7 +94,8 @@ const GenerationComparisionCompletionOuputRow = ({
                 {!focusDisable && (
                     <GenerationFocusDrawerButton
                         variantIds={variantId}
-                        className="absolute top-2 right-2"
+                        className="absolute top-1.5 right-2 invisible group-hover/item:visible"
+                        size="small"
                         rowId=""
                     />
                 )}
@@ -95,6 +121,7 @@ const GenerationComparisionCompletionOuput = ({
     focusDisable = false,
     result,
     isRunning,
+    indexName,
 }: GenerationComparisionCompletionOuputProps) => {
     const {inputRowIds} = usePlayground({
         stateSelector: (state) => {
@@ -107,6 +134,8 @@ const GenerationComparisionCompletionOuput = ({
 
     return (
         <>
+            <GenerationComparisionOutputHeader variantId={variantId} indexName={indexName} />
+
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationComparisionCompletionOuputRow
