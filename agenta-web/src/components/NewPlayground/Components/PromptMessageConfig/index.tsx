@@ -9,6 +9,8 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 import type {PromptMessageConfigProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
+import {PlaygroundStateData} from "../../hooks/usePlayground/types"
+import {findVariantById} from "../../hooks/usePlayground/assets/helpers"
 
 /**
  * PromptMessageConfig Component
@@ -27,14 +29,24 @@ const PromptMessageConfig = ({
     variantId,
     messageId,
     className,
+    rowId,
     deleteMessage,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
+        stateSelector: useCallback((state: PlaygroundStateData) => {
+            const message = !!rowId
+                ? state.generationData.messages.value.find((v) => v.__id === rowId)
+                : variantId
+                  ? state.variants.find((v) => v.id === variantId)
+                  : null
+
+            if (!rowId) {
+                const variant = findVariantById(state, variantId)
+                if (!variant) return {message: undefined}
+
                 for (const prompt of variant.prompts || []) {
                     const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
                     if (message) {
@@ -47,9 +59,37 @@ const PromptMessageConfig = ({
                     }
                 }
                 return {message: undefined}
-            },
-            [messageId],
-        ),
+            } else {
+                const message = state.generationData.messages.value.find((inputRow) => {
+                    return inputRow.__id === rowId
+                })?.value
+
+                if (!message) return {message: undefined}
+                return {
+                    message: {
+                        role: message.role.__id,
+                        content: message.content.__id,
+                    },
+                }
+            }
+        }, []),
+        // variantSelector: useCallback(
+        //     (variant: EnhancedVariant) => {
+        // for (const prompt of variant.prompts || []) {
+        //     const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
+        //     if (message) {
+        //         return {
+        //             message: {
+        //                 role: message.role.__id,
+        //                 content: message.content.__id,
+        //             },
+        //         }
+        //     }
+        // }
+        // return {message: undefined}
+        //     },
+        //     [messageId],
+        // ),
     })
 
     if (!message) {
@@ -65,6 +105,7 @@ const PromptMessageConfig = ({
                     <PlaygroundVariantPropertyControl
                         propertyId={message.role}
                         variantId={variantId}
+                        rowId={rowId}
                         as="SimpleDropdownSelect"
                     />
 
@@ -72,11 +113,13 @@ const PromptMessageConfig = ({
                         className="invisible group-hover/item:visible"
                         deleteMessage={deleteMessage}
                         propertyId={message.content}
+                        rowId={rowId}
                         variantId={variantId}
                         messageId={messageId}
                     />
                 </div>
                 <PlaygroundVariantPropertyControl
+                    rowId={rowId}
                     propertyId={message.content}
                     variantId={variantId}
                     as="PromptMessageContent"

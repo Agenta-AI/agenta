@@ -1,32 +1,67 @@
 import {useCallback} from "react"
-import {GenerationChatProps} from "./types"
-import GenerationCompletionRow from "../GenerationCompletionRow"
-import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import clsx from "clsx"
-import GenerationChatRow from "../GenerationChatRow"
-import AddButton from "@/components/NewPlayground/assets/AddButton"
+
 import {Typography} from "antd"
 import {Plus} from "@phosphor-icons/react"
+import clsx from "clsx"
+
+import GenerationCompletionRow from "../GenerationCompletionRow"
+import GenerationChatRow from "../GenerationChatRow"
+import AddButton from "../../../../assets/AddButton"
+import {getMetadataLazy} from "../../../../state"
+
+import usePlayground from "../../../../hooks/usePlayground"
+
+import type {GenerationChatProps} from "./types"
+import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import type {
+    ArrayMetadata,
+    ObjectMetadata,
+} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {
+    createMessageFromSchema,
+    createMessageRow,
+} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 
 const GenerationChat = ({variantId}: GenerationChatProps) => {
-    const {inputRowIds, messages} = usePlayground({
+    const {mutate, inputRowIds, messageRowIds} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            const inputRows = variant.inputs?.value || []
-
-            // Flatten messages from all prompts
-            const allMessages = variant.prompts
-                ?.flatMap((prompt) => prompt.messages?.value || [])
-                .filter(Boolean)
+        stateSelector: useCallback((state: PlaygroundStateData) => {
+            const inputRows = state.generationData.inputs.value || []
+            const messageRows = state.generationData.messages.value || []
 
             return {
                 inputRowIds: (inputRows || []).map((inputRow) => inputRow.__id),
-                messages: allMessages || [],
+                messageRowIds: (messageRows || []).map((messageRow) => messageRow.__id),
             }
         }, []),
     })
+
+    const addNewMessageRow = useCallback(() => {
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
+
+            const _metadata = getMetadataLazy<ArrayMetadata>(
+                clonedState?.generationData.messages.__metadata,
+            )
+
+            const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
+
+            if (!itemMetadata) return clonedState
+
+            const emptyMessage = createMessageFromSchema(itemMetadata)
+
+            const newRow = createMessageRow(emptyMessage, itemMetadata)
+
+            clonedState.generationData.messages.value.push(newRow)
+
+            console.log("clonedState.generationData.messages", clonedState.generationData.messages)
+
+            return clonedState
+        })
+    }, [mutate])
+
+    console.log("messageRowIds", messageRowIds)
 
     return (
         <section className="flex flex-col">
@@ -45,11 +80,11 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
                 <div className="flex flex-col gap-1">
                     <Typography>Chat</Typography>
                     <div className="flex flex-col gap-6">
-                        {messages.map((msg) => (
+                        {messageRowIds.map((messageRow) => (
                             <GenerationChatRow
-                                key={msg.__id}
+                                key={messageRow}
                                 variantId={variantId}
-                                message={msg}
+                                rowId={messageRow}
                                 disabled={true}
                                 type="output"
                             />
@@ -64,13 +99,13 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
                 </div>
 
                 {/* TODO: properly support input on the GenerationChatRow  */}
-                <div className="flex flex-col gap-6">
+                {/* <div className="flex flex-col gap-6">
                     <GenerationChatRow variantId={variantId} message={messages[1]} type="input" />
-                </div>
+                </div> */}
             </div>
 
             <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
-                <AddButton size="small" label="Input" />
+                <AddButton size="small" label="Message" onClick={addNewMessageRow} />
             </div>
         </section>
     )
