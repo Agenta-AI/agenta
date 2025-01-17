@@ -1,6 +1,6 @@
 import React from "react"
 
-export type PromptComparisionWrapperProps = {
+export type PromptComparisonWrapperProps = {
     children: React.ReactNode
     className?: string
 }

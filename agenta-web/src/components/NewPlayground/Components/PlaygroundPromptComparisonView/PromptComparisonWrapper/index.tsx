@@ -1,10 +1,7 @@
-import {PromptComparisionWrapperProps} from "./typed"
+import {PromptComparisonWrapperProps} from "./typed"
 import clsx from "clsx"
 
-const PromptComparisionWrapper: React.FC<PromptComparisionWrapperProps> = ({
-    className,
-    children,
-}) => {
+const PromptComparisonWrapper: React.FC<PromptComparisonWrapperProps> = ({className, children}) => {
     return (
         <div
             className={clsx(
@@ -17,4 +14,4 @@ const PromptComparisionWrapper: React.FC<PromptComparisionWrapperProps> = ({
     )
 }
 
-export default PromptComparisionWrapper
+export default PromptComparisonWrapper

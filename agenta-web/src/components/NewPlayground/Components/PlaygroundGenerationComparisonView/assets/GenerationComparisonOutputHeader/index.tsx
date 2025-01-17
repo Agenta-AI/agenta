@@ -1,11 +1,11 @@
 import {Tag, Typography} from "antd"
 import clsx from "clsx"
 import {useStyles} from "../styles"
-import {GenerationComparisionOutputHeaderProps} from "./types"
+import {GenerationComparisonOutputHeaderProps} from "./types"
 import Version from "@/components/NewPlayground/assets/Version"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
-const GenerationComparisionOutputHeader: React.FC<GenerationComparisionOutputHeaderProps> = ({
+const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeaderProps> = ({
     className,
     variantId,
     indexName,
@@ -24,4 +24,4 @@ const GenerationComparisionOutputHeader: React.FC<GenerationComparisionOutputHea
     )
 }
 
-export default GenerationComparisionOutputHeader
+export default GenerationComparisonOutputHeader

@@ -1,13 +1,13 @@
 import {useMemo} from "react"
 import useDrawerWidth from "@/components/NewPlayground/hooks/useDrawerWidth"
 import {Drawer, Tabs, TabsProps} from "antd"
-import {PromptComparisionFocusDrawerProps} from "./types"
+import {PromptComparisonFocusDrawerProps} from "./types"
 import {useStyles} from "./styles"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import PlaygroundVariantConfig from "../../PlaygroundVariantConfig"
-import PromptComparisionWrapper from "../../PlaygroundPromptComparisionView/PromptComparisionWrapper"
+import PromptComparisonWrapper from "../../PlaygroundPromptComparisonView/PromptComparisonWrapper"
 
-const PromptComparisionFocusDrawer: React.FC<PromptComparisionFocusDrawerProps> = ({...props}) => {
+const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = ({...props}) => {
     const classes = useStyles()
     const {drawerWidth} = useDrawerWidth()
     const {variantIds} = usePlayground()
@@ -54,9 +54,9 @@ const PromptComparisionFocusDrawer: React.FC<PromptComparisionFocusDrawerProps> 
 
                     <div className="w-full flex items-start">
                         {(variantIds || []).map((variantId) => (
-                            <PromptComparisionWrapper key={variantId}>
+                            <PromptComparisonWrapper key={variantId}>
                                 <PlaygroundVariantConfig variantId={variantId as string} />
-                            </PromptComparisionWrapper>
+                            </PromptComparisonWrapper>
                         ))}
                     </div>
                 </section>
@@ -65,4 +65,4 @@ const PromptComparisionFocusDrawer: React.FC<PromptComparisionFocusDrawerProps> 
     )
 }
 
-export default PromptComparisionFocusDrawer
+export default PromptComparisonFocusDrawer
