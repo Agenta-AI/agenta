@@ -22,12 +22,12 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
 
     const deleteInputRow = useCallback(() => {
         mutate(
-            (state) => {
-                const clonedState = structuredClone(state)
-                if (!clonedState) return state
+            (clonedState) => {
+                // const clonedState = structuredClone(state)
+                if (!clonedState) return clonedState
 
-                const generationRows = clonedState.generationData.value
-                clonedState.generationData.value = generationRows.filter(
+                const generationRows = clonedState.generationData.inputs.value
+                clonedState.generationData.inputs.value = generationRows.filter(
                     (row) => row.__id !== rowId,
                 )
 
@@ -39,15 +39,15 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
 
     const duplicateInputRow = useCallback(() => {
         mutate(
-            (state) => {
-                const clonedState = structuredClone(state)
-                if (!clonedState) return state
+            (clonedState) => {
+                // const clonedState = structuredClone(state)
+                if (!clonedState) return clonedState
 
-                const itemMetadata = clonedState.generationData.__metadata.itemMetadata
+                const itemMetadata = clonedState.generationData.inputs.__metadata.itemMetadata
                 const inputKeys = Object.keys(itemMetadata.properties)
                 const newRow = createInputRow(inputKeys, itemMetadata)
 
-                const existingRow = clonedState?.generationData.value.find(
+                const existingRow = clonedState?.generationData.inputs.value.find(
                     (row) => row.__id === rowId,
                 )
 
@@ -59,7 +59,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                     })
                 }
 
-                clonedState.generationData.value.push(newRow)
+                clonedState.generationData.inputs.value.push(newRow)
 
                 return clonedState
             },

@@ -176,13 +176,13 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         swr.mutate((clonedState) => {
                             if (!clonedState) return clonedState
 
-                            const testRow = clonedState.generationData.value.find(
-                                (row) => row.__id === rowId,
-                            )
+                            const inputs = clonedState.generationData.inputs
 
-                            if (!testRow || !testRow.__runs) return clonedState
+                            const inputTestRow = inputs.value.find((row) => row.__id === rowId)
 
-                            testRow.__runs[variantId] = {
+                            if (!inputTestRow || !inputTestRow.__runs) return clonedState
+
+                            inputTestRow.__runs[variantId] = {
                                 __result: message.payload.result,
                                 __isRunning: false,
                             }
@@ -262,8 +262,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 try {
                     // first set the mutation state of the variant to true
                     swr.mutate(
-                        (state) => {
-                            const clonedState = structuredClone(state)
+                        (clonedState) => {
                             const variant = findVariantById(clonedState, variantId!)
                             if (!variant) throw new Error("Variant not found")
 
@@ -394,11 +393,13 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                         // Only sync inputs if the keys have changed
                         if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
-                            clonedState.generationData = syncVariantInputs(
+                            clonedState.generationData.inputs = syncVariantInputs(
                                 updatedVariant,
-                                clonedState.generationData,
+                                clonedState.generationData.inputs,
                             )
                         }
+
+                        // TODO: add message synchronization as well
 
                         const index = clonedState?.variants?.findIndex(
                             (v) => v.id === clonedVariant.id,

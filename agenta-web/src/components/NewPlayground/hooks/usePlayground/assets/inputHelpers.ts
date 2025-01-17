@@ -184,7 +184,7 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
  */
 export function syncVariantInputs(
     variant: EnhancedVariant,
-    generationData: EnhancedVariant["inputs"],
+    generationInputData: EnhancedVariant["inputs"],
 ) {
     const currentInputKeys = new Set(
         variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
@@ -194,7 +194,7 @@ export function syncVariantInputs(
 
     const inputSchema = createInputSchema(inputStrings)
 
-    const existingInputsId = generationData?.__id || generateId()
+    const existingInputsId = generationInputData?.__id || generateId()
 
     // Create metadata with ID properly typed
     const metadata = {
@@ -203,7 +203,7 @@ export function syncVariantInputs(
     }
 
     // Update each row while preserving all IDs
-    const updatedRows = (generationData?.value || []).map((row) => {
+    const updatedRows = (generationInputData?.value || []).map((row) => {
         const keys = [...inputStrings] as const
         const metadataHash = hashMetadata(row.__metadata)
 
@@ -248,13 +248,13 @@ export function syncVariantInputs(
 
     const metadataHash = hashMetadata(metadata)
 
-    generationData = {
+    generationInputData = {
         __id: existingInputsId,
         __metadata: metadataHash,
         value: updatedRows,
     }
 
-    return generationData
+    return generationInputData
 }
 
 /**

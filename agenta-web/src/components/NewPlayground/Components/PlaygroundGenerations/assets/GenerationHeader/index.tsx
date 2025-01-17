@@ -22,7 +22,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRows = state.generationData.value
+                const inputRows = state.generationData.inputs.value
 
                 // TODO: use the results to get all the responses to save on the Testset
                 const results = inputRows.map((inputRow) =>
@@ -45,12 +45,12 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         const data = Array.isArray(d) ? d : [d]
 
         mutate(
-            (state) => {
-                const clonedState = structuredClone(state)
-                if (!clonedState) return state
+            (clonedState) => {
+                // const clonedState = structuredClone(state)
+                if (!clonedState) return clonedState
 
                 // access the existing generation metadata to pull correct keys from testset rows
-                const generationMetadata = clonedState.generationData.__metadata
+                const generationMetadata = clonedState.generationData.inputs.__metadata
 
                 // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
@@ -72,7 +72,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     return newRow
                 })
 
-                clonedState.generationData.value = newGenerationRows.filter(
+                clonedState.generationData.inputs.value = newGenerationRows.filter(
                     (row) => !!row,
                 ) as EnhancedObjectConfig<InputType<string[]>>[]
 
@@ -88,18 +88,18 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
 
     const clearGeneration = useCallback(() => {
         mutate(
-            (state) => {
-                const clonedState = structuredClone(state)
-                if (!clonedState) return state
+            (clonedState) => {
+                // const clonedState = structuredClone(state)
+                if (!clonedState) return clonedState
 
-                const generationMetadata = clonedState.generationData.__metadata
+                const generationMetadata = clonedState.generationData.inputs.__metadata
                 const metadata =
                     getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)?.itemMetadata
                 if (!metadata) return clonedState
 
                 const inputKeys = Object.keys(metadata.properties)
                 const newRow = createInputRow(inputKeys, metadata)
-                clonedState.generationData.value = [newRow]
+                clonedState.generationData.inputs.value = [newRow]
 
                 return clonedState
             },

@@ -32,7 +32,7 @@ const GenerationCompletionRow = ({
             variantId,
             stateSelector: useCallback(
                 (state: PlaygroundStateData) => {
-                    const inputRow = state.generationData.value.find((inputRow) => {
+                    const inputRow = state.generationData.inputs.value.find((inputRow) => {
                         return inputRow.__id === rowId
                     })
 

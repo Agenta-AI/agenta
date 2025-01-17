@@ -164,7 +164,8 @@ const PlaygroundVariantPropertyControl = ({
         hookId: "PlaygroundVariantPropertyControl",
         stateSelector: (state) => {
             const object = !!rowId
-                ? state.generationData.value.find((v) => v.__id === rowId)
+                ? state.generationData.inputs.value.find((v) => v.__id === rowId) ||
+                  state.generationData.messages.value.find((v) => v.__id === rowId)
                 : variantId
                   ? state.variants.find((v) => v.id === variantId)
                   : null
@@ -191,9 +192,9 @@ const PlaygroundVariantPropertyControl = ({
         const handler = rowId
             ? (e: any) => {
                   mutate(
-                      (draft) => {
-                          const clonedState = structuredClone(draft)
-                          if (!clonedState) return draft
+                      (clonedState) => {
+                          //   const clonedState = structuredClone(draft)
+                          if (!clonedState) return clonedState
 
                           const val = e
                               ? typeof e === "object" && "target" in e
@@ -201,9 +202,13 @@ const PlaygroundVariantPropertyControl = ({
                                   : e
                               : null
 
-                          const object = clonedState.generationData.value.find(
-                              (v) => v.__id === rowId,
-                          )
+                          const object =
+                              clonedState.generationData.inputs.value.find(
+                                  (v) => v.__id === rowId,
+                              ) ||
+                              clonedState.generationData.messages.value.find(
+                                  (v) => v.__id === rowId,
+                              )
                           if (!object) return
 
                           const property = findPropertyInObject(object, propertyId) as Enhanced<any>

@@ -1,9 +1,10 @@
 import {createInputRow, createInputSchema} from "./inputHelpers"
-import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
-import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
+import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
+import {hashMetadata} from "../../../assets/utilities/hash"
+import {createMessageRow} from "./messageHelpers"
 
-import type {EnhancedConfigValue} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
+import {type EnhancedConfigValue} from "../../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 /**
  * Extracts all unique input keys from a collection of variants
@@ -38,5 +39,48 @@ export const initializeComparisonInputs = (variants: EnhancedVariant[]) => {
         __id: generateId(),
         __metadata: metadataHash,
         value: [initialInputRow],
+    }
+}
+
+export const getUniqueMessages = (variants: EnhancedVariant[]) => {
+    // Extract all messages from all prompts
+    const allMessages = variants.flatMap((variant) =>
+        variant.prompts.flatMap((prompt) => prompt.messages.value),
+    )
+
+    // Create a Map using role+content as key to ensure uniqueness
+    const uniqueMessages = new Map<string, (typeof allMessages)[0]>()
+
+    allMessages.forEach((message) => {
+        const key = `${message.role.value}:${message.content.value}`
+        if (!uniqueMessages.has(key)) {
+            uniqueMessages.set(key, message)
+        }
+    })
+
+    return Array.from(uniqueMessages.values())
+}
+
+export const initializeComparisonMessages = (variants: EnhancedVariant[]) => {
+    const uniqueSystemMessages = getUniqueMessages(variants)
+
+    const emptyMessage = structuredClone(uniqueSystemMessages[0])
+    emptyMessage.__id = generateId()
+
+    for (const key in emptyMessage) {
+        if (key !== "__id" && key !== "__metadata") {
+            emptyMessage[key].value = ""
+        }
+    }
+
+    const initialMessageRows = uniqueSystemMessages.map((message) =>
+        createMessageRow(message, uniqueSystemMessages[0].__metadata),
+    )
+    initialMessageRows.push(createMessageRow(emptyMessage, uniqueSystemMessages[0].__metadata))
+
+    return {
+        __id: generateId(),
+        __metadata: variants[0].prompts[0].messages.__metadata,
+        value: initialMessageRows,
     }
 }

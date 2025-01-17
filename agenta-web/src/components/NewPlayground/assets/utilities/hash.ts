@@ -15,7 +15,7 @@ export const hash = (value: any) => {
 }
 
 export const hashMetadata = (metadata: any) => {
-    if (typeof metadata === "string" && atomStore.get(metadataAtom)[metadata]) {
+    if (typeof metadata === "string") {
         return metadata
     } else {
         const metadataHash = hash(metadata)

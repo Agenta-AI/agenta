@@ -7,5 +7,8 @@ export interface InitialStateType {
     selected: string[]
     spec?: OpenAPISpec
     dirtyStates: Map<string, boolean>
-    generationData: EnhancedVariant["inputs"]
+    generationData: {
+        inputs: EnhancedVariant["inputs"]
+        messages: EnhancedVariant["messages"]
+    }
 }

@@ -53,5 +53,8 @@ export const initialState: InitialStateType = {
     variants: [],
     selected: [],
     dirtyStates: new Map<string, boolean>(),
-    generationData: {} as InitialStateType["generationData"],
+    generationData: {
+        messages: {} as InitialStateType["generationData"]["messages"],
+        inputs: {} as InitialStateType["generationData"]["inputs"],
+    } as InitialStateType["generationData"],
 }
