@@ -57,8 +57,8 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                 className={clsx([
                     "border-0",
                     "focus:ring-0",
-                    "ml-2 !p-0",
-                    "bg-transparent hover:bg-transparent focus:bg-transparent",
+                    "!p-0 mt-1",
+                    "bg-transparent hover:bg-transparent focus:bg-transparent !rounded-none",
                 ])}
                 placeholder={metadata.description}
                 autoSize={{minRows: 3}}

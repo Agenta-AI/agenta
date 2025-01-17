@@ -49,14 +49,14 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
     componentLogger("GenerationTestView", inputRowIds)
 
     return (
-        <div className={clsx(["flex flex-col", {"gap-4": viewType === "single"}])}>
+        <div className={clsx(["flex flex-col", {"gap-4": viewType === "single"}], className)}>
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
                         key={inputRowId}
                         variantId={variantId}
                         rowId={inputRowId}
-                        className={rowClassName || className}
+                        className={rowClassName}
                     />
                 )
             })}

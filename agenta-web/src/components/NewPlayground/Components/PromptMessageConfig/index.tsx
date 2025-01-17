@@ -28,6 +28,7 @@ const PromptMessageConfig = ({
     messageId,
     className,
     deleteMessage,
+    isMessageDeletable,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -74,6 +75,7 @@ const PromptMessageConfig = ({
                         propertyId={message.content}
                         variantId={variantId}
                         messageId={messageId}
+                        isMessageDeletable={isMessageDeletable}
                     />
                 </div>
                 <PlaygroundVariantPropertyControl
