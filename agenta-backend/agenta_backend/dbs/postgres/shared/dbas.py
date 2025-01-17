@@ -2,6 +2,24 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, String, UUID, TIMESTAMP, func, Integer
 
 
+class OrganizationScopeDBA:
+    __abstract__ = True
+
+    organization_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+
+
+class WorkspaceScopeDBA:
+    __abstract__ = True
+
+    workspace_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+
+
 class ProjectScopeDBA:
     __abstract__ = True
 
