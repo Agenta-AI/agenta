@@ -59,13 +59,13 @@ const VariantNavigationCard = ({variantId, id, className}: VariantNavigationCard
                 </div>
             </div>
             <div className="flex items-center justify-between">
-                <Text>Avarage Latency</Text>
+                <Text>Average Latency</Text>
                 <Tag color="default" bordered={false} className="flex items-center gap-1">
                     <Timer size={14} /> {time_end}
                 </Tag>
             </div>
             <div className="flex items-center justify-between">
-                <Text>Avarage Cost</Text>
+                <Text>Average Cost</Text>
                 <Tag color="default" bordered={false} className="flex items-center gap-1">
                     <PlusCircle size={14} /> {cost}
                 </Tag>

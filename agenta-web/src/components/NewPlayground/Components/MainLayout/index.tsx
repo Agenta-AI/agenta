@@ -3,12 +3,12 @@ import clsx from "clsx"
 
 import usePlayground from "../../hooks/usePlayground"
 import type {BaseContainerProps} from "../types"
-import GenerationComparisionCompletionOuput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionOuput"
-import GenerationComparisionCompletionInput from "../PlaygroundGenerationComparisionView/GenerationComparisionCompletionInput"
-import GenerationComparisonHeader from "../PlaygroundGenerationComparisionView/GenerationComparisonHeader"
+import GenerationComparisonCompletionOutput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
+import GenerationComparisonCompletionInput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionInput"
+import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
 
 const PromptComparisonVariantNavigation = dynamic(
-    () => import("../PlaygroundPromptComparisionView/PromptComparisionVariantNavigation"),
+    () => import("../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"),
     {ssr: false},
 )
 const PlaygroundVariantConfig = dynamic(() => import("../PlaygroundVariantConfig"), {ssr: false})
@@ -80,7 +80,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                             key={variantId}
                                             className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0"
                                         >
-                                            <GenerationComparisionCompletionInput
+                                            <GenerationComparisonCompletionInput
                                                 variantId={variantId}
                                                 rowClassName="bg-[#f5f7fa]"
                                             />
@@ -100,7 +100,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         ])}
                                     >
                                         {isComparisonView ? (
-                                            <GenerationComparisionCompletionOuput
+                                            <GenerationComparisonCompletionOutput
                                                 variantId={variantId}
                                                 indexName={String.fromCharCode(65 + index)}
                                             />

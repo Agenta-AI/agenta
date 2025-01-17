@@ -1,4 +1,4 @@
-export type GenerationComparisionCompletionInputProps = {
+export type GenerationComparisonCompletionInputProps = {
     className?: string
     rowClassName?: string
     variantId: string

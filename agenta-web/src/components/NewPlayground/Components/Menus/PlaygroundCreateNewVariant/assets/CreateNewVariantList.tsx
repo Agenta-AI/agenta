@@ -96,7 +96,7 @@ const CreateNewVariantList = ({
                                 onClick={() => onAddVariant(variant, isSelected)}
                                 className={clsx([
                                     classes.variant,
-                                    isSelected && classes.selectedVaraint,
+                                    isSelected && classes.selectedVariant,
                                 ])}
                             >
                                 {variant.variantName}

@@ -1,9 +1,9 @@
 import clsx from "clsx"
 import {useStyles} from "../styles"
-import GenerationComparisionOutputHeader from "../assets/GenerationComparisionOutputHeader"
+import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
 import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
-import {GenerationComparisionCompletionOuputProps} from "./types"
+import {GenerationComparisonCompletionOutputProps} from "./types"
 import GenerationFocusDrawerButton from "../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
@@ -12,7 +12,7 @@ import {getYamlOrJson} from "@/lib/helpers/utils"
 import {OutputFormat} from "../../Drawers/GenerationFocusDrawer/types"
 import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
 
-const GenerationComparisionCompletionOuputRow = ({
+const GenerationComparisonCompletionOutputRow = ({
     rowId,
     focusDisable,
     className,
@@ -115,14 +115,14 @@ const GenerationComparisionCompletionOuputRow = ({
     )
 }
 
-const GenerationComparisionCompletionOuput = ({
+const GenerationComparisonCompletionOutput = ({
     variantId,
     className,
     focusDisable = false,
     result,
     isRunning,
     indexName,
-}: GenerationComparisionCompletionOuputProps) => {
+}: GenerationComparisonCompletionOutputProps) => {
     const {inputRowIds} = usePlayground({
         stateSelector: (state) => {
             const inputRows = state.generationData.value || []
@@ -134,11 +134,11 @@ const GenerationComparisionCompletionOuput = ({
 
     return (
         <>
-            <GenerationComparisionOutputHeader variantId={variantId} indexName={indexName} />
+            <GenerationComparisonOutputHeader variantId={variantId} indexName={indexName} />
 
             {inputRowIds.map((inputRowId) => {
                 return (
-                    <GenerationComparisionCompletionOuputRow
+                    <GenerationComparisonCompletionOutputRow
                         key={inputRowId}
                         variantId={variantId}
                         rowId={inputRowId}
@@ -151,4 +151,4 @@ const GenerationComparisionCompletionOuput = ({
     )
 }
 
-export default GenerationComparisionCompletionOuput
+export default GenerationComparisonCompletionOutput

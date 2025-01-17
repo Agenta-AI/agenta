@@ -7,7 +7,7 @@ import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import Version from "@/components/NewPlayground/assets/Version"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 import PromptFocusButton from "../../Drawers/PromptFocusDrawer/assets/PromptFocusButton"
-import PromptComparisonFocusButton from "../../Drawers/PromptComparisionFocusDrawer/assets/PromptComparisonFocusButton"
+import PromptComparisonFocusButton from "../../Drawers/PromptComparisonFocusDrawer/assets/PromptComparisonFocusButton"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
 

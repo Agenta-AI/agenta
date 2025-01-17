@@ -3,7 +3,7 @@ import {Drawer} from "antd"
 import useDrawerWidth from "../../../hooks/useDrawerWidth"
 import {GenerationFocusDrawerProps, OutputFormat} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import GenerationComparisionCompletionOuput from "../../PlaygroundGenerationComparisionView/GenerationComparisionCompletionOuput"
+import GenerationComparisonCompletionOutput from "../../PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
 import GenerationFocusDrawerHeader from "./assets/GenerationFocusDrawerHeader"
 import GenerationOutputNavigator from "./assets/GenerationOutputNavigator"
 import clsx from "clsx"
@@ -93,7 +93,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
             >
                 {/*TODO: add support of multiple variants */}
                 {(displayedVariants || []).map((variantId) => (
-                    <GenerationComparisionCompletionOuput
+                    <GenerationComparisonCompletionOutput
                         key={variantId}
                         variantId={variantId}
                         focusDisable={true}

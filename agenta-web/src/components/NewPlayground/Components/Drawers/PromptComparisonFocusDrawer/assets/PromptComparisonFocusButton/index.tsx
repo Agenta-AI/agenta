@@ -3,7 +3,7 @@ import dynamic from "next/dynamic"
 import {Button} from "antd"
 import {ArrowsOut} from "@phosphor-icons/react"
 import {PromptComparisonFocusButtonProps} from "./types"
-const PromptComparisionFocusDrawer = dynamic(() => import("../.."), {ssr: false})
+const PromptComparisonFocusDrawer = dynamic(() => import("../.."), {ssr: false})
 
 const PromptComparisonFocusButton = ({
     variantId,
@@ -39,7 +39,7 @@ const PromptComparisonFocusButton = ({
             )}
 
             {isPromptFocusOpen && (
-                <PromptComparisionFocusDrawer
+                <PromptComparisonFocusDrawer
                     open={isPromptFocusOpen}
                     onClose={() => setIsPromptFocusOpen(false)}
                     variantId={variantId}

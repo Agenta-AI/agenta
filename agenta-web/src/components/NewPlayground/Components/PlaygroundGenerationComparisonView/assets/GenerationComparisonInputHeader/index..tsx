@@ -1,9 +1,9 @@
 import {Typography} from "antd"
 import clsx from "clsx"
 import {useStyles} from "../styles"
-import {GenerationComparisionInputHeaderProps} from "./types"
+import {GenerationComparisonInputHeaderProps} from "./types"
 
-const GenerationComparisionInputHeader: React.FC<GenerationComparisionInputHeaderProps> = ({
+const GenerationComparisonInputHeader: React.FC<GenerationComparisonInputHeaderProps> = ({
     className,
 }) => {
     const classes = useStyles()
@@ -15,4 +15,4 @@ const GenerationComparisionInputHeader: React.FC<GenerationComparisionInputHeade
     )
 }
 
-export default GenerationComparisionInputHeader
+export default GenerationComparisonInputHeader
