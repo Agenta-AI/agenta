@@ -134,7 +134,11 @@ const GenerationComparisonCompletionOutput = ({
 
     return (
         <>
-            <GenerationComparisonOutputHeader variantId={variantId} indexName={indexName} />
+            <GenerationComparisonOutputHeader
+                variantId={variantId}
+                indexName={indexName}
+                className="sticky top-0 z-[1] bg-white"
+            />
 
             {inputRowIds.map((inputRowId) => {
                 return (

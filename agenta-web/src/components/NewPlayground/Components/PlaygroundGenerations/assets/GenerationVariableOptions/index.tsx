@@ -7,6 +7,12 @@ import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGeneratio
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import GenerationFocusDrawerButton from "../../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {
+    ArrayMetadata,
+    ObjectMetadata,
+} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
@@ -15,15 +21,18 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     result,
     inputText,
 }) => {
-    const {mutate, viewType} = usePlayground({
+    const {mutate, viewType, inputRows} = usePlayground({
         variantId,
         hookId: "GenerationVariableOptions",
+        stateSelector: useCallback((state: PlaygroundStateData) => {
+            const inputRows = state.generationData.value || []
+            return {inputRows}
+        }, []),
     })
 
     const deleteInputRow = useCallback(() => {
         mutate(
             (clonedState) => {
-                // const clonedState = structuredClone(state)
                 if (!clonedState) return clonedState
 
                 const generationRows = clonedState.generationData.inputs.value
@@ -40,10 +49,15 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     const duplicateInputRow = useCallback(() => {
         mutate(
             (clonedState) => {
-                // const clonedState = structuredClone(state)
                 if (!clonedState) return clonedState
 
-                const itemMetadata = clonedState.generationData.inputs.__metadata.itemMetadata
+                const _metadata = getMetadataLazy<ArrayMetadata>(
+                    clonedState?.generationData.__metadata,
+                )
+                const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
+
+                if (!itemMetadata) return clonedState
+
                 const inputKeys = Object.keys(itemMetadata.properties)
                 const newRow = createInputRow(inputKeys, itemMetadata)
 
@@ -74,6 +88,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 type="text"
                 onClick={deleteInputRow}
                 size="small"
+                disabled={inputRows.length === 1}
             />
             {viewType === "single" ? (
                 <>

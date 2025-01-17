@@ -48,7 +48,7 @@ const VariantNavigationCard = ({
                 return sum + value
             }, 0)
 
-            const average = total / results.length
+            const average = total
 
             switch (type) {
                 case "duration":

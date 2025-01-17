@@ -15,9 +15,8 @@ const GenerationComparisonHeader = ({}: GenerationComparisonHeaderProps) => {
 
     const clearGeneration = useCallback(() => {
         mutate(
-            (state) => {
-                const clonedState = structuredClone(state)
-                if (!clonedState) return state
+            (clonedState) => {
+                if (!clonedState) return clonedState
 
                 const generationMetadata = clonedState.generationData.__metadata
                 const metadata =

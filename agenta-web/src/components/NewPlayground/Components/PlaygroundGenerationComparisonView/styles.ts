@@ -8,5 +8,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     containerBorder: {
         borderBottom: `1px solid ${theme.colorBorderSecondary}`,
+        borderRight: `1px solid ${theme.colorBorderSecondary}`,
     },
 }))

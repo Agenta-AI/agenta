@@ -40,7 +40,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             ])}
                         >
                             {isComparisonView && (
-                                <PromptComparisonVariantNavigation className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0" />
+                                <PromptComparisonVariantNavigation className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)]" />
                             )}
                             {(displayedVariants || []).map((variantId) => {
                                 return (
@@ -48,7 +48,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         key={variantId}
                                         className={clsx([
                                             {
-                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0":
+                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
                                                     isComparisonView,
                                             },
                                         ])}
@@ -82,7 +82,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         >
                                             <GenerationComparisonCompletionInput
                                                 variantId={variantId}
-                                                rowClassName="bg-[#f5f7fa]"
+                                                rowClassName="bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
                                             />
                                         </div>
                                     )
