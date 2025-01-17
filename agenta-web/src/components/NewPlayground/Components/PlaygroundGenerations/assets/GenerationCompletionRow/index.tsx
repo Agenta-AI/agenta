@@ -157,9 +157,11 @@ const GenerationCompletionRow = ({
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
                             return (
-                                <div className="relative group/item h-24 py-2 px-4 overflow-y-auto [&::-webkit-scrollbar]:w-0">
+                                <div
+                                    key={variableId}
+                                    className="relative group/item h-24 py-2 px-4 overflow-y-auto [&::-webkit-scrollbar]:w-0"
+                                >
                                     <PlaygroundVariantPropertyControl
-                                        key={variableId}
                                         variantId={variantId}
                                         propertyId={variableId}
                                         view={view}
