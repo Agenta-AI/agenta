@@ -12,4 +12,5 @@ export interface PromptMessageConfigProps extends BaseContainerProps {
     /** Unique identifier for the message being configured */
     messageId: string
     deleteMessage: (messageId: string) => void
+    isMessageDeletable?: boolean
 }

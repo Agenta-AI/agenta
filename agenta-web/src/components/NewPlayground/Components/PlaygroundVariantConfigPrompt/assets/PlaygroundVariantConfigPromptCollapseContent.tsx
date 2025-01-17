@@ -110,6 +110,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     variantId={variantId}
                     messageId={messageId}
                     deleteMessage={deleteMessage}
+                    isMessageDeletable={messageIds?.length === 1}
                 />
             ))}
 
