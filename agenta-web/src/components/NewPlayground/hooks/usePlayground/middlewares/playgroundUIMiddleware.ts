@@ -14,6 +14,7 @@ import type {
     UIState,
     ViewType,
 } from "../types"
+import {message} from "antd"
 
 /**
  * Middleware for managing UI state in the playground.
@@ -184,9 +185,14 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 }
                                 return newState
                             } else {
-                                return {
-                                    ...state,
-                                    selected: state.selected.filter((id) => id !== variantId),
+                                if (state.selected.length === 1) {
+                                    message.error("At least one variant must be displayed")
+                                    return state
+                                } else {
+                                    return {
+                                        ...state,
+                                        selected: state.selected.filter((id) => id !== variantId),
+                                    }
                                 }
                             }
                         },
