@@ -53,7 +53,7 @@ const GenerationChatRow = ({
     inputOnly,
     view,
 }: GenerationChatRowProps) => {
-    const {messageRow, message} = usePlayground({
+    const {messageRow, message, mutate} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -71,6 +71,22 @@ const GenerationChatRow = ({
 
     console.log("message", messageRow, message)
 
+    const deleteMessage = useCallback((messageId: string) => {
+        mutate(
+            (clonedState) => {
+                if (!clonedState) return clonedState
+
+                const generationMessages = clonedState.generationData.messages.value
+                clonedState.generationData.messages.value = generationMessages.filter((message) => {
+                    return message.value.__id !== messageId
+                })
+
+                return clonedState
+            },
+            {revalidate: false},
+        )
+    }, [])
+
     return messageRow ? (
         <div className="flex items-start gap-2 group/item w-full">
             <PromptMessageConfig
@@ -79,7 +95,7 @@ const GenerationChatRow = ({
                 rowId={messageRow.__id}
                 messageId={message.__id}
                 className="w-full"
-                // deleteMessage={deleteMessage}
+                deleteMessage={deleteMessage}
             />
         </div>
     ) : null
