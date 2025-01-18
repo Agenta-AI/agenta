@@ -23,7 +23,7 @@ import {
 } from "antd"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
-import {Editor} from "@monaco-editor/react"
+import Editor from "@monaco-editor/react"
 import {KeyValuePair, testset} from "@/lib/Types"
 import {
     createNewTestset,

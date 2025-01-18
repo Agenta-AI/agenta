@@ -1,6 +1,6 @@
 import isEqual from "lodash/isEqual"
 import React, {useEffect, useRef} from "react"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "./useLazyEffect"
 
 function useDeepCompareMemoize(value: any) {
     const ref = useRef()
@@ -20,5 +20,5 @@ export function useDeepCompareUpdateEffect(
     callback: React.EffectCallback,
     deps?: React.DependencyList,
 ) {
-    useUpdateEffect(callback, deps?.map(useDeepCompareMemoize))
+    useLazyEffect(callback, deps?.map(useDeepCompareMemoize))
 }

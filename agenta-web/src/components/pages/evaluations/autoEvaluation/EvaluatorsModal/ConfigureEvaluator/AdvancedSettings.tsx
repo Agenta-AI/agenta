@@ -12,7 +12,7 @@ import {
 } from "antd"
 import {CaretRightOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"
-import {Editor} from "@monaco-editor/react"
+import Editor from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {generatePaths} from "@/lib/transformers"
 

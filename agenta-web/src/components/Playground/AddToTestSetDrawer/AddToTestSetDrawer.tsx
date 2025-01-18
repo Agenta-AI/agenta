@@ -24,10 +24,11 @@ import {
 } from "antd"
 import React, {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
+import {useLocalStorage} from "usehooks-ts"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import cloneDeep from "lodash/cloneDeep"
 import clone from "lodash/clone"
+import useLazyEffect from "@/hooks/useLazyEffect"
 
 const useStyles = createUseStyles({
     footer: {
@@ -120,7 +121,7 @@ const AddToTestSetDrawer: React.FC<Props> = ({params, isChatVariant, ...props}) 
     }).current
 
     // reset the form to load latest initialValues on drawer open
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (props.open) {
             mutate()
 
@@ -421,7 +422,7 @@ const AddNewTestsetModal: React.FC<
 > = ({onSubmit, ...props}) => {
     const [form] = Form.useForm()
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (props.open) form.resetFields()
     }, [props.open])
 

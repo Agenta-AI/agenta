@@ -1,5 +1,5 @@
 import {SetStateAction, useCallback, useRef, useState} from "react"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "./useLazyEffect"
 
 type Callback<T> = (value?: T) => void
 export type DispatchWithCallback<T> = (value: T, callback?: Callback<T>) => void
@@ -25,7 +25,7 @@ function useStateCallback<T>(
         [],
     )
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         typeof callbackRef.current === "function" && callbackRef.current(state)
     }, [state])
 

@@ -4,10 +4,10 @@ import {Button, Input, Select, Space, Tooltip} from "antd"
 import cloneDeep from "lodash/cloneDeep"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
 import {v4 as uuidv4} from "uuid"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import CopyButton from "../CopyButton/CopyButton"
+import useLazyEffect from "@/hooks/useLazyEffect"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     root: {
@@ -129,7 +129,7 @@ const ChatInputs: React.FC<Props> = ({
     //     }
     // }, [messages])
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (Array.isArray(value)) setMessages(cloneDeep(value))
     }, [JSON.stringify(value)])
 

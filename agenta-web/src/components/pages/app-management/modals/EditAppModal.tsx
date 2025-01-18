@@ -1,4 +1,5 @@
 import {useAppsData} from "@/contexts/app.context"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {isAppNameInputValid} from "@/lib/helpers/utils"
 import {GenericObject, JSSTheme, ListAppsItem} from "@/lib/Types"
 import {updateAppName} from "@/services/app-selector/api"
@@ -6,7 +7,6 @@ import {CheckOutlined} from "@ant-design/icons"
 import {Input, Modal, Typography} from "antd"
 import React, {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
 
 type EditAppModalProps = {
     appDetails: ListAppsItem
@@ -30,7 +30,7 @@ const EditAppModal = ({appDetails, ...props}: EditAppModalProps) => {
     const [appNameInput, setAppNameInput] = useState(appDetails.app_name)
     const [editAppLoading, setEditAppLoading] = useState(false)
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         setAppNameInput(appDetails.app_name)
     }, [apps, appDetails])
 

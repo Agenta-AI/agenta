@@ -1,8 +1,9 @@
 import {ConfigProvider, theme} from "antd"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
-import {useLocalStorage, useUpdateEffect} from "usehooks-ts"
+import {useLocalStorage} from "usehooks-ts"
 import antdTokens from "@/styles/tokens/antd-themeConfig.json"
 import {Inter} from "next/font/google"
+import useLazyEffect from "@/hooks/useLazyEffect"
 
 const inter = Inter({
     subsets: ["latin"],
@@ -57,7 +58,7 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         }
     }, [themeMode])
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         setAppTheme(getAppTheme(themeMode))
     }, [themeMode])
 
