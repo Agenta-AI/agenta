@@ -437,14 +437,14 @@ class entrypoint:
             if inline:
                 remaining_steps = NOFSTEPS
                 while (
-                    not ag.tracing.is_inline_trace_ready(tree_id)
+                    not ag.tracing.is_inline_trace_ready(_tree_id)
                     and remaining_steps > 0
                 ):
                     await sleep(TIMESTEP)
 
                     remaining_steps -= 1
 
-                tree = ag.tracing.get_inline_trace(tree_id)
+                tree = ag.tracing.get_inline_trace(_tree_id)
         return tree, tree_id
 
     # --- OpenAPI --- #
