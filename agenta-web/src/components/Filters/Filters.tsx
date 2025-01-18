@@ -3,8 +3,8 @@ import {Filter, JSSTheme} from "@/lib/Types"
 import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
 import isEqual from "lodash/isEqual"
+import useLazyEffect from "@/hooks/useLazyEffect"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
@@ -45,7 +45,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
     )
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (filterData && filterData.length > 0) {
             setFilter(filterData)
         } else {

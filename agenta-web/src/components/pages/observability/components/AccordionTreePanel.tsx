@@ -5,7 +5,7 @@ import {Collapse, Radio, Space} from "antd"
 import React, {useState, useMemo, useRef, useEffect} from "react"
 import {createUseStyles} from "react-jss"
 import yaml from "js-yaml"
-import {Editor} from "@monaco-editor/react"
+import Editor from "@monaco-editor/react"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 
 type AccordionTreePanelProps = {

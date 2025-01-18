@@ -1,11 +1,11 @@
-import React, {useEffect, useMemo, useState} from "react"
+import React, {useEffect, useMemo, useRef, useState} from "react"
 import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
 import {isDemo} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
-import {useElementSize} from "usehooks-ts"
+import {useResizeObserver} from "usehooks-ts"
 import {createUseStyles} from "react-jss"
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
@@ -120,7 +120,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
     const {currentApp, isLoading, error} = useAppsData()
-    const [footerRef, {height: footerHeight}] = useElementSize()
+    const ref = useRef<HTMLElement | null>(null)
+    const {height: footerHeight} = useResizeObserver({
+        ref,
+        box: "border-box",
+    })
     const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
@@ -293,7 +297,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             </ErrorBoundary>
                                         </Content>
                                     </div>
-                                    <Footer ref={footerRef} className={classes.footer}>
+                                    <Footer ref={ref} className={classes.footer}>
                                         <Space className={classes.footerLeft} size={10}>
                                             <Link
                                                 href={"https://github.com/Agenta-AI/agenta"}

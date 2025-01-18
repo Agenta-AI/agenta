@@ -8,7 +8,6 @@ import {fetchTestset, updateTestset} from "@/services/testsets/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
-import {useUpdateEffect} from "usehooks-ts"
 import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
@@ -18,6 +17,7 @@ import {GenericObject, KeyValuePair} from "@/lib/Types"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
 import AgGridReact, {type AgGridReactType} from "@/lib/helpers/agGrid"
+import useLazyEffect from "@/hooks/useLazyEffect"
 
 type TestsetTableProps = {
     mode: "edit"
@@ -106,7 +106,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         cancelText: "Proceed without saving",
     })
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (isDataChanged) {
             setUnSavedChanges(true)
         }
