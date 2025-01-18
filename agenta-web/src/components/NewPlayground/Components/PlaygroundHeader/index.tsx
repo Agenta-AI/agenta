@@ -48,7 +48,7 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                 <PlaygroundCreateNewVariant
                     displayedVariants={displayedVariants}
                     onSelect={toggleVariantDisplay}
-                    buttonProps={{label: "Variants"}}
+                    buttonProps={{label: "Compare"}}
                 />
             </div>
         </>
