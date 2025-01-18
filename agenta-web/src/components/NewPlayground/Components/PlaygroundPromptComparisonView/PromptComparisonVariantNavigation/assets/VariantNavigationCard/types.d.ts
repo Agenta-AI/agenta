@@ -1,5 +1,5 @@
 export type VariantNavigationCardProps = {
-    id: number
+    id: string
     className?: string
     variantId: string
     indexName?: string

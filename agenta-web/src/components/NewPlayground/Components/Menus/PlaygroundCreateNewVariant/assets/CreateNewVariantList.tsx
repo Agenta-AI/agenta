@@ -1,22 +1,28 @@
 import {useState, useMemo, useCallback} from "react"
+
+import clsx from "clsx"
 import {Button, Input} from "antd"
 import {Check} from "@phosphor-icons/react"
-import debounce from "lodash/debounce"
-import clsx from "clsx"
-import {CreateNewVariantListProps, VariantItem} from "./types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {useStyles} from "./styles"
+import {useDebounceValue} from "usehooks-ts"
+
 import NewVariantButton from "../../../Modals/CreateVariantModal/assets/NewVariantButton"
+import usePlayground from "../../../../hooks/usePlayground"
+
+import {useStyles} from "./styles"
+
+import type {CreateNewVariantListProps, VariantItem} from "./types"
 
 const CreateNewVariantList = ({
     selectedVariant,
     displayedVariants = [],
     onSelect,
     className,
+    closeModal,
 }: CreateNewVariantListProps) => {
     const classes = useStyles()
     const [query, setQuery] = useState("")
-    const [debouncedQuery, setDebouncedQuery] = useState("")
+
+    const [debouncedQuery] = useDebounceValue(query, 300)
 
     const {variantsList, toggleVariantDisplay} = usePlayground({
         stateSelector: (state) => ({
@@ -27,15 +33,6 @@ const CreateNewVariantList = ({
         }),
     })
 
-    // Debounced search handler
-    const debouncedSearch = useMemo(
-        () =>
-            debounce((value: string) => {
-                setDebouncedQuery(value.toLowerCase())
-            }, 300),
-        [],
-    )
-
     // Memoized filtered variants
     const filteredVariants = useMemo(() => {
         if (!debouncedQuery) return variantsList
@@ -44,24 +41,26 @@ const CreateNewVariantList = ({
         )
     }, [variantsList, debouncedQuery])
 
-    const handleSearch = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const value = e.target.value
-            setQuery(value)
-            debouncedSearch(value)
-        },
-        [debouncedSearch],
-    )
+    const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value
+        setQuery(value)
+    }, [])
 
     const onAddVariant = useCallback(
         (variant: VariantItem, isSelected: boolean) => {
             if (onSelect) {
                 onSelect(variant.variantId)
+                if (
+                    displayedVariants.length === 2 &&
+                    displayedVariants.includes(variant.variantId)
+                ) {
+                    closeModal?.()
+                }
             } else {
                 toggleVariantDisplay?.(variant.variantId, !isSelected)
             }
         },
-        [displayedVariants],
+        [onSelect, displayedVariants, closeModal, toggleVariantDisplay],
     )
 
     return (
