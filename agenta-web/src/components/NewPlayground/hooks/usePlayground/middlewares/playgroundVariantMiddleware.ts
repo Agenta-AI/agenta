@@ -409,7 +409,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return clonedState
                     })
                 },
-                [swr, variantId],
+                [swr, config.variantId],
             )
 
             const handleParamUpdate = useCallback(
@@ -439,7 +439,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return updatedVariant
                     }, variantId ?? config.variantId)
                 },
-                [config.propertyId, mutateVariant],
+                [config.propertyId, config.variantId, mutateVariant],
             )
 
             const getVariantConfigProperty = useCallback(() => {
