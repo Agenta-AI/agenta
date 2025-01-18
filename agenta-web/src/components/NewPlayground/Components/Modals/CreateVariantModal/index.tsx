@@ -1,13 +1,13 @@
 // TODO: OLD FILE, CHECK IF IT CAN BE SHARED, AND IF IT NEEDS IMPROVEMENTS
 
-import React, {useState} from "react"
+import {type FC, type ChangeEvent, useState} from "react"
 import {Modal, Input, Select, Typography} from "antd"
 import {CreateVariantModalProps} from "./types"
 import {useStyles} from "./styles"
 
 const {Text} = Typography
 
-const CreateVariantModal: React.FC<CreateVariantModalProps> = ({
+const CreateVariantModal: FC<CreateVariantModalProps> = ({
     isModalOpen,
     setIsModalOpen,
     addTab,
@@ -27,7 +27,7 @@ const CreateVariantModal: React.FC<CreateVariantModalProps> = ({
         setIsInputValid(newVariantName.trim().length > 0 && value !== "Variant source")
     }
 
-    const handleVariantNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleVariantNameChange = (e: ChangeEvent<HTMLInputElement>) => {
         const variantName = e.target.value
         setNewVariantName(variantName)
         setIsInputValid(variantName.trim().length > 0 && variantPlaceHolder !== "Variant source")

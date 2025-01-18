@@ -29,7 +29,13 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
         >
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter className="h-full" layout={isComparisonView ? "vertical" : "horizontal"}>
-                    <SplitterPanel defaultSize="40%" min="20%" max="70%" className="!h-full">
+                    <SplitterPanel
+                        defaultSize={isComparisonView ? "40%" : "30"}
+                        min="20%"
+                        max="70%"
+                        className="!h-full"
+                        collapsible
+                    >
                         <section
                             className={clsx([
                                 {
@@ -62,6 +68,8 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
 
                     <SplitterPanel
                         className={clsx("!h-full", {"!overflow-y-hidden": isComparisonView})}
+                        collapsible
+                        defaultSize={isComparisonView ? "60%" : "70"}
                     >
                         {isComparisonView && <GenerationComparisonHeader />}
 
