@@ -2,8 +2,7 @@ import {useCallback} from "react"
 import dynamic from "next/dynamic"
 
 import clsx from "clsx"
-import {Play} from "@phosphor-icons/react"
-import {Typography, Button} from "antd"
+import {Typography} from "antd"
 
 import usePlayground from "../../../../hooks/usePlayground"
 import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
@@ -12,6 +11,7 @@ import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantProperty
 import type {GenerationCompletionRowProps} from "./types"
 import GenerationOutputText from "../GenerationOutputText"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import RunButton from "@/components/NewPlayground/assets/RunButton"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -93,30 +93,20 @@ const GenerationCompletionRow = ({
                         })}
                     </div>
 
-                    {!inputOnly && (
+                    {!inputOnly && variableIds.length > 0 ? (
                         <GenerationVariableOptions
                             variantId={variantId}
                             rowId={rowId}
                             className="invisible group-hover/item:visible"
                             result={result}
                         />
-                    )}
+                    ) : null}
                 </div>
 
-                {!inputOnly && (
+                {!inputOnly && variableIds.length > 0 ? (
                     <div className="w-full flex gap-1 items-start">
                         <div className="w-[100px] shrink-0">
-                            <Button
-                                onClick={runRow}
-                                variant="outlined"
-                                color="default"
-                                className="self-start"
-                                disabled={!canRun || isRunning}
-                                size="small"
-                            >
-                                <Play size={14} />
-                                Run
-                            </Button>
+                            <RunButton onClick={runRow} disabled={!canRun || isRunning} />
                         </div>
                         <div className="flex flex-col gap-4">
                             {isRunning ? (
@@ -138,7 +128,7 @@ const GenerationCompletionRow = ({
                         </div>
                         <div className="flex items-center w-[100px] shrink-0" />
                     </div>
-                )}
+                ) : null}
             </div>
         )
     }
@@ -184,23 +174,16 @@ const GenerationCompletionRow = ({
                 </div>
             </div>
 
-            {!inputOnly && (
+            {!inputOnly && variableIds.length > 0 ? (
                 <div
                     className={clsx(
-                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] h-[48px] flex items-center px-2",
+                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] h-[48px] flex items-center px-4",
                         className,
                     )}
                 >
-                    <Button
-                        onClick={runRow}
-                        disabled={!canRun || isRunning}
-                        size="small"
-                        icon={<Play size={14} />}
-                    >
-                        Run
-                    </Button>
+                    <RunButton onClick={runRow} disabled={!canRun || isRunning} className="flex" />
                 </div>
-            )}
+            ) : null}
         </>
     )
 }

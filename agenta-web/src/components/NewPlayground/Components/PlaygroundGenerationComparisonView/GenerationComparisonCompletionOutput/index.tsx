@@ -133,7 +133,7 @@ const GenerationComparisonCompletionOutput = ({
     })
 
     return (
-        <>
+        <div className="flex flex-col w-full">
             <GenerationComparisonOutputHeader
                 variantId={variantId}
                 indexName={indexName}
@@ -151,7 +151,7 @@ const GenerationComparisonCompletionOutput = ({
                     />
                 )
             })}
-        </>
+        </div>
     )
 }
 

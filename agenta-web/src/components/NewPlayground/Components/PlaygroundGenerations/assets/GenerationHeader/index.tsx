@@ -15,6 +15,7 @@ import {getMetadataLazy} from "@/components/NewPlayground/state"
 import {InputType} from "@/components/NewPlayground/assets/utilities/transformer/types"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {GenerationHeaderProps} from "./types"
+import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
 const LoadTestsetModal = dynamic(() => import("../../../Modals/LoadTestsetModal"))
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
@@ -117,9 +118,13 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     Load Test set
                 </Button>
 
-                <Button size="small" disabled={isRunning || !results?.[0]?.response?.data}>
-                    Add all to test set
-                </Button>
+                <TestsetDrawerButton
+                    label="Add all to test set"
+                    icon={false}
+                    size="small"
+                    disabled={isRunning || !results?.[0]?.response?.data}
+                    results={results}
+                />
 
                 <Button
                     size="small"
