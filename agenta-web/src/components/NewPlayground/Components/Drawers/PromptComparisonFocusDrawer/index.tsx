@@ -1,38 +1,16 @@
-import {useMemo} from "react"
 import useDrawerWidth from "@/components/NewPlayground/hooks/useDrawerWidth"
-import {Drawer, Tabs, TabsProps} from "antd"
+import {Drawer} from "antd"
 import {PromptComparisonFocusDrawerProps} from "./types"
-import {useStyles} from "./styles"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import PlaygroundVariantConfig from "../../PlaygroundVariantConfig"
-import PromptComparisonWrapper from "../../PlaygroundPromptComparisonView/PromptComparisonWrapper"
 
 const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = ({...props}) => {
-    const classes = useStyles()
     const {drawerWidth} = useDrawerWidth()
-    const {variantIds} = usePlayground()
+    const {displayedVariants} = usePlayground()
 
     const onClose = (e: any) => {
         props?.onClose?.(e)
     }
-
-    const onChange = (key: string) => {
-        console.log(key)
-    }
-
-    const items: TabsProps["items"] = useMemo(
-        () => [
-            {
-                key: "1",
-                label: "Tab 1",
-            },
-            {
-                key: "2",
-                label: "Tab 2",
-            },
-        ],
-        [],
-    )
 
     return (
         <>
@@ -44,21 +22,15 @@ const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = 
                 title="Variant view"
                 {...props}
             >
-                <section className="w-full overflow-auto">
-                    <Tabs
-                        className={classes.tabHeader}
-                        defaultActiveKey="1"
-                        items={items}
-                        onChange={onChange}
-                    />
-
-                    <div className="w-full flex items-start">
-                        {(variantIds || []).map((variantId) => (
-                            <PromptComparisonWrapper key={variantId}>
-                                <PlaygroundVariantConfig variantId={variantId as string} />
-                            </PromptComparisonWrapper>
-                        ))}
-                    </div>
+                <section className="[&::-webkit-scrollbar]:w-0 grow h-full w-full overflow-auto flex items-start">
+                    {(displayedVariants || []).map((variantId) => (
+                        <div
+                            key={variantId}
+                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto !overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
+                        >
+                            <PlaygroundVariantConfig variantId={variantId as string} />
+                        </div>
+                    ))}
                 </section>
             </Drawer>
         </>
