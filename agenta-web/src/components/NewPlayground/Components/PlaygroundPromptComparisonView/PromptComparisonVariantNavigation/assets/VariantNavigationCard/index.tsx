@@ -76,7 +76,7 @@ const VariantNavigationCard = ({
             {...attributes}
             {...listeners}
             className={clsx(
-                "cursor-move *:select-none",
+                "cursor-move",
                 {
                     "z-[10]": isDragging,
                 },
@@ -101,7 +101,12 @@ const VariantNavigationCard = ({
                     <Button
                         icon={<X size={14} />}
                         type="text"
-                        onClick={() => toggleVariantDisplay?.(variantId, false)}
+                        className="relative z-[2]"
+                        onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            toggleVariantDisplay?.(variantId, false)
+                        }}
                     />
                 </div>
                 <div className="flex items-center justify-between">

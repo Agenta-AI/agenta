@@ -1,20 +1,8 @@
 import {useCallback} from "react"
 
 import clsx from "clsx"
-import {
-    DndContext,
-    closestCenter,
-    KeyboardSensor,
-    PointerSensor,
-    useSensor,
-    useSensors,
-} from "@dnd-kit/core"
-import {
-    arrayMove,
-    SortableContext,
-    sortableKeyboardCoordinates,
-    verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
+import {DndContext, closestCenter, PointerSensor, useSensor, useSensors} from "@dnd-kit/core"
+import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {Typography} from "antd"
 
@@ -31,9 +19,11 @@ const PromptComparisonVariantNavigation = ({
     const {displayedVariants, setDisplayedVariants} = usePlayground()
 
     const sensors = useSensors(
-        useSensor(PointerSensor),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                delay: 100,
+                tolerance: 5,
+            },
         }),
     )
 
