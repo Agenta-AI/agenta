@@ -9,7 +9,6 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {VariantConfigComponentProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
-import useDelayChildren from "../../hooks/useDelayChildren"
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -25,6 +24,7 @@ import useDelayChildren from "../../hooks/useDelayChildren"
  * <PlaygroundVariantConfig variantId="variant-123" />
  * ```
  */
+
 const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
     variantId,
     className,
@@ -38,8 +38,6 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
             return {promptIds}
         }, []),
     })
-
-    const showChildren = useDelayChildren(10)
 
     componentLogger("PlaygroundVariantConfig", variantId, promptIds)
 
@@ -55,18 +53,14 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
             )}
             {...divProps}
         >
-            {showChildren && (
-                <>
-                    <PlaygroundVariantConfigHeader variantId={variantId} />
-                    {promptIds.map((promptId) => (
-                        <PlaygroundVariantConfigPrompt
-                            key={promptId as string}
-                            promptId={promptId}
-                            variantId={variantId}
-                        />
-                    ))}
-                </>
-            )}
+            <PlaygroundVariantConfigHeader variantId={variantId} />
+            {promptIds.map((promptId) => (
+                <PlaygroundVariantConfigPrompt
+                    key={promptId as string}
+                    promptId={promptId}
+                    variantId={variantId}
+                />
+            ))}
         </div>
     )
 }
