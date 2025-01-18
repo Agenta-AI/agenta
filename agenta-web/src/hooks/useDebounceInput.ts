@@ -57,11 +57,7 @@ export function useDebounceInput<T>(
     const [localValue, setLocalValue] = useState<T>(value ?? defaultValue)
     const [query, setQuery] = useDebounceValue(localValue, delay)
 
-    // const debounced = useDebounceCallback(onChange, 500)
-
-    useEffect(() => {
-        // console.log("useDebounceInput: ", query)
-        // onChange(query)
+    useLazyEffect(() => {
         onChange(query)
     }, [query])
 

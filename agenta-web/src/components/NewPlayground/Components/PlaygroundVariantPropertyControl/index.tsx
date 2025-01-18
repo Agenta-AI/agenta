@@ -191,23 +191,24 @@ const PlaygroundVariantPropertyControl = ({
         const handler = rowId
             ? (e: any) => {
                   mutate(
-                      (draft) => {
-                          const clonedState = structuredClone(draft)
-                          if (!clonedState) return draft
-
-                          const val = e
-                              ? typeof e === "object" && "target" in e
-                                  ? e.target.value
-                                  : e
-                              : null
+                      (clonedState) => {
+                          if (!clonedState) return clonedState
+                          const val =
+                              e !== null && e !== undefined
+                                  ? typeof e === "object" && "target" in e
+                                      ? e.target.value
+                                      : e
+                                  : null
 
                           const object = clonedState.generationData.value.find(
                               (v) => v.__id === rowId,
                           )
-                          if (!object) return
+                          if (!object) return clonedState
 
                           const property = findPropertyInObject(object, propertyId) as Enhanced<any>
-                          if (!property) return
+                          if (!property) return clonedState
+
+                          if (property.value === val) return clonedState
 
                           property.value = val
 
@@ -227,7 +228,7 @@ const PlaygroundVariantPropertyControl = ({
             value,
             handleChange: handler,
         }
-    }, [baseProperty, updateVariantProperty, variantId])
+    }, [baseProperty, mutate, propertyId, rowId, updateVariantProperty, variantId])
 
     if (!property) {
         return null
