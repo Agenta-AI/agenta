@@ -15,6 +15,7 @@ import type {
     ViewType,
 } from "../types"
 import {message} from "antd"
+import {syncVariantInputs} from "../assets/inputHelpers"
 
 /**
  * Middleware for managing UI state in the playground.
@@ -151,6 +152,11 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     swr.mutate(
                         (state) => {
                             if (!state) return state
+
+                            state.generationData = syncVariantInputs(
+                                state.variants.find((variant) => variant.id === variantId)!,
+                                state.generationData,
+                            )
                             return {
                                 ...state,
                                 selected: [variantId],
