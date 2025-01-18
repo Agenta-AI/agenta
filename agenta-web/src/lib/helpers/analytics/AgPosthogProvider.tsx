@@ -54,4 +54,12 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) =>
     return <>{children}</>
 }
 
-export default CustomPosthogProvider
+const CustomPosthogProviderWrapper: CustomPosthogProviderType = ({children, config}) => {
+    if (process.env.NEXT_PUBLIC_POSTHOG_API_KEY) {
+        return <CustomPosthogProvider config={config}>{children}</CustomPosthogProvider>
+    } else {
+        return <>{children}</>
+    }
+}
+
+export default CustomPosthogProviderWrapper
