@@ -173,4 +173,5 @@ export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData,
     viewType?: ViewType
     setSelectedVariant?: (variantId: string) => void
     toggleVariantDisplay?: (variantId: string, display?: boolean) => void
+    setDisplayedVariants?: (variantIds: string[]) => void
 }

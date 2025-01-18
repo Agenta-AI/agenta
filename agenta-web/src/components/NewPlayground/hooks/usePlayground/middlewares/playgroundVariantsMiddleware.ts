@@ -5,6 +5,7 @@ import {getCurrentProject} from "@/contexts/project.context"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
+import {apiKeyObject} from "@/lib/helpers/utils"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
@@ -19,6 +20,8 @@ import type {
     PlaygroundMiddlewareParams,
 } from "../types"
 import useWebWorker from "../../useWebWorker"
+import {getJWT} from "@/services/api"
+import {useVaultSecret} from "@/hooks/useVaultSecret"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -27,6 +30,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
         config: PlaygroundSWRConfig<Data>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
+            const {secrets} = useVaultSecret()
             const {logger, valueReferences, addToValueReferences} = usePlaygroundUtilities({
                 config: {
                     ...config,
@@ -186,6 +190,8 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     const runTests = (rowId?: string, variantId?: string) => {
                         swr.mutate(
                             async (state) => {
+                                const jwt = await getJWT()
+
                                 const clonedState = structuredClone(state)
                                 if (!clonedState) return state
                                 const visibleVariants = variantId
@@ -227,7 +233,15 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                 rowId: testRow.__id,
                                                 appId: config.appId!,
                                                 uri: variant.uri,
+                                                projectId: getCurrentProject().projectId,
                                                 allMetadata: getAllMetadata(),
+                                                headers: {
+                                                    ...(jwt
+                                                        ? {
+                                                              Authorization: `Bearer ${jwt}`,
+                                                          }
+                                                        : {}),
+                                                },
                                             }),
                                         )
                                     }
