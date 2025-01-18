@@ -196,6 +196,22 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                 [swr],
             )
 
+            const setDisplayedVariants = useCallback(
+                (variants: string[]) => {
+                    swr.mutate(
+                        (clonedState) => {
+                            if (!clonedState) return clonedState
+                            return {
+                                ...clonedState,
+                                selected: variants,
+                            }
+                        },
+                        {revalidate: false},
+                    )
+                },
+                [swr],
+            )
+
             // Define getters for UI state and actions
             return Object.defineProperties(swr, {
                 displayedVariants: {
@@ -217,6 +233,13 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     get: () => {
                         addToValueReferences("toggleVariantDisplay")
                         return toggleVariantDisplay
+                    },
+                    enumerable: true,
+                },
+                setDisplayedVariants: {
+                    get: () => {
+                        addToValueReferences("setDisplayedVariants")
+                        return setDisplayedVariants
                     },
                     enumerable: true,
                 },
