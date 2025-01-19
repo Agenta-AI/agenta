@@ -183,11 +183,13 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
  * Synchronizes variant inputs structure with current prompt variables
  */
 export function syncVariantInputs(
-    variant: EnhancedVariant,
+    variants: EnhancedVariant[],
     generationData: EnhancedVariant["inputs"],
 ) {
     const currentInputKeys = new Set(
-        variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
+        variants.flatMap((variant) =>
+            variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
+        ),
     )
 
     const inputStrings = Array.from(currentInputKeys).map((enhancedKey) => enhancedKey.value)
