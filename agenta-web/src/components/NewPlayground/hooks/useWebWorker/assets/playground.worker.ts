@@ -31,7 +31,6 @@ async function runVariantInputRow(payload: {
         )
 
         const data = await response.json()
-        console.log("TEST!", data, response.ok)
         if (!response.ok) {
             const errorMessage = parseValidationError(data)
             result = {
