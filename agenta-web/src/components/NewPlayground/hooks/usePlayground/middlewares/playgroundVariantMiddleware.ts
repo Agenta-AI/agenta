@@ -365,49 +365,54 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     updates: Partial<EnhancedVariant> | VariantUpdateFunction,
                     variantId?: string,
                 ) => {
-                    swr.mutate(async (clonedState) => {
-                        if (!clonedState) return clonedState
+                    swr.mutate(
+                        async (clonedState) => {
+                            if (!clonedState) return clonedState
 
-                        const clonedVariant = clonedState?.variants?.find(
-                            (v) => v.id === (variantId ?? config.variantId),
-                        )
-
-                        if (!clonedVariant) return clonedState
-
-                        // Get current input keys before update
-                        const previousInputKeys = getVariantInputKeys(clonedVariant)
-
-                        const updateValues =
-                            typeof updates === "function" ? updates(clonedVariant) : updates
-
-                        // if (!variant || !state) return state
-                        const updatedVariant: EnhancedVariant = {
-                            ...clonedVariant,
-                            ...updateValues,
-                        }
-
-                        // Update prompt keys
-                        updateVariantPromptKeys(updatedVariant)
-
-                        // Get new input keys after update
-                        const newInputKeys = getVariantInputKeys(updatedVariant)
-
-                        // Only sync inputs if the keys have changed
-                        if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
-                            clonedState.generationData = syncVariantInputs(
-                                [updatedVariant],
-                                clonedState.generationData,
+                            const clonedVariant = clonedState?.variants?.find(
+                                (v) => v.id === (variantId ?? config.variantId),
                             )
-                        }
 
-                        const index = clonedState?.variants?.findIndex(
-                            (v) => v.id === clonedVariant.id,
-                        )
+                            if (!clonedVariant) return clonedState
 
-                        clonedState.variants[index] = updatedVariant
+                            // Get current input keys before update
+                            const previousInputKeys = getVariantInputKeys(clonedVariant)
 
-                        return clonedState
-                    })
+                            const updateValues =
+                                typeof updates === "function" ? updates(clonedVariant) : updates
+
+                            // if (!variant || !state) return state
+                            const updatedVariant: EnhancedVariant = {
+                                ...clonedVariant,
+                                ...updateValues,
+                            }
+
+                            // Update prompt keys
+                            updateVariantPromptKeys(updatedVariant)
+
+                            // Get new input keys after update
+                            const newInputKeys = getVariantInputKeys(updatedVariant)
+
+                            // Only sync inputs if the keys have changed
+                            if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
+                                clonedState.generationData = syncVariantInputs(
+                                    [updatedVariant],
+                                    clonedState.generationData,
+                                )
+                            }
+
+                            const index = clonedState?.variants?.findIndex(
+                                (v) => v.id === clonedVariant.id,
+                            )
+
+                            clonedState.variants[index] = updatedVariant
+
+                            return clonedState
+                        },
+                        {
+                            variantId,
+                        },
+                    )
                 },
                 [swr, config.variantId],
             )
