@@ -1,6 +1,5 @@
 import {useCallback, useState} from "react"
 import dynamic from "next/dynamic"
-import {Play} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {SetStateAction} from "jotai"
@@ -15,10 +14,14 @@ import {getMetadataLazy} from "@/components/NewPlayground/state"
 import {InputType} from "@/components/NewPlayground/assets/utilities/transformer/types"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {GenerationHeaderProps} from "./types"
+import {useStyles} from "./styles"
+import clsx from "clsx"
 import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
+import RunButton from "@/components/NewPlayground/assets/RunButton"
 const LoadTestsetModal = dynamic(() => import("../../../Modals/LoadTestsetModal"))
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
+    const classes = useStyles()
     const {results, isRunning, mutate, runTests} = usePlayground({
         variantId,
         stateSelector: useCallback(
@@ -107,7 +110,9 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     }, [])
 
     return (
-        <section className="h-[48px] flex justify-between items-center gap-4 px-4 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+        <section
+            className={clsx("h-[48px] flex justify-between items-center gap-4", classes.container)}
+        >
             <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
                 Generations
             </Typography>
@@ -128,15 +133,12 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     results={results}
                 />
 
-                <Button
-                    size="small"
+                <RunButton
+                    isRunAll
                     type="primary"
-                    icon={<Play size={14} />}
                     onClick={() => runTests?.()}
-                    loading={isRunning}
-                >
-                    Run all
-                </Button>
+                    disabled={isRunning}
+                />
             </div>
 
             <LoadTestsetModal

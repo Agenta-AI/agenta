@@ -27,7 +27,6 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                     "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]",
                     className,
                 )}
-                // {...props}
             >
                 <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">
                     {metadata.title}
@@ -44,10 +43,7 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
     }
 
     return (
-        <div
-            className={clsx("relative bg-transparent", className)}
-            // {...props}
-        >
+        <div className={clsx("relative bg-transparent", className)}>
             <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
                 {metadata.title}
             </Typography>

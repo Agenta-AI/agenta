@@ -88,7 +88,7 @@ const GenerationComparisonCompletionOutputRow = ({
                         }
                     />
                 ) : result.response ? (
-                    <GenerationOutputText type="success" text={result.response.data} />
+                    <GenerationOutputText text={result.response.data} />
                 ) : null}
 
                 {!focusDisable && (
@@ -137,7 +137,7 @@ const GenerationComparisonCompletionOutput = ({
             <GenerationComparisonOutputHeader
                 variantId={variantId}
                 indexName={indexName}
-                className="sticky top-0 z-[1] bg-white"
+                className="sticky top-0 z-[1]"
             />
 
             {inputRowIds.map((inputRowId) => {

@@ -12,6 +12,7 @@ import type {GenerationCompletionRowProps} from "./types"
 import GenerationOutputText from "../GenerationOutputText"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import RunButton from "@/components/NewPlayground/assets/RunButton"
+import {useStyles} from "./styles"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -27,6 +28,7 @@ const GenerationCompletionRow = ({
     view,
     ...props
 }: GenerationCompletionRowProps) => {
+    const classes = useStyles()
     const {result, variableIds, runTests, canRun, isRunning, viewType, variant, inputText} =
         usePlayground({
             variantId,
@@ -62,12 +64,7 @@ const GenerationCompletionRow = ({
     if (viewType === "single" && view !== "focus" && variantId) {
         return (
             <div
-                className={clsx([
-                    "flex flex-col gap-4",
-                    "p-4",
-                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                    "group/item",
-                ])}
+                className={clsx(["flex flex-col gap-4", "p-4", "group/item", classes.container])}
                 {...props}
             >
                 <div
@@ -117,10 +114,7 @@ const GenerationCompletionRow = ({
                                 <GenerationOutputText type="danger" text={result.error} />
                             ) : result.response ? (
                                 <>
-                                    <GenerationOutputText
-                                        type="success"
-                                        text={result.response.data}
-                                    />
+                                    <GenerationOutputText text={result.response.data} />
 
                                     <GenerationResultUtils result={result} />
                                 </>
@@ -135,14 +129,7 @@ const GenerationCompletionRow = ({
 
     return (
         <>
-            <div
-                className={clsx([
-                    "flex flex-col gap-4",
-                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                    className,
-                ])}
-                {...props}
-            >
+            <div className={clsx(["flex flex-col gap-4", classes.container, className])} {...props}>
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
@@ -177,7 +164,8 @@ const GenerationCompletionRow = ({
             {!inputOnly && variableIds.length > 0 ? (
                 <div
                     className={clsx(
-                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] h-[48px] flex items-center px-4",
+                        "h-[48px] flex items-center px-4",
+                        classes.container,
                         className,
                     )}
                 >
