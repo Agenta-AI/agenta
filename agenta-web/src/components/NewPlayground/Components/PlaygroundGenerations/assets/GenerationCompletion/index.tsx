@@ -15,18 +15,14 @@ import type {
     ArrayMetadata,
     ObjectMetadata,
 } from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
 
 const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
-    const {inputRowIds, mutate, viewType, isVariable} = usePlayground({
+    const {inputRowIds, mutate, viewType} = usePlayground({
         variantId,
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const inputRows = state.generationData.value || []
-            const variables = getEnhancedProperties(inputRows[0])
-            const isVariable = variables.length > 0
 
             return {
-                isVariable,
                 inputRowIds: inputRows.map((inputRow) => inputRow.__id),
             }
         }, []),
@@ -72,12 +68,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
                     {"mt-2": viewType === "comparison"},
                 ])}
             >
-                <AddButton
-                    size="small"
-                    label="Input"
-                    onClick={addNewInputRow}
-                    disabled={!isVariable}
-                />
+                <AddButton size="small" label="Input" onClick={addNewInputRow} />
             </div>
         </div>
     )
