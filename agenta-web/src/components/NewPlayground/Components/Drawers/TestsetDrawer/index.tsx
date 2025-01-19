@@ -20,6 +20,8 @@ const TestsetDrawerButton = ({
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
     const getTestsetTraceData = useCallback(() => {
+        if (!results) return
+
         const traces = Array.isArray(results) ? results : [results]
 
         if (!traces?.length) return []

@@ -108,7 +108,9 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
 
     return (
         <section className="h-[48px] flex justify-between items-center gap-4 px-4 py-2 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
-            <Typography className="text-[16px] leading-[18px] font-[600]">Generations</Typography>
+            <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
+                Generations
+            </Typography>
 
             <div className="flex items-center gap-2">
                 <Button size="small" onClick={clearGeneration} disabled={isRunning}>
