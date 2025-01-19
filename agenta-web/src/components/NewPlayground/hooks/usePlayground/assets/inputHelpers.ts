@@ -214,7 +214,7 @@ export function syncVariantInputs(
             __id: row.__id,
             __metadata: metadataHash,
             __result: undefined,
-        } as EnhancedVariant["inputs"]["value"][number]
+        } as PlaygroundStateData["generationData"]["inputs"]["value"][number]
 
         // For each current input key
         keys.forEach((key) => {
@@ -236,7 +236,7 @@ export function syncVariantInputs(
                     newRow[_key] = {
                         __id: generateId(),
                         __metadata: metadataHash,
-                    } as EnhancedVariant["inputs"]["value"][number][typeof _key]
+                    } as PlaygroundStateData["generationData"]["inputs"]["value"][number][typeof _key]
                 }
             }
         })

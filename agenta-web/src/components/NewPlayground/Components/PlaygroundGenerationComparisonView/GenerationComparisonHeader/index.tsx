@@ -28,7 +28,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
 
                 const inputKeys = Object.keys(metadata.properties)
                 const newRow = createInputRow(inputKeys, metadata)
-                clonedState.generationData.value = [newRow]
+                clonedState.generationData.inputs.value = [newRow]
 
                 return clonedState
             },

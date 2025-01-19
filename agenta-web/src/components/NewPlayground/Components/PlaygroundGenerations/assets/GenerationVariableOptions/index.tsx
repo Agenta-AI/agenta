@@ -25,7 +25,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
         variantId,
         hookId: "GenerationVariableOptions",
         stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.value || []
+            const inputRows = state.generationData.inputs.value || []
             return {inputRows}
         }, []),
     })
