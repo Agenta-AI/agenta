@@ -27,11 +27,12 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                     "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]",
                     className,
                 )}
-                // {...props}
             >
-                <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">
-                    {metadata.title}
-                </Typography>
+                <div className="sticky -top-2 z-[1]">
+                    <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">
+                        {metadata.title}
+                    </Typography>
+                </div>
                 <TextArea
                     value={localValue}
                     onChange={handleLocalValueChange}
@@ -48,9 +49,11 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
             className={clsx("relative bg-transparent", className)}
             // {...props}
         >
-            <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
-                {metadata.title}
-            </Typography>
+            <div className="bg-[#f5f7fa] sticky -top-2 z-[1]">
+                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                    {metadata.title}
+                </Typography>
+            </div>
             <TextArea
                 value={localValue}
                 onChange={handleLocalValueChange}

@@ -4,7 +4,7 @@ import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutp
 import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
-import GenerationFocusDrawerButton from "../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
+import GenerationFocusDrawerButton from "../../Drawers/GenerationFocusDrawer/assets/GenerationFocusDrawerButton"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {useCallback} from "react"
@@ -88,7 +88,7 @@ const GenerationComparisonCompletionOutputRow = ({
                         }
                     />
                 ) : result.response ? (
-                    <GenerationOutputText type="success" text={result.response.data} />
+                    <GenerationOutputText text={result.response.data} />
                 ) : null}
 
                 {!focusDisable && (
@@ -133,11 +133,11 @@ const GenerationComparisonCompletionOutput = ({
     })
 
     return (
-        <>
+        <div className="flex flex-col w-full">
             <GenerationComparisonOutputHeader
                 variantId={variantId}
                 indexName={indexName}
-                className="sticky top-0 z-[1] bg-white"
+                className="sticky top-0 z-[1]"
             />
 
             {inputRowIds.map((inputRowId) => {
@@ -151,7 +151,7 @@ const GenerationComparisonCompletionOutput = ({
                     />
                 )
             })}
-        </>
+        </div>
     )
 }
 

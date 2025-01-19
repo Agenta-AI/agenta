@@ -1,5 +1,5 @@
 import {useCallback} from "react"
-
+import dynamic from "next/dynamic"
 import clsx from "clsx"
 
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
@@ -7,10 +7,15 @@ import usePlayground from "../../hooks/usePlayground"
 import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
-import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
 import {findVariantById} from "../../hooks/usePlayground/assets/helpers"
+const PromptMessageContentOptions = dynamic(
+    () =>
+        import(
+            "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
+        ),
+    {ssr: false},
+)
 
 /**
  * PromptMessageConfig Component
@@ -37,60 +42,46 @@ const PromptMessageConfig = ({
     const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const message = !!rowId
-                ? state.generationData.messages.value.find((v) => v.__id === rowId)
-                : variantId
-                  ? state.variants.find((v) => v.id === variantId)
-                  : null
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const message = !!rowId
+                    ? state.generationData.messages.value.find((v) => v.__id === rowId)
+                    : variantId
+                      ? state.variants.find((v) => v.id === variantId)
+                      : null
 
-            if (!rowId) {
-                const variant = findVariantById(state, variantId)
-                if (!variant) return {message: undefined}
+                if (!rowId) {
+                    const variant = findVariantById(state, variantId)
+                    if (!variant) return {message: undefined}
 
-                for (const prompt of variant.prompts || []) {
-                    const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
-                    if (message) {
-                        return {
-                            message: {
-                                role: message.role.__id,
-                                content: message.content.__id,
-                            },
+                    for (const prompt of variant.prompts || []) {
+                        const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
+                        if (message) {
+                            return {
+                                message: {
+                                    role: message.role.__id,
+                                    content: message.content.__id,
+                                },
+                            }
                         }
                     }
-                }
-                return {message: undefined}
-            } else {
-                const message = state.generationData.messages.value.find((inputRow) => {
-                    return inputRow.__id === rowId
-                })?.value
+                    return {message: undefined}
+                } else {
+                    const message = state.generationData.messages.value.find((inputRow) => {
+                        return inputRow.__id === rowId
+                    })?.value
 
-                if (!message) return {message: undefined}
-                return {
-                    message: {
-                        role: message.role.__id,
-                        content: message.content.__id,
-                    },
+                    if (!message) return {message: undefined}
+                    return {
+                        message: {
+                            role: message.role.__id,
+                            content: message.content.__id,
+                        },
+                    }
                 }
-            }
-        }, []),
-        // variantSelector: useCallback(
-        //     (variant: EnhancedVariant) => {
-        // for (const prompt of variant.prompts || []) {
-        //     const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
-        //     if (message) {
-        //         return {
-        //             message: {
-        //                 role: message.role.__id,
-        //                 content: message.content.__id,
-        //             },
-        //         }
-        //     }
-        // }
-        // return {message: undefined}
-        //     },
-        //     [messageId],
-        // ),
+            },
+            [messageId, rowId, variantId],
+        ),
     })
 
     if (!message) {

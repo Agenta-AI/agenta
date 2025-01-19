@@ -7,6 +7,7 @@ import type {
     StringMetadata,
 } from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {PlaygroundStateData} from "../types"
 
 /**
  * Variable Management
@@ -183,11 +184,13 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
  * Synchronizes variant inputs structure with current prompt variables
  */
 export function syncVariantInputs(
-    variant: EnhancedVariant,
-    generationInputData: EnhancedVariant["inputs"],
+    variants: EnhancedVariant[],
+    generationInputData: PlaygroundStateData["generationData"]["inputs"],
 ) {
     const currentInputKeys = new Set(
-        variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
+        variants.flatMap((variant) =>
+            variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || []),
+        ),
     )
 
     const inputStrings = Array.from(currentInputKeys).map((enhancedKey) => enhancedKey.value)
