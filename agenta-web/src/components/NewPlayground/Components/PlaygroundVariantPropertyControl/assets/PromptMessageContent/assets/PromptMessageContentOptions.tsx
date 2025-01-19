@@ -12,6 +12,7 @@ const PromptMessageContentOptions = ({
     variantId,
     isMessageDeletable,
 }: PromptMessageContentOptionsProps) => {
+    // TODO: REPLACE THIS WITH A GETTER ACTION FOR PROPERTY VALUE
     const {variantConfigProperty: property} = usePlayground({
         variantId,
         propertyId,
