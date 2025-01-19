@@ -82,7 +82,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     }, [])
 
     return (
-        <div className={clsx("flex items-center gap-1", className)}>
+        <div className={clsx("flex items-center gap-1 z-[2]", className)}>
             <Button
                 icon={<MinusCircle size={14} />}
                 type="text"

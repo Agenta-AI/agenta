@@ -51,7 +51,7 @@ const GenerationCompletionRow = ({
                         inputText: variables?.[0]?.value, // Temporary implementation
                     }
                 },
-                [rowId],
+                [rowId, variantId],
             ),
         })
 
