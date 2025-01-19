@@ -1,5 +1,5 @@
 import {useCallback} from "react"
-
+import dynamic from "next/dynamic"
 import clsx from "clsx"
 
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
@@ -8,7 +8,13 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
-import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
+const PromptMessageContentOptions = dynamic(
+    () =>
+        import(
+            "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
+        ),
+    {ssr: false},
+)
 
 /**
  * PromptMessageConfig Component
