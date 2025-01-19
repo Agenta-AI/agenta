@@ -3,10 +3,11 @@ import {generateId} from "../../../assets/utilities/genericTransformer/utilities
 import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
 
 import type {
+    EnhancedObjectConfig,
     ObjectMetadata,
     StringMetadata,
 } from "../../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import type {EnhancedVariant, Message} from "../../../assets/utilities/transformer/types"
 
 /**
  * Variable Management
@@ -257,6 +258,45 @@ export function syncVariantInputs(
     return generationInputData
 }
 
+export function syncVariantMessages(
+    variant: EnhancedVariant,
+    generationMessageData: EnhancedVariant["messages"],
+) {
+    if (!generationMessageData.value) return generationMessageData
+
+    const promptMessages = variant.prompts.flatMap((prompt) => prompt.messages.value || [])
+    const generationMessages = generationMessageData.value.map((data) => data.value)
+
+    const syncVariantData = (arr1: any[], arr2: any[]) => {
+        arr2.forEach((item2) => {
+            const indexInArr1 = arr1.findIndex((item1) => item1.__id === item2.__id)
+
+            if (indexInArr1 !== -1) {
+                arr1[indexInArr1] = {...arr1[indexInArr1], ...item2}
+            } else {
+                arr1.push(item2)
+            }
+        })
+
+        return arr1
+    }
+
+    const result = syncVariantData(generationMessages, promptMessages)
+
+    const transform = result.map((r) => ({
+        __id: generateId(),
+        __metadata: r.__metadata,
+        value: r,
+    }))
+
+    generationMessageData = {
+        ...generationMessageData,
+        value: transform,
+    }
+
+    return generationMessageData
+}
+
 /**
  * Gets the current input keys from all prompts in a variant
  * @param variant - Variant to get input keys from
@@ -267,4 +307,13 @@ export function getVariantInputKeys(variant: EnhancedVariant): Array<string> {
         variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [],
     )
     return Array.from(new Set(Array.from(inputKeys).map((key) => key.value)))
+}
+
+/**
+ * Gets the current messages from all prompts in a variant
+ * @param variant - Variant to get input keys from
+ * @returns Array of messages
+ */
+export function getVariantMessages(variant: EnhancedVariant): EnhancedObjectConfig<Message>[] {
+    return variant.prompts.flatMap((prompt) => prompt.messages.value)
 }

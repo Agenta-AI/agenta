@@ -15,6 +15,8 @@ import {
     updateVariantPromptKeys,
     syncVariantInputs,
     getVariantInputKeys,
+    getVariantMessages,
+    syncVariantMessages,
 } from "../assets/inputHelpers"
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
@@ -365,6 +367,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     variantId?: string,
                 ) => {
                     swr.mutate(async (clonedState) => {
+                        console.log("clonedState: ", clonedState)
+
                         if (!clonedState) return clonedState
 
                         const clonedVariant = clonedState?.variants?.find(
@@ -375,6 +379,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                         // Get current input keys before update
                         const previousInputKeys = getVariantInputKeys(clonedVariant)
+                        const previousMessages = getVariantMessages(clonedVariant)
+
+                        const clonedPrevMsg = structuredClone(previousMessages)
 
                         const updateValues =
                             typeof updates === "function" ? updates(clonedVariant) : updates
@@ -387,6 +394,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                         // Update prompt keys
                         updateVariantPromptKeys(updatedVariant)
+                        const newMessages = getVariantMessages(updatedVariant)
 
                         // Get new input keys after update
                         const newInputKeys = getVariantInputKeys(updatedVariant)
@@ -400,6 +408,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
 
                         // TODO: add message synchronization as well
+                        if (!isPlaygroundEqual(clonedPrevMsg, newMessages)) {
+                            clonedState.generationData.messages = syncVariantMessages(
+                                updatedVariant,
+                                clonedState.generationData.messages,
+                            )
+                        }
 
                         const index = clonedState?.variants?.findIndex(
                             (v) => v.id === clonedVariant.id,
