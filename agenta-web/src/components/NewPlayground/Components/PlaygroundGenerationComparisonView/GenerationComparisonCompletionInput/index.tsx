@@ -9,7 +9,7 @@ const GenerationComparisonCompletionInput = ({
 }: GenerationComparisonCompletionInputProps) => {
     return (
         <div>
-            <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[1] bg-white" />
+            <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[1]" />
             <GenerationCompletion
                 variantId={variantId}
                 className={className}

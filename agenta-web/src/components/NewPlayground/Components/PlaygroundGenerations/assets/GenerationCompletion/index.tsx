@@ -65,7 +65,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
 
             <div
                 className={clsx([
-                    "flex items-center gap-2 mx-2",
+                    "flex items-center gap-2 mx-4",
                     {"mt-2": viewType === "comparison"},
                 ])}
             >

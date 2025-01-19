@@ -51,8 +51,6 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     },
                 })
 
-            const dirtyRef = useRef(new Map<string, boolean>())
-
             const fetcherWithIsDirty = useCallback(
                 async (url: string, options?: FetcherOptions): Promise<Data> => {
                     const data = await fetcher?.(url, options)
@@ -60,10 +58,10 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     if (!data) return initialState as Data
 
                     const variants = data.variants || []
-                    const dirtyStates = new Map<string, boolean>()
+                    const dirtyStates = {} as Record<string, boolean>
 
                     variants.forEach((variant) => {
-                        dirtyStates.set(variant.id, false)
+                        dirtyStates[variant.id] = false
                     })
 
                     return {
@@ -90,8 +88,8 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             logger(`COMPARE - WRAPPED`, wrappedComparison, a, b)
                             return wrappedComparison
                         } else {
-                            const isDirtyA = a?.dirtyStates?.get(config.variantId ?? "")
-                            const isDirtyB = b?.dirtyStates?.get(config.variantId ?? "")
+                            const isDirtyA = a?.dirtyStates?.[config.variantId ?? ""]
+                            const isDirtyB = b?.dirtyStates?.[config.variantId ?? ""]
 
                             return isDirtyA === isDirtyB
                         }
@@ -102,34 +100,18 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
             const originalMutateRef = useRef<SWRResponse<Data, Error>["mutate"]>(swr.mutate)
 
-            const setIsDirty = useCallback(
-                (variantId: string, isDirty: boolean) => {
-                    dirtyRef.current.set(variantId, isDirty)
-                    swr.mutate(
-                        (currentData) => {
-                            if (!currentData) return currentData
-                            return {
-                                ...currentData,
-                                dirtyStates: new Map(dirtyRef.current),
-                            }
-                        },
-                        {revalidate: false},
-                    )
-                },
-                [swr],
-            )
-
             const wrappedMutate = useCallback<KeyedMutator<Data>>(
-                async (data) => {
+                async (data, options) => {
                     const mutate = originalMutateRef.current
 
                     return mutate(
                         async (state) => {
                             const clonedState = structuredClone(state)
+                            const variantId = config.variantId || options?.variantId
 
                             if (!clonedState || !state) return state
 
-                            const dataRef = clonedState.dataRef
+                            const dataRef = state.dataRef
                             let newState: Data
 
                             if (typeof data === "function") {
@@ -138,67 +120,43 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                 newState = result ?? clonedState
                             } else if (data !== undefined) {
                                 // Handle partial state update
-                                newState = {
-                                    ...clonedState,
-                                    ...(data as Partial<Data>),
+                                for (const key in data) {
+                                    clonedState[key] = data[key]
                                 }
-                            } else {
-                                newState = clonedState
                             }
 
-                            const variant = newState.variants.find((v) => v.id === config.variantId)
+                            const variant = clonedState.variants.find((v) => v.id === variantId)
 
                             if (
                                 variant &&
-                                !compareVariantsForDirtyState(
-                                    dataRef?.get(config.variantId),
-                                    variant,
-                                )
+                                !compareVariantsForDirtyState(dataRef?.get(variantId), variant)
                             ) {
-                                const dirtyRef = clonedState.dirtyStates
-                                    ? new Map(clonedState.dirtyStates)
-                                    : new Map()
-                                dirtyRef.set(variant.id, true)
+                                const dirtyRef = state.dirtyStates
+                                    ? structuredClone(state.dirtyStates)
+                                    : {}
+                                dirtyRef[variant.id] = true
                                 clonedState.dirtyStates = dirtyRef
                             } else if (variant) {
-                                const dirtyRef = clonedState.dirtyStates
-                                    ? new Map(clonedState.dirtyStates)
-                                    : new Map()
-                                dirtyRef.set(variant.id, false)
+                                const dirtyRef = state.dirtyStates
+                                    ? structuredClone(state.dirtyStates)
+                                    : {}
+                                dirtyRef[variant.id] = false
                                 clonedState.dirtyStates = dirtyRef
                             }
 
-                            return newState
+                            return clonedState
                         },
                         {
                             revalidate: false,
                         },
                     )
                 },
-                [config.variantId, logger],
+                [config.variantId],
             )
-
-            const getSetIsDirty = useCallback(() => {
-                checkInvalidSelector()
-                addToValueReferences("setIsDirty")
-                return setIsDirty
-            }, [setIsDirty, checkInvalidSelector, addToValueReferences])
 
             Object.defineProperty(swr, "mutate", {
                 get: () => {
                     return wrappedMutate
-                },
-            })
-
-            Object.defineProperty(swr, "setIsDirty", {
-                get: getSetIsDirty,
-            })
-            Object.defineProperty(swr, "isDirty", {
-                get: () => {
-                    addToValueReferences("isDirty")
-                    return config.variantId
-                        ? swr.data?.dirtyStates?.get?.(config.variantId)
-                        : undefined
                 },
             })
 

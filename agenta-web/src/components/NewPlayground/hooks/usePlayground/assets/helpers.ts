@@ -99,7 +99,6 @@ export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) 
  * @returns Promise containing updated variants with their schemas
  */
 export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
-    // TODO: Parallelize this with Promise.all
     return variants.map((variant) => transformVariant(variant, spec))
 }
 
