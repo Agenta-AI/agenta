@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Select} from "antd"
@@ -11,6 +11,7 @@ import PromptComparisonFocusButton from "../../Drawers/PromptComparisonFocusDraw
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {useStyles} from "./styles"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -22,6 +23,7 @@ const PlaygroundVariantConfigHeader = ({
     className,
     ...divProps
 }: PlaygroundVariantConfigHeaderProps) => {
+    const classes = useStyles()
     const {variantOptions, setSelectedVariant, _variantId, variantRevision, viewType, isDirty} =
         usePlayground({
             variantId,
@@ -48,11 +50,10 @@ const PlaygroundVariantConfigHeader = ({
     return (
         <section
             className={clsx(
-                "w-full h-[48px] px-2.5",
+                "w-full h-[48px]",
                 "flex items-center justify-between",
                 "sticky top-0 z-[1]",
-                "bg-white",
-                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                classes.container,
                 className,
             )}
             {...divProps}
