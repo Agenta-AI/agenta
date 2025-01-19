@@ -34,7 +34,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                 },
             },
         ],
-        [],
+        [result],
     )
     return (
         <Dropdown trigger={["click"]} menu={{items}} {...props}>
