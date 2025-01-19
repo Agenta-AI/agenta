@@ -395,7 +395,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         // Only sync inputs if the keys have changed
                         if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
                             clonedState.generationData = syncVariantInputs(
-                                updatedVariant,
+                                [updatedVariant],
                                 clonedState.generationData,
                             )
                         }
