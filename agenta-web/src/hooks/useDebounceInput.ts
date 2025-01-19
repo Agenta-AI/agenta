@@ -1,5 +1,5 @@
 import {useState, useEffect} from "react"
-import {useDebounceCallback, useDebounceValue} from "usehooks-ts"
+import {useDebounceValue} from "usehooks-ts"
 import useLazyEffect from "./useLazyEffect"
 
 /**

@@ -79,7 +79,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         )
                         atomStore.set(specAtom, () => spec)
                         state.selected = [state.variants[0].id]
-                        state.generationData = initializeComparisonInputs(state.variants)
+                        state.generationData = initializeComparisonInputs([state.variants[0]])
 
                         return state
                     } catch (error) {
