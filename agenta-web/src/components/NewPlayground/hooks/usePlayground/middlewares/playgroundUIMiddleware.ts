@@ -154,9 +154,9 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             if (!state) return state
 
                             state.selected = [variantId]
-                            state.generationData = syncVariantInputs(
+                            state.generationData.inputs = syncVariantInputs(
                                 [state.variants.find((variant) => variant.id === variantId)!],
-                                state.generationData,
+                                state.generationData.inputs,
                             )
 
                             return state
@@ -186,11 +186,11 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     new Set([...state.selected, variantId]),
                                 )
                                 state.selected = selectedVariants
-                                state.generationData = syncVariantInputs(
+                                state.generationData.inputs = syncVariantInputs(
                                     state.variants.filter((variant) =>
                                         selectedVariants.includes(variant.id),
                                     ),
-                                    state.generationData,
+                                    state.generationData.inputs,
                                 )
                             } else {
                                 if (state.selected.length === 1) {
