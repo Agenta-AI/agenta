@@ -238,15 +238,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.error("Failed to delete variant")
                                 }
 
-                                const clonedState = structuredClone(state)
-                                clonedState?.variants?.forEach((v: EnhancedVariant) => {
+                                state?.variants?.forEach((v: EnhancedVariant) => {
                                     if (v.id === variant.id) {
-                                        const index = clonedState.variants.indexOf(v)
-                                        clonedState.variants.splice(index, 1)
+                                        const index = state.variants.indexOf(v)
+                                        state.variants.splice(index, 1)
                                     }
                                 })
 
-                                return clonedState
+                                return state
                             } catch (err) {
                                 message.error("Failed to delete variant")
                                 return state
