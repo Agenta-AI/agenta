@@ -1,14 +1,23 @@
 import clsx from "clsx"
-import {Input, Typography} from "antd"
+import {Input, Typography, Tooltip} from "antd"
 import {useCallback, ChangeEvent} from "react"
 import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 import type {TextControlProps} from "./types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 const {TextArea} = Input
 
-const TextControl = ({className, metadata, value, handleChange, as, view}: TextControlProps) => {
+const TextControl = ({
+    withTooltip,
+    description,
+    className,
+    metadata,
+    value,
+    handleChange,
+    as,
+    view,
+}: TextControlProps) => {
     const {viewType} = usePlayground()
 
     const [localValue, setLocalValue] = useDebounceInput<string>(value, handleChange, 300, "")
@@ -47,12 +56,19 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
     return (
         <div
             className={clsx("relative bg-transparent", className)}
-            // {...props}
         >
             <div className="bg-[#f5f7fa] sticky -top-2 z-[1]">
-                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
-                    {metadata.title}
-                </Typography>
+                {withTooltip ? (
+                    <Tooltip title={description}>
+                        <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                            {metadata.title}
+                        </Typography>
+                    </Tooltip>
+                ) : (
+                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                        {metadata.title}
+                    </Typography>
+                )}
             </div>
             <TextArea
                 value={localValue}
