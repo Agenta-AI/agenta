@@ -1,16 +1,14 @@
 import {memo, useCallback} from "react"
-import {Button, Typography} from "antd"
-import {GenerationComparisonHeaderProps} from "./types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
-import {
-    ArrayMetadata,
-    ObjectMetadata,
-} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {useStyles} from "./styles"
+
 import clsx from "clsx"
-import RunButton from "@/components/NewPlayground/assets/RunButton"
+import {Button, Typography} from "antd"
+import RunButton from "../../../assets/RunButton"
+
+import usePlayground from "../../../hooks/usePlayground"
+import {useStyles} from "./styles"
+
+import {clearRuns} from "../../../hooks/usePlayground/assets/generationHelpers"
+import {GenerationComparisonHeaderProps} from "./types"
 
 const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps) => {
     const classes = useStyles()
@@ -20,16 +18,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
         mutate(
             (clonedState) => {
                 if (!clonedState) return clonedState
-
-                const generationMetadata = clonedState.generationData.__metadata
-                const metadata =
-                    getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)?.itemMetadata
-                if (!metadata) return clonedState
-
-                const inputKeys = Object.keys(metadata.properties)
-                const newRow = createInputRow(inputKeys, metadata)
-                clonedState.generationData.inputs.value = [newRow]
-
+                clearRuns(clonedState)
                 return clonedState
             },
             {revalidate: false},

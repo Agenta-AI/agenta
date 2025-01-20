@@ -5,6 +5,7 @@ import {createMessageRow} from "./messageHelpers"
 
 import {type EnhancedConfigValue} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {PlaygroundStateData} from "../types"
 
 /**
  * Extracts all unique input keys from a collection of variants
@@ -25,7 +26,7 @@ export const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigV
     return Array.from(uniqueKeys)
 }
 
-export const initializeComparisonInputs = (variants: EnhancedVariant[]) => {
+export const initializeGenerationInputs = (variants: EnhancedVariant[]) => {
     // Get all unique input keys across all variants
     const uniqueInputKeys = getUniqueInputKeys(variants)
 
@@ -61,7 +62,7 @@ export const getUniqueMessages = (variants: EnhancedVariant[]) => {
     return Array.from(uniqueMessages.values())
 }
 
-export const initializeComparisonMessages = (variants: EnhancedVariant[]) => {
+export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
     const uniqueSystemMessages = getUniqueMessages(variants)
 
     const emptyMessage = structuredClone(uniqueSystemMessages[0])
@@ -83,4 +84,17 @@ export const initializeComparisonMessages = (variants: EnhancedVariant[]) => {
         __metadata: variants[0].prompts[0].messages.__metadata,
         value: initialMessageRows,
     }
+}
+
+export const clearRuns = (state: PlaygroundStateData) => {
+    const inputs = state.generationData.inputs.value
+    for (const inputRow of inputs) {
+        const rowRuns = Object.values(inputRow.__runs)
+        for (const run of rowRuns) {
+            run.__isRunning = false
+            run.__result = null
+        }
+    }
+
+    const messages = state.generationData.messages.value
 }
