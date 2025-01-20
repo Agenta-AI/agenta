@@ -24,28 +24,46 @@ const PlaygroundVariantConfigHeader = ({
     ...divProps
 }: PlaygroundVariantConfigHeaderProps) => {
     const classes = useStyles()
-    const {variantOptions, setSelectedVariant, _variantId, variantRevision, viewType, isDirty} =
-        usePlayground({
-            variantId,
-            hookId: "PlaygroundVariantConfigHeader",
-            stateSelector: useCallback(
-                (state: PlaygroundStateData) => {
-                    const variants = state.variants
-                    const variant = variants.find((v) => v.id === variantId)
-                    const isDirty = state.dirtyStates?.[variantId]
-                    return {
-                        isDirty,
-                        _variantId: variant?.id,
-                        variantRevision: variant?.revision,
-                        variantOptions: (variants || []).map((variant) => ({
-                            label: variant.variantName,
-                            value: variant.id,
-                        })),
-                    }
-                },
-                [variantId],
-            ),
-        })
+    const {variantOptions, mutate, _variantId, variantRevision, viewType, isDirty} = usePlayground({
+        variantId,
+        hookId: "PlaygroundVariantConfigHeader",
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variants = state.variants
+                const variant = variants.find((v) => v.id === variantId)
+                const isDirty = state.dirtyStates?.[variantId]
+
+                return {
+                    isDirty,
+                    _variantId: variant?.id,
+                    variantRevision: variant?.revision,
+                    variantOptions: (variants || []).map((variant) => ({
+                        label: variant.variantName,
+                        value: variant.id,
+                        disabled: state.selected.includes(variant.id),
+                    })),
+                }
+            },
+            [variantId],
+        ),
+    })
+
+    const switchVariant = useCallback(
+        (newVariantId: string) => {
+            mutate((clonedState) => {
+                if (!clonedState) return clonedState
+                const previousSelected = [...clonedState.selected]
+                previousSelected.splice(
+                    previousSelected.findIndex((id) => id === variantId),
+                    1,
+                    newVariantId,
+                )
+                clonedState.selected = previousSelected
+                return clonedState
+            })
+        },
+        [mutate, variantId],
+    )
 
     return (
         <section
@@ -63,7 +81,7 @@ const PlaygroundVariantConfigHeader = ({
                     showSearch
                     style={{width: 120}}
                     value={_variantId}
-                    onChange={(value) => setSelectedVariant?.(value)}
+                    onChange={(value) => switchVariant?.(value)}
                     size="small"
                     placeholder="Select variant"
                     options={variantOptions}
