@@ -335,6 +335,7 @@ class ModelConfig(BaseModel):
     max_tokens: Optional[int] = Field(
         default=-1,
         ge=0,
+        le=4000,
         description="The maximum number of tokens that can be generated in the chat completion",
     )
     top_p: Optional[float] = Field(
