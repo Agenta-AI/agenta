@@ -376,9 +376,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                             if (!clonedVariant) return clonedState
 
-                            // Get current input keys before update
-                            const previousInputKeys = getVariantInputKeys(clonedVariant)
-
                             const updateValues =
                                 typeof updates === "function" ? updates(clonedVariant) : updates
 
@@ -390,17 +387,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                             // Update prompt keys
                             updateVariantPromptKeys(updatedVariant)
-
-                            // Get new input keys after update
-                            const newInputKeys = getVariantInputKeys(updatedVariant)
-
-                            // Only sync inputs if the keys have changed
-                            if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
-                                clonedState.generationData = syncVariantInputs(
-                                    [updatedVariant],
-                                    clonedState.generationData,
-                                )
-                            }
 
                             const index = clonedState?.variants?.findIndex(
                                 (v) => v.id === clonedVariant.id,
