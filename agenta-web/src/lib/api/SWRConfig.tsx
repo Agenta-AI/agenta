@@ -10,7 +10,6 @@ const config: SWRConfiguration = {
                 return axios.post(url, options.body).then((res) => res.data)
             case "PUT":
                 return axios.put(url, options.body).then((res) => {
-                    console.log("GOT PUT RESPONSE", res)
                     return res.data
                 })
             case "DELETE":

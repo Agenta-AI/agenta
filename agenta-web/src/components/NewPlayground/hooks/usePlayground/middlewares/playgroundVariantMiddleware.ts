@@ -366,65 +366,67 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     updates: Partial<EnhancedVariant> | VariantUpdateFunction,
                     variantId?: string,
                 ) => {
-                    swr.mutate(async (clonedState) => {
-                        console.log("clonedState: ", clonedState)
+                    swr.mutate(
+                        async (clonedState) => {
+                            if (!clonedState) return clonedState
 
-                        if (!clonedState) return clonedState
-
-                        const clonedVariant = clonedState?.variants?.find(
-                            (v) => v.id === (variantId ?? config.variantId),
-                        )
-
-                        if (!clonedVariant) return clonedState
-
-                        // Get current input keys before update
-                        const previousInputKeys = getVariantInputKeys(clonedVariant)
-                        const previousMessages = getVariantMessages(clonedVariant)
-
-                        const clonedPrevMsg = structuredClone(previousMessages)
-
-                        const updateValues =
-                            typeof updates === "function" ? updates(clonedVariant) : updates
-
-                        // if (!variant || !state) return state
-                        const updatedVariant: EnhancedVariant = {
-                            ...clonedVariant,
-                            ...updateValues,
-                        }
-
-                        // Update prompt keys
-                        updateVariantPromptKeys(updatedVariant)
-                        const newMessages = getVariantMessages(updatedVariant)
-
-                        // Get new input keys after update
-                        const newInputKeys = getVariantInputKeys(updatedVariant)
-
-                        // Only sync inputs if the keys have changed
-                        if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
-                            clonedState.generationData.inputs = syncVariantInputs(
-                                updatedVariant,
-                                clonedState.generationData.inputs,
+                            const clonedVariant = clonedState?.variants?.find(
+                                (v) => v.id === (variantId ?? config.variantId),
                             )
-                        }
 
-                        // TODO: add message synchronization as well
-                        if (!isPlaygroundEqual(clonedPrevMsg, newMessages)) {
-                            clonedState.generationData.messages = syncVariantMessages(
-                                updatedVariant,
-                                clonedState.generationData.messages,
+                            if (!clonedVariant) return clonedState
+
+                            // Get current input keys before update
+                            const previousInputKeys = getVariantInputKeys(clonedVariant)
+                            const previousMessages = getVariantMessages(clonedVariant)
+
+                            const clonedPrevMsg = structuredClone(previousMessages)
+
+                            const updateValues =
+                                typeof updates === "function" ? updates(clonedVariant) : updates
+
+                            // if (!variant || !state) return state
+                            const updatedVariant: EnhancedVariant = {
+                                ...clonedVariant,
+                                ...updateValues,
+                            }
+
+                            // Update prompt keys
+                            updateVariantPromptKeys(updatedVariant)
+                            const newMessages = getVariantMessages(updatedVariant)
+
+                            // Get new input keys after update
+                            const newInputKeys = getVariantInputKeys(updatedVariant)
+
+                            // Only sync inputs if the keys have changed
+                            if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
+                                clonedState.generationData.inputs = syncVariantInputs(
+                                    [updatedVariant],
+                                    clonedState.generationData.inputs,
+                                )
+                            }
+
+                            if (!isPlaygroundEqual(clonedPrevMsg, newMessages)) {
+                                clonedState.generationData.messages = syncVariantMessages(
+                                    updatedVariant,
+                                    clonedState.generationData.messages,
+                                )
+                            }
+
+                            const index = clonedState?.variants?.findIndex(
+                                (v) => v.id === clonedVariant.id,
                             )
-                        }
 
-                        const index = clonedState?.variants?.findIndex(
-                            (v) => v.id === clonedVariant.id,
-                        )
+                            clonedState.variants[index] = updatedVariant
 
-                        clonedState.variants[index] = updatedVariant
-
-                        return clonedState
-                    })
+                            return clonedState
+                        },
+                        {
+                            variantId,
+                        },
+                    )
                 },
-                [swr, variantId],
+                [swr, config.variantId],
             )
 
             const handleParamUpdate = useCallback(
@@ -454,7 +456,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return updatedVariant
                     }, variantId ?? config.variantId)
                 },
-                [config.propertyId, mutateVariant],
+                [config.propertyId, config.variantId, mutateVariant],
             )
 
             const getVariantConfigProperty = useCallback(() => {

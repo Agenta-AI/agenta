@@ -84,20 +84,13 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         state.selected = [state.variants[0].id]
 
                         state.generationData.inputs = initializeComparisonInputs(state.variants)
-                        console.log(
-                            "YOOOO!",
-                            state.generationData.inputs,
-                            detectChatVariantFromOpenAISchema(spec),
-                        )
+
                         // initializeVariantInputs(enhancedVariant)
                         if (detectChatVariantFromOpenAISchema(spec)) {
                             state.generationData.messages = initializeComparisonMessages(
                                 state.variants,
                             )
-
-                            console.log("ayo?", state.generationData.messages)
                         }
-                        // TODO: Add message initialization
 
                         return state
                     } catch (error) {

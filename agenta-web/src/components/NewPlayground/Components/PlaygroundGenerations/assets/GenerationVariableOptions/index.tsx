@@ -5,7 +5,7 @@ import {GenerationVariableOptionsProps} from "./types"
 import clsx from "clsx"
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import GenerationFocusDrawerButton from "../../../Drawers/GenerationFocusDrawer/components/GenerationFocusDrawerButton"
+import GenerationFocusDrawerButton from "../../../Drawers/GenerationFocusDrawer/assets/GenerationFocusDrawerButton"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
@@ -25,7 +25,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
         variantId,
         hookId: "GenerationVariableOptions",
         stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.value || []
+            const inputRows = state.generationData.inputs.value || []
             return {inputRows}
         }, []),
     })
@@ -82,7 +82,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     }, [])
 
     return (
-        <div className={clsx("flex items-center gap-1", className)}>
+        <div className={clsx("flex items-center gap-1 z-[2]", className)}>
             <Button
                 icon={<MinusCircle size={14} />}
                 type="text"

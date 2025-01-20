@@ -88,7 +88,7 @@ const VariantNavigationCard = ({
                     "p-2 rounded-lg w-full flex flex-col gap-3",
                     "translate-x-0 translate-y-0 skew-x-0 skew-y-0 rotate-0",
                     "transition-all duration-200 ease-in-out",
-                    "opacity-100",
+                    "opacity-100 *:!select-none",
                     classes.card,
                     {
                         "shadow-xl [&_>_div]:scale-[1.01]": isDragging,

@@ -87,11 +87,22 @@ function extractValueByMetadata(
 /**
  * Extract input values from an enhanced input row
  */
-function extractInputValues(inputRow: Record<string, any>): Record<string, string> {
+function extractInputValues(
+    variant: EnhancedVariant,
+    inputRow: Record<string, any>,
+): Record<string, string> {
+    const variantInputs = variant.prompts.flatMap((prompt) => {
+        return (prompt.inputKeys?.value || []).map((keyValue) => keyValue.value)
+    })
     return Object.entries(inputRow).reduce(
         (acc, [key, value]) => {
             // Skip metadata, id, and result fields
-            if (key !== "__id" && key !== "__metadata" && key !== "__result") {
+            if (
+                key !== "__id" &&
+                key !== "__metadata" &&
+                key !== "__result" &&
+                variantInputs.includes(key)
+            ) {
                 acc[key] = value.value
             }
             return acc
@@ -117,7 +128,7 @@ export function transformToRequestBody(
     }
 
     if (inputRow) {
-        data.inputs = extractInputValues(inputRow)
+        data.inputs = extractInputValues(variant, inputRow)
     }
 
     return data
