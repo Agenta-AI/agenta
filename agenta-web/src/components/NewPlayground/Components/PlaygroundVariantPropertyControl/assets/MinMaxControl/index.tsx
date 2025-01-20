@@ -15,7 +15,16 @@ import type {MinMaxControlProps} from "./types"
  * - Both slider and input changes are debounced to prevent excessive updates
  * - Falls back to min value when null/undefined is provided
  */
-const MinMaxControl = ({label, min, max, step, value, description, withTooltip, onChange}: MinMaxControlProps) => {
+const MinMaxControl = ({
+    label,
+    min,
+    max,
+    step,
+    value,
+    description,
+    withTooltip,
+    onChange,
+}: MinMaxControlProps) => {
     const [localValue, setLocalValue] = useDebounceInput<number | null>(
         value ?? null,
         onChange,
@@ -38,15 +47,13 @@ const MinMaxControl = ({label, min, max, step, value, description, withTooltip, 
     return (
         <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
             <div className="flex items-center gap-2 justify-between">
-                {
-                    withTooltip ? (
-                        <Tooltip title={description}>
-                            <Typography.Text>{label}</Typography.Text>
-                        </Tooltip>
-                    ) : (
+                {withTooltip ? (
+                    <Tooltip title={description}>
                         <Typography.Text>{label}</Typography.Text>
-                    )
-                }
+                    </Tooltip>
+                ) : (
+                    <Typography.Text>{label}</Typography.Text>
+                )}
                 <InputNumber
                     min={min}
                     max={max}

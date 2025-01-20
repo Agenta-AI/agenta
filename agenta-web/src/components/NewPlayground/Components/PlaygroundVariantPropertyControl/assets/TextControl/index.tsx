@@ -54,9 +54,7 @@ const TextControl = ({
     }
 
     return (
-        <div
-            className={clsx("relative bg-transparent", className)}
-        >
+        <div className={clsx("relative bg-transparent", className)}>
             <div className="bg-[#f5f7fa] sticky -top-2 z-[1]">
                 {withTooltip ? (
                     <Tooltip title={description}>
