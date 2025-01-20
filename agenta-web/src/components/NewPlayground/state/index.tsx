@@ -52,7 +52,7 @@ export const getSpecLazy = () => {
 export const initialState: InitialStateType = {
     variants: [],
     selected: [],
-    dirtyStates: new Map<string, boolean>(),
+    dirtyStates: {},
     generationData: {
         messages: {} as InitialStateType["generationData"]["messages"],
         inputs: {} as InitialStateType["generationData"]["inputs"],

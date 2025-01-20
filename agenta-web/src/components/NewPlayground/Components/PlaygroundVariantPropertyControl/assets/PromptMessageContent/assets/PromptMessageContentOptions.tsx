@@ -1,12 +1,13 @@
-import {Button} from "antd"
-import {MinusCircle, Copy} from "@phosphor-icons/react"
+import {useState} from "react"
+import {MinusCircle, Copy, Check} from "@phosphor-icons/react"
 import {PromptMessageContentOptionsProps} from "./types"
-import clsx from "clsx"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {findPropertyById} from "@/components/NewPlayground/hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
 import {EnhancedObjectConfig} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import EnhancedButton from "@/components/NewPlayground/assets/EnhancedButton"
+import clsx from "clsx"
 
 const PromptMessageContentOptions = ({
     deleteMessage,
@@ -17,9 +18,8 @@ const PromptMessageContentOptions = ({
     rowId,
     isMessageDeletable,
 }: PromptMessageContentOptionsProps) => {
-    const {baseProperty: property} = usePlayground({
-        // variantId,
-        // propertyId,
+    // TODO: REPLACE THIS WITH A GETTER ACTION FOR PROPERTY VALUE
+    const {variantConfigProperty: property} = usePlayground({
         hookId: "PlaygroundVariantPropertyControl",
         stateSelector: (state) => {
             const object = !!rowId
@@ -42,26 +42,32 @@ const PromptMessageContentOptions = ({
             }
         },
     })
+    const [isCopied, setIsCopied] = useState(false)
 
-    console.log("baseProperty", property)
+    const onCopyText = () => {
+        setIsCopied(true)
+        navigator.clipboard.writeText(property?.value)
+
+        setTimeout(() => {
+            setIsCopied(false)
+        }, 1000)
+    }
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <Button
-                icon={<Copy size={14} />}
+            <EnhancedButton
+                icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
                 type="text"
-                onClick={() => {
-                    const val = property?.value
-                    if (val) {
-                        navigator.clipboard.writeText(val)
-                    }
-                }}
+                onClick={onCopyText}
+                tooltipProps={{title: isCopied ? "Copied" : "Copy"}}
             />
-            <Button
+
+            <EnhancedButton
                 icon={<MinusCircle size={14} />}
                 type="text"
                 onClick={() => deleteMessage?.(messageId)}
                 disabled={isMessageDeletable}
+                tooltipProps={{title: "Remove"}}
             />
         </div>
     )
