@@ -324,12 +324,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                         if (
                                             clonedState?.dirtyStates &&
-                                            clonedState.dirtyStates.get(updatedVariant.id)
+                                            clonedState.dirtyStates[updatedVariant.id]
                                         ) {
-                                            clonedState.dirtyStates = new Map(
+                                            clonedState.dirtyStates = structuredClone(
                                                 clonedState.dirtyStates,
                                             )
-                                            clonedState.dirtyStates.set(updatedVariant.id, false)
+                                            clonedState.dirtyStates[updatedVariant.id] = false
+
+                                            // TODO: THIS NEEDS FIXING, IT IS NOT USED PROPERLY
                                             clonedState.dataRef = new Map(clonedState.dataRef)
                                             clonedState.dataRef.set(
                                                 updatedVariant.id,
