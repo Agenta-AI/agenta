@@ -2,8 +2,10 @@ import {useCallback, useRef} from "react"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
-import {initialState} from "../../../state"
 import {isPlaygroundEqual, omitDeep} from "../assets/helpers"
+import {initialState} from "../../../state"
+import {syncVariantInputs} from "../assets/inputHelpers"
+import {getUniqueInputKeys} from "../assets/comparisonHelpers"
 
 import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
 import {type FetcherOptions} from "@/lib/api/types"
@@ -14,7 +16,6 @@ import type {
     PlaygroundMiddlewareParams,
 } from "../types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-
 /**
  * Compare two variants ignoring specified properties
  */
@@ -142,6 +143,37 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                     : {}
                                 dirtyRef[variant.id] = false
                                 clonedState.dirtyStates = dirtyRef
+                            }
+
+                            /**
+                             * before committing changes to the state check if we need to
+                             * sync the generation data in line with new state variants
+                             *
+                             * conditions:
+                             * - selected [visible] variants have changed -> different variants may have different inputs
+                             * - an updated [displayed] variant have new / removed inputs
+                             */
+                            const previousSelected = [...state.selected]
+                            const currentSelected = clonedState.selected
+
+                            const previousInputs = getUniqueInputKeys(
+                                state.variants.filter((variant) =>
+                                    previousSelected.includes(variant.id),
+                                ),
+                            )
+                            const currentInputs = getUniqueInputKeys(
+                                clonedState.variants.filter((variant) =>
+                                    currentSelected.includes(variant.id),
+                                ),
+                            )
+
+                            if (!isPlaygroundEqual(previousInputs, currentInputs)) {
+                                clonedState.generationData = syncVariantInputs(
+                                    clonedState.variants.filter((variant) =>
+                                        currentSelected.includes(variant.id),
+                                    ),
+                                    clonedState.generationData,
+                                )
                             }
 
                             return clonedState

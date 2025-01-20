@@ -46,7 +46,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     <Text className={classes.heading}>{variant?.variantName}</Text>
                 </div>
-                <div className="flex flex-col gap-1">
+                {/* <div className="flex flex-col gap-1">
                     <Text>Notes (optional)</Text>
                     <Input.TextArea
                         placeholder="Describe the changes that you have done for this version"
@@ -54,7 +54,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                     />
-                </div>
+                </div> */}
             </section>
         </Modal>
     )

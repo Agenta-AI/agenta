@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {
     ArrowCounterClockwise,
@@ -9,11 +9,39 @@ import {
 } from "@phosphor-icons/react"
 import {PlaygroundVariantHeaderMenuProps} from "./types"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = ({
     variantId,
     ...props
 }) => {
+    const {mutate, closePanelDisabled} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                return {
+                    closePanelDisabled:
+                        state.selected.length === 1 && state.selected.includes(variantId),
+                }
+            },
+            [variantId],
+        ),
+    })
+
+    const handleClosePanel = useCallback(() => {
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
+            const previousSelected = [...clonedState.selected]
+            previousSelected.splice(
+                previousSelected.findIndex((id) => id === variantId),
+                1,
+            )
+
+            clonedState.selected = previousSelected
+            return clonedState
+        })
+    }, [variantId])
+
     const items: MenuProps["items"] = useMemo(
         () => [
             {
@@ -66,12 +94,14 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
             {
                 key: "close",
                 label: "Close panel",
+                disabled: closePanelDisabled,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
+                    handleClosePanel()
                 },
             },
         ],
-        [],
+        [handleClosePanel, closePanelDisabled, variantId],
     )
 
     return (

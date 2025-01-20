@@ -10,7 +10,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
     const metadataHash = hashMetadata(metadata)
 
     // For primitive types with options (like role)
-    if (metadata.type === "string") {
+    if (metadata.type === "string" && metadata.options?.length) {
         let defaultValue = ""
         if (metadata.options?.length) {
             const firstOption = metadata.options[0]
