@@ -19,7 +19,7 @@ const PromptMessageContentOptions = ({
     isMessageDeletable,
 }: PromptMessageContentOptionsProps) => {
     // TODO: REPLACE THIS WITH A GETTER ACTION FOR PROPERTY VALUE
-    const {variantConfigProperty: property} = usePlayground({
+    const {baseProperty: property} = usePlayground({
         hookId: "PlaygroundVariantPropertyControl",
         stateSelector: (state) => {
             const object = !!rowId
