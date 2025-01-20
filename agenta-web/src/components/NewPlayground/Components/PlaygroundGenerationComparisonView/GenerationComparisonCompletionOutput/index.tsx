@@ -4,7 +4,6 @@ import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutp
 import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
-import GenerationFocusDrawerButton from "../../Drawers/GenerationFocusDrawer/assets/GenerationFocusDrawerButton"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {useCallback} from "react"
@@ -90,15 +89,6 @@ const GenerationComparisonCompletionOutputRow = ({
                 ) : result.response ? (
                     <GenerationOutputText text={result.response.data} />
                 ) : null}
-
-                {!focusDisable && (
-                    <GenerationFocusDrawerButton
-                        variantIds={variantId}
-                        className="absolute top-1.5 right-2 invisible group-hover/item:visible"
-                        size="small"
-                        rowId=""
-                    />
-                )}
             </div>
 
             {result?.response && (
