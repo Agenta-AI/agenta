@@ -13,6 +13,7 @@ import {getMetadataLazy} from "@/components/NewPlayground/state"
 import type {PromptCollapseContentProps} from "../types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {ArrayMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {findVariantById} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -31,7 +32,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     className,
     ...props
 }) => {
-    const {inputKeys, messageIds, mutateVariant, hasVariable} = usePlayground({
+    const {inputKeys, messageIds, mutateVariant, hasVariable, mutate} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: useCallback(
@@ -79,19 +80,35 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         (messageId: string) => {
             if (!mutateVariant) return
 
-            mutateVariant((draft) => {
-                const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
-                const messages = variantPrompt?.messages.value
+            mutate(
+                (clonedState) => {
+                    if (!clonedState) return clonedState
 
-                if (variantPrompt && messages) {
-                    // Filter out the message with the specified ID
-                    variantPrompt.messages.value = messages.filter(
-                        (message) => message.__id !== messageId,
+                    const variant = findVariantById(clonedState, variantId)
+
+                    if (!variant) return clonedState
+
+                    const variantPrompt = variant.prompts?.find((p) => p.__id === promptId)
+                    const messages = variantPrompt?.messages.value
+
+                    if (variantPrompt && messages) {
+                        // Filter out the message with the specified ID
+                        variantPrompt.messages.value = messages.filter(
+                            (message) => message.__id !== messageId,
+                        )
+                    }
+
+                    const generationMessages = clonedState.generationData.messages.value
+                    clonedState.generationData.messages.value = generationMessages.filter(
+                        (message) => {
+                            return message.value.__id !== messageId
+                        },
                     )
-                }
 
-                return draft
-            })
+                    return clonedState
+                },
+                {revalidate: false},
+            )
         },
         [mutateVariant, promptId],
     )
