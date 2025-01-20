@@ -6,6 +6,7 @@ import type {BaseContainerProps} from "../types"
 import GenerationComparisonCompletionOutput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
 import GenerationComparisonCompletionInput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionInput"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
+import {useRef} from "react"
 
 const PromptComparisonVariantNavigation = dynamic(
     () => import("../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"),
@@ -21,6 +22,15 @@ const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Pa
 const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
     const {viewType, displayedVariants} = usePlayground()
     const isComparisonView = viewType === "comparison"
+    const variantRefs = useRef<(HTMLDivElement | null)[]>([])
+
+    const handleScroll = (index: number) => {
+        const targetRef = variantRefs.current[index]
+
+        if (targetRef) {
+            targetRef.scrollIntoView({behavior: "smooth", inline: "end"})
+        }
+    }
 
     return (
         <main
@@ -46,9 +56,12 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             ])}
                         >
                             {isComparisonView && (
-                                <PromptComparisonVariantNavigation className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)]" />
+                                <PromptComparisonVariantNavigation
+                                    className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
+                                    handleScroll={handleScroll}
+                                />
                             )}
-                            {(displayedVariants || []).map((variantId) => {
+                            {(displayedVariants || []).map((variantId, index) => {
                                 return (
                                     <div
                                         key={variantId}
@@ -58,6 +71,9 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                                     isComparisonView,
                                             },
                                         ])}
+                                        ref={(el) => {
+                                            variantRefs.current[index] = el
+                                        }}
                                     >
                                         <PlaygroundVariantConfig variantId={variantId} />
                                     </div>

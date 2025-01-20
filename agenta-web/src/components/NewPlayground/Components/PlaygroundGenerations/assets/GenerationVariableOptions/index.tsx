@@ -5,7 +5,6 @@ import {GenerationVariableOptionsProps} from "./types"
 import clsx from "clsx"
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import GenerationFocusDrawerButton from "../../../Drawers/GenerationFocusDrawer/assets/GenerationFocusDrawerButton"
 import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
@@ -92,11 +91,6 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
             />
             {viewType === "single" ? (
                 <>
-                    <GenerationFocusDrawerButton
-                        rowId={rowId}
-                        variantIds={variantId}
-                        size="small"
-                    />
                     <PlaygroundGenerationVariableMenu
                         duplicateInputRow={duplicateInputRow}
                         result={result}

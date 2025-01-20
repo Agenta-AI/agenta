@@ -11,7 +11,7 @@ import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
  * @param variants - Array of variants to extract input keys from
  * @returns Array of unique input keys
  */
-const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigValue<string>[] => {
+export const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigValue<string>[] => {
     const inputKeySets = variants.map(
         (variant) => new Set(variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || [])),
     )

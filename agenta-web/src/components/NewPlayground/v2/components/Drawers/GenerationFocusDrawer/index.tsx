@@ -1,15 +1,17 @@
 import {useCallback, useState} from "react"
 import {Drawer} from "antd"
-import useDrawerWidth from "../../../hooks/useDrawerWidth"
+
 import {GenerationFocusDrawerProps, OutputFormat} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import GenerationComparisonCompletionOutput from "../../PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
 import GenerationFocusDrawerHeader from "./assets/GenerationFocusDrawerHeader"
 import GenerationOutputNavigator from "./assets/GenerationOutputNavigator"
 import clsx from "clsx"
-import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
+
 import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
 import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
+import useDrawerWidth from "@/components/NewPlayground/hooks/useDrawerWidth"
+import GenerationCompletionRow from "@/components/NewPlayground/Components/PlaygroundGenerations/assets/GenerationCompletionRow"
+import GenerationComparisonCompletionOutput from "@/components/NewPlayground/Components/PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
 
 const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
     type,

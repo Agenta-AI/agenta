@@ -5,10 +5,11 @@ import {getCurrentProject} from "@/contexts/project.context"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
-import {apiKeyObject} from "@/lib/helpers/utils"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
+import useWebWorker from "../../useWebWorker"
+import {getJWT} from "@/services/api"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -19,9 +20,7 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import useWebWorker from "../../useWebWorker"
-import {getJWT} from "@/services/api"
-import {useVaultSecret} from "@/hooks/useVaultSecret"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -30,7 +29,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
         config: PlaygroundSWRConfig<Data>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
-            const {secrets} = useVaultSecret()
             const {logger, valueReferences, addToValueReferences} = usePlaygroundUtilities({
                 config: {
                     ...config,
@@ -80,9 +78,11 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 ({
                     baseVariantName,
                     newVariantName,
+                    callback,
                 }: {
                     baseVariantName: string
                     newVariantName: string
+                    callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
                 }) => {
                     swr.mutate(
                         async (state) => {
@@ -154,6 +154,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
                             state.variants.push(variantWithConfig)
 
+                            callback?.(variantWithConfig, state)
                             return state
                         },
                         {revalidate: false},
@@ -191,7 +192,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                         swr.mutate(
                             async (clonedState) => {
                                 const jwt = await getJWT()
-                                // const clonedState = structuredClone(state)
                                 if (!clonedState) return clonedState
                                 const visibleVariants = variantId
                                     ? [variantId]

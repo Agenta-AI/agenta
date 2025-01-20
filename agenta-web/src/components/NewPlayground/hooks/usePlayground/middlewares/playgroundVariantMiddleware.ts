@@ -240,15 +240,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.error("Failed to delete variant")
                                 }
 
-                                const clonedState = structuredClone(state)
-                                clonedState?.variants?.forEach((v: EnhancedVariant) => {
+                                state?.variants?.forEach((v: EnhancedVariant) => {
                                     if (v.id === variant.id) {
-                                        const index = clonedState.variants.indexOf(v)
-                                        clonedState.variants.splice(index, 1)
+                                        const index = state.variants.indexOf(v)
+                                        state.variants.splice(index, 1)
                                     }
                                 })
 
-                                return clonedState
+                                return state
                             } catch (err) {
                                 message.error("Failed to delete variant")
                                 return state
@@ -326,12 +325,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                         if (
                                             clonedState?.dirtyStates &&
-                                            clonedState.dirtyStates.get(updatedVariant.id)
+                                            clonedState.dirtyStates[updatedVariant.id]
                                         ) {
-                                            clonedState.dirtyStates = new Map(
+                                            clonedState.dirtyStates = structuredClone(
                                                 clonedState.dirtyStates,
                                             )
-                                            clonedState.dirtyStates.set(updatedVariant.id, false)
+                                            clonedState.dirtyStates[updatedVariant.id] = false
+
+                                            // TODO: THIS NEEDS FIXING, IT IS NOT USED PROPERLY
                                             clonedState.dataRef = new Map(clonedState.dataRef)
                                             clonedState.dataRef.set(
                                                 updatedVariant.id,

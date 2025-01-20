@@ -51,6 +51,7 @@ const GenerationCompletionRow = ({
                         canRun,
                         result,
                         isRunning,
+                        isChat: state.variants[0]?.isChat,
                         inputText: variables?.[0]?.value, // Temporary implementation
                     }
                 },
