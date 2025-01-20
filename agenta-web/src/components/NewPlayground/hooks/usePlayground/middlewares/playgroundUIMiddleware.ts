@@ -154,11 +154,6 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             if (!state) return state
 
                             state.selected = [variantId]
-                            state.generationData.inputs = syncVariantInputs(
-                                [state.variants.find((variant) => variant.id === variantId)!],
-                                state.generationData.inputs,
-                            )
-
                             return state
                         },
                         {revalidate: false},
@@ -186,12 +181,6 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     new Set([...state.selected, variantId]),
                                 )
                                 state.selected = selectedVariants
-                                state.generationData.inputs = syncVariantInputs(
-                                    state.variants.filter((variant) =>
-                                        selectedVariants.includes(variant.id),
-                                    ),
-                                    state.generationData.inputs,
-                                )
                             } else {
                                 if (state.selected.length === 1) {
                                     message.error("At least one variant must be displayed")
