@@ -14,6 +14,7 @@ import type {PromptComparisonVariantNavigationProps} from "./types"
 
 const PromptComparisonVariantNavigation = ({
     className,
+    handleScroll,
     ...props
 }: PromptComparisonVariantNavigationProps) => {
     const {displayedVariants, setDisplayedVariants} = usePlayground()
@@ -72,6 +73,7 @@ const PromptComparisonVariantNavigation = ({
                                     id={variantId}
                                     variantId={variantId}
                                     indexName={String.fromCharCode(65 + idx)}
+                                    handleScrollClick={() => handleScroll(idx)}
                                 />
                             )
                         })}
