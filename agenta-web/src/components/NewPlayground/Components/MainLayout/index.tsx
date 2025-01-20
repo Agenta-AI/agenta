@@ -1,12 +1,15 @@
+import React, {useEffect, useRef, useState} from "react"
+
 import dynamic from "next/dynamic"
 import clsx from "clsx"
+import useAnimationFrame from "use-animation-frame"
 
 import usePlayground from "../../hooks/usePlayground"
-import type {BaseContainerProps} from "../types"
 import GenerationComparisonCompletionOutput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
 import GenerationComparisonCompletionInput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionInput"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
-import {useRef} from "react"
+
+import type {BaseContainerProps} from "../types"
 
 const PromptComparisonVariantNavigation = dynamic(
     () => import("../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"),
@@ -32,6 +35,79 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
         }
     }
 
+    /**
+     * Scroll Sync Login
+     * to be extracted to a custom hook once it is refined and tested
+     */
+
+    const [configPanelRef, setConfigPanelRef] = useState<HTMLElement | null>(null)
+    const [generationPanelRef, setGenerationPanelRef] = useState<HTMLElement | null>(null)
+    const scrollingRef = useRef<{
+        scrolling: HTMLElement
+        target: HTMLElement
+    } | null>(null)
+
+    useAnimationFrame(({time}) => {
+        const isScrolling = scrollingRef.current
+
+        if (!isScrolling || !configPanelRef) return
+
+        const {scrolling, target} = isScrolling
+
+        if (scrolling && target) {
+            target.scrollLeft = scrolling.scrollLeft
+        }
+    })
+
+    useEffect(() => {
+        const configPanel = configPanelRef
+
+        const scrollHandle = (e: Event) => {
+            if (scrollingRef.current) return
+            if (viewType === "single") return
+
+            const elm = e.target as HTMLElement
+
+            const scrolling = elm.isSameNode(configPanel) ? configPanel : generationPanelRef
+
+            if (!scrolling) return
+
+            const target = scrolling!.isSameNode(configPanel) ? generationPanelRef : configPanel
+
+            if (!target) return
+
+            scrollingRef.current = {
+                scrolling,
+                target,
+            }
+        }
+        const scrollEndHandle = () => {
+            scrollingRef.current = null
+        }
+
+        if (configPanel) {
+            configPanel.addEventListener("scroll", scrollHandle)
+            configPanel.addEventListener("scrollend", scrollEndHandle)
+        }
+
+        if (generationPanelRef) {
+            generationPanelRef.addEventListener("scroll", scrollHandle)
+            generationPanelRef.addEventListener("scrollend", scrollEndHandle)
+        }
+
+        return () => {
+            if (configPanel) {
+                configPanel.removeEventListener("scroll", scrollHandle)
+                configPanel.removeEventListener("scroll", scrollEndHandle)
+            }
+
+            if (generationPanelRef) {
+                generationPanelRef.removeEventListener("scroll", scrollHandle)
+                generationPanelRef.removeEventListener("scroll", scrollEndHandle)
+            }
+        }
+    }, [viewType, configPanelRef, generationPanelRef])
+
     return (
         <main
             className={clsx("flex flex-col grow h-full overflow-hidden", className)}
@@ -47,6 +123,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         collapsible
                     >
                         <section
+                            ref={setConfigPanelRef}
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": viewType === "single",
@@ -90,6 +167,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         {isComparisonView && <GenerationComparisonHeader />}
 
                         <section
+                            ref={setGenerationPanelRef}
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": viewType === "single",
