@@ -3,4 +3,5 @@ export type VariantNavigationCardProps = {
     className?: string
     variantId: string
     indexName?: string
+    handleScrollClick: () => void
 }

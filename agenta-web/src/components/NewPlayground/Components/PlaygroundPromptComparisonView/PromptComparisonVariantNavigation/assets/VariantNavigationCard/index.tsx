@@ -21,6 +21,7 @@ const VariantNavigationCard = ({
     id,
     className,
     indexName,
+    handleScrollClick,
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
     const {toggleVariantDisplay, variant, results} = usePlayground({
@@ -75,6 +76,11 @@ const VariantNavigationCard = ({
             style={style}
             {...attributes}
             {...listeners}
+            onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                handleScrollClick()
+            }}
             className={clsx(
                 "cursor-move",
                 {
