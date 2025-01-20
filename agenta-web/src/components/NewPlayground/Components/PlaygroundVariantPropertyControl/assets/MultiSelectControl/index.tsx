@@ -15,7 +15,15 @@ import type {SelectControlProps} from "./types"
  * - Supports dynamic option grouping through object notation
  * - Maintains consistent option format regardless of input structure
  */
-const SelectControl = ({withTooltip, description, mode, label, options: _options, value, onChange}: SelectControlProps) => {
+const SelectControl = ({
+    withTooltip,
+    description,
+    mode,
+    label,
+    options: _options,
+    value,
+    onChange,
+}: SelectControlProps) => {
     /**
      * Transforms raw options into standardized select options
      * Handles both array-based and group-based option structures
@@ -36,15 +44,13 @@ const SelectControl = ({withTooltip, description, mode, label, options: _options
 
     return (
         <PlaygroundVariantPropertyControlWrapper>
-            {
-                withTooltip ? (
-                    <Tooltip title={description}>
-                        <Typography.Text>{label}</Typography.Text>
-                    </Tooltip>
-                ) : (
+            {withTooltip ? (
+                <Tooltip title={description}>
                     <Typography.Text>{label}</Typography.Text>
-                )
-            }
+                </Tooltip>
+            ) : (
+                <Typography.Text>{label}</Typography.Text>
+            )}
             <Select<string | string[]>
                 showSearch
                 mode={mode}
