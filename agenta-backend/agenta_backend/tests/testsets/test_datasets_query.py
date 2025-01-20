@@ -3,7 +3,7 @@ import uuid
 import pytest
 import pytest_asyncio
 
-from agenta_backend.deprecated_tests.testsets.fixtures import *
+from agenta_backend.tests.testsets.fixtures import *
 
 
 class TestDatasetsQuery:

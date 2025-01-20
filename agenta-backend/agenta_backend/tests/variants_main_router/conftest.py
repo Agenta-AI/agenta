@@ -16,7 +16,7 @@ from agenta_backend.models.db_models import (
     ImageDB,
     AppVariantDB,
 )
-from agenta_backend.deprecated_tests.unit.test_traces import (
+from agenta_backend.tests.unit.test_traces import (
     simple_rag_trace,
     simple_finance_assisstant_trace,
 )
