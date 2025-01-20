@@ -189,11 +189,10 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     addToValueReferences("runTests")
                     const runTests = (rowId?: string, variantId?: string) => {
                         swr.mutate(
-                            async (state) => {
+                            async (clonedState) => {
                                 const jwt = await getJWT()
 
-                                const clonedState = structuredClone(state)
-                                if (!clonedState) return state
+                                if (!clonedState) return clonedState
                                 const visibleVariants = variantId
                                     ? [variantId]
                                     : clonedState.selected

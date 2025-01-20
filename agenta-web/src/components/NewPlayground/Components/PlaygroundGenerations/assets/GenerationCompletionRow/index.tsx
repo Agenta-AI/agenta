@@ -29,7 +29,7 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {result, variableIds, runTests, canRun, isRunning, viewType, variant, inputText} =
+    const {result, variableIds, runTests, canRun, isRunning, viewType, isChat, inputText} =
         usePlayground({
             variantId,
             stateSelector: useCallback(
@@ -50,6 +50,7 @@ const GenerationCompletionRow = ({
                         canRun,
                         result,
                         isRunning,
+                        isChat: state.variants[0]?.isChat,
                         inputText: variables?.[0]?.value, // Temporary implementation
                     }
                 },
@@ -69,7 +70,7 @@ const GenerationCompletionRow = ({
             >
                 <div
                     className={clsx("flex gap-1 items-start", {
-                        "flex flex-col gap-4 w-full": variant?.isChat,
+                        "flex flex-col gap-4 w-full": isChat,
                     })}
                 >
                     <div className="w-[100px]">
