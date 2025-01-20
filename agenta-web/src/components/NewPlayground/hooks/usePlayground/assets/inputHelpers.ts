@@ -214,7 +214,8 @@ export function syncVariantInputs(
         const newRow = {
             __id: row.__id,
             __metadata: metadataHash,
-            __result: undefined,
+            __result: row.__runs,
+            __runs: row.__runs,
         } as PlaygroundStateData["generationData"]["inputs"]["value"][number]
 
         // For each current input key
@@ -262,12 +263,14 @@ export function syncVariantInputs(
 }
 
 export function syncVariantMessages(
-    variant: EnhancedVariant,
-    generationMessageData: EnhancedVariant["messages"],
+    variants: EnhancedVariant[],
+    generationMessageData: PlaygroundStateData["generationData"]["messages"],
 ) {
     if (!generationMessageData.value) return generationMessageData
 
-    const promptMessages = variant.prompts.flatMap((prompt) => prompt.messages.value || [])
+    const promptMessages = variants.flatMap((variant) =>
+        variant.prompts.flatMap((prompt) => prompt.messages.value || []),
+    )
     const generationMessages = generationMessageData.value.map((data) => data.value)
 
     const syncVariantData = (arr1: any[], arr2: any[]) => {
