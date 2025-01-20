@@ -67,7 +67,7 @@ const PromptMessageConfig = ({
                     }
                     return {message: undefined}
                 } else {
-                    const message = state.generationData.messages.value.find((inputRow) => {
+                    const message = (state.generationData.messages.value || []).find((inputRow) => {
                         return inputRow.__id === rowId
                     })?.value
 
