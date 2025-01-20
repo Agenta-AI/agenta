@@ -28,7 +28,9 @@ const VariantNavigationCard = ({
         variantId,
         stateSelector: (state) => {
             // TODO: add a conditional to handle completion and chat
-            const variantRuns = state.generationData.inputs.map((item) => item.__runs?.[variantId])
+            const variantRuns = state.generationData.inputs.value.map(
+                (item) => item.__runs?.[variantId],
+            )
             const results = variantRuns.map((result) => result?.__result)
             return {results}
         },

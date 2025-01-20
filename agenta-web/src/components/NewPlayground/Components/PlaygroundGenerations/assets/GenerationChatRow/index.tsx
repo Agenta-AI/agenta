@@ -57,7 +57,7 @@ const GenerationChatRow = ({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const messageRow = state.generationData.messages.value.find((inputRow) => {
+                const messageRow = (state.generationData.messages.value || []).find((inputRow) => {
                     return inputRow.__id === rowId
                 })
                 return {
