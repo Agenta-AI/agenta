@@ -24,6 +24,7 @@ export interface PlaygroundVariantPropertyControlProps extends BaseContainerProp
     /** Optional rendering variant for the control */
     as?: "SimpleDropdownSelect" | "PromptMessageContent"
     view?: string
+    withTooltip?: boolean
 }
 
 export type ControlComponentType =
@@ -75,14 +76,15 @@ export type PropertyTypeMap = {
 }
 
 export type RenderFunctions = {
-    [K in keyof PropertyTypeMap]: (
-        metadata: PropertyTypeMap[K]["metadata"],
-        value: any,
-        handleChange: (v: any) => void,
-        as?: string,
-        className?: string,
-        view?: string,
-    ) => React.ReactElement | null
+    [K in keyof PropertyTypeMap]: (props: {
+        metadata: PropertyTypeMap[K]["metadata"]
+        value: any
+        handleChange: (v: any) => void
+        as?: string
+        className?: string
+        view?: string
+        withTooltip?: boolean
+    }) => React.ReactElement | null
 }
 
 export type ArrayItemValue =

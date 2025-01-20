@@ -1,5 +1,5 @@
 import {memo, useCallback} from "react"
-import {Slider, InputNumber, Typography} from "antd"
+import {Slider, InputNumber, Typography, Tooltip} from "antd"
 import {useDebounceInput} from "@/hooks/useDebounceInput"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
@@ -15,7 +15,16 @@ import type {MinMaxControlProps} from "./types"
  * - Both slider and input changes are debounced to prevent excessive updates
  * - Falls back to min value when null/undefined is provided
  */
-const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlProps) => {
+const MinMaxControl = ({
+    label,
+    min,
+    max,
+    step,
+    value,
+    description,
+    withTooltip,
+    onChange,
+}: MinMaxControlProps) => {
     const [localValue, setLocalValue] = useDebounceInput<number | null>(
         value ?? null,
         onChange,
@@ -38,7 +47,13 @@ const MinMaxControl = ({label, min, max, step, value, onChange}: MinMaxControlPr
     return (
         <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
             <div className="flex items-center gap-2 justify-between">
-                <Typography.Text>{label}</Typography.Text>
+                {withTooltip ? (
+                    <Tooltip title={description}>
+                        <Typography.Text>{label}</Typography.Text>
+                    </Tooltip>
+                ) : (
+                    <Typography.Text>{label}</Typography.Text>
+                )}
                 <InputNumber
                     min={min}
                     max={max}
