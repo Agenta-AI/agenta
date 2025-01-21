@@ -1,12 +1,13 @@
 import {isValidElement, cloneElement, useState, useTransition, useCallback, useMemo} from "react"
 
-import {message} from "antd"
+import {message} from "../../../../../state/messageContext"
 
 import usePlayground from "../../../../../hooks/usePlayground"
 import AddButton from "../../../../../assets/AddButton"
 
 import {NewVariantButtonProps} from "./types"
 import CreateVariantModal from "../.."
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 /**
  * Button to add a new variant
@@ -24,12 +25,25 @@ const NewVariantButton = ({children}: NewVariantButtonProps) => {
         })
     }, [])
 
-    const {addVariant, variants} = usePlayground()
-
-    // Track the selected base variant for creating new variants
-    const baseVariant = useMemo(() => {
-        return (variants || []).find((variant) => variant.variantName === baseVariantName)
-    }, [variants, baseVariantName])
+    const {addVariant, baseVariant, variantOptions} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const baseVariant = state.variants.find(
+                    (variant) => variant.variantName === baseVariantName,
+                )
+                return {
+                    baseVariant,
+                    variantOptions: state.variants.map((variant) => {
+                        return {
+                            id: variant.id,
+                            variantName: variant.variantName,
+                        }
+                    }),
+                }
+            },
+            [baseVariantName],
+        ),
+    })
 
     // Validate and create new variants based on selected template
     const addNewVariant = useCallback(() => {
@@ -41,8 +55,11 @@ const NewVariantButton = ({children}: NewVariantButtonProps) => {
         addVariant?.({
             baseVariantName: baseVariant.variantName,
             newVariantName: newVariantName,
+            callback: (variant, state) => {
+                state.selected = [...state.selected, variant.id]
+            },
         })
-    }, [baseVariant, newVariantName, addVariant])
+    }, [baseVariant, addVariant, newVariantName])
 
     return (
         <>
@@ -66,7 +83,7 @@ const NewVariantButton = ({children}: NewVariantButtonProps) => {
                 />
             )}
             <CreateVariantModal
-                variants={variants || []}
+                variants={variantOptions}
                 isModalOpen={displayModal}
                 setIsModalOpen={setDisplayModal}
                 newVariantName={newVariantName}

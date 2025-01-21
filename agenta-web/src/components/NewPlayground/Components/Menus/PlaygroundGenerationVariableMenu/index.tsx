@@ -2,6 +2,7 @@ import {useMemo} from "react"
 import {DotsThreeVertical, Copy, Database} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 import {PlaygroundGenerationVariableMenuProps} from "./types"
+import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 
 const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMenuProps> = ({
     duplicateInputRow,
@@ -21,19 +22,22 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
             },
             {
                 key: "test-set",
-                label: "Add to test set",
-                disabled: !result?.response?.data,
+                label: (
+                    <TestsetDrawerButton results={result}>
+                        <div>Add to test set</div>
+                    </TestsetDrawerButton>
+                ),
                 icon: <Database size={14} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                 },
             },
         ],
-        [],
+        [result],
     )
     return (
         <Dropdown trigger={["click"]} menu={{items}} {...props}>
-            <Button icon={<DotsThreeVertical size={14} />} type="text" />
+            <Button icon={<DotsThreeVertical size={14} />} type="text" size="small" />
         </Dropdown>
     )
 }

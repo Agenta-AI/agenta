@@ -1,14 +1,23 @@
 import clsx from "clsx"
-import {Input, Typography} from "antd"
+import {Input, Typography, Tooltip} from "antd"
 import {useCallback, ChangeEvent} from "react"
 import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 import type {TextControlProps} from "./types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 const {TextArea} = Input
 
-const TextControl = ({className, metadata, value, handleChange, as, view}: TextControlProps) => {
+const TextControl = ({
+    withTooltip,
+    description,
+    className,
+    metadata,
+    value,
+    handleChange,
+    as,
+    view,
+}: TextControlProps) => {
     const {viewType} = usePlayground()
 
     const [localValue, setLocalValue] = useDebounceInput<string>(value, handleChange, 300, "")
@@ -27,11 +36,12 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                     "relative border-solid border border-[#bdc7d1] rounded-[theme(spacing.2)]",
                     className,
                 )}
-                // {...props}
             >
-                <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">
-                    {metadata.title}
-                </Typography>
+                <div className="sticky -top-2 z-[1]">
+                    <Typography className="font-[500] text-[12px] leading-[20px] mt-1 mx-2 text-[#1677FF]">
+                        {metadata.title}
+                    </Typography>
+                </div>
                 <TextArea
                     value={localValue}
                     onChange={handleLocalValueChange}
@@ -44,21 +54,28 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
     }
 
     return (
-        <div
-            className={clsx("relative bg-transparent", className)}
-            // {...props}
-        >
-            <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
-                {metadata.title}
-            </Typography>
+        <div className={clsx("relative bg-transparent", className)}>
+            <div className="bg-[#f5f7fa] sticky -top-2 z-[1]">
+                {withTooltip ? (
+                    <Tooltip title={description}>
+                        <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                            {metadata.title}
+                        </Typography>
+                    </Tooltip>
+                ) : (
+                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                        {metadata.title}
+                    </Typography>
+                )}
+            </div>
             <TextArea
                 value={localValue}
                 onChange={handleLocalValueChange}
                 className={clsx([
                     "border-0",
                     "focus:ring-0",
-                    "ml-2 !p-0",
-                    "bg-transparent hover:bg-transparent focus:bg-transparent",
+                    "!p-0 mt-1",
+                    "bg-transparent hover:bg-transparent focus:bg-transparent !rounded-none",
                 ])}
                 placeholder={metadata.description}
                 autoSize={{minRows: 3}}

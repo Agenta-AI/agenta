@@ -10,22 +10,27 @@ async function runVariantInputRow(payload: {
     rowId: string
     appId: string
     uri: string
+    headers: Record<string, string>
+    projectId: string
 }) {
-    const {variant, rowId, uri, inputRow, allMetadata} = payload
+    const {variant, rowId, uri, inputRow, allMetadata, headers, projectId} = payload
     const requestBody = transformToRequestBody(variant, inputRow, allMetadata)
     let result
 
     try {
-        const response = await fetch(`${uri}/generate`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
+        const response = await fetch(
+            `${uri}/generate${headers.Authorization ? `?project_id=${projectId}` : ""}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...headers,
+                },
+                body: JSON.stringify(requestBody),
             },
-            body: JSON.stringify(requestBody),
-        })
+        )
 
         const data = await response.json()
-        console.log("TEST!", data, response.ok)
         if (!response.ok) {
             const errorMessage = parseValidationError(data)
             result = {

@@ -20,11 +20,11 @@ const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({vari
     })
     const classes = useStyles()
     const lintOfRevisions = ["2", "3", "5", "6", "7"]
-    const slectedRevision = "5"
+    const selectedRevision = "5"
 
     return (
         <>
-            <PlaygroundVariantHistoryHeader slectedRevision={slectedRevision} />
+            <PlaygroundVariantHistoryHeader selectedRevision={selectedRevision} />
 
             <section className="h-[94%] flex justify-between gap-2">
                 <div className={clsx("pt-4 pl-2", classes.menuContainer)}>
@@ -33,7 +33,7 @@ const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({vari
                             key: revision,
                             label: revision,
                         }))}
-                        defaultSelectedKeys={[slectedRevision]}
+                        defaultSelectedKeys={[selectedRevision]}
                         className={clsx("w-[180px]", classes.menu)}
                     />
                 </div>

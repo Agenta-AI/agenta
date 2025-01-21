@@ -24,7 +24,7 @@ import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 import {getMetadataLazy} from "../../state"
 
 const renderMap: RenderFunctions = {
-    number: (metadata, value, handleChange) => {
+    number: ({withTooltip, metadata, value, handleChange}) => {
         return (
             <MinMaxControl
                 label={metadata.title || ""}
@@ -33,15 +33,17 @@ const renderMap: RenderFunctions = {
                 min={metadata.min}
                 max={metadata.max}
                 step={metadata.isInteger ? 1 : 0.1}
+                withTooltip={withTooltip}
+                description={metadata.description}
             />
         )
     },
 
-    boolean: (metadata, value, handleChange) => (
+    boolean: ({withTooltip, metadata, value, handleChange}) => (
         <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
     ),
 
-    string: (metadata, value, handleChange, as, className, view) => {
+    string: ({withTooltip, metadata, value, handleChange, as, className, view}) => {
         if (metadata.options) {
             if (as === "SimpleDropdownSelect") {
                 return (
@@ -51,6 +53,8 @@ const renderMap: RenderFunctions = {
                         onChange={handleChange}
                         placeholder={metadata.description}
                         className={className}
+                        description={metadata.description}
+                        withTooltip={withTooltip}
                     />
                 )
             }
@@ -60,6 +64,8 @@ const renderMap: RenderFunctions = {
                     options={metadata.options}
                     value={value}
                     onChange={handleChange}
+                    description={metadata.description}
+                    withTooltip={withTooltip}
                 />
             )
         }
@@ -70,6 +76,8 @@ const renderMap: RenderFunctions = {
                     value={value}
                     placeholder={metadata.description}
                     onChange={handleChange}
+                    description={metadata.description}
+                    withTooltip={withTooltip}
                 />
             )
         }
@@ -81,11 +89,13 @@ const renderMap: RenderFunctions = {
                 handleChange={handleChange}
                 className={className}
                 view={view}
+                description={metadata.description}
+                withTooltip={withTooltip}
             />
         )
     },
 
-    array: (metadata, value, handleChange) => {
+    array: ({withTooltip, metadata, value, handleChange}) => {
         if (!Array.isArray(value?.value)) return null
 
         return (
@@ -95,39 +105,54 @@ const renderMap: RenderFunctions = {
                         case "string":
                             return (
                                 <div key={item.__id}>
-                                    {renderMap.string(item.__metadata, item.value, (newValue) => {
-                                        updateArrayItem(
-                                            value.value,
-                                            item.__id,
-                                            newValue,
-                                            handleChange,
-                                        )
+                                    {renderMap.string({
+                                        withTooltip,
+                                        metadata: item.__metadata,
+                                        value: item.value,
+                                        handleChange: (newValue) => {
+                                            updateArrayItem(
+                                                value.value,
+                                                item.__id,
+                                                newValue,
+                                                handleChange,
+                                            )
+                                        },
                                     })}
                                 </div>
                             )
                         case "number":
                             return (
                                 <div key={item.__id}>
-                                    {renderMap.number(item.__metadata, item.value, (newValue) => {
-                                        updateArrayItem(
-                                            value.value,
-                                            item.__id,
-                                            newValue,
-                                            handleChange,
-                                        )
+                                    {renderMap.number({
+                                        withTooltip,
+                                        metadata: item.__metadata,
+                                        value: item.value,
+                                        handleChange: (newValue) => {
+                                            updateArrayItem(
+                                                value.value,
+                                                item.__id,
+                                                newValue,
+                                                handleChange,
+                                            )
+                                        },
                                     })}
                                 </div>
                             )
                         case "boolean":
                             return (
                                 <div key={item.__id}>
-                                    {renderMap.boolean(item.__metadata, item.value, (newValue) => {
-                                        updateArrayItem(
-                                            value.value,
-                                            item.__id,
-                                            newValue,
-                                            handleChange,
-                                        )
+                                    {renderMap.boolean({
+                                        withTooltip,
+                                        metadata: item.__metadata,
+                                        value: item.value,
+                                        handleChange: (newValue) => {
+                                            updateArrayItem(
+                                                value.value,
+                                                item.__id,
+                                                newValue,
+                                                handleChange,
+                                            )
+                                        },
                                     })}
                                 </div>
                             )
@@ -140,7 +165,7 @@ const renderMap: RenderFunctions = {
     },
 
     object: () => <Typography.Text>Object input not implemented</Typography.Text>,
-    compound: (metadata) => {
+    compound: ({withTooltip, metadata}) => {
         return <Typography.Text>Compound input not implemented</Typography.Text>
     },
 } as const
@@ -153,6 +178,7 @@ const PlaygroundVariantPropertyControl = ({
     as,
     view,
     rowId,
+    withTooltip,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
@@ -191,23 +217,24 @@ const PlaygroundVariantPropertyControl = ({
         const handler = rowId
             ? (e: any) => {
                   mutate(
-                      (draft) => {
-                          const clonedState = structuredClone(draft)
-                          if (!clonedState) return draft
-
-                          const val = e
-                              ? typeof e === "object" && "target" in e
-                                  ? e.target.value
-                                  : e
-                              : null
+                      (clonedState) => {
+                          if (!clonedState) return clonedState
+                          const val =
+                              e !== null && e !== undefined
+                                  ? typeof e === "object" && "target" in e
+                                      ? e.target.value
+                                      : e
+                                  : null
 
                           const object = clonedState.generationData.value.find(
                               (v) => v.__id === rowId,
                           )
-                          if (!object) return
+                          if (!object) return clonedState
 
                           const property = findPropertyInObject(object, propertyId) as Enhanced<any>
-                          if (!property) return
+                          if (!property) return clonedState
+
+                          if (property.value === val) return clonedState
 
                           property.value = val
 
@@ -227,7 +254,7 @@ const PlaygroundVariantPropertyControl = ({
             value,
             handleChange: handler,
         }
-    }, [baseProperty, updateVariantProperty, variantId])
+    }, [baseProperty, mutate, propertyId, rowId, updateVariantProperty, variantId])
 
     if (!property) {
         return null
@@ -241,7 +268,15 @@ const PlaygroundVariantPropertyControl = ({
 
     const renderer = renderMap[metadata.type]
     if (renderer) {
-        return renderer(metadata as any, value, handleChange, as, className, view)
+        return renderer({
+            withTooltip,
+            metadata: metadata as any,
+            value,
+            handleChange,
+            as,
+            className,
+            view,
+        })
     }
 
     return <Typography.Text>Unknown type: {metadata.type}</Typography.Text>

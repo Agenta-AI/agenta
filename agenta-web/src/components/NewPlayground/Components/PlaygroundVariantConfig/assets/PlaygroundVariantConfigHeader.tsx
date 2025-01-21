@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useCallback} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {Select} from "antd"
@@ -6,10 +6,10 @@ import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 import Version from "@/components/NewPlayground/assets/Version"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
-import PromptFocusButton from "../../Drawers/PromptFocusDrawer/assets/PromptFocusButton"
-import PromptComparisonFocusButton from "../../Drawers/PromptComparisionFocusDrawer/assets/PromptComparisonFocusButton"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {useStyles} from "./styles"
 
 const PlaygroundVariantHeaderMenu = dynamic(
     () => import("../../Menus/PlaygroundVariantHeaderMenu"),
@@ -21,28 +21,55 @@ const PlaygroundVariantConfigHeader = ({
     className,
     ...divProps
 }: PlaygroundVariantConfigHeaderProps) => {
-    const {setSelectedVariant, variant, viewType, variants} = usePlayground({
+    const classes = useStyles()
+    const {variantOptions, mutate, _variantId, variantRevision, isDirty} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variants = state.variants
+                const variant = variants.find((v) => v.id === variantId)
+                const isDirty = state.dirtyStates?.[variantId]
+
+                return {
+                    isDirty,
+                    _variantId: variant?.id,
+                    variantRevision: variant?.revision,
+                    variantOptions: (variants || []).map((variant) => ({
+                        label: variant.variantName,
+                        value: variant.id,
+                        disabled: state.selected.includes(variant.id),
+                    })),
+                }
+            },
+            [variantId],
+        ),
     })
 
-    const listOfVariants = useMemo(
-        () =>
-            variants?.map((variant) => ({
-                label: variant.variantName,
-                value: variant.id,
-            })),
-        [],
+    const switchVariant = useCallback(
+        (newVariantId: string) => {
+            mutate((clonedState) => {
+                if (!clonedState) return clonedState
+                const previousSelected = [...clonedState.selected]
+                previousSelected.splice(
+                    previousSelected.findIndex((id) => id === variantId),
+                    1,
+                    newVariantId,
+                )
+                clonedState.selected = previousSelected
+                return clonedState
+            })
+        },
+        [mutate, variantId],
     )
 
     return (
         <section
             className={clsx(
-                "w-full h-[48px] px-2.5",
+                "w-full h-[48px]",
                 "flex items-center justify-between",
                 "sticky top-0 z-[1]",
-                "bg-white",
-                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                classes.container,
                 className,
             )}
             {...divProps}
@@ -51,24 +78,19 @@ const PlaygroundVariantConfigHeader = ({
                 <Select
                     showSearch
                     style={{width: 120}}
-                    value={variant?.id}
-                    onChange={(value) => setSelectedVariant?.(value)}
+                    value={_variantId}
+                    onChange={(value) => switchVariant?.(value)}
+                    size="small"
                     placeholder="Select variant"
-                    options={listOfVariants}
+                    options={variantOptions}
                     filterOption={(input, option) =>
                         (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
                     }
                 />
 
-                <Version revision={variant?.revision as number} />
+                <Version revision={variantRevision as number} />
             </div>
             <div className="flex items-center gap-2">
-                {viewType == "comparison" ? (
-                    <PromptComparisonFocusButton variantId={variantId} />
-                ) : (
-                    <PromptFocusButton variantId={variantId} />
-                )}
-
                 <DeployVariantButton variantId={variantId} />
 
                 <CommitVariantChangesButton
@@ -76,6 +98,7 @@ const PlaygroundVariantConfigHeader = ({
                     label="Commit"
                     type="primary"
                     size="small"
+                    disabled={!isDirty}
                 />
 
                 <PlaygroundVariantHeaderMenu variantId={variantId} />

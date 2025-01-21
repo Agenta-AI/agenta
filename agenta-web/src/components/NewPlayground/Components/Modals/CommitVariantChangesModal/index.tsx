@@ -3,6 +3,7 @@ import {Input, Modal, Typography} from "antd"
 import {FloppyDiskBack} from "@phosphor-icons/react"
 import {CommitVariantChangesModalProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
+import {useStyles} from "./styles"
 
 const {Text} = Typography
 
@@ -10,6 +11,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
     ...props
 }) => {
+    const classes = useStyles()
     const {variant, saveVariant} = usePlayground({
         variantId,
         hookId: "CommitVariantChangesModal",
@@ -42,9 +44,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 <div className="flex flex-col gap-1">
                     <Text>You are about to new version</Text>
 
-                    <Text>{variant?.variantName}</Text>
+                    <Text className={classes.heading}>{variant?.variantName}</Text>
                 </div>
-                <div className="flex flex-col gap-1">
+                {/* <div className="flex flex-col gap-1">
                     <Text>Notes (optional)</Text>
                     <Input.TextArea
                         placeholder="Describe the changes that you have done for this version"
@@ -52,7 +54,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
                     />
-                </div>
+                </div> */}
             </section>
         </Modal>
     )

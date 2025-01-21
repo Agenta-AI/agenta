@@ -21,6 +21,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
         variantId,
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const inputRows = state.generationData.value || []
+
             return {
                 inputRowIds: inputRows.map((inputRow) => inputRow.__id),
             }
@@ -49,21 +50,21 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
     componentLogger("GenerationTestView", inputRowIds)
 
     return (
-        <div className={clsx(["flex flex-col", {"gap-4": viewType === "single"}])}>
+        <div className={clsx(["flex flex-col", {"gap-4": viewType === "single"}], className)}>
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
                         key={inputRowId}
                         variantId={variantId}
                         rowId={inputRowId}
-                        className={rowClassName || className}
+                        className={rowClassName}
                     />
                 )
             })}
 
             <div
                 className={clsx([
-                    "flex items-center gap-2 mx-2",
+                    "flex items-center gap-2 mx-4",
                     {"mt-2": viewType === "comparison"},
                 ])}
             >

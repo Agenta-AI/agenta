@@ -7,6 +7,8 @@ import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 import type {InitialStateType} from "../../../state/types"
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {getJWT} from "@/services/api"
+import {getCurrentProject} from "@/contexts/project.context"
 
 /**
  * Recursively omit specified keys from an object
@@ -35,7 +37,7 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
 }
 
 const uriFixer = (uri: string) => {
-    if (!uri.includes("http://") || !uri.includes("https://")) {
+    if (!uri.includes("http://") && !uri.includes("https://")) {
         // for oss.agenta.ai
         uri = `https://${uri}`
     } else if (!uri.includes("/services/")) {
@@ -55,7 +57,19 @@ const uriFixer = (uri: string) => {
  * @returns Promise containing variantId, parsed schema and any errors
  */
 export const fetchOpenApiSchemaJson = async (uri: string) => {
-    const openapiJsonResponse = await fetch(`${uriFixer(uri)}/openapi.json`)
+    const jwt = await getJWT()
+    const openapiJsonResponse = await fetch(
+        `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
+        {
+            headers: {
+                ...(jwt
+                    ? {
+                          Authorization: `Bearer ${jwt}`,
+                      }
+                    : {}),
+            },
+        },
+    )
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
@@ -86,7 +100,6 @@ export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) 
  * @returns Promise containing updated variants with their schemas
  */
 export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
-    // TODO: Parallelize this with Promise.all
     return variants.map((variant) => transformVariant(variant, spec))
 }
 

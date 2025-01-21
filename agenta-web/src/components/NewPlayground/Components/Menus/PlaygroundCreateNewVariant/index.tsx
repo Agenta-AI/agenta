@@ -1,24 +1,31 @@
-import React, {useState} from "react"
+import {useMemo, useState} from "react"
+
+import {Popover, type PopoverProps} from "antd"
+
 import AddButton from "../../../assets/AddButton"
-import {PlaygroundCreateNewVariantProps} from "./types"
 import CreateNewVariantList from "./assets/CreateNewVariantList"
-import {Popover} from "antd"
+
+import type {PlaygroundCreateNewVariantProps} from "./types"
 
 const PlaygroundCreateNewVariant: React.FC<PlaygroundCreateNewVariantProps> = ({
     className,
     displayedVariants,
     onSelect,
     selectedVariant,
+    buttonProps,
     ...popoverProps
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const triggers = useMemo(() => {
+        return (isModalOpen ? ["click", "hover"] : ["click"]) as PopoverProps["trigger"]
+    }, [isModalOpen])
 
     return (
         <Popover
             {...popoverProps}
             open={isModalOpen}
             onOpenChange={setIsModalOpen}
-            trigger={["click"]}
+            trigger={triggers}
             arrow={false}
             content={
                 <CreateNewVariantList
@@ -30,7 +37,7 @@ const PlaygroundCreateNewVariant: React.FC<PlaygroundCreateNewVariantProps> = ({
             }
             className={className}
         >
-            <AddButton label="Variants" />
+            <AddButton {...buttonProps} />
         </Popover>
     )
 }

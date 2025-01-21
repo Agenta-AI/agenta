@@ -14,6 +14,8 @@ import type {
     UIState,
     ViewType,
 } from "../types"
+import {message} from "../../../state/messageContext"
+import {syncVariantInputs} from "../assets/inputHelpers"
 
 /**
  * Middleware for managing UI state in the playground.
@@ -150,10 +152,14 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     swr.mutate(
                         (state) => {
                             if (!state) return state
-                            return {
-                                ...state,
-                                selected: [variantId],
-                            }
+
+                            state.selected = [variantId]
+                            state.generationData = syncVariantInputs(
+                                [state.variants.find((variant) => variant.id === variantId)!],
+                                state.generationData,
+                            )
+
+                            return state
                         },
                         {revalidate: false},
                     )
@@ -176,19 +182,53 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             const _display = display ?? !isInView
 
                             if (_display) {
-                                const newState = {
-                                    ...state,
-                                    selected: [
-                                        ...Array.from(new Set([...state.selected, variantId])),
-                                    ],
-                                }
-                                return newState
+                                const selectedVariants = Array.from(
+                                    new Set([...state.selected, variantId]),
+                                )
+                                state.selected = selectedVariants
+                                state.generationData = syncVariantInputs(
+                                    state.variants.filter((variant) =>
+                                        selectedVariants.includes(variant.id),
+                                    ),
+                                    state.generationData,
+                                )
+                                const selectedVariantName = state.variants.find(
+                                    (variant) => variant.id === variantId,
+                                )?.variantName
+                                message.success(
+                                    `Variant named ${selectedVariantName} added to comparison`,
+                                )
                             } else {
-                                return {
-                                    ...state,
-                                    selected: state.selected.filter((id) => id !== variantId),
+                                if (state.selected.length === 1) {
+                                    message.error("At least one variant must be displayed")
+                                } else {
+                                    state.selected = state.selected.filter((id) => id !== variantId)
                                 }
+
+                                const selectedVariantName = state.variants.find(
+                                    (variant) => variant.id === variantId,
+                                )?.variantName
+
+                                message.success(
+                                    `Variant named ${selectedVariantName} removed from comparison`,
+                                )
                             }
+
+                            return state
+                        },
+                        {revalidate: false},
+                    )
+                },
+                [swr],
+            )
+
+            const setDisplayedVariants = useCallback(
+                (variants: string[]) => {
+                    swr.mutate(
+                        (clonedState) => {
+                            if (!clonedState) return clonedState
+                            clonedState.selected = variants
+                            return clonedState
                         },
                         {revalidate: false},
                     )
@@ -217,6 +257,13 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     get: () => {
                         addToValueReferences("toggleVariantDisplay")
                         return toggleVariantDisplay
+                    },
+                    enumerable: true,
+                },
+                setDisplayedVariants: {
+                    get: () => {
+                        addToValueReferences("setDisplayedVariants")
+                        return setDisplayedVariants
                     },
                     enumerable: true,
                 },

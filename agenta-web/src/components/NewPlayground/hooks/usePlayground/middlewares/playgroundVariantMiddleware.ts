@@ -1,7 +1,5 @@
 import {useCallback} from "react"
 
-import {message} from "antd"
-
 import {
     compareVariant,
     createVariantCompare,
@@ -16,6 +14,7 @@ import {
     syncVariantInputs,
     getVariantInputKeys,
 } from "../assets/inputHelpers"
+import {message} from "../../../state/messageContext"
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 
@@ -212,7 +211,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             if (!variant) throw new Error("Variant not found")
 
                             variant.__isMutating = true
-
                             return clonedState
                         },
                         {
@@ -239,15 +237,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.error("Failed to delete variant")
                                 }
 
-                                const clonedState = structuredClone(state)
-                                clonedState?.variants?.forEach((v: EnhancedVariant) => {
+                                state?.variants?.forEach((v: EnhancedVariant) => {
                                     if (v.id === variant.id) {
-                                        const index = clonedState.variants.indexOf(v)
-                                        clonedState.variants.splice(index, 1)
+                                        const index = state.variants.indexOf(v)
+                                        state.variants.splice(index, 1)
                                     }
                                 })
 
-                                return clonedState
+                                return state
                             } catch (err) {
                                 message.error("Failed to delete variant")
                                 return state
@@ -326,12 +323,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                         if (
                                             clonedState?.dirtyStates &&
-                                            clonedState.dirtyStates.get(updatedVariant.id)
+                                            clonedState.dirtyStates[updatedVariant.id]
                                         ) {
-                                            clonedState.dirtyStates = new Map(
+                                            clonedState.dirtyStates = structuredClone(
                                                 clonedState.dirtyStates,
                                             )
-                                            clonedState.dirtyStates.set(updatedVariant.id, false)
+                                            clonedState.dirtyStates[updatedVariant.id] = false
+
+                                            // TODO: THIS NEEDS FIXING, IT IS NOT USED PROPERLY
                                             clonedState.dataRef = new Map(clonedState.dataRef)
                                             clonedState.dataRef.set(
                                                 updatedVariant.id,
@@ -366,51 +365,42 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     updates: Partial<EnhancedVariant> | VariantUpdateFunction,
                     variantId?: string,
                 ) => {
-                    swr.mutate(async (clonedState) => {
-                        if (!clonedState) return clonedState
+                    swr.mutate(
+                        async (clonedState) => {
+                            if (!clonedState) return clonedState
 
-                        const clonedVariant = clonedState?.variants?.find(
-                            (v) => v.id === (variantId ?? config.variantId),
-                        )
-
-                        if (!clonedVariant) return clonedState
-
-                        // Get current input keys before update
-                        const previousInputKeys = getVariantInputKeys(clonedVariant)
-
-                        const updateValues =
-                            typeof updates === "function" ? updates(clonedVariant) : updates
-
-                        // if (!variant || !state) return state
-                        const updatedVariant: EnhancedVariant = {
-                            ...clonedVariant,
-                            ...updateValues,
-                        }
-
-                        // Update prompt keys
-                        updateVariantPromptKeys(updatedVariant)
-
-                        // Get new input keys after update
-                        const newInputKeys = getVariantInputKeys(updatedVariant)
-
-                        // Only sync inputs if the keys have changed
-                        if (!isPlaygroundEqual(previousInputKeys, newInputKeys)) {
-                            clonedState.generationData = syncVariantInputs(
-                                updatedVariant,
-                                clonedState.generationData,
+                            const clonedVariant = clonedState?.variants?.find(
+                                (v) => v.id === (variantId ?? config.variantId),
                             )
-                        }
 
-                        const index = clonedState?.variants?.findIndex(
-                            (v) => v.id === clonedVariant.id,
-                        )
+                            if (!clonedVariant) return clonedState
 
-                        clonedState.variants[index] = updatedVariant
+                            const updateValues =
+                                typeof updates === "function" ? updates(clonedVariant) : updates
 
-                        return clonedState
-                    })
+                            // if (!variant || !state) return state
+                            const updatedVariant: EnhancedVariant = {
+                                ...clonedVariant,
+                                ...updateValues,
+                            }
+
+                            // Update prompt keys
+                            updateVariantPromptKeys(updatedVariant)
+
+                            const index = clonedState?.variants?.findIndex(
+                                (v) => v.id === clonedVariant.id,
+                            )
+
+                            clonedState.variants[index] = updatedVariant
+
+                            return clonedState
+                        },
+                        {
+                            variantId,
+                        },
+                    )
                 },
-                [swr, variantId],
+                [swr, config.variantId],
             )
 
             const handleParamUpdate = useCallback(
@@ -440,7 +430,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return updatedVariant
                     }, variantId ?? config.variantId)
                 },
-                [config.propertyId, mutateVariant],
+                [config.propertyId, config.variantId, mutateVariant],
             )
 
             const getVariantConfigProperty = useCallback(() => {

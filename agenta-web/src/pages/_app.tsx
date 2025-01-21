@@ -1,4 +1,3 @@
-import type {AppProps} from "next/app"
 import Head from "next/head"
 import dynamic from "next/dynamic"
 
@@ -11,6 +10,8 @@ import ProfileContextProvider from "@/contexts/profile.context"
 import ProjectContextProvider from "@/contexts/project.context"
 import {Inter} from "next/font/google"
 import AgSWRConfig from "@/lib/api/SWRConfig"
+import {App as AppComponent} from "antd"
+import type {AppProps} from "next/app"
 
 const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 const CustomPosthogProvider = dynamic(() => import("@/lib/helpers/analytics/AgPosthogProvider"))
@@ -38,10 +39,12 @@ export default function App({Component, pageProps}: AppProps) {
                             <ProfileContextProvider>
                                 <ProjectContextProvider>
                                     <AppContextProvider>
-                                        <Layout>
-                                            <Component {...pageProps} />
-                                            <NoMobilePageWrapper />
-                                        </Layout>
+                                        <AppComponent>
+                                            <Layout>
+                                                <Component {...pageProps} />
+                                                <NoMobilePageWrapper />
+                                            </Layout>
+                                        </AppComponent>
                                     </AppContextProvider>
                                 </ProjectContextProvider>
                             </ProfileContextProvider>

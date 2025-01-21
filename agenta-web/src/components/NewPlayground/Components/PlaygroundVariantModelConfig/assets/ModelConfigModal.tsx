@@ -81,6 +81,7 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
                         key={propertyId}
                         variantId={variantId}
                         propertyId={propertyId}
+                        withTooltip
                     />
                 )
             })}

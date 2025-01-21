@@ -53,7 +53,11 @@ export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
 export interface PlaygroundVariantsResponse extends PlaygroundResponse {
     variants?: EnhancedVariant[]
     variantIds?: string[]
-    addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
+    addVariant?: (options: {
+        baseVariantName: string
+        newVariantName: string
+        callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
+    }) => void
     runTests?: (rowId?: string, variantId?: string) => void
 }
 
@@ -173,4 +177,5 @@ export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData,
     viewType?: ViewType
     setSelectedVariant?: (variantId: string) => void
     toggleVariantDisplay?: (variantId: string, display?: boolean) => void
+    setDisplayedVariants?: (variantIds: string[]) => void
 }
