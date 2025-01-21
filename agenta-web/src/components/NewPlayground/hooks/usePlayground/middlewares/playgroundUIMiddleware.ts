@@ -14,7 +14,7 @@ import type {
     UIState,
     ViewType,
 } from "../types"
-import {message} from "antd"
+import {message} from "../../../state/messageContext"
 import {syncVariantInputs} from "../assets/inputHelpers"
 
 /**
@@ -192,12 +192,26 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     ),
                                     state.generationData,
                                 )
+                                const selectedVariantName = state.variants.find(
+                                    (variant) => variant.id === variantId,
+                                )?.variantName
+                                message.success(
+                                    `Variant named ${selectedVariantName} added to comparison`,
+                                )
                             } else {
                                 if (state.selected.length === 1) {
                                     message.error("At least one variant must be displayed")
                                 } else {
                                     state.selected = state.selected.filter((id) => id !== variantId)
                                 }
+
+                                const selectedVariantName = state.variants.find(
+                                    (variant) => variant.id === variantId,
+                                )?.variantName
+
+                                message.success(
+                                    `Variant named ${selectedVariantName} removed from comparison`,
+                                )
                             }
 
                             return state

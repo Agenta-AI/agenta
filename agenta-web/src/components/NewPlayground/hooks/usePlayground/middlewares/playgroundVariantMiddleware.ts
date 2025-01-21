@@ -1,7 +1,5 @@
 import {useCallback} from "react"
 
-import {message} from "antd"
-
 import {
     compareVariant,
     createVariantCompare,
@@ -16,6 +14,7 @@ import {
     syncVariantInputs,
     getVariantInputKeys,
 } from "../assets/inputHelpers"
+import {message} from "../../../state/messageContext"
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 
