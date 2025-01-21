@@ -2,13 +2,14 @@ import {memo, useCallback} from "react"
 
 import clsx from "clsx"
 import {Button, Typography} from "antd"
-import RunButton from "../../../assets/RunButton"
 
+import RunButton from "../../../assets/RunButton"
+import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 import usePlayground from "../../../hooks/usePlayground"
 import {useStyles} from "./styles"
 
+import type {GenerationComparisonHeaderProps} from "./types"
 import {clearRuns} from "../../../hooks/usePlayground/assets/generationHelpers"
-import {GenerationComparisonHeaderProps} from "./types"
 
 const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps) => {
     const classes = useStyles()
@@ -39,7 +40,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                 <Button size="small" onClick={clearGeneration}>
                     Clear
                 </Button>
-
+                <LoadTestsetButton label="Load Test set" />
                 <RunButton type="primary" onClick={() => runTests?.()} />
             </div>
         </section>

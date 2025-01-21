@@ -2,7 +2,7 @@ import useDrawerWidth from "@/components/NewPlayground/hooks/useDrawerWidth"
 import {Drawer} from "antd"
 import {PromptComparisonFocusDrawerProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import PlaygroundVariantConfig from "../../PlaygroundVariantConfig"
+import PlaygroundVariantConfig from "@/components/NewPlayground/Components/PlaygroundVariantConfig"
 
 const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = ({...props}) => {
     const {drawerWidth} = useDrawerWidth()

@@ -1,5 +1,5 @@
 import {Space, Typography} from "antd"
-import Version from "../../../../../assets/Version"
+import Version from "@/components/NewPlayground/assets/Version"
 import {PromptFocusDrawerHeaderProps} from "./types"
 import DeployVariantButton from "@/components/NewPlayground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
 import CommitVariantChangesButton from "@/components/NewPlayground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
