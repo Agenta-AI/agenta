@@ -2,7 +2,6 @@ import {memo, useState, useCallback, useRef, useMemo, useEffect} from "react"
 
 import {Button, Popover} from "antd"
 import {CaretDown} from "@phosphor-icons/react"
-import {Transition} from "@headlessui/react"
 
 import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import usePlayground from "../../hooks/usePlayground"
