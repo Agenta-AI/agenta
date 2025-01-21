@@ -18,25 +18,26 @@ const TestsetDrawerButton = ({
 }: TestsetDrawerButtonProps) => {
     const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
-
+    console.log("---------------")
+    console.log("testsetDrawerData", testsetDrawerData)
+    console.log("results", results)
     const getTestsetTraceData = useCallback(() => {
         if (!results) return
 
         const traces = Array.isArray(results) ? results : [results]
-
+        console.log("traces", traces)
         if (!traces?.length) return []
 
         const extractData = traces?.map((result, idx) => {
             return {
-                data: result?.response?.tree.nodes[0].data as any,
-                key: result?.response?.tree.nodes[0].node.id,
+                data: result?.response?.tree.nodes[0].data as Record<string, any>,
+                key: result?.response?.tree.nodes[0].node.id as string,
                 id: idx + 1,
             }
         })
-
+        console.log("extractData", extractData)
         if (extractData.length > 0) {
-            setIsTestsetDrawerOpen(true)
-            setTestsetDrawerData(extractData as TestsetTraceData[])
+            setTestsetDrawerData(extractData)
         }
     }, [results])
 
@@ -50,13 +51,17 @@ const TestsetDrawerButton = ({
                     {
                         onClick: () => {
                             getTestsetTraceData()
+                            setIsTestsetDrawerOpen(true)
                         },
                     },
                 )
             ) : (
                 <Button
                     icon={icon && <Database size={14} />}
-                    onClick={() => getTestsetTraceData()}
+                    onClick={() => {
+                        getTestsetTraceData()
+                        setIsTestsetDrawerOpen(true)
+                    }}
                     {...props}
                 >
                     {label}
@@ -67,6 +72,7 @@ const TestsetDrawerButton = ({
                 <TestsetDrawer
                     open={isTestsetDrawerOpen}
                     data={testsetDrawerData}
+                    showSelectedSpanText={false}
                     onClose={() => {
                         setIsTestsetDrawerOpen(false)
                         setTestsetDrawerData([])
