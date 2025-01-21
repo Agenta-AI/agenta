@@ -7,8 +7,7 @@ import {GenerationComparisonCompletionOutputProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {useCallback} from "react"
-import {getYamlOrJson} from "@/lib/helpers/utils"
-import {OutputFormat} from "../../Drawers/GenerationFocusDrawer/types"
+import {getStringOrJson} from "@/lib/helpers/utils"
 import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
 
 const GenerationComparisonCompletionOutputRow = ({
@@ -16,13 +15,11 @@ const GenerationComparisonCompletionOutputRow = ({
     focusDisable,
     className,
     variantId,
-    format,
 }: {
     rowId: string
     focusDisable: boolean
     className?: string
     variantId: string
-    format?: OutputFormat
 }) => {
     const classes = useStyles()
     const {result, isRunning, variableIds} = usePlayground({
@@ -77,14 +74,7 @@ const GenerationComparisonCompletionOutputRow = ({
                 ) : result.error ? (
                     <GenerationOutputText
                         type="danger"
-                        text={
-                            !format || format === "PRETTY"
-                                ? result.error
-                                : getYamlOrJson(
-                                      format as "JSON" | "YAML",
-                                      result?.metadata?.rawError,
-                                  )
-                        }
+                        text={getStringOrJson(result?.metadata?.rawError)}
                     />
                 ) : result.response ? (
                     <GenerationOutputText text={result.response.data} />
@@ -109,8 +99,6 @@ const GenerationComparisonCompletionOutput = ({
     variantId,
     className,
     focusDisable = false,
-    result,
-    isRunning,
     indexName,
 }: GenerationComparisonCompletionOutputProps) => {
     const {inputRowIds} = usePlayground({

@@ -13,6 +13,7 @@ import GenerationOutputText from "../GenerationOutputText"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import RunButton from "@/components/NewPlayground/assets/RunButton"
 import {useStyles} from "./styles"
+import {getStringOrJson} from "@/lib/helpers/utils"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -112,7 +113,10 @@ const GenerationCompletionRow = ({
                             ) : !result ? (
                                 <GenerationOutputText text="Click run to generate output" />
                             ) : result.error ? (
-                                <GenerationOutputText type="danger" text={result.error} />
+                                <GenerationOutputText
+                                    type="danger"
+                                    text={getStringOrJson(result?.metadata?.rawError)}
+                                />
                             ) : result.response ? (
                                 <>
                                     <GenerationOutputText text={result.response.data} />
