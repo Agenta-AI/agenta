@@ -50,6 +50,7 @@ pytest = "^7.3.1"
 httpx = "^0.24.0"
 pytest-asyncio = "^0.21.1"
 faker = "^23.2.0"
+pytz = "^2024.2"
 
 [build-system]
 requires = ["poetry-core"]
