@@ -6,8 +6,6 @@ import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
 import Version from "@/components/NewPlayground/assets/Version"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
-import PromptFocusButton from "../../Drawers/PromptFocusDrawer/assets/PromptFocusButton"
-import PromptComparisonFocusButton from "../../Drawers/PromptComparisonFocusDrawer/assets/PromptComparisonFocusButton"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import {PlaygroundVariantConfigHeaderProps} from "./types"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
@@ -24,7 +22,7 @@ const PlaygroundVariantConfigHeader = ({
     ...divProps
 }: PlaygroundVariantConfigHeaderProps) => {
     const classes = useStyles()
-    const {variantOptions, mutate, _variantId, variantRevision, viewType, isDirty} = usePlayground({
+    const {variantOptions, mutate, _variantId, variantRevision, isDirty} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
         stateSelector: useCallback(
@@ -93,12 +91,6 @@ const PlaygroundVariantConfigHeader = ({
                 <Version revision={variantRevision as number} />
             </div>
             <div className="flex items-center gap-2">
-                {viewType == "comparison" ? (
-                    <PromptComparisonFocusButton variantId={variantId} />
-                ) : (
-                    <PromptFocusButton variantId={variantId} />
-                )}
-
                 <DeployVariantButton variantId={variantId} />
 
                 <CommitVariantChangesButton
