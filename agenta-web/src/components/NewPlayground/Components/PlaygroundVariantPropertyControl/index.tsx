@@ -179,6 +179,8 @@ const PlaygroundVariantPropertyControl = ({
     view,
     rowId,
     withTooltip,
+    value: propsValue,
+    onChange,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
@@ -212,41 +214,63 @@ const PlaygroundVariantPropertyControl = ({
     const property = useMemo(() => {
         if (!baseProperty) return null
 
-        const {__metadata, value} = baseProperty
+        const {__metadata, value: _value} = baseProperty
+        const value = propsValue ?? _value
 
         const handler = rowId
             ? (e: any) => {
-                  mutate(
-                      (clonedState) => {
-                          if (!clonedState) return clonedState
-                          const val =
-                              e !== null && e !== undefined
-                                  ? typeof e === "object" && "target" in e
-                                      ? e.target.value
-                                      : e
-                                  : null
+                  if (onChange) {
+                      const val =
+                          e !== null && e !== undefined
+                              ? typeof e === "object" && "target" in e
+                                  ? e.target.value
+                                  : e
+                              : null
 
-                          const object = clonedState.generationData.value.find(
-                              (v) => v.__id === rowId,
-                          )
-                          if (!object) return clonedState
+                      onChange(val)
+                  } else {
+                      mutate(
+                          (clonedState) => {
+                              if (!clonedState) return clonedState
+                              const val =
+                                  e !== null && e !== undefined
+                                      ? typeof e === "object" && "target" in e
+                                          ? e.target.value
+                                          : e
+                                      : null
 
-                          const property = findPropertyInObject(object, propertyId) as Enhanced<any>
-                          if (!property) return clonedState
+                              const object = clonedState.generationData.value.find(
+                                  (v) => v.__id === rowId,
+                              )
+                              if (!object) return clonedState
 
-                          if (property.value === val) return clonedState
+                              const property = findPropertyInObject(
+                                  object,
+                                  propertyId,
+                              ) as Enhanced<any>
+                              if (!property) return clonedState
 
-                          property.value = val
+                              if (property.value === val) return clonedState
 
-                          return clonedState
-                      },
-                      {
-                          revalidate: false,
-                      },
-                  )
+                              property.value = val
+
+                              return clonedState
+                          },
+                          {
+                              revalidate: false,
+                          },
+                      )
+                  }
               }
             : (newValue: any) => {
-                  updateVariantProperty?.(newValue, baseProperty.__id, variantId)
+                  if (onChange) {
+                      onChange({
+                          value: newValue,
+                          id: baseProperty.__id,
+                      })
+                  } else {
+                      updateVariantProperty?.(newValue, baseProperty.__id, variantId)
+                  }
               }
 
         return {
@@ -254,13 +278,23 @@ const PlaygroundVariantPropertyControl = ({
             value,
             handleChange: handler,
         }
-    }, [baseProperty, mutate, propertyId, rowId, updateVariantProperty, variantId])
+    }, [
+        baseProperty,
+        propsValue,
+        rowId,
+        onChange,
+        mutate,
+        propertyId,
+        updateVariantProperty,
+        variantId,
+    ])
 
     if (!property) {
         return null
     }
 
-    const {__metadata: metadata, value, handleChange} = property
+    const {__metadata: metadata, value: _value, handleChange} = property
+    const value = propsValue ?? _value
 
     if (!metadata) {
         return <Typography.Text>unable to find metadata for property</Typography.Text>
