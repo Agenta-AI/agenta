@@ -123,7 +123,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
                     ref_part = refs.get(ref_part_key)
 
                     if ref_part:
-                        references[ref_prefix + "." + ref_part_key] = ref_part
+                        references[ref_prefix + "." + ref_part_key] = str(ref_part)
 
         _cache.put(_hash, {"parameters": parameters, "references": references})
 
@@ -160,12 +160,20 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             or body.get("app")
         )
 
-        if not any([application_id, application_slug]):
+        application_version = (
+            # CLEANEST
+            baggage.get("application_version")
+            # ALTERNATIVE
+            or request.query_params.get("application_version")
+        )
+
+        if not any([application_id, application_slug, application_version]):
             return None
 
         return Reference(
             id=application_id,
             slug=application_slug,
+            version=application_version,
         )
 
     async def _parse_variant_ref(
