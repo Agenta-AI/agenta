@@ -45,10 +45,14 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
         <div
             className={clsx(
                 "w-full",
+                "relative",
+                "flex flex-col",
                 "[&_.ant-collapse]:!bg-[transparent]",
                 "[&_.ant-collapse-expand-icon]:!self-center",
                 "[&_.ant-collapse-content-box]:!px-4",
                 "[&_.ant-collapse-header]:!pl-3 [&_.ant-collapse-header]:!pr-4",
+                "[&_.ant-collapse-header]:!top-[48px] [&_.ant-collapse-header]:!z-[2]",
+                "[&_.ant-collapse-header]:!sticky [&_.ant-collapse-header]:!bg-white",
                 className,
             )}
             {...divProps}
