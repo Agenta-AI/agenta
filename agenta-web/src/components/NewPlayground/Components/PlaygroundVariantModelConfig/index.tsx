@@ -1,4 +1,4 @@
-import {memo, useState, useCallback} from "react"
+import {memo, useState, useCallback, useRef, useMemo, useEffect} from "react"
 
 import {Button, Popover} from "antd"
 import {CaretDown} from "@phosphor-icons/react"
@@ -12,6 +12,7 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PlaygroundVariantModelConfigProps} from "./types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import {findVariantById, isPlaygroundEqual} from "../../hooks/usePlayground/assets/helpers"
 
 /**
  * PlaygroundVariantModelConfig Component
@@ -57,19 +58,47 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
                 propertyIds: properties.map((p) => p.__id),
                 modelName: llmConfig?.model?.value,
                 isMutating: variant.__isMutating,
+                initialState: properties.reduce((acc, p) => {
+                    acc[p.__id] = {
+                        value: p.value,
+                        id: p.__id,
+                    }
+                    return acc
+                }, {}),
             }
         },
         [promptId],
     )
 
-    const {propertyIds, modelName, isMutating, saveVariant} = usePlayground({
+    const {propertyIds, modelName, mutate, isMutating, initialState, saveVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantModelConfig",
         variantSelector,
     })
 
+    const initialStateRef = useRef(structuredClone(initialState))
+    const [configState, setConfigState] = useState(initialState)
     // Local state for modal visibility
     const [isModalOpen, setIsModalOpen] = useState(false)
+
+    const hasChanges = useMemo(() => {
+        if (!isModalOpen) return false
+        return !isPlaygroundEqual(configState, initialStateRef.current)
+    }, [isModalOpen, configState])
+
+    const handleConfigUpdate = useCallback(({value, id}) => {
+        setConfigState((prev) => {
+            if (!prev[id] && !value) return prev
+            if (prev[id] === value) return prev
+
+            const cloned = structuredClone(prev)
+            cloned[id] = {
+                value,
+                id,
+            }
+            return cloned
+        })
+    }, [])
 
     componentLogger("PlaygroundVariantModelConfig", variantId, promptId, propertyIds, modelName)
 
@@ -83,12 +112,38 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
 
     // Save handler with automatic modal close
     const handleSave = useCallback(async () => {
-        await saveModelConfig?.()
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
+            const variant = findVariantById(clonedState, variantId)
+            if (!variant) return clonedState
+
+            const prompt = variant.prompts.find((p) => p.__id === promptId)
+            const llmConfig = prompt?.llmConfig
+
+            if (!llmConfig) return clonedState
+
+            for (const propertyId of propertyIds) {
+                const valueObject = Object.values(llmConfig).find((p) => p.__id === propertyId)
+                valueObject.value = configState[propertyId]?.value
+                initialStateRef.current[propertyId].value = configState[propertyId]?.value
+            }
+
+            return clonedState
+        })
+
+        // await saveModelConfig?.()
         handleModalClose()
-    }, [saveModelConfig, handleModalClose])
+    }, [mutate, handleModalClose, variantId, promptId, propertyIds, configState])
 
     const handleResetDefaults = useCallback(async () => {
         // await saveModelConfig?.()
+        handleModalClose()
+    }, [handleModalClose])
+
+    const handleClose = useCallback(() => {
+        setConfigState((prev) => {
+            return structuredClone(initialStateRef.current)
+        })
         handleModalClose()
     }, [handleModalClose])
 
@@ -101,14 +156,15 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             arrow={false}
             title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
             content={
-                isModalOpen ? (
-                    <ModelConfigModal
-                        variantId={variantId}
-                        propertyIds={propertyIds || []}
-                        handleClose={handleModalClose}
-                        handleSave={handleSave}
-                    />
-                ) : null
+                <ModelConfigModal
+                    variantId={variantId}
+                    propertyIds={propertyIds || []}
+                    handleClose={handleClose}
+                    handleSave={handleSave}
+                    onChange={handleConfigUpdate}
+                    hasChanges={hasChanges}
+                    state={configState}
+                />
             }
             className={className}
         >
