@@ -12,20 +12,27 @@ import {
     ArrayMetadata,
     ObjectMetadata,
 } from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
 
 const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
     variantId,
     className,
     result,
-    inputText,
+    variableId,
 }) => {
-    const {mutate, viewType, inputRows} = usePlayground({
+    const {mutate, viewType, inputRows, variable} = usePlayground({
         variantId,
         hookId: "GenerationVariableOptions",
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const inputRows = state.generationData.value || []
-            return {inputRows}
+            const inputRow = inputRows.find((inputRow) => {
+                return inputRow.__id === rowId
+            })
+            const variables = getEnhancedProperties(inputRow)
+            const variable = variables.find((p) => p.__id === variableId)
+
+            return {inputRows, variable}
         }, []),
     })
 
@@ -89,18 +96,17 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 size="small"
                 disabled={inputRows.length === 1}
             />
-            {viewType === "single" ? (
-                <>
-                    <PlaygroundGenerationVariableMenu
-                        duplicateInputRow={duplicateInputRow}
-                        result={result}
-                    />
-                </>
-            ) : (
+            {viewType === "single" && (
+                <PlaygroundGenerationVariableMenu
+                    duplicateInputRow={duplicateInputRow}
+                    result={result}
+                />
+            )}
+            {viewType === "comparison" && (
                 <Button
                     icon={<Copy size={14} />}
                     type="text"
-                    onClick={() => navigator.clipboard.writeText(inputText as string)}
+                    onClick={() => navigator.clipboard.writeText(variable?.value as string)}
                     size="small"
                 />
             )}

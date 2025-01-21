@@ -5,5 +5,5 @@ export type GenerationVariableOptionsProps = {
     variantId: string
     rowId: string
     result?: TestResult | null | undefined
-    inputText?: string
+    variableId?: string
 }
