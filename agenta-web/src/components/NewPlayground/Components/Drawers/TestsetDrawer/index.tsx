@@ -16,18 +16,13 @@ const TestsetDrawerButton = ({
     results,
     ...props
 }: TestsetDrawerButtonProps) => {
-    const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
-    console.log("results", results)
+
     const getTestsetTraceData = useCallback(() => {
         const traces = Array.isArray(results) ? results : [results]
 
-        if (traces.length === 0) {
-            setTestsetDrawerData([])
-            return
-        }
-        console.log("traces", traces)
-        const extractData = traces
+        if (traces.length === 0) return []
+        const extractedData = traces
             ?.map((result, idx) => {
                 return {
                     data: result?.response?.tree?.nodes?.[0]?.data as Record<string, any>,
@@ -37,10 +32,7 @@ const TestsetDrawerButton = ({
             })
             .filter((result) => result.data)
 
-        console.log("extractData", extractData)
-        if (extractData.length > 0) {
-            setTestsetDrawerData(extractData)
-        }
+        return extractedData
     }, [results])
 
     return (
@@ -73,11 +65,10 @@ const TestsetDrawerButton = ({
             {isTestsetDrawerOpen && (
                 <TestsetDrawer
                     open={isTestsetDrawerOpen}
-                    data={testsetDrawerData}
+                    data={getTestsetTraceData() as TestsetTraceData[]}
                     showSelectedSpanText={false}
                     onClose={() => {
                         setIsTestsetDrawerOpen(false)
-                        setTestsetDrawerData([])
                     }}
                 />
             )}
