@@ -171,7 +171,8 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": viewType === "single",
-                                    "grow w-full h-full overflow-x-auto flex": isComparisonView,
+                                    "grow w-full h-full overflow-auto flex [&::-webkit-scrollbar]:w-0":
+                                        isComparisonView,
                                 },
                             ])}
                         >
@@ -180,7 +181,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     return (
                                         <div
                                             key={variantId}
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0"
+                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0"
                                         >
                                             <GenerationComparisonCompletionInput
                                                 variantId={variantId}
@@ -196,7 +197,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         key={variantId}
                                         className={clsx([
                                             {
-                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full overflow-y-auto flex-shrink-0":
+                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0":
                                                     isComparisonView,
                                             },
                                         ])}
