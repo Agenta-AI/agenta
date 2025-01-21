@@ -274,13 +274,18 @@ export function syncVariantMessages(
     const generationMessages = generationMessageData.value.map((data) => data.value)
 
     const syncVariantData = (arr1: any[], arr2: any[]) => {
+        let lastMatchIndex = -1
+
         arr2.forEach((item2) => {
             const indexInArr1 = arr1.findIndex((item1) => item1.__id === item2.__id)
 
             if (indexInArr1 !== -1) {
                 arr1[indexInArr1] = {...arr1[indexInArr1], ...item2}
+                lastMatchIndex = Math.max(lastMatchIndex, indexInArr1)
             } else {
-                arr1.push(item2)
+                const insertIndex = lastMatchIndex + 1
+                arr1.splice(insertIndex, 0, item2)
+                lastMatchIndex = insertIndex
             }
         })
 
