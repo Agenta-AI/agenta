@@ -129,7 +129,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     label="Add all to test set"
                     icon={false}
                     size="small"
-                    disabled={isRunning || !results?.[0]?.response?.data}
+                    disabled={isRunning}
                     results={results}
                 />
 

@@ -27,7 +27,6 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                         <div>Add to test set</div>
                     </TestsetDrawerButton>
                 ),
-                disabled: result?.metadata?.statusCode !== 200,
                 icon: <Database size={14} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
