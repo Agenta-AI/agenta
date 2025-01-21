@@ -1,4 +1,4 @@
-import {cloneElement, isValidElement, useCallback, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useMemo, useState} from "react"
 import dynamic from "next/dynamic"
 import {Button} from "antd"
 import {Database} from "@phosphor-icons/react"
@@ -18,7 +18,7 @@ const TestsetDrawerButton = ({
 }: TestsetDrawerButtonProps) => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
-    const getTestsetTraceData = useCallback(() => {
+    const testsetTraceData = useMemo(() => {
         const traces = Array.isArray(results) ? results : [results]
 
         if (traces.length === 0) return []
@@ -44,7 +44,6 @@ const TestsetDrawerButton = ({
                     }>,
                     {
                         onClick: () => {
-                            getTestsetTraceData()
                             setIsTestsetDrawerOpen(true)
                         },
                     },
@@ -53,7 +52,6 @@ const TestsetDrawerButton = ({
                 <Button
                     icon={icon && <Database size={14} />}
                     onClick={() => {
-                        getTestsetTraceData()
                         setIsTestsetDrawerOpen(true)
                     }}
                     {...props}
@@ -65,7 +63,7 @@ const TestsetDrawerButton = ({
             {isTestsetDrawerOpen && (
                 <TestsetDrawer
                     open={isTestsetDrawerOpen}
-                    data={getTestsetTraceData() as TestsetTraceData[]}
+                    data={testsetTraceData as TestsetTraceData[]}
                     showSelectedSpanText={false}
                     onClose={() => {
                         setIsTestsetDrawerOpen(false)

@@ -54,7 +54,7 @@ const TestsetDrawer = ({
 
     const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
-    const [traceData, setTraceData] = useState<TestsetTraceData[]>([])
+    const [traceData, setTraceData] = useState<TestsetTraceData[]>(data)
     const [updatedTraceData, setUpdatedTraceData] = useState("")
     const [testset, setTestset] = useState({name: "", id: ""})
     const [newTestsetName, setNewTestsetName] = useState("")
@@ -62,12 +62,30 @@ const TestsetDrawer = ({
     const [selectedTestsetColumns, setSelectedTestsetColumns] = useState<TestsetColumn[]>([])
     const [selectedTestsetRows, setSelectedTestsetRows] = useState<KeyValuePair[]>([])
     const [showLastFiveRows, setShowLastFiveRows] = useState(false)
-    const [rowDataPreview, setRowDataPreview] = useState("")
+    const [rowDataPreview, setRowDataPreview] = useState(data[0]?.key)
     const [mappingData, setMappingData] = useState<Mapping[]>([])
     const [preview, setPreview] = useState<Preview>({key: traceData[0]?.key || "", data: []})
     const [hasDuplicateColumns, setHasDuplicateColumns] = useState(false)
     const [isConfirmSave, setIsConfirmSave] = useState(false)
-    const [isDifferStructureExist, setIsDifferStructureExist] = useState(false)
+
+    const hasStructuralDifference = useCallback((trace: TestsetTraceData[]): boolean => {
+        if (trace.length <= 1) return false
+
+        const referencePaths = collectKeyPathsFromObject(trace[0].data).sort().join(",")
+
+        for (let i = 1; i < trace.length; i++) {
+            const currentPaths = collectKeyPathsFromObject(trace[i].data).sort().join(",")
+
+            if (currentPaths !== referencePaths) {
+                return true
+            }
+        }
+        return false
+    }, [])
+
+    const [isDifferStructureExist, setIsDifferStructureExist] = useState(
+        hasStructuralDifference(traceData),
+    )
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
@@ -100,31 +118,12 @@ const TestsetDrawer = ({
 
     useLazyEffect(() => {
         if (data.length > 0) {
-            setTraceData(data)
-            setRowDataPreview(data[0]?.key || "")
+            // setRowDataPreview(data[0]?.key || "")
 
             const hasDiffer = hasStructuralDifference(data)
             setIsDifferStructureExist(hasDiffer)
         }
     }, [data])
-
-    const hasStructuralDifference = useCallback(
-        (trace: TestsetTraceData[]): boolean => {
-            if (trace.length <= 1) return false
-
-            const referencePaths = collectKeyPathsFromObject(trace[0].data).sort().join(",")
-
-            for (let i = 1; i < trace.length; i++) {
-                const currentPaths = collectKeyPathsFromObject(trace[i].data).sort().join(",")
-
-                if (currentPaths !== referencePaths) {
-                    return true
-                }
-            }
-            return false
-        },
-        [collectKeyPathsFromObject],
-    )
 
     // predefind options
     const customSelectOptions = useCallback((divider = true) => {
