@@ -432,8 +432,8 @@ class entrypoint:
         link = context.link
 
         tree = None
-        _tree_id = link.get("tree_id") if link else None
-        tree_id = str(UUID(int=_tree_id)) if _tree_id else None
+        _tree_id = link.get("tree_id") if link else None # in int format
+        tree_id = str(UUID(int=_tree_id)) if _tree_id else None # in uuid_as_str format
 
         if _tree_id is not None:
             if inline:
