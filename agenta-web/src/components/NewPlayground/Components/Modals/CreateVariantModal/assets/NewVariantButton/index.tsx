@@ -1,6 +1,6 @@
 import {isValidElement, cloneElement, useState, useTransition, useCallback, useMemo} from "react"
 
-import {message} from "antd"
+import {message} from "../../../../../state/messageContext"
 
 import usePlayground from "../../../../../hooks/usePlayground"
 import AddButton from "../../../../../assets/AddButton"
