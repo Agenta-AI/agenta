@@ -29,9 +29,11 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                 const inputRows = state.generationData.value
 
                 // TODO: use the results to get all the responses to save on the Testset
+
                 const results = inputRows.map((inputRow) =>
                     variantId ? inputRow?.__runs?.[variantId]?.__result : null,
                 )
+
                 const isRunning = inputRows.some((inputRow) =>
                     variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
                 )
