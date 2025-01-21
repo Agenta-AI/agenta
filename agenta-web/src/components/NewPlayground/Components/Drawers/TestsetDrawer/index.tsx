@@ -18,23 +18,25 @@ const TestsetDrawerButton = ({
 }: TestsetDrawerButtonProps) => {
     const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
-    console.log("---------------")
-    console.log("testsetDrawerData", testsetDrawerData)
     console.log("results", results)
     const getTestsetTraceData = useCallback(() => {
-        if (!results) return
-
         const traces = Array.isArray(results) ? results : [results]
-        console.log("traces", traces)
-        if (!traces?.length) return []
 
-        const extractData = traces?.map((result, idx) => {
-            return {
-                data: result?.response?.tree.nodes[0].data as Record<string, any>,
-                key: result?.response?.tree.nodes[0].node.id as string,
-                id: idx + 1,
-            }
-        })
+        if (traces.length === 0) {
+            setTestsetDrawerData([])
+            return
+        }
+        console.log("traces", traces)
+        const extractData = traces
+            ?.map((result, idx) => {
+                return {
+                    data: result?.response?.tree?.nodes?.[0]?.data as Record<string, any>,
+                    key: result?.response?.tree?.nodes?.[0]?.node?.id as string,
+                    id: idx + 1,
+                }
+            })
+            .filter((result) => result.data)
+
         console.log("extractData", extractData)
         if (extractData.length > 0) {
             setTestsetDrawerData(extractData)
