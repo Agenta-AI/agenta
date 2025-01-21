@@ -1,15 +1,15 @@
 import {useCallback} from "react"
 
-import {message} from "antd"
 import {getCurrentProject} from "@/contexts/project.context"
+import {getJWT} from "@/services/api"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
+import {message} from "../../../state/messageContext"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
 import useWebWorker from "../../useWebWorker"
-import {getJWT} from "@/services/api"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
