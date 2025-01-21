@@ -1,11 +1,11 @@
 import {useCallback} from "react"
 import {Drawer} from "antd"
 import {PromptFocusDrawerProps} from "./types"
-import usePlayground from "../../../hooks/usePlayground"
-import useDrawerWidth from "../../../hooks/useDrawerWidth"
 import PromptFocusDrawerHeader from "./assets/PromptFocusDrawerHeader"
-import PlaygroundVariantConfigPrompt from "../../PlaygroundVariantConfigPrompt"
 import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
+import useDrawerWidth from "@/components/NewPlayground/hooks/useDrawerWidth"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
+import PlaygroundVariantConfigPrompt from "@/components/NewPlayground/Components/PlaygroundVariantConfigPrompt"
 
 const PromptFocusDrawer: React.FC<PromptFocusDrawerProps> = ({variantId, ...props}) => {
     const {drawerWidth} = useDrawerWidth()

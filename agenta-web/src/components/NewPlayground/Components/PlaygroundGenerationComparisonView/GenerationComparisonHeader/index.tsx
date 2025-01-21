@@ -11,6 +11,7 @@ import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/ass
 import {useStyles} from "./styles"
 import clsx from "clsx"
 import RunButton from "@/components/NewPlayground/assets/RunButton"
+import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
 const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps) => {
     const classes = useStyles()
@@ -50,7 +51,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                 <Button size="small" onClick={clearGeneration}>
                     Clear
                 </Button>
-
+                <LoadTestsetButton label="Load Test set" />
                 <RunButton type="primary" onClick={() => runTests?.()} />
             </div>
         </section>
