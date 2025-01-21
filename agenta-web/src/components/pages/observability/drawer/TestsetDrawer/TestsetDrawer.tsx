@@ -118,8 +118,6 @@ const TestsetDrawer = ({
 
     useLazyEffect(() => {
         if (data.length > 0) {
-            // setRowDataPreview(data[0]?.key || "")
-
             const hasDiffer = hasStructuralDifference(data)
             setIsDifferStructureExist(hasDiffer)
         }
