@@ -4,6 +4,7 @@ import {SWRDevTools} from "swr-devtools"
 import PlaygroundMainView from "./Components/MainLayout"
 import {componentLogger} from "./assets/utilities/componentLogger"
 import usePlayground from "./hooks/usePlayground"
+import AppContext from "./state/messageContext"
 
 const PlaygroundHeader = dynamic(() => import("./Components/PlaygroundHeader"), {ssr: false})
 
@@ -21,6 +22,7 @@ const Playground: React.FC = () => {
     return (
         <DevToolsWrapper>
             <div className="flex flex-col w-full h-[calc(100dvh-70px)] overflow-hidden">
+                <AppContext />
                 <PlaygroundHeader />
                 <PlaygroundMainView />
             </div>
