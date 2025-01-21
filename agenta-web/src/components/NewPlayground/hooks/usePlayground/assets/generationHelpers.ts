@@ -3,8 +3,11 @@ import {generateId} from "../../../assets/utilities/genericTransformer/utilities
 import {hashMetadata} from "../../../assets/utilities/hash"
 import {createMessageRow} from "./messageHelpers"
 
-import {type EnhancedConfigValue} from "../../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {
+    EnhancedObjectConfig,
+    type EnhancedConfigValue,
+} from "../../../assets/utilities/genericTransformer/types"
+import type {AgentaConfigPrompt, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {PlaygroundStateData} from "../types"
 
 /**
@@ -60,6 +63,15 @@ export const getUniqueMessages = (variants: EnhancedVariant[]) => {
     })
 
     return Array.from(uniqueMessages.values())
+}
+
+export const extractMessages = (
+    variants: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>[],
+    selectedIds: string[],
+): any[] => {
+    return variants
+        .filter((variant) => selectedIds.includes(variant.id))
+        .flatMap((variant) => variant.prompts.flatMap((prompt) => prompt.messages.value))
 }
 
 export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
