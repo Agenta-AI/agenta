@@ -181,6 +181,13 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     new Set([...state.selected, variantId]),
                                 )
                                 state.selected = selectedVariants
+
+                                const selectedVariantName = state.variants.find(
+                                    (variant) => variant.id === variantId,
+                                )?.variantName
+                                message.success(
+                                    `Variant named ${selectedVariantName} added to comparison`,
+                                )
                             } else {
                                 if (state.selected.length === 1) {
                                     message.error("At least one variant must be displayed")
