@@ -12,7 +12,7 @@ const PlaygroundVariantHistoryHeaderMenu = dynamic(
 )
 
 const PlaygroundVariantHistoryHeader: React.FC<PlaygroundVariantHistoryHeaderProps> = ({
-    slectedRevision,
+    selectedRevision,
 }) => {
     const classes = useStyles()
 
@@ -27,7 +27,7 @@ const PlaygroundVariantHistoryHeader: React.FC<PlaygroundVariantHistoryHeaderPro
                         History
                     </Typography>
                 </div>
-                <Version revision={slectedRevision} />
+                <Version revision={selectedRevision} />
             </div>
 
             <div className="flex items-center gap-2">

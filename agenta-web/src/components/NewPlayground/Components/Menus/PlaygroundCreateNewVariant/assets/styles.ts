@@ -11,7 +11,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
             backgroundColor: theme.controlItemBgActive,
         },
     },
-    selectedVaraint: {
+    selectedVariant: {
         backgroundColor: theme.controlItemBgActive,
     },
 }))

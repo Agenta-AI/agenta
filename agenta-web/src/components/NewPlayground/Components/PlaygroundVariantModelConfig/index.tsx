@@ -45,11 +45,16 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             const prompt = variant.prompts.find((p) => p.__id === promptId)
             const llmConfig = prompt?.llmConfig
 
+            const properties =
+                getEnhancedProperties(llmConfig, [
+                    "tools",
+                    "toolChoice",
+                    "responseFormat",
+                    "stream",
+                ]) || []
+
             return {
-                propertyIds: (
-                    getEnhancedProperties(llmConfig, ["tools", "toolChoice", "responseFormat"]) ||
-                    []
-                ).map((p) => p.__id),
+                propertyIds: properties.map((p) => p.__id),
                 modelName: llmConfig?.model?.value,
                 isMutating: variant.__isMutating,
             }

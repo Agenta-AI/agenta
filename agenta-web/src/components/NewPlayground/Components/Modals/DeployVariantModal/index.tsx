@@ -1,12 +1,18 @@
 import {useCallback, useMemo, useState} from "react"
+
+import {Modal} from "antd"
 import router from "next/router"
-import {message, Modal} from "antd"
-import {DeployVariantModalProps} from "./types"
 import {Rocket} from "@phosphor-icons/react"
-import DeploymentEnvironmentTable from "./assets/DeploymentEnvironmentTable"
+
 import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {createPublishVariant, useEnvironments} from "@/services/deployment/api"
+
+import {message} from "../../../state/messageContext"
+import usePlayground from "../../../hooks/usePlayground"
+
+import DeploymentEnvironmentTable from "./assets/DeploymentEnvironmentTable"
+
+import {DeployVariantModalProps} from "./types"
 
 const DeployVariantModal = ({variantId, ...props}: DeployVariantModalProps) => {
     const {variant} = usePlayground({variantId, hookId: "DeployVariantModal"})

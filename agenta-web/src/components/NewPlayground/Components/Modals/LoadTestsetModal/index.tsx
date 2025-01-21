@@ -23,7 +23,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     const [searchTerm, setSearchTerm] = useState("")
 
     useLazyEffect(() => {
-        if (testsets.length > 0) {
+        if (testsets.length > 0 && !selectedTestset) {
             setSelectedTestset(testsets[0]?._id)
             testsetFetcher(testsets[0]?._id)
         }
@@ -173,7 +173,13 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                                 className: "cursor-pointer",
                                 onClick: () => {
                                     if (rowIndex !== undefined) {
-                                        setSelectedRowKeys([rowIndex])
+                                        if (selectedRowKeys.includes(rowIndex)) {
+                                            setSelectedRowKeys(
+                                                selectedRowKeys.filter((row) => row !== rowIndex),
+                                            )
+                                        } else {
+                                            setSelectedRowKeys([...selectedRowKeys, rowIndex])
+                                        }
                                     }
                                 },
                             })}

@@ -50,6 +50,7 @@ const useApps = () => {
         shouldFetch ? `/api/apps?` + (!isMockProjectId ? `project_id=${projectId}&` : "") : null,
         {
             shouldRetryOnError: false,
+            revalidateOnFocus: false,
         },
     )
     return {

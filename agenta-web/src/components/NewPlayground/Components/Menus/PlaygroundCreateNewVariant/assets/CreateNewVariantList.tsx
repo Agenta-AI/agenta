@@ -1,23 +1,28 @@
 import {useState, useMemo, useCallback} from "react"
+
+import clsx from "clsx"
 import {Button, Input} from "antd"
 import {Check} from "@phosphor-icons/react"
-import debounce from "lodash/debounce"
-import clsx from "clsx"
-import {CreateNewVariantListProps, VariantItem} from "./types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {useStyles} from "./styles"
+import {useDebounceValue} from "usehooks-ts"
+
 import NewVariantButton from "../../../Modals/CreateVariantModal/assets/NewVariantButton"
+import usePlayground from "../../../../hooks/usePlayground"
+
+import {useStyles} from "./styles"
+
+import type {CreateNewVariantListProps, VariantItem} from "./types"
 
 const CreateNewVariantList = ({
     selectedVariant,
     displayedVariants = [],
     onSelect,
-    closeModal,
     className,
+    closeModal,
 }: CreateNewVariantListProps) => {
     const classes = useStyles()
     const [query, setQuery] = useState("")
-    const [debouncedQuery, setDebouncedQuery] = useState("")
+
+    const [debouncedQuery] = useDebounceValue(query, 300)
 
     const {variantsList, toggleVariantDisplay} = usePlayground({
         stateSelector: (state) => ({
@@ -28,15 +33,6 @@ const CreateNewVariantList = ({
         }),
     })
 
-    // Debounced search handler
-    const debouncedSearch = useMemo(
-        () =>
-            debounce((value: string) => {
-                setDebouncedQuery(value.toLowerCase())
-            }, 300),
-        [],
-    )
-
     // Memoized filtered variants
     const filteredVariants = useMemo(() => {
         if (!debouncedQuery) return variantsList
@@ -45,24 +41,27 @@ const CreateNewVariantList = ({
         )
     }, [variantsList, debouncedQuery])
 
-    const handleSearch = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const value = e.target.value
-            setQuery(value)
-            debouncedSearch(value)
-        },
-        [debouncedSearch],
-    )
-
-    const onAddVariant = useCallback((variant: VariantItem, isSelected: boolean) => {
-        if (onSelect) {
-            onSelect(variant.variantId)
-        } else {
-            toggleVariantDisplay?.(variant.variantId, !isSelected)
-        }
-
-        closeModal?.()
+    const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value
+        setQuery(value)
     }, [])
+
+    const onAddVariant = useCallback(
+        (variant: VariantItem, isSelected: boolean) => {
+            if (onSelect) {
+                onSelect(variant.variantId)
+                if (
+                    displayedVariants.length === 2 &&
+                    displayedVariants.includes(variant.variantId)
+                ) {
+                    closeModal?.()
+                }
+            } else {
+                toggleVariantDisplay?.(variant.variantId, !isSelected)
+            }
+        },
+        [onSelect, displayedVariants, closeModal, toggleVariantDisplay],
+    )
 
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
@@ -81,7 +80,7 @@ const CreateNewVariantList = ({
                 </NewVariantButton>
             </div>
 
-            <ul className="list-none p-0 m-0 max-h-[300px] overflow-y-auto">
+            <ul className="list-none p-0 m-0 max-h-[300px] overflow-y-auto flex flex-col gap-1">
                 {filteredVariants.length === 0 ? (
                     <li className="text-center">No variants found</li>
                 ) : (
@@ -96,7 +95,7 @@ const CreateNewVariantList = ({
                                 onClick={() => onAddVariant(variant, isSelected)}
                                 className={clsx([
                                     classes.variant,
-                                    isSelected && classes.selectedVaraint,
+                                    isSelected && classes.selectedVariant,
                                 ])}
                             >
                                 {variant.variantName}
