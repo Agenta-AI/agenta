@@ -46,7 +46,7 @@ const SelectControl = ({
         <PlaygroundVariantPropertyControlWrapper>
             {withTooltip ? (
                 <Tooltip title={description}>
-                    <Typography.Text>{label}</Typography.Text>
+                    <Typography.Text className="w-fit">{label}</Typography.Text>
                 </Tooltip>
             ) : (
                 <Typography.Text>{label}</Typography.Text>

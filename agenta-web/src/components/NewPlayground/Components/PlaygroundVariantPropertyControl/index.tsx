@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Tooltip, Typography} from "antd"
+import {Typography} from "antd"
 
 import usePlayground from "../../hooks/usePlayground"
 import {componentLogger} from "../../assets/utilities/componentLogger"

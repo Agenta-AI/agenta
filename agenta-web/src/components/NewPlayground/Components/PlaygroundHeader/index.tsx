@@ -1,4 +1,4 @@
-import {Typography, message} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 
@@ -10,15 +10,12 @@ const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCrea
 })
 
 const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}) => {
-    const [, contextHolder] = message.useMessage()
-
     const classes = useStyles()
     const {toggleVariantDisplay, displayedVariants, variants} = usePlayground()
 
     // Only render if variants are available
     return !!variants ? (
         <>
-            {contextHolder}
             <div
                 className={clsx(
                     "flex items-center justify-between gap-4 px-2.5 py-2",

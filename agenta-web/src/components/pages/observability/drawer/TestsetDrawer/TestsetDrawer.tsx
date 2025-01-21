@@ -39,7 +39,12 @@ import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps, TestsetColumn} f
 import {useStyles} from "./assets/styles"
 import clsx from "clsx"
 
-const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
+const TestsetDrawer = ({
+    onClose,
+    data,
+    showSelectedSpanText = true,
+    ...props
+}: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {testsets: listOfTestsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
@@ -579,9 +584,11 @@ const TestsetDrawer = ({onClose, data, ...props}: TestsetDrawerProps) => {
                             </Typography.Text>
                         )}
 
-                        <Typography.Text className={classes.drawerHeading}>
-                            Spans selected {traceData.length}
-                        </Typography.Text>
+                        {showSelectedSpanText && (
+                            <Typography.Text className={classes.drawerHeading}>
+                                Spans selected {traceData.length}
+                            </Typography.Text>
+                        )}
 
                         <div className={classes.container}>
                             <Typography.Text className={classes.label}>Test set</Typography.Text>
