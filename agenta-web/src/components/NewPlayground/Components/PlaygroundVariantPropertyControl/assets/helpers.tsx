@@ -43,7 +43,7 @@ export const renderMap: RenderFunctions = {
         <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
     ),
 
-    string: ({withTooltip, metadata, value, handleChange, as, className, view}) => {
+    string: ({withTooltip, metadata, value, handleChange, as, className, view, placeholder}) => {
         if (metadata.options) {
             if (as === "SimpleDropdownSelect") {
                 return (
@@ -74,10 +74,11 @@ export const renderMap: RenderFunctions = {
             return (
                 <PromptMessageContent
                     value={value}
-                    placeholder={metadata.description}
+                    placeholder={metadata.description || placeholder}
                     onChange={handleChange}
                     description={metadata.description}
                     withTooltip={withTooltip}
+                    view={view}
                 />
             )
         }
