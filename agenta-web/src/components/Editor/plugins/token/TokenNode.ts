@@ -23,6 +23,7 @@ export class TokenNode extends TextNode {
         dom.classList.add("token-node")
         dom.textContent = this.__text
         dom.style.backgroundColor = "#e2e8f0"
+        dom.style.color = "#1677FF"
         dom.style.padding = "0 4px"
         dom.style.borderRadius = "4px"
         return dom

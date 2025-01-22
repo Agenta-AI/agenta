@@ -14,6 +14,7 @@ export interface EditorProps {
     boundWidth?: boolean
     boundHeight?: boolean
     debug?: boolean
+    showBorder?: boolean
 }
 
 export interface EditorPluginsProps {
@@ -23,6 +24,6 @@ export interface EditorPluginsProps {
     enableTokens: boolean
     debug: boolean
     language?: string
-    placeholder: string
+    placeholder?: string
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
 }
