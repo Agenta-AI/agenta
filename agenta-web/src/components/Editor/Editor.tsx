@@ -12,7 +12,6 @@ import {useEditorResize} from "./hooks/useEditorResize"
 import {useEditorInvariant} from "./hooks/useEditorInvariant"
 import useEditorConfig from "./hooks/useEditorConfig"
 import EditorPlugins from "./plugins"
-import {$generateNodesFromDOM} from "@lexical/html"
 
 import type {EditorProps} from "./types"
 import {forwardRef, useCallback, useEffect} from "react"
@@ -138,7 +137,7 @@ const Editor = forwardRef(
                     ref={ref}
                     className={`editor-inner border rounded-lg ${singleLine ? "single-line" : ""}`}
                     style={
-                        dimensions.width
+                        dimensions && dimensions.width
                             ? {
                                   width: dimensions.width,
                                   height: dimensions.height,
