@@ -14,6 +14,10 @@ export interface EditorProps {
     boundWidth?: boolean
     boundHeight?: boolean
     debug?: boolean
+    dimensions: {
+        width: number
+        height: number
+    }
     showBorder?: boolean
 }
 
