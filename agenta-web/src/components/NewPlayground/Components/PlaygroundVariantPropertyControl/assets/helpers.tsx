@@ -79,6 +79,7 @@ export const renderMap: RenderFunctions = {
                     description={metadata.description}
                     withTooltip={withTooltip}
                     view={view}
+                    className={className}
                 />
             )
         }

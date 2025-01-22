@@ -7,4 +7,5 @@ export type GenerationChatRowProps = {
     rowId?: string
     deleteMessage: (messageId: string) => void
     message: Enhanced<Message>
+    viewAs?: "input" | "output"
 }
