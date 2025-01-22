@@ -30,7 +30,7 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {result, variableIds, runTests, canRun, isRunning, viewType, isChat, inputText} =
+    const {result, variableIds, runTests, canRun, isRunning, viewType, isChat} =
         usePlayground({
             variantId,
             stateSelector: useCallback(
@@ -39,12 +39,12 @@ const GenerationCompletionRow = ({
                         return inputRow.__id === rowId
                     })
 
-                    const variables = getEnhancedProperties(inputRow)
-                    const variableIds = variables.map((p) => p.__id)
-                    const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
+                const variables = getEnhancedProperties(inputRow)
+                const variableIds = variables.map((p) => p.__id)
+                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
-                    const result = variantId ? inputRow?.__runs?.[variantId]?.__result : null
-                    const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
+                const result = variantId ? inputRow?.__runs?.[variantId]?.__result : null
+                const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
 
                     return {
                         isChat: state.variants[0]?.isChat,
@@ -52,7 +52,6 @@ const GenerationCompletionRow = ({
                         canRun,
                         result,
                         isRunning,
-                        isChat: state.variants[0]?.isChat,
                         inputText: variables?.[0]?.value, // Temporary implementation
                     }
                 },
@@ -157,7 +156,7 @@ const GenerationCompletionRow = ({
                                             rowId={rowId}
                                             className="invisible group-hover/item:visible absolute top-2 right-1"
                                             result={result}
-                                            inputText={inputText as string}
+                                            variableId={variableId}
                                         />
                                     )}
                                 </div>
