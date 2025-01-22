@@ -7,14 +7,15 @@ async function runVariantInputRow(payload: {
     variant: EnhancedVariant
     allMetadata: Record<string, ConfigMetadata>
     inputRow: EnhancedVariant["inputs"]["value"][number]
+    messageRows?: EnhancedVariant["messages"]["value"]
     rowId: string
     appId: string
     uri: string
     headers: Record<string, string>
     projectId: string
 }) {
-    const {variant, rowId, uri, inputRow, allMetadata, headers, projectId} = payload
-    const requestBody = transformToRequestBody(variant, inputRow, allMetadata)
+    const {variant, rowId, uri, inputRow, messageRows, allMetadata, headers, projectId} = payload
+    const requestBody = transformToRequestBody({variant, inputRow, messageRows, allMetadata})
     let result
 
     try {

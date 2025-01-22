@@ -115,11 +115,10 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            const parameters = transformToRequestBody(
-                                baseVariant,
-                                undefined,
-                                getAllMetadata(),
-                            )
+                            const parameters = transformToRequestBody({
+                                variant: baseVariant,
+                                allMetadata: getAllMetadata(),
+                            })
 
                             const newVariantBody: Partial<Variant> &
                                 Pick<Variant, "variantName" | "configName" | "baseId"> = {
@@ -188,6 +187,114 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
             Object.defineProperty(swr, "runTests", {
                 get: () => {
                     addToValueReferences("runTests")
+                    const handleInputRowTestStart = (inputRow, variantId) => {
+                        if (!inputRow.__runs) {
+                            inputRow.__runs = {}
+                        }
+
+                        if (!inputRow.__runs[variantId]) {
+                            inputRow.__runs[variantId] = {
+                                __isRunning: true,
+                                __result: undefined,
+                            }
+                        } else {
+                            inputRow.__runs[variantId].__isRunning = true
+                        }
+
+                        return inputRow
+                    }
+
+                    const runChatTests = (
+                        clonedState: PlaygroundStateData,
+                        rowId: string,
+                        jwt,
+                        visibleVariants: string[],
+                    ) => {
+                        const variableRows = clonedState.generationData.inputs.value
+                        const messageRows = clonedState.generationData.messages.value
+
+                        for (const variantId of visibleVariants) {
+                            const variant = clonedState.variants.find((v) => v.id === variantId)
+
+                            if (!variant) continue
+
+                            for (const variableRow of variableRows) {
+                                handleInputRowTestStart(variableRow, variantId)
+
+                                for (const messageRow of messageRows) {
+                                    handleInputRowTestStart(messageRow, variantId)
+                                }
+
+                                /**
+                                 * TODO: NEED TO GENERATE A NEW MESSAGE ROW HERE FOR
+                                 * INCOMING CHAT RESPONSE, AND USE ITS ID FOR rowId
+                                 */
+
+                                postMessageToWorker(
+                                    createWorkerMessage("runVariantInputRow", {
+                                        variant,
+                                        messageRows,
+                                        inputRow: variableRow,
+                                        // rowId: testRow.__id,
+                                        appId: config.appId!,
+                                        uri: variant.uri,
+                                        projectId: getCurrentProject().projectId,
+                                        allMetadata: getAllMetadata(),
+                                        headers: {
+                                            ...(jwt
+                                                ? {
+                                                      Authorization: `Bearer ${jwt}`,
+                                                  }
+                                                : {}),
+                                        },
+                                    }),
+                                )
+                            }
+                        }
+                    }
+
+                    const generateGenerationTestParams = (
+                        clonedState: PlaygroundStateData,
+                        rowId: string,
+                        jwt,
+                        visibleVariants: string[],
+                    ) => {
+                        const testRows = rowId
+                            ? [
+                                  clonedState.generationData.inputs.value.find(
+                                      (r) => r.__id === rowId,
+                                  ),
+                              ]
+                            : clonedState.generationData.inputs.value
+
+                        for (const testRow of testRows) {
+                            for (const variantId of visibleVariants) {
+                                const variant = clonedState.variants.find((v) => v.id === variantId)
+                                if (!variant || !testRow) continue
+
+                                handleInputRowTestStart(testRow, variantId)
+
+                                postMessageToWorker(
+                                    createWorkerMessage("runVariantInputRow", {
+                                        variant,
+                                        inputRow: testRow,
+                                        rowId: testRow.__id,
+                                        appId: config.appId!,
+                                        uri: variant.uri,
+                                        projectId: getCurrentProject().projectId,
+                                        allMetadata: getAllMetadata(),
+                                        headers: {
+                                            ...(jwt
+                                                ? {
+                                                      Authorization: `Bearer ${jwt}`,
+                                                  }
+                                                : {}),
+                                        },
+                                    }),
+                                )
+                            }
+                        }
+                    }
                     const runTests = (rowId?: string, variantId?: string) => {
                         swr.mutate(
                             async (clonedState) => {
@@ -197,54 +304,17 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                     ? [variantId]
                                     : clonedState.selected
 
-                                const testRows = rowId
-                                    ? [
-                                          clonedState.generationData.inputs.value.find(
-                                              (r) => r.__id === rowId,
-                                          ),
-                                      ]
-                                    : clonedState.generationData.inputs.value
+                                const isChat = clonedState.variants.some((v) => v.isChat)
 
-                                for (const testRow of testRows) {
-                                    for (const variantId of visibleVariants) {
-                                        const variant = clonedState.variants.find(
-                                            (v) => v.id === variantId,
-                                        )
-                                        if (!variant || !testRow) continue
-
-                                        if (!testRow.__runs) {
-                                            testRow.__runs = {}
-                                        }
-
-                                        if (!testRow.__runs[variantId]) {
-                                            testRow.__runs[variantId] = {
-                                                __isRunning: true,
-                                                __result: undefined,
-                                            }
-                                        } else {
-                                            testRow.__runs[variantId].__isRunning = true
-                                        }
-                                        testRow.__runs[variantId].__isRunning = true
-
-                                        postMessageToWorker(
-                                            createWorkerMessage("runVariantInputRow", {
-                                                variant,
-                                                inputRow: testRow,
-                                                rowId: testRow.__id,
-                                                appId: config.appId!,
-                                                uri: variant.uri,
-                                                projectId: getCurrentProject().projectId,
-                                                allMetadata: getAllMetadata(),
-                                                headers: {
-                                                    ...(jwt
-                                                        ? {
-                                                              Authorization: `Bearer ${jwt}`,
-                                                          }
-                                                        : {}),
-                                                },
-                                            }),
-                                        )
-                                    }
+                                if (isChat) {
+                                    runChatTests(clonedState, rowId, jwt, visibleVariants)
+                                } else {
+                                    generateGenerationTestParams(
+                                        clonedState,
+                                        rowId,
+                                        jwt,
+                                        visibleVariants,
+                                    )
                                 }
 
                                 return clonedState
