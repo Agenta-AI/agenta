@@ -5,7 +5,7 @@ import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
 
 import type {TextControlProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {Editor} from "@/components/Editor/Editor"
+import EditorWrapper from "@/components/Editor/Editor"
 
 const TextControl = ({className, metadata, value, handleChange, as, view}: TextControlProps) => {
     const {viewType} = usePlayground()
@@ -55,7 +55,7 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                 {metadata.title}
             </Typography>
 
-            <Editor
+            <EditorWrapper
                 placeholder={metadata.description}
                 showToolbar={false}
                 enableTokens
