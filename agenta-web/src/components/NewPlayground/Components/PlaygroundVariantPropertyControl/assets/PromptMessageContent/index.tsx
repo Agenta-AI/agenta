@@ -9,7 +9,13 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 
 const {TextArea} = Input
 
-const PromptMessageContent = ({value, placeholder, onChange, view}: PromptMessageContentProps) => {
+const PromptMessageContent = ({
+    value,
+    placeholder,
+    onChange,
+    view,
+    className,
+}: PromptMessageContentProps) => {
     const {isChat} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
             return {isChat: state.variants[0].isChat}
@@ -32,9 +38,10 @@ const PromptMessageContent = ({value, placeholder, onChange, view}: PromptMessag
             autoSize={{minRows: !isGenerationChatView ? 1.2 : 4}}
             placeholder={placeholder}
             className={clsx([
-                "border-0 ",
+                "border-0",
                 "focus:ring-0",
                 {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
+                className,
             ])}
             value={localValue}
             onChange={handleLocalValueChange}

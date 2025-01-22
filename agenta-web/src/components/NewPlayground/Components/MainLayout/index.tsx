@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from "react"
+import React, {useCallback, useEffect, useRef, useState} from "react"
 
 import dynamic from "next/dynamic"
 import clsx from "clsx"
@@ -10,6 +10,8 @@ import GenerationComparisonCompletionInput from "../PlaygroundGenerationComparis
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
 
 import type {BaseContainerProps} from "../types"
+import GenerationComparisonChatInput from "../PlaygroundGenerationComparisonView/GenerationComparisonChatInput"
+import GenerationComparisonChatOutput from "../PlaygroundGenerationComparisonView/GenerationComparisonChatOutput"
 
 const PromptComparisonVariantNavigation = dynamic(
     () => import("../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"),
@@ -183,10 +185,12 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                             key={variantId}
                                             className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10"
                                         >
-                                            <GenerationComparisonCompletionInput
-                                                variantId={variantId}
-                                                rowClassName="bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
-                                            />
+                                            <GenerationComparisonChatInput variantId={variantId} />
+
+                                            {/* <GenerationComparisonCompletionInput
+                                                    variantId={variantId}
+                                                    rowClassName="bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
+                                                /> */}
                                         </div>
                                     )
                                 })}
@@ -203,10 +207,17 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         ])}
                                     >
                                         {isComparisonView ? (
-                                            <GenerationComparisonCompletionOutput
+                                            <>
+                                                {/* <GenerationComparisonCompletionOutput
                                                 variantId={variantId}
                                                 indexName={String.fromCharCode(65 + index)}
-                                            />
+                                            /> */}
+
+                                                <GenerationComparisonChatOutput
+                                                    variantId={variantId}
+                                                    indexName={String.fromCharCode(65 + index)}
+                                                />
+                                            </>
                                         ) : (
                                             <PlaygroundGenerations variantId={variantId} />
                                         )}

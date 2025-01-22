@@ -3,4 +3,5 @@ export interface PromptMessageContentProps {
     placeholder?: string
     onChange: (value: string) => void
     view?: string
+    className?: string
 }
