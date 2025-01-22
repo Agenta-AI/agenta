@@ -1,7 +1,7 @@
 import {useCallback} from "react"
 import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
 import type {PromptMessageContentProps} from "./types"
-import {Editor} from "@/components/Editor/Editor"
+import EditorWrapper from "@/components/Editor/Editor"
 
 const PromptMessageContent = ({value, placeholder, onChange}: PromptMessageContentProps) => {
     const [localValue, setLocalValue] = useDebounceInput<string>(value, onChange, 300, "")
@@ -14,7 +14,7 @@ const PromptMessageContent = ({value, placeholder, onChange}: PromptMessageConte
     )
 
     return (
-        <Editor
+        <EditorWrapper
             placeholder={placeholder}
             showToolbar={false}
             enableTokens
