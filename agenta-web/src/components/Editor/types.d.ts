@@ -2,6 +2,7 @@ import {EditorState, LexicalEditor} from "lexical"
 
 export interface EditorProps {
     id?: string
+    initialEditorState?: LexicalEditor["_editorState"]
     initialValue?: string
     onChange?: (value: {textContent: string; tokens?: unknown[]; value?: string}) => void
     placeholder?: string

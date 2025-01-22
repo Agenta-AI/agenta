@@ -10,7 +10,7 @@ import {
 import {$getRoot} from "lexical"
 import {useEditorResize} from "./hooks/useEditorResize"
 import {useEditorInvariant} from "./hooks/useEditorInvariant"
-import {useEditorConfig} from "./hooks/useEditorConfig"
+import useEditorConfig from "./hooks/useEditorConfig"
 import EditorPlugins from "./plugins"
 import {$generateNodesFromDOM} from "@lexical/html"
 
