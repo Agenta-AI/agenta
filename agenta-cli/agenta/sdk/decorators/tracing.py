@@ -165,15 +165,27 @@ class instrument:  # pylint: disable=invalid-name
                 usage = {"total_tokens": usage}
 
             span.set_attributes(
-                attributes={"total": cost},
+                attributes={"total": float(cost) if cost else None},
                 namespace="metrics.unit.costs",
             )
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": usage.get("prompt_tokens", None),
-                        "completion": usage.get("completion_tokens", None),
-                        "total": usage.get("total_tokens", None),
+                        "prompt": (
+                            float(usage.get("prompt_tokens"))
+                            if usage.get("prompt_tokens", None)
+                            else None
+                        ),
+                        "completion": (
+                            float(usage.get("completion_tokens"))
+                            if usage.get("completion_tokens", None)
+                            else None
+                        ),
+                        "total": (
+                            float(usage.get("total_tokens", None))
+                            if usage.get("total_tokens", None)
+                            else None
+                        ),
                     }
                 ),
                 namespace="metrics.unit.tokens",
@@ -246,9 +258,7 @@ class instrument:  # pylint: disable=invalid-name
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys()
-                if ignore is True
-                else []
+                else io.keys() if ignore is True else []
             )
         }
 
