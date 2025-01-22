@@ -162,7 +162,9 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                     </SplitterPanel>
 
                     <SplitterPanel
-                        className={clsx("!h-full", {"!overflow-y-hidden": isComparisonView})}
+                        className={clsx("!h-full @container", {
+                            "!overflow-y-hidden": isComparisonView,
+                        })}
                         collapsible
                         defaultSize={isComparisonView ? "60%" : "70"}
                     >
