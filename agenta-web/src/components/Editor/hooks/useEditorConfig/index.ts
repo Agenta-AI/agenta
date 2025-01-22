@@ -8,14 +8,15 @@ import type {EditorProps} from "../../types"
 
 type LexicalComposerProps = ComponentProps<typeof LexicalComposer>
 
-export function useEditorConfig({
+const useEditorConfig = ({
     id,
     initialValue,
+    initialEditorState,
     codeOnly,
     enableTokens,
-}: Pick<EditorProps, "id" | "initialValue" | "codeOnly" | "enableTokens">):
+}: Pick<EditorProps, "id" | "initialValue" | "codeOnly" | "enableTokens" | "initialEditorState">):
     | LexicalComposerProps["initialConfig"]
-    | null {
+    | null => {
     const [config, setConfig] = useState<LexicalComposerProps["initialConfig"] | null>(null)
     const configRef = useRef<LexicalComposerProps["initialConfig"] | null>(null)
 
@@ -36,7 +37,7 @@ export function useEditorConfig({
                 namespace: `editor-${id}`,
                 onError: console.error,
                 nodes,
-                editorState: initialValue || undefined,
+                editorState: initialEditorState,
                 theme,
             }
 
@@ -45,7 +46,9 @@ export function useEditorConfig({
         }
 
         loadConfig()
-    }, [codeOnly, enableTokens, id, initialValue])
+    }, [codeOnly, enableTokens, id, initialEditorState, initialValue])
 
     return config
 }
+
+export default useEditorConfig
