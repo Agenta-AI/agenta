@@ -42,6 +42,8 @@ class BaseResponse(BaseModel):
     tree: Optional[AgentaNodesResponse] = None
     tree_id: Optional[str] = None
 
+    model_config = ConfigDict(use_enum_values=True, exclude_none=True)
+
 
 class DictInput(dict):
     def __new__(cls, default_keys: Optional[List[str]] = None):
