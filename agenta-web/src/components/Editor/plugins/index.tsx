@@ -49,12 +49,16 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
-                        className={`editor-input p-2 outline-none ${
+                        className={`editor-input relative outline-none ${
                             singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
                         } ${codeOnly ? "code-only" : ""}`}
                     />
                 }
-                placeholder={<div className="editor-placeholder">{placeholder}</div>}
+                placeholder={
+                    <div className="editor-placeholder absolute top-[12px] left-[1px]">
+                        {placeholder}
+                    </div>
+                }
                 ErrorBoundary={LexicalErrorBoundary}
             />
             <HistoryPlugin />

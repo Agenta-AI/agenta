@@ -24,12 +24,13 @@ import {useCallback} from "react"
  * @param {boolean} boundWidth - If true, the editor width will be bounded to the parent width.
  * @param {boolean} boundHeight - If true, the editor height will be bounded to the parent height.
  * @param {boolean} debug - If true, debug information will be shown.
+ * @param {boolean} showBorder - If true, the editor would have border style.
  */
 export function Editor({
     id = crypto.randomUUID(),
     initialValue = "",
     onChange,
-    placeholder = "Enter some text...",
+    placeholder = "",
     singleLine = false,
     codeOnly = false,
     language,
@@ -39,6 +40,7 @@ export function Editor({
     enableResize = false, // New prop
     boundWidth = true, // New prop
     boundHeight, // New prop
+    showBorder = true,
 }: EditorProps) {
     useEditorInvariant({
         singleLine,
@@ -103,8 +105,29 @@ export function Editor({
     }
 
     return (
-        <div className="bg-white relative flex flex-col p-2">
-            <LexicalComposer initialConfig={config}>
+        <div
+            className={`bg-[#F5F7FA] text-[#1C2C3D] min-h-16 relative flex flex-col px-[11px] rounded-lg ${showBorder ? "border border-solid border-[#BDC7D1]" : ""}`}
+        >
+            <LexicalComposer
+                initialConfig={{
+                    ...config,
+                    editorState: JSON.stringify({
+                        root: {
+                            children: [
+                                {
+                                    type: "paragraph",
+                                    children: [{text: config.editorState || "", type: "text"}],
+                                },
+                            ],
+                            direction: "ltr",
+                            format: "",
+                            indent: 0,
+                            type: "root",
+                            version: 1,
+                        },
+                    }),
+                }}
+            >
                 <div className="editor-container overflow-hidden relative">
                     <div
                         ref={containerRef}
