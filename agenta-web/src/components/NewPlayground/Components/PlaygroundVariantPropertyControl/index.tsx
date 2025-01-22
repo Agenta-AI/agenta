@@ -25,6 +25,7 @@ const PlaygroundVariantPropertyControl = ({
     withTooltip,
     value: propsValue,
     onChange,
+    placeholder,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
@@ -160,6 +161,7 @@ const PlaygroundVariantPropertyControl = ({
             as,
             className,
             view,
+            placeholder,
         })
     }
 

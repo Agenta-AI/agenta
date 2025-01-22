@@ -25,6 +25,7 @@ export interface PlaygroundVariantPropertyControlProps extends BaseContainerProp
     as?: "SimpleDropdownSelect" | "PromptMessageContent"
     view?: string
     withTooltip?: boolean
+    placeholder?: string
 }
 
 export type ControlComponentType =
@@ -84,6 +85,7 @@ export type RenderFunctions = {
         className?: string
         view?: string
         withTooltip?: boolean
+        placeholder?: string
     }) => React.ReactElement | null
 }
 

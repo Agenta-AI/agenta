@@ -1,7 +1,6 @@
 import {useCallback} from "react"
 
 import {Typography} from "antd"
-import {Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"
@@ -21,9 +20,10 @@ import {
     createMessageFromSchema,
     createMessageRow,
 } from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
+import RunButton from "@/components/NewPlayground/assets/RunButton"
 
 const GenerationChat = ({variantId}: GenerationChatProps) => {
-    const {mutate, inputRowIds, messageRowIds} = usePlayground({
+    const {mutate, inputRowIds, messageRowIds, runTests} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         stateSelector: useCallback((state: PlaygroundStateData) => {
@@ -61,10 +61,9 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
         })
     }, [mutate])
 
-    console.log("messageRowIds", messageRowIds)
-
     return (
         <section className="flex flex-col">
+            {/* Variables */}
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
@@ -76,32 +75,24 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
                 )
             })}
 
+            {/* Prompt chats */}
             <div className="flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] group/item">
                 <div className="flex flex-col gap-1">
                     <Typography>Chat</Typography>
-                    <div className="flex flex-col gap-6">
+
+                    <div className="flex flex-col gap-4">
                         {messageRowIds.map((messageRow) => (
                             <GenerationChatRow
                                 key={messageRow}
                                 variantId={variantId}
                                 rowId={messageRow}
                                 disabled={true}
-                                type="output"
                             />
                         ))}
                     </div>
                 </div>
 
-                <div className="w-full flex gap-2 items-center cursor-pointer invisible group-hover/item:visible">
-                    <div className="w-1/2 h-[1px] bg-[rgba(5,23,41,0.06)]" />
-                    <Plus size={16} />
-                    <div className="w-1/2 h-[1px] bg-[rgba(5,23,41,0.06)]" />
-                </div>
-
-                {/* TODO: properly support input on the GenerationChatRow  */}
-                {/* <div className="flex flex-col gap-6">
-                    <GenerationChatRow variantId={variantId} message={messages[1]} type="input" />
-                </div> */}
+                <RunButton size="small" onClick={() => runTests?.()} />
             </div>
 
             <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
@@ -112,3 +103,9 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
 }
 
 export default GenerationChat
+
+// <div className="w-full flex gap-2 items-center cursor-pointer invisible group-hover/item:visible">
+//     <div className="w-1/2 h-[1px] bg-[rgba(5,23,41,0.06)]" />
+//     <Plus size={16} />
+//     <div className="w-1/2 h-[1px] bg-[rgba(5,23,41,0.06)]" />
+// </div>
