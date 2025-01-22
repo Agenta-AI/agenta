@@ -14,7 +14,7 @@ import useEditorConfig from "./hooks/useEditorConfig"
 import EditorPlugins from "./plugins"
 
 import type {EditorProps} from "./types"
-import {forwardRef, useCallback, useEffect} from "react"
+import {forwardRef, useCallback, useEffect, useRef} from "react"
 import {mergeRegister} from "@lexical/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
@@ -93,6 +93,9 @@ const Editor = forwardRef(
         )
 
         const [editor] = useLexicalComposerContext()
+
+        const isInitRef = useRef(false)
+
         useEffect(() => {
             /**
              * Hydrates editor with remote content
@@ -103,6 +106,8 @@ const Editor = forwardRef(
                 editor.registerCommand(
                     ON_HYDRATE_FROM_REMOTE_CONTENT,
                     ({hydrateWithRemoteContent}) => {
+                        if (isInitRef.current) return false
+                        isInitRef.current = true
                         editor.update(() => {
                             // In the browser you can use the native DOMParser API to parse the HTML string.
                             if (hydrateWithRemoteContent) {
