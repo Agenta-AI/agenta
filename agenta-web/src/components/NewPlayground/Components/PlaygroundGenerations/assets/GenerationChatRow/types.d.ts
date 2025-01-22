@@ -5,7 +5,4 @@ export type GenerationChatRowProps = {
     variantId: string
     disabled?: boolean
     rowId?: string
-    deleteMessage: (messageId: string) => void
-    message: Enhanced<Message>
-    viewAs?: "input" | "output"
 }

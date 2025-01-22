@@ -22,7 +22,7 @@ import {
 } from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 import RunButton from "@/components/NewPlayground/assets/RunButton"
 
-const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
+const GenerationChat = ({variantId}: GenerationChatProps) => {
     const {mutate, inputRowIds, messageRowIds, runTests, viewType} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
@@ -65,31 +65,28 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     return (
         <section className="flex flex-col">
             {/* Variables */}
-            {!viewAs || viewAs === "input"
-                ? inputRowIds.map((inputRowId) => {
-                      return (
-                          <GenerationCompletionRow
-                              key={inputRowId}
-                              variantId={variantId}
-                              rowId={inputRowId}
-                              inputOnly={true}
-                              className={clsx([
-                                  {
-                                      "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                          isComparisonView,
-                                  },
-                              ])}
-                          />
-                      )
-                  })
-                : null}
+            {inputRowIds.map((inputRowId) => {
+                return (
+                    <GenerationCompletionRow
+                        key={inputRowId}
+                        variantId={variantId}
+                        rowId={inputRowId}
+                        inputOnly={true}
+                        className={clsx([
+                            {
+                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                    isComparisonView,
+                            },
+                        ])}
+                    />
+                )
+            })}
 
             {/* Prompt chats */}
             <div
                 className={clsx([
                     "flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                    {"!border-none !p-0 !gap-0": isComparisonView},
-                    {"bg-[#f5f7fa]": isComparisonView && viewAs === "input"},
+                    {"!border-none !p-0 !gap-0 bg-[#f5f7fa]": isComparisonView},
                 ])}
             >
                 <div className="flex flex-col gap-1">
@@ -102,24 +99,21 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                                 variantId={variantId}
                                 rowId={messageRow}
                                 disabled={true}
-                                viewAs={viewAs}
                             />
                         ))}
                     </div>
                 </div>
 
-                {!viewAs || viewAs === "input" ? (
-                    <div
-                        className={clsx([
-                            {
-                                "flex items-center h-[48px] px-4 border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                    isComparisonView,
-                            },
-                        ])}
-                    >
-                        <RunButton size="small" onClick={() => runTests?.()} className="flex" />
-                    </div>
-                ) : null}
+                <div
+                    className={clsx([
+                        {
+                            "flex items-center h-[48px] px-4 border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                isComparisonView,
+                        },
+                    ])}
+                >
+                    <RunButton size="small" onClick={() => runTests?.()} className="flex" />
+                </div>
             </div>
 
             <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
