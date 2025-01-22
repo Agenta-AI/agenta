@@ -30,14 +30,13 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {result, variableIds, runTests, canRun, isRunning, viewType, isChat} =
-        usePlayground({
-            variantId,
-            stateSelector: useCallback(
-                (state: PlaygroundStateData) => {
-                    const inputRow = state.generationData.inputs.value.find((inputRow) => {
-                        return inputRow.__id === rowId
-                    })
+    const {result, variableIds, runTests, canRun, isRunning, viewType, isChat} = usePlayground({
+        variantId,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRow = state.generationData.inputs.value.find((inputRow) => {
+                    return inputRow.__id === rowId
+                })
 
                 const variables = getEnhancedProperties(inputRow)
                 const variableIds = variables.map((p) => p.__id)
@@ -46,18 +45,18 @@ const GenerationCompletionRow = ({
                 const result = variantId ? inputRow?.__runs?.[variantId]?.__result : null
                 const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
 
-                    return {
-                        isChat: state.variants[0]?.isChat,
-                        variableIds,
-                        canRun,
-                        result,
-                        isRunning,
-                        inputText: variables?.[0]?.value, // Temporary implementation
-                    }
-                },
-                [rowId, variantId],
-            ),
-        })
+                return {
+                    isChat: state.variants[0]?.isChat,
+                    variableIds,
+                    canRun,
+                    result,
+                    isRunning,
+                    inputText: variables?.[0]?.value, // Temporary implementation
+                }
+            },
+            [rowId, variantId],
+        ),
+    })
 
     const runRow = useCallback(async () => {
         runTests?.(rowId, viewType === "single" ? variantId : undefined)
