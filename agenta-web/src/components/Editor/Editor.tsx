@@ -128,6 +128,7 @@ const Editor = forwardRef(
         useEffect(() => {
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
                 hydrateWithRemoteContent: initialValue || "",
+                parentId: "",
             })
         }, [initialValue, editor])
 
