@@ -31,7 +31,7 @@ const TextControl = ({className, metadata, value, handleChange, as, view}: TextC
                 <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
                     {metadata.title}
                 </Typography>
-                <Editor
+                <EditorWrapper
                     placeholder={metadata.description}
                     showToolbar={false}
                     enableTokens
