@@ -49,7 +49,10 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
 
     return (
         <section
-            className={clsx("h-[48px] flex justify-between items-center gap-4", classes.container)}
+            className={clsx(
+                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-10",
+                classes.container,
+            )}
         >
             <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
                 Generations
