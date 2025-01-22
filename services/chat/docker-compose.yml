@@ -5,7 +5,6 @@ services:
       - .:/app
       - ../../agenta-cli:/agenta-cli
     environment:
-      - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
       - AGENTA_HOST=http://host.docker.internal
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY}

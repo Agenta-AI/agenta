@@ -1,31 +1,41 @@
 import {useCallback} from "react"
+
 import {Copy, MinusCircle} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {GenerationVariableOptionsProps} from "./types"
 import clsx from "clsx"
+
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
-import {
+import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
+import {createInputRow} from "../../../../hooks/usePlayground/assets/inputHelpers"
+import {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
+import usePlayground from "../../../../hooks/usePlayground"
+import {getMetadataLazy} from "../../../../state"
+
+import type {
     ArrayMetadata,
     ObjectMetadata,
-} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+} from "../../../../assets/utilities/genericTransformer/types"
+import type {GenerationVariableOptionsProps} from "./types"
 
 const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
     variantId,
     className,
     result,
-    inputText,
+    variableId,
 }) => {
-    const {mutate, viewType, inputRows} = usePlayground({
+    const {mutate, viewType, inputRows, variable} = usePlayground({
         variantId,
         hookId: "GenerationVariableOptions",
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const inputRows = state.generationData.inputs.value || []
-            return {inputRows}
+            const inputRow = inputRows.find((inputRow) => {
+                return inputRow.__id === rowId
+            })
+            const variables = getEnhancedProperties(inputRow)
+            const variable = variables.find((p) => p.__id === variableId)
+
+            return {inputRows, variable}
         }, []),
     })
 
@@ -89,18 +99,17 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 size="small"
                 disabled={inputRows.length === 1}
             />
-            {viewType === "single" ? (
-                <>
-                    <PlaygroundGenerationVariableMenu
-                        duplicateInputRow={duplicateInputRow}
-                        result={result}
-                    />
-                </>
-            ) : (
+            {viewType === "single" && (
+                <PlaygroundGenerationVariableMenu
+                    duplicateInputRow={duplicateInputRow}
+                    result={result}
+                />
+            )}
+            {viewType === "comparison" && (
                 <Button
                     icon={<Copy size={14} />}
                     type="text"
-                    onClick={() => navigator.clipboard.writeText(inputText as string)}
+                    onClick={() => navigator.clipboard.writeText(variable?.value as string)}
                     size="small"
                 />
             )}

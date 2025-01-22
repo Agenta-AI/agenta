@@ -77,7 +77,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 danger: true,
                 label: (
                     <DeleteVariantButton variantId={variantId}>
-                        <div>Delete</div>
+                        <div className="w-full h-full">Delete</div>
                     </DeleteVariantButton>
                 ),
                 icon: <Trash size={16} />,
