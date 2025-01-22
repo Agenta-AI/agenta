@@ -172,24 +172,29 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     const variantId = message.payload.variant.id
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
-                        const rowId = message.payload.rowId
+                        if (message.payload.variant.isChat) {
+                            // HANDLE INCOMING CHAT
+                            const rowId = message.payload.rowId
+                        } else {
+                            const rowId = message.payload.rowId
 
-                        swr.mutate((clonedState) => {
-                            if (!clonedState) return clonedState
+                            swr.mutate((clonedState) => {
+                                if (!clonedState) return clonedState
 
-                            const inputs = clonedState.generationData.inputs
+                                const inputs = clonedState.generationData.inputs
 
-                            const inputTestRow = inputs.value.find((row) => row.__id === rowId)
+                                const inputTestRow = inputs.value.find((row) => row.__id === rowId)
 
-                            if (!inputTestRow || !inputTestRow.__runs) return clonedState
+                                if (!inputTestRow || !inputTestRow.__runs) return clonedState
 
-                            inputTestRow.__runs[variantId] = {
-                                __result: message.payload.result,
-                                __isRunning: false,
-                            }
+                                inputTestRow.__runs[variantId] = {
+                                    __result: message.payload.result,
+                                    __isRunning: false,
+                                }
 
-                            return clonedState
-                        })
+                                return clonedState
+                            })
+                        }
                     }
                 },
                 [swr],
@@ -283,11 +288,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 if (!variant) return state
 
                                 try {
-                                    const parameters = transformToRequestBody(
+                                    const parameters = transformToRequestBody({
                                         variant,
-                                        undefined,
-                                        getAllMetadata(),
-                                    )
+                                        allMetadata: getAllMetadata(),
+                                    })
                                     const saveResponse = await fetcher?.(
                                         `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
                                         {

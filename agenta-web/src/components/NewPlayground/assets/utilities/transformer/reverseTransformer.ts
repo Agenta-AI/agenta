@@ -1,3 +1,4 @@
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {ConfigMetadata} from "../genericTransformer/types"
 import {toSnakeCase} from "../genericTransformer/utilities/string"
 
@@ -14,9 +15,10 @@ function shouldIncludeValue(value: unknown): boolean {
  * Extract raw value based on metadata type
  */
 function extractValueByMetadata(
-    enhanced: Record<string, any> | null | undefined,
+    _enhanced: Record<string, any> | null | undefined,
     allMetadata: Record<string, ConfigMetadata>,
 ): unknown {
+    const enhanced = structuredClone(_enhanced)
     // Handle null/undefined
     if (!enhanced) return null
 
@@ -60,11 +62,15 @@ function extractValueByMetadata(
         case "array": {
             if (!Array.isArray(enhanced.value)) return undefined
             const arr = enhanced.value
-                .map((item: Record<string, any>) => extractValueByMetadata(item, allMetadata))
+                .map((item: Record<string, any>) => {
+                    return extractValueByMetadata(item, allMetadata)
+                })
                 .filter(shouldIncludeValue)
+                .filter(Boolean)
             return arr.length > 0 ? arr : undefined
         }
         case "object": {
+            console.log("OBJECT 1")
             const obj = Object.entries(enhanced)
                 .filter(([key]) => !key.startsWith("__"))
                 .reduce(
@@ -77,7 +83,27 @@ function extractValueByMetadata(
                     },
                     {} as Record<string, unknown>,
                 )
-            return Object.keys(obj).length > 0 ? obj : undefined
+
+            const checkValidity = (obj: Record<string, unknown>, metadata: ConfigMetadata) => {
+                if (!metadata?.properties) return true
+
+                for (const [propName, propMetadata] of Object.entries(metadata.properties)) {
+                    const snakeCasePropName = toSnakeCase(propName)
+                    // If property is required (not nullable) and value is missing or undefined
+                    if (
+                        propMetadata.nullable === false &&
+                        (!(snakeCasePropName in obj) || !obj[snakeCasePropName])
+                    ) {
+                        return false
+                    }
+                }
+                return true
+            }
+
+            return Object.keys(obj).length > 0 &&
+                checkValidity(obj, allMetadata[enhanced.__metadata])
+                ? obj
+                : undefined
         }
         default:
             return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
@@ -114,11 +140,17 @@ function extractInputValues(
 /**
  * Transform EnhancedVariant back to API request shape
  */
-export function transformToRequestBody(
-    variant: EnhancedVariant,
-    inputRow?: EnhancedVariant["inputs"]["value"][number],
-    allMetadata: Record<string, ConfigMetadata> = {},
-): Record<string, any> {
+export function transformToRequestBody({
+    variant,
+    inputRow,
+    messageRows,
+    allMetadata = {},
+}: {
+    variant: EnhancedVariant
+    inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
+    messageRows?: PlaygroundStateData["generationData"]["messages"]["value"]
+    allMetadata: Record<string, ConfigMetadata>
+}): Record<string, any> {
     const data = {} as Record<string, any>
     // Get the first prompt configuration
     const promptConfig = variant.prompts[0]
@@ -129,6 +161,15 @@ export function transformToRequestBody(
 
     if (inputRow) {
         data.inputs = extractInputValues(variant, inputRow)
+
+        if (variant.isChat) {
+            data.messages = messageRows
+                .map((messageRow) => {
+                    // console.log("PROCESS!", messageRow.value)
+                    return extractValueByMetadata(messageRow.value, allMetadata)
+                })
+                .filter(Boolean)
+        }
     }
 
     return data
