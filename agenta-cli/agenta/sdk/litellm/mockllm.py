@@ -5,7 +5,8 @@ from agenta.sdk.context.routing import routing_context
 
 
 class LitellmProtocol(Protocol):
-    async def acompletion(self, *args: Any, **kwargs: Any) -> Any: ...
+    async def acompletion(self, *args: Any, **kwargs: Any) -> Any:
+        ...
 
 
 litellm: Optional[LitellmProtocol] = None  # pylint: disable=invalid-name
