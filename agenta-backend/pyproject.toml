@@ -44,6 +44,7 @@ autoevals = "^0.0.83"
 supertokens-python = "^0.26.1"
 protobuf = "^4.25.4"
 litellm ="^1.48.0"
+stripe ="^11.4.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
