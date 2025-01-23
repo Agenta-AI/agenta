@@ -124,6 +124,7 @@ const PromptMessageConfig = ({
                 propertyId={message.content}
                 variantId={variantId}
                 as="PromptMessageContent"
+                className="w-full"
                 disabled={disabled}
             />
         </div>

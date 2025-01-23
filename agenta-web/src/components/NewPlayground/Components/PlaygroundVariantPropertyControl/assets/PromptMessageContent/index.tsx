@@ -38,6 +38,7 @@ const PromptMessageContent = ({
             showToolbar={false}
             enableTokens
             initialValue={localValue}
+            className={className}
             onChange={(value) => {
                 handleLocalValueChange(value.textContent)
             }}

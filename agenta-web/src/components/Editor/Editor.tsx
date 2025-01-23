@@ -1,4 +1,5 @@
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
+import clsx from "clsx"
 import {
     $createTextNode,
     $insertNodes,
@@ -169,6 +170,7 @@ const Editor = forwardRef(
 const EditorWrapper = ({
     id = crypto.randomUUID(),
     initialValue = "",
+    className,
     onChange,
     placeholder = "",
     singleLine = false,
@@ -225,7 +227,13 @@ const EditorWrapper = ({
 
     return (
         <div
-            className={`bg-[#F5F7FA] text-[#1C2C3D] min-h-16 relative flex flex-col px-[11px] rounded-lg ${showBorder ? "border border-solid border-[#BDC7D1]" : ""}`}
+            className={clsx([
+                "bg-[#F5F7FA] text-[#1C2C3D] min-h-16 relative flex flex-col px-[11px] rounded-lg",
+                {
+                    "border border-solid border-[#BDC7D1]": showBorder,
+                },
+                className,
+            ])}
         >
             <LexicalComposer initialConfig={config}>
                 <Editor
