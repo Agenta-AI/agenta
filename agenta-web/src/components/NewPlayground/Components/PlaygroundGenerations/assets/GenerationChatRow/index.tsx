@@ -46,7 +46,7 @@ const GenerationChatRow = ({variantId, disabled = false, rowId}: GenerationChatR
 
     if (!isComparisonView) {
         return (
-            <div className="w-full flex items-start gap-2 relative group/option">
+            <div className="w-full @[700px]:flex-row flex flex-col items-start gap-2 relative group/option">
                 <div className="w-[120px]">
                     <PlaygroundVariantPropertyControl
                         propertyId={message.role.__id}
@@ -58,29 +58,31 @@ const GenerationChatRow = ({variantId, disabled = false, rowId}: GenerationChatR
                 </div>
 
                 {/** TODO: Update the condition here */}
-                {message.content.value ? (
-                    <div className="w-full flex flex-col gap-3 -mt-1">
-                        <GenerationOutputText
-                            text={message.content.value}
-                            className="w-full mt-1"
-                            disabled={false}
-                        />
+                <div className="w-full @[700px]:mr-[70px]">
+                    {message.content.value ? (
+                        <div className="w-full flex flex-col gap-3 @[700px]:-mt-1">
+                            <GenerationOutputText
+                                text={message.content.value}
+                                className="w-full mt-1"
+                                disabled={false}
+                            />
 
-                        <GenerationResultUtils result={{}} />
-                    </div>
-                ) : (
-                    <PlaygroundVariantPropertyControl
-                        rowId={rowId}
-                        propertyId={message.content.__id}
-                        variantId={variantId}
-                        as="PromptMessageContent"
-                        view={!isComparisonView ? "chat" : ""}
-                        placeholder="Type your message here"
-                    />
-                )}
+                            <GenerationResultUtils result={{}} />
+                        </div>
+                    ) : (
+                        <PlaygroundVariantPropertyControl
+                            rowId={rowId}
+                            propertyId={message.content.__id}
+                            variantId={variantId}
+                            as="PromptMessageContent"
+                            view={!isComparisonView ? "chat" : ""}
+                            placeholder="Type your message here"
+                        />
+                    )}
+                </div>
 
                 <PromptMessageContentOptions
-                    className="invisible group-hover/option:visible"
+                    className="invisible group-hover/option:visible absolute top-0 right-0"
                     deleteMessage={deleteMessage}
                     propertyId={message.content.__id}
                     rowId={rowId}
