@@ -24,7 +24,7 @@ const PromptMessageContentOptions = ({
         stateSelector: (state) => {
             const object = !!rowId
                 ? state.generationData.inputs.value.find((v) => v.__id === rowId) ||
-                  (state.generationData.messages.value || []).find((v) => v.__id === rowId)
+                  state.generationData.messages.value.find((v) => v.__id === rowId)
                 : variantId
                   ? state.variants.find((v) => v.id === variantId)
                   : null

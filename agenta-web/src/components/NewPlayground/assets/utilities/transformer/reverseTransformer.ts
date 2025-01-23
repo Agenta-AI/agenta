@@ -6,7 +6,7 @@ import {toSnakeCase} from "../genericTransformer/utilities/string"
 import type {EnhancedVariant} from "./types"
 
 function shouldIncludeValue(value: unknown): boolean {
-    if (value === null || value === undefined) return false
+    if (!value) return false
     if (Array.isArray(value) && value.length === 0) return false
     return true
 }
@@ -143,32 +143,45 @@ function extractInputValues(
 export function transformToRequestBody({
     variant,
     inputRow,
-    messageRows,
+    messageRow,
     allMetadata = {},
 }: {
     variant: EnhancedVariant
     inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
-    messageRows?: PlaygroundStateData["generationData"]["messages"]["value"]
+    messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
     allMetadata: Record<string, ConfigMetadata>
 }): Record<string, any> {
     const data = {} as Record<string, any>
     // Get the first prompt configuration
     const promptConfig = variant.prompts[0]
-    const rawConfig = extractValueByMetadata(promptConfig, allMetadata)
+    const rawConfig = extractValueByMetadata(
+        promptConfig,
+        allMetadata,
+    ) as EnhancedVariant["prompts"][number]
     data.ag_config = {
-        prompt: rawConfig as EnhancedVariant["prompts"][number],
+        prompt: rawConfig,
     }
 
     if (inputRow) {
         data.inputs = extractInputValues(variant, inputRow)
 
         if (variant.isChat) {
-            data.messages = messageRows
-                .map((messageRow) => {
-                    // console.log("PROCESS!", messageRow.value)
-                    return extractValueByMetadata(messageRow.value, allMetadata)
-                })
-                .filter(Boolean)
+            data.messages = [...rawConfig.messages]
+            const messageHistory = messageRow?.history.value || []
+            data.messages.push(
+                ...messageHistory
+                    .flatMap((historyMessage) => {
+                        if (historyMessage.__runs && historyMessage.__runs[variant.id]?.message) {
+                            return extractValueByMetadata(
+                                historyMessage.__runs[variant.id]?.message,
+                                allMetadata,
+                            )
+                        } else {
+                            return extractValueByMetadata(historyMessage, allMetadata)
+                        }
+                    })
+                    .filter(Boolean),
+            )
         }
     }
 

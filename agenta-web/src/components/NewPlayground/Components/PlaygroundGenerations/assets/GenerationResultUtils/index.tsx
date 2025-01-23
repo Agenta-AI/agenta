@@ -21,7 +21,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
         <div className={clsx("flex items-center gap-1", className)}>
             <TraceDrawerButton result={result} size="small" className="!mr-1" type="default" />
 
-            {/* <StatusRenderer status={status} /> */}
+            <StatusRenderer status={status} />
 
             <Tag color="default" bordered={false} className="flex items-center gap-1">
                 <Timer size={14} /> {formatLatency(durations ? durations / 1000 : null)}

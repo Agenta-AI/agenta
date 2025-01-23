@@ -8,7 +8,7 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
-import {findVariantById} from "../../hooks/usePlayground/assets/helpers"
+import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
 const PromptMessageContentOptions = dynamic(
     () =>
         import(
@@ -37,6 +37,8 @@ const PromptMessageConfig = ({
     rowId,
     deleteMessage,
     isMessageDeletable,
+    disabled,
+    debug,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -44,12 +46,6 @@ const PromptMessageConfig = ({
         hookId: "PromptMessageConfig",
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const message = !!rowId
-                    ? state.generationData.messages.value.find((v) => v.__id === rowId)
-                    : variantId
-                      ? state.variants.find((v) => v.id === variantId)
-                      : null
-
                 if (!rowId) {
                     const variant = findVariantById(state, variantId)
                     if (!variant) return {message: undefined}
@@ -67,9 +63,13 @@ const PromptMessageConfig = ({
                     }
                     return {message: undefined}
                 } else {
-                    const message = (state.generationData.messages.value || []).find((inputRow) => {
-                        return inputRow.__id === rowId
-                    })?.value
+                    const object =
+                        state.generationData.inputs.value.find((v) => v.__id === rowId) ||
+                        state.generationData.messages.value.find((v) => v.__id === rowId)
+
+                    let message = findPropertyInObject(object, messageId)
+
+                    message = message?.value || message
 
                     if (!message) return {message: undefined}
                     return {
@@ -91,34 +91,42 @@ const PromptMessageConfig = ({
     componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
-        <>
-            <div className={clsx("flex flex-col gap-1 group/item", className)} {...props}>
-                <div className="w-full flex items-center justify-between">
-                    <PlaygroundVariantPropertyControl
-                        propertyId={message.role}
-                        variantId={variantId}
-                        rowId={rowId}
-                        as="SimpleDropdownSelect"
-                    />
-
-                    <PromptMessageContentOptions
-                        className="invisible group-hover/item:visible"
-                        deleteMessage={deleteMessage}
-                        propertyId={message.content}
-                        rowId={rowId}
-                        variantId={variantId}
-                        messageId={messageId}
-                        isMessageDeletable={isMessageDeletable}
-                    />
-                </div>
+        // <div className="w-full @[700px]:flex-row flex flex-col items-start gap-2 relative group/option"></div>
+        <div
+            className={clsx(
+                "w-full @[700px]:flex-row flex flex-col items-start gap-2 relative group/option",
+                className,
+            )}
+            {...props}
+        >
+            <div className="@[700px]:w-[100px] flex items-center justify-between">
                 <PlaygroundVariantPropertyControl
-                    rowId={rowId}
-                    propertyId={message.content}
+                    propertyId={message.role}
                     variantId={variantId}
-                    as="PromptMessageContent"
+                    rowId={rowId}
+                    as="SimpleDropdownSelect"
+                    disabled={disabled}
+                />
+
+                <PromptMessageContentOptions
+                    className="invisible group-hover/item:visible"
+                    deleteMessage={deleteMessage}
+                    propertyId={message.content}
+                    rowId={rowId}
+                    variantId={variantId}
+                    messageId={messageId}
+                    isMessageDeletable={isMessageDeletable}
+                    disabled={disabled}
                 />
             </div>
-        </>
+            <PlaygroundVariantPropertyControl
+                rowId={rowId}
+                propertyId={message.content}
+                variantId={variantId}
+                as="PromptMessageContent"
+                disabled={disabled}
+            />
+        </div>
     )
 }
 

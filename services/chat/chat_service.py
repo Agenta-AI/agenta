@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 from fastapi import HTTPException
@@ -66,5 +66,5 @@ async def generate(
             **openai_kwargs,
         }
     )
-
-    return response.choices[0].message
+    
+    return response.choices[0].message.model_dump()

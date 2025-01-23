@@ -17,6 +17,7 @@ const TextControl = ({
     handleChange,
     as,
     view,
+    disabled,
 }: TextControlProps) => {
     const {viewType} = usePlayground()
 
@@ -48,6 +49,7 @@ const TextControl = ({
                     className={clsx(["border-0", "focus:ring-0"])}
                     placeholder={metadata.description}
                     autoSize={{minRows: 3}}
+                    disabled={disabled}
                 />
             </div>
         )

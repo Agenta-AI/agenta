@@ -13,6 +13,7 @@ import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTests
 
 import type {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
 import type {GenerationHeaderProps} from "./types"
+import {findVariantById} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
@@ -20,17 +21,34 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRows = state.generationData.inputs.value
+                const variant = findVariantById(state, variantId)
 
-                const results = inputRows.map((inputRow) =>
-                    variantId ? inputRow?.__runs?.[variantId]?.__result : null,
-                )
+                if (variant?.isChat) {
+                    const messageRows = state.generationData.messages.value
 
-                const isRunning = inputRows.some((inputRow) =>
-                    variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
-                )
+                    const results = messageRows
+                        .map((inputRow) =>
+                            variantId ? inputRow?.__runs?.[variantId]?.__result : null,
+                        )
+                        .filter(Boolean)
 
-                return {results, isRunning}
+                    const isRunning = messageRows.some((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                    )
+                    return {results, isRunning}
+                } else {
+                    const inputRows = state.generationData.inputs.value
+
+                    const results = inputRows.map((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__result : null,
+                    )
+
+                    const isRunning = inputRows.some((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                    )
+
+                    return {results, isRunning}
+                }
             },
             [variantId],
         ),

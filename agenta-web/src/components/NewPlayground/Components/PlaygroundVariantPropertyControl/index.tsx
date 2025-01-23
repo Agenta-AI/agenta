@@ -24,6 +24,7 @@ const PlaygroundVariantPropertyControl = ({
     rowId,
     withTooltip,
     value: propsValue,
+    disabled,
     onChange,
     placeholder,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
@@ -85,25 +86,27 @@ const PlaygroundVariantPropertyControl = ({
                                           : e
                                       : null
 
+                              const generationData = structuredClone(clonedState.generationData)
                               const object =
-                                  clonedState.generationData.inputs.value.find(
-                                      (v) => v.__id === rowId,
-                                  ) ||
-                                  clonedState.generationData.messages.value.find(
-                                      (v) => v.__id === rowId,
-                                  )
+                                  generationData.inputs.value.find((v) => v.__id === rowId) ||
+                                  generationData.messages.value.find((v) => v.__id === rowId)
 
-                              if (!object) return clonedState
+                              if (!object) {
+                                  return clonedState
+                              }
 
                               const property = findPropertyInObject(
                                   object,
                                   propertyId,
                               ) as Enhanced<any>
+
                               if (!property) return clonedState
 
                               if (property.value === val) return clonedState
 
                               property.value = val
+
+                              clonedState.generationData = generationData
 
                               return clonedState
                           },
@@ -162,6 +165,7 @@ const PlaygroundVariantPropertyControl = ({
             className,
             view,
             placeholder,
+            disabled,
         })
     }
 

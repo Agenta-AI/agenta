@@ -16,6 +16,7 @@ const BooleanControl = ({
     description,
     label,
     value,
+    disabled,
     onChange,
 }: BooleanControlProps) => {
     return (
@@ -27,7 +28,7 @@ const BooleanControl = ({
             ) : (
                 <Typography.Text>{label}</Typography.Text>
             )}
-            <Switch checked={value} onChange={onChange} />
+            <Switch disabled={disabled} checked={value} onChange={onChange} />
         </PlaygroundVariantPropertyControlWrapper>
     )
 }

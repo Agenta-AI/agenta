@@ -14,7 +14,7 @@ const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
     })
 
     return isChat ? (
-        <GenerationComparisonChatInput variantId={variantId} />
+        <GenerationComparisonChatInput />
     ) : (
         <GenerationComparisonCompletionInput
             variantId={variantId}
