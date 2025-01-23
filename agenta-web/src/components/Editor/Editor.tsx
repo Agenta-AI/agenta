@@ -108,7 +108,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 editor.registerCommand(
                     ON_HYDRATE_FROM_REMOTE_CONTENT,
                     ({hydrateWithRemoteContent}) => {
-                        if (isInitRef.current) return false
+                        if (editor.isEditable() && isInitRef.current) return false
+
                         isInitRef.current = true
                         editor.update(() => {
                             // In the browser you can use the native DOMParser API to parse the HTML string.
