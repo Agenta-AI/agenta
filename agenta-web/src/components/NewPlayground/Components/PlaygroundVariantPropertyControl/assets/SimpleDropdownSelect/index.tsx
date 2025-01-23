@@ -12,6 +12,7 @@ const SimpleDropdownSelect = ({
     onChange,
     placeholder = "Select...",
     className,
+    disabled,
 }: SimpleDropdownSelectProps) => {
     const menuItems = useMemo(() => {
         return options.map((item) => ({
@@ -22,7 +23,12 @@ const SimpleDropdownSelect = ({
     }, [options, onChange])
 
     return (
-        <Dropdown menu={{items: menuItems}} trigger={["click"]} overlayStyle={{width: 150}}>
+        <Dropdown
+            disabled={disabled}
+            menu={{items: menuItems}}
+            trigger={["click"]}
+            overlayStyle={{width: 150}}
+        >
             <Button
                 className={clsx(
                     "capitalize flex items-center hover:!bg-transparent px-1",

@@ -209,7 +209,7 @@ export function syncVariantInputs(
     // Update each row while preserving all IDs
     const updatedRows = (generationInputData?.value || []).map((row) => {
         const keys = [...inputStrings] as const
-        const metadataHash = hashMetadata(row.__metadata)
+        const metadataHash = hashMetadata(metadata.itemMetadata)
 
         const newRow = {
             __id: row.__id,
@@ -297,6 +297,7 @@ export function syncVariantMessages(
     const transform = result.map((r) => ({
         __id: generateId(),
         __metadata: r.__metadata,
+        __disabled: r.__disabled,
         value: r,
     }))
 

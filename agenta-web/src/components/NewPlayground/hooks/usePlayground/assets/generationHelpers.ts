@@ -9,6 +9,7 @@ import {
 } from "../../../assets/utilities/genericTransformer/types"
 import type {AgentaConfigPrompt, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {PlaygroundStateData} from "../types"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 /**
  * Extracts all unique input keys from a collection of variants
@@ -80,20 +81,22 @@ export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
     const emptyMessage = structuredClone(uniqueSystemMessages[0])
     emptyMessage.__id = generateId()
 
+    const initialMessageRows = []
+
     for (const key in emptyMessage) {
         if (key !== "__id" && key !== "__metadata") {
             emptyMessage[key].value = ""
         }
     }
 
-    const initialMessageRows = uniqueSystemMessages.map((message) =>
-        createMessageRow(message, uniqueSystemMessages[0].__metadata),
+    const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
+    initialMessageRows.push(
+        createMessageRow(emptyMessage, uniqueSystemMessages[0].__metadata, messagesMetadata),
     )
-    initialMessageRows.push(createMessageRow(emptyMessage, uniqueSystemMessages[0].__metadata))
 
     return {
         __id: generateId(),
-        __metadata: variants[0].prompts[0].messages.__metadata,
+        __metadata: {},
         value: initialMessageRows,
     }
 }

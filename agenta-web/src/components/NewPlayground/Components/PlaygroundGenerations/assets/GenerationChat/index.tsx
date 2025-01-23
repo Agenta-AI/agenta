@@ -5,62 +5,62 @@ import clsx from "clsx"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"
 import GenerationChatRow from "../GenerationChatRow"
-import AddButton from "../../../../assets/AddButton"
 import {getMetadataLazy} from "../../../../state"
 
 import usePlayground from "../../../../hooks/usePlayground"
 
 import type {GenerationChatProps} from "./types"
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import type {
-    ArrayMetadata,
-    ObjectMetadata,
-} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {
-    createMessageFromSchema,
-    createMessageRow,
-} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
-import RunButton from "@/components/NewPlayground/assets/RunButton"
 
-const GenerationChat = ({variantId}: GenerationChatProps) => {
-    const {mutate, inputRowIds, messageRowIds, runTests, viewType} = usePlayground({
-        variantId,
-        hookId: "PlaygroundConfigVariantPrompts",
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.inputs.value || []
-            const messageRows = state.generationData.messages.value || []
+const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
+    const {mutate, inputRowIds, messageRowIds, isRunning, runTests, viewType, configMessageIds} =
+        usePlayground({
+            variantId,
+            hookId: "PlaygroundConfigVariantPrompts",
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const inputRows = state.generationData.inputs.value || []
+                    const messageRows = state.generationData.messages.value || []
+                    const configMessages = (
+                        state.variants.find((v) => v.id === variantId)?.prompts || []
+                    ).flatMap((variant) => {
+                        return variant.messages.value
+                    })
 
-            return {
-                inputRowIds: (inputRows || []).map((inputRow) => inputRow.__id),
-                messageRowIds: (messageRows || []).map((messageRow) => messageRow.__id),
-            }
-        }, []),
-    })
-    const isComparisonView = viewType === "comparison"
+                    const isRunning = messageRows.some((messageRow) => {
+                        return Object.values(messageRow?.__runs || {}).some(
+                            (run) => run.__isRunning,
+                        )
+                    })
 
-    const addNewMessageRow = useCallback(() => {
-        mutate((clonedState) => {
-            if (!clonedState) return clonedState
+                    const isComparisonView = state.selected.length > 1
 
-            const _metadata = getMetadataLazy<ArrayMetadata>(
-                clonedState?.generationData.messages.__metadata,
-            )
-
-            const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
-
-            if (!itemMetadata) return clonedState
-
-            const emptyMessage = createMessageFromSchema(itemMetadata)
-
-            const newRow = createMessageRow(emptyMessage, itemMetadata)
-
-            clonedState.generationData.messages.value.push(newRow)
-
-            console.log("clonedState.generationData.messages", clonedState.generationData.messages)
-
-            return clonedState
+                    return {
+                        isRunning,
+                        inputRowIds: (inputRows || [])
+                            .filter((inputRow) => {
+                                return (
+                                    Object.keys(getMetadataLazy(inputRow.__metadata)?.properties)
+                                        .length > 0
+                                )
+                            })
+                            .map((inputRow) => inputRow.__id),
+                        messageRowIds: (messageRows || [])
+                            .map((messageRow) => {
+                                return isComparisonView
+                                    ? !Object.keys(messageRow.__runs || {}).length
+                                        ? messageRow.__id
+                                        : undefined
+                                    : messageRow.__id
+                            })
+                            .filter(Boolean),
+                        configMessageIds: configMessages.map((message) => message.__id),
+                    }
+                },
+                [variantId],
+            ),
         })
-    }, [mutate])
+    const isComparisonView = viewType === "comparison"
 
     return (
         <section className="flex flex-col">
@@ -91,14 +91,23 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
             >
                 <div className="flex flex-col gap-1">
                     {!isComparisonView && <Typography>Chat</Typography>}
-
                     <div className={clsx(["flex flex-col gap-5", {"!gap-0": isComparisonView}])}>
+                        {!isComparisonView
+                            ? configMessageIds.map((messageId) => (
+                                  <GenerationChatRow
+                                      key={messageId}
+                                      variantId={variantId}
+                                      messageId={messageId}
+                                      viewAs={viewAs}
+                                  />
+                              ))
+                            : null}
                         {messageRowIds.map((messageRow) => (
                             <GenerationChatRow
                                 key={messageRow}
                                 variantId={variantId}
                                 rowId={messageRow}
-                                disabled={true}
+                                withControls
                             />
                         ))}
                     </div>
@@ -111,13 +120,7 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
                                 isComparisonView,
                         },
                     ])}
-                >
-                    <RunButton size="small" onClick={() => runTests?.()} className="flex" />
-                </div>
-            </div>
-
-            <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
-                <AddButton size="small" label="Message" onClick={addNewMessageRow} />
+                ></div>
             </div>
         </section>
     )

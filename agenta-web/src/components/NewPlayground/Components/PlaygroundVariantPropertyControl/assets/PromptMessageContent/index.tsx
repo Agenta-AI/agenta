@@ -15,6 +15,7 @@ const PromptMessageContent = ({
     onChange,
     view,
     className,
+    disabled,
 }: PromptMessageContentProps) => {
     const {isChat} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
@@ -37,6 +38,7 @@ const PromptMessageContent = ({
             rows={!isGenerationChatView ? 1.2 : 4}
             autoSize={{minRows: !isGenerationChatView ? 1.2 : 4}}
             placeholder={placeholder}
+            disabled={disabled}
             className={clsx([
                 "border-0",
                 "focus:ring-0",

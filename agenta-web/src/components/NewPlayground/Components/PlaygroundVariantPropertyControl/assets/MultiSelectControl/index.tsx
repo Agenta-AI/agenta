@@ -22,6 +22,7 @@ const SelectControl = ({
     label,
     options: _options,
     value,
+    disabled,
     onChange,
 }: SelectControlProps) => {
     /**
@@ -57,6 +58,7 @@ const SelectControl = ({
                 value={value}
                 onChange={onChange}
                 options={options}
+                disabled={disabled}
                 filterOption={(input, option) =>
                     (option?.label?.toLocaleString() ?? "")
                         .toLowerCase()

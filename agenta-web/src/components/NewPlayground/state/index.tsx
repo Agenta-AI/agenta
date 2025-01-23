@@ -32,6 +32,7 @@ class TaskQueue {
 const metadataQueue = new TaskQueue()
 
 export const updateMetadataAtom = async (metadata: Record<string, any>) => {
+    atomStore.set(metadataAtom, (prev) => ({...prev, ...metadata}))
     await metadataQueue.enqueue(
         () =>
             new Promise<void>((resolve) => {

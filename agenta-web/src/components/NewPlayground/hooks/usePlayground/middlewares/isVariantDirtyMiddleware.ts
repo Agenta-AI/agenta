@@ -4,8 +4,8 @@ import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import {isPlaygroundEqual, omitDeep} from "../assets/helpers"
 import {initialState} from "../../../state"
-import {syncVariantInputs, syncVariantMessages} from "../assets/inputHelpers"
-import {extractMessages, getUniqueInputKeys} from "../assets/generationHelpers"
+import {syncVariantInputs} from "../assets/inputHelpers"
+import {getUniqueInputKeys} from "../assets/generationHelpers"
 
 import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
 import {type FetcherOptions} from "@/lib/api/types"
@@ -174,26 +174,6 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                     ),
                                     clonedState.generationData.inputs,
                                 )
-                            }
-
-                            if (clonedState.variants[0]?.isChat) {
-                                const previousMessages = extractMessages(
-                                    state.variants,
-                                    previousSelected,
-                                )
-                                const currentMessages = extractMessages(
-                                    clonedState.variants,
-                                    currentSelected,
-                                )
-
-                                if (!isPlaygroundEqual(previousMessages, currentMessages)) {
-                                    clonedState.generationData.messages = syncVariantMessages(
-                                        clonedState.variants.filter((variant) =>
-                                            currentSelected.includes(variant.id),
-                                        ),
-                                        clonedState.generationData.messages,
-                                    )
-                                }
                             }
 
                             return clonedState

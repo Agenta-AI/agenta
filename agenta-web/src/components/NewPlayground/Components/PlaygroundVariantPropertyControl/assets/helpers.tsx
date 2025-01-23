@@ -24,7 +24,7 @@ const updateArrayItem = (
 }
 
 export const renderMap: RenderFunctions = {
-    number: ({withTooltip, metadata, value, handleChange}) => {
+    number: ({disabled, withTooltip, metadata, value, handleChange}) => {
         return (
             <MinMaxControl
                 label={metadata.title || ""}
@@ -35,6 +35,7 @@ export const renderMap: RenderFunctions = {
                 step={metadata.isInteger ? 1 : 0.1}
                 withTooltip={withTooltip}
                 description={metadata.description}
+                disabled={disabled}
             />
         )
     },
@@ -43,7 +44,17 @@ export const renderMap: RenderFunctions = {
         <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
     ),
 
-    string: ({withTooltip, metadata, value, handleChange, as, className, view, placeholder}) => {
+    string: ({
+        placeholder,
+        disabled,
+        withTooltip,
+        metadata,
+        value,
+        handleChange,
+        as,
+        className,
+        view,
+    }) => {
         if (metadata.options) {
             if (as === "SimpleDropdownSelect") {
                 return (
@@ -55,6 +66,7 @@ export const renderMap: RenderFunctions = {
                         className={className}
                         description={metadata.description}
                         withTooltip={withTooltip}
+                        disabled={disabled}
                     />
                 )
             }
@@ -66,6 +78,7 @@ export const renderMap: RenderFunctions = {
                     onChange={handleChange}
                     description={metadata.description}
                     withTooltip={withTooltip}
+                    disabled={disabled}
                 />
             )
         }
@@ -80,6 +93,7 @@ export const renderMap: RenderFunctions = {
                     withTooltip={withTooltip}
                     view={view}
                     className={className}
+                    disabled={disabled}
                 />
             )
         }
@@ -93,11 +107,12 @@ export const renderMap: RenderFunctions = {
                 view={view}
                 description={metadata.description}
                 withTooltip={withTooltip}
+                disabled={disabled}
             />
         )
     },
 
-    array: ({withTooltip, metadata, value, handleChange}) => {
+    array: ({disabled, withTooltip, metadata, value, handleChange}) => {
         if (!Array.isArray(value?.value)) return null
 
         return (
@@ -111,6 +126,7 @@ export const renderMap: RenderFunctions = {
                                         withTooltip,
                                         metadata: item.__metadata,
                                         value: item.value,
+                                        disabled,
                                         handleChange: (newValue) => {
                                             updateArrayItem(
                                                 value.value,
@@ -126,6 +142,7 @@ export const renderMap: RenderFunctions = {
                             return (
                                 <div key={item.__id}>
                                     {renderMap.number({
+                                        disabled,
                                         withTooltip,
                                         metadata: item.__metadata,
                                         value: item.value,
@@ -145,6 +162,7 @@ export const renderMap: RenderFunctions = {
                                 <div key={item.__id}>
                                     {renderMap.boolean({
                                         withTooltip,
+                                        disabled,
                                         metadata: item.__metadata,
                                         value: item.value,
                                         handleChange: (newValue) => {

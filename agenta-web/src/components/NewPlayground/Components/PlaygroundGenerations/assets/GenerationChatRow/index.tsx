@@ -5,127 +5,189 @@ import {GenerationChatRowProps} from "./types"
 import {useCallback} from "react"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
 import PromptMessageContentOptions from "../../../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
+import clsx from "clsx"
+import {
+    findPropertyInObject,
+    findVariantById,
+} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
+import PromptMessageConfig from "../../../PromptMessageConfig"
+import {CopySimple} from "@phosphor-icons/react"
+import AddButton from "@/components/NewPlayground/assets/AddButton"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {createMessageFromSchema} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
+import {
+    ArrayMetadata,
+    ObjectMetadata,
+} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import RunButton from "@/components/NewPlayground/assets/RunButton"
 
-const GenerationChatRow = ({variantId, disabled = false, rowId}: GenerationChatRowProps) => {
-    const {messageRow, message, mutate, viewType} = usePlayground({
-        variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const messageRow = (state.generationData.messages.value || []).find((inputRow) => {
-                    return inputRow.__id === rowId
-                })
-                return {
-                    messageRow,
-                    message: messageRow?.value,
-                }
-            },
-            [rowId],
-        ),
-    })
+const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
+
+export const GenerationChatRowOutput = ({
+    variantId,
+    message,
+    disabled = false,
+    rowId,
+    deleteMessage,
+    viewAs,
+    result,
+    isRunning,
+}: GenerationChatRowProps) => {
+    const {viewType} = usePlayground()
+    const isComparisonView = viewType === "comparison"
+
+    return isRunning ? (
+        <div className="w-full flex items-start gap-2 relative group/option">
+            <div className="w-[120px]"></div>
+            <div className="w-full flex flex-col gap-3 -mt-1">
+                <GenerationOutputText
+                    text={"Generating response..."}
+                    className="w-full mt-1"
+                    disabled={disabled}
+                />
+            </div>
+        </div>
+    ) : (
+        <>
+            <div className="w-full flex flex-col items-start gap-2 relative group/option">
+                <PromptMessageConfig
+                    variantId={variantId}
+                    rowId={rowId}
+                    messageId={message.__id}
+                    disabled={disabled}
+                    deleteMessage={deleteMessage}
+                    debug
+                    className="w-full"
+                />
+                {!!result ? <GenerationResultUtils result={result} /> : null}
+            </div>
+        </>
+    )
+}
+
+const GenerationChatRow = ({
+    withControls,
+    variantId,
+    messageId,
+    rowId,
+    viewAs,
+    noResults,
+}: GenerationChatRowProps) => {
+    const {history, messageRow, message, runTests, mutate, viewType, result, isRunning} =
+        usePlayground({
+            variantId,
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const variant = findVariantById(state, variantId)
+
+                    if (messageId) {
+                        return {
+                            history: [findPropertyInObject(variant, messageId)],
+                        }
+                    } else {
+                        const messageRow = (state.generationData.messages.value || []).find(
+                            (inputRow) => {
+                                return inputRow.__id === rowId
+                            },
+                        )
+                        const messageHistory = messageRow.history.value
+                        return {
+                            messageRow,
+                            history: messageHistory
+                                .map((historyItem) => {
+                                    return !historyItem.__runs
+                                        ? historyItem
+                                        : variantId
+                                          ? {
+                                                ...historyItem.__runs[variantId].message,
+                                                __result: historyItem.__runs[variantId].__result,
+                                                __isRunning:
+                                                    historyItem.__runs[variantId].__isRunning,
+                                            }
+                                          : undefined
+                                })
+                                .filter(Boolean),
+                        }
+                    }
+                },
+                [rowId, variantId, messageId],
+            ),
+        })
     const isComparisonView = viewType === "comparison"
 
     const deleteMessage = useCallback((messageId: string) => {
         mutate(
             (clonedState) => {
-                if (!clonedState) return clonedState
-
-                const generationMessages = clonedState.generationData.messages.value
-                clonedState.generationData.messages.value = generationMessages.filter((message) => {
-                    return message.value.__id !== messageId
-                })
-
                 return clonedState
             },
             {revalidate: false},
         )
     }, [])
 
-    if (!messageRow) return
+    const addNewMessageToRowHistory = useCallback(() => {
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
 
-    if (!isComparisonView) {
-        return (
-            <div className="w-full @[700px]:flex-row flex flex-col items-start gap-2 relative group/option">
-                <div className="w-[120px]">
-                    <PlaygroundVariantPropertyControl
-                        propertyId={message.role.__id}
-                        variantId={variantId}
-                        rowId={rowId}
-                        as="SimpleDropdownSelect"
-                        className="!border border-solid border-[rgba(5,23,41,0.06)] px-2 bg-white"
-                    />
-                </div>
+            const messageRow = clonedState.generationData.messages.value.find((inputRow) => {
+                return inputRow.__id === rowId
+            })
 
-                {/** TODO: Update the condition here */}
-                <div className="w-full @[700px]:mr-[70px]">
-                    {message.content.value ? (
-                        <div className="w-full flex flex-col gap-3 @[700px]:-mt-1">
-                            <GenerationOutputText
-                                text={message.content.value}
-                                className="w-full mt-1"
-                                disabled={false}
-                            />
+            if (!messageRow) return clonedState
 
-                            <GenerationResultUtils result={{}} />
-                        </div>
-                    ) : (
-                        <PlaygroundVariantPropertyControl
-                            rowId={rowId}
-                            propertyId={message.content.__id}
-                            variantId={variantId}
-                            as="PromptMessageContent"
-                            view={!isComparisonView ? "chat" : ""}
-                            placeholder="Type your message here"
-                        />
-                    )}
-                </div>
+            const _metadata = getMetadataLazy<ArrayMetadata>(messageRow.history.__metadata)
 
-                <PromptMessageContentOptions
-                    className="invisible group-hover/option:visible absolute top-0 right-0"
-                    deleteMessage={deleteMessage}
-                    propertyId={message.content.__id}
-                    rowId={rowId}
-                    variantId={variantId}
-                    messageId={message.__id}
-                    isMessageDeletable={false}
-                />
-            </div>
-        )
-    }
+            const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
+            const emptyMessage = createMessageFromSchema(itemMetadata)
+
+            messageRow.history.value.push(emptyMessage)
+
+            return clonedState
+        })
+    }, [rowId])
 
     return (
-        <div className="flex-col !gap-0 relative group/option">
-            <div className="h-[48px] !w-full px-4 flex items-center border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)]">
-                <PlaygroundVariantPropertyControl
-                    propertyId={message.role.__id}
-                    variantId={variantId}
-                    rowId={rowId}
-                    as="SimpleDropdownSelect"
-                    className="!border border-solid border-[rgba(5,23,41,0.06)] px-2 bg-white"
-                />
+        <>
+            <div
+                className={clsx([
+                    "flex flex-col items-start gap-1 w-full",
+                    {"!gap-0": viewType === "comparison"},
+                    {"px-2": viewType === "comparison"},
+                ])}
+            >
+                {history.map((historyItem) => {
+                    return (
+                        <GenerationChatRowOutput
+                            message={historyItem}
+                            variantId={variantId}
+                            deleteMessage={deleteMessage}
+                            viewAs={viewAs}
+                            rowId={messageRow?.__id}
+                            result={historyItem?.__result}
+                            isRunning={historyItem?.__isRunning}
+                            isMessageDeletable={!!messageRow}
+                            disabled={!messageRow}
+                        />
+                    )
+                })}
             </div>
-
-            <PlaygroundVariantPropertyControl
-                rowId={rowId}
-                propertyId={message.content.__id}
-                variantId={variantId}
-                as="PromptMessageContent"
-                view={!isComparisonView ? "chat" : ""}
-                placeholder="Type your message here"
-                className="!bg-transparent border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)] hover:!border-[rgba(5,23,41,0.06)] focus:!border-[rgba(5,23,41,0.06)] px-4 !rounded-none"
-            />
-
-            <PromptMessageContentOptions
-                className="absolute top-2 right-1 invisible group-hover/option:visible"
-                deleteMessage={deleteMessage}
-                propertyId={message.content.__id}
-                rowId={rowId}
-                variantId={variantId}
-                messageId={message.__id}
-                isMessageDeletable={false}
-            />
-        </div>
+            {withControls ? (
+                <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
+                    <RunButton
+                        size="small"
+                        onClick={() => runTests?.()}
+                        disabled={isRunning}
+                        className="flex"
+                    />
+                    <AddButton
+                        disabled={isRunning}
+                        size="small"
+                        label="Message"
+                        onClick={addNewMessageToRowHistory}
+                    />
+                </div>
+            ) : null}
+        </>
     )
 }
 

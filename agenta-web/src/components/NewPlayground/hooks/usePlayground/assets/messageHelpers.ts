@@ -3,8 +3,12 @@ import {hashMetadata} from "../../../assets/utilities/hash"
 
 import type {Enhanced, ObjectMetadata} from "../../../assets/utilities/genericTransformer/types"
 import {Message} from "postcss"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
-export const createMessageFromSchema = (metadata: ObjectMetadata): Enhanced<Message> => {
+export const createMessageFromSchema = (
+    metadata: ObjectMetadata,
+    json?: Record<string, unknown>,
+): Enhanced<Message> => {
     const properties: Record<string, any> = {}
 
     Object.entries(metadata.properties).forEach(([key, propMetadata]) => {
@@ -13,7 +17,8 @@ export const createMessageFromSchema = (metadata: ObjectMetadata): Enhanced<Mess
         // Initialize with default values based on property type
         let defaultValue: any = null
         if (key === "role") {
-            defaultValue = "user" // Default role
+            defaultValue = ""
+            // "user" // Default role
         } else if (key === "content") {
             defaultValue = "" // Empty content
         }
@@ -21,7 +26,7 @@ export const createMessageFromSchema = (metadata: ObjectMetadata): Enhanced<Mess
         properties[key] = {
             __id: generateId(),
             __metadata: metadataHash,
-            value: defaultValue,
+            value: json?.[key] || defaultValue,
         }
     })
 
@@ -34,11 +39,27 @@ export const createMessageFromSchema = (metadata: ObjectMetadata): Enhanced<Mess
     }
 }
 
-export const createMessageRow = (message: Enhanced<Message>, metadata: ObjectMetadata) => {
+export const createMessageRow = (
+    message: Enhanced<Message>,
+    metadata: ObjectMetadata,
+    messagesMetadata: string,
+) => {
     const metadataHash = hashMetadata(metadata)
+    const arrayMetadata = getMetadataLazy(messagesMetadata)
+    const newMetadata = {
+        ...getMetadataLazy(metadataHash),
+        title: "Chat Generation Row",
+        properties: {
+            history: arrayMetadata,
+        },
+    }
     return {
         __id: generateId(),
         __metadata: metadataHash,
-        value: message,
+        history: {
+            value: [message],
+            __id: generateId(),
+            __metadata: hashMetadata(arrayMetadata),
+        },
     }
 }

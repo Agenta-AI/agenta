@@ -9,13 +9,7 @@ import {
     setVariant,
 } from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {
-    updateVariantPromptKeys,
-    syncVariantInputs,
-    getVariantInputKeys,
-    getVariantMessages,
-    syncVariantMessages,
-} from "../assets/inputHelpers"
+import {updateVariantPromptKeys} from "../assets/inputHelpers"
 import {message} from "../../../state/messageContext"
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
@@ -33,6 +27,7 @@ import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/trans
 import useWebWorker from "../../useWebWorker"
 import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -175,6 +170,32 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         if (message.payload.variant.isChat) {
                             // HANDLE INCOMING CHAT
                             const rowId = message.payload.rowId
+                            swr.mutate((clonedState) => {
+                                if (!clonedState) return clonedState
+
+                                const targetRow = clonedState.generationData.messages.value.find(
+                                    (row) => row.__id === rowId,
+                                )
+
+                                if (!targetRow) return clonedState
+
+                                const targetMessageId = message.payload.messageId
+                                const targetMessage = targetRow.history.value.find(
+                                    (msg) => msg.__id === targetMessageId,
+                                )
+
+                                targetMessage.__runs[variantId] = {
+                                    __result: {
+                                        ...message.payload.result,
+                                    },
+                                    message: createMessageFromSchema(
+                                        getMetadataLazy(targetMessage.__metadata),
+                                        message.payload.result.response?.data,
+                                    ),
+                                    __isRunning: false,
+                                }
+                                return clonedState
+                            })
                         } else {
                             const rowId = message.payload.rowId
 
