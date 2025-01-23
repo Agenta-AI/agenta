@@ -39,24 +39,21 @@ async def list_bases(
     Raises:
         HTTPException: If there was an error retrieving the bases.
     """
-    try:
-        app = await db_manager.fetch_app_by_id(app_id=app_id)
-        if isCloudEE() and app_id is not None:
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_i),
-                permission=Permission.VIEW_APPLICATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        bases = await db_manager.list_bases_for_app_id(app_id, base_name)
-        return [converters.base_db_to_pydantic(base) for base in bases]
-    except Exception as e:
-        logger.error(f"list_bases exception ===> {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE() and app_id is not None:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app.project_i),
+            permission=Permission.VIEW_APPLICATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    bases = await db_manager.list_bases_for_app_id(app_id, base_name)
+    return [converters.base_db_to_pydantic(base) for base in bases]

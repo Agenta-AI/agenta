@@ -24,6 +24,7 @@ from .correct_answer import CorrectAnswer
 from .create_app_output import CreateAppOutput
 from .create_span import CreateSpan
 from .create_trace_response import CreateTraceResponse
+from .delete_evaluation import DeleteEvaluation
 from .docker_env_vars import DockerEnvVars
 from .environment_output import EnvironmentOutput
 from .environment_output_extended import EnvironmentOutputExtended
@@ -34,7 +35,6 @@ from .evaluation_scenario import EvaluationScenario
 from .evaluation_scenario_input import EvaluationScenarioInput
 from .evaluation_scenario_output import EvaluationScenarioOutput
 from .evaluation_scenario_result import EvaluationScenarioResult
-from .evaluation_scenario_score_update import EvaluationScenarioScoreUpdate
 from .evaluation_status_enum import EvaluationStatusEnum
 from .evaluation_type import EvaluationType
 from .evaluator import Evaluator
@@ -49,8 +49,6 @@ from .human_evaluation import HumanEvaluation
 from .human_evaluation_scenario import HumanEvaluationScenario
 from .human_evaluation_scenario_input import HumanEvaluationScenarioInput
 from .human_evaluation_scenario_output import HumanEvaluationScenarioOutput
-from .human_evaluation_scenario_update import HumanEvaluationScenarioUpdate
-from .human_evaluation_update import HumanEvaluationUpdate
 from .image import Image
 from .invite_request import InviteRequest
 from .legacy_analytics_response import LegacyAnalyticsResponse
@@ -61,10 +59,10 @@ from .list_api_keys_response import ListApiKeysResponse
 from .llm_run_rate_limit import LlmRunRateLimit
 from .llm_tokens import LlmTokens
 from .metrics_dto import MetricsDto
-from .new_human_evaluation import NewHumanEvaluation
 from .new_testset import NewTestset
 from .node_dto import NodeDto
 from .node_type import NodeType
+
 from .o_tel_context_dto import OTelContextDto
 from .o_tel_event_dto import OTelEventDto
 from .o_tel_extra_dto import OTelExtraDto
@@ -144,6 +142,7 @@ __all__ = [
     "CreateAppOutput",
     "CreateSpan",
     "CreateTraceResponse",
+    "DeleteEvaluation",
     "DockerEnvVars",
     "EnvironmentOutput",
     "EnvironmentOutputExtended",
@@ -154,7 +153,6 @@ __all__ = [
     "EvaluationScenarioInput",
     "EvaluationScenarioOutput",
     "EvaluationScenarioResult",
-    "EvaluationScenarioScoreUpdate",
     "EvaluationStatusEnum",
     "EvaluationType",
     "Evaluator",
@@ -169,8 +167,6 @@ __all__ = [
     "HumanEvaluationScenario",
     "HumanEvaluationScenarioInput",
     "HumanEvaluationScenarioOutput",
-    "HumanEvaluationScenarioUpdate",
-    "HumanEvaluationUpdate",
     "Image",
     "InviteRequest",
     "LegacyAnalyticsResponse",

@@ -2,13 +2,12 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-from .evaluation_status_enum import EvaluationStatusEnum
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class HumanEvaluationUpdate(UniversalBaseModel):
-    status: typing.Optional[EvaluationStatusEnum] = None
+class DeleteEvaluation(UniversalBaseModel):
+    evaluations_ids: typing.List[str]
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
