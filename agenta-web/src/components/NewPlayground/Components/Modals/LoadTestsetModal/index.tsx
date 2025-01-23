@@ -24,8 +24,9 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
 
     useLazyEffect(() => {
         if (testsets.length > 0 && !selectedTestset) {
-            setSelectedTestset(testsets[0]?._id)
-            testsetFetcher(testsets[0]?._id)
+            const firstTestsetId = testsets[0]?._id
+            setSelectedTestset(firstTestsetId)
+            testsetFetcher(firstTestsetId)
         }
     }, [testsets])
 
@@ -113,7 +114,6 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     return (
         <Modal
             centered
-            destroyOnClose
             width={1150}
             className={classes.container}
             afterClose={() => setSelectedRowKeys([])}
