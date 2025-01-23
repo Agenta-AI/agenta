@@ -35,11 +35,11 @@ class TestsetsClient:
 
         Args:
         upload_type : Either a json or csv file.
-        file (UploadFile): The CSV or JSON file to upload.
-        testset_name (Optional): the name of the testset if provided.
+            file (UploadFile): The CSV or JSON file to upload.
+            testset_name (Optional): the name of the testset if provided.
 
         Returns:
-        dict: The result of the upload process.
+            dict: The result of the upload process.
 
         Parameters
         ----------
@@ -116,11 +116,11 @@ class TestsetsClient:
         Import JSON testset data from an endpoint and save it to Postgres.
 
         Args:
-        endpoint (str): An endpoint URL to import data from.
-        testset_name (str): the name of the testset if provided.
+            endpoint (str): An endpoint URL to import data from.
+            testset_name (str): the name of the testset if provided.
 
         Returns:
-        dict: The result of the import process.
+            dict: The result of the import process.
 
         Parameters
         ----------
@@ -475,13 +475,13 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in Postgres.
+        Fetch a specific testset in a MongoDB collection using its _id.
 
         Args:
-        testset_id (str): The id of the testset to fetch.
+            testset_id (str): The _id of the testset to fetch.
 
         Returns:
-        The requested testset if found, else an HTTPException.
+            The requested testset if found, else an HTTPException.
 
         Parameters
         ----------
@@ -636,11 +636,11 @@ class AsyncTestsetsClient:
 
         Args:
         upload_type : Either a json or csv file.
-        file (UploadFile): The CSV or JSON file to upload.
-        testset_name (Optional): the name of the testset if provided.
+            file (UploadFile): The CSV or JSON file to upload.
+            testset_name (Optional): the name of the testset if provided.
 
         Returns:
-        dict: The result of the upload process.
+            dict: The result of the upload process.
 
         Parameters
         ----------
@@ -725,11 +725,11 @@ class AsyncTestsetsClient:
         Import JSON testset data from an endpoint and save it to Postgres.
 
         Args:
-        endpoint (str): An endpoint URL to import data from.
-        testset_name (str): the name of the testset if provided.
+            endpoint (str): An endpoint URL to import data from.
+            testset_name (str): the name of the testset if provided.
 
         Returns:
-        dict: The result of the import process.
+            dict: The result of the import process.
 
         Parameters
         ----------
@@ -1124,13 +1124,13 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in Postgres.
+        Fetch a specific testset in a MongoDB collection using its _id.
 
         Args:
-        testset_id (str): The id of the testset to fetch.
+            testset_id (str): The _id of the testset to fetch.
 
         Returns:
-        The requested testset if found, else an HTTPException.
+            The requested testset if found, else an HTTPException.
 
         Parameters
         ----------
