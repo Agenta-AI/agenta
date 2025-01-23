@@ -27,15 +27,15 @@ class BasesClient:
         Retrieve a list of bases filtered by app_id and base_name.
 
         Args:
-        request (Request): The incoming request.
-        app_id (str): The ID of the app to filter by.
-        base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
+            request (Request): The incoming request.
+            app_id (str): The ID of the app to filter by.
+            base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
 
         Returns:
-        List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
+            List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
 
         Raises:
-        HTTPException: If there was an error retrieving the bases.
+            HTTPException: If there was an error retrieving the bases.
 
         Parameters
         ----------
@@ -112,15 +112,15 @@ class AsyncBasesClient:
         Retrieve a list of bases filtered by app_id and base_name.
 
         Args:
-        request (Request): The incoming request.
-        app_id (str): The ID of the app to filter by.
-        base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
+            request (Request): The incoming request.
+            app_id (str): The ID of the app to filter by.
+            base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
 
         Returns:
-        List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
+            List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
 
         Raises:
-        HTTPException: If there was an error retrieving the bases.
+            HTTPException: If there was an error retrieving the bases.
 
         Parameters
         ----------

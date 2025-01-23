@@ -42,20 +42,15 @@ async def get_evaluators_endpoint():
         List[Evaluator]: A list of evaluator objects.
     """
 
-    try:
-        evaluators = evaluator_manager.get_evaluators()
+    evaluators = evaluator_manager.get_evaluators()
 
-        if evaluators is None:
-            raise HTTPException(
-                status_code=500, detail="Error processing evaluators file"
-            )
+    if evaluators is None:
+        raise HTTPException(status_code=500, detail="Error processing evaluators file")
 
-        if not evaluators:
-            raise HTTPException(status_code=404, detail="No evaluators found")
+    if not evaluators:
+        raise HTTPException(status_code=404, detail="No evaluators found")
 
-        return evaluators
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return evaluators
 
 
 @router.post("/map/", response_model=EvaluatorMappingOutputInterface)
@@ -70,18 +65,8 @@ async def evaluator_data_map(request: Request, payload: EvaluatorMappingInputInt
         EvaluatorMappingOutputInterface: the evaluator mapping output object
     """
 
-    try:
-        mapped_outputs = await evaluators_service.map(mapping_input=payload)
-        return mapped_outputs
-    except Exception as e:
-        logger.error(f"Error mapping data tree: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": "Error mapping data tree",
-                "stacktrace": traceback.format_exc(),
-            },
-        )
+    mapped_outputs = await evaluators_service.map(mapping_input=payload)
+    return mapped_outputs
 
 
 @router.post("/{evaluator_key}/run/", response_model=EvaluatorOutputInterface)
@@ -99,20 +84,10 @@ async def evaluator_run(
         result: EvaluatorOutputInterface object containing the outputs.
     """
 
-    try:
-        result = await evaluators_service.run(
-            evaluator_key=evaluator_key, evaluator_input=payload
-        )
-        return result
-    except Exception as e:
-        logger.error(f"Error while running {evaluator_key} evaluator: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "message": f"Error while running {evaluator_key} evaluator",
-                "stacktrace": traceback.format_exc(),
-            },
-        )
+    result = await evaluators_service.run(
+        evaluator_key=evaluator_key, evaluator_input=payload
+    )
+    return result
 
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
@@ -129,30 +104,25 @@ async def get_evaluator_configs(
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    try:
-        app_db = await db_manager.fetch_app_by_id(app_id=app_id)
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app_db.project_id),
-                permission=Permission.VIEW_EVALUATION,
+    app_db = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app_db.project_id),
+            permission=Permission.VIEW_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        evaluators_configs = await evaluator_manager.get_evaluators_configs(
-            str(app_db.project_id)
-        )
-        return evaluators_configs
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error fetching evaluator configurations: {str(e)}"
-        )
+    evaluators_configs = await evaluator_manager.get_evaluators_configs(
+        str(app_db.project_id)
+    )
+    return evaluators_configs
 
 
 @router.get("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
@@ -166,32 +136,25 @@ async def get_evaluator_config(
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    try:
-        evaluator_config_db = await db_manager.fetch_evaluator_config(
-            evaluator_config_id
+    evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluator_config_db.project_id),
+            permission=Permission.VIEW_EVALUATION,
         )
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluator_config_db.project_id),
-                permission=Permission.VIEW_EVALUATION,
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        evaluators_configs = await evaluator_manager.get_evaluator_config(
-            evaluator_config_db
-        )
-        return evaluators_configs
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error fetching evaluator configuration: {str(e)}"
-        )
+    evaluators_configs = await evaluator_manager.get_evaluator_config(
+        evaluator_config_db
+    )
+    return evaluators_configs
 
 
 @router.post("/configs/", response_model=EvaluatorConfig)
@@ -207,37 +170,30 @@ async def create_new_evaluator_config(
     Returns:
         EvaluatorConfigDB: Evaluator configuration api model.
     """
-    try:
-        app_db = await db_manager.get_app_instance_by_id(app_id=payload.app_id)
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app_db.project_id),
-                permission=Permission.CREATE_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        evaluator_config = await evaluator_manager.create_evaluator_config(
+    app_db = await db_manager.get_app_instance_by_id(app_id=payload.app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(app_db.project_id),
-            app_name=app_db.app_name,
-            name=payload.name,
-            evaluator_key=payload.evaluator_key,
-            settings_values=payload.settings_values,
+            permission=Permission.CREATE_EVALUATION,
         )
-        return evaluator_config
-    except Exception as e:
-        import traceback
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Error creating evaluator configuration: {str(e)}"
-        )
+    evaluator_config = await evaluator_manager.create_evaluator_config(
+        project_id=str(app_db.project_id),
+        app_name=app_db.app_name,
+        name=payload.name,
+        evaluator_key=payload.evaluator_key,
+        settings_values=payload.settings_values,
+    )
+    return evaluator_config
 
 
 @router.put("/configs/{evaluator_config_id}/", response_model=EvaluatorConfig)
@@ -252,35 +208,27 @@ async def update_evaluator_config(
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    try:
-        evaluator_config = await db_manager.fetch_evaluator_config(
-            evaluator_config_id=evaluator_config_id
+    evaluator_config = await db_manager.fetch_evaluator_config(
+        evaluator_config_id=evaluator_config_id
+    )
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluator_config.project_id),
+            permission=Permission.EDIT_EVALUATION,
         )
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluator_config.project_id),
-                permission=Permission.EDIT_EVALUATION,
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        evaluators_configs = await evaluator_manager.update_evaluator_config(
-            evaluator_config_id=evaluator_config_id, updates=payload.model_dump()
-        )
-        return evaluators_configs
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Error updating evaluator configuration: {str(e)}"
-        )
+    evaluators_configs = await evaluator_manager.update_evaluator_config(
+        evaluator_config_id=evaluator_config_id, updates=payload.model_dump()
+    )
+    return evaluators_configs
 
 
 @router.delete("/configs/{evaluator_config_id}/", response_model=bool)
@@ -296,30 +244,23 @@ async def delete_evaluator_config(
     Returns:
         bool: True if deletion was successful, False otherwise.
     """
-    try:
-        evaluator_config = await db_manager.fetch_evaluator_config(
-            evaluator_config_id=evaluator_config_id
+
+    evaluator_config = await db_manager.fetch_evaluator_config(
+        evaluator_config_id=evaluator_config_id
+    )
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluator_config.project_id),
+            permission=Permission.DELETE_EVALUATION,
         )
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluator_config.project_id),
-                permission=Permission.DELETE_EVALUATION,
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
-        return success
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Error deleting evaluator configuration: {str(e)}"
-        )
+    success = await evaluator_manager.delete_evaluator_config(evaluator_config_id)
+    return success
