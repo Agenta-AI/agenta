@@ -1,6 +1,6 @@
 import {memo, useMemo} from "react"
 
-import {Select, Typography} from "antd"
+import {Select, Tooltip, Typography} from "antd"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 
@@ -15,7 +15,15 @@ import type {SelectControlProps} from "./types"
  * - Supports dynamic option grouping through object notation
  * - Maintains consistent option format regardless of input structure
  */
-const SelectControl = ({mode, label, options: _options, value, onChange}: SelectControlProps) => {
+const SelectControl = ({
+    withTooltip,
+    description,
+    mode,
+    label,
+    options: _options,
+    value,
+    onChange,
+}: SelectControlProps) => {
     /**
      * Transforms raw options into standardized select options
      * Handles both array-based and group-based option structures
@@ -36,12 +44,24 @@ const SelectControl = ({mode, label, options: _options, value, onChange}: Select
 
     return (
         <PlaygroundVariantPropertyControlWrapper>
-            <Typography.Text>{label}</Typography.Text>
+            {withTooltip ? (
+                <Tooltip title={description}>
+                    <Typography.Text className="w-fit">{label}</Typography.Text>
+                </Tooltip>
+            ) : (
+                <Typography.Text>{label}</Typography.Text>
+            )}
             <Select<string | string[]>
+                showSearch
                 mode={mode}
                 value={value}
                 onChange={onChange}
                 options={options}
+                filterOption={(input, option) =>
+                    (option?.label?.toLocaleString() ?? "")
+                        .toLowerCase()
+                        .includes(input.toLowerCase())
+                }
             />
         </PlaygroundVariantPropertyControlWrapper>
     )

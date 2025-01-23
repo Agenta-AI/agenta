@@ -1,14 +1,11 @@
-import {useCallback, useMemo} from "react"
-
-import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
-import isEqual from "lodash/isEqual"
+import {useCallback} from "react"
 
 import {
     compareVariant,
     createVariantCompare,
     findPropertyInObject,
     findVariantById,
+    isPlaygroundEqual,
     setVariant,
 } from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
@@ -17,6 +14,7 @@ import {
     syncVariantInputs,
     getVariantInputKeys,
 } from "../assets/inputHelpers"
+import {message} from "../../../state/messageContext"
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 
@@ -31,6 +29,8 @@ import type {
 } from "../types"
 import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import useWebWorker from "../../useWebWorker"
+import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -38,7 +38,7 @@ export type ConfigValue = string | boolean | string[] | number | null
  * Pure function to find a property by ID in a variant's prompts or inputs
  * TODO: IMPROVE PERFORMANCE
  */
-const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
+export const findPropertyById = (variant: EnhancedVariant, propertyId?: string) => {
     if (!propertyId || !variant) return undefined
 
     // Search in prompts
@@ -136,7 +136,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             const nextProperty =
                                 nextVariant && findPropertyById(nextVariant, config.propertyId)
 
-                            return isEqual(prevProperty?.value, nextProperty?.value)
+                            return isPlaygroundEqual(prevProperty?.value, nextProperty?.value)
                         } else if (isConfigReferenced) {
                             return createVariantCompare()(a, b)
                         } else {
@@ -152,6 +152,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     type: string
                     payload: {
                         variant: EnhancedVariant
+                        allMetadata: Record<string, ConfigMetadata>
                         rowId: string
                         appId: string
                         uri: string
@@ -166,38 +167,30 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 }) => {
-                    const variantId = config.variantId
-
+                    const variantId = message.payload.variant.id
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
                         const rowId = message.payload.rowId
 
-                        swr.mutate((state) => {
-                            const clonedState = cloneDeep(state)
-                            if (!clonedState) return state
+                        swr.mutate((clonedState) => {
+                            if (!clonedState) return clonedState
 
-                            const variant = findVariantById(state, variantId)
-                            if (!variant) return clonedState
-
-                            const variantIndex = clonedState.variants.findIndex(
-                                (v) => v.id === config.variantId,
-                            )
-                            if (variantIndex === -1) return clonedState
-
-                            const inputRow = clonedState.variants[variantIndex].inputs.value.find(
+                            const testRow = clonedState.generationData.value.find(
                                 (row) => row.__id === rowId,
                             )
 
-                            if (!inputRow) return clonedState
+                            if (!testRow || !testRow.__runs) return clonedState
 
-                            inputRow.__result = message.payload.result
-                            inputRow.__isLoading = false
+                            testRow.__runs[variantId] = {
+                                __result: message.payload.result,
+                                __isRunning: false,
+                            }
 
                             return clonedState
                         })
                     }
                 },
-                [config.variantId, swr],
+                [swr],
             )
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
@@ -210,112 +203,157 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @returns Promise that resolves when the deletion is complete
              */
             const deleteVariant = useCallback(async () => {
-                await swr.mutate(
-                    async (state) => {
-                        const variant = (swr.data?.variants || []).find((v) => v.id === variantId)
-                        if (!variant) return state
+                try {
+                    // first set the mutation state of the variant to true
+                    swr.mutate(
+                        (clonedState) => {
+                            const variant = findVariantById(clonedState, variantId!)
+                            if (!variant) throw new Error("Variant not found")
 
-                        try {
-                            const deleteResponse = await fetcher?.(
-                                `/api/variants/${variant.id}?project_id=${projectId}`,
-                                {
-                                    method: "DELETE",
-                                },
-                            )
-
-                            if (deleteResponse && deleteResponse?.status !== 200) {
-                                // error
-                                message.error("Failed to delete variant")
-                            }
-
-                            const clonedState = cloneDeep(state)
-                            clonedState?.variants?.forEach((v: EnhancedVariant) => {
-                                if (v.id === variant.id) {
-                                    const index = clonedState.variants.indexOf(v)
-                                    clonedState.variants.splice(index, 1)
-                                }
-                            })
-
+                            variant.__isMutating = true
                             return clonedState
-                        } catch (err) {
-                            message.error("Failed to delete variant")
-                            return state
-                        }
-                    },
-                    {
-                        revalidate: false,
-                    },
-                )
+                        },
+                        {
+                            revalidate: false,
+                        },
+                    ).then(() => {
+                        // then continue with the operation
+                        swr.mutate(async (state) => {
+                            const variant = (swr.data?.variants || []).find(
+                                (v) => v.id === variantId,
+                            )
+                            if (!variant) return state
+
+                            try {
+                                const deleteResponse = await fetcher?.(
+                                    `/api/variants/${variant.id}?project_id=${projectId}`,
+                                    {
+                                        method: "DELETE",
+                                    },
+                                )
+
+                                if (deleteResponse && deleteResponse?.status !== 200) {
+                                    // error
+                                    message.error("Failed to delete variant")
+                                }
+
+                                state?.variants?.forEach((v: EnhancedVariant) => {
+                                    if (v.id === variant.id) {
+                                        const index = state.variants.indexOf(v)
+                                        state.variants.splice(index, 1)
+                                    }
+                                })
+
+                                return state
+                            } catch (err) {
+                                message.error("Failed to delete variant")
+                                return state
+                            }
+                        })
+                    })
+                } catch (err) {
+                    message.error("Failed to delete variant")
+                }
             }, [swr, variantId, fetcher, projectId])
 
             const saveVariant = useCallback(async () => {
-                await swr.mutate(
-                    async (state) => {
-                        if (!state) return state
-                        const variant = (state?.variants || []).find((v) => v.id === variantId)
-                        if (!variant) return state
+                try {
+                    // first set the mutation state of the variant to true
+                    swr.mutate(
+                        (state) => {
+                            const clonedState = structuredClone(state)
+                            const variant = findVariantById(clonedState, variantId!)
+                            if (!variant) throw new Error("Variant not found")
 
-                        try {
-                            const parameters = transformToRequestBody(variant)
-                            const saveResponse = await fetcher?.(
-                                `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
-                                {
-                                    method: "PUT",
-                                    body: {
-                                        parameters,
-                                    },
-                                },
-                            )
-
-                            if (saveResponse && saveResponse?.status !== 200) {
-                                // error
-                                message.error("Failed to save variant")
-                            } else {
-                                const saveResponse = await fetcher?.(
-                                    `/api/variants/${variant.id}?project_id=${projectId}`,
-                                    {method: "GET"},
+                            variant.__isMutating = true
+                            return clonedState
+                        },
+                        {
+                            revalidate: false,
+                        },
+                    ).then(async (data) => {
+                        // then continue with the operation
+                        swr.mutate(
+                            async (state) => {
+                                if (!state) return state
+                                const variant = (state?.variants || []).find(
+                                    (v) => v.id === variantId,
                                 )
+                                if (!variant) return state
 
-                                const t = setVariant(saveResponse)
-
-                                const clonedState = state
-                                const index = clonedState?.variants?.findIndex(
-                                    (v) => v.id === variant.id,
-                                )
-
-                                const updatedVariant = {
-                                    ...variant,
-                                    ...t,
-                                }
-                                clonedState.variants[index] = updatedVariant
-                                message.success("Changes saved successfully!")
-
-                                if (
-                                    clonedState?.dirtyStates &&
-                                    clonedState.dirtyStates.get(updatedVariant.id)
-                                ) {
-                                    clonedState.dirtyStates = new Map(clonedState.dirtyStates)
-                                    clonedState.dirtyStates.set(updatedVariant.id, false)
-                                    clonedState.dataRef = new Map(clonedState.dataRef)
-                                    clonedState.dataRef.set(
-                                        updatedVariant.id,
-                                        cloneDeep(updatedVariant),
+                                try {
+                                    const parameters = transformToRequestBody(
+                                        variant,
+                                        undefined,
+                                        getAllMetadata(),
                                     )
+                                    const saveResponse = await fetcher?.(
+                                        `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
+                                        {
+                                            method: "PUT",
+                                            body: {
+                                                parameters,
+                                            },
+                                        },
+                                    )
+
+                                    if (saveResponse && saveResponse?.status !== 200) {
+                                        // error
+                                        message.error("Failed to save variant")
+                                    } else {
+                                        const saveResponse = await fetcher?.(
+                                            `/api/variants/${variant.id}?project_id=${projectId}`,
+                                            {method: "GET"},
+                                        )
+
+                                        const t = setVariant(saveResponse)
+
+                                        const clonedState = state
+                                        const index = clonedState?.variants?.findIndex(
+                                            (v) => v.id === variant.id,
+                                        )
+
+                                        const updatedVariant = {
+                                            ...variant,
+                                            ...t,
+                                        }
+                                        updatedVariant.__isMutating = false
+                                        clonedState.variants[index] = updatedVariant
+                                        message.success("Changes saved successfully!")
+
+                                        if (
+                                            clonedState?.dirtyStates &&
+                                            clonedState.dirtyStates[updatedVariant.id]
+                                        ) {
+                                            clonedState.dirtyStates = structuredClone(
+                                                clonedState.dirtyStates,
+                                            )
+                                            clonedState.dirtyStates[updatedVariant.id] = false
+
+                                            // TODO: THIS NEEDS FIXING, IT IS NOT USED PROPERLY
+                                            clonedState.dataRef = new Map(clonedState.dataRef)
+                                            clonedState.dataRef.set(
+                                                updatedVariant.id,
+                                                structuredClone(updatedVariant),
+                                            )
+                                        }
+                                        return clonedState
+                                    }
+
+                                    return state
+                                } catch (err) {
+                                    message.error("Failed to save variant")
+                                    return state
                                 }
-
-                                return clonedState
-                            }
-
-                            return state
-                        } catch (err) {
-                            message.error("Failed to save variant")
-                            return state
-                        }
-                    },
-                    {
-                        revalidate: false,
-                    },
-                )
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        )
+                    })
+                } catch (err) {
+                    message.error("Failed to save variant")
+                }
             }, [swr, variantId, fetcher, projectId])
 
             /**
@@ -323,53 +361,54 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @param updates - Partial variant object containing the properties to update
              */
             const mutateVariant = useCallback(
-                async (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => {
+                async (
+                    updates: Partial<EnhancedVariant> | VariantUpdateFunction,
+                    variantId?: string,
+                ) => {
                     swr.mutate(
-                        async (state) => {
-                            if (!state) return state
+                        async (clonedState) => {
+                            if (!clonedState) return clonedState
 
-                            const variant = state?.variants?.find((v) => v.id === variantId)
-                            const clonedVariant = cloneDeep(variant)
+                            const clonedVariant = clonedState?.variants?.find(
+                                (v) => v.id === (variantId ?? config.variantId),
+                            )
 
-                            if (!clonedVariant) return state
+                            if (!clonedVariant) return clonedState
 
                             const updateValues =
                                 typeof updates === "function" ? updates(clonedVariant) : updates
 
-                            if (!variant || !state) return state
-                            const updatedVariant: EnhancedVariant = {...variant, ...updateValues}
-
-                            // Get current input keys before update
-                            const previousInputKeys = getVariantInputKeys(variant)
+                            // if (!variant || !state) return state
+                            const updatedVariant: EnhancedVariant = {
+                                ...clonedVariant,
+                                ...updateValues,
+                            }
 
                             // Update prompt keys
                             updateVariantPromptKeys(updatedVariant)
 
-                            // Get new input keys after update
-                            const newInputKeys = getVariantInputKeys(updatedVariant)
-
-                            // Only sync inputs if the keys have changed
-                            if (!isEqual(previousInputKeys, newInputKeys)) {
-                                syncVariantInputs(updatedVariant)
-                            }
-
-                            const clonedState = cloneDeep(state)
                             const index = clonedState?.variants?.findIndex(
-                                (v) => v.id === variant.id,
+                                (v) => v.id === clonedVariant.id,
                             )
 
                             clonedState.variants[index] = updatedVariant
 
                             return clonedState
                         },
-                        {revalidate: false},
+                        {
+                            variantId,
+                        },
                     )
                 },
-                [swr, variantId],
+                [swr, config.variantId],
             )
 
             const handleParamUpdate = useCallback(
-                (e: {target: {value: ConfigValue}} | ConfigValue) => {
+                (
+                    e: {target: {value: ConfigValue}} | ConfigValue,
+                    propertyId?: string,
+                    variantId?: string,
+                ) => {
                     mutateVariant((variant) => {
                         if (!variant) return {}
 
@@ -379,16 +418,19 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 : e
                             : null
                         const updatedVariant = variant
-                        const found = findPropertyById(updatedVariant, config.propertyId)
+                        const found = findPropertyById(
+                            updatedVariant,
+                            propertyId ?? config.propertyId,
+                        )
 
                         if (found) {
                             found.value = val
                         }
 
                         return updatedVariant
-                    })
+                    }, variantId ?? config.variantId)
                 },
-                [config.propertyId, mutateVariant],
+                [config.propertyId, config.variantId, mutateVariant],
             )
 
             const getVariantConfigProperty = useCallback(() => {
@@ -399,6 +441,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 return found
                     ? {
                           ...found,
+                          __metadata: getMetadataLazy(found.__metadata),
                           handleChange: handleParamUpdate,
                       }
                     : undefined
@@ -409,24 +452,24 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              * @param rowId - ID of the input row to run
              */
             const runVariantTestRow = useCallback(
-                async (rowId: string) => {
-                    swr.mutate(async (state) => {
-                        const clonedState = cloneDeep(state)
+                async (rowId: string, variantId?: string) => {
+                    swr.mutate(async (clonedState) => {
+                        const _variantId = variantId ?? config.variantId
 
-                        if (!config.variantId || !clonedState) return state
+                        if (!_variantId || !clonedState) return clonedState
 
-                        const variant = findVariantById(state, config.variantId)
-                        if (!variant) return state
+                        const variant = findVariantById(clonedState, _variantId)
+                        if (!variant) return clonedState
 
                         const variantIndex = clonedState.variants.findIndex(
-                            (v) => v.id === config.variantId,
+                            (v) => v.id === _variantId,
                         )
-                        if (variantIndex === -1) return state
+                        if (variantIndex === -1) return clonedState
 
                         const inputRow = clonedState.variants[variantIndex].inputs.value.find(
                             (row) => row.__id === rowId,
                         )
-                        if (!inputRow) return state
+                        if (!inputRow) return clonedState
 
                         inputRow.__isLoading = true
 
@@ -436,6 +479,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 rowId,
                                 appId: config.appId!,
                                 uri: variant.uri,
+                                allMetadata: getAllMetadata(),
                             }),
                         )
 
@@ -447,10 +491,20 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             Object.defineProperty(swr, "variant", {
                 get() {
-                    checkInvalidSelector()
                     addToValueReferences("variant")
-                    const variant = swr.data?.variants.find((v) => v.id === config.variantId)
-                    return variant
+                    if (config.variantId) {
+                        const variant = swr.data?.variants.find((v) => v.id === config.variantId)
+                        return variant
+                    } else {
+                        return undefined
+                    }
+                },
+            })
+
+            Object.defineProperty(swr, "handleParamUpdate", {
+                get() {
+                    addToValueReferences("variantConfig")
+                    return handleParamUpdate
                 },
             })
 
@@ -476,7 +530,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             })
             Object.defineProperty(swr, "mutateVariant", {
                 get() {
-                    checkInvalidSelector()
                     addToValueReferences("mutateVariant")
                     return mutateVariant
                 },
@@ -490,9 +543,13 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             })
             Object.defineProperty(swr, "runVariantTestRow", {
                 get() {
-                    checkInvalidSelector()
                     addToValueReferences("runVariantTestRow")
                     return runVariantTestRow
+                },
+            })
+            Object.defineProperty(swr, "handleWebWorkerMessage", {
+                get() {
+                    return handleWebWorkerMessage
                 },
             })
 

@@ -150,9 +150,14 @@ const VariantsOverview = ({
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                return record.parameters && Object.keys(record.parameters).length
+                const parameters =
+                    (
+                        (record.parameters?.ag_config as unknown as Record<string, unknown>)
+                            ?.prompt as Record<string, unknown>
+                    )?.llm_config || record.parameters
+                return parameters && Object.keys(parameters).length
                     ? Object.values(
-                          filterVariantParameters({record: record.parameters, key: "model"}),
+                          filterVariantParameters({record: parameters, key: "model"}),
                       ).map((value, index) => (value ? <Tag key={index}>{value}</Tag> : "-"))
                     : "-"
             },

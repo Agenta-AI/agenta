@@ -1,32 +1,28 @@
-import clsx from "clsx"
-import {Input} from "antd"
-import {useState, useEffect, useCallback, ChangeEvent} from "react"
+import {useCallback} from "react"
 import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
-
 import type {PromptMessageContentProps} from "./types"
-
-const {TextArea} = Input
+import EditorWrapper from "@/components/Editor/Editor"
 
 const PromptMessageContent = ({value, placeholder, onChange}: PromptMessageContentProps) => {
     const [localValue, setLocalValue] = useDebounceInput<string>(value, onChange, 300, "")
 
     const handleLocalValueChange = useCallback(
-        (e: ChangeEvent<HTMLTextAreaElement>) => {
-            setLocalValue(e.target.value)
+        (value: string) => {
+            setLocalValue(value)
         },
         [setLocalValue],
     )
 
     return (
-        <TextArea
-            rows={4}
-            autoSize={{
-                minRows: 4,
-            }}
+        <EditorWrapper
             placeholder={placeholder}
-            className={clsx(["border-0", "focus:ring-0"])}
-            value={localValue}
-            onChange={handleLocalValueChange}
+            showToolbar={false}
+            enableTokens
+            initialValue={localValue}
+            onChange={(value) => {
+                handleLocalValueChange(value.textContent)
+            }}
+            showBorder={false}
         />
     )
 }

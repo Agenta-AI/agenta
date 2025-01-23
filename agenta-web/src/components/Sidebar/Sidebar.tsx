@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import {memo, useEffect, useMemo, useState, type ComponentProps, type FC} from "react"
 import {useRouter} from "next/router"
 import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
 import Logo from "../Logo/Logo"
@@ -116,10 +116,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const SidebarMenu: React.FC<{
+const SidebarMenu: FC<{
     items: SidebarConfig[]
     collapsed: boolean
-    menuProps?: React.ComponentProps<typeof Menu>
+    menuProps?: ComponentProps<typeof Menu>
     mode?: "horizontal" | "vertical" | "inline"
 }> = ({items, menuProps, collapsed, mode = "inline"}) => {
     const classes = useStyles()
@@ -277,7 +277,7 @@ const SidebarMenu: React.FC<{
     )
 }
 
-const Sidebar: React.FC = () => {
+const Sidebar: FC = () => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
     const classes = useStyles()
@@ -339,8 +339,16 @@ const Sidebar: React.FC = () => {
         return [[matched?.key], openKey ? [openKey] : []]
     }, [router.asPath, topItems, bottomItems])
 
+    const _isDemo = useMemo(() => isDemo(), [])
+
     useEffect(() => {
-        setOpenKey(openKeys[0])
+        setOpenKey((prevKey) => {
+            if (prevKey !== openKeys[0]) {
+                return openKeys[0]
+            }
+
+            return prevKey
+        })
     }, [openKeys[0]])
 
     return (
@@ -348,12 +356,12 @@ const Sidebar: React.FC = () => {
             <Sider theme={appTheme} className={classes.sidebar} width={236}>
                 <div className={classes.sliderContainer}>
                     <div>
-                        {!isDemo() && (
+                        {!_isDemo && (
                             <Link data-cy="app-management-link" href="/apps">
                                 <Logo isOnlyIconLogo={collapsed} />
                             </Link>
                         )}
-                        {selectedOrg?.id && user?.id && isDemo() && (
+                        {selectedOrg?.id && user?.id && _isDemo && (
                             <Dropdown
                                 trigger={["hover"]}
                                 menu={{
@@ -452,4 +460,4 @@ const Sidebar: React.FC = () => {
     )
 }
 
-export default Sidebar
+export default memo(Sidebar)

@@ -21,12 +21,11 @@ export interface EnhancedConfigValue<T> extends Common {
 }
 
 /** Enhanced array structure */
-export type EnhancedArrayValue<T> = Merge<
-    Common<ArrayMetadata>,
-    {
-        value: Enhanced<T>[]
-    }
->
+export type EnhancedArrayValue<T> = {
+    value: Enhanced<T>[]
+    __id: string
+    __metadata: ArrayMetadata
+}
 
 /** Utility type to check if a string starts with __ */
 export type StartsWith__<T extends string | number | symbol> = T extends `__${string}`
@@ -43,9 +42,11 @@ export type EnhancedObjectConfig<T> = Common & {
 }
 
 /** Generic enhanced configuration type */
-export type Enhanced<T> = (T extends Array<infer U>
-    ? EnhancedArrayValue<U>
-    : T extends Record<string, any>
-      ? EnhancedObjectConfig<T>
-      : EnhancedConfigValue<T>) &
-    Common
+export type Enhanced<T> =
+    T extends Array<infer U>
+        ? EnhancedArrayValue<U>
+        : T extends Record<string, any>
+          ? EnhancedObjectConfig<T>
+          : EnhancedConfigValue<T>
+//    &
+// Common

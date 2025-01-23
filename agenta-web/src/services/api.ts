@@ -70,7 +70,7 @@ export async function fetchVariants(
 /**
  * Get the JWT from SuperTokens
  */
-const getJWT = async () => {
+export const getJWT = async () => {
     try {
         if (await Session.doesSessionExist()) {
             let jwt = await Session.getAccessToken()

@@ -17,11 +17,14 @@ import type {PlaygroundVariantPropertyControlProps} from "./types"
  */
 export interface PlaygroundVariantPropertyControlProps extends BaseContainerProps {
     /** ID of the variant containing the property */
-    variantId: EnhancedVariant["id"]
+    variantId?: EnhancedVariant["id"]
+    rowId?: string
     /** Unique identifier for the property */
     propertyId: string
     /** Optional rendering variant for the control */
     as?: "SimpleDropdownSelect" | "PromptMessageContent"
+    view?: string
+    withTooltip?: boolean
 }
 
 export type ControlComponentType =
@@ -73,12 +76,15 @@ export type PropertyTypeMap = {
 }
 
 export type RenderFunctions = {
-    [K in keyof PropertyTypeMap]: (
-        metadata: PropertyTypeMap[K]["metadata"],
-        value: any,
-        handleChange: (v: any) => void,
-        as?: string,
-    ) => React.ReactElement | null
+    [K in keyof PropertyTypeMap]: (props: {
+        metadata: PropertyTypeMap[K]["metadata"]
+        value: any
+        handleChange: (v: any) => void
+        as?: string
+        className?: string
+        view?: string
+        withTooltip?: boolean
+    }) => React.ReactElement | null
 }
 
 export type ArrayItemValue =

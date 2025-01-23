@@ -42,7 +42,7 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                 key: "1",
                 classNames: {
                     body: "!border-t-0",
-                    header: "[&.ant-collapse-header]:!px-2.5",
+                    header: "[&.ant-collapse-header]:!px-2.5 !p-0 my-3",
                 },
                 label: (
                     <PlaygroundVariantConfigPromptCollapseHeader
@@ -63,11 +63,8 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
 
     return (
         <Collapse
-            className={clsx(
-                "border-solid border-0 border-b border-[rgba(5,23,41,0.06)]",
-                "rounded-none",
-                className,
-            )}
+            ghost
+            className={clsx("rounded-none", className)}
             bordered={false}
             defaultActiveKey={defaultActiveKey.current}
             items={items}
