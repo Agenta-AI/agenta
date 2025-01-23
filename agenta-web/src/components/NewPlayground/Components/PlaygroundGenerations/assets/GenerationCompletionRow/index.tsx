@@ -72,7 +72,7 @@ const GenerationCompletionRow = ({
                         "flex flex-col gap-4 w-full": isChat,
                     })}
                 >
-                    <div className="w-[100px]">
+                    <div className="w-[100px] shrink-0">
                         <Typography className="font-[500] text-[12px] leading-[20px]">
                             Variables
                         </Typography>
