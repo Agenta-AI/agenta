@@ -53,6 +53,7 @@ const GenerationComparisonChatOutputRow = ({
             {history.map((historyItem) => {
                 return (
                     <GenerationChatRowOutput
+                        key={historyItem?.__id}
                         message={historyItem}
                         variantId={variantId}
                         deleteMessage={handleDeleteMessage}
