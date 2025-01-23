@@ -55,7 +55,7 @@ async def upload_file(
     testset_name: Optional[str] = File(None),
 ):
     """
-    Uploads a CSV or JSON file and saves its data to MongoDB.
+    Uploads a CSV or JSON file and saves its data to Postgres.
 
     Args:
     upload_type : Either a json or csv file.
@@ -133,7 +133,7 @@ async def import_testset(
     testset_name: str = Form(None),
 ):
     """
-    Import JSON testset data from an endpoint and save it to MongoDB.
+    Import JSON testset data from an endpoint and save it to Postgres.
 
     Args:
         endpoint (str): An endpoint URL to import data from.
@@ -207,7 +207,7 @@ async def create_testset(
     request: Request,
 ):
     """
-    Create a testset with given name, save the testset to MongoDB.
+    Create a testset with given name, save the testset to Postgres.
 
     Args:
     name (str): name of the test set.
@@ -259,7 +259,7 @@ async def update_testset(
     request: Request,
 ):
     """
-    Update a testset with given id, update the testset in MongoDB.
+    Update a testset with given id, update the testset in Postgres.
 
     Args:
     testset_id (str): id of the test set to be updated.
@@ -375,10 +375,10 @@ async def get_single_testset(
     request: Request,
 ):
     """
-    Fetch a specific testset in a MongoDB collection using its _id.
+    Fetch a specific testset in Postgres.
 
     Args:
-        testset_id (str): The _id of the testset to fetch.
+        testset_id (str): The id of the testset to fetch.
 
     Returns:
         The requested testset if found, else an HTTPException.
