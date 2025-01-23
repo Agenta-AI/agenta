@@ -138,7 +138,9 @@ const GenerationChatRow = ({
             const _metadata = getMetadataLazy<ArrayMetadata>(messageRow.history.__metadata)
 
             const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
-            const emptyMessage = createMessageFromSchema(itemMetadata)
+            const emptyMessage = createMessageFromSchema(itemMetadata, {
+                role: "User",
+            })
 
             messageRow.history.value.push(emptyMessage)
 
