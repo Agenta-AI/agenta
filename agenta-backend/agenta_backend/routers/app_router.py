@@ -262,8 +262,6 @@ async def update_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
 
-    print("Headers (from request): ", request.headers)
-    print("ProjectID (from request): ", request.state.project_id)
     app = await db_manager.fetch_app_by_id(app_id)
     if isCloudEE():
         has_permission = await check_action_access(
