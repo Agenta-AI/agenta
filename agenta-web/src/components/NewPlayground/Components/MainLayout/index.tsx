@@ -118,7 +118,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
                 <Splitter className="h-full" layout={isComparisonView ? "vertical" : "horizontal"}>
                     <SplitterPanel
-                        defaultSize={isComparisonView ? "40%" : "30"}
+                        defaultSize={isComparisonView ? "40%" : "30%"}
                         min="20%"
                         max="70%"
                         className="!h-full"
@@ -166,7 +166,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             "!overflow-y-hidden": isComparisonView,
                         })}
                         collapsible
-                        defaultSize={isComparisonView ? "60%" : "70"}
+                        defaultSize={isComparisonView ? "60%" : "70%"}
                     >
                         {isComparisonView && <GenerationComparisonHeader />}
 
