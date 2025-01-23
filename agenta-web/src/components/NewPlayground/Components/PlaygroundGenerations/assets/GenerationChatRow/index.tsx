@@ -113,7 +113,7 @@ const GenerationChatRow = ({variantId, disabled = false, rowId}: GenerationChatR
                 as="PromptMessageContent"
                 view={!isComparisonView ? "chat" : ""}
                 placeholder="Type your message here"
-                className="!bg-transparent border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)] hover:!border-[rgba(5,23,41,0.06)] focus:!border-[rgba(5,23,41,0.06)] px-4 py-2 !rounded-none !h-full"
+                className="!bg-transparent border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)] hover:!border-[rgba(5,23,41,0.06)] focus:!border-[rgba(5,23,41,0.06)] px-4 !rounded-none"
             />
 
             <PromptMessageContentOptions
