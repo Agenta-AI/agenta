@@ -1,13 +1,14 @@
 import io
+import os
 import csv
 import json
-import random
 import logging
 import requests
+from pathlib import Path
 from typing import Optional, List
 from datetime import datetime, timezone
-from pydantic import ValidationError
 
+from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, UploadFile, File, Form, Request
 
@@ -23,6 +24,9 @@ from agenta_backend.models.api.testset_model import (
     TestSetSimpleResponse,
     TestSetOutputResponse,
 )
+
+PARENT_DIRECTORY = Path(__file__).parent
+ASSETS_DIRECTORY = os.path.join(str(PARENT_DIRECTORY), "/resources/default_testsets")
 
 if isCloudEE():
     from agenta_backend.commons.utils.permissions import (
@@ -131,6 +135,7 @@ async def import_testset(
     request: Request,
     endpoint: str = Form(None),
     testset_name: str = Form(None),
+    authorization: Optional[str] = None,
 ):
     """
     Import JSON testset data from an endpoint and save it to Postgres.
@@ -159,7 +164,11 @@ async def import_testset(
             )
 
     try:
-        response = requests.get(endpoint, timeout=10)
+        response = requests.get(
+            endpoint,
+            timeout=10,
+            headers={"Authorization": authorization} if authorization else None,
+        )
         if response.status_code != 200:
             raise HTTPException(
                 status_code=400, detail="Failed to fetch testset from endpoint"
@@ -232,24 +241,20 @@ async def create_testset(
                 status_code=403,
             )
 
-    try:
-        testset_data = {
-            "name": csvdata.name,
-            "csvdata": csvdata.csvdata,
-        }
-        testset_instance = await db_manager.create_testset(
-            project_id=request.state.project_id,
-            testset_data=testset_data,
+    testset_data = {
+        "name": csvdata.name,
+        "csvdata": csvdata.csvdata,
+    }
+    testset_instance = await db_manager.create_testset(
+        project_id=request.state.project_id,
+        testset_data=testset_data,
+    )
+    if testset_instance is not None:
+        return TestSetSimpleResponse(
+            id=str(testset_instance.id),
+            name=testset_instance.name,  # type: ignore
+            created_at=str(testset_instance.created_at),
         )
-        if testset_instance is not None:
-            return TestSetSimpleResponse(
-                id=str(testset_instance.id),
-                name=testset_instance.name,  # type: ignore
-                created_at=str(testset_instance.created_at),
-            )
-    except Exception as e:
-        print(str(e))
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/{testset_id}/", operation_id="update_testset")
@@ -288,23 +293,19 @@ async def update_testset(
                 status_code=403,
             )
 
-    try:
-        testset_update = {
-            "name": csvdata.name,
-            "csvdata": csvdata.csvdata,
-            "updated_at": datetime.now(timezone.utc),
-        }
-        await db_manager.update_testset(
-            testset_id=str(testset.id), values_to_update=testset_update
-        )
-        return {
-            "status": "success",
-            "message": "testset updated successfully",
-            "_id": testset_id,
-        }
-    except Exception as e:
-        print(str(e))
-        raise HTTPException(status_code=500, detail=str(e))
+    testset_update = {
+        "name": csvdata.name,
+        "csvdata": csvdata.csvdata,
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await db_manager.update_testset(
+        testset_id=str(testset.id), values_to_update=testset_update
+    )
+    return {
+        "status": "success",
+        "message": "testset updated successfully",
+        "_id": testset_id,
+    }
 
 
 @router.get("/", operation_id="get_testsets")
