@@ -91,15 +91,14 @@ const PromptMessageConfig = ({
     componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
-        // <div className="w-full @[700px]:flex-row flex flex-col items-start gap-2 relative group/option"></div>
         <div
             className={clsx(
-                "w-full @[700px]:flex-row flex flex-col items-start gap-2 relative group/option",
+                "w-full flex flex-col items-start gap-2 relative group/item",
                 className,
             )}
             {...props}
         >
-            <div className="@[700px]:w-[100px] flex items-center justify-between">
+            <div className="w-full flex items-center justify-between">
                 <PlaygroundVariantPropertyControl
                     propertyId={message.role}
                     variantId={variantId}

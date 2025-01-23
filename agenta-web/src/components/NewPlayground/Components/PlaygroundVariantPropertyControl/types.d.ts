@@ -26,6 +26,7 @@ export interface PlaygroundVariantPropertyControlProps extends BaseContainerProp
     view?: string
     withTooltip?: boolean
     placeholder?: string
+    disabled?: boolean
 }
 
 export type ControlComponentType =
