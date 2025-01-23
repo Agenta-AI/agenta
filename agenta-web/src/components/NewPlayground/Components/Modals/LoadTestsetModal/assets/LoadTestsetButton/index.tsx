@@ -89,14 +89,12 @@ const LoadTestsetButton = ({label, icon = false, children, ...props}: LoadTestse
                 </Button>
             )}
 
-            {isTestsetModalOpen && (
-                <LoadTestsetModal
-                    open={isTestsetModalOpen}
-                    onCancel={() => setIsTestsetModalOpen(false)}
-                    testsetData={testsetData}
-                    setTestsetData={wrappedSetTestsetData}
-                />
-            )}
+            <LoadTestsetModal
+                open={isTestsetModalOpen}
+                onCancel={() => setIsTestsetModalOpen(false)}
+                testsetData={testsetData}
+                setTestsetData={wrappedSetTestsetData}
+            />
         </>
     )
 }

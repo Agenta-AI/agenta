@@ -29,12 +29,12 @@ class EnvironmentsClient:
         Deploys a given variant to an environment
 
         Args:
-        environment_name: Name of the environment to deploy to.
-        variant_id: variant id to deploy.
-        stoken_session: . Defaults to Depends(verify_session()).
+            environment_name: Name of the environment to deploy to.
+            variant_id: variant id to deploy.
+            stoken_session: . Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If the deployment fails.
+            HTTPException: If the deployment fails.
 
         Parameters
         ----------
@@ -116,12 +116,12 @@ class AsyncEnvironmentsClient:
         Deploys a given variant to an environment
 
         Args:
-        environment_name: Name of the environment to deploy to.
-        variant_id: variant id to deploy.
-        stoken_session: . Defaults to Depends(verify_session()).
+            environment_name: Name of the environment to deploy to.
+            variant_id: variant id to deploy.
+            stoken_session: . Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If the deployment fails.
+            HTTPException: If the deployment fails.
 
         Parameters
         ----------

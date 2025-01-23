@@ -1,33 +1,6 @@
 import {memo, useCallback, type MouseEvent} from "react"
-
-import clsx from "clsx"
-import {Button} from "antd"
-
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
-
-import type {
-    PlaygroundVariantModelConfigModalProps,
-    ModelConfigModalContentProps,
-    ModelConfigModalActionsProps,
-} from "../types"
-
-/**
- * Renders the modal action buttons for saving and canceling changes
- */
-const ModalActions: React.FC<ModelConfigModalActionsProps> = ({
-    className,
-    hasChanges,
-    handleSave,
-    handleClose,
-    ...props
-}) => (
-    <div className={clsx("flex items-center justify-end gap-2 mt-4", className)} {...props}>
-        <Button onClick={handleClose}>Cancel</Button>
-        <Button disabled={!hasChanges} onClick={handleSave} variant="solid" color="default">
-            Save
-        </Button>
-    </div>
-)
+import type {PlaygroundVariantModelConfigModalProps, ModelConfigModalContentProps} from "../types"
 
 /**
  * Wraps the modal content and handles click event bubbling
@@ -66,11 +39,6 @@ const ModalContent: React.FC<ModelConfigModalContentProps> = ({
 const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
     variantId,
     propertyIds,
-    hasChanges,
-    state,
-    onChange,
-    handleSave,
-    handleClose,
 }) => {
     const preventClickBubble = useCallback((e: MouseEvent<HTMLElement>) => {
         e.preventDefault()
@@ -83,20 +51,12 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
                 return (
                     <PlaygroundVariantPropertyControl
                         key={propertyId}
-                        value={state[propertyId]?.value}
                         variantId={variantId}
                         propertyId={propertyId}
-                        onChange={onChange}
                         withTooltip
                     />
                 )
             })}
-
-            <ModalActions
-                handleSave={handleSave}
-                handleClose={handleClose}
-                hasChanges={hasChanges}
-            />
         </ModalContent>
     )
 }

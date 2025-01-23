@@ -7,7 +7,7 @@ from pydantic import ConfigDict, BaseModel, HttpUrl
 from agenta.client.backend.types.agenta_node_dto import AgentaNodeDto
 from agenta.client.backend.types.agenta_nodes_response import AgentaNodesResponse
 from typing import Annotated, List, Union, Optional, Dict, Literal, Any
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 from agenta.sdk.assets import supported_llm_models
 
 
@@ -41,6 +41,8 @@ class BaseResponse(BaseModel):
     content_type: Optional[str] = "string"
     tree: Optional[AgentaNodesResponse] = None
     tree_id: Optional[str] = None
+
+    model_config = ConfigDict(use_enum_values=True, exclude_none=True)
 
 
 class DictInput(dict):
@@ -333,7 +335,7 @@ class ModelConfig(BaseModel):
         description="What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic",
     )
     max_tokens: Optional[int] = Field(
-        default=-1,
+        default=1,
         ge=0,
         le=4000,
         description="The maximum number of tokens that can be generated in the chat completion",
@@ -426,7 +428,7 @@ class PromptTemplate(BaseModel):
         }
     }
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def init_messages(cls, values):
         if "messages" not in values:
             messages = []
