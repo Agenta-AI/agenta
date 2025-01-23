@@ -154,16 +154,34 @@ def litellm_handler():
                 pass
 
             span.set_attributes(
-                attributes={"total": kwargs.get("response_cost")},
+                attributes={
+                    "total": (
+                        float(kwargs.get("response_cost"))
+                        if kwargs.get("response_cost")
+                        else None
+                    )
+                },
                 namespace="metrics.unit.costs",
             )
 
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": response_obj.usage.prompt_tokens,
-                        "completion": response_obj.usage.completion_tokens,
-                        "total": response_obj.usage.total_tokens,
+                        "prompt": (
+                            float(response_obj.usage.prompt_tokens)
+                            if response_obj.usage.prompt_tokens
+                            else None
+                        ),
+                        "completion": (
+                            float(response_obj.usage.completion_tokens)
+                            if response_obj.usage.completion_tokens
+                            else None
+                        ),
+                        "total": (
+                            float(response_obj.usage.total_tokens)
+                            if response_obj.usage.total_tokens
+                            else None
+                        ),
                     }
                 ),
                 namespace="metrics.unit.tokens",
@@ -264,16 +282,34 @@ def litellm_handler():
                 pass
 
             span.set_attributes(
-                attributes={"total": kwargs.get("response_cost")},
+                attributes={
+                    "total": (
+                        float(kwargs.get("response_cost"))
+                        if kwargs.get("response_cost")
+                        else None
+                    )
+                },
                 namespace="metrics.unit.costs",
             )
 
             span.set_attributes(
                 attributes=(
                     {
-                        "prompt": response_obj.usage.prompt_tokens,
-                        "completion": response_obj.usage.completion_tokens,
-                        "total": response_obj.usage.total_tokens,
+                        "prompt": (
+                            float(response_obj.usage.prompt_tokens)
+                            if response_obj.usage.prompt_tokens
+                            else None
+                        ),
+                        "completion": (
+                            float(response_obj.usage.completion_tokens)
+                            if response_obj.usage.completion_tokens
+                            else None
+                        ),
+                        "total": (
+                            float(response_obj.usage.total_tokens)
+                            if response_obj.usage.total_tokens
+                            else None
+                        ),
                     }
                 ),
                 namespace="metrics.unit.tokens",
