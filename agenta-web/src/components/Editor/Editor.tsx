@@ -140,10 +140,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         }, [initialValue, editor])
 
         return (
-            <div className="editor-container overflow-hidden relative">
+            <div className="editor-container overflow-hidden relative min-h-[inherit]">
                 <div
                     ref={ref}
-                    className={`editor-inner border rounded-lg ${singleLine ? "single-line" : ""}`}
+                    className={`editor-inner border rounded-lg min-h-[inherit] ${singleLine ? "single-line" : ""}`}
                     style={
                         dimensions && dimensions.width
                             ? {
@@ -163,7 +163,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                         placeholder={placeholder}
                         handleUpdate={handleUpdate}
                     />
-                    {!singleLine && enableResize && <div className="resize-handle" />}
+                    {/* {!singleLine && enableResize && <div className="resize-handle" />} */}
                 </div>
             </div>
         )
@@ -234,7 +234,8 @@ const Editor = ({
         <div
             className={clsx([
                 styles["agenta-rich-text-editor"],
-                "bg-[#F5F7FA] text-[#1C2C3D] min-h-16 relative flex flex-col px-[11px] rounded-lg",
+                'min-h-16',
+                "bg-[#F5F7FA] text-[#1C2C3D] relative flex flex-col px-[11px] rounded-lg",
                 {
                     "border border-solid border-[#BDC7D1]": showBorder,
                     "disabled": disabled
