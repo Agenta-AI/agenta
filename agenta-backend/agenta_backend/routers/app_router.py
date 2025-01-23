@@ -101,33 +101,27 @@ async def list_app_variants(
     Returns:
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
-    try:
-        app = await db_manager.get_app_instance_by_id(app_id=app_id)
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_id),
-                permission=Permission.VIEW_APPLICATION,
+
+    app = await db_manager.get_app_instance_by_id(app_id=app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app.project_id),
+            permission=Permission.VIEW_APPLICATION,
+        )
+        logger.debug(f"User has Permission to list app variants: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            logger.debug(f"User has Permission to list app variants: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        app_variants = await db_manager.list_app_variants(app_id=app_id)
-        return [
-            await converters.app_variant_db_to_output(app_variant)
-            for app_variant in app_variants
-        ]
-
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+    app_variants = await db_manager.list_app_variants(app_id=app_id)
+    return [
+        await converters.app_variant_db_to_output(app_variant)
+        for app_variant in app_variants
+    ]
 
 
 @router.get(
@@ -186,10 +180,6 @@ async def get_variant_by_env(
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException as e:
         raise e
-    except Exception as e:
-        # Handle all other exceptions and return 500 status code
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/", response_model=CreateAppOutput, operation_id="create_app")
@@ -210,55 +200,47 @@ async def create_app(
     Raises:
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
-    try:
-        if isCloudEE():
-            api_key_from_headers = request.headers.get("Authorization", None)
-            if api_key_from_headers is not None:
-                api_key = api_key_from_headers.split(" ")[
-                    -1
-                ]  # ["ApiKey", "xxxxx.xxxxxx"]
-                await check_apikey_action_access(
-                    api_key,
-                    request.state.user_id,
-                    Permission.CREATE_APPLICATION,
+
+    if isCloudEE():
+        api_key_from_headers = request.headers.get("Authorization", None)
+        if api_key_from_headers is not None:
+            api_key = api_key_from_headers.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
+            await check_apikey_action_access(
+                api_key,
+                request.state.user_id,
+                Permission.CREATE_APPLICATION,
+            )
+
+        try:
+            user_org_workspace_data = await get_user_org_and_workspace_id(
+                request.state.user_id
+            )
+            if user_org_workspace_data is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to get user org and workspace data",
                 )
 
-            try:
-                user_org_workspace_data = await get_user_org_and_workspace_id(
-                    request.state.user_id
+            has_permission = await check_rbac_permission(
+                user_org_workspace_data=user_org_workspace_data,
+                project_id=request.state.project_id,
+                permission=Permission.CREATE_APPLICATION,
+            )
+            logger.debug(f"User has Permission to Create Application: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
                 )
-                if user_org_workspace_data is None:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Failed to get user org and workspace data",
-                    )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
-                has_permission = await check_rbac_permission(
-                    user_org_workspace_data=user_org_workspace_data,
-                    project_id=request.state.project_id,
-                    permission=Permission.CREATE_APPLICATION,
-                )
-                logger.debug(
-                    f"User has Permission to Create Application: {has_permission}"
-                )
-                if not has_permission:
-                    error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                    return JSONResponse(
-                        {"detail": error_msg},
-                        status_code=403,
-                    )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=str(e))
-
-        app_db = await db_manager.create_app_and_envs(
-            payload.app_name,
-            template_key=payload.template_key,
-            project_id=request.state.project_id,
-        )
-        return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    app_db = await db_manager.create_app_and_envs(
+        payload.app_name,
+        project_id=request.state.project_id,
+    )
+    return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
 
 @router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
@@ -282,28 +264,22 @@ async def update_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_id),
-                permission=Permission.EDIT_APPLICATION,
-            )
-            logger.debug(f"User has Permission to update app: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-        await db_manager.update_app(
-            app_id=app_id, values_to_update=payload.model_dump()
+    app = await db_manager.fetch_app_by_id(app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app.project_id),
+            permission=Permission.EDIT_APPLICATION,
         )
-        return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.debug(f"User has Permission to update app: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+    await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
+    return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
 
 
 @router.get("/", response_model=List[App], operation_id="list_apps")
@@ -324,16 +300,26 @@ async def list_apps(
     Raises:
         HTTPException: If there was an error retrieving the list of apps.
     """
-    try:
-        apps = await db_manager.list_apps(
+
+    if isCloudEE():
+        user_org_workspace_data = await get_user_org_and_workspace_id(request.state.user_id)  # type: ignore
+        has_permission = await check_rbac_permission(  # type: ignore
+            user_org_workspace_data=user_org_workspace_data,
             project_id=request.state.project_id,
-            user_uid=request.state.user_id,
-            app_name=app_name,
+            permission=Permission.VIEW_APPLICATION,  # type: ignore
         )
-        return apps
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.debug(f"User has Permission to list apps: {has_permission}")
+        if not has_permission:
+            raise HTTPException(
+                status_code=403,
+                detail="You do not have access to perform this action. Please contact your organization admin.",
+            )
+
+    apps = await db_manager.list_apps(
+        project_id=request.state.project_id,
+        app_name=app_name,
+    )
+    return apps
 
 
 @router.post("/{app_id}/variant/from-image/", operation_id="add_variant_from_image")
@@ -370,55 +356,40 @@ async def add_variant_from_image(
         elif await deployment_manager.validate_image(image) is False:
             raise HTTPException(status_code=404, detail="Image not found")
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_id),
-                permission=Permission.CREATE_APPLICATION,
-            )
-            logger.debug(
-                f"User has Permission to create app from image: {has_permission}"
-            )
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        variant_db = await app_manager.add_variant_from_image(
-            app=app,
-            project_id=str(app.project_id),
-            variant_name=payload.variant_name,
-            docker_id_or_template_uri=payload.docker_id,
-            tags=payload.tags,
-            base_name=payload.base_name,
-            config_name=payload.config_name,
-            is_template_image=False,
+    app = await db_manager.fetch_app_by_id(app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
             user_uid=request.state.user_id,
-        )
-
-        app_variant_db = await db_manager.fetch_app_variant_by_id(
-            str(variant_db.id),
-        )
-
-        await evaluator_manager.create_ready_to_use_evaluators(
-            app_name=app.app_name,
             project_id=str(app.project_id),
+            permission=Permission.CREATE_APPLICATION,
         )
+        logger.debug(f"User has Permission to create app from image: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
-        app_variant_dto = await converters.app_variant_db_to_output(
-            app_variant_db,
-        )
+    variant_db = await app_manager.add_variant_based_on_image(
+        app=app,
+        project_id=str(app.project_id),
+        variant_name=payload.variant_name,
+        docker_id_or_template_uri=payload.docker_id,
+        tags=payload.tags,
+        base_name=payload.base_name,
+        config_name=payload.config_name,
+        is_template_image=False,
+        user_uid=request.state.user_id,
+    )
+    app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
-        return app_variant_dto
+    logger.debug("Step 8: We create ready-to use evaluators")
+    await evaluator_manager.create_ready_to_use_evaluators(
+        app_name=app.app_name, project_id=str(app.project_id)
+    )
 
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return await converters.app_variant_db_to_output(app_variant_db)
 
 
 @router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
@@ -530,31 +501,23 @@ async def remove_app(
     Arguments:
         app -- App to remove
     """
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_id),
-                permission=Permission.DELETE_APPLICATION,
-            )
-            logger.debug(f"User has Permission to delete app: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        await app_manager.remove_app(app)
-    except DockerException as e:
-        detail = f"Docker error while trying to remove the app: {str(e)}"
-        logger.exception(f"Docker error while trying to remove the app: {str(e)}")
-        raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        detail = f"Unexpected error while trying to remove the app: {str(e)}"
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=detail)
+    app = await db_manager.fetch_app_by_id(app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app.project_id),
+            permission=Permission.DELETE_APPLICATION,
+        )
+        logger.debug(f"User has Permission to delete app: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    await app_manager.remove_app(app)
 
 
 @router.post(
@@ -578,173 +541,166 @@ async def create_app_and_variant_from_template(
     Returns:
         AppVariantResponse: The output of the created app variant.
     """
-    try:
-        logger.debug("Start: Creating app and variant from template")
 
-        if isCloudEE():
-            # Get user and org id
-            logger.debug("Step 1: Getting user and organization ID")
-            user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-                request.state.user_id
-            )
+    logger.debug("Start: Creating app and variant from template")
 
-            logger.debug("Step 2: Checking that Project ID is provided")
-            if request.state.project_id is None:
-                raise Exception(
-                    "Project ID must be provided to create app from template",
-                )
-
-            logger.debug("Step 3: Checking user has permission to create app")
-            has_permission = await check_rbac_permission(
-                user_org_workspace_data=user_org_workspace_data,
-                project_id=request.state.project_id,
-                permission=Permission.CREATE_APPLICATION,
-            )
-            logger.debug(
-                f"User has Permission to create app from template: {has_permission}"
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        logger.debug(
-            f"Step 4: Checking if app {payload.app_name} already exists"
-            if isCloudEE()
-            else f"Step 1: Checking if app {payload.app_name} already exists"
+    if isCloudEE():
+        # Get user and org id
+        logger.debug("Step 1: Getting user and organization ID")
+        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
+            request.state.user_id
         )
-        app_name = payload.app_name.lower()
-        app = await db_manager.fetch_app_by_name_and_parameters(
-            app_name,
+
+        logger.debug("Step 2: Checking that Project ID is provided")
+        if request.state.project_id is None:
+            raise Exception(
+                "Project ID must be provided to create app from template",
+            )
+
+        logger.debug("Step 3: Checking user has permission to create app")
+        has_permission = await check_rbac_permission(
+            user_org_workspace_data=user_org_workspace_data,
+            project_id=request.state.project_id,
+            permission=Permission.CREATE_APPLICATION,
+        )
+        logger.debug(
+            f"User has Permission to create app from template: {has_permission}"
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    logger.debug(
+        f"Step 4: Checking if app {payload.app_name} already exists"
+        if isCloudEE()
+        else f"Step 1: Checking if app {payload.app_name} already exists"
+    )
+    app_name = payload.app_name.lower()
+    app = await db_manager.fetch_app_by_name_and_parameters(
+        app_name,
+        project_id=request.state.project_id,
+    )
+    if app is not None:
+        raise Exception(
+            f"App with name {app_name} already exists",
+        )
+
+    logger.debug(
+        "Step 5: Retrieve template from db"
+        if isCloudEE()
+        else "Step 2: Retrieve template from db"
+    )
+    template_db = await db_manager.get_template(payload.template_id)
+
+    logger.debug(
+        "Step 6: Creating new app and initializing environments"
+        if isCloudEE()
+        else "Step 3: Creating new app and initializing environments"
+    )
+    if app is None:
+        app = await db_manager.create_app_and_envs(
+            app_name=app_name,
+            template_id=str(template_db.id),
             project_id=request.state.project_id,
         )
-        if app is not None:
+
+    logger.debug(
+        "Step 7: Creating image instance and adding variant based on image"
+        if isCloudEE()
+        else "Step 4: Creating image instance and adding variant based on image"
+    )
+    repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+    image_name = f"{repo_name}:{template_db.name}"
+    app_variant_db = await app_manager.add_variant_based_on_image(
+        app=app,
+        project_id=str(app.project_id),
+        variant_name="app.default",
+        docker_id_or_template_uri=(  # type: ignore
+            template_db.template_uri if isCloudProd() else template_db.digest
+        ),
+        tags=f"{image_name}" if not isCloudProd() else None,  # type: ignore
+        base_name="app",
+        config_name="default",
+        is_template_image=True,
+        user_uid=request.state.user_id,
+    )
+
+    logger.debug(
+        "Step 8: Creating testset for app variant"
+        if isCloudEE()
+        else "Step 5: Creating testset for app variant"
+    )
+    await db_manager.add_testset_to_app_variant(
+        template_name=template_db.name,  # type: ignore
+        app_name=app.app_name,  # type: ignore
+        project_id=str(app.project_id),
+    )
+
+    logger.debug(
+        "Step 9: We create ready-to use evaluators"
+        if isCloudEE()
+        else "Step 6: We create ready-to use evaluators"
+    )
+    await evaluator_manager.create_ready_to_use_evaluators(
+        app_name=app.app_name, project_id=str(app.project_id)
+    )
+
+    logger.debug(
+        "Step 10: Starting variant and injecting environment variables"
+        if isCloudEE()
+        else "Step 7: Starting variant and injecting environment variables"
+    )
+
+    envvars = {}
+    if isCloudEE():
+        supported_llm_prodviders_keys = [
+            "OPENAI_API_KEY",
+            "MISTRAL_API_KEY",
+            "COHERE_API_KEY",
+            "ANTHROPIC_API_KEY",
+            "ANYSCALE_API_KEY",
+            "PERPLEXITYAI_API_KEY",
+            "DEEPINFRA_API_KEY",
+            "TOGETHERAI_API_KEY",
+            "ALEPHALPHA_API_KEY",
+            "OPENROUTER_API_KEY",
+            "GROQ_API_KEY",
+            "GEMINI_API_KEY",
+        ]
+
+        missing_keys = [
+            key for key in supported_llm_prodviders_keys if not os.environ.get(key)
+        ]
+
+        if missing_keys:
+            missing_keys_str = ", ".join(missing_keys)
             raise Exception(
-                f"App with name {app_name} already exists",
+                f"Unable to start app container. The following environment variables are missing: {missing_keys_str}. Please file an issue by clicking on the button below."
             )
 
-        logger.debug(
-            "Step 5: Retrieve template from db"
-            if isCloudEE()
-            else "Step 2: Retrieve template from db"
-        )
-        template_db = await db_manager.get_template(payload.template_id)
+        if not isCloudEE():
+            envvars = {**(payload.env_vars or {})}
 
-        logger.debug(
-            "Step 6: Creating new app and initializing environments"
-            if isCloudEE()
-            else "Step 3: Creating new app and initializing environments"
-        )
-        if app is None:
-            app = await db_manager.create_app_and_envs(
-                app_name=app_name,
-                template_id=str(template_db.id),
-                project_id=request.state.project_id,
-            )
+        for key in supported_llm_prodviders_keys:
+            if not envvars.get(key):
+                envvars[key] = os.environ[key]
 
-        logger.debug(
-            "Step 7: Creating image instance and adding variant based on image"
-            if isCloudEE()
-            else "Step 4: Creating image instance and adding variant based on image"
-        )
-        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
-        image_name = f"{repo_name}:{template_db.name}"
-        app_variant_db = await app_manager.add_variant_from_image(
-            app=app,
-            project_id=str(app.project_id),
-            variant_name="app.default",
-            docker_id_or_template_uri=(  # type: ignore
-                template_db.template_uri if isCloudProd() else template_db.digest
-            ),
-            tags=f"{image_name}" if not isCloudProd() else None,  # type: ignore
-            base_name="app",
-            config_name="default",
-            is_template_image=True,
-            user_uid=request.state.user_id,
-        )
+    else:
+        envvars = {} if payload.env_vars is None else payload.env_vars
 
-        logger.debug(
-            "Step 8: Creating testset for app variant"
-            if isCloudEE()
-            else "Step 5: Creating testset for app variant"
-        )
-        await db_manager.add_testset_to_app_variant(
-            template_name=template_db.name,  # type: ignore
-            app_name=app.app_name,  # type: ignore
-            project_id=str(app.project_id),
-        )
+    await app_manager.start_variant(
+        app_variant_db,
+        str(app.project_id),
+        envvars,
+        user_uid=request.state.user_id,
+    )
 
-        logger.debug(
-            "Step 9: We create ready-to use evaluators"
-            if isCloudEE()
-            else "Step 6: We create ready-to use evaluators"
-        )
-        await evaluator_manager.create_ready_to_use_evaluators(
-            app_name=app.app_name, project_id=str(app.project_id)
-        )
-
-        logger.debug(
-            "Step 10: Starting variant and injecting environment variables"
-            if isCloudEE()
-            else "Step 7: Starting variant and injecting environment variables"
-        )
-
-        envvars = {}
-        if isCloudEE():
-            supported_llm_prodviders_keys = [
-                "OPENAI_API_KEY",
-                "MISTRAL_API_KEY",
-                "COHERE_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "ANYSCALE_API_KEY",
-                "PERPLEXITYAI_API_KEY",
-                "DEEPINFRA_API_KEY",
-                "TOGETHERAI_API_KEY",
-                "ALEPHALPHA_API_KEY",
-                "OPENROUTER_API_KEY",
-                "GROQ_API_KEY",
-                "GEMINI_API_KEY",
-            ]
-
-            missing_keys = [
-                key for key in supported_llm_prodviders_keys if not os.environ.get(key)
-            ]
-
-            if missing_keys:
-                missing_keys_str = ", ".join(missing_keys)
-                raise Exception(
-                    f"Unable to start app container. The following environment variables are missing: {missing_keys_str}. Please file an issue by clicking on the button below."
-                )
-
-            if not isCloudEE():
-                envvars = {**(payload.env_vars or {})}
-
-            for key in supported_llm_prodviders_keys:
-                if not envvars.get(key):
-                    envvars[key] = os.environ[key]
-
-        else:
-            envvars = {} if payload.env_vars is None else payload.env_vars
-
-        await app_manager.start_variant(
-            app_variant_db,
-            str(app.project_id),
-            envvars,
-            user_uid=request.state.user_id,
-        )
-
-        logger.debug("End: Successfully created app and variant")
-        return await converters.app_variant_db_to_output(app_variant_db)
-
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        logger.exception(f"Error: Exception caught - {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.debug("End: Successfully created app and variant")
+    return await converters.app_variant_db_to_output(app_variant_db)
 
 
 @router.get(
@@ -766,40 +722,36 @@ async def list_environments(
     Returns:
         List[EnvironmentOutput]: A list of environment objects.
     """
+
     logger.debug(f"Listing environments for app: {app_id}")
-    try:
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATION,
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATION,
+        )
+        logger.debug(f"User has Permission to list environments: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            logger.debug(f"User has Permission to list environments: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        environments_db = await db_manager.list_environments(
-            app_id=app_id, project_id=request.state.project_id
-        )
-        logger.debug(f"environments_db: {environments_db}")
+    environments_db = await db_manager.list_environments(
+        app_id=app_id, project_id=request.state.project_id
+    )
+    logger.debug(f"environments_db: {environments_db}")
 
-        fixed_order = ["development", "staging", "production"]
+    fixed_order = ["development", "staging", "production"]
 
-        sorted_environments = sorted(
-            environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
-        )
+    sorted_environments = sorted(
+        environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
+    )
 
-        return [
-            await converters.environment_db_to_output(env)
-            for env in sorted_environments
-        ]
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return [
+        await converters.environment_db_to_output(env) for env in sorted_environments
+    ]
 
 
 @router.get(
@@ -816,45 +768,36 @@ async def list_app_environment_revisions(
     user_org_workspace_data: dict = await get_user_org_and_workspace_id(
         request.state.user_id
     )
-    try:
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_APPLICATION,
-            )
-            logger.debug(f"User has Permission to list environments: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
-            app_id, environment_name, **user_org_workspace_data
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_APPLICATION,
         )
-        if app_environment is None:
+        logger.debug(f"User has Permission to list environments: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
-                {"detail": "App environment not found"}, status_code=404
+                {"detail": error_msg},
+                status_code=403,
             )
 
-        app_environment_revisions = (
-            await db_manager.fetch_environment_revisions_for_environment(
-                app_environment, **user_org_workspace_data
-            )
+    app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
+        app_id, environment_name, **user_org_workspace_data
+    )
+    if app_environment is None:
+        return JSONResponse({"detail": "App environment not found"}, status_code=404)
+
+    app_environment_revisions = (
+        await db_manager.fetch_environment_revisions_for_environment(
+            app_environment, **user_org_workspace_data
         )
-        if app_environment_revisions is None:
-            return JSONResponse(
-                {"detail": "No revisions found for app environment"}, status_code=404
-            )
-
-        return await converters.environment_db_and_revision_to_extended_output(
-            app_environment, app_environment_revisions
+    )
+    if app_environment_revisions is None:
+        return JSONResponse(
+            {"detail": "No revisions found for app environment"}, status_code=404
         )
-    except Exception as e:
-        import traceback
 
-        traceback.print_exc()
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return await converters.environment_db_and_revision_to_extended_output(
+        app_environment, app_environment_revisions
+    )
