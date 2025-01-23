@@ -3314,17 +3314,13 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
     Checks if the given object_id is a valid MongoDB ObjectId and fetches the corresponding
     UUID from the specified table. If the object_id is not a valid ObjectId, it is assumed
     to be a PostgreSQL UUID and returned as is.
-
     Args:
         object_id (str): The ID of the object, which could be a MongoDB ObjectId or a PostgreSQL UUID.
         table_name (str): The name of the table to fetch the UUID from.
-
     Returns:
         str: The corresponding object UUID.
-
     Raises:
         AssertionError: If the resulting object UUID is None.
-
     """
 
     from bson import ObjectId
@@ -3349,11 +3345,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
 async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> str:
     """
     Fetches a corresponding object uuid.
-
     Args:
         table_name (str):  The table name
         object_id (str):   The object identifier
-
     Returns:
         The corresponding object uuid as string.
     """
@@ -3369,7 +3363,6 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
 async def fetch_default_project() -> ProjectDB:
     """
     Fetch the default project from the database.
-
     Returns:
         ProjectDB: The default project instance.
     """

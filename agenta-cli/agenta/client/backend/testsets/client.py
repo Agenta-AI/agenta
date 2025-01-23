@@ -31,7 +31,7 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Uploads a CSV or JSON file and saves its data to MongoDB.
+        Uploads a CSV or JSON file and saves its data to Postgres.
 
         Args:
         upload_type : Either a json or csv file.
@@ -113,7 +113,7 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Import JSON testset data from an endpoint and save it to MongoDB.
+        Import JSON testset data from an endpoint and save it to Postgres.
 
         Args:
         endpoint (str): An endpoint URL to import data from.
@@ -241,7 +241,7 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Create a testset with given name, save the testset to MongoDB.
+        Create a testset with given name, save the testset to Postgres.
 
         Args:
         name (str): name of the test set.
@@ -395,7 +395,7 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Create a testset with given name, save the testset to MongoDB.
+        Create a testset with given name, save the testset to Postgres.
 
         Args:
         name (str): name of the test set.
@@ -475,10 +475,10 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in a MongoDB collection using its \_id.
+        Fetch a specific testset in Postgres.
 
         Args:
-        testset_id (str): The \_id of the testset to fetch.
+        testset_id (str): The id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
@@ -545,7 +545,7 @@ class TestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Update a testset with given id, update the testset in MongoDB.
+        Update a testset with given id, update the testset in Postgres.
 
         Args:
         testset_id (str): id of the test set to be updated.
@@ -632,7 +632,7 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Uploads a CSV or JSON file and saves its data to MongoDB.
+        Uploads a CSV or JSON file and saves its data to Postgres.
 
         Args:
         upload_type : Either a json or csv file.
@@ -722,7 +722,7 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Import JSON testset data from an endpoint and save it to MongoDB.
+        Import JSON testset data from an endpoint and save it to Postgres.
 
         Args:
         endpoint (str): An endpoint URL to import data from.
@@ -866,7 +866,7 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Create a testset with given name, save the testset to MongoDB.
+        Create a testset with given name, save the testset to Postgres.
 
         Args:
         name (str): name of the test set.
@@ -1036,7 +1036,7 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> TestSetSimpleResponse:
         """
-        Create a testset with given name, save the testset to MongoDB.
+        Create a testset with given name, save the testset to Postgres.
 
         Args:
         name (str): name of the test set.
@@ -1124,10 +1124,10 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Fetch a specific testset in a MongoDB collection using its \_id.
+        Fetch a specific testset in Postgres.
 
         Args:
-        testset_id (str): The \_id of the testset to fetch.
+        testset_id (str): The id of the testset to fetch.
 
         Returns:
         The requested testset if found, else an HTTPException.
@@ -1202,7 +1202,7 @@ class AsyncTestsetsClient:
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
         """
-        Update a testset with given id, update the testset in MongoDB.
+        Update a testset with given id, update the testset in Postgres.
 
         Args:
         testset_id (str): id of the test set to be updated.
