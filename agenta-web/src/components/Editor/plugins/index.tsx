@@ -49,7 +49,7 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
-                        className={`editor-input relative outline-none ${
+                        className={`editor-input relative outline-none min-h-[inherit] ${
                             singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
                         } ${codeOnly ? "code-only" : ""}`}
                     />
