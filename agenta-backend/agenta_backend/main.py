@@ -82,6 +82,7 @@ allow_headers = ["Content-Type"]
 if not isCloudEE():
     from agenta_backend.services.auth_helper import authentication_middleware
 
+    print("Using OSS authentication middleware")
     app.middleware("http")(authentication_middleware)
 
 if isCloudEE():
