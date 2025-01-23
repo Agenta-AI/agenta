@@ -71,7 +71,6 @@ const Editor = forwardRef(
         })
 
         const handleUpdate = useCallback(
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             (editorState: EditorState, _editor: LexicalEditor) => {
                 editorState.read(() => {
                     const root = $getRoot()
