@@ -175,14 +175,24 @@ class entrypoint:
         self.update_run_wrapper_signature(wrapper=run_wrapper)
 
         run_route = f"{entrypoint._run_path}{route_path}"
-        app.post(run_route, response_model=BaseResponse)(run_wrapper)
+        app.post(
+            run_route,
+            response_model=BaseResponse,
+            response_model_exclude_none=True,
+            response_model_exclude_unset=True,
+        )(run_wrapper)
 
         # LEGACY
         # TODO: Removing this implies breaking changes in :
         # - calls to /generate_deployed must be replaced with calls to /run
         if route_path == "":
             run_route = entrypoint._legacy_generate_deployed_path
-            app.post(run_route, response_model=BaseResponse)(run_wrapper)
+            app.post(
+                run_route,
+                response_model=BaseResponse,
+                response_model_exclude_none=True,
+                response_model_exclude_unset=True,
+            )(run_wrapper)
         # LEGACY
         ### ----------- #
 
@@ -203,21 +213,36 @@ class entrypoint:
         self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
 
         test_route = f"{entrypoint._test_path}{route_path}"
-        app.post(test_route, response_model=BaseResponse)(test_wrapper)
+        app.post(
+            test_route,
+            response_model=BaseResponse,
+            response_model_exclude_none=True,
+            response_model_exclude_unset=True,
+        )(test_wrapper)
 
         # LEGACY
         # TODO: Removing this implies breaking changes in :
         # - calls to /generate must be replaced with calls to /test
         if route_path == "":
             test_route = entrypoint._legacy_generate_path
-            app.post(test_route, response_model=BaseResponse)(test_wrapper)
+            app.post(
+                test_route,
+                response_model=BaseResponse,
+                response_model_exclude_none=True,
+                response_model_exclude_unset=True,
+            )(test_wrapper)
         # LEGACY
 
         # LEGACY
         # TODO: Removing this implies no breaking changes
         if route_path == "":
             test_route = entrypoint._legacy_playground_run_path
-            app.post(test_route, response_model=BaseResponse)(test_wrapper)
+            app.post(
+                test_route,
+                response_model=BaseResponse,
+                response_model_exclude_none=True,
+                response_model_exclude_unset=True,
+            )(test_wrapper)
         # LEGACY
         ### ------------ #
 
@@ -369,7 +394,9 @@ class entrypoint:
     ):
         display_exception("Application Exception")
 
-        status_code = 500
+        status_code = (
+            getattr(error, "status_code") if hasattr(error, "status_code") else 500
+        )
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
 
         raise HTTPException(
@@ -430,8 +457,8 @@ class entrypoint:
         link = context.link
 
         tree = None
-        _tree_id = link.get("tree_id") if link else None # in int format
-        tree_id = str(UUID(int=_tree_id)) if _tree_id else None # in uuid_as_str format
+        _tree_id = link.get("tree_id") if link else None  # in int format
+        tree_id = str(UUID(int=_tree_id)) if _tree_id else None  # in uuid_as_str format
 
         if _tree_id is not None:
             if inline:
