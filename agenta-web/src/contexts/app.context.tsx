@@ -45,12 +45,9 @@ const useApps = () => {
     const isMockProjectId = projectId === DEFAULT_UUID
 
     const {selectedOrg, loading} = useOrgData()
+    const shouldFetch = !!user && (!isDemo() || !!selectedOrg?.id)
     const {data, error, isLoading, mutate} = useSWR(
-        !!user
-            ? `${getAgentaApiUrl()}/api/apps?` +
-                  (!isMockProjectId ? `project_id=${projectId}&` : "")
-            : null,
-        !!user ? (isDemo() ? (selectedOrg?.id ? axiosFetcher : () => {}) : axiosFetcher) : null,
+        shouldFetch ? `/api/apps?` + (!isMockProjectId ? `project_id=${projectId}&` : "") : null,
         {
             shouldRetryOnError: false,
         },
@@ -73,6 +70,7 @@ export const getAppValues = () => appContextValues
 
 const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const {data: apps, error, isLoading, mutate} = useApps()
+    const {isLoading: isProjectLoading} = useProjectData()
     const router = useRouter()
     const appId = router.query?.app_id as string
     const [recentlyVisitedAppId, setRecentlyVisitedAppId] = useLocalStorage<string | null>(
@@ -118,7 +116,7 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 currentApp,
                 apps,
                 error,
-                isLoading,
+                isLoading: isLoading || isProjectLoading,
                 mutate,
                 modalInstance,
                 setModalInstance,

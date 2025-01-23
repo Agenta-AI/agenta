@@ -4,6 +4,7 @@ import typing
 import httpx
 from .core.client_wrapper import SyncClientWrapper
 from .observability.client import ObservabilityClient
+from .vault.client import VaultClient
 from .access_control.client import AccessControlClient
 from .scopes.client import ScopesClient
 from .apps.client import AppsClient
@@ -35,6 +36,7 @@ from .types.workspace_role_response import WorkspaceRoleResponse
 from .types.permission import Permission
 from .core.client_wrapper import AsyncClientWrapper
 from .observability.client import AsyncObservabilityClient
+from .vault.client import AsyncVaultClient
 from .access_control.client import AsyncAccessControlClient
 from .scopes.client import AsyncScopesClient
 from .apps.client import AsyncAppsClient
@@ -107,6 +109,7 @@ class AgentaApi:
             timeout=_defaulted_timeout,
         )
         self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
+        self.vault = VaultClient(client_wrapper=self._client_wrapper)
         self.access_control = AccessControlClient(client_wrapper=self._client_wrapper)
         self.scopes = ScopesClient(client_wrapper=self._client_wrapper)
         self.apps = AppsClient(client_wrapper=self._client_wrapper)
@@ -1644,6 +1647,7 @@ class AsyncAgentaApi:
         self.observability = AsyncObservabilityClient(
             client_wrapper=self._client_wrapper
         )
+        self.vault = AsyncVaultClient(client_wrapper=self._client_wrapper)
         self.access_control = AsyncAccessControlClient(
             client_wrapper=self._client_wrapper
         )

@@ -187,9 +187,11 @@ class TestsetsClient:
         Get all testsets.
 
         Returns:
+
         - A list of testset objects.
 
         Raises:
+
         - `HTTPException` with status code 404 if no testsets are found.
 
         Parameters
@@ -366,6 +368,88 @@ class TestsetsClient:
                     typing.List[str],
                     parse_obj_as(
                         type_=typing.List[str],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def deprecating_create_testset(
+        self,
+        app_id: str,
+        *,
+        name: str,
+        csvdata: typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]],
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestSetSimpleResponse:
+        """
+        Create a testset with given name, save the testset to MongoDB.
+
+        Args:
+        name (str): name of the test set.
+        testset (Dict[str, str]): test set data.
+
+        Returns:
+        str: The id of the test set created.
+
+        Parameters
+        ----------
+        app_id : str
+
+        name : str
+
+        csvdata : typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestSetSimpleResponse
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.testsets.deprecating_create_testset(
+            app_id="app_id",
+            name="name",
+            csvdata=[{"key": "value"}],
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"testsets/{jsonable_encoder(app_id)}",
+            method="POST",
+            json={
+                "name": name,
+                "csvdata": csvdata,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    TestSetSimpleResponse,
+                    parse_obj_as(
+                        type_=TestSetSimpleResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -720,9 +804,11 @@ class AsyncTestsetsClient:
         Get all testsets.
 
         Returns:
+
         - A list of testset objects.
 
         Raises:
+
         - `HTTPException` with status code 404 if no testsets are found.
 
         Parameters
@@ -923,6 +1009,96 @@ class AsyncTestsetsClient:
                     typing.List[str],
                     parse_obj_as(
                         type_=typing.List[str],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def deprecating_create_testset(
+        self,
+        app_id: str,
+        *,
+        name: str,
+        csvdata: typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]],
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> TestSetSimpleResponse:
+        """
+        Create a testset with given name, save the testset to MongoDB.
+
+        Args:
+        name (str): name of the test set.
+        testset (Dict[str, str]): test set data.
+
+        Returns:
+        str: The id of the test set created.
+
+        Parameters
+        ----------
+        app_id : str
+
+        name : str
+
+        csvdata : typing.Sequence[typing.Dict[str, typing.Optional[typing.Any]]]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        TestSetSimpleResponse
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.testsets.deprecating_create_testset(
+                app_id="app_id",
+                name="name",
+                csvdata=[{"key": "value"}],
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"testsets/{jsonable_encoder(app_id)}",
+            method="POST",
+            json={
+                "name": name,
+                "csvdata": csvdata,
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    TestSetSimpleResponse,
+                    parse_obj_as(
+                        type_=TestSetSimpleResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )

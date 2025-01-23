@@ -43,6 +43,7 @@ from .evaluator_mapping_output_interface import EvaluatorMappingOutputInterface
 from .evaluator_output_interface import EvaluatorOutputInterface
 from .exception_dto import ExceptionDto
 from .get_config_response import GetConfigResponse
+from .header_dto import HeaderDto
 from .http_validation_error import HttpValidationError
 from .human_evaluation import HumanEvaluation
 from .human_evaluation_scenario import HumanEvaluationScenario
@@ -61,6 +62,7 @@ from .metrics_dto import MetricsDto
 from .new_testset import NewTestset
 from .node_dto import NodeDto
 from .node_type import NodeType
+
 from .o_tel_context_dto import OTelContextDto
 from .o_tel_event_dto import OTelEventDto
 from .o_tel_extra_dto import OTelExtraDto
@@ -75,11 +77,16 @@ from .outputs import Outputs
 from .parent_dto import ParentDto
 from .permission import Permission
 from .projects_response import ProjectsResponse
+from .provider_key_dto import ProviderKeyDto
+from .provider_kind import ProviderKind
 from .reference_dto import ReferenceDto
 from .reference_request_model import ReferenceRequestModel
 from .result import Result
 from .root_dto import RootDto
 from .score import Score
+from .secret_dto import SecretDto
+from .secret_kind import SecretKind
+from .secret_response_dto import SecretResponseDto
 from .simple_evaluation_output import SimpleEvaluationOutput
 from .span import Span
 from .span_detail import SpanDetail
@@ -154,6 +161,7 @@ __all__ = [
     "EvaluatorOutputInterface",
     "ExceptionDto",
     "GetConfigResponse",
+    "HeaderDto",
     "HttpValidationError",
     "HumanEvaluation",
     "HumanEvaluationScenario",
@@ -169,6 +177,7 @@ __all__ = [
     "LlmRunRateLimit",
     "LlmTokens",
     "MetricsDto",
+    "NewHumanEvaluation",
     "NewTestset",
     "NodeDto",
     "NodeType",
@@ -186,11 +195,16 @@ __all__ = [
     "ParentDto",
     "Permission",
     "ProjectsResponse",
+    "ProviderKeyDto",
+    "ProviderKind",
     "ReferenceDto",
     "ReferenceRequestModel",
     "Result",
     "RootDto",
     "Score",
+    "SecretDto",
+    "SecretKind",
+    "SecretResponseDto",
     "SimpleEvaluationOutput",
     "Span",
     "SpanDetail",
