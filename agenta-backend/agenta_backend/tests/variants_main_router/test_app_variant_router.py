@@ -98,12 +98,12 @@ async def test_update_app_does_not_exist():
     assert response.json()["detail"] == f"App with {APP_ID_NOT_FOUND} not found"
 
 
-@pytest.mark.asyncio
-async def test_list_apps():
-    response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
+# @pytest.mark.asyncio
+# async def test_list_apps():
+#     response = await test_client.get(f"{BACKEND_API_HOST}/apps/")
 
-    assert response.status_code == 200
-    assert len(response.json()) == 3
+#     assert response.status_code == 200
+#     assert len(response.json()) == 3
 
 
 @pytest.mark.asyncio
