@@ -89,14 +89,7 @@ async def save_config(
 
     except HTTPException as e:
         logger.error(f"save_config http exception ===> {e.detail}")
-        raise
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        logger.error(f"save_config exception ===> {e}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code, detail=str(e)) from e
+        raise e
 
 
 @router.get("/", response_model=GetConfigResponse, operation_id="get_config")
@@ -184,14 +177,7 @@ async def get_config(
         )
     except HTTPException as e:
         logger.error(f"get_config http exception: {e.detail}")
-        raise
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        logger.error(f"get_config exception: {e}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code, detail=str(e))
+        raise e
 
 
 @router.get(
@@ -202,35 +188,27 @@ async def get_config_deployment_revision(
     request: Request,
     deployment_revision_id: str,
 ):
-    try:
-        environment_revision = await db_manager.fetch_app_environment_revision(
-            deployment_revision_id
+    environment_revision = await db_manager.fetch_app_environment_revision(
+        deployment_revision_id
+    )
+    if environment_revision is None:
+        raise HTTPException(
+            404, f"No environment revision found for {deployment_revision_id}"
         )
-        if environment_revision is None:
-            raise HTTPException(
-                404, f"No environment revision found for {deployment_revision_id}"
-            )
 
-        variant_revision = await db_manager.fetch_app_variant_revision_by_id(
-            str(environment_revision.deployed_app_variant_revision_id)
+    variant_revision = await db_manager.fetch_app_variant_revision_by_id(
+        str(environment_revision.deployed_app_variant_revision_id)
+    )
+    if not variant_revision:
+        raise HTTPException(
+            404,
+            f"No configuration found for deployment revision {deployment_revision_id}",
         )
-        if not variant_revision:
-            raise HTTPException(
-                404,
-                f"No configuration found for deployment revision {deployment_revision_id}",
-            )
 
-        return GetConfigResponse(
-            **variant_revision.get_config(),
-            current_version=environment_revision.revision,  # type: ignore
-        )
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        logger.error(f"get config deployment revision exception ===> {e}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code, detail=str(e))
+    return GetConfigResponse(
+        **variant_revision.get_config(),
+        current_version=environment_revision.revision,  # type: ignore
+    )
 
 
 @router.post(
