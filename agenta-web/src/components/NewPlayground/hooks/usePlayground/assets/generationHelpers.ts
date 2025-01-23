@@ -89,6 +89,8 @@ export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
         }
     }
 
+    emptyMessage.role.value = "User" // initial chat message is from user
+
     const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
     initialMessageRows.push(
         createMessageRow(emptyMessage, uniqueSystemMessages[0].__metadata, messagesMetadata),
