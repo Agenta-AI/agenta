@@ -1,6 +1,7 @@
 import {EditorState, LexicalEditor} from "lexical"
 
-export interface EditorProps {
+export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
+    disabled?: boolean
     id?: string
     initialEditorState?: LexicalEditor["_editorState"]
     initialValue?: string
