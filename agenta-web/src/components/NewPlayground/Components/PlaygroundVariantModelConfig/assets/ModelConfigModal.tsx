@@ -15,15 +15,14 @@ import type {
  * Renders the modal action buttons for saving and canceling changes
  */
 const ModalActions: React.FC<ModelConfigModalActionsProps> = ({
-    className,
-    hasChanges,
     handleSave,
     handleClose,
+    className,
     ...props
 }) => (
     <div className={clsx("flex items-center justify-end gap-2 mt-4", className)} {...props}>
         <Button onClick={handleClose}>Cancel</Button>
-        <Button disabled={!hasChanges} onClick={handleSave} variant="solid" color="default">
+        <Button onClick={handleSave} variant="solid" color="default">
             Save
         </Button>
     </div>
@@ -66,9 +65,6 @@ const ModalContent: React.FC<ModelConfigModalContentProps> = ({
 const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
     variantId,
     propertyIds,
-    hasChanges,
-    state,
-    onChange,
     handleSave,
     handleClose,
 }) => {
@@ -83,20 +79,14 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
                 return (
                     <PlaygroundVariantPropertyControl
                         key={propertyId}
-                        value={state[propertyId]?.value}
                         variantId={variantId}
                         propertyId={propertyId}
-                        onChange={onChange}
                         withTooltip
                     />
                 )
             })}
 
-            <ModalActions
-                handleSave={handleSave}
-                handleClose={handleClose}
-                hasChanges={hasChanges}
-            />
+            <ModalActions handleSave={handleSave} handleClose={handleClose} />
         </ModalContent>
     )
 }
