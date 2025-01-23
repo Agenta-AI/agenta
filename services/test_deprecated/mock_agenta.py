@@ -1,4 +1,5 @@
 """Mock agenta module for testing"""
+
 from typing import Any, Dict, Type, TypeVar, Optional
 from dataclasses import dataclass
 

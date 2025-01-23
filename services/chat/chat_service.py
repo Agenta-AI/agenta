@@ -66,5 +66,5 @@ async def generate(
             **openai_kwargs,
         }
     )
-    
+
     return response.choices[0].message.model_dump()
