@@ -1,16 +1,46 @@
-import isEqual from "lodash/isEqual"
-import cloneDeep from "lodash/cloneDeep"
+import isEqual from "fast-deep-equal"
 import {dereference} from "@scalar/openapi-parser"
 
 import {transformToEnhancedVariant} from "../../../assets/utilities/transformer/transformer"
 import {updateVariantPromptKeys, initializeVariantInputs} from "./inputHelpers"
 
-import {type InitialStateType} from "../../../state/types"
+import type {InitialStateType} from "../../../state/types"
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {getJWT} from "@/services/api"
+import {getCurrentProject} from "@/contexts/project.context"
+
+/**
+ * Recursively omit specified keys from an object
+ */
+export const omitDeep = (obj: any, keys: string[]): any => {
+    if (!obj || typeof obj !== "object") return obj
+
+    if (Array.isArray(obj)) {
+        return obj.map((item) => omitDeep(item, keys))
+    }
+
+    return Object.entries(obj).reduce(
+        (acc, [key, value]) => {
+            if (keys.includes(key)) return acc
+
+            acc[key] = typeof value === "object" ? omitDeep(value, keys) : value
+
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+}
+
+export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
+    return isEqual(a, b)
+}
 
 const uriFixer = (uri: string) => {
-    if (!uri.includes("/services/")) {
+    if (!uri.includes("http://") && !uri.includes("https://")) {
+        // for oss.agenta.ai
+        uri = `https://${uri}`
+    } else if (!uri.includes("/services/")) {
         uri = uri.replace("/chat", "/services/chat")
         uri = uri.replace("/completion", "/services/completion")
     }
@@ -27,7 +57,19 @@ const uriFixer = (uri: string) => {
  * @returns Promise containing variantId, parsed schema and any errors
  */
 export const fetchOpenApiSchemaJson = async (uri: string) => {
-    const openapiJsonResponse = await fetch(`${uriFixer(uri)}/openapi.json`)
+    const jwt = await getJWT()
+    const openapiJsonResponse = await fetch(
+        `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
+        {
+            headers: {
+                ...(jwt
+                    ? {
+                          Authorization: `Bearer ${jwt}`,
+                      }
+                    : {}),
+            },
+        },
+    )
     const responseJson = await openapiJsonResponse.json()
     const {schema, errors} = await dereference(responseJson)
 
@@ -88,7 +130,7 @@ export const createBaseCompare = (
     return (a?: InitialStateType, b?: InitialStateType): boolean => {
         if (!a || !b) return false
         if (customCompare) return customCompare(a, b)
-        return isEqual(a, b)
+        return isPlaygroundEqual(a, b)
     }
 }
 
@@ -106,13 +148,13 @@ export const createVariantsCompare = (
             const variantsA = a?.variants
             const variantsB = b?.variants
 
-            if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
+            if (!!variantsA && !!variantsB && !isPlaygroundEqual(variantsA, variantsB)) {
                 const keysA = variantsA.map((v) => v.id)
                 const keysB = variantsB.map((v) => v.id)
 
                 return keysA.length === keysB.length && keysA.every((key) => keysB.includes(key))
             }
-            return isEqual(a, b)
+            return isPlaygroundEqual(a, b)
         }
 
         return customCompare ? customCompare(a, b) : test()
@@ -133,13 +175,13 @@ export const createVariantCompare = (
             const variantsA = a?.variants
             const variantsB = b?.variants
 
-            if (!!variantsA && !!variantsB && !isEqual(variantsA, variantsB)) {
+            if (!!variantsA && !!variantsB && !isPlaygroundEqual(variantsA, variantsB)) {
                 const keysA = variantsA.map((v) => v.id)
                 const keysB = variantsB.map((v) => v.id)
 
-                return isEqual(keysA, keysB)
+                return isPlaygroundEqual(keysA, keysB)
             }
-            return isEqual(a, b)
+            return isPlaygroundEqual(a, b)
         }
 
         return customCompare ? customCompare(a, b) : test()
@@ -191,7 +233,7 @@ export const compareVariantProperty = (
     const propA = findPropertyInVariant(variantA, propertyId)
     const propB = findPropertyInVariant(variantB, propertyId)
 
-    return isEqual(propA?.value, propB?.value)
+    return isPlaygroundEqual(propA?.value, propB?.value)
 }
 
 /**
@@ -207,12 +249,13 @@ export const compareVariant = (
     const variantA = findVariantById(a, variantId)
     const variantB = findVariantById(b, variantId)
 
-    if (!!variantA && !!variantB && !isEqual(variantA, variantB)) {
+    const variantsEqual = isPlaygroundEqual(variantA, variantB)
+    if (!!variantA && !!variantB && !variantsEqual) {
         if (propertyId) {
             return compareVariantProperty(variantA, variantB, propertyId)
         }
-        return isEqual(variantA, variantB)
-    } else if (!!variantA && !!variantB && isEqual(variantA, variantB)) {
+        return variantsEqual
+    } else if (!!variantA && !!variantB && variantsEqual) {
         return true
     }
     return createBaseCompare(customCompare)(a, b)
@@ -256,7 +299,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
  * @returns Array of transformed EnhancedVariant objects or current variants if unchanged
  */
 export const setVariants = (currentVariants: EnhancedVariant[], newVariants: any[]) => {
-    const areEqual = isEqual(currentVariants, newVariants)
+    const areEqual = isPlaygroundEqual(currentVariants, newVariants)
     if (!areEqual) {
         return newVariants.map(setVariant)
     }

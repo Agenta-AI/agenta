@@ -1,17 +1,18 @@
 import {useCallback} from "react"
 
+import {Alert} from "antd"
 import clsx from "clsx"
-import {Typography} from "antd"
 
 import usePlayground from "../../../hooks/usePlayground"
 import AddButton from "../../../assets/AddButton"
 import PromptMessageConfig from "../../PromptMessageConfig"
 import {createObjectFromMetadata} from "../../../assets/utilities/genericTransformer/helpers/arrays"
 import {componentLogger} from "../../../assets/utilities/componentLogger"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 import type {PromptCollapseContentProps} from "../types"
-import type {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {ArrayMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -30,7 +31,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     className,
     ...props
 }) => {
-    const {inputKeys, messageIds, mutateVariant} = usePlayground({
+    const {inputKeys, messageIds, mutateVariant, hasVariable} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: useCallback(
@@ -45,6 +46,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 return {
                     messageIds: messages.value.map((message) => message.__id),
                     inputKeys: prompt.inputKeys.value || [],
+                    hasVariable: prompt.inputKeys.value.length > 0,
                 }
             },
             [promptId],
@@ -57,7 +59,10 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         mutateVariant((draft) => {
             const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
             const messages = variantPrompt?.messages.value
-            const metadata = (variantPrompt?.messages.__metadata as ArrayMetadata).itemMetadata
+            const parentMetadata = getMetadataLazy<ArrayMetadata>(
+                variantPrompt?.messages.__metadata,
+            )
+            const metadata = parentMetadata?.itemMetadata
 
             if (variantPrompt && messages && metadata) {
                 const newMessage = createObjectFromMetadata(metadata) as (typeof messages)[number]
@@ -70,6 +75,27 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         })
     }, [mutateVariant, promptId])
 
+    const deleteMessage = useCallback(
+        (messageId: string) => {
+            if (!mutateVariant) return
+
+            mutateVariant((draft) => {
+                const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
+                const messages = variantPrompt?.messages.value
+
+                if (variantPrompt && messages) {
+                    // Filter out the message with the specified ID
+                    variantPrompt.messages.value = messages.filter(
+                        (message) => message.__id !== messageId,
+                    )
+                }
+
+                return draft
+            })
+        },
+        [mutateVariant, promptId],
+    )
+
     componentLogger(
         "PlaygroundVariantConfigPromptCollapseContent",
         variantId,
@@ -80,16 +106,25 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     return (
         <div className={clsx("flex flex-col gap-4", className)} {...props}>
             {messageIds.map((messageId) => (
-                <PromptMessageConfig key={messageId} variantId={variantId} messageId={messageId} />
+                <PromptMessageConfig
+                    key={messageId}
+                    variantId={variantId}
+                    messageId={messageId}
+                    deleteMessage={deleteMessage}
+                    isMessageDeletable={messageIds?.length === 1}
+                />
             ))}
-            <AddButton label="Message" onClick={addNewMessage} />
 
-            <div className="flex flex-col gap-2">
-                <Typography.Text strong>Input keys:</Typography.Text>
-                {(inputKeys || []).map((inputKey) => (
-                    <div key={inputKey.value}>{inputKey.value}</div>
-                ))}
-            </div>
+            {!hasVariable && (
+                <Alert
+                    closable
+                    message="Add a new variable by wrapping variable name with {{ and }}."
+                    type="info"
+                    showIcon
+                />
+            )}
+
+            <AddButton size="small" label="Message" onClick={addNewMessage} />
         </div>
     )
 }

@@ -1,13 +1,15 @@
 import {useCallback} from "react"
 
-import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
 import {getCurrentProject} from "@/contexts/project.context"
+import {getJWT} from "@/services/api"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
+import {message} from "../../../state/messageContext"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
+import useWebWorker from "../../useWebWorker"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -18,6 +20,7 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -75,13 +78,16 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 ({
                     baseVariantName,
                     newVariantName,
+                    callback,
                 }: {
                     baseVariantName: string
                     newVariantName: string
+                    callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
                 }) => {
                     swr.mutate(
                         async (state) => {
-                            if (!state || !state.spec) return state
+                            const spec = getSpecLazy()
+                            if (!state || !spec) return state
 
                             const baseVariant = state.variants.find(
                                 (variant) => variant.variantName === baseVariantName,
@@ -109,7 +115,11 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            const parameters = transformToRequestBody(baseVariant)
+                            const parameters = transformToRequestBody(
+                                baseVariant,
+                                undefined,
+                                getAllMetadata(),
+                            )
 
                             const newVariantBody: Partial<Variant> &
                                 Pick<Variant, "variantName" | "configName" | "baseId"> = {
@@ -139,13 +149,13 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
                             const variantWithConfig = transformVariant(
                                 setVariant(createVariantResponse),
-                                state.spec,
+                                spec,
                             )
 
-                            const clone = cloneDeep(state)
-                            clone.variants.push(variantWithConfig)
+                            state.variants.push(variantWithConfig)
 
-                            return clone
+                            callback?.(variantWithConfig, state)
+                            return state
                         },
                         {revalidate: false},
                     )
@@ -167,6 +177,87 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 addToValueReferences("addVariant")
                 return addVariant
             }, [addToValueReferences, addVariant])
+
+            const {postMessageToWorker, createWorkerMessage} = useWebWorker(
+                // @ts-ignore
+                swr.handleWebWorkerMessage,
+                valueReferences.current.includes("runVariantTestRow") ||
+                    valueReferences.current.includes("runTests"),
+            )
+
+            Object.defineProperty(swr, "runTests", {
+                get: () => {
+                    addToValueReferences("runTests")
+                    const runTests = (rowId?: string, variantId?: string) => {
+                        swr.mutate(
+                            async (clonedState) => {
+                                const jwt = await getJWT()
+
+                                if (!clonedState) return clonedState
+                                const visibleVariants = variantId
+                                    ? [variantId]
+                                    : clonedState.selected
+                                const testRows = rowId
+                                    ? [
+                                          clonedState.generationData.value.find(
+                                              (r) => r.__id === rowId,
+                                          ),
+                                      ]
+                                    : clonedState.generationData.value
+
+                                for (const testRow of testRows) {
+                                    for (const variantId of visibleVariants) {
+                                        const variant = clonedState.variants.find(
+                                            (v) => v.id === variantId,
+                                        )
+                                        if (!variant || !testRow) continue
+
+                                        if (!testRow.__runs) {
+                                            testRow.__runs = {}
+                                        }
+
+                                        if (!testRow.__runs[variantId]) {
+                                            testRow.__runs[variantId] = {
+                                                __isRunning: true,
+                                                __result: undefined,
+                                            }
+                                        } else {
+                                            testRow.__runs[variantId].__isRunning = true
+                                        }
+                                        testRow.__runs[variantId].__isRunning = true
+
+                                        postMessageToWorker(
+                                            createWorkerMessage("runVariantInputRow", {
+                                                variant,
+                                                inputRow: testRow,
+                                                rowId: testRow.__id,
+                                                appId: config.appId!,
+                                                uri: variant.uri,
+                                                projectId: getCurrentProject().projectId,
+                                                allMetadata: getAllMetadata(),
+                                                headers: {
+                                                    ...(jwt
+                                                        ? {
+                                                              Authorization: `Bearer ${jwt}`,
+                                                          }
+                                                        : {}),
+                                                },
+                                            }),
+                                        )
+                                    }
+                                }
+
+                                return clonedState
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        )
+                    }
+
+                    return runTests
+                },
+            })
 
             Object.defineProperty(swr, "variants", {
                 get: getVariants,

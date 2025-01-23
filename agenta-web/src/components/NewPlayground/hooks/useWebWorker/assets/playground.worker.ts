@@ -1,25 +1,34 @@
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {parseValidationError} from "../../../assets/utilities/errors"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
+    allMetadata: Record<string, ConfigMetadata>
+    inputRow: EnhancedVariant["inputs"]["value"][number]
     rowId: string
     appId: string
     uri: string
+    headers: Record<string, string>
+    projectId: string
 }) {
-    const {variant, rowId, uri} = payload
-    const requestBody = transformToRequestBody(variant, rowId)
+    const {variant, rowId, uri, inputRow, allMetadata, headers, projectId} = payload
+    const requestBody = transformToRequestBody(variant, inputRow, allMetadata)
     let result
 
     try {
-        const response = await fetch(`${uri}/generate`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
+        const response = await fetch(
+            `${uri}/generate${headers.Authorization ? `?project_id=${projectId}` : ""}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...headers,
+                },
+                body: JSON.stringify(requestBody),
             },
-            body: JSON.stringify(requestBody),
-        })
+        )
 
         const data = await response.json()
         if (!response.ok) {

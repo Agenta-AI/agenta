@@ -2,13 +2,15 @@ import {createMetadata} from "./metadata"
 
 import type {ArraySchema, ArrayMetadata, ConfigMetadata} from "../types"
 import {generateId} from "../utilities/string"
+import {hashMetadata} from "../../hash"
 
 /** Create a new object instance based on metadata schema */
 export function createObjectFromMetadata(metadata: ConfigMetadata) {
     if (!metadata) return null
+    const metadataHash = hashMetadata(metadata)
 
     // For primitive types with options (like role)
-    if (metadata.type === "string") {
+    if (metadata.type === "string" && metadata.options?.length) {
         let defaultValue = ""
         if (metadata.options?.length) {
             const firstOption = metadata.options[0]
@@ -21,7 +23,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
         return {
             __id: generateId(),
             value: defaultValue,
-            __metadata: metadata,
+            __metadata: metadataHash,
         }
     }
 
@@ -30,7 +32,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
         return {
             __id: generateId(),
             value: metadata.nullable ? null : "",
-            __metadata: metadata,
+            __metadata: metadataHash,
         }
     }
 
@@ -39,7 +41,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
         return {
             __id: generateId(),
             value: metadata.nullable ? null : [],
-            __metadata: metadata,
+            __metadata: metadataHash,
         }
     }
 
@@ -47,7 +49,7 @@ export function createObjectFromMetadata(metadata: ConfigMetadata) {
     if (metadata.type === "object") {
         const obj: Record<string, any> = {
             __id: generateId(),
-            __metadata: metadata,
+            __metadata: metadataHash,
         }
 
         if (metadata.properties) {

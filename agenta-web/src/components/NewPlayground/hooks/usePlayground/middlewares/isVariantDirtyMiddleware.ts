@@ -1,11 +1,11 @@
 import {useCallback, useRef} from "react"
 
-import isEqual from "lodash/isEqual"
-import cloneDeep from "lodash/cloneDeep"
-
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
+import {isPlaygroundEqual, omitDeep} from "../assets/helpers"
 import {initialState} from "../../../state"
+import {syncVariantInputs} from "../assets/inputHelpers"
+import {getUniqueInputKeys} from "../assets/comparisonHelpers"
 
 import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
 import {type FetcherOptions} from "@/lib/api/types"
@@ -16,14 +16,13 @@ import type {
     PlaygroundMiddlewareParams,
 } from "../types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-
 /**
  * Compare two variants ignoring specified properties
  */
 const compareVariantsForDirtyState = (
     variant1: EnhancedVariant | undefined,
     variant2: EnhancedVariant | undefined,
-    ignoreKeys: string[] = ["inputs"],
+    ignoreKeys: string[] = ["inputs", "__isMutating"],
 ): boolean => {
     if (!variant1 || !variant2) return variant1 === variant2
 
@@ -31,29 +30,7 @@ const compareVariantsForDirtyState = (
     const cleanVariant1 = omitDeep(variant1, ignoreKeys)
     const cleanVariant2 = omitDeep(variant2, ignoreKeys)
 
-    return isEqual(cleanVariant1, cleanVariant2)
-}
-
-/**
- * Recursively omit specified keys from an object
- */
-const omitDeep = (obj: any, keys: string[]): any => {
-    if (!obj || typeof obj !== "object") return obj
-
-    if (Array.isArray(obj)) {
-        return obj.map((item) => omitDeep(item, keys))
-    }
-
-    return Object.entries(obj).reduce(
-        (acc, [key, value]) => {
-            if (keys.includes(key)) return acc
-
-            acc[key] = typeof value === "object" ? omitDeep(value, keys) : value
-
-            return acc
-        },
-        {} as Record<string, any>,
-    )
+    return isPlaygroundEqual(cleanVariant1, cleanVariant2)
 }
 
 type MutateFunction<T extends PlaygroundStateData = PlaygroundStateData> = (
@@ -75,8 +52,6 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     },
                 })
 
-            const dirtyRef = useRef(new Map<string, boolean>())
-
             const fetcherWithIsDirty = useCallback(
                 async (url: string, options?: FetcherOptions): Promise<Data> => {
                     const data = await fetcher?.(url, options)
@@ -84,15 +59,15 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     if (!data) return initialState as Data
 
                     const variants = data.variants || []
-                    const dirtyStates = new Map<string, boolean>()
+                    const dirtyStates = {} as Record<string, boolean>
 
                     variants.forEach((variant) => {
-                        dirtyStates.set(variant.id, false)
+                        dirtyStates[variant.id] = false
                     })
 
                     return {
                         ...data,
-                        dataRef: new Map(variants.map((v) => [v.id, cloneDeep(v)])),
+                        dataRef: new Map(variants.map((v) => [v.id, structuredClone(v)])),
                         dirtyStates,
                         variants,
                     }
@@ -114,8 +89,8 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             logger(`COMPARE - WRAPPED`, wrappedComparison, a, b)
                             return wrappedComparison
                         } else {
-                            const isDirtyA = a?.dirtyStates?.get(config.variantId ?? "")
-                            const isDirtyB = b?.dirtyStates?.get(config.variantId ?? "")
+                            const isDirtyA = a?.dirtyStates?.[config.variantId ?? ""]
+                            const isDirtyB = b?.dirtyStates?.[config.variantId ?? ""]
 
                             return isDirtyA === isDirtyB
                         }
@@ -126,71 +101,81 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
             const originalMutateRef = useRef<SWRResponse<Data, Error>["mutate"]>(swr.mutate)
 
-            const setIsDirty = useCallback(
-                (variantId: string, isDirty: boolean) => {
-                    dirtyRef.current.set(variantId, isDirty)
-                    swr.mutate(
-                        (currentData) => {
-                            if (!currentData) return currentData
-                            return {
-                                ...currentData,
-                                dirtyStates: new Map(dirtyRef.current),
-                            }
-                        },
-                        {revalidate: false},
-                    )
-                },
-                [swr],
-            )
-
             const wrappedMutate = useCallback<KeyedMutator<Data>>(
-                async (data) => {
+                async (data, options) => {
                     const mutate = originalMutateRef.current
 
                     return mutate(
                         async (state) => {
-                            if (!state) return state
+                            const clonedState = structuredClone(state)
+                            const variantId = config.variantId || options?.variantId
 
+                            if (!clonedState || !state) return state
+
+                            const dataRef = state.dataRef
                             let newState: Data
+
                             if (typeof data === "function") {
                                 const updateFn = data as MutateFunction<Data>
-                                const result = await updateFn(cloneDeep(state))
-                                newState = result ?? state
+                                const result = await updateFn(clonedState)
+                                newState = result ?? clonedState
                             } else if (data !== undefined) {
                                 // Handle partial state update
-                                newState = {
-                                    ...state,
-                                    ...(data as Partial<Data>),
+                                for (const key in data) {
+                                    clonedState[key] = data[key]
                                 }
-                            } else {
-                                newState = state
                             }
 
-                            const clonedState = cloneDeep(newState)
-                            const dataRef = clonedState.dataRef
-                            const variant = newState.variants.find((v) => v.id === config.variantId)
+                            const variant = clonedState.variants.find((v) => v.id === variantId)
 
                             if (
                                 variant &&
-                                !compareVariantsForDirtyState(
-                                    dataRef?.get(config.variantId),
-                                    variant,
-                                )
+                                !compareVariantsForDirtyState(dataRef?.get(variantId), variant)
                             ) {
-                                const dirtyRef = clonedState.dirtyStates
-                                    ? new Map(clonedState.dirtyStates)
-                                    : new Map()
-                                dirtyRef.set(variant.id, true)
+                                const dirtyRef = state.dirtyStates
+                                    ? structuredClone(state.dirtyStates)
+                                    : {}
+                                dirtyRef[variant.id] = true
                                 clonedState.dirtyStates = dirtyRef
                             } else if (variant) {
-                                const dirtyRef = clonedState.dirtyStates
-                                    ? new Map(clonedState.dirtyStates)
-                                    : new Map()
-                                dirtyRef.set(variant.id, false)
+                                const dirtyRef = state.dirtyStates
+                                    ? structuredClone(state.dirtyStates)
+                                    : {}
+                                dirtyRef[variant.id] = false
                                 clonedState.dirtyStates = dirtyRef
                             }
 
-                            logger("WRAPPED MUTATE", state, clonedState)
+                            /**
+                             * before committing changes to the state check if we need to
+                             * sync the generation data in line with new state variants
+                             *
+                             * conditions:
+                             * - selected [visible] variants have changed -> different variants may have different inputs
+                             * - an updated [displayed] variant have new / removed inputs
+                             */
+                            const previousSelected = [...state.selected]
+                            const currentSelected = clonedState.selected
+
+                            const previousInputs = getUniqueInputKeys(
+                                state.variants.filter((variant) =>
+                                    previousSelected.includes(variant.id),
+                                ),
+                            )
+                            const currentInputs = getUniqueInputKeys(
+                                clonedState.variants.filter((variant) =>
+                                    currentSelected.includes(variant.id),
+                                ),
+                            )
+
+                            if (!isPlaygroundEqual(previousInputs, currentInputs)) {
+                                clonedState.generationData = syncVariantInputs(
+                                    clonedState.variants.filter((variant) =>
+                                        currentSelected.includes(variant.id),
+                                    ),
+                                    clonedState.generationData,
+                                )
+                            }
+
                             return clonedState
                         },
                         {
@@ -198,30 +183,12 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                         },
                     )
                 },
-                [config.variantId, logger],
+                [config.variantId],
             )
-
-            const getSetIsDirty = useCallback(() => {
-                checkInvalidSelector()
-                addToValueReferences("setIsDirty")
-                return setIsDirty
-            }, [setIsDirty, checkInvalidSelector, addToValueReferences])
 
             Object.defineProperty(swr, "mutate", {
                 get: () => {
                     return wrappedMutate
-                },
-            })
-
-            Object.defineProperty(swr, "setIsDirty", {
-                get: getSetIsDirty,
-            })
-            Object.defineProperty(swr, "isDirty", {
-                get: () => {
-                    addToValueReferences("isDirty")
-                    return config.variantId
-                        ? swr.data?.dirtyStates?.get?.(config.variantId)
-                        : undefined
                 },
             })
 

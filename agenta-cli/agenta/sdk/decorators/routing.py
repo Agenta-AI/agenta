@@ -142,8 +142,8 @@ class entrypoint:
             app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
             app.add_middleware(ConfigMiddleware)
-            app.add_middleware(OTelMiddleware)
             app.add_middleware(AuthMiddleware)
+            app.add_middleware(OTelMiddleware)
             app.add_middleware(CORSMiddleware)
         ### ------------------ #
 

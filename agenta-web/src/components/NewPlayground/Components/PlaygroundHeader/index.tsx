@@ -1,39 +1,25 @@
-import {Typography, message} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
-import VariantsButton from "../VariantsButton"
 
 import type {BaseContainerProps} from "../types"
+import dynamic from "next/dynamic"
+import {useStyles} from "./styles"
+const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCreateNewVariant"), {
+    ssr: false,
+})
 
-/**
- * PlaygroundHeader manages the creation of new variants in the playground.
- *
- * This component provides UI for adding new variants based on existing templates
- * and handles the state management for the variant creation modal.
- *
- * @component
- * @example
- * ```tsx
- * import { PlaygroundHeader } from './PlaygroundHeader'
- *
- * function App() {
- *   return <PlaygroundHeader />
- * }
- * ```
- */
 const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}) => {
-    const [, contextHolder] = message.useMessage()
-
-    const {addVariantToDisplay, displayedVariants, variants} = usePlayground()
+    const classes = useStyles()
+    const {toggleVariantDisplay, displayedVariants, variants} = usePlayground()
 
     // Only render if variants are available
     return !!variants ? (
         <>
-            {contextHolder}
             <div
                 className={clsx(
                     "flex items-center justify-between gap-4 px-2.5 py-2",
-                    "bg-[#f5f7fa]",
+                    classes.header,
                     className,
                 )}
                 {...divProps}
@@ -41,11 +27,11 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                 <Typography className="text-[16px] leading-[18px] font-[600]">
                     Playground
                 </Typography>
-                <VariantsButton
+
+                <PlaygroundCreateNewVariant
                     displayedVariants={displayedVariants}
-                    onSelect={(variant) => {
-                        addVariantToDisplay?.(variant)
-                    }}
+                    onSelect={toggleVariantDisplay}
+                    buttonProps={{label: "Compare"}}
                 />
             </div>
         </>

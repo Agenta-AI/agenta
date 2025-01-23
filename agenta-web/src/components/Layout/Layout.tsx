@@ -1,4 +1,5 @@
-import React, {useEffect, useMemo, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
+
 import clsx from "clsx"
 import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
@@ -117,6 +118,40 @@ type LayoutProps = {
     children: React.ReactNode
 }
 
+const BreadcrumbRoot = memo(() => {
+    return (
+        <div className="flex items-center gap-1">
+            <Lightning size={16} />
+            <Link href="/apps">Apps</Link>
+        </div>
+    )
+})
+
+const BreadcrumbContainer = memo(({appTheme, isNewPlayground, appName}) => {
+    const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const breadcrumbItems = useMemo(() => {
+        return [
+            {
+                title: <BreadcrumbRoot />,
+            },
+            {title: appName || ""},
+        ]
+    }, [appName])
+
+    return (
+        <div
+            className={clsx(classes.breadcrumbContainer, {
+                "[&&]:!mb-0": isNewPlayground,
+            })}
+        >
+            <Breadcrumb items={breadcrumbItems} />
+            <div className={classes.topRightBar}>
+                <Text>agenta v{packageJsonData.version}</Text>
+            </div>
+        </div>
+    )
+})
+
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
@@ -138,9 +173,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
             setUseOrgData(() => context.useOrgData)
         })
     }, [])
-
-    const isNewPlayground =
-        router.pathname.includes("/playground") && router.query.playground === "new-playground"
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -191,11 +223,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [user])
 
-    const isAppRoute = useMemo(
-        () => router.pathname.startsWith("/apps/[app_id]"),
-        [router.pathname],
-    )
-
     useEffect(() => {
         if (typeof window === "undefined") return () => {}
 
@@ -207,6 +234,17 @@ const App: React.FC<LayoutProps> = ({children}) => {
             body.classList.add("light-mode")
         }
     }, [appTheme])
+
+    const {isNewPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
+        return {
+            isAuthRoute:
+                router.pathname.includes("/auth") || router.pathname.includes("/post-signup"),
+            isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
+            isNewPlayground:
+                router.pathname.includes("/playground") &&
+                router.query.playground === "new-playground",
+        }
+    }, [router.pathname, router.query])
 
     // wait unitl we have the app id, if its an app route
     if (isAppRoute && (!appId || !project)) return null
@@ -222,9 +260,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 </Button>
             </div>
         )
-
-    const isAuthRoute =
-        router.pathname.includes("/auth") || router.pathname.includes("/post-signup")
 
     const handleBackToWorkspaceSwitch = () => {
         const project = projects.find((p) => p.user_role === "owner")
@@ -245,7 +280,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </ErrorBoundary>
                         </Layout>
                     ) : (
-                        // !isAuthRoute && isProjectId
                         <div>
                             {project?.is_demo && (
                                 <div className={classes.banner}>
@@ -263,28 +297,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 <Sidebar />
                                 <Layout className={classes.layout}>
                                     <div>
-                                        <div
-                                            className={clsx(classes.breadcrumbContainer, {
-                                                "[&&]:!mb-0": isNewPlayground,
-                                            })}
-                                        >
-                                            <Breadcrumb
-                                                items={[
-                                                    {
-                                                        title: (
-                                                            <div className="flex items-center gap-1">
-                                                                <Lightning size={16} />
-                                                                <Link href="/apps">Apps</Link>
-                                                            </div>
-                                                        ),
-                                                    },
-                                                    {title: currentApp?.app_name || ""},
-                                                ]}
-                                            />
-                                            <div className={classes.topRightBar}>
-                                                <Text>agenta v{packageJsonData.version}</Text>
-                                            </div>
-                                        </div>
+                                        <BreadcrumbContainer
+                                            appTheme={appTheme}
+                                            appName={currentApp?.app_name}
+                                            isNewPlayground={isNewPlayground}
+                                        />
                                         <Content
                                             className={clsx(classes.content, {
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
@@ -343,4 +360,4 @@ const App: React.FC<LayoutProps> = ({children}) => {
     )
 }
 
-export default App
+export default memo(App)

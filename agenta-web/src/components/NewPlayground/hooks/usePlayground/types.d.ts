@@ -33,28 +33,6 @@ export interface PlaygroundStateData extends InitialStateType {
     [key: string]: any
 }
 
-// Extend base hook response
-export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
-    extends BaseHookResponse<T, Selected> {}
-
-// Variants middleware extensions
-export interface PlaygroundVariantsResponse extends PlaygroundResponse {
-    variants?: PlaygroundStateData["variants"]
-    variantIds?: string[]
-    addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
-}
-
-// Single variant middleware extensions
-export interface PlaygroundVariantResponse extends PlaygroundVariantsResponse {
-    variant?: EnhancedVariant
-    deleteVariant?: () => Promise<void>
-    mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
-    saveVariant?: () => Promise<void>
-    runVariantTestRow?: (rowId: string) => Promise<void>
-    variantConfig?: Enhanced<any>
-    variantConfigProperty?: EnhancedProperty
-}
-
 // Playground specific config
 export interface PlaygroundSWRConfig<T = PlaygroundStateData, Selected = unknown>
     extends BaseHookConfig<T, Selected>,
@@ -68,13 +46,19 @@ export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
     extends SWRResponse<T, Error> {
     isDirty?: boolean
     selectedData?: Selected
+    handleWebWorkerMessage?: (message: MessageEvent) => void
 }
 
 // Variants middleware extensions
 export interface PlaygroundVariantsResponse extends PlaygroundResponse {
     variants?: EnhancedVariant[]
     variantIds?: string[]
-    addVariant?: (options: {baseVariantName: string; newVariantName: string}) => void
+    addVariant?: (options: {
+        baseVariantName: string
+        newVariantName: string
+        callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
+    }) => void
+    runTests?: (rowId?: string, variantId?: string) => void
 }
 
 export interface VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> {
@@ -87,10 +71,11 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
     variant?: EnhancedVariant
     displayedVariants?: string[]
     deleteVariant?: () => Promise<void>
-    mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction<T>) => Promise<void>
+    mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
     saveVariant?: () => Promise<void>
     setSelectedVariant?: (variantId: string) => void
-    addVariantToDisplay?: (variantId: string) => void
+    runVariantTestRow?: (rowId: string) => Promise<void>
+    handleParamUpdate?: (value: any, propertyId: string, variantId?: string) => void
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty
 }
@@ -191,5 +176,6 @@ export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData,
     displayedVariants?: string[]
     viewType?: ViewType
     setSelectedVariant?: (variantId: string) => void
-    addVariantToDisplay?: (variantId: string) => void
+    toggleVariantDisplay?: (variantId: string, display?: boolean) => void
+    setDisplayedVariants?: (variantIds: string[]) => void
 }
