@@ -1,3 +1,5 @@
+from typing import Callable
+
 from pydantic import BaseModel
 
 
@@ -13,8 +15,8 @@ class MockResponseModel(BaseModel):
     choices: list[MockChoiceModel]
 
 
-MOCKS = {
-    "hello": MockResponseModel(
+def hello_mock_response(*args, **kwargs) -> MockResponseModel:
+    return MockResponseModel(
         choices=[
             MockChoiceModel(
                 message=MockMessageModel(
@@ -22,5 +24,9 @@ MOCKS = {
                 )
             )
         ],
-    ),
+    )
+
+
+MOCKS: dict[str, Callable[..., MockResponseModel]] = {
+    "hello": hello_mock_response,
 }
