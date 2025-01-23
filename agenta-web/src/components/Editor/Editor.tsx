@@ -19,6 +19,8 @@ import {forwardRef, useCallback, useEffect, useRef} from "react"
 import {mergeRegister} from "@lexical/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
+import styles from './assets/Editor.module.css'
+
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
     parentId: string
@@ -42,7 +44,7 @@ export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
  * @param {boolean} debug - If true, debug information will be shown.
  * @param {boolean} showBorder - If true, the editor would have border style.
  */
-const Editor = forwardRef(
+const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
     (
         {
             id = crypto.randomUUID(),
@@ -167,9 +169,10 @@ const Editor = forwardRef(
     },
 )
 
-const EditorWrapper = ({
+const Editor = ({
     id = crypto.randomUUID(),
     initialValue = "",
+    disabled = false,
     className,
     onChange,
     placeholder = "",
@@ -205,6 +208,7 @@ const EditorWrapper = ({
         initialValue,
         codeOnly,
         enableTokens,
+        disabled
     })
 
     if (!config) {
@@ -228,15 +232,17 @@ const EditorWrapper = ({
     return (
         <div
             className={clsx([
+                styles["agenta-rich-text-editor"],
                 "bg-[#F5F7FA] text-[#1C2C3D] min-h-16 relative flex flex-col px-[11px] rounded-lg",
                 {
                     "border border-solid border-[#BDC7D1]": showBorder,
+                    "disabled": disabled
                 },
                 className,
             ])}
         >
             <LexicalComposer initialConfig={config}>
-                <Editor
+                <EditorInner
                     ref={containerRef}
                     dimensions={dimensions}
                     id={id}
@@ -255,4 +261,4 @@ const EditorWrapper = ({
     )
 }
 
-export default EditorWrapper
+export default Editor
