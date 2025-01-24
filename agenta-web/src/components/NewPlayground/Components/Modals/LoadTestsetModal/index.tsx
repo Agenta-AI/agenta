@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 import {TestSet, testset} from "@/lib/Types"
 import {fetchTestset, useLoadTestsetsList} from "@/services/testsets/api"
 import {Play} from "@phosphor-icons/react"
@@ -6,7 +6,6 @@ import {Divider, Input, Menu, Modal, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {LoadTestsetModalProps} from "./types"
 import {useStyles} from "./styles"
-import useLazyEffect from "@/hooks/useLazyEffect"
 import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
@@ -22,21 +21,6 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [searchTerm, setSearchTerm] = useState("")
 
-    useLazyEffect(() => {
-        if (testsets.length > 0 && !selectedTestset) {
-            const firstTestsetId = testsets[0]?._id
-            setSelectedTestset(firstTestsetId)
-            testsetFetcher(firstTestsetId)
-        }
-    }, [testsets])
-
-    const filteredTestset = useMemo(() => {
-        if (!searchTerm) return testsets
-        return testsets.filter((item: testset) =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, testsets])
-
     const testsetFetcher = useCallback(
         async (testsetId: string) => {
             try {
@@ -49,8 +33,23 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                 setIsLoadingTestset(false)
             }
         },
-        [fetchTestset],
+        [fetchTestset, setTestsetCsvData],
     )
+
+    useEffect(() => {
+        if (testsets.length > 0 && !selectedTestset.trim()) {
+            const firstTestsetId = testsets[0]?._id
+            setSelectedTestset(firstTestsetId)
+            testsetFetcher(firstTestsetId)
+        }
+    }, [testsets])
+
+    const filteredTestset = useMemo(() => {
+        if (!searchTerm) return testsets
+        return testsets.filter((item: testset) =>
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()),
+        )
+    }, [searchTerm, testsets])
 
     const rowSelection = useMemo(
         () => ({
