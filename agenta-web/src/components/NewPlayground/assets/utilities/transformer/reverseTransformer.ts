@@ -11,10 +11,46 @@ function shouldIncludeValue(value: unknown): boolean {
     return true
 }
 
+export const checkValidity = (obj: Record<string, unknown>, metadata: ConfigMetadata) => {
+    if (!metadata?.properties) return true
+
+    for (const [propName, propMetadata] of Object.entries(metadata.properties)) {
+        const snakeCasePropName = toSnakeCase(propName)
+        // If property is required (not nullable) and value is missing or undefined
+        if (
+            propMetadata.nullable === false &&
+            (!(snakeCasePropName in obj) || !obj[snakeCasePropName])
+        ) {
+            return false
+        }
+    }
+
+    // TODO: REMOVE THIS EDGE CASE and COME UP WITH A CORRECTED GENERIC
+    // SUBSTITUTION FOR THIS CHECK
+    if (metadata.type === "object" && metadata.title === "Message") {
+        const nullableKeys = Object.keys(metadata.properties)
+            .map((key) => {
+                const snaked = toSnakeCase(key)
+                if (metadata.properties[key].nullable) {
+                    return snaked
+                } else {
+                    return undefined
+                }
+            })
+            .filter(Boolean)
+
+        const allEmpty = nullableKeys.every((key) => {
+            return !obj[key]
+        })
+
+        if (allEmpty) return false
+    }
+    return true
+}
 /**
  * Extract raw value based on metadata type
  */
-function extractValueByMetadata(
+export function extractValueByMetadata(
     _enhanced: Record<string, any> | null | undefined,
     allMetadata: Record<string, ConfigMetadata>,
 ): unknown {
@@ -70,7 +106,6 @@ function extractValueByMetadata(
             return arr.length > 0 ? arr : undefined
         }
         case "object": {
-            console.log("OBJECT 1")
             const obj = Object.entries(enhanced)
                 .filter(([key]) => !key.startsWith("__"))
                 .reduce(
@@ -83,22 +118,6 @@ function extractValueByMetadata(
                     },
                     {} as Record<string, unknown>,
                 )
-
-            const checkValidity = (obj: Record<string, unknown>, metadata: ConfigMetadata) => {
-                if (!metadata?.properties) return true
-
-                for (const [propName, propMetadata] of Object.entries(metadata.properties)) {
-                    const snakeCasePropName = toSnakeCase(propName)
-                    // If property is required (not nullable) and value is missing or undefined
-                    if (
-                        propMetadata.nullable === false &&
-                        (!(snakeCasePropName in obj) || !obj[snakeCasePropName])
-                    ) {
-                        return false
-                    }
-                }
-                return true
-            }
 
             return Object.keys(obj).length > 0 &&
                 checkValidity(obj, allMetadata[enhanced.__metadata])
