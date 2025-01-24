@@ -9,11 +9,11 @@ import AppContextProvider from "@/contexts/app.context"
 import ProfileContextProvider from "@/contexts/profile.context"
 import ProjectContextProvider from "@/contexts/project.context"
 import AuthProvider from "@/lib/helpers/auth/AuthProvider"
-import OrgWrapper from "@/components/OrgWrapper/OrgWrapper"
 import GlobalScripts from "@/components/Scripts/GlobalScripts"
 import {Inter} from "next/font/google"
 import AgSWRConfig from "@/lib/api/SWRConfig"
 import {useSentryIntegrations} from "@/lib/helpers/sentry/hook/useSentryIntegrations"
+import OrgContextProvider from "@/contexts/org.context"
 
 const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 const CustomPosthogProvider = dynamic(() => import("@/lib/helpers/analytics/AgPosthogProvider"))
@@ -36,7 +36,7 @@ export default function App({Component, pageProps}: AppProps) {
                         <AuthProvider pageProps={pageProps}>
                             <ThemeContextProvider>
                                 <ProfileContextProvider>
-                                    <OrgWrapper>
+                                    <OrgContextProvider>
                                         <ProjectContextProvider>
                                             <AppContextProvider>
                                                 <Layout>
@@ -45,7 +45,7 @@ export default function App({Component, pageProps}: AppProps) {
                                                 </Layout>
                                             </AppContextProvider>
                                         </ProjectContextProvider>
-                                    </OrgWrapper>
+                                    </OrgContextProvider>
                                 </ProfileContextProvider>
                             </ThemeContextProvider>
                         </AuthProvider>
