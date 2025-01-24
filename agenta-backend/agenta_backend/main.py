@@ -51,6 +51,10 @@ origins = [
 celery_app = Celery("agenta_app")
 celery_app.config_from_object(celery_config)
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI, cache=True):
@@ -62,11 +66,17 @@ async def lifespan(application: FastAPI, cache=True):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
+    logger.error(" --------------------- ")
+    logger.error("| Starting core tasks |")
+    logger.error(" --------------------- ")
+
     await check_for_new_migrations()
-    if await check_if_templates_table_exist():
-        await templates_manager.update_and_sync_templates(cache=cache)
 
     yield
+
+    logger.error(" --------------------- ")
+    logger.error("| Stopping core tasks |")
+    logger.error(" --------------------- ")
 
 
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
@@ -136,3 +146,8 @@ if isCloudEE():
     import agenta_backend.cloud.main as cloud
 
     app = cloud.extend_app_schema(app)
+
+if isCloudEE():
+    import agenta_backend.cloud.main as cloud
+
+    app = cloud.extend_lifespan(app)
