@@ -24,6 +24,7 @@ const PromptComparisonVariantNavigation = ({
             activationConstraint: {
                 delay: 100,
                 tolerance: 5,
+                distance: 5,
             },
         }),
     )
