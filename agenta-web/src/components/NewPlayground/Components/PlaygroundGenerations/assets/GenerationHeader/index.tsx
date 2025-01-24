@@ -27,13 +27,18 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     const messageRows = state.generationData.messages.value
 
                     const results = messageRows
-                        .map((inputRow) =>
-                            variantId ? inputRow?.__runs?.[variantId]?.__result : null,
-                        )
+                        .flatMap((message) => {
+                            const historyArray = message.history.value
+                            return historyArray.map(
+                                (history) => history.__runs?.[variantId]?.__result,
+                            )
+                        })
                         .filter(Boolean)
 
                     const isRunning = messageRows.some((inputRow) =>
-                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                        inputRow.history.value.some((history) =>
+                            variantId ? history.__runs?.[variantId]?.__isRunning : false,
+                        ),
                     )
                     return {results, isRunning}
                 } else {
