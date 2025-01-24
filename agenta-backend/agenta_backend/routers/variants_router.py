@@ -61,60 +61,53 @@ async def add_variant_from_base_and_config(
     Returns:
         Union[AppVariantResponse, Any]: New variant details or exception.
     """
-    try:
-        logger.debug("Initiating process to add a variant based on a previous one.")
-        logger.debug(f"Received payload: {payload}")
 
-        base_db = await db_manager.fetch_base_by_id(payload.base_id)
+    logger.debug("Initiating process to add a variant based on a previous one.")
+    logger.debug(f"Received payload: {payload}")
 
-        # Check user has permission to add variant
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(base_db.project_id),
-                permission=Permission.CREATE_APPLICATION,
-            )
-            logger.debug(
-                f"User has Permission to create variant from base and config: {has_permission}"
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
+    base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
-        # Find the previous variant in the database
-        db_app_variant = await db_manager.add_variant_from_base_and_config(
-            base_db=base_db,
-            new_config_name=payload.new_config_name,
-            parameters=payload.parameters,
+    # Check user has permission to add variant
+    if isCloudEE():
+        has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(base_db.project_id),
+            permission=Permission.CREATE_APPLICATION,
         )
-        logger.debug(f"Successfully added new variant: {db_app_variant}")
-
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=str(db_app_variant.app_id),
-            object_type="app",
-            project_id=str(base_db.project_id),
+        logger.debug(
+            f"User has Permission to create variant from base and config: {has_permission}"
         )
-        logger.debug("Successfully updated last_modified_by app information")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
 
-        app_variant_db = await db_manager.get_app_variant_instance_by_id(
-            str(db_app_variant.id), str(db_app_variant.project_id)
-        )
-        return await converters.app_variant_db_to_output(app_variant_db)
+    # Find the previous variant in the database
+    db_app_variant = await db_manager.add_variant_from_base_and_config(
+        base_db=base_db,
+        new_config_name=payload.new_config_name,
+        parameters=payload.parameters,
+        user_uid=request.state.user_id,
+        project_id=str(base_db.project_id),
+    )
+    logger.debug(f"Successfully added new variant: {db_app_variant}")
 
-    except Exception as e:
-        import traceback
+    # Update last_modified_by app information
+    await app_manager.update_last_modified_by(
+        user_uid=request.state.user_id,
+        object_id=str(db_app_variant.app_id),
+        object_type="app",
+        project_id=str(base_db.project_id),
+    )
+    logger.debug("Successfully updated last_modified_by app information")
 
-        traceback.print_exc()
-        logger.error(f"An exception occurred while adding the new variant: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    app_variant_db = await db_manager.get_app_variant_instance_by_id(
+        str(db_app_variant.id), str(db_app_variant.project_id)
+    )
+    return await converters.app_variant_db_to_output(app_variant_db)
 
 
 @router.delete("/{variant_id}/", operation_id="remove_variant")
@@ -164,12 +157,6 @@ async def remove_variant(
     except DockerException as e:
         detail = f"Docker error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        detail = f"Unexpected error while trying to remove the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.put("/{variant_id}/parameters/", operation_id="update_variant_parameters")
@@ -192,6 +179,7 @@ async def update_variant_parameters(
     Returns:
         JSONResponse: A JSON response containing the updated app variant parameters.
     """
+
     try:
         variant_db = await db_manager.fetch_app_variant_by_id(variant_id)
         if isCloudEE():
@@ -228,12 +216,6 @@ async def update_variant_parameters(
         logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
 
@@ -301,12 +283,6 @@ async def update_variant_image(
 
         traceback.print_exc()
         detail = f"Docker error while trying to update the app variant: {str(e)}"
-        raise HTTPException(status_code=500, detail=detail)
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
 
@@ -399,30 +375,24 @@ async def get_variant(
     request: Request,
 ):
     logger.debug("getting variant " + variant_id)
-    try:
-        app_variant = await db_manager.fetch_app_variant_by_id(
-            app_variant_id=variant_id
+    app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
+
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app_variant.project_id),
+            permission=Permission.VIEW_APPLICATION,
         )
-
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app_variant.project_id),
-                permission=Permission.VIEW_APPLICATION,
+        logger.debug(f"User has Permission to get variant: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            logger.debug(f"User has Permission to get variant: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        return await converters.app_variant_db_to_output(app_variant)
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    return await converters.app_variant_db_to_output(app_variant)
 
 
 @router.get(
@@ -435,35 +405,27 @@ async def get_variant_revisions(
     request: Request,
 ):
     logger.debug("getting variant revisions: ", variant_id)
-    try:
-        app_variant = await db_manager.fetch_app_variant_by_id(
-            app_variant_id=variant_id
-        )
+    app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app_variant.project_id),
-                permission=Permission.VIEW_APPLICATION,
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app_variant.project_id),
+            permission=Permission.VIEW_APPLICATION,
+        )
+        logger.debug(f"User has Permission to get variant: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            logger.debug(f"User has Permission to get variant: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
-            app_variant=app_variant, project_id=str(app_variant.project_id)
-        )
-        return await converters.app_variant_db_revisions_to_output(
-            app_variant_revisions
-        )
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
+        app_variant=app_variant, project_id=str(app_variant.project_id)
+    )
+    return await converters.app_variant_db_revisions_to_output(app_variant_revisions)
 
 
 @router.get(
@@ -477,46 +439,36 @@ async def get_variant_revision(
     request: Request,
 ):
     logger.debug("getting variant revision: ", variant_id, revision_number)
-    try:
-        assert (
-            variant_id != "undefined"
-        ), "Variant id is required to retrieve variant revision"
-        app_variant = await db_manager.fetch_app_variant_by_id(
-            app_variant_id=variant_id
-        )
+    assert (
+        variant_id != "undefined"
+    ), "Variant id is required to retrieve variant revision"
+    app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app_variant.project_id),
-                permission=Permission.VIEW_APPLICATION,
-            )
-            logger.debug(f"User has Permission to get variant: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        app_variant_revision = await db_manager.fetch_app_variant_revision(
-            variant_id, revision_number
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app_variant.project_id),
+            permission=Permission.VIEW_APPLICATION,
         )
-        if not app_variant_revision:
-            raise HTTPException(
-                404,
-                detail=f"Revision {revision_number} does not exist for variant '{app_variant.variant_name}'. Please check the available revisions and try again.",
+        logger.debug(f"User has Permission to get variant: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
 
-        return await converters.app_variant_db_revision_to_output(app_variant_revision)
-    except Exception as e:
-        import traceback
+    app_variant_revision = await db_manager.fetch_app_variant_revision(
+        variant_id, revision_number
+    )
+    if not app_variant_revision:
+        raise HTTPException(
+            404,
+            detail=f"Revision {revision_number} does not exist for variant '{app_variant.variant_name}'. Please check the available revisions and try again.",
+        )
 
-        traceback.print_exc()
-        logger.exception(f"An error occurred: {str(e)}")
-        status_code = e.status_code if hasattr(e, "status_code") else 500
-        raise HTTPException(status_code=status_code, detail=str(e))
+    return await converters.app_variant_db_revision_to_output(app_variant_revision)
 
 
 ### --- CONFIGS --- ###
