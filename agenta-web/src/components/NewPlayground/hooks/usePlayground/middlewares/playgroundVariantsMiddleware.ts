@@ -3,7 +3,11 @@ import {useCallback} from "react"
 import {getCurrentProject} from "@/contexts/project.context"
 import {getJWT} from "@/services/api"
 
-import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
+import {
+    checkValidity,
+    extractValueByMetadata,
+    transformToRequestBody,
+} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
 import {message} from "../../../state/messageContext"
 
@@ -220,36 +224,11 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
                             for (const messageRow of messageRows) {
                                 const messagesInRow = messageRow.history.value
-                                // console.log("messagesInRow", messagesInRow)
 
                                 let lastMessage = messagesInRow[messagesInRow.length - 1]
-                                const checkValidity = (
-                                    obj: Record<string, unknown>,
-                                    metadata: ConfigMetadata,
-                                ) => {
-                                    if (obj.__runs) return true
-                                    if (!metadata?.properties) return true
-
-                                    for (const [propName, propMetadata] of Object.entries(
-                                        metadata.properties,
-                                    )) {
-                                        // const snakeCasePropName = toSnakeCase(propName)
-                                        // If property is required (not nullable) and value is missing or undefined
-                                        if (
-                                            propMetadata.nullable === false &&
-                                            (!(propName in obj) || !obj[propName]?.value)
-                                        ) {
-                                            return false
-                                        }
-                                    }
-                                    return true
-                                }
                                 if (
                                     !!lastMessage &&
-                                    !checkValidity(
-                                        lastMessage,
-                                        getMetadataLazy(lastMessage.__metadata),
-                                    )
+                                    !extractValueByMetadata(lastMessage, getAllMetadata())
                                 ) {
                                     console.log("removing INVALID last message")
                                     messageRow.history.value = [
