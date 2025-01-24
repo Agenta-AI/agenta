@@ -68,7 +68,7 @@ const GenerationComparisonChatOutputRow = ({
 const GenerationComparisonChatOutput = ({
     variantId,
     className,
-    messageRow,
+    rowId,
 }: GenerationComparisonChatOutputProps) => {
     const {isVariantRunning} = usePlayground({
         variantId,
@@ -90,9 +90,9 @@ const GenerationComparisonChatOutput = ({
         <div className={clsx("flex flex-col w-full", className)}>
             <section className="border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
                 <GenerationComparisonChatOutputRow
-                    key={messageRow}
+                    key={rowId}
                     variantId={variantId}
-                    rowId={messageRow}
+                    rowId={rowId}
                     isVariantRunning={isVariantRunning}
                 />
 

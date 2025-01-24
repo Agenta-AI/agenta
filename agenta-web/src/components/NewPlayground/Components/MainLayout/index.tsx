@@ -205,6 +205,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 },
                             ])}
                         >
+                            {/* This component renders the Input variables in comparison view  */}
                             {isComparisonView &&
                                 (displayedVariants?.slice(0, 1) || []).map((variantId) => {
                                     return (
@@ -220,6 +221,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 })}
 
                             <div>
+                                {/* This component renders Output component header section */}
                                 {isComparisonView && (
                                     <div className="flex">
                                         {displayedVariants.map((variantId, index) => (
@@ -232,16 +234,17 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     </div>
                                 )}
 
+                                {/* This component renders Output components based on the view type. 
+                                    If the view is 'comparison', it uses generationData to render the component. 
+                                    In 'single' view, it uses the variant id to render the component. */}
                                 {isComparisonView
-                                    ? ((rowIds as string[]) || []).map((inputRow) => {
+                                    ? ((rowIds as string[]) || []).map((rowId) => {
                                           return (
                                               <div
-                                                  key={inputRow}
+                                                  key={rowId}
                                                   className="[&::-webkit-scrollbar]:w-0 w-[400px] flex flex-shrink-0"
                                               >
-                                                  <GenerationComparisonOutputConfig
-                                                      inputRow={inputRow}
-                                                  />
+                                                  <GenerationComparisonOutputConfig rowId={rowId} />
                                               </div>
                                           )
                                       })

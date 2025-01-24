@@ -23,7 +23,7 @@ const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
     )
 }
 
-const GenerationComparisonOutputConfig = ({inputRow}: {inputRow: string}) => {
+const GenerationComparisonOutputConfig = ({rowId}: {rowId: string}) => {
     const {isChat, displayedVariants} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
             return {isChat: state.variants[0].isChat}
@@ -33,9 +33,9 @@ const GenerationComparisonOutputConfig = ({inputRow}: {inputRow: string}) => {
     return (displayedVariants || []).map((variantId) => (
         <div className="!w-[400px] shrink-0">
             {isChat ? (
-                <GenerationComparisonChatOutput variantId={inputRow} messageRow={inputRow} />
+                <GenerationComparisonChatOutput variantId={rowId} rowId={rowId} />
             ) : (
-                <GenerationComparisonCompletionOutput rowId={inputRow} variantId={variantId} />
+                <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />
             )}
         </div>
     ))
