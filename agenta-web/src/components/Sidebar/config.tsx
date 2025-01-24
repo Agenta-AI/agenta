@@ -14,7 +14,6 @@ import {
     Scroll,
     SlackLogo,
     Gear,
-    Dot,
     TreeView,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
@@ -40,7 +39,7 @@ export type SidebarConfig = {
 export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
-    const {currentApp, recentlyVisitedAppId, apps} = useAppsData()
+    const {currentApp, recentlyVisitedAppId} = useAppsData()
     const isOss = !isDemo()
     const {selectedOrg} = useOrgData()
 
