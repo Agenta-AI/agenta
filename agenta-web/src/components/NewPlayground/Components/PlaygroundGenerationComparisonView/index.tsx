@@ -1,4 +1,4 @@
-import React, {useCallback} from "react"
+import {useCallback} from "react"
 import GenerationComparisonCompletionInput from "./GenerationComparisonCompletionInput"
 import GenerationComparisonChatInput from "./GenerationComparisonChatInput"
 import usePlayground from "../../hooks/usePlayground"
@@ -14,7 +14,7 @@ const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
     })
 
     return isChat ? (
-        <GenerationComparisonChatInput />
+        <GenerationComparisonChatInput variantId={variantId} />
     ) : (
         <GenerationComparisonCompletionInput
             variantId={variantId}
@@ -23,24 +23,22 @@ const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
     )
 }
 
-const GenerationComparisonOutputConfig = ({
-    variantId,
-    indexName,
-}: {
-    variantId: string
-    indexName: string
-}) => {
-    const {isChat} = usePlayground({
+const GenerationComparisonOutputConfig = ({inputRow}: {inputRow: string}) => {
+    const {isChat, displayedVariants} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
             return {isChat: state.variants[0].isChat}
         }, []),
     })
 
-    return isChat ? (
-        <GenerationComparisonChatOutput variantId={variantId} indexName={indexName} />
-    ) : (
-        <GenerationComparisonCompletionOutput variantId={variantId} indexName={indexName} />
-    )
+    return (displayedVariants || []).map((variantId) => (
+        <div className="!w-[400px] shrink-0">
+            {isChat ? (
+                <GenerationComparisonChatOutput variantId={inputRow} messageRow={inputRow} />
+            ) : (
+                <GenerationComparisonCompletionOutput rowId={inputRow} variantId={variantId} />
+            )}
+        </div>
+    ))
 }
 
 export {GenerationComparisonInputConfig, GenerationComparisonOutputConfig}

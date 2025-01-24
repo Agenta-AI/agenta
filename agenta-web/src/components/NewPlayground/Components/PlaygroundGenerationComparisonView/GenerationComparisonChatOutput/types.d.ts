@@ -6,5 +6,5 @@ export type GenerationComparisonChatOutputRowProps = {
 export type GenerationComparisonChatOutputProps = {
     variantId: string
     className?: string
-    indexName: string
+    messageRow: string
 }

@@ -1,26 +1,20 @@
+import {useCallback} from "react"
 import clsx from "clsx"
 import {useStyles} from "../styles"
-import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
 import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {useCallback} from "react"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
 
-const GenerationComparisonCompletionOutputRow = ({
+const GenerationComparisonCompletionOutput = ({
     rowId,
-    focusDisable,
+    focusDisable = false,
     className,
     variantId,
-}: {
-    rowId: string
-    focusDisable: boolean
-    className?: string
-    variantId: string
-}) => {
+}: GenerationComparisonCompletionOutputProps) => {
     const classes = useStyles()
     const {result, isRunning, variableIds} = usePlayground({
         stateSelector: useCallback(
@@ -91,44 +85,6 @@ const GenerationComparisonCompletionOutputRow = ({
                     <GenerationResultUtils result={result} />
                 </div>
             )}
-        </div>
-    )
-}
-
-const GenerationComparisonCompletionOutput = ({
-    variantId,
-    className,
-    focusDisable = false,
-    indexName,
-}: GenerationComparisonCompletionOutputProps) => {
-    const {inputRowIds} = usePlayground({
-        stateSelector: (state) => {
-            const inputRows = state.generationData.inputs.value || []
-            return {
-                inputRowIds: inputRows.map((inputRow) => inputRow.__id),
-            }
-        },
-    })
-
-    return (
-        <div className="flex flex-col w-full">
-            <GenerationComparisonOutputHeader
-                variantId={variantId}
-                indexName={indexName}
-                className="sticky top-0 z-[1]"
-            />
-
-            {inputRowIds.map((inputRowId) => {
-                return (
-                    <GenerationComparisonCompletionOutputRow
-                        key={inputRowId}
-                        variantId={variantId}
-                        rowId={inputRowId}
-                        className={className}
-                        focusDisable={focusDisable}
-                    />
-                )
-            })}
         </div>
     )
 }

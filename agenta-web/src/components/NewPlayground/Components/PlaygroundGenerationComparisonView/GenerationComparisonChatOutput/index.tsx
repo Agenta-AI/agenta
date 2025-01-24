@@ -1,14 +1,10 @@
-import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
-import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {useCallback} from "react"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
-import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputRowProps} from "./types"
-import clsx from "clsx"
 import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {GenerationChatRowOutput} from "../../PlaygroundGenerations/assets/GenerationChatRow"
+import clsx from "clsx"
 
 const GenerationComparisonChatOutputRow = ({
     variantId,
@@ -72,9 +68,9 @@ const GenerationComparisonChatOutputRow = ({
 const GenerationComparisonChatOutput = ({
     variantId,
     className,
-    indexName,
+    messageRow,
 }: GenerationComparisonChatOutputProps) => {
-    const {messageRowIds, isVariantRunning} = usePlayground({
+    const {isVariantRunning} = usePlayground({
         variantId,
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const messageRows = state.generationData.messages.value || []
@@ -86,30 +82,20 @@ const GenerationComparisonChatOutput = ({
 
             return {
                 isVariantRunning,
-                messageRowIds: (messageRows || [])
-                    .map((messageRow) => messageRow.__id)
-                    .filter(Boolean),
             }
         }, []),
     })
 
     return (
         <div className={clsx("flex flex-col w-full", className)}>
-            <GenerationComparisonOutputHeader
-                variantId={variantId}
-                indexName={indexName}
-                className="sticky top-0 z-[1]"
-            />
-
             <section className="border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
-                {messageRowIds.map((messageRow) => (
-                    <GenerationComparisonChatOutputRow
-                        key={messageRow}
-                        variantId={variantId}
-                        rowId={messageRow}
-                        isVariantRunning={isVariantRunning}
-                    />
-                ))}
+                <GenerationComparisonChatOutputRow
+                    key={messageRow}
+                    variantId={variantId}
+                    rowId={messageRow}
+                    isVariantRunning={isVariantRunning}
+                />
+
                 {!isVariantRunning ? (
                     <div className="flex items-center justify-center h-[48px] text-[#a0a0a0]">
                         No messages
