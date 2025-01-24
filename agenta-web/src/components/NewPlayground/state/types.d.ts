@@ -7,5 +7,12 @@ export interface InitialStateType {
     selected: string[]
     spec?: OpenAPISpec
     dirtyStates: Record<string, boolean>
-    generationData: EnhancedVariant["inputs"]
+    generationData: {
+        inputs: EnhancedVariant["inputs"]
+        messages: Enhanced<
+            {
+                history: EnhancedVariant["messages"]
+            }[]
+        >
+    }
 }

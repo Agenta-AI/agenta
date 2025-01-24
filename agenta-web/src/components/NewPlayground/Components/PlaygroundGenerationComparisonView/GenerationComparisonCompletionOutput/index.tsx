@@ -25,7 +25,7 @@ const GenerationComparisonCompletionOutputRow = ({
     const {result, isRunning, variableIds} = usePlayground({
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRow = state.generationData.value.find((inputRow) => {
+                const inputRow = state.generationData.inputs.value.find((inputRow) => {
                     return inputRow.__id === rowId
                 })
                 const variantRun = inputRow?.__runs?.[variantId]
@@ -103,7 +103,7 @@ const GenerationComparisonCompletionOutput = ({
 }: GenerationComparisonCompletionOutputProps) => {
     const {inputRowIds} = usePlayground({
         stateSelector: (state) => {
-            const inputRows = state.generationData.value || []
+            const inputRows = state.generationData.inputs.value || []
             return {
                 inputRowIds: inputRows.map((inputRow) => inputRow.__id),
             }

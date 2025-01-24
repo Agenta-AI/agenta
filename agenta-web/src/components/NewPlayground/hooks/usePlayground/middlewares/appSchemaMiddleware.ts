@@ -15,7 +15,8 @@ import type {
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
 } from "../types"
-import {initializeComparisonInputs} from "../assets/comparisonHelpers"
+import {initializeGenerationInputs, initializeGenerationMessages} from "../assets/generationHelpers"
+import {detectChatVariantFromOpenAISchema} from "@/components/NewPlayground/assets/utilities/genericTransformer"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -77,9 +78,21 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             setVariants(state.variants, variants),
                             spec,
                         )
+
                         atomStore.set(specAtom, () => spec)
+
                         state.selected = [state.variants[0].id]
-                        state.generationData = initializeComparisonInputs([state.variants[0]])
+
+                        state.generationData.inputs = initializeGenerationInputs(
+                            state.variants.filter((v) => state.selected.includes(v.id)),
+                        )
+
+                        // initializeVariantInputs(enhancedVariant)
+                        if (detectChatVariantFromOpenAISchema(spec)) {
+                            state.generationData.messages = initializeGenerationMessages(
+                                state.variants,
+                            )
+                        }
 
                         return state
                     } catch (error) {

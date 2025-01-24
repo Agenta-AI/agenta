@@ -1,35 +1,70 @@
 import {useCallback} from "react"
-import {GenerationChatProps} from "./types"
-import GenerationCompletionRow from "../GenerationCompletionRow"
-import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import clsx from "clsx"
-import GenerationChatRow from "../GenerationChatRow"
-import AddButton from "@/components/NewPlayground/assets/AddButton"
+
 import {Typography} from "antd"
-import {Plus} from "@phosphor-icons/react"
+import clsx from "clsx"
 
-const GenerationChat = ({variantId}: GenerationChatProps) => {
-    const {inputRowIds, messages} = usePlayground({
-        variantId,
-        hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            const inputRows = variant.inputs?.value || []
+import GenerationCompletionRow from "../GenerationCompletionRow"
+import GenerationChatRow from "../GenerationChatRow"
+import {getMetadataLazy} from "../../../../state"
 
-            // Flatten messages from all prompts
-            const allMessages = variant.prompts
-                ?.flatMap((prompt) => prompt.messages?.value || [])
-                .filter(Boolean)
+import usePlayground from "../../../../hooks/usePlayground"
 
-            return {
-                inputRowIds: (inputRows || []).map((inputRow) => inputRow.__id),
-                messages: allMessages || [],
-            }
-        }, []),
-    })
+import type {GenerationChatProps} from "./types"
+import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+
+const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
+    const {mutate, inputRowIds, messageRowIds, isRunning, runTests, viewType, configMessageIds} =
+        usePlayground({
+            variantId,
+            hookId: "PlaygroundConfigVariantPrompts",
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const inputRows = state.generationData.inputs.value || []
+                    const messageRows = state.generationData.messages.value || []
+                    const configMessages = (
+                        state.variants.find((v) => v.id === variantId)?.prompts || []
+                    ).flatMap((variant) => {
+                        return variant.messages.value
+                    })
+
+                    const isRunning = messageRows.some((messageRow) => {
+                        return Object.values(messageRow?.__runs || {}).some(
+                            (run) => run.__isRunning,
+                        )
+                    })
+
+                    const isComparisonView = state.selected.length > 1
+
+                    return {
+                        isRunning,
+                        inputRowIds: (inputRows || [])
+                            .filter((inputRow) => {
+                                return (
+                                    Object.keys(getMetadataLazy(inputRow.__metadata)?.properties)
+                                        .length > 0
+                                )
+                            })
+                            .map((inputRow) => inputRow.__id),
+                        messageRowIds: (messageRows || [])
+                            .map((messageRow) => {
+                                return isComparisonView
+                                    ? !Object.keys(messageRow.__runs || {}).length
+                                        ? messageRow.__id
+                                        : undefined
+                                    : messageRow.__id
+                            })
+                            .filter(Boolean),
+                        configMessageIds: configMessages.map((message) => message.__id),
+                    }
+                },
+                [variantId],
+            ),
+        })
+    const isComparisonView = viewType === "comparison"
 
     return (
         <section className="flex flex-col">
+            {/* Variables */}
             {inputRowIds.map((inputRowId) => {
                 return (
                     <GenerationCompletionRow
@@ -37,40 +72,55 @@ const GenerationChat = ({variantId}: GenerationChatProps) => {
                         variantId={variantId}
                         rowId={inputRowId}
                         inputOnly={true}
+                        className={clsx([
+                            {
+                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                    isComparisonView,
+                            },
+                        ])}
                     />
                 )
             })}
 
-            <div className="flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)] group/item">
+            {/* Prompt chats */}
+            <div
+                className={clsx([
+                    "flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    {"!border-none !p-0 !gap-0 bg-[#f5f7fa]": isComparisonView},
+                ])}
+            >
                 <div className="flex flex-col gap-1">
-                    <Typography>Chat</Typography>
-                    <div className="flex flex-col gap-6">
-                        {messages.map((msg) => (
+                    {!isComparisonView && <Typography>Chat</Typography>}
+                    <div className={clsx(["flex flex-col gap-5", {"!gap-0": isComparisonView}])}>
+                        {!isComparisonView
+                            ? configMessageIds.map((messageId) => (
+                                  <GenerationChatRow
+                                      key={messageId}
+                                      variantId={variantId}
+                                      messageId={messageId}
+                                      viewAs={viewAs}
+                                  />
+                              ))
+                            : null}
+                        {messageRowIds.map((messageRow) => (
                             <GenerationChatRow
-                                key={msg.__id}
+                                key={messageRow}
                                 variantId={variantId}
-                                message={msg}
-                                disabled={true}
-                                type="output"
+                                rowId={messageRow}
+                                withControls
                             />
                         ))}
                     </div>
                 </div>
 
-                <div className="w-full flex gap-2 items-center cursor-pointer invisible group-hover/item:visible">
-                    <div className="w-1/2 h-[1px] bg-[rgba(5,23,41,0.06)]" />
-                    <Plus size={16} />
-                    <div className="w-1/2 h-[1px] bg-[rgba(5,23,41,0.06)]" />
-                </div>
-
-                {/* TODO: properly support input on the GenerationChatRow  */}
-                <div className="flex flex-col gap-6">
-                    <GenerationChatRow variantId={variantId} message={messages[1]} type="input" />
-                </div>
-            </div>
-
-            <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
-                <AddButton size="small" label="Input" />
+                <div
+                    className={clsx([
+                        {
+                            "flex items-center h-[48px] px-4 border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                isComparisonView,
+                        },
+                    ])}
+                ></div>
             </div>
         </section>
     )

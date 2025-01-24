@@ -4,171 +4,15 @@ import {Typography} from "antd"
 
 import usePlayground from "../../hooks/usePlayground"
 import {componentLogger} from "../../assets/utilities/componentLogger"
-
-import MinMaxControl from "./assets/MinMaxControl"
-import BooleanControl from "./assets/BooleanControl"
-import MultiSelectControl from "./assets/MultiSelectControl"
-import SimpleDropdownSelect from "./assets/SimpleDropdownSelect"
-import PromptMessageContent from "./assets/PromptMessageContent"
-import TextControl from "./assets/TextControl"
-
-import type {PlaygroundVariantPropertyControlProps, RenderFunctions, ArrayItemValue} from "./types"
-import type {
-    Enhanced,
-    EnhancedConfigValue,
-    EnhancedObjectConfig,
-} from "../../assets/utilities/genericTransformer/types"
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
-import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 import {getMetadataLazy} from "../../state"
 
-const renderMap: RenderFunctions = {
-    number: ({withTooltip, metadata, value, handleChange}) => {
-        return (
-            <MinMaxControl
-                label={metadata.title || ""}
-                value={value}
-                onChange={handleChange}
-                min={metadata.min}
-                max={metadata.max}
-                step={metadata.isInteger ? 1 : 0.1}
-                withTooltip={withTooltip}
-                description={metadata.description}
-            />
-        )
-    },
+import {renderMap} from "./assets/helpers"
 
-    boolean: ({withTooltip, metadata, value, handleChange}) => (
-        <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
-    ),
-
-    string: ({withTooltip, metadata, value, handleChange, as, className, view}) => {
-        if (metadata.options) {
-            if (as === "SimpleDropdownSelect") {
-                return (
-                    <SimpleDropdownSelect
-                        value={value}
-                        options={metadata.options}
-                        onChange={handleChange}
-                        placeholder={metadata.description}
-                        className={className}
-                        description={metadata.description}
-                        withTooltip={withTooltip}
-                    />
-                )
-            }
-            return (
-                <MultiSelectControl
-                    label={metadata.title || ""}
-                    options={metadata.options}
-                    value={value}
-                    onChange={handleChange}
-                    description={metadata.description}
-                    withTooltip={withTooltip}
-                />
-            )
-        }
-
-        if (as === "PromptMessageContent") {
-            return (
-                <PromptMessageContent
-                    value={value}
-                    placeholder={metadata.description}
-                    onChange={handleChange}
-                    description={metadata.description}
-                    withTooltip={withTooltip}
-                />
-            )
-        }
-
-        return (
-            <TextControl
-                metadata={metadata}
-                value={value}
-                handleChange={handleChange}
-                className={className}
-                view={view}
-                description={metadata.description}
-                withTooltip={withTooltip}
-            />
-        )
-    },
-
-    array: ({withTooltip, metadata, value, handleChange}) => {
-        if (!Array.isArray(value?.value)) return null
-
-        return (
-            <div className="flex flex-col gap-2">
-                {value.value.map((item: EnhancedConfigValue<ArrayItemValue>) => {
-                    switch (item.__metadata.type) {
-                        case "string":
-                            return (
-                                <div key={item.__id}>
-                                    {renderMap.string({
-                                        withTooltip,
-                                        metadata: item.__metadata,
-                                        value: item.value,
-                                        handleChange: (newValue) => {
-                                            updateArrayItem(
-                                                value.value,
-                                                item.__id,
-                                                newValue,
-                                                handleChange,
-                                            )
-                                        },
-                                    })}
-                                </div>
-                            )
-                        case "number":
-                            return (
-                                <div key={item.__id}>
-                                    {renderMap.number({
-                                        withTooltip,
-                                        metadata: item.__metadata,
-                                        value: item.value,
-                                        handleChange: (newValue) => {
-                                            updateArrayItem(
-                                                value.value,
-                                                item.__id,
-                                                newValue,
-                                                handleChange,
-                                            )
-                                        },
-                                    })}
-                                </div>
-                            )
-                        case "boolean":
-                            return (
-                                <div key={item.__id}>
-                                    {renderMap.boolean({
-                                        withTooltip,
-                                        metadata: item.__metadata,
-                                        value: item.value,
-                                        handleChange: (newValue) => {
-                                            updateArrayItem(
-                                                value.value,
-                                                item.__id,
-                                                newValue,
-                                                handleChange,
-                                            )
-                                        },
-                                    })}
-                                </div>
-                            )
-                        default:
-                            return null
-                    }
-                })}
-            </div>
-        )
-    },
-
-    object: () => <Typography.Text>Object input not implemented</Typography.Text>,
-    compound: ({withTooltip, metadata}) => {
-        return <Typography.Text>Compound input not implemented</Typography.Text>
-    },
-} as const
+import type {PlaygroundVariantPropertyControlProps} from "./types"
+import type {Enhanced, EnhancedObjectConfig} from "../../assets/utilities/genericTransformer/types"
+import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 
 // TODO: RENAME TO PlaygroundPropertyControl
 const PlaygroundVariantPropertyControl = ({
@@ -179,6 +23,10 @@ const PlaygroundVariantPropertyControl = ({
     view,
     rowId,
     withTooltip,
+    value: propsValue,
+    disabled,
+    onChange,
+    placeholder,
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
@@ -190,7 +38,8 @@ const PlaygroundVariantPropertyControl = ({
         hookId: "PlaygroundVariantPropertyControl",
         stateSelector: (state) => {
             const object = !!rowId
-                ? state.generationData.value.find((v) => v.__id === rowId)
+                ? state.generationData.inputs.value.find((v) => v.__id === rowId) ||
+                  (state.generationData.messages.value || []).find((v) => v.__id === rowId)
                 : variantId
                   ? state.variants.find((v) => v.id === variantId)
                   : null
@@ -226,17 +75,22 @@ const PlaygroundVariantPropertyControl = ({
                                       : e
                                   : null
 
-                          const object = clonedState.generationData.value.find(
-                              (v) => v.__id === rowId,
-                          )
-                          if (!object) return clonedState
+                          const generationData = structuredClone(clonedState.generationData)
+                          const object =
+                              generationData.inputs.value.find((v) => v.__id === rowId) ||
+                              generationData.messages.value.find((v) => v.__id === rowId)
+
+                          if (!object) {
+                              return clonedState
+                          }
 
                           const property = findPropertyInObject(object, propertyId) as Enhanced<any>
+
                           if (!property) return clonedState
 
-                          if (property.value === val) return clonedState
-
                           property.value = val
+
+                          clonedState.generationData = generationData
 
                           return clonedState
                       },
@@ -276,24 +130,12 @@ const PlaygroundVariantPropertyControl = ({
             as,
             className,
             view,
+            placeholder,
+            disabled,
         })
     }
 
     return <Typography.Text>Unknown type: {metadata.type}</Typography.Text>
-}
-
-const updateArrayItem = (
-    array: EnhancedConfigValue<ArrayItemValue>[],
-    id: string,
-    newValue: any,
-    handleChange: (v: any) => void,
-) => {
-    const newArray = [...array]
-    const index = array.findIndex((v) => v.__id === id)
-    if (index !== -1) {
-        newArray[index] = {...newArray[index], value: newValue}
-        handleChange({value: newArray})
-    }
 }
 
 export default memo(PlaygroundVariantPropertyControl)

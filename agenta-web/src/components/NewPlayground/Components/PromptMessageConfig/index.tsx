@@ -7,7 +7,8 @@ import usePlayground from "../../hooks/usePlayground"
 import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PromptMessageConfigProps} from "./types"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import {PlaygroundStateData} from "../../hooks/usePlayground/types"
+import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
 const PromptMessageContentOptions = dynamic(
     () =>
         import(
@@ -33,29 +34,53 @@ const PromptMessageConfig = ({
     variantId,
     messageId,
     className,
+    rowId,
     deleteMessage,
     isMessageDeletable,
+    disabled,
+    debug,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
-                for (const prompt of variant.prompts || []) {
-                    const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
-                    if (message) {
-                        return {
-                            message: {
-                                role: message.role.__id,
-                                content: message.content.__id,
-                            },
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                if (!rowId) {
+                    const variant = findVariantById(state, variantId)
+                    if (!variant) return {message: undefined}
+
+                    for (const prompt of variant.prompts || []) {
+                        const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
+                        if (message) {
+                            return {
+                                message: {
+                                    role: message.role.__id,
+                                    content: message.content.__id,
+                                },
+                            }
                         }
                     }
+                    return {message: undefined}
+                } else {
+                    const object =
+                        state.generationData.inputs.value.find((v) => v.__id === rowId) ||
+                        state.generationData.messages.value.find((v) => v.__id === rowId)
+
+                    let message = findPropertyInObject(object, messageId)
+
+                    message = message?.value || message
+
+                    if (!message) return {message: undefined}
+                    return {
+                        message: {
+                            role: message.role.__id,
+                            content: message.content.__id,
+                        },
+                    }
                 }
-                return {message: undefined}
             },
-            [messageId],
+            [messageId, rowId, variantId],
         ),
     })
 
@@ -66,31 +91,42 @@ const PromptMessageConfig = ({
     componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
-        <>
-            <div className={clsx("flex flex-col gap-1 group/item", className)} {...props}>
-                <div className="w-full flex items-center justify-between">
-                    <PlaygroundVariantPropertyControl
-                        propertyId={message.role}
-                        variantId={variantId}
-                        as="SimpleDropdownSelect"
-                    />
-
-                    <PromptMessageContentOptions
-                        className="invisible group-hover/item:visible"
-                        deleteMessage={deleteMessage}
-                        propertyId={message.content}
-                        variantId={variantId}
-                        messageId={messageId}
-                        isMessageDeletable={isMessageDeletable}
-                    />
-                </div>
+        <div
+            className={clsx(
+                "w-full flex flex-col items-start gap-2 relative group/item",
+                className,
+            )}
+            {...props}
+        >
+            <div className="w-full flex items-center justify-between">
                 <PlaygroundVariantPropertyControl
-                    propertyId={message.content}
+                    propertyId={message.role}
                     variantId={variantId}
-                    as="PromptMessageContent"
+                    rowId={rowId}
+                    as="SimpleDropdownSelect"
+                    disabled={disabled}
+                />
+
+                <PromptMessageContentOptions
+                    className="invisible group-hover/item:visible"
+                    deleteMessage={deleteMessage}
+                    propertyId={message.content}
+                    rowId={rowId}
+                    variantId={variantId}
+                    messageId={messageId}
+                    isMessageDeletable={isMessageDeletable}
+                    disabled={disabled}
                 />
             </div>
-        </>
+            <PlaygroundVariantPropertyControl
+                rowId={rowId}
+                propertyId={message.content}
+                variantId={variantId}
+                as="PromptMessageContent"
+                className="w-full"
+                disabled={disabled}
+            />
+        </div>
     )
 }
 

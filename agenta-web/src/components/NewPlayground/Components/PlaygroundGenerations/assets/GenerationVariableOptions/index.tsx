@@ -1,18 +1,21 @@
 import {useCallback} from "react"
+
 import {Copy, MinusCircle} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {GenerationVariableOptionsProps} from "./types"
 import clsx from "clsx"
+
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
-import {
+import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
+import {createInputRow} from "../../../../hooks/usePlayground/assets/inputHelpers"
+import {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
+import usePlayground from "../../../../hooks/usePlayground"
+import {getMetadataLazy} from "../../../../state"
+
+import type {
     ArrayMetadata,
     ObjectMetadata,
-} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
+} from "../../../../assets/utilities/genericTransformer/types"
+import type {GenerationVariableOptionsProps} from "./types"
 
 const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
@@ -25,7 +28,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
         variantId,
         hookId: "GenerationVariableOptions",
         stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.value || []
+            const inputRows = state.generationData.inputs.value || []
             const inputRow = inputRows.find((inputRow) => {
                 return inputRow.__id === rowId
             })
@@ -41,8 +44,8 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
             (clonedState) => {
                 if (!clonedState) return clonedState
 
-                const generationRows = clonedState.generationData.value
-                clonedState.generationData.value = generationRows.filter(
+                const generationRows = clonedState.generationData.inputs.value
+                clonedState.generationData.inputs.value = generationRows.filter(
                     (row) => row.__id !== rowId,
                 )
 
@@ -67,7 +70,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 const inputKeys = Object.keys(itemMetadata.properties)
                 const newRow = createInputRow(inputKeys, itemMetadata)
 
-                const existingRow = clonedState?.generationData.value.find(
+                const existingRow = clonedState?.generationData.inputs.value.find(
                     (row) => row.__id === rowId,
                 )
 
@@ -79,7 +82,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                     })
                 }
 
-                clonedState.generationData.value.push(newRow)
+                clonedState.generationData.inputs.value.push(newRow)
 
                 return clonedState
             },

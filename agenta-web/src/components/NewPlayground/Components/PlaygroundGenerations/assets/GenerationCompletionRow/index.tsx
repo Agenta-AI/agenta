@@ -34,7 +34,7 @@ const GenerationCompletionRow = ({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRow = state.generationData.value.find((inputRow) => {
+                const inputRow = state.generationData.inputs.value.find((inputRow) => {
                     return inputRow.__id === rowId
                 })
 
@@ -46,11 +46,12 @@ const GenerationCompletionRow = ({
                 const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
 
                 return {
+                    isChat: state.variants[0]?.isChat,
                     variableIds,
                     canRun,
                     result,
                     isRunning,
-                    isChat: state.variants[0]?.isChat,
+                    inputText: variables?.[0]?.value, // Temporary implementation
                 }
             },
             [rowId, variantId],

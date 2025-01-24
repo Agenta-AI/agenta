@@ -1,6 +1,6 @@
 import crypto from "crypto"
 import stableHash from "stable-hash"
-import {atomStore, metadataAtom, updateMetadataAtom} from "../../state"
+import {updateMetadataAtom} from "../../state"
 
 const hashCache = new WeakMap()
 
@@ -15,7 +15,7 @@ export const hash = (value: any) => {
 }
 
 export const hashMetadata = (metadata: any) => {
-    if (typeof metadata === "string" && atomStore.get(metadataAtom)[metadata]) {
+    if (typeof metadata === "string") {
         return metadata
     } else {
         const metadataHash = hash(metadata)

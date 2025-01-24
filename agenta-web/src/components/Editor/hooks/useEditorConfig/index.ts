@@ -14,9 +14,11 @@ const useEditorConfig = ({
     initialEditorState,
     codeOnly,
     enableTokens,
-}: Pick<EditorProps, "id" | "initialValue" | "codeOnly" | "enableTokens" | "initialEditorState">):
-    | LexicalComposerProps["initialConfig"]
-    | null => {
+    disabled,
+}: Pick<
+    EditorProps,
+    "id" | "initialValue" | "disabled" | "codeOnly" | "enableTokens" | "initialEditorState"
+>): LexicalComposerProps["initialConfig"] | null => {
     const [config, setConfig] = useState<LexicalComposerProps["initialConfig"] | null>(null)
     const configRef = useRef<LexicalComposerProps["initialConfig"] | null>(null)
 
@@ -39,6 +41,7 @@ const useEditorConfig = ({
                 nodes,
                 editorState: initialEditorState,
                 theme,
+                editable: !disabled,
             }
 
             configRef.current = newConfig
@@ -46,7 +49,7 @@ const useEditorConfig = ({
         }
 
         loadConfig()
-    }, [codeOnly, enableTokens, id, initialEditorState, initialValue])
+    }, [codeOnly, disabled, enableTokens, id, initialEditorState, initialValue])
 
     return config
 }

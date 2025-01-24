@@ -3,7 +3,6 @@ import {Message} from "@/components/NewPlayground/assets/utilities/transformer/t
 
 export type GenerationChatRowProps = {
     variantId: string
-    message: Enhanced<Message>
     disabled?: boolean
-    type: "input" | "output"
+    rowId?: string
 }

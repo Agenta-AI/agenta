@@ -29,7 +29,7 @@ const LoadTestsetButton = ({label, icon = false, children, ...props}: LoadTestse
                 if (!clonedState) return clonedState
 
                 // access the existing generation metadata to pull correct keys from testset rows
-                const generationMetadata = clonedState.generationData.__metadata
+                const generationMetadata = clonedState.generationData.inputs.__metadata
 
                 // loop through the testset rows and create new generation rows from them
                 const newGenerationRows = data.map((row) => {
@@ -51,7 +51,7 @@ const LoadTestsetButton = ({label, icon = false, children, ...props}: LoadTestse
                     return newRow
                 })
 
-                clonedState.generationData.value = newGenerationRows.filter(
+                clonedState.generationData.inputs.value = newGenerationRows.filter(
                     (row) => !!row,
                 ) as EnhancedObjectConfig<InputType<string[]>>[]
 

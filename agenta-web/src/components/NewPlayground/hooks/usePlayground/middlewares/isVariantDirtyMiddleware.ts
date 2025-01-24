@@ -5,7 +5,7 @@ import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 import {isPlaygroundEqual, omitDeep} from "../assets/helpers"
 import {initialState} from "../../../state"
 import {syncVariantInputs} from "../assets/inputHelpers"
-import {getUniqueInputKeys} from "../assets/comparisonHelpers"
+import {getUniqueInputKeys} from "../assets/generationHelpers"
 
 import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
 import {type FetcherOptions} from "@/lib/api/types"
@@ -168,11 +168,11 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             )
 
                             if (!isPlaygroundEqual(previousInputs, currentInputs)) {
-                                clonedState.generationData = syncVariantInputs(
+                                clonedState.generationData.inputs = syncVariantInputs(
                                     clonedState.variants.filter((variant) =>
                                         currentSelected.includes(variant.id),
                                     ),
-                                    clonedState.generationData,
+                                    clonedState.generationData.inputs,
                                 )
                             }
 
