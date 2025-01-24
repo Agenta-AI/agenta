@@ -19,7 +19,7 @@ import {forwardRef, useCallback, useEffect, useRef} from "react"
 import {mergeRegister} from "@lexical/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
-import styles from './assets/Editor.module.css'
+import styles from "./assets/Editor.module.css"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
@@ -209,7 +209,7 @@ const Editor = ({
         initialValue,
         codeOnly,
         enableTokens,
-        disabled
+        disabled,
     })
 
     if (!config) {
@@ -234,11 +234,11 @@ const Editor = ({
         <div
             className={clsx([
                 styles["agenta-rich-text-editor"],
-                'min-h-16',
+                "min-h-16",
                 "bg-[#F5F7FA] text-[#1C2C3D] relative flex flex-col px-[11px] rounded-lg",
                 {
                     "border border-solid border-[#BDC7D1]": showBorder,
-                    "disabled": disabled
+                    disabled: disabled,
                 },
                 className,
             ])}
