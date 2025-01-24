@@ -12,6 +12,7 @@ import {
 } from "../PlaygroundGenerationComparisonView"
 
 import type {BaseContainerProps} from "../types"
+import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
 
 const PromptComparisonVariantNavigation = dynamic(
     () => import("../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"),
@@ -25,8 +26,32 @@ const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr:
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
 
 const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
-    const {viewType, displayedVariants} = usePlayground()
-    const isComparisonView = viewType === "comparison"
+    const {
+        rowIds,
+        isComparisonView,
+        visibleVariants: displayedVariants,
+    } = usePlayground({
+        stateSelector: (state) => {
+            const isChat = state.variants[0].isChat
+            const isComparisonView = state.selected.length > 1
+            let rowIds = [] as string[]
+
+            if (isChat) {
+                const messageRows = state.generationData.messages.value || []
+                rowIds = messageRows.map((message) => message.__id).filter(Boolean)
+            } else {
+                const inputs = state.generationData.inputs.value || []
+                rowIds = inputs.map((input) => input.__id)
+            }
+
+            return {
+                rowIds,
+                isComparisonView,
+                visibleVariants: state.selected,
+            }
+        },
+    })
+
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
 
     const handleScroll = (index: number) => {
@@ -66,7 +91,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
 
         const scrollHandle = (e: Event) => {
             if (scrollingRef.current) return
-            if (viewType === "single") return
+            if (!isComparisonView) return
 
             const elm = e.target as HTMLElement
 
@@ -108,7 +133,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                 generationPanelRef.removeEventListener("scroll", scrollEndHandle)
             }
         }
-    }, [viewType, configPanelRef, generationPanelRef])
+    }, [isComparisonView, configPanelRef, generationPanelRef])
 
     return (
         <main
@@ -128,7 +153,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             ref={setConfigPanelRef}
                             className={clsx([
                                 {
-                                    "grow w-full h-full overflow-y-auto": viewType === "single",
+                                    "grow w-full h-full overflow-y-auto": !isComparisonView,
                                     "grow w-full h-full overflow-x-auto flex [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
                                 },
@@ -174,7 +199,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             ref={setGenerationPanelRef}
                             className={clsx([
                                 {
-                                    "grow w-full h-full overflow-y-auto": viewType === "single",
+                                    "grow w-full h-full overflow-y-auto": !isComparisonView,
                                     "grow w-full h-full overflow-auto flex [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
                                 },
@@ -194,28 +219,41 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     )
                                 })}
 
-                            {(displayedVariants || []).map((variantId, index) => {
-                                return (
-                                    <div
-                                        key={variantId}
-                                        className={clsx([
-                                            {
-                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0":
-                                                    isComparisonView,
-                                            },
-                                        ])}
-                                    >
-                                        {isComparisonView ? (
-                                            <GenerationComparisonOutputConfig
+                            <div>
+                                {isComparisonView && (
+                                    <div className="flex">
+                                        {displayedVariants.map((variantId, index) => (
+                                            <GenerationComparisonOutputHeader
                                                 variantId={variantId}
                                                 indexName={String.fromCharCode(65 + index)}
+                                                className="sticky top-0 z-[1] !w-[400px]"
                                             />
-                                        ) : (
-                                            <PlaygroundGenerations variantId={variantId} />
-                                        )}
+                                        ))}
                                     </div>
-                                )
-                            })}
+                                )}
+
+                                {isComparisonView
+                                    ? ((rowIds as string[]) || []).map((inputRow) => {
+                                          return (
+                                              <div
+                                                  key={inputRow}
+                                                  className="[&::-webkit-scrollbar]:w-0 w-[400px] flex flex-shrink-0"
+                                              >
+                                                  <GenerationComparisonOutputConfig
+                                                      inputRow={inputRow}
+                                                  />
+                                              </div>
+                                          )
+                                      })
+                                    : (displayedVariants || []).map((variantId) => {
+                                          return (
+                                              <PlaygroundGenerations
+                                                  key={variantId}
+                                                  variantId={variantId}
+                                              />
+                                          )
+                                      })}
+                            </div>
                         </section>
                     </SplitterPanel>
                 </Splitter>

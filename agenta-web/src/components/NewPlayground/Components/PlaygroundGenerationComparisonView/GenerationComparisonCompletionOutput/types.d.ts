@@ -2,11 +2,8 @@ import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTrans
 import {OutputFormat} from "../../Drawers/GenerationFocusDrawer/types"
 
 export type GenerationComparisonCompletionOutputProps = {
-    variantId: string
-    className?: string
+    rowId: string
     focusDisable?: boolean
-    result?: Enhanced<InputType<string[]>> | undefined
-    isRunning?: boolean | undefined
-    format?: OutputFormat
-    indexName?: string
+    className?: string
+    variantId: string
 }
