@@ -49,13 +49,13 @@ const GenerationComparisonCompletionOutput = ({
       containerHeight = variableIds.length * 96 + 1 + 48
    */
     const containerHeight = result?.response
-        ? variableIds.length * 96 + 1
-        : variableIds.length * 96 + 1 + 48
+        ? variableIds.length * 112 + 1
+        : variableIds.length * 112 + 1 + 48
 
     return (
         <div className={className}>
             <div
-                style={{height: containerHeight}}
+                style={{minHeight: containerHeight}}
                 className={clsx(
                     "w-full py-2 px-4 relative group/item overflow-y-auto [&::-webkit-scrollbar]:w-0",
                     classes.containerBorder,
