@@ -1,0 +1,283 @@
+@baseUrl = http://localhost
+@service = completion
+
+### These request can be run using the Rest Client extension in vsCode
+
+### Health Check
+GET {{baseUrl}}/{{service}}/health HTTP/1.1
+
+### OpenAPI
+GET {{baseUrl}}/{{service}}/openapi.json HTTP/1.1
+
+### Basic Text Response - Geography Assistant
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "response_format": {
+          "type": "text"
+        }
+      },
+      "messages": [
+        {
+          "content": "You are an expert in geography.",
+          "role": "system"
+        },
+        {
+          "content": "What is the capital of {country}?",
+          "role": "user"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "inputs": {
+    "country": "France"
+  }
+}
+
+### JSON Object Response - Movie Information
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "messages": [
+        {
+          "content": "You are a movie database assistant. Provide movie information in JSON format.",
+          "role": "system"
+        },
+        {
+          "content": "Give me information about the movie {title}",
+          "role": "user"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "inputs": {
+    "title": "The Matrix"
+  }
+}
+
+### JSON Schema Response - Recipe Generator
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "recipe",
+            "description": "A recipe with ingredients and instructions",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Name of the recipe"
+                },
+                "ingredients": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "item": {
+                        "type": "string",
+                        "description": "Name of the ingredient"
+                      },
+                      "amount": {
+                        "type": "string",
+                        "description": "Amount of the ingredient needed"
+                      }
+                    },
+                    "required": ["item", "amount"]
+                  },
+                  "description": "List of ingredients needed"
+                },
+                "instructions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Step by step cooking instructions"
+                },
+                "prep_time": {
+                  "type": "string",
+                  "description": "Preparation time"
+                },
+                "cook_time": {
+                  "type": "string",
+                  "description": "Cooking time"
+                }
+              },
+              "required": ["name", "ingredients", "instructions", "prep_time", "cook_time"]
+            }
+          }
+        }
+      },
+      "messages": [
+        {
+          "content": "You are a professional chef. Generate detailed recipes in a structured format.",
+          "role": "system"
+        },
+        {
+          "content": "Give me a recipe for {dish}",
+          "role": "user"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "inputs": {
+    "dish": "chocolate chip cookies"
+  }
+}
+
+### Function Calling with Tools - Weather Assistant
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_current_weather",
+              "description": "Get the current weather in a given location",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA"
+                  },
+                  "unit": {
+                    "type": "string",
+                    "enum": ["celsius", "fahrenheit"],
+                    "description": "The unit of temperature to use"
+                  }
+                },
+                "required": ["location", "unit"]
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "messages": [
+        {
+          "content": "You are a weather assistant. Use the provided function to get weather information.",
+          "role": "system"
+        },
+        {
+          "content": "What's the current weather in {city}? Please provide the temperature in {unit}.",
+          "role": "user"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "inputs": {
+    "city": "San Francisco, CA",
+    "unit": "celsius"
+  }
+}
+
+### Function Calling with Multiple Tools - Smart Home Assistant
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_device_status",
+              "description": "Get the current status of a smart home device",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "device_id": {
+                    "type": "string",
+                    "description": "The ID of the device"
+                  },
+                  "device_type": {
+                    "type": "string",
+                    "enum": ["light", "thermostat", "camera"],
+                    "description": "The type of device"
+                  }
+                },
+                "required": ["device_id", "device_type"]
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "control_device",
+              "description": "Control a smart home device",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "device_id": {
+                    "type": "string",
+                    "description": "The ID of the device"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": ["turn_on", "turn_off", "set_temperature", "set_brightness"],
+                    "description": "The action to perform"
+                  },
+                  "value": {
+                    "type": "number",
+                    "description": "The value for the action (e.g., temperature or brightness level)"
+                  }
+                },
+                "required": ["device_id", "action"]
+              }
+            }
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "messages": [
+        {
+          "content": "You are a smart home assistant. Use the provided functions to check and control devices.",
+          "role": "system"
+        },
+        {
+          "content": "{command}",
+          "role": "user"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "inputs": {
+    "command": "Check the status of the living room thermostat (device_id: therm_01) and if it's below 20°C, set it to 22°C."
+  }
+}

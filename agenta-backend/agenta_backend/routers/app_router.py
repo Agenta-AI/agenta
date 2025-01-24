@@ -27,6 +27,8 @@ from agenta_backend.models.api.api_models import (
     UpdateAppOutput,
     CreateAppOutput,
     AddVariantFromImagePayload,
+    AddVariantFromURLPayload,
+    AddVariantFromKeyPayload,
 )
 
 if isCloudEE():
@@ -171,7 +173,7 @@ async def get_variant_by_env(
 
         # Check if the fetched app variant is None and raise exception if it is
         if app_variant_db is None:
-            raise HTTPException(status_code=500, detail="App Variant not found")
+            raise HTTPException(status_code=404, detail="App Variant not found")
         return await converters.app_variant_db_to_output(app_variant_db)
     except ValueError as e:
         # Handle ValueErrors and return 400 status code
@@ -236,6 +238,7 @@ async def create_app(
 
     app_db = await db_manager.create_app_and_envs(
         payload.app_name,
+        template_key=payload.template_key,
         project_id=request.state.project_id,
     )
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
@@ -276,6 +279,7 @@ async def update_app(
                 {"detail": error_msg},
                 status_code=403,
             )
+
     await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
     return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
 
@@ -332,7 +336,6 @@ async def add_variant_from_image(
     Args:
         app_id (str): The ID of the app to add the variant to.
         payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
     Raises:
         HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
@@ -349,7 +352,7 @@ async def add_variant_from_image(
         )
         if not payload.tags.startswith(registry_repo_name):
             raise HTTPException(
-                status_code=500,
+                status_code=400,
                 detail="Image should have a tag starting with the registry name (agenta-server)",
             )
         elif await deployment_manager.validate_image(image) is False:
@@ -370,7 +373,7 @@ async def add_variant_from_image(
                 status_code=403,
             )
 
-    variant_db = await app_manager.add_variant_based_on_image(
+    variant_db = await app_manager.add_variant_from_image(
         app=app,
         project_id=str(app.project_id),
         variant_name=payload.variant_name,
@@ -381,14 +384,109 @@ async def add_variant_from_image(
         is_template_image=False,
         user_uid=request.state.user_id,
     )
-    app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
-    logger.debug("Step 8: We create ready-to use evaluators")
-    await evaluator_manager.create_ready_to_use_evaluators(
-        app_name=app.app_name, project_id=str(app.project_id)
+    app_variant_db = await db_manager.fetch_app_variant_by_id(
+        str(variant_db.id),
     )
 
-    return await converters.app_variant_db_to_output(app_variant_db)
+    await evaluator_manager.create_ready_to_use_evaluators(
+        app_name=app.app_name,
+        project_id=str(app.project_id),
+    )
+
+    app_variant_dto = await converters.app_variant_db_to_output(
+        app_variant_db,
+    )
+    return app_variant_dto
+
+
+@router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
+async def add_variant_from_url(
+    app_id: str,
+    payload: AddVariantFromURLPayload,
+    request: Request,
+):
+    """
+    Add a new variant to an app based on a URL.
+
+    Args:
+        app_id (str): The ID of the app to add the variant to.
+        payload (AddVariantFromURLPayload): The payload containing information about the variant to add.
+
+    Raises:
+        HTTPException: If the user does not have access to the app or if there is an error adding the variant.
+
+    Returns:
+        dict: The newly added variant.
+    """
+
+    app = await db_manager.fetch_app_by_id(app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            object=app,
+            permission=Permission.CREATE_APPLICATION,
+        )
+        logger.debug(f"User has Permission to create app from url: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    variant_db = await app_manager.add_variant_from_url(
+        app=app,
+        project_id=str(app.project_id),
+        variant_name=payload.variant_name,
+        url=payload.url,
+        base_name=payload.base_name,
+        config_name=payload.config_name,
+        user_uid=request.state.user_id,
+    )
+
+    app_variant_db = await db_manager.fetch_app_variant_by_id(
+        str(variant_db.id),
+    )
+
+    await evaluator_manager.create_ready_to_use_evaluators(
+        app_name=app.app_name,
+        project_id=str(app.project_id),
+    )
+
+    app_variant_dto = await converters.app_variant_db_to_output(
+        app_variant_db,
+    )
+
+    return app_variant_dto
+
+
+@router.post("/{app_id}/variant/from-template/", operation_id="add_variant_from_key")
+async def add_variant_from_key(
+    app_id: str,
+    payload: AddVariantFromKeyPayload,
+    request: Request,
+):
+    try:
+        url = app_manager.get_service_url_from_template_key(payload.key)
+    except NotImplementedError as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.exception(f"An error occurred: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not url:
+        raise HTTPException(status_code=400, detail="Service key not supported")
+
+    payload = AddVariantFromURLPayload(
+        variant_name=payload.variant_name,
+        url=url,
+        base_name=payload.base_name,
+        config_name=payload.config_name,
+    )
+
+    return await add_variant_from_url(app_id, payload, request)
 
 
 @router.delete("/{app_id}/", operation_id="remove_app")
@@ -508,26 +606,26 @@ async def create_app_and_variant_from_template(
             project_id=request.state.project_id,
         )
 
-    logger.debug(
-        "Step 7: Creating image instance and adding variant based on image"
-        if isCloudEE()
-        else "Step 4: Creating image instance and adding variant based on image"
-    )
-    repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
-    image_name = f"{repo_name}:{template_db.name}"
-    app_variant_db = await app_manager.add_variant_based_on_image(
-        app=app,
-        project_id=str(app.project_id),
-        variant_name="app.default",
-        docker_id_or_template_uri=(  # type: ignore
-            template_db.template_uri if isCloudProd() else template_db.digest
-        ),
-        tags=f"{image_name}" if not isCloudProd() else None,  # type: ignore
-        base_name="app",
-        config_name="default",
-        is_template_image=True,
-        user_uid=request.state.user_id,
-    )
+        logger.debug(
+            "Step 7: Creating image instance and adding variant based on image"
+            if isCloudEE()
+            else "Step 4: Creating image instance and adding variant based on image"
+        )
+        repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+        image_name = f"{repo_name}:{template_db.name}"
+        app_variant_db = await app_manager.add_variant_from_image(
+            app=app,
+            project_id=str(app.project_id),
+            variant_name="app.default",
+            docker_id_or_template_uri=(  # type: ignore
+                template_db.template_uri if isCloudProd() else template_db.digest
+            ),
+            tags=f"{image_name}" if not isCloudProd() else None,  # type: ignore
+            base_name="app",
+            config_name="default",
+            is_template_image=True,
+            user_uid=request.state.user_id,
+        )
 
     logger.debug(
         "Step 8: Creating testset for app variant"
@@ -648,7 +746,6 @@ async def list_environments(
     sorted_environments = sorted(
         environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
     )
-
     return [
         await converters.environment_db_to_output(env) for env in sorted_environments
     ]

@@ -261,7 +261,10 @@ async def update_variant_image(
                 )
 
         await app_manager.update_variant_image(
-            db_app_variant, str(db_app_variant.project_id), image, request.state.user_id
+            db_app_variant,
+            str(db_app_variant.project_id),
+            image,
+            request.state.user_id,
         )
 
         # Update last_modified_by app information
@@ -272,6 +275,85 @@ async def update_variant_image(
             project_id=str(db_app_variant.project_id),
         )
         logger.debug("Successfully updated last_modified_by app information")
+
+    except ValueError as e:
+        import traceback
+
+        traceback.print_exc()
+        detail = f"Error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except DockerException as e:
+        import traceback
+
+        traceback.print_exc()
+        detail = f"Docker error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        detail = f"Unexpected error while trying to update the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
+
+
+@router.put("/{variant_id}/service/", operation_id="update_variant_url")
+async def update_variant_url(
+    variant_id: str,
+    url: str,
+    request: Request,
+):
+    """
+    Updates the URL used in an app variant.
+
+    Args:
+        variant_id (str): The ID of the app variant to update.
+        url (str): The URL to update.
+
+    Raises:
+        HTTPException: If an error occurs while trying to update the app variant.
+
+    Returns:
+        JSONResponse: A JSON response indicating whether the update was successful or not.
+    """
+
+    try:
+        db_app_variant = await db_manager.fetch_app_variant_by_id(
+            app_variant_id=variant_id
+        )
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=str(db_app_variant.project_id),
+                permission=Permission.CREATE_APPLICATION,
+            )
+            logger.debug(
+                f"User has Permission to update variant image: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        await app_manager.update_variant_url(
+            db_app_variant,
+            str(db_app_variant.project_id),
+            url,
+            request.state.user_id,
+        )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=str(db_app_variant.app_id),
+            object_type="app",
+            project_id=str(db_app_variant.project_id),
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
     except ValueError as e:
         import traceback
 
@@ -358,8 +440,14 @@ async def retrieve_variant_logs(
     try:
         app_variant = await db_manager.fetch_app_variant_by_id(variant_id)
         deployment = await db_manager.get_deployment_by_appid(str(app_variant.app.id))
-        logs_result = await logs_manager.retrieve_logs(deployment.container_id)
-        return logs_result
+        if deployment.container_id is not None:
+            logs_result = await logs_manager.retrieve_logs(deployment.container_id)
+            return logs_result
+        else:
+            raise HTTPException(
+                404,
+                detail="No logs available for this variant.",
+            )
     except Exception as exc:
         logger.exception(f"An error occurred: {str(exc)}")
         raise HTTPException(500, {"message": str(exc)})

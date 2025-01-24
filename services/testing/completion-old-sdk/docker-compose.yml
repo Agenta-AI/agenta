@@ -1,0 +1,22 @@
+services:
+  completion-old-sdk:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED=True
+      - AGENTA_HOST=http://host.docker.internal
+    networks:
+      - agenta-network
+    labels:
+      - "traefik.http.routers.completion-old-sdk.rule=PathPrefix(`/completion-old-sdk/`)"
+      - "traefik.http.routers.completion-old-sdk.entrypoints=web"
+      - "traefik.http.middlewares.completion-old-sdk-strip.stripprefix.prefixes=/completion-old-sdk"
+      - "traefik.http.middlewares.completion-old-sdk-strip.stripprefix.forceslash=true"
+      - "traefik.http.routers.completion-old-sdk.middlewares=completion-old-sdk-strip"
+      - "traefik.http.services.completion-old-sdk.loadbalancer.server.port=80"
+      - "traefik.http.routers.completion-old-sdk.service=completion-old-sdk"
+
+networks:
+  agenta-network:
+    external: true

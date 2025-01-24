@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useState} from "react"
+import clsx from "clsx"
 import {Breadcrumb, Button, ConfigProvider, Layout, Modal, Space, Typography, theme} from "antd"
 import Sidebar from "../Sidebar/Sidebar"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
@@ -138,6 +139,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
         })
     }, [])
 
+    const isNewPlayground =
+        router.pathname.includes("/playground") && router.query.playground === "new-playground"
+
     useEffect(() => {
         if (user && isDemo()) {
             ;(window as any).intercomSettings = {
@@ -259,7 +263,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 <Sidebar />
                                 <Layout className={classes.layout}>
                                     <div>
-                                        <div className={classes.breadcrumbContainer}>
+                                        <div
+                                            className={clsx(classes.breadcrumbContainer, {
+                                                "[&&]:!mb-0": isNewPlayground,
+                                            })}
+                                        >
                                             <Breadcrumb
                                                 items={[
                                                     {
@@ -277,7 +285,12 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                                 <Text>agenta v{packageJsonData.version}</Text>
                                             </div>
                                         </div>
-                                        <Content className={classes.content}>
+                                        <Content
+                                            className={clsx(classes.content, {
+                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                    isNewPlayground,
+                                            })}
+                                        >
                                             <ErrorBoundary FallbackComponent={ErrorFallback}>
                                                 <ConfigProvider
                                                     theme={{
