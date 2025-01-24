@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.29.1a1"
+version = "0.31.0"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -45,6 +45,12 @@ setuptools = "^71.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest-asyncio = "^0.24.0"
+mypy = "^1.13.0"
+pytest-xdist = "^3.6.1"
+uvicorn = "^0.34.0"
+requests = "^2.32.3"
+pexpect = "^4.9.0"
+boto3 = "^1.35.87"
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"

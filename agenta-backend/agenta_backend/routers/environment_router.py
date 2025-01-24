@@ -33,39 +33,36 @@ async def deploy_to_environment(
     Raises:
         HTTPException: If the deployment fails.
     """
-    try:
-        variant = await db_manager.fetch_app_variant_by_id(
-            app_variant_id=payload.variant_id
-        )
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(variant.project_id),
-                permission=Permission.DEPLOY_APPLICATION,
-            )
-            logger.debug(f"User has permission deploy to environment: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
 
-        await db_manager.deploy_to_environment(
-            environment_name=payload.environment_name,
-            variant_id=payload.variant_id,
+    variant = await db_manager.fetch_app_variant_by_id(
+        app_variant_id=payload.variant_id
+    )
+    if isCloudEE():
+        has_permission = await check_action_access(
             user_uid=request.state.user_id,
-        )
-
-        # Update last_modified_by app information
-        await app_manager.update_last_modified_by(
-            user_uid=request.state.user_id,
-            object_id=payload.variant_id,
-            object_type="variant",
             project_id=str(variant.project_id),
+            permission=Permission.DEPLOY_APPLICATION,
         )
-        logger.debug("Successfully updated last_modified_by app information")
-    except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.debug(f"User has permission deploy to environment: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            logger.error(error_msg)
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    await db_manager.deploy_to_environment(
+        environment_name=payload.environment_name,
+        variant_id=payload.variant_id,
+        user_uid=request.state.user_id,
+    )
+
+    # Update last_modified_by app information
+    await app_manager.update_last_modified_by(
+        user_uid=request.state.user_id,
+        object_id=payload.variant_id,
+        object_type="variant",
+        project_id=str(variant.project_id),
+    )
+    logger.debug("Successfully updated last_modified_by app information")
