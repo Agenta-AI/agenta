@@ -7,14 +7,6 @@ export function dynamicComponent<T>(path: string, fallback: any = () => null) {
     })
 }
 
-export async function dynamicContext(path: string, fallback?: any) {
-    try {
-        return await import(`@/contexts/${path}`)
-    } catch (error) {
-        return fallback
-    }
-}
-
 export async function dynamicHook(path: string, fallback: any = () => null) {
     try {
         return await import(`@/hooks/${path}`)

@@ -14,10 +14,11 @@ import {useProfileData} from "@/contexts/profile.context"
 import {useSession} from "@/hooks/useSession"
 import {CaretDown, Gear, SidebarSimple, SignOut} from "@phosphor-icons/react"
 import AlertPopup from "../AlertPopup/AlertPopup"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import Avatar from "@/components/Avatar/Avatar"
 import {useProjectData} from "@/contexts/project.context"
+import {useOrgData} from "@/contexts/org.context"
 import clsx from "clsx"
+import {ItemType} from "antd/es/menu/interface"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -189,15 +190,8 @@ const Sidebar: React.FC = () => {
     const {user} = useProfileData()
     const {logout} = useSession()
     const {project} = useProjectData()
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
     const [isHovered, setIsHovered] = useState(false)
-
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
 
     const {topItems, bottomItems} = useMemo(() => {
         const topItems: SidebarConfig[] = []
@@ -329,6 +323,7 @@ const Sidebar: React.FC = () => {
                                     <Dropdown
                                         trigger={["hover"]}
                                         menu={{
+                                            // @ts-ignore
                                             items: dropdownItems,
                                             selectedKeys: [selectedOrg.id],
                                             onClick: ({key}) => {
