@@ -1,21 +1,19 @@
 import {useCallback} from "react"
+
 import {Button, Typography} from "antd"
+import clsx from "clsx"
+
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
-import {createInputRow} from "@/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
-import {
-    ArrayMetadata,
-    ObjectMetadata,
-} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
-
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {GenerationHeaderProps} from "./types"
 import {useStyles} from "./styles"
-import clsx from "clsx"
+import RunButton from "../../../../assets/RunButton"
+import {clearRuns} from "../../../../hooks/usePlayground/assets/generationHelpers"
 import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
-import RunButton from "@/components/NewPlayground/assets/RunButton"
 import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
+
+import type {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
+import type {GenerationHeaderProps} from "./types"
+import {findVariantById} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
@@ -23,17 +21,34 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRows = state.generationData.value
+                const variant = findVariantById(state, variantId)
 
-                const results = inputRows.map((inputRow) =>
-                    variantId ? inputRow?.__runs?.[variantId]?.__result : null,
-                )
+                if (variant?.isChat) {
+                    const messageRows = state.generationData.messages.value
 
-                const isRunning = inputRows.some((inputRow) =>
-                    variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
-                )
+                    const results = messageRows
+                        .map((inputRow) =>
+                            variantId ? inputRow?.__runs?.[variantId]?.__result : null,
+                        )
+                        .filter(Boolean)
 
-                return {results, isRunning}
+                    const isRunning = messageRows.some((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                    )
+                    return {results, isRunning}
+                } else {
+                    const inputRows = state.generationData.inputs.value
+
+                    const results = inputRows.map((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__result : null,
+                    )
+
+                    const isRunning = inputRows.some((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                    )
+
+                    return {results, isRunning}
+                }
             },
             [variantId],
         ),
@@ -43,21 +58,12 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         mutate(
             (clonedState) => {
                 if (!clonedState) return clonedState
-
-                const generationMetadata = clonedState.generationData.__metadata
-                const metadata =
-                    getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)?.itemMetadata
-                if (!metadata) return clonedState
-
-                const inputKeys = Object.keys(metadata.properties)
-                const newRow = createInputRow(inputKeys, metadata)
-                clonedState.generationData.value = [newRow]
-
+                clearRuns(clonedState)
                 return clonedState
             },
             {revalidate: false},
         )
-    }, [])
+    }, [mutate])
 
     return (
         <section

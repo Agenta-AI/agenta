@@ -1,0 +1,5 @@
+.agenta-rich-text-editor {
+    &:global(.disabled) {
+        cursor: not-allowed;
+    }
+}

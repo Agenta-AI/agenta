@@ -20,8 +20,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
     const {inputRowIds, mutate, viewType} = usePlayground({
         variantId,
         stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.value || []
-
+            const inputRows = state.generationData.inputs.value || []
             return {
                 inputRowIds: inputRows.map((inputRow) => inputRow.__id),
             }
@@ -32,7 +31,9 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
         mutate((clonedState) => {
             if (!clonedState) return clonedState
 
-            const _metadata = getMetadataLazy<ArrayMetadata>(clonedState?.generationData.__metadata)
+            const _metadata = getMetadataLazy<ArrayMetadata>(
+                clonedState?.generationData.inputs.__metadata,
+            )
 
             const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
 
@@ -41,7 +42,7 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
             const inputKeys = Object.keys(itemMetadata.properties)
             const newRow = createInputRow(inputKeys, itemMetadata)
 
-            clonedState.generationData.value.push(newRow)
+            clonedState.generationData.inputs.value.push(newRow)
 
             return clonedState
         })

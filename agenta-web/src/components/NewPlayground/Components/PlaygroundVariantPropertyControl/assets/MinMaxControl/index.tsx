@@ -24,6 +24,7 @@ const MinMaxControl = ({
     description,
     withTooltip,
     onChange,
+    disabled,
 }: MinMaxControlProps) => {
     const [localValue, setLocalValue] = useDebounceInput<number | null>(
         value ?? null,
@@ -60,6 +61,7 @@ const MinMaxControl = ({
                     step={step}
                     value={localValue}
                     onChange={handleValueChange}
+                    disabled={disabled}
                     className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left"
                 />
             </div>
@@ -68,6 +70,7 @@ const MinMaxControl = ({
                 max={max}
                 step={step}
                 value={localValue ?? min}
+                disabled={disabled}
                 onChange={handleValueChange}
             />
         </PlaygroundVariantPropertyControlWrapper>

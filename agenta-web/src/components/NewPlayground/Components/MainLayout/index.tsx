@@ -1,13 +1,15 @@
-import React, {useEffect, useRef, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import useAnimationFrame from "use-animation-frame"
 
 import usePlayground from "../../hooks/usePlayground"
-import GenerationComparisonCompletionOutput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
-import GenerationComparisonCompletionInput from "../PlaygroundGenerationComparisonView/GenerationComparisonCompletionInput"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
+import {
+    GenerationComparisonInputConfig,
+    GenerationComparisonOutputConfig,
+} from "../PlaygroundGenerationComparisonView"
 
 import type {BaseContainerProps} from "../types"
 
@@ -160,8 +162,8 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                     </SplitterPanel>
 
                     <SplitterPanel
-                        className={clsx("!h-full", {
-                            "!overflow-y-hidden flex flex-col": isComparisonView,
+                        className={clsx("!h-full @container", {
+                            "!overflow-y-hidden": isComparisonView,
                         })}
                         collapsible
                         defaultSize="50%"
@@ -185,9 +187,8 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                             key={variantId}
                                             className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10"
                                         >
-                                            <GenerationComparisonCompletionInput
+                                            <GenerationComparisonInputConfig
                                                 variantId={variantId}
-                                                rowClassName="bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
                                             />
                                         </div>
                                     )
@@ -205,7 +206,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         ])}
                                     >
                                         {isComparisonView ? (
-                                            <GenerationComparisonCompletionOutput
+                                            <GenerationComparisonOutputConfig
                                                 variantId={variantId}
                                                 indexName={String.fromCharCode(65 + index)}
                                             />

@@ -1,4 +1,5 @@
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
+import clsx from "clsx"
 import {
     $createTextNode,
     $insertNodes,
@@ -17,6 +18,8 @@ import type {EditorProps} from "./types"
 import {forwardRef, useCallback, useEffect, useRef} from "react"
 import {mergeRegister} from "@lexical/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+
+import styles from './assets/Editor.module.css'
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
@@ -41,7 +44,7 @@ export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
  * @param {boolean} debug - If true, debug information will be shown.
  * @param {boolean} showBorder - If true, the editor would have border style.
  */
-const Editor = forwardRef(
+const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
     (
         {
             id = crypto.randomUUID(),
@@ -105,7 +108,8 @@ const Editor = forwardRef(
                 editor.registerCommand(
                     ON_HYDRATE_FROM_REMOTE_CONTENT,
                     ({hydrateWithRemoteContent}) => {
-                        if (isInitRef.current) return false
+                        if (editor.isEditable() && isInitRef.current) return false
+
                         isInitRef.current = true
                         editor.update(() => {
                             // In the browser you can use the native DOMParser API to parse the HTML string.
@@ -136,10 +140,10 @@ const Editor = forwardRef(
         }, [initialValue, editor])
 
         return (
-            <div className="editor-container overflow-hidden relative">
+            <div className="editor-container overflow-hidden relative min-h-[inherit]">
                 <div
                     ref={ref}
-                    className={`editor-inner border rounded-lg ${singleLine ? "single-line" : ""}`}
+                    className={`editor-inner border rounded-lg min-h-[inherit] ${singleLine ? "single-line" : ""}`}
                     style={
                         dimensions && dimensions.width
                             ? {
@@ -159,16 +163,18 @@ const Editor = forwardRef(
                         placeholder={placeholder}
                         handleUpdate={handleUpdate}
                     />
-                    {!singleLine && enableResize && <div className="resize-handle" />}
+                    {/* {!singleLine && enableResize && <div className="resize-handle" />} */}
                 </div>
             </div>
         )
     },
 )
 
-const EditorWrapper = ({
+const Editor = ({
     id = crypto.randomUUID(),
     initialValue = "",
+    disabled = false,
+    className,
     onChange,
     placeholder = "",
     singleLine = false,
@@ -203,6 +209,7 @@ const EditorWrapper = ({
         initialValue,
         codeOnly,
         enableTokens,
+        disabled
     })
 
     if (!config) {
@@ -225,10 +232,19 @@ const EditorWrapper = ({
 
     return (
         <div
-            className={`bg-[#F5F7FA] text-[#1C2C3D] min-h-16 relative flex flex-col px-[11px] rounded-lg ${showBorder ? "border border-solid border-[#BDC7D1]" : ""}`}
+            className={clsx([
+                styles["agenta-rich-text-editor"],
+                'min-h-16',
+                "bg-[#F5F7FA] text-[#1C2C3D] relative flex flex-col px-[11px] rounded-lg",
+                {
+                    "border border-solid border-[#BDC7D1]": showBorder,
+                    "disabled": disabled
+                },
+                className,
+            ])}
         >
             <LexicalComposer initialConfig={config}>
-                <Editor
+                <EditorInner
                     ref={containerRef}
                     dimensions={dimensions}
                     id={id}
@@ -247,4 +263,4 @@ const EditorWrapper = ({
     )
 }
 
-export default EditorWrapper
+export default Editor

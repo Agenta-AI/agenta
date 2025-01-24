@@ -7,7 +7,17 @@ import type {TextControlProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import EditorWrapper from "@/components/Editor/Editor"
 
-const TextControl = ({className, metadata, value, handleChange, as, view}: TextControlProps) => {
+const TextControl = ({
+    withTooltip,
+    description,
+    className,
+    metadata,
+    value,
+    handleChange,
+    as,
+    view,
+    disabled,
+}: TextControlProps) => {
     const {viewType} = usePlayground()
 
     const [localValue, setLocalValue] = useDebounceInput<string>(value, handleChange, 300, "")

@@ -3,10 +3,12 @@ import {generateId} from "../../../assets/utilities/genericTransformer/utilities
 import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
 
 import type {
+    EnhancedObjectConfig,
     ObjectMetadata,
     StringMetadata,
 } from "../../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import type {EnhancedVariant, Message} from "../../../assets/utilities/transformer/types"
+import {PlaygroundStateData} from "../types"
 
 /**
  * Variable Management
@@ -184,7 +186,7 @@ export function initializeVariantInputs(variant: EnhancedVariant) {
  */
 export function syncVariantInputs(
     variants: EnhancedVariant[],
-    generationData: EnhancedVariant["inputs"],
+    generationInputData: PlaygroundStateData["generationData"]["inputs"],
 ) {
     const currentInputKeys = new Set(
         variants.flatMap((variant) =>
@@ -196,7 +198,7 @@ export function syncVariantInputs(
 
     const inputSchema = createInputSchema(inputStrings)
 
-    const existingInputsId = generationData?.__id || generateId()
+    const existingInputsId = generationInputData?.__id || generateId()
 
     // Create metadata with ID properly typed
     const metadata = {
@@ -205,15 +207,16 @@ export function syncVariantInputs(
     }
 
     // Update each row while preserving all IDs
-    const updatedRows = (generationData?.value || []).map((row) => {
+    const updatedRows = (generationInputData?.value || []).map((row) => {
         const keys = [...inputStrings] as const
-        const metadataHash = hashMetadata(row.__metadata)
+        const metadataHash = hashMetadata(metadata.itemMetadata)
 
         const newRow = {
             __id: row.__id,
             __metadata: metadataHash,
-            __result: undefined,
-        } as EnhancedVariant["inputs"]["value"][number]
+            __result: row.__runs,
+            __runs: row.__runs,
+        } as PlaygroundStateData["generationData"]["inputs"]["value"][number]
 
         // For each current input key
         keys.forEach((key) => {
@@ -235,7 +238,7 @@ export function syncVariantInputs(
                     newRow[_key] = {
                         __id: generateId(),
                         __metadata: metadataHash,
-                    } as EnhancedVariant["inputs"]["value"][number][typeof _key]
+                    } as PlaygroundStateData["generationData"]["inputs"]["value"][number][typeof _key]
                 }
             }
         })
@@ -250,13 +253,60 @@ export function syncVariantInputs(
 
     const metadataHash = hashMetadata(metadata)
 
-    generationData = {
+    generationInputData = {
         __id: existingInputsId,
         __metadata: metadataHash,
         value: updatedRows,
     }
 
-    return generationData
+    return generationInputData
+}
+
+export function syncVariantMessages(
+    variants: EnhancedVariant[],
+    generationMessageData: PlaygroundStateData["generationData"]["messages"],
+) {
+    if (!generationMessageData.value) return generationMessageData
+
+    const promptMessages = variants.flatMap((variant) =>
+        variant.prompts.flatMap((prompt) => prompt.messages.value || []),
+    )
+    const generationMessages = generationMessageData.value.map((data) => data.value)
+
+    const syncVariantData = (arr1: any[], arr2: any[]) => {
+        let lastMatchIndex = -1
+
+        arr2.forEach((item2) => {
+            const indexInArr1 = arr1.findIndex((item1) => item1.__id === item2.__id)
+
+            if (indexInArr1 !== -1) {
+                arr1[indexInArr1] = {...arr1[indexInArr1], ...item2}
+                lastMatchIndex = Math.max(lastMatchIndex, indexInArr1)
+            } else {
+                const insertIndex = lastMatchIndex + 1
+                arr1.splice(insertIndex, 0, item2)
+                lastMatchIndex = insertIndex
+            }
+        })
+
+        return arr1
+    }
+
+    const result = syncVariantData(generationMessages, promptMessages)
+
+    const transform = result.map((r) => ({
+        __id: generateId(),
+        __metadata: r.__metadata,
+        __disabled: r.__disabled,
+        value: r,
+    }))
+
+    generationMessageData = {
+        ...generationMessageData,
+        value: transform,
+    }
+
+    return generationMessageData
 }
 
 /**
@@ -269,4 +319,13 @@ export function getVariantInputKeys(variant: EnhancedVariant): Array<string> {
         variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [],
     )
     return Array.from(new Set(Array.from(inputKeys).map((key) => key.value)))
+}
+
+/**
+ * Gets the current messages from all prompts in a variant
+ * @param variant - Variant to get input keys from
+ * @returns Array of messages
+ */
+export function getVariantMessages(variant: EnhancedVariant): EnhancedObjectConfig<Message>[] {
+    return variant.prompts.flatMap((prompt) => prompt.messages.value)
 }

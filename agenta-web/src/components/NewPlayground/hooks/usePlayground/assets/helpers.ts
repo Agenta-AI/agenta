@@ -89,7 +89,6 @@ export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) 
 
     // Update prompt keys and initialize inputs
     updateVariantPromptKeys(enhancedVariant)
-    initializeVariantInputs(enhancedVariant)
 
     return enhancedVariant
 }

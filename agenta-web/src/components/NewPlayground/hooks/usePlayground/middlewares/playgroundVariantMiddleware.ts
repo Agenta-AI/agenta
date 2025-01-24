@@ -9,11 +9,7 @@ import {
     setVariant,
 } from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {
-    updateVariantPromptKeys,
-    syncVariantInputs,
-    getVariantInputKeys,
-} from "../assets/inputHelpers"
+import {updateVariantPromptKeys} from "../assets/inputHelpers"
 import {message} from "../../../state/messageContext"
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
@@ -31,6 +27,7 @@ import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/trans
 import useWebWorker from "../../useWebWorker"
 import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -170,24 +167,55 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     const variantId = message.payload.variant.id
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
-                        const rowId = message.payload.rowId
+                        if (message.payload.variant.isChat) {
+                            // HANDLE INCOMING CHAT
+                            const rowId = message.payload.rowId
+                            swr.mutate((clonedState) => {
+                                if (!clonedState) return clonedState
 
-                        swr.mutate((clonedState) => {
-                            if (!clonedState) return clonedState
+                                const targetRow = clonedState.generationData.messages.value.find(
+                                    (row) => row.__id === rowId,
+                                )
 
-                            const testRow = clonedState.generationData.value.find(
-                                (row) => row.__id === rowId,
-                            )
+                                if (!targetRow) return clonedState
 
-                            if (!testRow || !testRow.__runs) return clonedState
+                                const targetMessageId = message.payload.messageId
+                                const targetMessage = targetRow.history.value.find(
+                                    (msg) => msg.__id === targetMessageId,
+                                )
 
-                            testRow.__runs[variantId] = {
-                                __result: message.payload.result,
-                                __isRunning: false,
-                            }
+                                targetMessage.__runs[variantId] = {
+                                    __result: {
+                                        ...message.payload.result,
+                                    },
+                                    message: createMessageFromSchema(
+                                        getMetadataLazy(targetMessage.__metadata),
+                                        message.payload.result.response?.data,
+                                    ),
+                                    __isRunning: false,
+                                }
+                                return clonedState
+                            })
+                        } else {
+                            const rowId = message.payload.rowId
 
-                            return clonedState
-                        })
+                            swr.mutate((clonedState) => {
+                                if (!clonedState) return clonedState
+
+                                const inputs = clonedState.generationData.inputs
+
+                                const inputTestRow = inputs.value.find((row) => row.__id === rowId)
+
+                                if (!inputTestRow || !inputTestRow.__runs) return clonedState
+
+                                inputTestRow.__runs[variantId] = {
+                                    __result: message.payload.result,
+                                    __isRunning: false,
+                                }
+
+                                return clonedState
+                            })
+                        }
                     }
                 },
                 [swr],
@@ -260,8 +288,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 try {
                     // first set the mutation state of the variant to true
                     swr.mutate(
-                        (state) => {
-                            const clonedState = structuredClone(state)
+                        (clonedState) => {
                             const variant = findVariantById(clonedState, variantId!)
                             if (!variant) throw new Error("Variant not found")
 
@@ -282,11 +309,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 if (!variant) return state
 
                                 try {
-                                    const parameters = transformToRequestBody(
+                                    const parameters = transformToRequestBody({
                                         variant,
-                                        undefined,
-                                        getAllMetadata(),
-                                    )
+                                        allMetadata: getAllMetadata(),
+                                    })
                                     const saveResponse = await fetcher?.(
                                         `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
                                         {
@@ -374,6 +400,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             )
 
                             if (!clonedVariant) return clonedState
+
+                            // Get current input keys before update
+                            // const previousInputKeys = getVariantInputKeys(clonedVariant)
+                            // const previousMessages = getVariantMessages(clonedVariant)
+
+                            // const clonedPrevMsg = structuredClone(previousMessages)
 
                             const updateValues =
                                 typeof updates === "function" ? updates(clonedVariant) : updates

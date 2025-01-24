@@ -8,7 +8,7 @@ import {createVariantsCompare, transformVariant, setVariant} from "../assets/hel
 import {message} from "../../../state/messageContext"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
+import {getAllMetadata, getMetadataLazy, getSpecLazy} from "@/components/NewPlayground/state"
 import useWebWorker from "../../useWebWorker"
 
 import type {Key, SWRHook} from "swr"
@@ -21,6 +21,8 @@ import type {
     PlaygroundMiddlewareParams,
 } from "../types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -115,11 +117,10 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            const parameters = transformToRequestBody(
-                                baseVariant,
-                                undefined,
-                                getAllMetadata(),
-                            )
+                            const parameters = transformToRequestBody({
+                                variant: baseVariant,
+                                allMetadata: getAllMetadata(),
+                            })
 
                             const newVariantBody: Partial<Variant> &
                                 Pick<Variant, "variantName" | "configName" | "baseId"> = {
@@ -188,63 +189,197 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
             Object.defineProperty(swr, "runTests", {
                 get: () => {
                     addToValueReferences("runTests")
+                    const handleInputRowTestStart = (inputRow, variantId) => {
+                        if (!inputRow?.__runs) {
+                            inputRow.__runs = {}
+                        }
+
+                        if (!inputRow.__runs[variantId]) {
+                            inputRow.__runs[variantId] = {
+                                __isRunning: true,
+                                __result: undefined,
+                            }
+                        } else {
+                            inputRow.__runs[variantId].__isRunning = true
+                        }
+
+                        return inputRow
+                    }
+
+                    const runChatTests = (
+                        clonedState: PlaygroundStateData,
+                        rowId: string,
+                        jwt,
+                        visibleVariants: string[],
+                    ) => {
+                        const variableRows = clonedState.generationData.inputs.value
+                        const messageRows = clonedState.generationData.messages.value
+
+                        for (const variableRow of variableRows) {
+                            // handleInputRowTestStart(variableRow, variantId)
+
+                            for (const messageRow of messageRows) {
+                                const messagesInRow = messageRow.history.value
+                                // console.log("messagesInRow", messagesInRow)
+
+                                let lastMessage = messagesInRow[messagesInRow.length - 1]
+                                const checkValidity = (
+                                    obj: Record<string, unknown>,
+                                    metadata: ConfigMetadata,
+                                ) => {
+                                    if (obj.__runs) return true
+                                    if (!metadata?.properties) return true
+
+                                    for (const [propName, propMetadata] of Object.entries(
+                                        metadata.properties,
+                                    )) {
+                                        // const snakeCasePropName = toSnakeCase(propName)
+                                        // If property is required (not nullable) and value is missing or undefined
+                                        if (
+                                            propMetadata.nullable === false &&
+                                            (!(propName in obj) || !obj[propName]?.value)
+                                        ) {
+                                            return false
+                                        }
+                                    }
+                                    return true
+                                }
+                                if (
+                                    !!lastMessage &&
+                                    !checkValidity(
+                                        lastMessage,
+                                        getMetadataLazy(lastMessage.__metadata),
+                                    )
+                                ) {
+                                    console.log("removing INVALID last message")
+                                    messageRow.history.value = [
+                                        ...messageRow.history.value.filter(
+                                            (m) => m.__id !== lastMessage.__id,
+                                        ),
+                                    ]
+                                    lastMessage =
+                                        messageRow.history.value[
+                                            messageRow.history.value.length - 1
+                                        ]
+                                }
+                                const emptyMessage = createMessageFromSchema(
+                                    getMetadataLazy(
+                                        clonedState.variants[0].prompts[0].messages.__metadata,
+                                    ).itemMetadata,
+                                )
+                                messageRow.history.value.push(emptyMessage)
+
+                                for (const variantId of visibleVariants) {
+                                    const variant = clonedState.variants.find(
+                                        (v) => v.id === variantId,
+                                    )
+
+                                    if (!variant) continue
+
+                                    handleInputRowTestStart(emptyMessage, variantId)
+
+                                    postMessageToWorker(
+                                        createWorkerMessage("runVariantInputRow", {
+                                            variant,
+                                            messageRow,
+                                            messageId: emptyMessage.__id,
+                                            inputRow: variableRow,
+                                            rowId: messageRow.__id,
+                                            appId: config.appId!,
+                                            uri: variant.uri,
+                                            projectId: getCurrentProject().projectId,
+                                            allMetadata: getAllMetadata(),
+                                            headers: {
+                                                ...(jwt
+                                                    ? {
+                                                          Authorization: `Bearer ${jwt}`,
+                                                      }
+                                                    : {}),
+                                            },
+                                        }),
+                                    )
+                                }
+                            }
+                            // const messageMetadata = getMetadataLazy(latestMessageRow.__metadata)
+                            // for (const messageRow of messageRows) {
+                            //     if (!messageMetadata) {
+                            //         messageMetadata = getMetadataLazy(messageRow.__metadata)
+                            //         break
+                            //     }
+                            // }
+
+                            /**
+                             * TODO: NEED TO GENERATE A NEW MESSAGE ROW HERE FOR
+                             * INCOMING CHAT RESPONSE, AND USE ITS ID FOR rowId
+                             */
+                            // const newMessage = createMessageFromSchema(messageMetadata)
+                            // console.log("created message from schema", newMessage)
+                            // const newRow = createMessageRow(newMessage, messageMetadata)
+                        }
+                    }
+                    const generateGenerationTestParams = (
+                        clonedState: PlaygroundStateData,
+                        rowId: string,
+                        jwt,
+                        visibleVariants: string[],
+                    ) => {
+                        const testRows = rowId
+                            ? [
+                                  clonedState.generationData.inputs.value.find(
+                                      (r) => r.__id === rowId,
+                                  ),
+                              ]
+                            : clonedState.generationData.inputs.value
+
+                        for (const testRow of testRows) {
+                            for (const variantId of visibleVariants) {
+                                const variant = clonedState.variants.find((v) => v.id === variantId)
+                                if (!variant || !testRow) continue
+
+                                handleInputRowTestStart(testRow, variantId)
+
+                                postMessageToWorker(
+                                    createWorkerMessage("runVariantInputRow", {
+                                        variant,
+                                        inputRow: testRow,
+                                        rowId: testRow.__id,
+                                        appId: config.appId!,
+                                        uri: variant.uri,
+                                        projectId: getCurrentProject().projectId,
+                                        allMetadata: getAllMetadata(),
+                                        headers: {
+                                            ...(jwt
+                                                ? {
+                                                      Authorization: `Bearer ${jwt}`,
+                                                  }
+                                                : {}),
+                                        },
+                                    }),
+                                )
+                            }
+                        }
+                    }
+
                     const runTests = (rowId?: string, variantId?: string) => {
                         swr.mutate(
                             async (clonedState) => {
                                 const jwt = await getJWT()
-
                                 if (!clonedState) return clonedState
                                 const visibleVariants = variantId
                                     ? [variantId]
                                     : clonedState.selected
-                                const testRows = rowId
-                                    ? [
-                                          clonedState.generationData.value.find(
-                                              (r) => r.__id === rowId,
-                                          ),
-                                      ]
-                                    : clonedState.generationData.value
 
-                                for (const testRow of testRows) {
-                                    for (const variantId of visibleVariants) {
-                                        const variant = clonedState.variants.find(
-                                            (v) => v.id === variantId,
-                                        )
-                                        if (!variant || !testRow) continue
+                                const isChat = clonedState.variants.some((v) => v.isChat)
 
-                                        if (!testRow.__runs) {
-                                            testRow.__runs = {}
-                                        }
-
-                                        if (!testRow.__runs[variantId]) {
-                                            testRow.__runs[variantId] = {
-                                                __isRunning: true,
-                                                __result: undefined,
-                                            }
-                                        } else {
-                                            testRow.__runs[variantId].__isRunning = true
-                                        }
-                                        testRow.__runs[variantId].__isRunning = true
-
-                                        postMessageToWorker(
-                                            createWorkerMessage("runVariantInputRow", {
-                                                variant,
-                                                inputRow: testRow,
-                                                rowId: testRow.__id,
-                                                appId: config.appId!,
-                                                uri: variant.uri,
-                                                projectId: getCurrentProject().projectId,
-                                                allMetadata: getAllMetadata(),
-                                                headers: {
-                                                    ...(jwt
-                                                        ? {
-                                                              Authorization: `Bearer ${jwt}`,
-                                                          }
-                                                        : {}),
-                                                },
-                                            }),
-                                        )
-                                    }
+                                if (isChat) {
+                                    runChatTests(clonedState, rowId, jwt, visibleVariants)
+                                } else {
+                                    generateGenerationTestParams(
+                                        clonedState,
+                                        rowId,
+                                        jwt,
+                                        visibleVariants,
+                                    )
                                 }
 
                                 return clonedState
