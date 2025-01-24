@@ -1,10 +1,8 @@
-import {type Key, useMemo, useState} from "react"
-import dynamic from "next/dynamic"
+import {useMemo, useState} from "react"
 import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 import {formatDate} from "@/lib/helpers/dateTimeHelper"
-import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/lib/Types"
-import {deleteTestsets, useLoadTestsetsList} from "@/services/testsets/api"
+import {useLoadTestsetsList} from "@/services/testsets/api"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Copy, GearSix, Note, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Spin, Table, Typography} from "antd"
@@ -13,10 +11,10 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 import dayjs from "dayjs"
 import {useAppsData} from "@/contexts/app.context"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 
-const TestsetModal = dynamic(() => import("@/components/pages/testset/modals"), {
-    ssr: false,
-})
+const TestsetModal: any = dynamicComponent("pages/testset/modals")
+const DeleteTestsetModal: any = dynamicComponent("pages/testset/modals/DeleteTestset")
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modal: {
@@ -58,36 +56,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
-    const {apps, isLoading: isAppsLoading} = useAppsData()
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+    const {isLoading: isAppsLoading} = useAppsData()
+    const [selectedRowKeys, setSelectedRowKeys] = useState<testset[]>([])
     const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
     const [editTestsetValues, setEditTestsetValues] = useState<testset | null>(null)
     const [current, setCurrent] = useState(0)
-
-    const rowSelection = {
-        onChange: (selectedRowKeys: Key[]) => {
-            setSelectedRowKeys(selectedRowKeys)
-        },
-    }
-
-    const onDelete = async (testsetsId?: string[]) => {
-        const testsetsIds = !testsetsId ? selectedRowKeys.map((key) => key.toString()) : testsetsId
-        try {
-            if (
-                !(await checkIfResourceValidForDeletion({
-                    resourceType: "testset",
-                    resourceIds: testsetsIds,
-                }))
-            )
-                return
-            await deleteTestsets(testsetsIds)
-            mutate()
-            setSelectedRowKeys([])
-        } catch {}
-    }
+    const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<testset[]>([])
+    const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
 
     const filteredTestset = useMemo(() => {
         let allTestsets = testsets.sort(
@@ -187,7 +165,8 @@ const Testset = () => {
                                     danger: true,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        onDelete([record._id])
+                                        setSelectedTestsetToDelete([record])
+                                        setIsDeleteTestsetModalOpen(true)
                                     },
                                 },
                             ],
@@ -233,7 +212,10 @@ const Testset = () => {
                         icon={<Trash size={14} className="mt-0.5" />}
                         className={classes.button}
                         disabled={selectedRowKeys.length == 0}
-                        onClick={() => onDelete()}
+                        onClick={() => {
+                            setSelectedTestsetToDelete(selectedRowKeys)
+                            setIsDeleteTestsetModalOpen(true)
+                        }}
                     >
                         Delete
                     </Button>
@@ -245,7 +227,9 @@ const Testset = () => {
                     rowSelection={{
                         type: "checkbox",
                         columnWidth: 48,
-                        ...rowSelection,
+                        onChange: (_, selectedRows) => {
+                            setSelectedRowKeys(selectedRows)
+                        },
                     }}
                     data-cy="app-testset-list"
                     className={`ph-no-capture ${classes.table}`}
@@ -264,6 +248,18 @@ const Testset = () => {
                     locale={{emptyText: <NoResultsFound />}}
                 />
             </Spin>
+
+            {selectedTestsetToDelete.length > 0 && (
+                <DeleteTestsetModal
+                    selectedTestsetToDelete={selectedTestsetToDelete}
+                    mutate={mutate}
+                    setSelectedTestsetToDelete={setSelectedTestsetToDelete}
+                    open={isDeleteTestsetModalOpen}
+                    onCancel={() => {
+                        setIsDeleteTestsetModalOpen(false)
+                    }}
+                />
+            )}
 
             <TestsetModal
                 editTestsetValues={editTestsetValues}
