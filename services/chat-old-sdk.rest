@@ -1,0 +1,73 @@
+@baseUrl = http://localhost
+
+@service = chat-old-sdk
+
+### These request can be run using the Rest Client extension in vsCode
+
+
+### Health Check
+GET {{baseUrl}}/{{service}}/health HTTP/1.1
+
+### Generate Chat Response
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+    "temperature": 0.2,
+    "model": "gpt-3.5-turbo",
+    "max_tokens": -1,
+    "prompt_system": "You have expertise in offering technical ideas to startups.",
+    "inputs": [
+        {
+            "role": "user",
+            "content": "What are some innovative tech solutions for a startup?"
+        }
+    ]
+}
+
+### Playground Run
+POST {{baseUrl}}/{{service}}/playground/run HTTP/1.1
+Content-Type: application/json
+
+{
+    "temperature": 0.2,
+    "model": "gpt-3.5-turbo",
+    "max_tokens": -1,
+    "prompt_system": "You have expertise in offering technical ideas to startups.",
+    "inputs": [
+        {
+            "role": "user",
+            "content": "Suggest a tech stack for a new SaaS product"
+        }
+    ]
+}
+
+### Generate Deployed
+POST {{baseUrl}}/{{service}}/generate_deployed HTTP/1.1
+Content-Type: application/json
+
+{
+    "inputs": [
+        {
+            "role": "user",
+            "content": "Hello"
+        }
+    ],
+    "config": "default",
+    "environment": "production"
+}
+
+### Run
+POST {{baseUrl}}/{{service}}/run HTTP/1.1
+Content-Type: application/json
+
+{
+    "inputs": [
+        {
+            "role": "user",
+            "content": "Hello"
+        }
+    ],
+    "config": "default",
+    "environment": "production"
+}

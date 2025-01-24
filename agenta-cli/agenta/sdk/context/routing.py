@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class RoutingContext(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
     secrets: Optional[List[Any]] = None
+    mock: Optional[str] = None
 
 
 routing_context = ContextVar("routing_context", default=RoutingContext())

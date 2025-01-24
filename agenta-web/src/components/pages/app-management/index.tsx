@@ -1,10 +1,10 @@
 import {useState, useEffect, useMemo} from "react"
 import {Typography} from "antd"
-import {Template, GenericObject, StyleProps, JSSTheme} from "@/lib/Types"
+import {Template, GenericObject, StyleProps} from "@/lib/Types"
 import {isDemo, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {createAndStartTemplate, fetchAllTemplates, deleteApp} from "@/services/app-selector/api"
+import {createAndStartTemplate, deleteApp, ServiceType} from "@/services/app-selector/api"
 import {waitForAppToStart} from "@/services/api"
-import {createUseStyles} from "react-jss"
+
 import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
@@ -18,6 +18,9 @@ import ApplicationManagementSection from "./components/ApplicationManagementSect
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
 import {useProjectData} from "@/contexts/project.context"
 import {useVaultSecret} from "@/hooks/useVaultSecret"
+import useTemplates from "@/services/app-selector/hooks/useTemplates"
+import {useStyles} from "./assets/styles"
+import {getTemplateKey, timeout} from "./assets/helpers"
 
 const CreateAppStatusModal: any = dynamicComponent(
     "pages/app-management/modals/CreateAppStatusModal",
@@ -36,30 +39,6 @@ const DemoApplicationsSection: any = dynamicComponent(
     "pages/app-management/components/DemoApplicationsSection",
 )
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: ({themeMode}: StyleProps) => ({
-        width: "100%",
-        color: themeMode === "dark" ? "#fff" : "#000",
-        "& h1.ant-typography": {
-            fontSize: theme.fontSizeHeading2,
-            fontWeight: theme.fontWeightMedium,
-            lineHeight: theme.lineHeightHeading2,
-        },
-        "& h2.ant-typography": {
-            fontSize: theme.fontSizeHeading3,
-            fontWeight: theme.fontWeightMedium,
-            lineHeight: theme.lineHeightHeading3,
-        },
-        "& span.ant-typography": {
-            fontSize: theme.fontSizeLG,
-            lineHeight: theme.lineHeightLG,
-            color: "inherit",
-        },
-    }),
-}))
-
-const timeout = isDemo() ? 60000 : 30000
-
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
@@ -67,10 +46,8 @@ const AppManagement: React.FC = () => {
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
-    const [templates, setTemplates] = useState<Template[]>([])
     const {user} = useProfileData()
-    const [noTemplateMessage, setNoTemplateMessage] = useState("")
-    const [templateId, setTemplateId] = useState<string | undefined>(undefined)
+    const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isWriteOwnAppModal, setIsWriteOwnAppModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
@@ -79,6 +56,7 @@ const AppManagement: React.FC = () => {
     const [newApp, setNewApp] = useState("")
     const [searchTerm, setSearchTerm] = useState("")
     const {apps, error, isLoading, mutate} = useAppsData()
+
     const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
         status: "",
         details: undefined,
@@ -90,27 +68,16 @@ const AppManagement: React.FC = () => {
     const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg} = useOrgData()
 
+    const [{data: templates = [], isLoading: isLoadingTemplates}, noTemplateMessage] =
+        useTemplates()
+
     useEffect(() => {
         dynamicContext("org.context", {useOrgData}).then((context) => {
             setUseOrgData(() => context.useOrgData)
         })
     }, [])
 
-    useEffect(() => {
-        if (!isLoading) mutate()
-        const fetchTemplates = async () => {
-            const data = await fetchAllTemplates()
-            if (typeof data == "object") {
-                setTemplates(data)
-            } else {
-                setNoTemplateMessage(data)
-            }
-        }
-
-        fetchTemplates()
-    }, [])
-
-    const handleTemplateCardClick = async (template_id: string) => {
+    const handleTemplateCardClick = async (template_id: ServiceType) => {
         setIsAddAppFromTemplatedModal(false)
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
@@ -123,9 +90,8 @@ const AppManagement: React.FC = () => {
         const apiKeys = secrets
         await createAndStartTemplate({
             appName: newApp,
-            templateId: template_id,
+            templateKey: template_id!,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
-            timeout,
             onStatusChange: async (status, details, appId) => {
                 setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
@@ -150,7 +116,7 @@ const AppManagement: React.FC = () => {
             await deleteApp(statusData.appId).catch(console.error)
             mutate()
         }
-        handleTemplateCardClick(templateId as string)
+        handleTemplateCardClick(templateKey as ServiceType)
     }
 
     const onTimeoutRetry = async () => {
@@ -242,11 +208,16 @@ const AppManagement: React.FC = () => {
                 newApp={newApp}
                 templates={templates}
                 noTemplateMessage={noTemplateMessage}
-                templateId={templateId}
+                templateKey={templateKey}
                 appNameExist={appNameExist}
                 setNewApp={setNewApp}
                 onCardClick={(template: Template) => {
-                    setTemplateId(template.id)
+                    // TODO: temporary until there's a better way to handle this
+                    const templateKey = getTemplateKey(template)
+
+                    if (templateKey) {
+                        setTemplateKey(templateKey)
+                    }
                 }}
                 handleTemplateCardClick={handleTemplateCardClick}
                 fetchingTemplate={fetchingTemplate}
