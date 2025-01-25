@@ -246,10 +246,10 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [router.pathname, router.query])
 
-    // wait unitl we have the app id, if its an app route
+    // wait until we have the app id, if its an app route
     if (isAppRoute && (!appId || !project)) return null
 
-    if (appId && !currentApp && !isLoading && !error)
+    if (appId && !currentApp && !isLoading && !error) {
         return (
             <div className={classes.notFoundContainer}>
                 <Typography.Text>404 - Page Not Found</Typography.Text>
@@ -260,6 +260,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 </Button>
             </div>
         )
+    }
 
     const handleBackToWorkspaceSwitch = () => {
         const project = projects.find((p) => p.user_role === "owner")
