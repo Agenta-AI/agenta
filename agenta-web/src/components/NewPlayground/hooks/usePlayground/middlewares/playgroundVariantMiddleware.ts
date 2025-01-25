@@ -163,7 +163,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         )
 
                         if (targetMessageIndex >= 0) {
-                            console.log("targetMessage", targetMessageIndex)
                             const targetMessage = targetRow.history.value[targetMessageIndex]
 
                             targetMessage.__runs[variantId] = {

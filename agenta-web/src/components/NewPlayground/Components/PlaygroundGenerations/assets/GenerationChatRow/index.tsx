@@ -74,7 +74,7 @@ const GenerationChatRow = ({
     viewAs,
     noResults,
 }: GenerationChatRowProps) => {
-    const {history, messageRow, message, runTests, mutate, viewType, result, isRunning} =
+    const {history, messageRow, runTests, mutate, viewType, isRunning} =
         usePlayground({
             variantId,
             stateSelector: useCallback(
@@ -114,7 +114,6 @@ const GenerationChatRow = ({
                 [rowId, variantId, messageId],
             ),
         })
-    const isComparisonView = viewType === "comparison"
 
     const deleteMessage = useCallback((messageId: string) => {
         mutate(
@@ -166,7 +165,7 @@ const GenerationChatRow = ({
         <>
             <div
                 className={clsx([
-                    "flex flex-col items-start gap-1 w-full",
+                    "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
                     {"px-2": viewType === "comparison"},
                 ])}
