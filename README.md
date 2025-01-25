@@ -10,7 +10,7 @@
   <p align="center">
     <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">Documentation</a> |
     <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">Website</a> |
-    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a>
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ">Slack</a>
   </p>
 <div align="center">
   <strong> <h2> The Open source LLMOps Platform </h2></strong>
@@ -37,7 +37,7 @@
 </p>
 
 <p align="center">
-    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ">
         <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
     </a>
     <a href="https://www.linkedin.com/company/agenta-ai/">
@@ -134,7 +134,7 @@ By default, Agenta automatically reports anonymized basic usage statistics. This
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
-We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
+We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ)
 
 Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme) for more information.
 
