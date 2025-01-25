@@ -98,7 +98,7 @@ const GenerationChatRow = ({
                                 .map((historyItem) => {
                                     return !historyItem.__runs
                                         ? historyItem
-                                        : variantId
+                                        : variantId && historyItem.__runs[variantId]
                                           ? {
                                                 ...historyItem.__runs[variantId].message,
                                                 __result: historyItem.__runs[variantId].__result,
@@ -119,7 +119,21 @@ const GenerationChatRow = ({
     const deleteMessage = useCallback((messageId: string) => {
         mutate(
             (clonedState) => {
-                return clonedState
+                if (!clonedState) return clonedState
+
+                if (!variantId) {
+                    const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
+                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    if (isInput !== -1) {
+                        row.history.value.splice(isInput, 1)
+                    }
+                } else if (variantId) {
+                    const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
+                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    if (isInput !== -1) {
+                        row.history.value.splice(isInput, 1)
+                    }
+                }
             },
             {revalidate: false},
         )

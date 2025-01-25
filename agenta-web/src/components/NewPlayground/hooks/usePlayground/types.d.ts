@@ -46,6 +46,7 @@ export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
     extends SWRResponse<T, Error> {
     isDirty?: boolean
     selectedData?: Selected
+    propertyGetter?: (propertyId: string) => EnhancedProperty
     handleWebWorkerMessage?: (message: MessageEvent) => void
 }
 

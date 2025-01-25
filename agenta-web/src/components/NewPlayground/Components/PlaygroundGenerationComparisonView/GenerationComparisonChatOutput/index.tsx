@@ -22,13 +22,15 @@ const GenerationComparisonChatOutputRow = ({
                     messageRow,
                     history: messageHistory
                         .map((historyItem) => {
-                            return !historyItem.__runs
+                            return !historyItem.__runs?.[variantId]
                                 ? undefined
-                                : {
-                                      ...historyItem.__runs[variantId].message,
-                                      __result: historyItem.__runs[variantId].__result,
-                                      __isRunning: historyItem.__runs[variantId].__isRunning,
-                                  }
+                                : historyItem.__runs?.[variantId]
+                                  ? {
+                                        ...historyItem.__runs[variantId].message,
+                                        __result: historyItem.__runs[variantId].__result,
+                                        __isRunning: historyItem.__runs[variantId].__isRunning,
+                                    }
+                                  : undefined
                         })
                         .filter(Boolean),
                 }
@@ -37,12 +39,29 @@ const GenerationComparisonChatOutputRow = ({
         ),
     })
 
-    const handleDeleteMessage = useCallback((messageId) => {
+    const handleDeleteMessage = useCallback((messageId: string) => {
         mutate((clonedState) => {
             if (!clonedState) return clonedState
-            const row = findPropertyInObject(clonedState.generationData.messages.value, rowId)
+
+            if (!variantId) {
+                const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
+                const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                if (isInput !== -1) {
+                    row.history.value.splice(isInput, 1)
+                } else {
+                    const isRunIndex = row.history.value.findIndex((m) => {
+                        return m.__runs[variantId]?.message?.__id === messageId
+                    })
+                }
+            } else if (variantId) {
+                const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
+                const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                if (isInput !== -1) {
+                    row.history.value.splice(isInput, 1)
+                }
+            }
         })
-    }, [])
+    }, [variantId])
 
     return (
         <div className="flex flex-col w-full p-2 self-stretch">
