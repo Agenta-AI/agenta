@@ -220,8 +220,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                         const messageRows = clonedState.generationData.messages.value
 
                         for (const variableRow of variableRows) {
-                            // handleInputRowTestStart(variableRow, variantId)
-
                             for (const messageRow of messageRows) {
                                 const messagesInRow = messageRow.history.value
 
