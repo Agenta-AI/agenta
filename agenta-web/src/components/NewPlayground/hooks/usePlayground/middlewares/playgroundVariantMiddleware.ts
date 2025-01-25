@@ -144,6 +144,57 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 ),
             } as PlaygroundSWRConfig<Data>)
 
+            const handleWebWorkerChatMessage = useCallback(
+                (message) => {
+                    // HANDLE INCOMING CHAT
+                    const rowId = message.payload.rowId
+                    swr.mutate((clonedState) => {
+                        if (!clonedState) return clonedState
+
+                        const targetRow = clonedState.generationData.messages.value.find(
+                            (row) => row.__id === rowId,
+                        )
+
+                        if (!targetRow) return clonedState
+
+                        const targetMessageId = message.payload.messageId
+                        const targetMessageIndex = targetRow.history.value.findIndex(
+                            (msg) => msg.__id === targetMessageId,
+                        )
+
+                        if (targetMessageIndex >= 0) {
+                            console.log("targetMessage", targetMessageIndex)
+                            const targetMessage = targetRow.history.value[targetMessageIndex]
+
+                            targetMessage.__runs[variantId] = {
+                                __result: {
+                                    ...message.payload.result,
+                                },
+                                message: createMessageFromSchema(
+                                    getMetadataLazy(targetMessage.__metadata),
+                                    message.payload.result.response?.data,
+                                ),
+                                __isRunning: false,
+                            }
+
+                            if (targetMessageIndex === targetRow.history.value.length - 1) {
+                                // targetRow.history.value.push(createMessageRow())
+                                const emptyMessage = createMessageFromSchema(
+                                    getMetadataLazy(targetMessage.__metadata),
+                                    {
+                                        role: "user",
+                                    },
+                                )
+                                targetRow.history.value.push(emptyMessage)
+                            }
+                        }
+
+                        return clonedState
+                    })
+                },
+                [swr, variantId],
+            )
+
             const handleWebWorkerMessage = useCallback(
                 (message: {
                     type: string
@@ -168,34 +219,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
                         if (message.payload.variant.isChat) {
-                            // HANDLE INCOMING CHAT
-                            const rowId = message.payload.rowId
-                            swr.mutate((clonedState) => {
-                                if (!clonedState) return clonedState
-
-                                const targetRow = clonedState.generationData.messages.value.find(
-                                    (row) => row.__id === rowId,
-                                )
-
-                                if (!targetRow) return clonedState
-
-                                const targetMessageId = message.payload.messageId
-                                const targetMessage = targetRow.history.value.find(
-                                    (msg) => msg.__id === targetMessageId,
-                                )
-
-                                targetMessage.__runs[variantId] = {
-                                    __result: {
-                                        ...message.payload.result,
-                                    },
-                                    message: createMessageFromSchema(
-                                        getMetadataLazy(targetMessage.__metadata),
-                                        message.payload.result.response?.data,
-                                    ),
-                                    __isRunning: false,
-                                }
-                                return clonedState
-                            })
+                            handleWebWorkerChatMessage(message)
                         } else {
                             const rowId = message.payload.rowId
 
@@ -218,7 +242,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 },
-                [swr],
+                [swr, handleWebWorkerChatMessage],
             )
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
