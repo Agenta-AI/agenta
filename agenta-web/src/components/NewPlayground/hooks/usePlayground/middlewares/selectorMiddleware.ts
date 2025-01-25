@@ -1,8 +1,10 @@
 import {useCallback} from "react"
 
+import {findPropertyInObject, isPlaygroundEqual} from "../assets/helpers"
+
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
-import {type FetcherOptions} from "@/lib/api/types"
+import type {FetcherOptions} from "@/lib/api/types"
 import type {Key, SWRHook} from "swr"
 import type {
     PlaygroundStateData,
@@ -10,7 +12,6 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
-import {isPlaygroundEqual} from "../assets/helpers"
 
 const selectorMiddleware: PlaygroundMiddleware = <
     Data extends PlaygroundStateData = PlaygroundStateData,
@@ -102,6 +103,14 @@ const selectorMiddleware: PlaygroundMiddleware = <
                     })
                 }
             }
+
+            Object.defineProperty(swr, "propertyGetter", {
+                get: () => {
+                    return (propertyId: string) => {
+                        return findPropertyInObject(swr.data, propertyId)
+                    }
+                },
+            })
 
             return swr
         }

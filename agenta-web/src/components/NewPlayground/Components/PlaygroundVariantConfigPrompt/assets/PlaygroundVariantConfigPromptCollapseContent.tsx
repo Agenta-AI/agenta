@@ -98,12 +98,6 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                         )
                     }
 
-                    const generationMessages = clonedState.generationData.messages.value
-                    clonedState.generationData.messages.value = generationMessages.filter(
-                        (message) => {
-                            return message.value.__id !== messageId
-                        },
-                    )
 
                     return clonedState
                 },
