@@ -32,7 +32,6 @@ import {
     Evaluation,
     EvaluationResult,
     EvaluationScenario,
-    FuncResponse,
     KeyValuePair,
     Variant,
 } from "@/lib/Types"

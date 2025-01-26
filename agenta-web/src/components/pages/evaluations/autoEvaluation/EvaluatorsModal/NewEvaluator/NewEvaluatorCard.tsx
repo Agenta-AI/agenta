@@ -1,5 +1,4 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
-import {ArrowRightOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Card, Empty, Typography} from "antd"
 import {createUseStyles} from "react-jss"

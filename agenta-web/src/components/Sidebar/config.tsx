@@ -2,7 +2,6 @@ import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
 import {isDemo} from "@/lib/helpers/utils"
 import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
-import {useEffect, useState} from "react"
 import {
     ChartDonut,
     ChartLineUp,
