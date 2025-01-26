@@ -18,7 +18,7 @@ import dayjs from "dayjs"
 import relativeTime from "dayjs/plugin/relativeTime"
 import duration from "dayjs/plugin/duration"
 import Link from "next/link"
-import React, {useCallback, useEffect, useState} from "react"
+import {memo, useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getTypedValue} from "@/lib/helpers/evaluate"
 dayjs.extend(relativeTime)
@@ -136,7 +136,7 @@ export function LongTextCellRenderer(params: ICellRendererParams, output?: any) 
     )
 }
 
-export const ResultRenderer = React.memo(
+export const ResultRenderer = memo(
     (
         params: ICellRendererParams<_EvaluationScenario> & {
             config: EvaluatorConfig
@@ -188,7 +188,7 @@ export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) =
     )
 }
 
-export const StatusRenderer = React.memo(
+export const StatusRenderer = memo(
     (params: ICellRendererParams<_Evaluation>) => {
         const classes = useStyles()
         const {token} = theme.useToken()
@@ -219,7 +219,7 @@ export const StatusRenderer = React.memo(
     (prev, next) => prev.value === next.value && prev.data?.duration === next.data?.duration,
 )
 
-export const LinkCellRenderer = React.memo(
+export const LinkCellRenderer = memo(
     (params: ICellRendererParams & {href: string}) => {
         const {value, href} = params
         return <Link href={href}>{value}</Link>
@@ -227,7 +227,7 @@ export const LinkCellRenderer = React.memo(
     (prev, next) => prev.value === next.value && prev.href === next.href,
 )
 
-export const DateFromNowRenderer = React.memo(
+export const DateFromNowRenderer = memo(
     (params: ICellRendererParams) => {
         const [date, setDate] = useState(params.value)
 

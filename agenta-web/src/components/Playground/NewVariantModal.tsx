@@ -1,6 +1,6 @@
 // NewVariantModal.tsx
 
-import React, {useState} from "react"
+import {useState} from "react"
 import {Modal, Input, Select, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 const {Text} = Typography

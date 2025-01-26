@@ -1,6 +1,6 @@
 import {useSession} from "@/hooks/useSession"
 import {useRouter} from "next/router"
-import React, {PropsWithChildren, useEffect, useRef, useState} from "react"
+import {PropsWithChildren, useEffect, useRef, useState} from "react"
 import {useProjectData} from "@/contexts/project.context"
 
 const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {

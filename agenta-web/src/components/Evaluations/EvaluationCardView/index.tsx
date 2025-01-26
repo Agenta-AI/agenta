@@ -8,7 +8,7 @@ import {
     RightOutlined,
 } from "@ant-design/icons"
 import {Button, Empty, Form, Input, Result, Space, Tooltip, Typography, theme} from "antd"
-import React, {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVotePanel from "./EvaluationVotePanel"
 import EvaluationCard from "./EvaluationCard"

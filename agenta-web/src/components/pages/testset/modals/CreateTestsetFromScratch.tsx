@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/lib/Types"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Input, message, Typography} from "antd"

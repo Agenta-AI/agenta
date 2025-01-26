@@ -1,7 +1,7 @@
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CaretRight} from "@phosphor-icons/react"
 import {Badge, Input, Modal, Table, Tag, theme, Typography} from "antd"
-import React, {SetStateAction, useMemo, useState} from "react"
+import {SetStateAction, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeploymentModal from "./DeploymentModal"
 import {formatVariantIdWithHash} from "@/lib/helpers/utils"

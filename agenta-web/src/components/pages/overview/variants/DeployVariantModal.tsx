@@ -3,7 +3,7 @@ import {createPublishVariant} from "@/services/deployment/api"
 import {Rocket} from "@phosphor-icons/react"
 import {Badge, message, Modal, Table, Tag, theme, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import React, {useState} from "react"
+import {useState} from "react"
 import {createUseStyles} from "react-jss"
 
 type DeployVariantModalProps = {

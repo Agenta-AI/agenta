@@ -2,7 +2,7 @@ import {isDemo} from "@/lib/helpers/utils"
 import {JSSTheme, ListAppsItem} from "@/lib/Types"
 import {Code, Info, Rocket, TreeView} from "@phosphor-icons/react"
 import {Card, Tooltip, Typography} from "antd"
-import React, {Dispatch, SetStateAction} from "react"
+import {Dispatch, SetStateAction} from "react"
 import {createUseStyles} from "react-jss"
 
 interface GetStartedSectionProps {

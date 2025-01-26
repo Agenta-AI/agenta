@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import {useState} from "react"
 import {GenericObject, JSSTheme} from "@/lib/Types"
 import {ArrowLeft, FileCode, FileCsv, Trash} from "@phosphor-icons/react"
 import {Button, Collapse, Form, Input, message, Radio, Typography, Upload, UploadFile} from "antd"

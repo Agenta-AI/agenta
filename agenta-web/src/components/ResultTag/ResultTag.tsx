@@ -1,6 +1,6 @@
 import {JSSTheme} from "@/lib/Types"
 import {Popover, Tag} from "antd"
-import React, {memo} from "react"
+import {memo} from "react"
 import {createUseStyles} from "react-jss"
 
 type ResultTagProps = {

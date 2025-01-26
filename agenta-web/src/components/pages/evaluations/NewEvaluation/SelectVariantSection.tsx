@@ -3,7 +3,7 @@ import {Variant} from "@/lib/Types"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
 type SelectVariantSectionProps = {
     variants: Variant[]

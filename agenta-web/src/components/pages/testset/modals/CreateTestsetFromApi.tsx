@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import {useState} from "react"
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {JSSTheme} from "@/lib/Types"

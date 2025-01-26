@@ -1,7 +1,7 @@
 import {JSSTheme} from "@/lib/Types"
 import {CloseCircleFilled} from "@ant-design/icons"
 import {Result, Spin, Typography} from "antd"
-import React, {ReactNode} from "react"
+import {ReactNode} from "react"
 import {createUseStyles} from "react-jss"
 const {Title} = Typography
 

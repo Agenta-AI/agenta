@@ -1,7 +1,7 @@
 import {copyToClipboard} from "@/lib/helpers/copyToClipboard"
 import {CheckOutlined, CopyOutlined} from "@ant-design/icons"
 import {Button, notification} from "antd"
-import React, {ComponentProps, useState} from "react"
+import {ComponentProps, useState} from "react"
 
 type Props = {
     text: string

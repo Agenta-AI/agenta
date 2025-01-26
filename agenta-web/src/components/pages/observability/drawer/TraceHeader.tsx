@@ -3,7 +3,7 @@ import {_AgentaRootsResponse} from "@/services/observability/types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import React, {useState} from "react"
+import {useState} from "react"
 import {createUseStyles} from "react-jss"
 import DeleteTraceModal from "../components/DeleteTraceModal"
 

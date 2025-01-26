@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {Evaluation, EvaluationScenario} from "@/lib/Types"
 import {EvaluationFlow} from "@/lib/enums"
 import {createNewTestset} from "@/services/testsets/api"

@@ -1,4 +1,4 @@
-import React, {useEffect, useRef} from "react"
+import {useEffect, useRef} from "react"
 import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"

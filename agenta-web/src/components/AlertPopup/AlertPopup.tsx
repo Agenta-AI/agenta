@@ -1,4 +1,4 @@
-import React, {ReactNode} from "react"
+import {ReactNode} from "react"
 import {Modal, ModalFuncProps} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {globalErrorHandler} from "@/lib/helpers/errorHandler"

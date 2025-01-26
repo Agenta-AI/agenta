@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import {useState} from "react"
 import {Button, Dropdown, Space, Checkbox} from "antd"
 import {createUseStyles} from "react-jss"
 import {Columns} from "@phosphor-icons/react"

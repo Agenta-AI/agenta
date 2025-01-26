@@ -11,7 +11,7 @@ import {
     Swap,
 } from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tag, Tooltip, Typography} from "antd"
-import React, {Dispatch, SetStateAction, useEffect, useState} from "react"
+import {Dispatch, SetStateAction, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python"

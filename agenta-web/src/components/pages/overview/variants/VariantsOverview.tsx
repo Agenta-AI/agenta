@@ -6,7 +6,7 @@ import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "an
 import {ColumnsType} from "antd/es/table"
 import Link from "next/link"
 import {useRouter} from "next/router"
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import VariantDrawer from "./VariantDrawer"
 import {useQueryParam} from "@/hooks/useQuery"

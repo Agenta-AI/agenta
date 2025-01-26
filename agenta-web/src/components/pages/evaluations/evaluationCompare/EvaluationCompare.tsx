@@ -11,7 +11,7 @@ import {
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {fetchAllComparisonResults} from "@/services/evaluations/api"
 import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/lib/helpers/evaluate"
 import {getColorPairFromStr, getRandomColors} from "@/lib/helpers/colors"

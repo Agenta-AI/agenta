@@ -4,7 +4,7 @@ import {GenericObject, JSSTheme, ListAppsItem} from "@/lib/Types"
 import {updateAppName} from "@/services/app-selector/api"
 import {CheckOutlined} from "@ant-design/icons"
 import {Input, Modal, Typography} from "antd"
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {useUpdateEffect} from "usehooks-ts"
 
