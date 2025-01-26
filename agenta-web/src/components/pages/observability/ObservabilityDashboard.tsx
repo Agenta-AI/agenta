@@ -9,7 +9,6 @@ import Filters from "@/components/Filters/Filters"
 import Sort, {SortResult} from "@/components/Filters/Sort"
 import EditColumns from "@/components/Filters/EditColumns"
 import ResultTag from "@/components/ResultTag/ResultTag"
-import {ResizableTitle} from "@/components/ServerTable/components"
 import {useAppId} from "@/hooks/useAppId"
 import {useQueryParam} from "@/hooks/useQuery"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
@@ -42,6 +41,7 @@ import {useUpdateEffect} from "usehooks-ts"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
 import TestsetDrawer, {TestsetTraceData} from "./drawer/TestsetDrawer"
+import ResizableTitle from "@/components/ResizableTitle"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {

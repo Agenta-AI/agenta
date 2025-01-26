@@ -1,6 +1,5 @@
 import CopyButton from "@/components/CopyButton/CopyButton"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
-import {createParams} from "@/pages/apps/[app_id]/endpoints"
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -24,7 +23,7 @@ import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {useRouter} from "next/router"
 import {fetchAppContainerURL} from "@/services/api"
 import {useVariant} from "@/lib/hooks/useVariant"
-import {isDemo} from "@/lib/helpers/utils"
+import {createParams, isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import VariantPopover from "../variants/VariantPopover"
 import {useAppsData} from "@/contexts/app.context"

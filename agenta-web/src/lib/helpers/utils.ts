@@ -1,6 +1,6 @@
 import {v4 as uuidv4} from "uuid"
 import {EvaluationType} from "../enums"
-import {GenericObject} from "../Types"
+import {GenericObject, Parameter} from "../Types"
 import promiseRetry from "promise-retry"
 import {getErrorMessage} from "./errorHandler"
 import dayjs from "dayjs"
@@ -373,4 +373,36 @@ export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
     }
 
     return paths
+}
+
+export const createParams = (
+    inputParams: Parameter[] | null,
+    environmentName: string,
+    value: string | number,
+    isChatVariant: boolean | null,
+) => {
+    let mainParams: GenericObject = {}
+    let secondaryParams: GenericObject = {}
+
+    inputParams?.forEach((item) => {
+        if (item.input) {
+            mainParams[item.name] = item.default || value
+        } else {
+            secondaryParams[item.name] = item.default || value
+        }
+    })
+    if (isChatVariant) {
+        mainParams["inputs"] = [
+            {
+                role: "user",
+                content: "Example message",
+            },
+        ]
+    } else if (Object.keys(secondaryParams).length > 0) {
+        mainParams["inputs"] = secondaryParams
+    }
+
+    mainParams["environment"] = environmentName
+
+    return JSON.stringify(mainParams, null, 2)
 }
