@@ -98,7 +98,6 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                         )
                     }
 
-
                     return clonedState
                 },
                 {revalidate: false},

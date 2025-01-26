@@ -39,29 +39,36 @@ const GenerationComparisonChatOutputRow = ({
         ),
     })
 
-    const handleDeleteMessage = useCallback((messageId: string) => {
-        mutate((clonedState) => {
-            if (!clonedState) return clonedState
+    const handleDeleteMessage = useCallback(
+        (messageId: string) => {
+            mutate((clonedState) => {
+                if (!clonedState) return clonedState
 
-            if (!variantId) {
-                const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
-                const isInput = row.history.value.findIndex((m) => m.__id === messageId)
-                if (isInput !== -1) {
-                    row.history.value.splice(isInput, 1)
-                } else {
-                    const isRunIndex = row.history.value.findIndex((m) => {
-                        return m.__runs[variantId]?.message?.__id === messageId
-                    })
+                if (!variantId) {
+                    const row = clonedState.generationData.messages.value.find(
+                        (v) => v.__id === rowId,
+                    )
+                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    if (isInput !== -1) {
+                        row.history.value.splice(isInput, 1)
+                    } else {
+                        const isRunIndex = row.history.value.findIndex((m) => {
+                            return m.__runs[variantId]?.message?.__id === messageId
+                        })
+                    }
+                } else if (variantId) {
+                    const row = clonedState.generationData.messages.value.find(
+                        (v) => v.__id === rowId,
+                    )
+                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    if (isInput !== -1) {
+                        row.history.value.splice(isInput, 1)
+                    }
                 }
-            } else if (variantId) {
-                const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
-                const isInput = row.history.value.findIndex((m) => m.__id === messageId)
-                if (isInput !== -1) {
-                    row.history.value.splice(isInput, 1)
-                }
-            }
-        })
-    }, [variantId])
+            })
+        },
+        [variantId],
+    )
 
     return (
         <div className="flex flex-col w-full p-2 self-stretch">

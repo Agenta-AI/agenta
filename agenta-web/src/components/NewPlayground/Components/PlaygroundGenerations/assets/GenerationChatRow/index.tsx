@@ -1,18 +1,15 @@
 import dynamic from "next/dynamic"
-import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
 import GenerationOutputText from "../GenerationOutputText"
 import {GenerationChatRowProps} from "./types"
 import {useCallback} from "react"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import PromptMessageContentOptions from "../../../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import clsx from "clsx"
 import {
     findPropertyInObject,
     findVariantById,
 } from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import PromptMessageConfig from "../../../PromptMessageConfig"
-import {CopySimple} from "@phosphor-icons/react"
 import AddButton from "@/components/NewPlayground/assets/AddButton"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 import {createMessageFromSchema} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
@@ -34,12 +31,8 @@ export const GenerationChatRowOutput = ({
     result,
     isRunning,
 }: GenerationChatRowProps) => {
-    const {viewType} = usePlayground()
-    const isComparisonView = viewType === "comparison"
-
     return isRunning ? (
         <div className="w-full flex items-start gap-2 relative group/option">
-            <div className="w-[120px]"></div>
             <div className="w-full flex flex-col gap-3 -mt-1">
                 <GenerationOutputText
                     text={"Generating response..."}
@@ -74,46 +67,45 @@ const GenerationChatRow = ({
     viewAs,
     noResults,
 }: GenerationChatRowProps) => {
-    const {history, messageRow, runTests, mutate, viewType, isRunning} =
-        usePlayground({
-            variantId,
-            stateSelector: useCallback(
-                (state: PlaygroundStateData) => {
-                    const variant = findVariantById(state, variantId)
+    const {history, messageRow, runTests, mutate, viewType, isRunning} = usePlayground({
+        variantId,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variant = findVariantById(state, variantId)
 
-                    if (messageId) {
-                        return {
-                            history: [findPropertyInObject(variant, messageId)],
-                        }
-                    } else {
-                        const messageRow = (state.generationData.messages.value || []).find(
-                            (inputRow) => {
-                                return inputRow.__id === rowId
-                            },
-                        )
-                        const messageHistory = messageRow.history.value
-                        return {
-                            messageRow,
-                            history: messageHistory
-                                .map((historyItem) => {
-                                    return !historyItem.__runs
-                                        ? historyItem
-                                        : variantId && historyItem.__runs[variantId]
-                                          ? {
-                                                ...historyItem.__runs[variantId].message,
-                                                __result: historyItem.__runs[variantId].__result,
-                                                __isRunning:
-                                                    historyItem.__runs[variantId].__isRunning,
-                                            }
-                                          : undefined
-                                })
-                                .filter(Boolean),
-                        }
+                if (messageId) {
+                    return {
+                        history: [findPropertyInObject(variant, messageId)],
                     }
-                },
-                [rowId, variantId, messageId],
-            ),
-        })
+                } else {
+                    const messageRow = (state.generationData.messages.value || []).find(
+                        (inputRow) => {
+                            return inputRow.__id === rowId
+                        },
+                    )
+                    const messageHistory = messageRow.history.value
+                    return {
+                        messageRow,
+                        history: messageHistory
+                            .map((historyItem) => {
+                                return !historyItem.__runs
+                                    ? historyItem
+                                    : variantId && historyItem.__runs[variantId]
+                                      ? {
+                                            ...historyItem.__runs[variantId].message,
+                                            __result: historyItem.__runs[variantId].__result,
+                                            __isRunning: historyItem.__runs[variantId].__isRunning,
+                                        }
+                                      : undefined
+                            })
+                            .filter(Boolean),
+                    }
+                }
+            },
+            [rowId, variantId, messageId],
+        ),
+    })
+    const isComparisonView = viewType === "comparison"
 
     const deleteMessage = useCallback((messageId: string) => {
         mutate(
@@ -121,13 +113,17 @@ const GenerationChatRow = ({
                 if (!clonedState) return clonedState
 
                 if (!variantId) {
-                    const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
+                    const row = clonedState.generationData.messages.value.find(
+                        (v) => v.__id === rowId,
+                    )
                     const isInput = row.history.value.findIndex((m) => m.__id === messageId)
                     if (isInput !== -1) {
                         row.history.value.splice(isInput, 1)
                     }
                 } else if (variantId) {
-                    const row = clonedState.generationData.messages.value.find((v) => v.__id === rowId)
+                    const row = clonedState.generationData.messages.value.find(
+                        (v) => v.__id === rowId,
+                    )
                     const isInput = row.history.value.findIndex((m) => m.__id === messageId)
                     if (isInput !== -1) {
                         row.history.value.splice(isInput, 1)
@@ -188,7 +184,7 @@ const GenerationChatRow = ({
                 })}
             </div>
             {withControls ? (
-                <div className={clsx(["flex items-center gap-2 px-4 mt-5"])}>
+                <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
                     <RunButton
                         size="small"
                         onClick={() => runTests?.()}
