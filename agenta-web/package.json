@@ -1,6 +1,6 @@
 {
     "name": "agenta",
-    "version": "0.29.0",
+      "version": "0.29.0",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -79,7 +79,6 @@
         "promise-retry": "^2.0.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
-        "react-drag-listview": "^2.0.0",
         "react-error-boundary": "^4.0.11",
         "react-icons": "^5.0.1",
         "react-jss": "^10.10.0",
@@ -100,6 +99,3 @@
         "husky": "^9.1.7",
         "node-mocks-http": "^1.12.2",
         "prettier": "^3.2.5",
-        "prettier-plugin-tailwindcss": "^0.1"
-    }
-}
