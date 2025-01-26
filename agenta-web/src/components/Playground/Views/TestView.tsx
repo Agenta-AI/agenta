@@ -422,7 +422,7 @@ const App: React.FC<TestViewProps> = ({
     const [params, setParams] = useState<Record<string, string> | null>(null)
     const classes = useStylesApp({themeMode: appTheme} as StyleProps)
 
-    const rootRef = React.useRef<HTMLDivElement>(null)
+    const rootRef = useRef<HTMLDivElement>(null)
     const [isLLMProviderMissingModalOpen, setIsLLMProviderMissingModalOpen] = useState(false)
 
     const [additionalDataList, setAdditionalDataList] = useState<
