@@ -187,6 +187,8 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
+        if not app:
+            raise NoResultFound(f"No application with ID '{app_uuid}' found")
         return app
 
 
@@ -780,6 +782,25 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
         if not app:
             raise NoResultFound(f"App with {app_id} not found")
 
+        # Check if 'app_name' is in the values to update
+        if "app_name" in values_to_update:
+            new_app_name = values_to_update["app_name"]
+
+            # Check if another app with the same name exists for the user
+            existing_app_result = await session.execute(
+                select(AppDB)
+                .filter(
+                    AppDB.project_id == app.project_id
+                )  # Assuming 'user_id' exists on the AppDB model
+                .filter(AppDB.app_name == new_app_name)
+            )
+            existing_app = existing_app_result.scalars().first()
+
+            if existing_app:
+                raise Exception(
+                    f"Cannot update app name to '{new_app_name}' because another app with this name already exists."
+                )
+
         for key, value in values_to_update.items():
             if hasattr(app, key):
                 setattr(app, key, value)
@@ -1206,7 +1227,6 @@ async def add_variant_from_base_and_config(
 
 async def list_apps(
     project_id: str,
-    user_uid: str,
     app_name: Optional[str] = None,
 ):
     """
@@ -1224,28 +1244,6 @@ async def list_apps(
             app_name=app_name, project_id=project_id
         )
         return [converters.app_db_to_pydantic(app_db)]
-
-    elif isCloudEE():
-        if isCloudEE():
-            user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)  # type: ignore
-            has_permission = await check_rbac_permission(  # type: ignore
-                user_org_workspace_data=user_org_workspace_data,
-                project_id=project_id,
-                permission=Permission.VIEW_APPLICATION,  # type: ignore
-            )
-            logger.debug(f"User has Permission to list apps: {has_permission}")
-            if not has_permission:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You do not have access to perform this action. Please contact your organization admin.",
-                )
-
-            async with engine.session() as session:
-                result = await session.execute(
-                    select(AppDB).filter_by(project_id=project_id)
-                )
-                apps = result.unique().scalars().all()
-                return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
         async with engine.session() as session:
@@ -2042,6 +2040,8 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     async with engine.session() as session:
         result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
         testset = result.scalars().first()
+        if not testset:
+            raise NoResultFound(f"Testset with id {testset_id} not found")
         return testset
 
 
@@ -3314,17 +3314,13 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
     Checks if the given object_id is a valid MongoDB ObjectId and fetches the corresponding
     UUID from the specified table. If the object_id is not a valid ObjectId, it is assumed
     to be a PostgreSQL UUID and returned as is.
-
     Args:
         object_id (str): The ID of the object, which could be a MongoDB ObjectId or a PostgreSQL UUID.
         table_name (str): The name of the table to fetch the UUID from.
-
     Returns:
         str: The corresponding object UUID.
-
     Raises:
         AssertionError: If the resulting object UUID is None.
-
     """
 
     from bson import ObjectId
@@ -3349,11 +3345,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
 async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> str:
     """
     Fetches a corresponding object uuid.
-
     Args:
         table_name (str):  The table name
         object_id (str):   The object identifier
-
     Returns:
         The corresponding object uuid as string.
     """
@@ -3369,7 +3363,6 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
 async def fetch_default_project() -> ProjectDB:
     """
     Fetch the default project from the database.
-
     Returns:
         ProjectDB: The default project instance.
     """

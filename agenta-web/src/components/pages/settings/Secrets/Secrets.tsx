@@ -87,6 +87,7 @@ export default function Secrets() {
                                             })
                                             const newLlmProviderKeys = [...llmProviderKeys]
                                             newLlmProviderKeys[i].key = ""
+                                            newLlmProviderKeys[i].id = ""
                                             setLlmProviderKeys(newLlmProviderKeys)
                                             messageAPI.warning("The secret is deleted")
                                         } finally {

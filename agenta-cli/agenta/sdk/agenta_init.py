@@ -6,8 +6,9 @@ from importlib.metadata import version
 from agenta.sdk.utils.logging import log
 from agenta.sdk.utils.globals import set_global
 from agenta.client.backend.client import AgentaApi, AsyncAgentaApi
+
 from agenta.sdk.tracing import Tracing
-from agenta.client.exceptions import APIRequestError
+from agenta.sdk.context.routing import routing_context
 
 
 class AgentaSingleton:
@@ -59,9 +60,7 @@ class AgentaSingleton:
             ValueError: If `app_id` is not specified either as an argument, in the config file, or in the environment variables.
         """
 
-        log.info("---------------------------")
-        log.info("Agenta SDK - using version: %s", version("agenta"))
-        log.info("---------------------------")
+        log.info("Agenta - SDK version: %s", version("agenta"))
 
         config = {}
         if config_fname:
@@ -86,6 +85,13 @@ class AgentaSingleton:
 
         self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
 
+        self.base_id = getenv("AGENTA_BASE_ID")
+
+        self.service_id = getenv("AGENTA_SERVICE_ID") or self.base_id
+
+        log.info("Agenta - Service ID: %s", self.service_id)
+        log.info("Agenta - Application ID: %s", self.app_id)
+
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/otlp/traces",  # type: ignore
             redact=redact,
@@ -94,6 +100,7 @@ class AgentaSingleton:
 
         self.tracing.configure(
             api_key=self.api_key,
+            service_id=self.service_id,
             # DEPRECATING
             app_id=self.app_id,
         )
@@ -108,8 +115,6 @@ class AgentaSingleton:
             api_key=self.api_key if self.api_key else "",
         )
 
-        self.base_id = getenv("AGENTA_BASE_ID")
-
         self.config = Config(
             host=self.host,
             base_id=self.base_id,
@@ -120,28 +125,43 @@ class AgentaSingleton:
 class Config:
     def __init__(
         self,
-        host: str,
+        # LEGACY
+        host: Optional[str] = None,
         base_id: Optional[str] = None,
-        api_key: Optional[str] = "",
+        api_key: Optional[str] = None,
+        # LEGACY
+        **kwargs,
     ):
-        self.host = host
+        self.default_parameters = {**kwargs}
 
-        self.base_id = base_id
+    def set_default(self, **kwargs):
+        self.default_parameters.update(kwargs)
 
-        if self.base_id is None:
-            # print(
-            #    "Warning: Your configuration will not be saved permanently since base_id is not provided.\n"
-            # )
-            pass
+    def get_default(self):
+        return self.default_parameters
 
-        if base_id is None or host is None:
-            self.persist = False
-        else:
-            self.persist = True
-            self.client = AgentaApi(
-                base_url=self.host + "/api",
-                api_key=api_key if api_key else "",
-            )
+    def __getattr__(self, key):
+        context = routing_context.get()
+
+        parameters = context.parameters
+
+        if not parameters:
+            return None
+
+        if key in parameters:
+            value = parameters[key]
+
+            if isinstance(value, dict):
+                nested_config = Config()
+                nested_config.set_default(**value)
+
+                return nested_config
+
+            return value
+
+        return None
+
+    ### --- LEGACY --- ###
 
     def register_default(self, overwrite=False, **kwargs):
         """alias for default"""
@@ -153,104 +173,13 @@ class Config:
             overwrite: Whether to overwrite the existing configuration or not
             **kwargs: A dict containing the parameters
         """
-        self.set(
-            **kwargs
-        )  # In case there is no connectivity, we still can use the default values
-        try:
-            self.push(config_name="default", overwrite=overwrite, **kwargs)
-        except Exception as ex:
-            log.warning(
-                "Unable to push the default configuration to the server. %s", str(ex)
-            )
+        self.set(**kwargs)
 
-    def push(self, config_name: str, overwrite=True, **kwargs):
-        """Pushes the parameters for the app variant to the server
-        Args:
-            config_name: Name of the configuration to push to
-            overwrite: Whether to overwrite the existing configuration or not
-            **kwargs: A dict containing the parameters
-        """
-        if not self.persist:
-            return
-        try:
-            self.client.configs.save_config(
-                base_id=self.base_id,
-                config_name=config_name,
-                parameters=kwargs,
-                overwrite=overwrite,
-            )
-        except Exception as ex:
-            log.warning(
-                "Failed to push the configuration to the server with error: %s", ex
-            )
-
-    def pull(
-        self, config_name: str = "default", environment_name: Optional[str] = None
-    ):
-        """Pulls the parameters for the app variant from the server and sets them to the config"""
-        if not self.persist and (
-            config_name != "default" or environment_name is not None
-        ):
-            raise ValueError(
-                "Cannot pull the configuration from the server since the app_name and base_name are not provided."
-            )
-        if self.persist:
-            try:
-                if environment_name:
-                    config = self.client.configs.get_config(
-                        base_id=self.base_id, environment_name=environment_name
-                    )
-
-                else:
-                    config = self.client.configs.get_config(
-                        base_id=self.base_id,
-                        config_name=config_name,
-                    )
-            except Exception as ex:
-                log.warning(
-                    "Failed to pull the configuration from the server with error: %s",
-                    str(ex),
-                )
-        try:
-            self.set(**{"current_version": config.current_version, **config.parameters})
-        except Exception as ex:
-            log.warning("Failed to set the configuration with error: %s", str(ex))
+    def set(self, **kwargs):
+        self.set_default(**kwargs)
 
     def all(self):
-        """Returns all the parameters for the app variant"""
-        return {
-            k: v
-            for k, v in self.__dict__.items()
-            if k
-            not in [
-                "app_name",
-                "base_name",
-                "host",
-                "base_id",
-                "api_key",
-                "persist",
-                "client",
-            ]
-        }
-
-    # function to set the parameters for the app variant
-    def set(self, **kwargs):
-        """Sets the parameters for the app variant
-
-        Args:
-            **kwargs: A dict containing the parameters
-        """
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-    def dump(self):
-        """Returns all the information about the current version in the configuration.
-
-        Raises:
-            NotImplementedError: _description_
-        """
-
-        raise NotImplementedError()
+        return self.default_parameters
 
 
 def init(

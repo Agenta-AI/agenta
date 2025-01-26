@@ -45,11 +45,8 @@ class ObservabilityRouter:
     def __init__(
         self,
         observability_service: ObservabilityService,
-        observability_legacy_receiver: Optional[Callable] = None,
     ):
         self.service = observability_service
-
-        self.legacy_receiver = observability_legacy_receiver
 
         self.router = APIRouter()
 
@@ -139,14 +136,6 @@ class ObservabilityRouter:
         """
 
         otlp_stream = await request.body()
-
-        ### LEGACY ###
-        if self.legacy_receiver:
-            await self.legacy_receiver(
-                project_id=request.state.project_id,
-                otlp_stream=otlp_stream,
-            )
-        ### LEGACY ###
 
         otel_span_dtos = parse_otlp_stream(otlp_stream)
 

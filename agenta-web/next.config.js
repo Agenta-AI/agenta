@@ -6,7 +6,7 @@ const withBundleAnalyzer = require("@next/bundle-analyzer")({
 const nextConfig = {
     output: "standalone",
     reactStrictMode: true,
-    pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
+    pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
     transpilePackages: [
         "@lobehub/ui",
@@ -26,6 +26,11 @@ const nextConfig = {
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
+    ...(process.env.NEXT_PUBLIC_FF === "cloud" && {
+        experimental: {
+            instrumentationHook: true,
+        },
+    }),
 
     async redirects() {
         return [
@@ -54,8 +59,58 @@ const nextConfig = {
             )
         }
 
+        if (process.env.NEXT_PUBLIC_FF === "cloud") {
+            config.plugins.push(
+                new webpack.DefinePlugin({
+                    __SENTRY_DEBUG__: false,
+                    __SENTRY_TRACING__: true,
+                    __RRWEB_EXCLUDE_IFRAME__: true,
+                    __RRWEB_EXCLUDE_SHADOW_DOM__: true,
+                    __SENTRY_EXCLUDE_REPLAY_WORKER__: true,
+                }),
+            )
+        }
+
         return config
     },
 }
 
-module.exports = withBundleAnalyzer(nextConfig)
+if (process.env.NEXT_PUBLIC_FF === "cloud") {
+    const {withSentryConfig} = require("@sentry/nextjs")
+
+    module.exports = withBundleAnalyzer(
+        withSentryConfig(
+            nextConfig,
+            {
+                // For all available options, see:
+                // https://github.com/getsentry/sentry-webpack-plugin#options
+
+                // Suppresses source map uploading logs during build
+                silent: true,
+                org: "agenta-ai",
+                project: "javascript-nextjs",
+            },
+            {
+                // For all available options, see:
+                // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
+
+                // Upload a larger set of source maps for prettier stack traces (increases build time)
+                widenClientFileUpload: true,
+
+                // Transpiles SDK to be compatible with IE11 (increases bundle size)
+                transpileClientSDK: true,
+
+                // Routes browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers (increases server load)
+                tunnelRoute: "/monitoring",
+
+                // Hides source maps from generated client bundles
+                hideSourceMaps: true,
+
+                // Automatically tree-shake Sentry logger statements to reduce bundle size
+                disableLogger: true,
+            },
+        ),
+    )
+} else {
+    module.exports = withBundleAnalyzer(nextConfig)
+}

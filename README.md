@@ -119,7 +119,9 @@ mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
 docker compose -f docker-compose.gh.yml up -d
 ```
-
+- Agenta uses port 80, to use a different port set the env var AGENTA_PORT. For instance `export AGENTA_PORT=90`
+- Add `--pull always` to the last command to upgrade your version of Agenta.
+   
 # Disabling Anonymized Tracking
 
 By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry, follow these steps:

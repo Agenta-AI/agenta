@@ -62,11 +62,6 @@ async def lifespan(application: FastAPI, cache=True):
         cache: A boolean value that indicates whether to use the cached data or not.
     """
 
-    if isCloudEE():
-        from agenta_backend.cloud.db.mongo_engine import initialize_mongodb
-
-        await initialize_mongodb()
-
     await check_for_new_migrations()
     if await check_if_templates_table_exist():
         await templates_manager.update_and_sync_templates(cache=cache)
@@ -130,19 +125,10 @@ app.include_router(bases_router.router, prefix="/bases", tags=["Bases"])
 app.include_router(configs_router.router, prefix="/configs", tags=["Configs"])
 
 
-observability_legacy_receiver = None
-if isCloudEE():
-    import agenta_backend.cloud.main as cloud
-
-    observability_legacy_receiver = cloud.observability_legacy_receiver
-
-observability = ObservabilityRouter(
-    ObservabilityService(ObservabilityDAO()),
-    observability_legacy_receiver=observability_legacy_receiver,
-)
+observability = ObservabilityRouter(ObservabilityService(ObservabilityDAO()))
 
 app.include_router(
-    router=observability.router, prefix="/observability/v1", tags=["Observability [v1]"]
+    router=observability.router, prefix="/observability/v1", tags=["Observability"]
 )
 
 if isCloudEE():
