@@ -4,7 +4,6 @@ import {GearSix, Note, PencilLine, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
-import React from "react"
 import {formatDay} from "@/lib/helpers/dateTimeHelper"
 import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 

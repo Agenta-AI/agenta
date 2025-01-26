@@ -10,7 +10,6 @@ import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {CloseOutlined, MoreOutlined} from "@ant-design/icons"
 import {CloudArrowUp, Lightning, Rocket, Trash} from "@phosphor-icons/react"
 import {Badge, Button, Drawer, Dropdown, Tabs, Tag, theme, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 type VariantDrawerProps = {

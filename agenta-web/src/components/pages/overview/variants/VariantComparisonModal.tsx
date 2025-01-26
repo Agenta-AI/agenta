@@ -1,6 +1,5 @@
 import {Variant} from "@/lib/Types"
 import {Modal} from "antd"
-import React from "react"
 import {DiffEditor} from "@monaco-editor/react"
 
 type VariantComparisonModalProps = {

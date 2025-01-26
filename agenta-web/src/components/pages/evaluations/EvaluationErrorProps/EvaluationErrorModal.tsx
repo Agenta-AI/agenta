@@ -1,7 +1,6 @@
 import {JSSTheme} from "@/lib/Types"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {Modal, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 interface EvaluationErrorModalProps {

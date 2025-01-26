@@ -1,6 +1,5 @@
 import {_Evaluation, JSSTheme} from "@/lib/Types"
 import {Button, Dropdown, Space, Checkbox} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 import {Columns} from "@phosphor-icons/react"
 import {ColumnsType} from "antd/es/table"

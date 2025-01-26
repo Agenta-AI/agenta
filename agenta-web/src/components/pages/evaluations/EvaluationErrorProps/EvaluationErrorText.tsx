@@ -1,5 +1,4 @@
 import {Button, Typography} from "antd"
-import React from "react"
 
 interface EvaluationErrorTextProps {
     text: string

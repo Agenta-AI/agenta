@@ -1,7 +1,6 @@
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import {Evaluation, Variant, StyleProps} from "@/lib/Types"
 import {Typography} from "antd"
-import React from "react"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."

@@ -1,4 +1,3 @@
-import React from "react"
 import {Avatar as MainAvatar} from "antd"
 import {getColorPairFromStr} from "@/lib/helpers/colors"
 import {getInitials} from "@/lib/helpers/utils"

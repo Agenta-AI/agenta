@@ -1,4 +1,3 @@
-import React from "react"
 import EvaluationScenarios from "@/components/pages/evaluations/evaluationScenarios/EvaluationScenarios"
 
 import "@ag-grid-community/styles/ag-grid.css"

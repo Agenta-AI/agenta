@@ -1,7 +1,6 @@
 import {_Evaluation, JSSTheme} from "@/lib/Types"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Modal, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 type DeleteAutoEvalModalProps = {

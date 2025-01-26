@@ -1,4 +1,3 @@
-import React from "react"
 import {diffWords} from "diff"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
