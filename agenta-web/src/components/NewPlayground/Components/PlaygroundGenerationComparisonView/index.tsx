@@ -31,7 +31,7 @@ const GenerationComparisonOutputConfig = ({rowId}: {rowId: string}) => {
     })
 
     return (displayedVariants || []).map((variantId) => (
-        <div className="!w-[400px] shrink-0">
+        <div className="!w-[400px] shrink-0" key={variantId}>
             {isChat ? (
                 <GenerationComparisonChatOutput variantId={rowId} rowId={rowId} />
             ) : (

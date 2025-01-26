@@ -226,6 +226,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     <div className="flex">
                                         {displayedVariants.map((variantId, index) => (
                                             <GenerationComparisonOutputHeader
+                                                key={variantId}
                                                 variantId={variantId}
                                                 indexName={String.fromCharCode(65 + index)}
                                                 className="sticky top-0 z-[1] !w-[400px]"
