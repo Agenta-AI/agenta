@@ -1,7 +1,6 @@
 import {Prism as SyntaxHighlighter} from "react-syntax-highlighter"
 import {coy, darcula} from "react-syntax-highlighter/dist/cjs/styles/prism"
 import {Typography} from "antd"
-import {CopyOutlined} from "@ant-design/icons"
 import {FC} from "react"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {createUseStyles} from "react-jss"

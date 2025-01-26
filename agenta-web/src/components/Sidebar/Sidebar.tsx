@@ -18,7 +18,6 @@ import Avatar from "@/components/Avatar/Avatar"
 import {useProjectData} from "@/contexts/project.context"
 import {useOrgData} from "@/contexts/org.context"
 import clsx from "clsx"
-import {ItemType} from "antd/es/menu/interface"
 
 const {Sider} = Layout
 const {Text} = Typography

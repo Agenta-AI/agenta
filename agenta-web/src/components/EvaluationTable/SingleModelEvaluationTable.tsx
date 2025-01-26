@@ -25,14 +25,7 @@ import {exportSingleModelEvaluationData} from "@/lib/helpers/evaluate"
 import SecondaryButton from "../SecondaryButton/SecondaryButton"
 import {useQueryParam} from "@/hooks/useQuery"
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
-import {
-    Evaluation,
-    EvaluationScenario,
-    KeyValuePair,
-    Variant,
-    FuncResponse,
-    BaseResponse,
-} from "@/lib/Types"
+import {Evaluation, EvaluationScenario, KeyValuePair, Variant, BaseResponse} from "@/lib/Types"
 import {
     EvaluationTypeLabels,
     batchExecute,

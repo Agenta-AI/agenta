@@ -3,7 +3,6 @@ import {HumanEvaluationListTableDataType, JSSTheme} from "@/lib/Types"
 import HumanEvaluationModal from "@/components/HumanEvaluationModal/HumanEvaluationModal"
 import {EvaluationType} from "@/lib/enums"
 import {getVotesPercentage} from "@/lib/helpers/evaluate"
-import {getInitials, isDemo} from "@/lib/helpers/utils"
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {abTestingEvaluationTransformer} from "@/lib/transformers"
 import {

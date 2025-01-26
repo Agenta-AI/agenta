@@ -1,11 +1,10 @@
 import {Evaluator, JSSTheme} from "@/lib/Types"
 import {CloseOutlined} from "@ant-design/icons"
-import {ArrowLeft, Cards, Table} from "@phosphor-icons/react"
+import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Divider, Flex, Input, Radio, Space, Typography} from "antd"
 import {useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import NewEvaluatorList from "./NewEvaluatorList"
-import NewEvaluatorCard from "./NewEvaluatorCard"
 import {getEvaluatorTags} from "@/lib/helpers/evaluate"
 
 type NewEvaluatorProps = {
