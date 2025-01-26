@@ -1,4 +1,3 @@
-import React from "react"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {GenericObject, Parameter} from "@/lib/Types"
 import {renameVariables} from "@/lib/helpers/utils"

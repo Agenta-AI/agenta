@@ -1,4 +1,3 @@
-import React from "react"
 import {JSSTheme, testset, TestsetCreationMode} from "@/lib/Types"
 import {Modal} from "antd"
 import {createUseStyles} from "react-jss"

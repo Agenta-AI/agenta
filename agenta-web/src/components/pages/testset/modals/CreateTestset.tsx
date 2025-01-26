@@ -1,4 +1,3 @@
-import React from "react"
 import {JSSTheme} from "@/lib/Types"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"

@@ -1,7 +1,6 @@
 import {_AgentaRootsResponse, NodeType} from "@/services/observability/types"
 import {Download, Gear, LineSegments, Sparkle, TreeStructure} from "@phosphor-icons/react"
 import {Avatar} from "antd"
-import React from "react"
 
 type AvatarTreeContentProps = {
     value: _AgentaRootsResponse

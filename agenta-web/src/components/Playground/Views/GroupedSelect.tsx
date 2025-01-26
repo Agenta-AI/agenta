@@ -1,4 +1,3 @@
-import React from "react"
 import {createUseStyles} from "react-jss"
 import {Select} from "antd"
 
@@ -15,6 +14,7 @@ import {
     Groq,
     Gemini,
 } from "@lobehub/icons"
+import {createElement} from "react"
 
 const useStyles = createUseStyles({
     select: {
@@ -57,7 +57,7 @@ export const ModelName: React.FC<{label: string; value: string}> = ({label, valu
 
     return (
         <div className={classes.option}>
-            {iconMap[value] ? React.createElement(iconMap[value]) : null}
+            {iconMap[value] ? createElement(iconMap[value]) : null}
             {label}
         </div>
     )

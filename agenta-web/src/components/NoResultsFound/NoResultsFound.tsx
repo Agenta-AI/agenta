@@ -1,4 +1,3 @@
-import React from "react"
 import {Typography} from "antd"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"

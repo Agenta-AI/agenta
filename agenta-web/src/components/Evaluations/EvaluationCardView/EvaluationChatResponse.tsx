@@ -1,5 +1,4 @@
 import {ChatRole, Evaluation, Variant} from "@/lib/Types"
-import React from "react"
 import {createUseStyles} from "react-jss"
 import {VARIANT_COLORS} from "."
 import {Space, Typography} from "antd"

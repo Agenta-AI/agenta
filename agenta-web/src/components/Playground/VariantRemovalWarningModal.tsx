@@ -1,4 +1,3 @@
-import React from "react"
 import {Modal, Button} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"

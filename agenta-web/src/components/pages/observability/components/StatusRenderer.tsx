@@ -1,7 +1,6 @@
 import {_AgentaRootsResponse, NodeStatusCode, NodeStatusDTO} from "@/services/observability/types"
 import {CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {Space, Tag, Tooltip} from "antd"
-import React from "react"
 
 export const statusMapper = (status: NodeStatusCode) => {
     switch (status) {

@@ -1,7 +1,6 @@
 import {EvaluationError, JSSTheme, TypedValue} from "@/lib/Types"
 import {InfoCircleOutlined} from "@ant-design/icons"
 import {Button, Popover, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({

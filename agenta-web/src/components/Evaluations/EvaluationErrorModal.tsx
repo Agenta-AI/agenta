@@ -1,4 +1,3 @@
-import React from "react"
 import {Modal, Button} from "antd"
 import {createUseStyles} from "react-jss"
 

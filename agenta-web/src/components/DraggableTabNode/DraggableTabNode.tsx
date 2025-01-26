@@ -1,4 +1,4 @@
-import React from "react"
+import {cloneElement} from "react"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 
@@ -26,7 +26,7 @@ const DraggableTabNode: React.FC<DraggableTabNodeProps> = ({
     }
 
     // Clones the children element to add refs and drag-and-drop related properties.
-    return React.cloneElement(children as React.ReactElement, {
+    return cloneElement(children as React.ReactElement, {
         ref: setNodeRef,
         style,
         ...attributes,

@@ -2,7 +2,6 @@ import {useDurationCounter} from "@/hooks/useDurationCounter"
 import {_Evaluation, EvaluationStatus, JSSTheme} from "@/lib/Types"
 import {InfoCircleOutlined} from "@ant-design/icons"
 import {theme, Tooltip, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 import {runningStatuses, statusMapper} from "./cellRenderers"
 

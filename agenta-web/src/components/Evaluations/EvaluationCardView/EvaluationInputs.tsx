@@ -1,6 +1,5 @@
 import {EvaluationScenario} from "@/lib/Types"
 import {Input, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles({

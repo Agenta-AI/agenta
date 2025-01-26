@@ -2,7 +2,6 @@ import {JSSTheme} from "@/lib/Types"
 import {ArrowRight, BookOpen, Code, HandWaving} from "@phosphor-icons/react"
 import {Space, Typography} from "antd"
 import Link from "next/link"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({

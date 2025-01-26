@@ -1,5 +1,4 @@
 import {Evaluation, Variant} from "@/lib/Types"
-import React from "react"
 import {createUseStyles} from "react-jss"
 import EvaluationVariantCard from "./EvaluationVariantCard"
 import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"

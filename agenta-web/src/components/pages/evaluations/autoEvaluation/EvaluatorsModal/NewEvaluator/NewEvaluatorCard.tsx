@@ -2,7 +2,6 @@ import {Evaluator, JSSTheme} from "@/lib/Types"
 import {ArrowRightOutlined} from "@ant-design/icons"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Card, Empty, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 interface CreateEvaluatorCardProps {

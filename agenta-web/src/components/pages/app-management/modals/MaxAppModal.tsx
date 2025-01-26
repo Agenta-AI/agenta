@@ -1,6 +1,5 @@
 import Image from "next/image"
 import {Button, Modal, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"
 import {Phone, SlackLogo} from "@phosphor-icons/react"

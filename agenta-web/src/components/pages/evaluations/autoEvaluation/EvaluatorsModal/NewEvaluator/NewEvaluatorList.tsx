@@ -2,7 +2,6 @@ import {Evaluator, JSSTheme} from "@/lib/Types"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import React from "react"
 import {createUseStyles} from "react-jss"
 
 interface CreateEvaluatorListProps {

@@ -1,4 +1,3 @@
-import React from "react"
 import {Modal} from "antd"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {createUseStyles} from "react-jss"

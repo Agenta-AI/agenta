@@ -1,5 +1,3 @@
-import React from "react"
-
 const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
     return (
         <div className="loading-circle">
