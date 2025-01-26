@@ -366,6 +366,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                             ...variant,
                                             ...t,
                                         }
+                                        updatedVariant.isChat = variant.isChat
                                         updatedVariant.__isMutating = false
                                         clonedState.variants[index] = updatedVariant
                                         message.success("Changes saved successfully!")
