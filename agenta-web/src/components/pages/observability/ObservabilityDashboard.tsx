@@ -1,3 +1,4 @@
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import EmptyComponent from "@/components/EmptyComponent"
 import GenericDrawer from "@/components/GenericDrawer"
 import {nodeTypeStyles} from "./components/AvatarTreeContent"
@@ -37,11 +38,14 @@ import {createUseStyles} from "react-jss"
 import {Database, Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
 import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
-import TestsetDrawer, {TestsetTraceData} from "./drawer/TestsetDrawer"
+import {TestsetTraceData, TestsetDrawerProps} from "./drawer/TestsetDrawer/assets/types"
 import ResizableTitle from "@/components/ResizableTitle"
+const TestsetDrawer = dynamicComponent<TestsetDrawerProps>(
+    "pages/observability/drawer/TestsetDrawer/TestsetDrawer",
+)
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -422,7 +426,7 @@ const ObservabilityDashboard = () => {
         setPagination({size: pageSize, page: current})
     }
     // reset pagination to page 1 whenever quearies get updated
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (pagination.page > 1) {
             setPagination({...pagination, page: 1})
         }
@@ -451,7 +455,7 @@ const ObservabilityDashboard = () => {
         }
     }
     // Sync searchQuery with filters state
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         const dataFilter = filters.find((f) => f.key === "content")
         setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
@@ -485,7 +489,7 @@ const ObservabilityDashboard = () => {
         }
     }
     // Sync traceTabs with filters state
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         const nodeTypeFilter = filters.find((f) => f.key === "node.type")?.value
         setTraceTabs((prev) =>
             nodeTypeFilter === "chat" ? "chat" : prev == "chat" ? "tree" : prev,
@@ -650,16 +654,14 @@ const ObservabilityDashboard = () => {
                 />
             </div>
 
-            {testsetDrawerData.length > 0 && (
-                <TestsetDrawer
-                    open={testsetDrawerData.length > 0}
-                    data={testsetDrawerData}
-                    onClose={() => {
-                        setTestsetDrawerData([])
-                        setSelectedRowKeys([])
-                    }}
-                />
-            )}
+            <TestsetDrawer
+                open={testsetDrawerData.length > 0}
+                data={testsetDrawerData}
+                onClose={() => {
+                    setTestsetDrawerData([])
+                    setSelectedRowKeys([])
+                }}
+            />
 
             {activeTrace && !!traces?.length && (
                 <GenericDrawer

@@ -705,3 +705,46 @@ export type FilterConditions =
     | "is_not"
     | "btwn"
     | ""
+
+export interface WorkspaceRole {
+    role_description: string
+    role_name: string
+}
+
+export interface WorkspaceUser {
+    id: string
+    email: string
+    username: string
+    status: "member" | "pending" | "expired"
+    created_at: string
+}
+
+export interface WorkspaceMember {
+    user: WorkspaceUser
+    roles: (WorkspaceRole & {permissions: string[]})[]
+}
+
+export interface Workspace {
+    id: string
+    name: string
+    description: string
+    created_at: string
+    updated_at: string
+    organization: string
+    type: "default"
+    members: WorkspaceMember[]
+}
+
+export interface Org {
+    id: string
+    name: string
+    description: string
+    owner: string
+    is_paying: boolean
+}
+
+export type OrgDetails = Org & {
+    type: "default"
+    default_workspace: Workspace
+    workspaces: string[]
+}
