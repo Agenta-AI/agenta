@@ -16,7 +16,7 @@ import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
 import {useRouter} from "next/router"
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {getFilterParams, getTypedValue} from "@/lib/helpers/evaluate"
 import {getAppValues} from "@/contexts/app.context"

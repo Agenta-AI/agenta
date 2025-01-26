@@ -2,7 +2,7 @@ import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {LanguageItem} from "@/lib/Types"
 import {DownOutlined} from "@ant-design/icons"
 import {Button, Dropdown, MenuProps, Space, Typography} from "antd"
-import React, {useState} from "react"
+import {useState} from "react"
 import {createUseStyles} from "react-jss"
 import CopyButton from "../CopyButton/CopyButton"
 

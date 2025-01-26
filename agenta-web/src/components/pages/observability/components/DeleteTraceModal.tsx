@@ -2,7 +2,7 @@ import {useObservabilityData} from "@/contexts/observability.context"
 import {deleteTrace} from "@/services/observability/core"
 import {DeleteOutlined} from "@ant-design/icons"
 import {Modal} from "antd"
-import React, {useState} from "react"
+import {useState} from "react"
 
 type DeleteTraceModalProps = {
     setSelectedTraceId: (val: string) => void

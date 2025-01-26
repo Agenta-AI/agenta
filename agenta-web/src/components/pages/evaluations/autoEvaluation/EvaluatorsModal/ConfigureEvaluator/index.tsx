@@ -2,7 +2,7 @@ import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/lib/Type
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowLeft, CaretDoubleRight} from "@phosphor-icons/react"
 import {Button, Flex, Form, Input, message, Space, Tooltip, Typography} from "antd"
-import React, {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"

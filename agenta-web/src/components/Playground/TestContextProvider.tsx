@@ -1,7 +1,7 @@
 import useStateCallback, {DispatchWithCallback} from "@/hooks/useStateCallback"
 import {GenericObject} from "@/lib/Types"
 import {randString} from "@/lib/helpers/utils"
-import React, {PropsWithChildren, SetStateAction, createContext, useState} from "react"
+import {PropsWithChildren, SetStateAction, createContext, useState} from "react"
 
 export const TestContext = createContext<{
     testList: GenericObject[]

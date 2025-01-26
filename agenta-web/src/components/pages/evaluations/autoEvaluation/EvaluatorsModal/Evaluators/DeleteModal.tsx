@@ -3,7 +3,7 @@ import {EvaluatorConfig, JSSTheme} from "@/lib/Types"
 import {deleteEvaluatorConfig} from "@/services/evaluations/api"
 import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {Modal, Space, theme, Typography} from "antd"
-import React, {useState} from "react"
+import {useState} from "react"
 import {createUseStyles} from "react-jss"
 
 type DeleteModalProps = {

@@ -2,7 +2,7 @@ import {Evaluator, EvaluatorConfig} from "@/lib/Types"
 import {CloseCircleOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Collapse, Input, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 import EvaluatorsModal from "../autoEvaluation/EvaluatorsModal/EvaluatorsModal"
 
 type SelectEvaluatorSectionProps = {

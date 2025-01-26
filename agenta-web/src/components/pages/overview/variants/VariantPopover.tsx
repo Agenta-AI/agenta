@@ -4,7 +4,7 @@ import {fetchSingleProfile} from "@/services/api"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Popover, Tag, theme, Typography} from "antd"
 import {useRouter} from "next/router"
-import React, {useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 
 const {useToken} = theme
 

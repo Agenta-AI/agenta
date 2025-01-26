@@ -2,7 +2,7 @@ import {JSSTheme, LLMRunRateLimit} from "@/lib/Types"
 import {QuestionCircleOutlined} from "@ant-design/icons"
 import {CaretDown, SlidersHorizontal} from "@phosphor-icons/react"
 import {Button, Col, Flex, Form, Input, InputNumber, Popover, Row, Tooltip, Typography} from "antd"
-import React, {useState} from "react"
+import {useState} from "react"
 import {createUseStyles} from "react-jss"
 
 interface AdvancedSettingsPopoverProps {

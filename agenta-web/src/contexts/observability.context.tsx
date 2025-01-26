@@ -6,7 +6,7 @@ import {
     AgentaRootsDTO,
     AgentaTreeDTO,
 } from "@/services/observability/types"
-import React, {createContext, PropsWithChildren, useContext, useEffect, useState} from "react"
+import {createContext, PropsWithChildren, useContext, useEffect, useState} from "react"
 import {useRouter} from "next/router"
 import {SortResult} from "@/components/Filters/Sort"
 import {Filter} from "@/lib/Types"

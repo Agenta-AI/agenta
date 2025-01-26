@@ -1,6 +1,6 @@
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Drawer, Flex} from "antd"
-import React, {ReactNode, useState} from "react"
+import {ReactNode, useState} from "react"
 
 type GenericDrawerProps = {
     expandable?: boolean

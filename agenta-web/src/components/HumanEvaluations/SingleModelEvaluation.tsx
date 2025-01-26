@@ -20,7 +20,7 @@ import {Database, Export, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-ic
 import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
-import React, {useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {formatDate24} from "@/lib/helpers/dateTimeHelper"
 

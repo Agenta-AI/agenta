@@ -4,14 +4,7 @@ import {isDemo} from "@/lib/helpers/utils"
 import {fetchSingleOrg, fetchAllOrgsList} from "@/services/organization/api"
 import {Org, OrgDetails} from "@/lib/Types"
 import {useRouter} from "next/router"
-import React, {
-    PropsWithChildren,
-    createContext,
-    useState,
-    useContext,
-    useEffect,
-    useCallback,
-} from "react"
+import {PropsWithChildren, createContext, useState, useContext, useEffect, useCallback} from "react"
 import {useUpdateEffect} from "usehooks-ts"
 import {useProfileData} from "@/contexts/profile.context"
 

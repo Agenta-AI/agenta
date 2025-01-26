@@ -1,6 +1,6 @@
 import {testset} from "@/lib/Types"
 import {Modal} from "antd"
-import React, {Dispatch, SetStateAction} from "react"
+import {Dispatch, SetStateAction, useState} from "react"
 import {checkIfResourceValidForDeletion} from "@/lib/helpers/evaluate"
 import {deleteTestsets} from "@/services/testsets/api"
 import {KeyedMutator} from "swr"
@@ -18,7 +18,7 @@ const DeleteTestset = ({
     setSelectedTestsetToDelete,
     ...props
 }: DeleteTestsetProps) => {
-    const [isLoading, setIsLoading] = React.useState(false)
+    const [isLoading, setIsLoading] = useState(false)
 
     const onDelete = async () => {
         const testsetsIds = selectedTestsetToDelete.map((testset) => testset._id.toString())

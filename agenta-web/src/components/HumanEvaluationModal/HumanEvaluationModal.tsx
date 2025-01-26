@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Types"
 import {fetchVariants} from "@/services/api"
 import {createNewEvaluation} from "@/services/human-evaluations/api"

@@ -1,4 +1,4 @@
-import React, {SetStateAction} from "react"
+import {SetStateAction} from "react"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/lib/Types"

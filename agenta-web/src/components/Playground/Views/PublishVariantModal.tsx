@@ -5,7 +5,7 @@ import {fetchEnvironments, createPublishVariant} from "@/services/deployment/api
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"
 import type {CheckboxChangeEvent} from "antd/es/checkbox"
 import {useRouter} from "next/router"
-import React, {useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const {Text} = Typography

@@ -1,4 +1,4 @@
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 import {Filter, JSSTheme} from "@/lib/Types"
 import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"

@@ -1,7 +1,7 @@
 import {GenericObject, JSSTheme} from "@/lib/Types"
 import {ArrowDownOutlined, ArrowUpOutlined, MenuOutlined} from "@ant-design/icons"
 import {Space} from "antd"
-import React, {useEffect, useRef, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({

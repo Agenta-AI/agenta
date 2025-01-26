@@ -5,7 +5,7 @@ import {Copy, GearSix, Note, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom} from "jotai"
-import React, {useState} from "react"
+import {useState} from "react"
 import DeleteModal from "./DeleteModal"
 
 interface EvaluatorListProps {

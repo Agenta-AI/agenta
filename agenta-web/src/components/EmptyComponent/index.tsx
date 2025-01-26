@@ -1,6 +1,6 @@
 import {JSSTheme} from "@/lib/Types"
 import {Button, Empty, Space, Tooltip, Typography} from "antd"
-import React, {ReactNode} from "react"
+import {ReactNode} from "react"
 import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({

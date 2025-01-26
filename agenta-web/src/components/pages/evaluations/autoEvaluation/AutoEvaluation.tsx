@@ -11,7 +11,7 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 import {Button, Dropdown, DropdownProps, message, Space, Table, Tag, theme, Typography} from "antd"
-import React, {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {ColumnsType} from "antd/es/table"
 import {MoreOutlined} from "@ant-design/icons"

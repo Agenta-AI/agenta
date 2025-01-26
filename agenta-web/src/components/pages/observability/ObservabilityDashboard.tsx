@@ -33,7 +33,7 @@ import {
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
-import React, {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import {Database, Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"

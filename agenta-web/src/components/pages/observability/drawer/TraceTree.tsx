@@ -3,7 +3,7 @@ import {JSSTheme} from "@/lib/Types"
 import {_AgentaRootsResponse, NodeStatusCode} from "@/services/observability/types"
 import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
 import {Space, Tree, Typography} from "antd"
-import React, {useEffect, useState} from "react"
+import {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import AvatarTreeContent from "../components/AvatarTreeContent"
 

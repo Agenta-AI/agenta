@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from "react"
+import {useState, useEffect, useRef} from "react"
 import {Button, Tabs, message} from "antd"
 import ViewNavigation from "./ViewNavigation"
 import NewVariantModal from "./NewVariantModal"

@@ -2,7 +2,7 @@ import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {createPublishVariant} from "@/services/deployment/api"
 import {Rocket} from "@phosphor-icons/react"
 import {message, Modal, Typography} from "antd"
-import React, {useState} from "react"
+import {useState} from "react"
 import {createUseStyles} from "react-jss"
 
 type DeploymentModalProps = {

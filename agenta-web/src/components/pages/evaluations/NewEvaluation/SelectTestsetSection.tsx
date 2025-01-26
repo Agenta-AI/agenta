@@ -4,7 +4,7 @@ import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Tag} from "antd"
 import Table, {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
-import React, {useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
 type SelectTestsetSectionProps = {
     testSets: testset[]
