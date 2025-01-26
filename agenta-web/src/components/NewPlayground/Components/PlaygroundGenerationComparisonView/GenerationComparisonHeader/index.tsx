@@ -29,7 +29,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
     return (
         <section
             className={clsx(
-                "flex items-center justify-between gap-2 px-4 py-2 h-[40px]",
+                "flex items-center justify-between gap-2 px-4 py-2 h-[40px] flex-shrink-0",
                 classes.header,
                 className,
             )}

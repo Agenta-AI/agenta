@@ -188,7 +188,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
 
                     <SplitterPanel
                         className={clsx("!h-full @container", {
-                            "!overflow-y-hidden": isComparisonView,
+                            "!overflow-y-hidden flex flex-col": isComparisonView,
                         })}
                         collapsible
                         defaultSize="50%"
@@ -223,13 +223,13 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             <div>
                                 {/* This component renders Output component header section */}
                                 {isComparisonView && (
-                                    <div className="flex">
+                                    <div className="flex sticky top-0 z-[1]">
                                         {displayedVariants.map((variantId, index) => (
                                             <GenerationComparisonOutputHeader
                                                 key={variantId}
                                                 variantId={variantId}
                                                 indexName={String.fromCharCode(65 + index)}
-                                                className="sticky top-0 z-[1] !w-[400px]"
+                                                className="!w-[400px]"
                                             />
                                         ))}
                                     </div>
