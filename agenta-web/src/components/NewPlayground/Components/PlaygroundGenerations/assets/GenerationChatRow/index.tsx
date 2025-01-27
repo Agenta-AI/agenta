@@ -34,31 +34,29 @@ export const GenerationChatRowOutput = ({
     result,
     isRunning,
 }: GenerationChatRowProps) => {
-    return isRunning ? (
-        <div className="w-full flex items-start gap-2 relative group/option">
-            <div className="w-full flex flex-col gap-3 -mt-1">
-                <GenerationOutputText
-                    text={"Generating response..."}
-                    className="w-full mt-1"
-                    disabled={disabled}
-                />
-            </div>
+    const {viewType} = usePlayground()
+
+    return isRunning && viewType === "single" ? (
+        <div className="w-full flex flex-col gap-3">
+            <GenerationOutputText
+                text={"Generating response..."}
+                className="w-full mt-1"
+                disabled={disabled}
+            />
         </div>
     ) : (
-        <>
-            <div className="w-full flex flex-col items-start gap-2 relative group/option">
-                <PromptMessageConfig
-                    variantId={variantId}
-                    rowId={rowId}
-                    messageId={message.__id}
-                    disabled={disabled}
-                    deleteMessage={deleteMessage}
-                    debug
-                    className="w-full"
-                />
-                {!!result ? <GenerationResultUtils result={result} /> : null}
-            </div>
-        </>
+        <div className="w-full flex flex-col items-start gap-2 relative group/option">
+            <PromptMessageConfig
+                variantId={variantId}
+                rowId={rowId}
+                messageId={message.__id}
+                disabled={disabled}
+                deleteMessage={deleteMessage}
+                debug
+                className="w-full"
+            />
+            {!!result ? <GenerationResultUtils result={result} /> : null}
+        </div>
     )
 }
 
@@ -175,7 +173,7 @@ const GenerationChatRow = ({
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
-                    {"px-2": viewType === "comparison"},
+                    {"px-2 bg-[#f5f7fa]": viewType === "comparison"},
                 ])}
             >
                 {history.map((historyItem) => {

@@ -19,13 +19,10 @@ const GenerationComparisonChatOutputRow = ({
 
                 const messageHistory = messageRow.history.value
 
-                // console.log("messageHistory", messageHistory)
-
                 return {
                     messageRow,
                     history: messageHistory
                         .map((historyItem) => {
-                            // console.log("MAP HISTORY", variantId, historyItem, historyItem.__runs?.[variantId])
                             return !historyItem.__runs?.[variantId]
                                 ? undefined
                                 : historyItem.__runs?.[variantId]
@@ -78,7 +75,7 @@ const GenerationComparisonChatOutputRow = ({
     )
 
     return (
-        <div className="flex flex-col gap-0 w-full p-2 self-stretch sticky top-0">
+        <div className="flex flex-col gap-0 w-full p-2 self-stretch">
             {history.map((historyItem, index) => {
                 return (
                     <GenerationChatRowOutput
@@ -123,7 +120,7 @@ const GenerationComparisonChatOutput = ({
     })
 
     return (
-        <div className={clsx("flex flex-col w-full sticky top-0", className)}>
+        <div className={clsx("flex flex-col w-full", className)}>
             <div className="border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
                 <GenerationComparisonChatOutputRow
                     key={rowId}
@@ -137,7 +134,7 @@ const GenerationComparisonChatOutput = ({
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-[48px] text-[#a0a0a0]">
-                        Loading...
+                        Generating response...
                     </div>
                 )}
             </div>
