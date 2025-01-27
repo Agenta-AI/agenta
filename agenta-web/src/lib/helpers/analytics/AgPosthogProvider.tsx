@@ -14,6 +14,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const initPosthog = useCallback(async () => {
         if (!!posthogClient) return
         if (loadingPosthog) return
+        if (!process.env.NEXT_PUBLIC_POSTHOG_API_KEY) return
 
         setLoadingPosthog(true)
 
