@@ -211,7 +211,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     return (
                                         <div
                                             key={variantId}
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10"
+                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10 bg-white"
                                         >
                                             <GenerationComparisonInput variantId={variantId} />
                                         </div>

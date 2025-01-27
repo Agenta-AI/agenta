@@ -75,7 +75,7 @@ const GenerationComparisonChatOutputRow = ({
     )
 
     return (
-        <div className="flex flex-col gap-0 w-full p-2 self-stretch">
+        <div className="flex flex-col gap-0 w-full self-stretch border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
             {history.map((historyItem, index) => {
                 return (
                     <GenerationChatRowOutput
@@ -121,7 +121,7 @@ const GenerationComparisonChatOutput = ({
 
     return (
         <div className={clsx("flex flex-col w-full", className)}>
-            <div className="border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
+            <div>
                 <GenerationComparisonChatOutputRow
                     key={rowId}
                     variantId={variantId}

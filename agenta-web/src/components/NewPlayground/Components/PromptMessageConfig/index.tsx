@@ -39,6 +39,7 @@ const PromptMessageConfig = ({
     isMessageDeletable,
     disabled,
     debug,
+    inputClassName,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -125,7 +126,7 @@ const PromptMessageConfig = ({
                 propertyId={message.content}
                 variantId={variantId}
                 as="PromptMessageContent"
-                className="w-full"
+                className={clsx("w-full", inputClassName)}
                 disabled={disabled}
             />
         </div>
