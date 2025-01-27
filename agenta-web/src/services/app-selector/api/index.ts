@@ -1,3 +1,4 @@
+import {getOrgValues} from "@/contexts/org.context"
 import {getCurrentProject} from "@/contexts/project.context"
 import {AppTemplate} from "@/lib/Types"
 import axios from "@/lib/api/assets/axiosConfig"
@@ -42,9 +43,12 @@ export const createApp = async ({
     appName: string
     templateKey: ServiceType
 }) => {
+    const {selectedOrg} = getOrgValues()
     const response = await axios.post(`${getAgentaApiUrl()}/api/apps`, {
         app_name: appName,
         template_key: templateKey,
+        organization_id: selectedOrg?.id,
+        workspace_id: selectedOrg?.default_workspace.id,
     })
     return response.data
 }
@@ -98,7 +102,6 @@ export const createVariant = async ({
     }
 
     const response = await axios.post(endpoint, body)
-    console.log("CREATE VARIANT RESPONSE", response)
     return response.data
 }
 
