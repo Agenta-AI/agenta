@@ -176,7 +176,10 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                 )
                             }
 
-                            if (!isPlaygroundEqual(currentSelected, previousSelected)) {
+                            if (
+                                !isPlaygroundEqual(currentSelected, previousSelected) &&
+                                variant?.isChat
+                            ) {
                                 console.log("CHANGED!", currentSelected, previousSelected)
                                 state.generationData.messages.value.forEach(
                                     (previousMessageRow) => {
