@@ -2,9 +2,9 @@ import {useSession} from "@/hooks/useSession"
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 import {fetchAllProjects} from "@/services/project"
 import useStateCallback from "@/hooks/useStateCallback"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import {isDemo} from "@/lib/helpers/utils"
 import {ProjectsResponse} from "@/services/project/types"
+import {useOrgData} from "./org.context"
 
 export const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
 
@@ -39,15 +39,8 @@ export const getCurrentProject = () => projectContextValues
 const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [project, setProject] = useStateCallback<ProjectsResponse | null>(null)
     const [projects, setProjects] = useState<ProjectsResponse[]>([])
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const [isLoading, setIsLoading] = useState(false)
     const {doesSessionExist} = useSession()
-
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
 
     const {selectedOrg} = useOrgData()
 

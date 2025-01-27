@@ -1,4 +1,4 @@
-import type {SetStateAction, ComponentProps, LegacyRef} from "react"
+import type {LegacyRef} from "react"
 import dynamic from "next/dynamic"
 import {type AgGridReact as AgGridReactType, AgGridReactProps} from "@ag-grid-community/react"
 
@@ -13,10 +13,14 @@ const AgGridReact = dynamic(
         const ClientSideRowModelModule = await import(
             "@ag-grid-community/client-side-row-model"
         ).then((module) => module.ClientSideRowModelModule)
+        const CsvExportModule = await import("@ag-grid-community/csv-export").then(
+            (module) => module.CsvExportModule,
+        )
         const ModuleRegistry = await import("@ag-grid-community/core").then(
             (module) => module.ModuleRegistry,
         )
         ModuleRegistry.registerModules([ClientSideRowModelModule])
+        ModuleRegistry.registerModules([CsvExportModule])
 
         const AgGridReact = await import("@ag-grid-community/react").then((mod) => mod.AgGridReact)
 

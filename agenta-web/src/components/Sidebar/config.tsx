@@ -1,6 +1,5 @@
 import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import {isDemo} from "@/lib/helpers/utils"
 import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
 import {useEffect, useState} from "react"
@@ -15,10 +14,10 @@ import {
     Scroll,
     SlackLogo,
     Gear,
-    Dot,
     TreeView,
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
+import {useOrgData} from "@/contexts/org.context"
 
 export type SidebarConfig = {
     key: string
@@ -40,16 +39,8 @@ export type SidebarConfig = {
 export const useSidebarConfig = () => {
     const appId = useAppId()
     const {doesSessionExist} = useSession()
-    const {currentApp, recentlyVisitedAppId, apps} = useAppsData()
+    const {currentApp, recentlyVisitedAppId} = useAppsData()
     const isOss = !isDemo()
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
-
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
-
     const {selectedOrg} = useOrgData()
 
     const sidebarConfig: SidebarConfig[] = [
