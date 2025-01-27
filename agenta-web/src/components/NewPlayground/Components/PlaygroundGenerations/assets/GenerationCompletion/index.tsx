@@ -19,6 +19,7 @@ import type {
 const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
     const {inputRowIds, mutate, viewType} = usePlayground({
         variantId,
+        registerToWebWorker: true,
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const inputRows = state.generationData.inputs.value || []
             return {

@@ -2,7 +2,7 @@ import {useCallback, useRef} from "react"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
-import {isPlaygroundEqual, omitDeep} from "../assets/helpers"
+import {findPropertyInObject, isPlaygroundEqual, omitDeep} from "../assets/helpers"
 import {initialState} from "../../../state"
 import {syncVariantInputs} from "../assets/inputHelpers"
 import {getUniqueInputKeys} from "../assets/generationHelpers"
@@ -173,6 +173,67 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                         currentSelected.includes(variant.id),
                                     ),
                                     clonedState.generationData.inputs,
+                                )
+                            }
+
+                            if (!isPlaygroundEqual(currentSelected, previousSelected)) {
+                                console.log("CHANGED!", currentSelected, previousSelected)
+                                state.generationData.messages.value.forEach(
+                                    (previousMessageRow) => {
+                                        previousMessageRow.history.value.forEach(
+                                            (previousMessage) => {
+                                                console.log("previousMessage", previousMessage)
+                                                if (
+                                                    previousMessage.__runs &&
+                                                    Object.keys(previousMessage.__runs).length > 0
+                                                ) {
+                                                    // const newRuns = {} as Record<string, boolean>
+                                                    // previousMessage.__runs = newRuns
+                                                    const currentMessage = findPropertyInObject(
+                                                        clonedState.generationData.messages.value,
+                                                        previousMessage.__id,
+                                                    )
+                                                    console.log(
+                                                        "current message",
+                                                        currentMessage,
+                                                        currentSelected[0],
+                                                        Object.keys(previousMessage.__runs),
+                                                        Object.keys(previousMessage.__runs).reduce(
+                                                            (acc, key) => {
+                                                                acc[currentSelected[0]] =
+                                                                    previousMessage.__runs[key]
+                                                                return acc
+                                                                // return {
+                                                                //     [currentSelected[0]]:
+                                                                // previousMessage.__runs[
+                                                                //     previousSelected[0]
+                                                                // ],
+                                                                // }
+                                                            },
+                                                            {},
+                                                        ),
+                                                    )
+                                                    currentMessage.__runs = {
+                                                        ...previousMessage.__runs,
+                                                        ...Object.keys(
+                                                            previousMessage.__runs,
+                                                        ).reduce((acc, key) => {
+                                                            acc[currentSelected[0]] =
+                                                                previousMessage.__runs[key]
+                                                            return acc
+                                                            // return {
+                                                            //     [currentSelected[0]]:
+                                                            // previousMessage.__runs[
+                                                            //     previousSelected[0]
+                                                            // ],
+                                                            // }
+                                                        }, {}),
+                                                    }
+                                                }
+                                                // console.log("history message", message)
+                                            },
+                                        )
+                                    },
                                 )
                             }
 

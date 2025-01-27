@@ -1,8 +1,11 @@
-import {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {Message} from "@/components/NewPlayground/assets/utilities/transformer/types"
+import type {Enhanced} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import type {Message} from "@/components/NewPlayground/assets/utilities/transformer/types"
 
 export type GenerationChatRowProps = {
-    variantId: string
+    variantId?: string
     disabled?: boolean
     rowId?: string
+    withControls?: boolean
+    messageId?: string
+    viewAs?: "input" | "output"
 }

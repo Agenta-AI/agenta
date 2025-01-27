@@ -228,7 +228,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                     !!lastMessage &&
                                     !extractValueByMetadata(lastMessage, getAllMetadata())
                                 ) {
-                                    console.log("removing INVALID last message")
                                     messageRow.history.value = [
                                         ...messageRow.history.value.filter(
                                             (m) => m.__id !== lastMessage.__id,
@@ -239,6 +238,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                             messageRow.history.value.length - 1
                                         ]
                                 }
+
                                 const emptyMessage = createMessageFromSchema(
                                     getMetadataLazy(
                                         clonedState.variants[0].prompts[0].messages.__metadata,
@@ -277,21 +277,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                     )
                                 }
                             }
-                            // const messageMetadata = getMetadataLazy(latestMessageRow.__metadata)
-                            // for (const messageRow of messageRows) {
-                            //     if (!messageMetadata) {
-                            //         messageMetadata = getMetadataLazy(messageRow.__metadata)
-                            //         break
-                            //     }
-                            // }
-
-                            /**
-                             * TODO: NEED TO GENERATE A NEW MESSAGE ROW HERE FOR
-                             * INCOMING CHAT RESPONSE, AND USE ITS ID FOR rowId
-                             */
-                            // const newMessage = createMessageFromSchema(messageMetadata)
-                            // console.log("created message from schema", newMessage)
-                            // const newRow = createMessageRow(newMessage, messageMetadata)
                         }
                     }
                     const generateGenerationTestParams = (

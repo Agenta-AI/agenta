@@ -146,6 +146,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             const handleWebWorkerChatMessage = useCallback(
                 (message) => {
+                    if (!variantId) return
+                    if (message.payload.variant.id !== variantId) return
                     // HANDLE INCOMING CHAT
                     const rowId = message.payload.rowId
                     swr.mutate((clonedState) => {
@@ -164,13 +166,15 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                         if (targetMessageIndex >= 0) {
                             const targetMessage = targetRow.history.value[targetMessageIndex]
+                            const metadata = getMetadataLazy(targetMessage.__metadata)
+                            if (!metadata) return clonedState
 
                             targetMessage.__runs[variantId] = {
                                 __result: {
                                     ...message.payload.result,
                                 },
                                 message: createMessageFromSchema(
-                                    getMetadataLazy(targetMessage.__metadata),
+                                    metadata,
                                     message.payload.result.response?.data,
                                 ),
                                 __isRunning: false,
@@ -178,12 +182,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                             if (targetMessageIndex === targetRow.history.value.length - 1) {
                                 // targetRow.history.value.push(createMessageRow())
-                                const emptyMessage = createMessageFromSchema(
-                                    getMetadataLazy(targetMessage.__metadata),
-                                    {
-                                        role: "user",
-                                    },
-                                )
+                                const emptyMessage = createMessageFromSchema(metadata, {
+                                    role: "user",
+                                })
                                 targetRow.history.value.push(emptyMessage)
                             }
                         }
@@ -246,7 +247,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
                 handleWebWorkerMessage,
-                valueReferences.current.includes("runVariantTestRow"),
+                config.registerToWebWorker,
             )
 
             /**

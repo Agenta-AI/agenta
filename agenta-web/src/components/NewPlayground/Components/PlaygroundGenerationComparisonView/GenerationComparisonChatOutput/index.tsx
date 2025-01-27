@@ -12,16 +12,20 @@ const GenerationComparisonChatOutputRow = ({
 }: GenerationComparisonChatOutputRowProps) => {
     const {mutate, messageRow, history} = usePlayground({
         variantId,
+        registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
 
                 const messageHistory = messageRow.history.value
 
+                // console.log("messageHistory", messageHistory)
+
                 return {
                     messageRow,
                     history: messageHistory
                         .map((historyItem) => {
+                            // console.log("MAP HISTORY", variantId, historyItem, historyItem.__runs?.[variantId])
                             return !historyItem.__runs?.[variantId]
                                 ? undefined
                                 : historyItem.__runs?.[variantId]
@@ -35,7 +39,7 @@ const GenerationComparisonChatOutputRow = ({
                         .filter(Boolean),
                 }
             },
-            [rowId],
+            [rowId, variantId],
         ),
     })
 
@@ -60,9 +64,12 @@ const GenerationComparisonChatOutputRow = ({
                     const row = clonedState.generationData.messages.value.find(
                         (v) => v.__id === rowId,
                     )
-                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    const isInput = row.history.value.findIndex((m) => {
+                        return m.__runs?.[variantId]?.message?.__id === messageId
+                    })
+                    console.log("DELETE X", messageId, row, isInput)
                     if (isInput !== -1) {
-                        row.history.value.splice(isInput, 1)
+                        delete row.history.value[isInput].__runs[variantId]
                     }
                 }
             })
@@ -71,11 +78,11 @@ const GenerationComparisonChatOutputRow = ({
     )
 
     return (
-        <div className="flex flex-col w-full p-2 self-stretch">
-            {history.map((historyItem) => {
+        <div className="flex flex-col gap-0 w-full p-2 self-stretch sticky top-0">
+            {history.map((historyItem, index) => {
                 return (
                     <GenerationChatRowOutput
-                        key={historyItem?.__id}
+                        key={historyItem?.__id || `${variantId}-${rowId}-historyIndex-${index}`}
                         message={historyItem}
                         variantId={variantId}
                         deleteMessage={handleDeleteMessage}
@@ -98,28 +105,30 @@ const GenerationComparisonChatOutput = ({
 }: GenerationComparisonChatOutputProps) => {
     const {isVariantRunning} = usePlayground({
         variantId,
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const messageRows = state.generationData.messages.value || []
-            const isVariantRunning = messageRows.some((messageRow) => {
-                return !!messageRow.history.value.some((historyMessage) => {
-                    return historyMessage.__runs?.[variantId]?.__isRunning
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const messageRows = state.generationData.messages.value || []
+                const isVariantRunning = messageRows.some((messageRow) => {
+                    return !!messageRow.history.value.some((historyMessage) => {
+                        return historyMessage.__runs?.[variantId]?.__isRunning
+                    })
                 })
-            })
 
-            return {
-                isVariantRunning,
-            }
-        }, []),
+                return {
+                    isVariantRunning,
+                }
+            },
+            [variantId, rowId],
+        ),
     })
 
     return (
-        <div className={clsx("flex flex-col w-full", className)}>
-            <section className="border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
+        <div className={clsx("flex flex-col w-full sticky top-0", className)}>
+            <div className="border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
                 <GenerationComparisonChatOutputRow
                     key={rowId}
                     variantId={variantId}
                     rowId={rowId}
-                    isVariantRunning={isVariantRunning}
                 />
 
                 {!isVariantRunning ? (
@@ -131,7 +140,7 @@ const GenerationComparisonChatOutput = ({
                         Loading...
                     </div>
                 )}
-            </section>
+            </div>
         </div>
     )
 }
