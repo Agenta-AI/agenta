@@ -12,10 +12,10 @@ const AuthProvider: AuthProviderType = ({children, pageProps}) => {
             SuperTokensReact.init(frontendConfig())
             setIsInitialized(true)
         }
-        if (typeof window !== "undefined" && isDemo()) {
+        if (typeof window !== "undefined" && isDemo() && !isInitialized) {
             initSuperTokens()
         }
-    }, [])
+    }, [isInitialized])
 
     const doRefresh = useCallback(async () => {
         if (isDemo() && pageProps.fromSupertokens === "needs-refresh") {
