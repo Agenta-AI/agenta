@@ -34,15 +34,15 @@ class EvaluationsClient:
         Fetches evaluation ids for a given resource type and id.
 
         Arguments:
-        app_id (str): The ID of the app for which to fetch evaluations.
-        resource_type (str): The type of resource for which to fetch evaluations.
-        resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
+            app_id (str): The ID of the app for which to fetch evaluations.
+            resource_type (str): The type of resource for which to fetch evaluations.
+            resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
         Raises:
-        HTTPException: If the resource_type is invalid or access is denied.
+            HTTPException: If the resource_type is invalid or access is denied.
 
         Returns:
-        List[str]: A list of evaluation ids.
+            List[str]: A list of evaluation ids.
 
         Parameters
         ----------
@@ -110,10 +110,10 @@ class EvaluationsClient:
         Fetches a list of evaluations, optionally filtered by an app ID.
 
         Args:
-        app_id (Optional[str]): An optional app ID to filter the evaluations.
+            app_id (Optional[str]): An optional app ID to filter the evaluations.
 
         Returns:
-        List[Evaluation]: A list of evaluations.
+            List[Evaluation]: A list of evaluations.
 
         Parameters
         ----------
@@ -188,9 +188,9 @@ class EvaluationsClient:
         """
         Creates a new comparison table document
         Raises:
-        HTTPException: _description_
+            HTTPException: _description_
         Returns:
-        _description_
+            _description_
 
         Parameters
         ----------
@@ -366,11 +366,11 @@ class EvaluationsClient:
         Fetches the status of the evaluation.
 
         Args:
-        evaluation_id (str): the evaluation id
-        request (Request): the request object
+            evaluation_id (str): the evaluation id
+            request (Request): the request object
 
         Returns:
-        (str): the evaluation status
+            (str): the evaluation status
 
         Parameters
         ----------
@@ -435,11 +435,11 @@ class EvaluationsClient:
         Fetches the results of the evaluation
 
         Args:
-        evaluation_id (str): the evaluation id
-        request (Request): the request object
+            evaluation_id (str): the evaluation id
+            request (Request): the request object
 
         Returns:
-        _type_: _description_
+            _type_: _description_
 
         Parameters
         ----------
@@ -504,13 +504,13 @@ class EvaluationsClient:
         Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-        HTTPException: If the evaluation is not found or access is denied.
+            HTTPException: If the evaluation is not found or access is denied.
 
         Returns:
-        List[EvaluationScenario]: A list of evaluation scenarios.
+            List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters
         ----------
@@ -575,10 +575,10 @@ class EvaluationsClient:
         Fetches a single evaluation based on its ID.
 
         Args:
-        evaluation_id (str): The ID of the evaluation to fetch.
+            evaluation_id (str): The ID of the evaluation to fetch.
 
         Returns:
-        Evaluation: The fetched evaluation.
+            Evaluation: The fetched evaluation.
 
         Parameters
         ----------
@@ -643,13 +643,13 @@ class EvaluationsClient:
         Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-        HTTPException: If the evaluation is not found or access is denied.
+            HTTPException: If the evaluation is not found or access is denied.
 
         Returns:
-        List[EvaluationScenario]: A list of evaluation scenarios.
+            List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters
         ----------
@@ -723,15 +723,15 @@ class AsyncEvaluationsClient:
         Fetches evaluation ids for a given resource type and id.
 
         Arguments:
-        app_id (str): The ID of the app for which to fetch evaluations.
-        resource_type (str): The type of resource for which to fetch evaluations.
-        resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
+            app_id (str): The ID of the app for which to fetch evaluations.
+            resource_type (str): The type of resource for which to fetch evaluations.
+            resource_ids List[ObjectId]: The IDs of resource for which to fetch evaluations.
 
         Raises:
-        HTTPException: If the resource_type is invalid or access is denied.
+            HTTPException: If the resource_type is invalid or access is denied.
 
         Returns:
-        List[str]: A list of evaluation ids.
+            List[str]: A list of evaluation ids.
 
         Parameters
         ----------
@@ -807,10 +807,10 @@ class AsyncEvaluationsClient:
         Fetches a list of evaluations, optionally filtered by an app ID.
 
         Args:
-        app_id (Optional[str]): An optional app ID to filter the evaluations.
+            app_id (Optional[str]): An optional app ID to filter the evaluations.
 
         Returns:
-        List[Evaluation]: A list of evaluations.
+            List[Evaluation]: A list of evaluations.
 
         Parameters
         ----------
@@ -893,9 +893,9 @@ class AsyncEvaluationsClient:
         """
         Creates a new comparison table document
         Raises:
-        HTTPException: _description_
+            HTTPException: _description_
         Returns:
-        _description_
+            _description_
 
         Parameters
         ----------
@@ -1087,11 +1087,11 @@ class AsyncEvaluationsClient:
         Fetches the status of the evaluation.
 
         Args:
-        evaluation_id (str): the evaluation id
-        request (Request): the request object
+            evaluation_id (str): the evaluation id
+            request (Request): the request object
 
         Returns:
-        (str): the evaluation status
+            (str): the evaluation status
 
         Parameters
         ----------
@@ -1164,11 +1164,11 @@ class AsyncEvaluationsClient:
         Fetches the results of the evaluation
 
         Args:
-        evaluation_id (str): the evaluation id
-        request (Request): the request object
+            evaluation_id (str): the evaluation id
+            request (Request): the request object
 
         Returns:
-        _type_: _description_
+            _type_: _description_
 
         Parameters
         ----------
@@ -1241,13 +1241,13 @@ class AsyncEvaluationsClient:
         Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-        HTTPException: If the evaluation is not found or access is denied.
+            HTTPException: If the evaluation is not found or access is denied.
 
         Returns:
-        List[EvaluationScenario]: A list of evaluation scenarios.
+            List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters
         ----------
@@ -1320,10 +1320,10 @@ class AsyncEvaluationsClient:
         Fetches a single evaluation based on its ID.
 
         Args:
-        evaluation_id (str): The ID of the evaluation to fetch.
+            evaluation_id (str): The ID of the evaluation to fetch.
 
         Returns:
-        Evaluation: The fetched evaluation.
+            Evaluation: The fetched evaluation.
 
         Parameters
         ----------
@@ -1396,13 +1396,13 @@ class AsyncEvaluationsClient:
         Fetches evaluation scenarios for a given evaluation ID.
 
         Arguments:
-        evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
+            evaluation_id (str): The ID of the evaluation for which to fetch scenarios.
 
         Raises:
-        HTTPException: If the evaluation is not found or access is denied.
+            HTTPException: If the evaluation is not found or access is denied.
 
         Returns:
-        List[EvaluationScenario]: A list of evaluation scenarios.
+            List[EvaluationScenario]: A list of evaluation scenarios.
 
         Parameters
         ----------

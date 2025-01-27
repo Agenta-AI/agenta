@@ -46,14 +46,14 @@ class VariantsClient:
         Same as POST /config
 
         Args:
-        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
+            payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
+            stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
         Raises:
-        HTTPException: Raised if the variant could not be added or accessed.
+            HTTPException: Raised if the variant could not be added or accessed.
 
         Returns:
-        Union[AppVariantResponse, Any]: New variant details or exception.
+            Union[AppVariantResponse, Any]: New variant details or exception.
 
         Parameters
         ----------
@@ -199,16 +199,16 @@ class VariantsClient:
         Start a variant of an app.
 
         Args:
-        variant_id (str): The ID of the variant to start.
-        action (VariantAction): The action to perform on the variant (start).
-        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the variant to start.
+            action (VariantAction): The action to perform on the variant (start).
+            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-        URI: The URL of the started variant.
+            URI: The URL of the started variant.
 
         Raises:
-        HTTPException: If the app container cannot be started.
+            HTTPException: If the app container cannot be started.
 
         Parameters
         ----------
@@ -293,10 +293,16 @@ class VariantsClient:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-        app_variant -- AppVariant to remove
+
+
+
+            app_variant -- AppVariant to remove
 
         Raises:
-        HTTPException: If there is a problem removing the app variant
+
+
+
+            HTTPException: If there is a problem removing the app variant
 
         Parameters
         ----------
@@ -362,15 +368,15 @@ class VariantsClient:
         Updates the parameters for an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the app variant to update.
+            payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If there is an error while trying to update the app variant.
+            HTTPException: If there is an error while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response containing the updated app variant parameters.
+            JSONResponse: A JSON response containing the updated app variant parameters.
 
         Parameters
         ----------
@@ -450,14 +456,14 @@ class VariantsClient:
         Updates the image used in an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        image (Image): The image information to update.
+            variant_id (str): The ID of the app variant to update.
+            image (Image): The image information to update.
 
         Raises:
-        HTTPException: If an error occurs while trying to update the app variant.
+            HTTPException: If an error occurs while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response indicating whether the update was successful or not.
+            JSONResponse: A JSON response indicating whether the update was successful or not.
 
         Parameters
         ----------
@@ -1371,14 +1377,14 @@ class AsyncVariantsClient:
         Same as POST /config
 
         Args:
-        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
+            payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
+            stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
         Raises:
-        HTTPException: Raised if the variant could not be added or accessed.
+            HTTPException: Raised if the variant could not be added or accessed.
 
         Returns:
-        Union[AppVariantResponse, Any]: New variant details or exception.
+            Union[AppVariantResponse, Any]: New variant details or exception.
 
         Parameters
         ----------
@@ -1540,16 +1546,16 @@ class AsyncVariantsClient:
         Start a variant of an app.
 
         Args:
-        variant_id (str): The ID of the variant to start.
-        action (VariantAction): The action to perform on the variant (start).
-        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the variant to start.
+            action (VariantAction): The action to perform on the variant (start).
+            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-        URI: The URL of the started variant.
+            URI: The URL of the started variant.
 
         Raises:
-        HTTPException: If the app container cannot be started.
+            HTTPException: If the app container cannot be started.
 
         Parameters
         ----------
@@ -1642,10 +1648,16 @@ class AsyncVariantsClient:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-        app_variant -- AppVariant to remove
+
+
+
+            app_variant -- AppVariant to remove
 
         Raises:
-        HTTPException: If there is a problem removing the app variant
+
+
+
+            HTTPException: If there is a problem removing the app variant
 
         Parameters
         ----------
@@ -1719,15 +1731,15 @@ class AsyncVariantsClient:
         Updates the parameters for an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the app variant to update.
+            payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If there is an error while trying to update the app variant.
+            HTTPException: If there is an error while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response containing the updated app variant parameters.
+            JSONResponse: A JSON response containing the updated app variant parameters.
 
         Parameters
         ----------
@@ -1815,14 +1827,14 @@ class AsyncVariantsClient:
         Updates the image used in an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        image (Image): The image information to update.
+            variant_id (str): The ID of the app variant to update.
+            image (Image): The image information to update.
 
         Raises:
-        HTTPException: If an error occurs while trying to update the app variant.
+            HTTPException: If an error occurs while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response indicating whether the update was successful or not.
+            JSONResponse: A JSON response indicating whether the update was successful or not.
 
         Parameters
         ----------

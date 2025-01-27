@@ -1,7 +1,7 @@
+import {getOrgValues} from "@/contexts/org.context"
 import {getCurrentProject} from "@/contexts/project.context"
 import {AppTemplate} from "@/lib/Types"
 import axios from "@/lib/api/assets/axiosConfig"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import {LlmProvider} from "@/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {waitForAppToStart} from "@/services/api"
@@ -82,11 +82,6 @@ export const createAndStartTemplate = async ({
     )
 
     try {
-        const {getOrgValues} = await dynamicContext("org.context", {
-            getOrgValues: () => ({
-                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
-            }),
-        })
         const {selectedOrg} = getOrgValues()
         onStatusChange?.("creating_app")
         let app
@@ -95,8 +90,8 @@ export const createAndStartTemplate = async ({
                 {
                     app_name: appName,
                     template_id: templateId,
-                    organization_id: selectedOrg.id,
-                    workspace_id: selectedOrg.default_workspace.id,
+                    organization_id: selectedOrg?.id,
+                    workspace_id: selectedOrg?.default_workspace.id,
                     env_vars: apiKeys,
                 },
                 true,
