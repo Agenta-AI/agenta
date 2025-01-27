@@ -3,8 +3,10 @@ import {useRouter} from "next/router"
 import {useAtom} from "jotai"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"
+import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
+import {isDemo} from "../utils"
 
-const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) => {
+const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const router = useRouter()
     const [loadingPosthog, setLoadingPosthog] = useState(false)
     const [posthogClient, setPosthogClient] = useAtom(posthogAtom)
@@ -26,12 +28,12 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children, config}) =>
                     if (process.env.NODE_ENV === "development") posthog.debug()
                 },
                 capture_pageview: false,
-                ...config,
+                ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
             })
         } finally {
             setLoadingPosthog(false)
         }
-    }, [loadingPosthog, config, posthogClient, setPosthogClient])
+    }, [loadingPosthog, posthogClient, setPosthogClient])
 
     useEffect(() => {
         initPosthog()
