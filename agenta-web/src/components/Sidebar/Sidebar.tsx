@@ -302,8 +302,8 @@ const Sidebar: React.FC = () => {
             >
                 <div className={classes.sliderContainer}>
                     <div
-                        className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
-                            collapsed && !isHovered ? "w-[40px]" : "w-full"
+                        className={`h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
+                            collapsed && !isHovered ? "w-[40px]" : "w-full overflow-hidden"
                         }`}
                     >
                         <div
@@ -313,7 +313,9 @@ const Sidebar: React.FC = () => {
                                 "w-full",
                             ])}
                         >
-                            <div className="transition-width duration-[inherit] ease-in-out w-full">
+                            <div
+                                className={`transition-width duration-[inherit] ease-in-out w-full ${collapsed && !isHovered ? "" : "overflow-hidden"}`}
+                            >
                                 {!isDemo() && (
                                     <Link data-cy="app-management-link" href="/apps">
                                         <Logo isOnlyIconLogo={collapsed && !isHovered} />
@@ -358,7 +360,7 @@ const Sidebar: React.FC = () => {
                                     e.stopPropagation()
                                     setCollapsed(!collapsed)
                                 }}
-                                icon={<SidebarSimple size={14} />}
+                                icon={<SidebarSimple size={15} />}
                                 type={collapsed && isHovered ? "primary" : undefined}
                             />
                         </div>
