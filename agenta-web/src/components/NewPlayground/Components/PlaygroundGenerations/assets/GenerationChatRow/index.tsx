@@ -35,6 +35,7 @@ export const GenerationChatRowOutput = ({
     isRunning,
 }: GenerationChatRowProps) => {
     const {viewType} = usePlayground()
+    const isComparisonView = viewType === "comparison"
 
     return isRunning && viewType === "single" ? (
         <div className="w-full flex flex-col gap-3">
@@ -45,7 +46,15 @@ export const GenerationChatRowOutput = ({
             />
         </div>
     ) : (
-        <div className="w-full flex flex-col items-start gap-2 relative group/option">
+        <div
+            className={clsx([
+                "w-full flex flex-col items-start gap-2 relative group/option",
+                {
+                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] px-4 pt-2":
+                        isComparisonView,
+                },
+            ])}
+        >
             <PromptMessageConfig
                 variantId={variantId}
                 rowId={rowId}
@@ -55,7 +64,11 @@ export const GenerationChatRowOutput = ({
                 debug
                 className="w-full"
             />
-            {!!result ? <GenerationResultUtils result={result} /> : null}
+            {!!result ? (
+                <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
+                    <GenerationResultUtils result={result} />
+                </div>
+            ) : null}
         </div>
     )
 }
@@ -173,7 +186,10 @@ const GenerationChatRow = ({
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
-                    {"px-2 bg-[#f5f7fa]": viewType === "comparison"},
+                    {
+                        "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                            viewType === "comparison",
+                    },
                 ])}
             >
                 {history.map((historyItem) => {
