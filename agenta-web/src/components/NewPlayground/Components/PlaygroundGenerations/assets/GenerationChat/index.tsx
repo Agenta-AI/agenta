@@ -84,7 +84,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
             <div
                 className={clsx([
                     "flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                    {"!border-none !p-0 !gap-0 bg-[#f5f7fa]": isComparisonView},
+                    {"!border-none !p-0 !gap-0": isComparisonView},
                 ])}
             >
                 <div className="flex flex-col gap-1">
@@ -112,12 +112,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                 </div>
 
                 <div
-                    className={clsx([
-                        {
-                            "flex items-center h-[48px] px-4 border-0 border-b border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                isComparisonView,
-                        },
-                    ])}
+                    className={clsx([{"flex items-center h-[48px] px-4": isComparisonView}])}
                 ></div>
             </div>
         </section>
