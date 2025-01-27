@@ -46,8 +46,9 @@ async def generate(
     api_key = ag.SecretsManager.get_api_key_for_model(config.prompt.llm_config.model)
 
     if not api_key:
-        raise ValueError(
-            f"API key not found for model {config.prompt.llm_config.model}"
+        raise HTTPException(
+            status_code=422,
+            detail=f"API key not found for model {config.prompt.llm_config.model}",
         )
 
     response = await mockllm.acompletion(

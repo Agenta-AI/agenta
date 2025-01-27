@@ -369,7 +369,9 @@ class entrypoint:
     ):
         display_exception("Application Exception")
 
-        status_code = 500
+        status_code = (
+            getattr(error, "status_code") if hasattr(error, "status_code") else 500
+        )
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
 
         raise HTTPException(

@@ -63,6 +63,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
     async def _get_secrets(self, request: Request) -> Optional[Dict]:
         credentials = request.state.auth.get("credentials")
+        query_params = request.query_params
 
         headers = None
         if credentials:
@@ -75,7 +76,8 @@ class VaultMiddleware(BaseHTTPMiddleware):
             sort_keys=True,
         )
 
-        if _CACHE_ENABLED:
+        cache_enabled_from_query = query_params.get("middleware_cache_enabled", "true")
+        if cache_enabled_from_query in TRUTHY and _CACHE_ENABLED:
             secrets_cache = _cache.get(_hash)
 
             if secrets_cache:

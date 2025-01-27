@@ -784,7 +784,10 @@ async def create_app_and_envs(
         app_name=app_name, project_id=project_id
     )
     if app is not None:
-        raise ValueError("App with the same name already exists")
+        raise HTTPException(
+            status_code=400,
+            detail="App with the same name already exists",
+        )
 
     app_type = await get_app_type(
         template_id=template_id,

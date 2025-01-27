@@ -211,30 +211,27 @@ async def create_app(
                 Permission.CREATE_APPLICATION,
             )
 
-        try:
-            user_org_workspace_data = await get_user_org_and_workspace_id(
-                request.state.user_id
+        user_org_workspace_data = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )
+        if user_org_workspace_data is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to get user org and workspace data",
             )
-            if user_org_workspace_data is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Failed to get user org and workspace data",
-                )
 
-            has_permission = await check_rbac_permission(
-                user_org_workspace_data=user_org_workspace_data,
-                project_id=request.state.project_id,
-                permission=Permission.CREATE_APPLICATION,
+        has_permission = await check_rbac_permission(
+            user_org_workspace_data=user_org_workspace_data,
+            project_id=request.state.project_id,
+            permission=Permission.CREATE_APPLICATION,
+        )
+        logger.debug(f"User has Permission to Create Application: {has_permission}")
+        if not has_permission:
+            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
             )
-            logger.debug(f"User has Permission to Create Application: {has_permission}")
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
 
     app_db = await db_manager.create_app_and_envs(
         payload.app_name,
@@ -424,7 +421,7 @@ async def add_variant_from_url(
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            object=app,
+            project_id=str(app.project_id),
             permission=Permission.CREATE_APPLICATION,
         )
         logger.debug(f"User has Permission to create app from url: {has_permission}")
