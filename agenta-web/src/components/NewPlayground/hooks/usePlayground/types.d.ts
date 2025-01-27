@@ -13,6 +13,7 @@ interface BaseHookConfig<T = unknown, Selected = unknown>
     hookId?: string
     projectId?: string
     cache?: Map<string, {data: T}>
+    registerToWebWorker?: boolean
 }
 
 /** Base hook response extending SWR */

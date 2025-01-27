@@ -13,53 +13,51 @@ import type {GenerationChatProps} from "./types"
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
-    const {mutate, inputRowIds, messageRowIds, isRunning, runTests, viewType, configMessageIds} =
-        usePlayground({
-            variantId,
-            hookId: "PlaygroundConfigVariantPrompts",
-            stateSelector: useCallback(
-                (state: PlaygroundStateData) => {
-                    const inputRows = state.generationData.inputs.value || []
-                    const messageRows = state.generationData.messages.value || []
-                    const configMessages = (
-                        state.variants.find((v) => v.id === variantId)?.prompts || []
-                    ).flatMap((variant) => {
-                        return variant.messages.value
-                    })
+    const {inputRowIds, messageRowIds, viewType, configMessageIds} = usePlayground({
+        variantId,
+        registerToWebWorker: true,
+        hookId: "PlaygroundConfigVariantPrompts",
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRows = state.generationData.inputs.value || []
+                const messageRows = state.generationData.messages.value || []
+                const configMessages = (
+                    state.variants.find((v) => v.id === variantId)?.prompts || []
+                ).flatMap((variant) => {
+                    return variant.messages.value
+                })
 
-                    const isRunning = messageRows.some((messageRow) => {
-                        return Object.values(messageRow?.__runs || {}).some(
-                            (run) => run.__isRunning,
-                        )
-                    })
+                const isRunning = messageRows.some((messageRow) => {
+                    return Object.values(messageRow?.__runs || {}).some((run) => run.__isRunning)
+                })
 
-                    const isComparisonView = state.selected.length > 1
+                const isComparisonView = state.selected.length > 1
 
-                    return {
-                        isRunning,
-                        inputRowIds: (inputRows || [])
-                            .filter((inputRow) => {
-                                return (
-                                    Object.keys(getMetadataLazy(inputRow.__metadata)?.properties)
-                                        .length > 0
-                                )
-                            })
-                            .map((inputRow) => inputRow.__id),
-                        messageRowIds: (messageRows || [])
-                            .map((messageRow) => {
-                                return isComparisonView
-                                    ? !Object.keys(messageRow.__runs || {}).length
-                                        ? messageRow.__id
-                                        : undefined
-                                    : messageRow.__id
-                            })
-                            .filter(Boolean),
-                        configMessageIds: configMessages.map((message) => message.__id),
-                    }
-                },
-                [variantId],
-            ),
-        })
+                return {
+                    isRunning,
+                    inputRowIds: (inputRows || [])
+                        .filter((inputRow) => {
+                            return (
+                                Object.keys(getMetadataLazy(inputRow.__metadata)?.properties)
+                                    .length > 0
+                            )
+                        })
+                        .map((inputRow) => inputRow.__id),
+                    messageRowIds: (messageRows || [])
+                        .map((messageRow) => {
+                            return isComparisonView
+                                ? !Object.keys(messageRow.__runs || {}).length
+                                    ? messageRow.__id
+                                    : undefined
+                                : messageRow.__id
+                        })
+                        .filter(Boolean) as string[],
+                    configMessageIds: configMessages.map((message) => message.__id),
+                }
+            },
+            [variantId],
+        ),
+    })
     const isComparisonView = viewType === "comparison"
 
     return (

@@ -1,12 +1,15 @@
 import {useCallback} from "react"
+
+import usePlayground from "../../hooks/usePlayground"
+
 import GenerationComparisonCompletionInput from "./GenerationComparisonCompletionInput"
 import GenerationComparisonChatInput from "./GenerationComparisonChatInput"
-import usePlayground from "../../hooks/usePlayground"
-import {PlaygroundStateData} from "../../hooks/usePlayground/types"
 import GenerationComparisonCompletionOutput from "./GenerationComparisonCompletionOutput"
 import GenerationComparisonChatOutput from "./GenerationComparisonChatOutput"
 
-const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
+import type {PlaygroundStateData} from "../../hooks/usePlayground/types"
+
+const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
     const {isChat} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
             return {isChat: state.variants[0].isChat}
@@ -14,7 +17,7 @@ const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
     })
 
     return isChat ? (
-        <GenerationComparisonChatInput variantId={variantId} />
+        <GenerationComparisonChatInput />
     ) : (
         <GenerationComparisonCompletionInput
             variantId={variantId}
@@ -23,7 +26,7 @@ const GenerationComparisonInputConfig = ({variantId}: {variantId: string}) => {
     )
 }
 
-const GenerationComparisonOutputConfig = ({rowId}: {rowId: string}) => {
+const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     const {isChat, displayedVariants} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
             return {isChat: state.variants[0].isChat}
@@ -31,9 +34,9 @@ const GenerationComparisonOutputConfig = ({rowId}: {rowId: string}) => {
     })
 
     return (displayedVariants || []).map((variantId) => (
-        <div className="!w-[400px] shrink-0" key={variantId}>
+        <div className="!w-[400px] shrink-0 self-stretch relative" key={variantId}>
             {isChat ? (
-                <GenerationComparisonChatOutput variantId={rowId} rowId={rowId} />
+                <GenerationComparisonChatOutput variantId={variantId} rowId={rowId} />
             ) : (
                 <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />
             )}
@@ -41,4 +44,4 @@ const GenerationComparisonOutputConfig = ({rowId}: {rowId: string}) => {
     ))
 }
 
-export {GenerationComparisonInputConfig, GenerationComparisonOutputConfig}
+export {GenerationComparisonInput, GenerationComparisonOutput}

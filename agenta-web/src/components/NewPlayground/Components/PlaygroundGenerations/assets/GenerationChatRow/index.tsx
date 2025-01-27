@@ -1,23 +1,26 @@
-import dynamic from "next/dynamic"
-import GenerationOutputText from "../GenerationOutputText"
-import {GenerationChatRowProps} from "./types"
 import {useCallback} from "react"
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
+
 import clsx from "clsx"
+import dynamic from "next/dynamic"
+
+import GenerationOutputText from "../GenerationOutputText"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {
     findPropertyInObject,
     findVariantById,
 } from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import PromptMessageConfig from "../../../PromptMessageConfig"
 import AddButton from "@/components/NewPlayground/assets/AddButton"
+import RunButton from "@/components/NewPlayground/assets/RunButton"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 import {createMessageFromSchema} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
-import {
+
+import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import type {
     ArrayMetadata,
     ObjectMetadata,
 } from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
-import RunButton from "@/components/NewPlayground/assets/RunButton"
+import type {GenerationChatRowProps} from "./types"
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
 
@@ -124,9 +127,18 @@ const GenerationChatRow = ({
                     const row = clonedState.generationData.messages.value.find(
                         (v) => v.__id === rowId,
                     )
-                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    const isInput = row.history.value.findIndex((m) => {
+                        return m.__id === messageId
+                    })
                     if (isInput !== -1) {
                         row.history.value.splice(isInput, 1)
+                    } else {
+                        const isRunIndex = row.history.value.findIndex((m) => {
+                            return m.__runs[variantId]?.message?.__id === messageId
+                        })
+                        if (isRunIndex !== -1) {
+                            delete row.history.value[isRunIndex].__runs[variantId]
+                        }
                     }
                 }
             },
@@ -169,7 +181,7 @@ const GenerationChatRow = ({
                 {history.map((historyItem) => {
                     return (
                         <GenerationChatRowOutput
-                            key={historyItem.__id}
+                            key={historyItem.__id || `${variantId}-${rowId}-generating`}
                             message={historyItem}
                             variantId={variantId}
                             deleteMessage={deleteMessage}

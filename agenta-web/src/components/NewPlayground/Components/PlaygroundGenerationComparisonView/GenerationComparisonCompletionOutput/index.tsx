@@ -17,6 +17,8 @@ const GenerationComparisonCompletionOutput = ({
 }: GenerationComparisonCompletionOutputProps) => {
     const classes = useStyles()
     const {result, isRunning, variableIds} = usePlayground({
+        registerToWebWorker: true,
+        variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const inputRow = state.generationData.inputs.value.find((inputRow) => {

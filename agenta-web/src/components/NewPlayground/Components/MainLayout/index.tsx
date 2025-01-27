@@ -7,8 +7,8 @@ import useAnimationFrame from "use-animation-frame"
 import usePlayground from "../../hooks/usePlayground"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
 import {
-    GenerationComparisonInputConfig,
-    GenerationComparisonOutputConfig,
+    GenerationComparisonInput,
+    GenerationComparisonOutput,
 } from "../PlaygroundGenerationComparisonView"
 
 import type {BaseContainerProps} from "../types"
@@ -213,9 +213,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                             key={variantId}
                                             className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10"
                                         >
-                                            <GenerationComparisonInputConfig
-                                                variantId={variantId}
-                                            />
+                                            <GenerationComparisonInput variantId={variantId} />
                                         </div>
                                     )
                                 })}
@@ -245,7 +243,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                                   key={rowId}
                                                   className="[&::-webkit-scrollbar]:w-0 w-[400px] flex flex-shrink-0"
                                               >
-                                                  <GenerationComparisonOutputConfig rowId={rowId} />
+                                                  <GenerationComparisonOutput rowId={rowId} />
                                               </div>
                                           )
                                       })
