@@ -1,9 +1,6 @@
-// TODO: OLD FILE, CHECK IF IT CAN BE SHARED, AND IF IT NEEDS IMPROVEMENTS
-
 import {type FC, type ChangeEvent, useState} from "react"
 import {Modal, Input, Select, Typography} from "antd"
 import {CreateVariantModalProps} from "./types"
-import {useStyles} from "./styles"
 
 const {Text} = Typography
 
@@ -16,7 +13,6 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
     newVariantName,
     setTemplateVariantName,
 }) => {
-    const classes = useStyles()
     const [variantPlaceHolder, setVariantPlaceHolder] = useState("Variant source")
     const [isInputValid, setIsInputValid] = useState(false)
 
@@ -55,7 +51,7 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
                     <Text>Base variant</Text>
                     <Select
                         showSearch
-                        className={classes.select}
+                        className="w-full"
                         data-cy="new-variant-modal-select"
                         placeholder="Select a variant"
                         onChange={handleTemplateVariantChange}

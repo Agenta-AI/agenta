@@ -6,6 +6,9 @@ export interface SimpleDropdownSelectProps {
     onChange: (value: string) => void
     placeholder?: string
     className?: string
+    disabled?: boolean
+    description?: string
+    withTooltip?: boolean
 }
 
 export type {MenuItemType}
