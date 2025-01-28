@@ -113,7 +113,6 @@ const PromptMessageConfig = ({
                         className="invisible group-hover/item:visible"
                         deleteMessage={deleteMessage}
                         propertyId={message.content}
-                        rowId={rowId}
                         variantId={variantId}
                         messageId={messageId}
                         isMessageDeletable={isMessageDeletable}

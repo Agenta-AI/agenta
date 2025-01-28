@@ -4,38 +4,54 @@ import {DeleteVariantModalProps} from "./types"
 import {useStyles} from "./styles"
 import {useCallback} from "react"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {findVariantById} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 const {Text} = Typography
 
 const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...props}) => {
     const classes = useStyles()
-    const {deleteVariant, variant, variants, setSelectedVariant} = usePlayground({
-        variantId,
-        hookId: "DeleteVariantModal",
-    })
+    const {deleteVariant, isMutating, variantName, setSelectedVariant, _variantIds} = usePlayground(
+        {
+            variantId,
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const variant = findVariantById(state, variantId)
+                    const _variantIds = state.variants.map((variant) => variant.id)
+
+                    return {
+                        isMutating: variant?.__isMutating,
+                        variantName: variant?.variantName,
+                        _variantIds,
+                    }
+                },
+                [variantId],
+            ),
+        },
+    )
 
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
     }, [])
 
     const onDeleteVariant = useCallback(() => {
-        const itemIndex = variants?.findIndex((variant) => variant.id === variantId) as number
+        const itemIndex = _variantIds?.findIndex((id) => id === variantId) as number
         if (itemIndex === -1) return
 
         deleteVariant?.()
             .then(() => {
                 // Update the variants by excluding the deleted one directly in the state
-                const updatedVariants = variants
+                const updatedVariants = _variantIds
                     ?.slice(0, itemIndex)
-                    .concat(variants?.slice(itemIndex + 1))
+                    .concat(_variantIds?.slice(itemIndex + 1))
 
                 let nextId: string | undefined
 
                 // If there's a variant after the deleted one, select it. If there's no variant after, select the previous one
                 if (itemIndex < (updatedVariants?.length as number)) {
-                    nextId = updatedVariants?.[itemIndex]?.id
+                    nextId = updatedVariants?.[itemIndex]
                 } else if (itemIndex - 1 >= 0) {
-                    nextId = updatedVariants?.[itemIndex - 1]?.id
+                    nextId = updatedVariants?.[itemIndex - 1]
                 }
 
                 setSelectedVariant?.(nextId as string)
@@ -43,7 +59,7 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
             .then(() => {
                 onClose()
             })
-    }, [deleteVariant, variants, setSelectedVariant])
+    }, [deleteVariant, _variantIds, setSelectedVariant])
 
     return (
         <Modal
@@ -53,7 +69,7 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
             onCancel={onClose}
             okText="Delete"
             onOk={onDeleteVariant}
-            confirmLoading={variant?.__isMutating}
+            confirmLoading={isMutating}
             okButtonProps={{danger: true, icon: <Trash size={14} />}}
             classNames={{footer: "flex items-center justify-end"}}
             {...props}
@@ -64,7 +80,7 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
                 <div className="flex flex-col gap-1">
                     <Text>You are about to delete:</Text>
 
-                    <Text className={classes.heading}>{variant?.variantName}</Text>
+                    <Text className={classes.heading}>{variantName}</Text>
                 </div>
             </section>
         </Modal>

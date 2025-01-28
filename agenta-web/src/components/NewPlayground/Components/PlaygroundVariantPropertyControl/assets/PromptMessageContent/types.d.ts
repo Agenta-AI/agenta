@@ -4,4 +4,7 @@ export interface PromptMessageContentProps {
     onChange: (value: string) => void
     view?: string
     className?: string
+    description?: string
+    withTooltip?: boolean
+    disabled?: boolean
 }

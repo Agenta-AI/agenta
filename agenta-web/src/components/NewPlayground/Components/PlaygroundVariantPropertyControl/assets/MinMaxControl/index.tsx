@@ -1,10 +1,11 @@
 import {memo, useCallback} from "react"
-import {Slider, InputNumber, Typography, Tooltip} from "antd"
+import {Slider, InputNumber, Typography, Tooltip, Button} from "antd"
 import {useDebounceInput} from "@/hooks/useDebounceInput"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 
 import type {MinMaxControlProps} from "./types"
+import {X} from "@phosphor-icons/react"
 
 /**
  * A controlled input component that combines a slider and number input
@@ -55,15 +56,27 @@ const MinMaxControl = ({
                 ) : (
                     <Typography.Text>{label}</Typography.Text>
                 )}
-                <InputNumber
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={localValue}
-                    onChange={handleValueChange}
-                    disabled={disabled}
-                    className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left"
-                />
+
+                <div className="flex items-center gap-1">
+                    <InputNumber
+                        min={min}
+                        max={max}
+                        step={step}
+                        value={localValue}
+                        onChange={handleValueChange}
+                        disabled={disabled}
+                        className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left"
+                    />
+
+                    {localValue ? (
+                        <Button
+                            icon={<X size={14} />}
+                            type="text"
+                            size="small"
+                            onClick={() => handleValueChange(0)}
+                        />
+                    ) : null}
+                </div>
             </div>
             <Slider
                 min={min}
