@@ -302,8 +302,8 @@ const Sidebar: React.FC = () => {
             >
                 <div className={classes.sliderContainer}>
                     <div
-                        className={`h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
-                            collapsed && !isHovered ? "w-[40px]" : "w-full overflow-hidden"
+                        className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
+                            collapsed && !isHovered ? "w-[40px] relative left-[7px]" : "w-full"
                         }`}
                     >
                         <div
@@ -313,9 +313,7 @@ const Sidebar: React.FC = () => {
                                 "w-full",
                             ])}
                         >
-                            <div
-                                className={`transition-width duration-[inherit] ease-in-out w-full ${collapsed && !isHovered ? "" : "overflow-hidden"}`}
-                            >
+                            <div className="transition-width duration-[inherit] ease-in-out w-full">
                                 {!isDemo() && (
                                     <Link data-cy="app-management-link" href="/apps">
                                         <Logo isOnlyIconLogo={collapsed && !isHovered} />
@@ -343,7 +341,7 @@ const Sidebar: React.FC = () => {
                                                     name={selectedOrg.name}
                                                 />
 
-                                                <div>
+                                                <div className="max-w-[95px] text-ellipsis overflow-hidden">
                                                     <Text>{selectedOrg.name}</Text>
                                                     <Text>{selectedOrg.type}</Text>
                                                 </div>
@@ -360,7 +358,7 @@ const Sidebar: React.FC = () => {
                                     e.stopPropagation()
                                     setCollapsed(!collapsed)
                                 }}
-                                icon={<SidebarSimple size={15} />}
+                                icon={<SidebarSimple size={14} />}
                                 type={collapsed && isHovered ? "primary" : undefined}
                             />
                         </div>
