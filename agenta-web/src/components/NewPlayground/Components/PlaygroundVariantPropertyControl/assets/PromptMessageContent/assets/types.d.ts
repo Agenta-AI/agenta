@@ -5,4 +5,5 @@ export type PromptMessageContentOptionsProps = {
     propertyId: string
     variantId: string
     isMessageDeletable?: boolean
+    disabled?: boolean
 }

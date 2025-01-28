@@ -7,4 +7,5 @@ export interface MinMaxControlProps {
     onChange: (value: number | null) => void
     withTooltip?: boolean
     description?: string
+    disabled?: boolean
 }
