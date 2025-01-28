@@ -9,7 +9,8 @@ const DeploymentEnvironmentTable = ({
     selectedEnvs,
     setSelectedEnvs,
     variantId,
-    variant,
+    variantName,
+    revision,
     environments,
     isLoading,
 }: DeploymentEnvironmentTableProps) => {
@@ -56,7 +57,7 @@ const DeploymentEnvironmentTable = ({
     return (
         <>
             <Typography>
-                Select an environment to deploy {variant?.variantName} v{variant?.revision}
+                Select an environment to deploy {variantName} v{revision}
             </Typography>
 
             <Table

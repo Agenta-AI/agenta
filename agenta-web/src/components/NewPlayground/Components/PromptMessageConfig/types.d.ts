@@ -15,4 +15,6 @@ export interface PromptMessageConfigProps extends BaseContainerProps {
     isMessageDeletable?: boolean
     view?: string
     inputClassName?: string
+    rowId?: string
+    debug?: boolean
 }

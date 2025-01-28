@@ -1,3 +1,4 @@
+import {memo, useMemo} from "react"
 import {Tag, Space} from "antd"
 import {Timer, PlusCircle} from "@phosphor-icons/react"
 import ResultTag from "@/components/ResultTag/ResultTag"
@@ -17,6 +18,15 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
     const prompts = metric?.tokens.prompt
     const completions = metric?.tokens.completion
 
+    const formattedPrompts = useMemo(() => formatTokenUsage(prompts), [prompts])
+    const formattedCompletions = useMemo(() => formatTokenUsage(completions), [completions])
+    const formattedTokens = useMemo(() => formatTokenUsage(tokens), [tokens])
+    const formattedLatency = useMemo(
+        () => formatLatency(durations ? durations / 1000 : null),
+        [durations],
+    )
+    const formattedCosts = useMemo(() => formatCurrency(costs), [costs])
+
     return (
         <div className={clsx("flex items-center gap-1", className)}>
             <TraceDrawerButton result={result} size="small" className="!mr-1" type="default" />
@@ -24,7 +34,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
             <StatusRenderer status={status} />
 
             <Tag color="default" bordered={false} className="flex items-center gap-1">
-                <Timer size={14} /> {formatLatency(durations ? durations / 1000 : null)}
+                <Timer size={14} /> {formattedLatency}
             </Tag>
 
             <ResultTag
@@ -32,18 +42,17 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
                 bordered={false}
                 value1={
                     <div className="flex items-center gap-1">
-                        <PlusCircle size={14} /> {formatTokenUsage(tokens)} /{" "}
-                        {formatCurrency(costs)}
+                        <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}
                     </div>
                 }
                 popoverContent={
                     <Space direction="vertical">
                         <Space>
-                            <div>{formatTokenUsage(prompts)}</div>
+                            <div>{formattedPrompts}</div>
                             <div>Prompt tokens</div>
                         </Space>
                         <Space>
-                            <div>{formatTokenUsage(completions)}</div>
+                            <div>{formattedCompletions}</div>
                             <div>Completion tokens</div>
                         </Space>
                     </Space>
@@ -53,4 +62,4 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
     )
 }
 
-export default GenerationResultUtils
+export default memo(GenerationResultUtils)

@@ -13,9 +13,19 @@ import usePlayground from "../../../hooks/usePlayground"
 import DeploymentEnvironmentTable from "./assets/DeploymentEnvironmentTable"
 
 import {DeployVariantModalProps} from "./types"
+import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types/transformedVariant"
 
 const DeployVariantModal = ({variantId, ...props}: DeployVariantModalProps) => {
-    const {variant} = usePlayground({variantId, hookId: "DeployVariantModal"})
+    const {variantName, revision} = usePlayground({
+        variantId,
+        hookId: "DeployVariantModal",
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                return {variantName: variant.variantName, revision: variant.revision}
+            },
+            [variantId],
+        ),
+    })
     const {environments, mutate, isEnvironmentsLoading} = useEnvironments()
     const posthog = usePostHogAg()
 
@@ -39,7 +49,7 @@ const DeployVariantModal = ({variantId, ...props}: DeployVariantModalProps) => {
                 onClose()
                 mutate()
 
-                message.success(`Published ${variant?.variantName} to ${envName}`)
+                message.success(`Published ${variantName} to ${envName}`)
                 posthog?.capture?.("app_deployed", {app_id: appId, environment: envName})
             })
         } catch (error) {
@@ -59,7 +69,8 @@ const DeployVariantModal = ({variantId, ...props}: DeployVariantModalProps) => {
                         selectedEnvs={selectedEnvs}
                         setSelectedEnvs={setSelectedEnvs}
                         variantId={variantId}
-                        variant={variant}
+                        variantName={variantName}
+                        revision={revision}
                         isLoading={isEnvironmentsLoading}
                     />
                 ),
