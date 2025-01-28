@@ -15,15 +15,31 @@ import {
 import {InputType} from "@/components/NewPlayground/assets/utilities/transformer/types/input"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {createMessageFromSchema} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import {findVariantById} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 const LoadTestsetModal = dynamic(() => import("../.."), {ssr: false})
 
-const LoadTestsetButton = ({label, icon = false, children, ...props}: LoadTestsetButtonProps) => {
-    const {mutate, isChat} = usePlayground({
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            return {isChat: state.variants[0].isChat}
-        }, []),
+const LoadTestsetButton = ({
+    label,
+    icon = false,
+    children,
+    variantId,
+    ...props
+}: LoadTestsetButtonProps) => {
+    const {mutate, isChat, inputKeys} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const _variantId = variantId || state.selected[0]
+                const variant = findVariantById(state, _variantId)
+                const inputKeys = variant?.prompts.flatMap((prompt) => {
+                    const keys = prompt.inputKeys.value.map((key) => key.value)
+                    return keys
+                })
+
+                return {isChat: state.variants[0].isChat, inputKeys: inputKeys}
+            },
+            [variantId],
+        ),
     })
 
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
@@ -41,7 +57,14 @@ const LoadTestsetButton = ({label, icon = false, children, ...props}: LoadTestse
                     if (!messageRow) return clonedState
 
                     data.forEach((row) => {
-                        const chatMessages = testsetRowToChatMessages(row, false)
+                        const chatMessages = inputKeys
+                            ?.map((key) => {
+                                if (row[key] && typeof row[key] === "string") {
+                                    return {content: row[key]}
+                                }
+                                return null
+                            })
+                            .filter(Boolean)
 
                         const _metadata = getMetadataLazy<ArrayMetadata>(
                             messageRow.history.__metadata,
@@ -50,11 +73,10 @@ const LoadTestsetButton = ({label, icon = false, children, ...props}: LoadTestse
 
                         if (!itemMetadata) return
 
-                        const newMessages = chatMessages.map((chat) => {
-                            console.log("chat", chat)
+                        const newMessages = chatMessages?.map((chat) => {
                             return createMessageFromSchema(itemMetadata, {
-                                role: chat.role,
-                                content: chat.content,
+                                role: "user",
+                                content: chat?.content,
                             })
                         })
 
