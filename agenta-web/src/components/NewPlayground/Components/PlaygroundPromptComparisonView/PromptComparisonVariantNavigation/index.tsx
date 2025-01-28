@@ -5,8 +5,6 @@ import {DndContext, closestCenter, PointerSensor, useSensor, useSensors} from "@
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {Typography} from "antd"
-
-import PlaygroundCreateNewVariant from "../../Menus/PlaygroundCreateNewVariant"
 import usePlayground from "../../../hooks/usePlayground"
 
 import VariantNavigationCard from "./assets/VariantNavigationCard"
@@ -46,14 +44,8 @@ const PromptComparisonVariantNavigation = ({
 
     return (
         <div {...props} className={clsx([className])}>
-            <div className="w-full h-[48px] flex items-center justify-between px-2 sticky top-0 z-10 bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+            <div className="w-full h-[48px] flex items-center px-2 sticky top-0 z-10 bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
                 <Typography.Text>Variants</Typography.Text>
-                <div>
-                    <PlaygroundCreateNewVariant
-                        placement="bottomRight"
-                        buttonProps={{size: "small"}}
-                    />
-                </div>
             </div>
 
             <div className="flex flex-col gap-2 p-2">
