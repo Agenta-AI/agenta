@@ -22,7 +22,7 @@ class MyConfig(BaseModel):
     prompt: PromptTemplate = Field(
         default=PromptTemplate(
             system_prompt="You are an expert in geography",
-            user_prompt="What is the capital of {country}?",
+            user_prompt="What is the capital of {{country}}?",
         )
     )
 
