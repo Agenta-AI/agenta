@@ -150,6 +150,7 @@ const LoadTestsetButton = ({
                 onCancel={() => setIsTestsetModalOpen(false)}
                 testsetData={testsetData}
                 setTestsetData={wrappedSetTestsetData}
+                isChat={isChat}
             />
         </>
     )
