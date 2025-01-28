@@ -106,7 +106,10 @@ const VariantNavigationCard = ({
                 )}
             >
                 <div className="flex items-center justify-between">
-                    <Text>Variant {indexName}</Text>
+                    <div className="flex items-center gap-1">
+                        <Text>{variant?.variantName}</Text>
+                        <Version revision={variant?.revision as number} />
+                    </div>
                     <Button
                         icon={<X size={14} />}
                         type="text"
@@ -117,13 +120,6 @@ const VariantNavigationCard = ({
                             toggleVariantDisplay?.(variantId, false)
                         }}
                     />
-                </div>
-                <div className="flex items-center justify-between">
-                    <Text>Name</Text>
-                    <div className="flex items-center gap-1">
-                        <Text>{variant?.variantName}</Text>
-                        <Version revision={variant?.revision as number} />
-                    </div>
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Latency</Text>

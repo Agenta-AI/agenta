@@ -4,6 +4,7 @@ import {FloppyDiskBack} from "@phosphor-icons/react"
 import {CommitVariantChangesModalProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {useStyles} from "./styles"
+import Version from "@/components/NewPlayground/assets/Version"
 
 const {Text} = Typography
 
@@ -42,9 +43,12 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         >
             <section className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
-                    <Text>You are about to new version</Text>
+                    <Text>You are about to create a new version:</Text>
 
-                    <Text className={classes.heading}>{variant?.variantName}</Text>
+                    <div className="flex items-center gap-2">
+                        <Text className={classes.heading}>{variant?.variantName}</Text>
+                        <Version revision={variant?.revision as number} />
+                    </div>
                 </div>
                 {/* <div className="flex flex-col gap-1">
                     <Text>Notes (optional)</Text>
