@@ -12,8 +12,7 @@ COPY public ./public
 COPY next.config.js .
 COPY tsconfig.json .
 COPY postcss.config.js .
-COPY tailwind.config.ts .
-COPY .env.production .
+COPY tailwind.config.ts .env.production* .
 COPY sentry.* .
 
 # Build the Next.js app for production
