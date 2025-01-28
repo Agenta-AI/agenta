@@ -104,14 +104,39 @@ export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
 }
 
 export const clearRuns = (state: PlaygroundStateData) => {
-    const inputs = state.generationData.inputs.value
-    for (const inputRow of inputs) {
-        const rowRuns = Object.values(inputRow.__runs)
-        for (const run of rowRuns) {
-            run.__isRunning = false
-            run.__result = null
+    const isChat = state.variants[0].isChat
+
+    if (isChat) {
+        const messages = state.generationData.messages.value
+
+        for (const message of messages) {
+            let historyArray = message.history.value
+
+            // Filter out history entries with empty role.value || this is mostly the response value
+            historyArray = historyArray.filter((history) => {
+                const roleValue = history.role?.value
+                return roleValue !== null && roleValue !== undefined && roleValue !== ""
+            })
+
+            message.history.value = historyArray
+
+            for (const history of historyArray) {
+                const rowRuns = Object.values(history.__runs || {})
+
+                for (const run of rowRuns) {
+                    run.__isRunning = false
+                    run.__result = null
+                }
+            }
+        }
+    } else {
+        const inputs = state.generationData.inputs.value
+        for (const inputRow of inputs) {
+            const rowRuns = Object.values(inputRow.__runs)
+            for (const run of rowRuns) {
+                run.__isRunning = false
+                run.__result = null
+            }
         }
     }
-
-    const messages = state.generationData.messages.value
 }
