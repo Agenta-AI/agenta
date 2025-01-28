@@ -408,7 +408,7 @@ class PromptTemplate(BaseModel):
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
     template_format: Literal["fstring", "jinja2", "curly"] = Field(
-        default="fstring",
+        default="curly",
         description="Format type for template variables: fstring {var}, jinja2 {{ var }}, or curly {{var}}",
     )
     input_keys: Optional[List[str]] = Field(
