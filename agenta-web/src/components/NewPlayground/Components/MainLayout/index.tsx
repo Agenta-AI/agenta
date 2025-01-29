@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import dynamic from "next/dynamic"
 import clsx from "clsx"
@@ -54,13 +54,16 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
 
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
 
-    const handleScroll = (index: number) => {
-        const targetRef = variantRefs.current[index]
+    const handleScroll = useCallback(
+        (index: number) => {
+            const targetRef = variantRefs.current[index]
 
-        if (targetRef) {
-            targetRef.scrollIntoView({behavior: "smooth", inline: "end"})
-        }
-    }
+            if (targetRef) {
+                targetRef.scrollIntoView({behavior: "smooth", inline: "end"})
+            }
+        },
+        [variantRefs],
+    )
 
     /**
      * Scroll Sync Login
@@ -222,11 +225,10 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 {/* This component renders Output component header section */}
                                 {isComparisonView && (
                                     <div className="flex sticky top-0 z-[1]">
-                                        {displayedVariants.map((variantId, index) => (
+                                        {displayedVariants.map((variantId) => (
                                             <GenerationComparisonOutputHeader
                                                 key={variantId}
                                                 variantId={variantId}
-                                                indexName={String.fromCharCode(65 + index)}
                                                 className="!w-[400px]"
                                             />
                                         ))}
