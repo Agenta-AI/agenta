@@ -422,13 +422,6 @@ async def start_variant(
             request.state.user_id,
         )
 
-        # Deploy to environments
-        for environment in ["development", "staging", "production"]:
-            await db_manager.deploy_to_environment(
-                environment_name=environment,
-                variant_id=str(app_variant_db.id),
-                user_uid=request.state.user_id,
-            )
     return url
 
 
