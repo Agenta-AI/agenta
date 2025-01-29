@@ -65,7 +65,6 @@ const PromptComparisonVariantNavigation = ({
                                     key={variantId}
                                     id={variantId}
                                     variantId={variantId}
-                                    indexName={String.fromCharCode(65 + idx)}
                                     handleScrollClick={() => handleScroll(idx)}
                                 />
                             )

@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {memo, useCallback, useMemo} from "react"
 
 import {Button, Tag, Typography} from "antd"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
@@ -13,6 +13,7 @@ import usePlayground from "../../../../../hooks/usePlayground"
 import {useStyles} from "./styles"
 
 import type {VariantNavigationCardProps} from "./types"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 const {Text} = Typography
 
@@ -20,20 +21,22 @@ const VariantNavigationCard = ({
     variantId,
     id,
     className,
-    indexName,
     handleScrollClick,
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
     const {toggleVariantDisplay, variant, results} = usePlayground({
         variantId,
-        stateSelector: (state) => {
-            // TODO: add a conditional to handle completion and chat
-            const variantRuns = state.generationData.inputs.value.map(
-                (item) => item.__runs?.[variantId],
-            )
-            const results = variantRuns.map((result) => result?.__result)
-            return {results}
-        },
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                // TODO: add a conditional to handle completion and chat
+                const variantRuns = state.generationData.inputs.value.map(
+                    (item) => item.__runs?.[variantId],
+                )
+                const results = variantRuns.map((result) => result?.__result)
+                return {results}
+            },
+            [variantId],
+        ),
     })
     const {attributes, listeners, setNodeRef, transform, transition, isDragging, active} =
         useSortable({id})
@@ -139,4 +142,4 @@ const VariantNavigationCard = ({
     )
 }
 
-export default VariantNavigationCard
+export default memo(VariantNavigationCard)
