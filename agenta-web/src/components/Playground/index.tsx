@@ -22,13 +22,15 @@ const PlaygroundRouter = () => {
     if (isLoading) {
         return <div>Loading...</div>
     } else if (!!app) {
-        if (app.app_type?.includes("(old)")) {
+        if (app.app_type?.includes(" (old)") || app.app_type === "custom") {
             return <OldPlayground />
         } else {
             if (!router.query.playground) {
-                router.replace(`${router.asPath}?playground=new-playground`, undefined, {
-                    shallow: true,
-                })
+                router.replace(
+                    {query: {...router.query, playground: "new-playground"}},
+                    undefined,
+                    {shallow: true},
+                )
             }
             return <NewPlayground />
         }

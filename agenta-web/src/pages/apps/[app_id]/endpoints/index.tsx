@@ -1,3 +1,6 @@
+import {useEffect, useState} from "react"
+import {useRouter} from "next/router"
+
 import invokeLlmAppcURLCode from "@/code_snippets/endpoints/invoke_llm_app/curl"
 import invokeLlmApppythonCode from "@/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescript"
@@ -6,39 +9,21 @@ import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python
 import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
+import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-import {useVariant} from "@/lib/hooks/useVariant"
-import {fetchVariants, fetchAppContainerURL} from "@/services/api"
-import {fetchEnvironments} from "@/services/deployment/api"
+import {fetchAppContainerURL} from "@/services/api"
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
-import {useRouter} from "next/router"
-import {useEffect, useState} from "react"
-import {createUseStyles} from "react-jss"
 import {useQueryParam} from "@/hooks/useQuery"
+import {useEnvironments} from "@/services/deployment/hooks/useEnvironments"
+import {useStyles} from "./assets/styles"
+import {useVariants} from "@/lib/hooks/useVariants"
+import {useAppsData} from "@/contexts/app.context"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
 
 const {Text, Title} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        display: "flex",
-        flexDirection: "column",
-        rowGap: 20,
-    },
-    envButtons: {
-        "& .ant-radio-button-wrapper-checked": {
-            backgroundColor: theme.colorPrimary,
-            color: theme.colorWhite,
-            "&:hover": {
-                color: theme.colorWhite,
-            },
-        },
-    },
-}))
 
 export const createParams = (
     inputParams: Parameter[] | null,
@@ -78,6 +63,7 @@ export default function VariantEndpoint() {
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
     const isOss = !isDemo()
+    const {currentApp} = useAppsData()
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
@@ -90,23 +76,19 @@ export default function VariantEndpoint() {
 
     // Load environments for the given app
     const [selectedEnvironment, setSelectedEnvironment] = useState<Environment | null>(null)
-    const [environments, setEnvironments] = useState<Environment[]>([])
-    const loadEnvironments = async () => {
-        const response: Environment[] = await fetchEnvironments(appId)
-        setEnvironments(response)
-        const loadProductionEnv = response.find((env) => env.name === "production")
-        if (loadProductionEnv) {
-            setSelectedEnvironment(loadProductionEnv)
-            await loadURL(loadProductionEnv)
-        } else {
-            setSelectedEnvironment(response[0])
-            await loadURL(response[0])
-        }
-    }
-    useEffect(() => {
-        if (!appId) return
-        loadEnvironments()
-    }, [appId])
+    const {environments} = useEnvironments({
+        appId,
+        onSuccess: (data: Environment[]) => {
+            const loadProductionEnv = data.find((env) => env.name === "production")
+            if (loadProductionEnv) {
+                setSelectedEnvironment(loadProductionEnv)
+                loadURL(loadProductionEnv)
+            } else {
+                setSelectedEnvironment(data[0])
+                loadURL(data[0])
+            }
+        },
+    })
 
     const handleEnvironmentClick = ({key}: {key: string}) => {
         const chosenEnvironment = environments.find((env) => env.name === key)
@@ -115,33 +97,17 @@ export default function VariantEndpoint() {
         loadURL(chosenEnvironment)
     }
 
-    // Initialize variants
-    const [variants, setVariants] = useState<Variant[]>([])
-    const [isVariantsLoading, setIsVariantsLoading] = useState(false)
-    const [isVariantsError, setIsVariantsError] = useState<boolean | string>(false)
+    const {data, isLoading, error} = useVariants(currentApp)({
+        appId: currentApp?.app_id,
+    })
 
-    useEffect(() => {
-        const fetchData = async () => {
-            setIsVariantsLoading(true)
-            try {
-                const backendVariants = await fetchVariants(appId)
-                if (backendVariants.length > 0) {
-                    setVariants(backendVariants)
-                }
-                setIsVariantsLoading(false)
-            } catch (error) {
-                setIsVariantsError("Failed to fetch variants")
-                setIsVariantsLoading(false)
-            }
-        }
-        fetchData()
-    }, [appId])
+    const variants = data?.variants
 
     // Set the variant to the variant deployed in the selected environment
     const [variant, setVariant] = useState<Variant | null>(null)
     useEffect(() => {
         if (!selectedEnvironment) return
-        const variant = variants.find(
+        const variant = (variants || []).find(
             (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
         )
         if (!variant) return
@@ -150,26 +116,20 @@ export default function VariantEndpoint() {
     }, [selectedEnvironment, variants])
 
     useEffect(() => {
-        if (variants.length > 0) {
+        if (variants && variants.length > 0) {
             setVariant(variants[0])
         }
     }, [variants, appId])
 
-    const {inputParams, isChatVariant, isLoading, isError, error} = useVariant(appId, variant!)
+    const {inputParams, isChatVariant} = variant || {}
 
-    if (isVariantsError) {
-        return <ResultComponent status={"error"} title="Failed to load variants" />
-    }
-    if (isVariantsLoading) {
+    if (isLoading) {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
     }
     if (!variant) {
         return <Empty style={{margin: "50px 0"}} description={"No variants available"} />
     }
-    if (isLoading) {
-        return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
-    }
-    if (isError) {
+    if (error) {
         return (
             <ResultComponent status={"error"} title={error?.message || "Error loading variant"} />
         )

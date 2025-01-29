@@ -1,12 +1,11 @@
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
 import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
-import {CloudArrowUp, Copy, GearSix, Note, PencilLine, Rocket, Trash} from "@phosphor-icons/react"
+import {CloudArrowUp, Copy, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import Link from "next/link"
 import {useRouter} from "next/router"
-import React, {useMemo, useState} from "react"
+import React, {useCallback, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import VariantDrawer from "./VariantDrawer"
 import {useQueryParam} from "@/hooks/useQuery"
@@ -40,7 +39,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const VariantsOverview = ({
-    variantList,
+    variantList = [],
     isVariantLoading,
     environments,
     fetchAllVariants,
@@ -73,190 +72,200 @@ const VariantsOverview = ({
         },
     }
 
-    const handleNavigation = (variantName: string, revisionNum: number) => {
-        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
-    }
-
-    const handleDeleteVariant = async (variantId: string) => {
-        try {
-            if (
-                !(await checkIfResourceValidForDeletion({
-                    resourceType: "variant",
-                    resourceIds: [variantId],
-                }))
-            )
-                return
-
-            await deleteSingleVariant(variantId)
-            message.success("Variant removed successfully!")
-            fetchAllVariants()
-        } catch (error) {
-            console.error(error)
-        }
-    }
-
-    const columns: ColumnsType<Variant> = [
-        {
-            title: "Name",
-            dataIndex: "variant_name",
-            key: "variant_name",
-            fixed: "left",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                return <span>{record.variantName}</span>
-            },
+    const handleNavigation = useCallback(
+        (variantName: string, revisionNum: number) => {
+            router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
         },
-        {
-            title: "Last modified",
-            dataIndex: "updatedAt",
-            key: "updatedAt",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                return <div>{record.updatedAt}</div>
-            },
-        },
-    ]
-
-    if (isDemo()) {
-        columns.push({
-            title: "Modified by",
-            dataIndex: "modifiedById",
-            key: "modifiedById",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                return <div>{usernames[record.modifiedById]}</div>
-            },
-        })
-    }
-
-    columns.push(
-        // {
-        //     title: "Tags",
-        //     onHeaderCell: () => ({
-        //         style: {minWidth: 160},
-        //     }),
-        // },
-        {
-            title: "Model",
-            dataIndex: "parameters",
-            key: "model",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                const parameters =
-                    (
-                        (record.parameters?.ag_config as unknown as Record<string, unknown>)
-                            ?.prompt as Record<string, unknown>
-                    )?.llm_config || record.parameters
-                return parameters && Object.keys(parameters).length
-                    ? Object.values(
-                          filterVariantParameters({record: parameters, key: "model"}),
-                      ).map((value, index) => (value ? <Tag key={index}>{value}</Tag> : "-"))
-                    : "-"
-            },
-        },
-        {
-            title: "Created on",
-            dataIndex: "createdAt",
-            key: "createdAt",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                return <div>{record.createdAt}</div>
-            },
-        },
-        {
-            title: <GearSix size={16} />,
-            key: "key",
-            width: 56,
-            fixed: "right",
-            align: "center",
-            render: (_, record) => {
-                return (
-                    <Dropdown
-                        trigger={["click"]}
-                        overlayStyle={{width: 180}}
-                        menu={{
-                            items: [
-                                {
-                                    key: "details",
-                                    label: "Open details",
-                                    icon: <Note size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        setQueryVariant(record.variantId)
-                                        setSelectedVariant(record)
-                                    },
-                                },
-                                {
-                                    key: "open_variant",
-                                    label: "Open in playground",
-                                    icon: <Rocket size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleNavigation(record.variantName, record.revision)
-                                    },
-                                },
-                                {
-                                    key: "deploy",
-                                    label: "Deploy",
-                                    icon: <CloudArrowUp size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        setIsDeployVariantModalOpen(true)
-                                        setSelectedVariant(record)
-                                    },
-                                },
-                                // {
-                                //     key: "clone",
-                                //     label: "Clone",
-                                //     icon: <Copy size={16} />,
-                                //     onClick: (e) => {
-                                //         e.domEvent.stopPropagation()
-                                //     },
-                                // },
-                                {type: "divider"},
-                                // {
-                                //     key: "rename",
-                                //     label: "Rename",
-                                //     icon: <PencilLine size={16} />,
-                                //     onClick: (e) => {
-                                //         e.domEvent.stopPropagation()
-
-                                //     },
-                                // },
-                                {
-                                    key: "delete_eval",
-                                    label: "Delete",
-                                    icon: <Trash size={16} />,
-                                    danger: true,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        setSelectedVariant(record)
-                                        setIsDeleteEvalModalOpen(true)
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            onClick={(e) => e.stopPropagation()}
-                            type="text"
-                            icon={<MoreOutlined />}
-                        />
-                    </Dropdown>
-                )
-            },
-        },
+        [appId, router],
     )
+
+    const handleDeleteVariant = useCallback(
+        async (variantId: string) => {
+            try {
+                if (
+                    !(await checkIfResourceValidForDeletion({
+                        resourceType: "variant",
+                        resourceIds: [variantId],
+                    }))
+                )
+                    return
+
+                await deleteSingleVariant(variantId)
+                message.success("Variant removed successfully!")
+                fetchAllVariants()
+            } catch (error) {
+                console.error(error)
+            }
+        },
+        [fetchAllVariants],
+    )
+
+    const columns = useMemo(() => {
+        const columns: ColumnsType<Variant> = [
+            {
+                title: "Name",
+                dataIndex: "variant_name",
+                key: "variant_name",
+                fixed: "left",
+                onHeaderCell: () => ({
+                    style: {minWidth: 160},
+                }),
+                render: (_, record) => {
+                    return <span>{record.variantName}</span>
+                },
+            },
+            {
+                title: "Last modified",
+                dataIndex: "updatedAt",
+                key: "updatedAt",
+                onHeaderCell: () => ({
+                    style: {minWidth: 160},
+                }),
+                render: (_, record) => {
+                    return <div>{record.updatedAt}</div>
+                },
+            },
+        ]
+
+        if (isDemo()) {
+            columns.push({
+                title: "Modified by",
+                dataIndex: "modifiedById",
+                key: "modifiedById",
+                onHeaderCell: () => ({
+                    style: {minWidth: 160},
+                }),
+                render: (_, record) => {
+                    return <div>{usernames[record.modifiedById]}</div>
+                },
+            })
+        }
+
+        columns.push(
+            // {
+            //     title: "Tags",
+            //     onHeaderCell: () => ({
+            //         style: {minWidth: 160},
+            //     }),
+            // },
+            {
+                title: "Model",
+                dataIndex: "parameters",
+                key: "model",
+                onHeaderCell: () => ({
+                    style: {minWidth: 160},
+                }),
+                render: (_, record) => {
+                    const parameters =
+                        (
+                            (record.parameters?.ag_config as unknown as Record<string, unknown>)
+                                ?.prompt as Record<string, unknown>
+                        )?.llm_config || record.parameters
+                    return parameters && Object.keys(parameters).length
+                        ? Object.values(
+                              filterVariantParameters({record: parameters, key: "model"}),
+                          ).map((value, index) => (value ? <Tag key={index}>{value}</Tag> : "-"))
+                        : "-"
+                },
+            },
+            {
+                title: "Created on",
+                dataIndex: "createdAt",
+                key: "createdAt",
+                onHeaderCell: () => ({
+                    style: {minWidth: 160},
+                }),
+                render: (_, record) => {
+                    return <div>{record.createdAt}</div>
+                },
+            },
+            {
+                title: <GearSix size={16} />,
+                key: "key",
+                width: 56,
+                fixed: "right",
+                align: "center",
+                render: (_, record) => {
+                    return (
+                        <Dropdown
+                            trigger={["click"]}
+                            overlayStyle={{width: 180}}
+                            menu={{
+                                items: [
+                                    {
+                                        key: "details",
+                                        label: "Open details",
+                                        icon: <Note size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            setQueryVariant(record.variantId)
+                                            setSelectedVariant(record)
+                                        },
+                                    },
+                                    {
+                                        key: "open_variant",
+                                        label: "Open in playground",
+                                        icon: <Rocket size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            handleNavigation(record.variantName, record.revision)
+                                        },
+                                    },
+                                    {
+                                        key: "deploy",
+                                        label: "Deploy",
+                                        icon: <CloudArrowUp size={16} />,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            setIsDeployVariantModalOpen(true)
+                                            setSelectedVariant(record)
+                                        },
+                                    },
+                                    // {
+                                    //     key: "clone",
+                                    //     label: "Clone",
+                                    //     icon: <Copy size={16} />,
+                                    //     onClick: (e) => {
+                                    //         e.domEvent.stopPropagation()
+                                    //     },
+                                    // },
+                                    {type: "divider"},
+                                    // {
+                                    //     key: "rename",
+                                    //     label: "Rename",
+                                    //     icon: <PencilLine size={16} />,
+                                    //     onClick: (e) => {
+                                    //         e.domEvent.stopPropagation()
+
+                                    //     },
+                                    // },
+                                    {
+                                        key: "delete_eval",
+                                        label: "Delete",
+                                        icon: <Trash size={16} />,
+                                        danger: true,
+                                        onClick: (e) => {
+                                            e.domEvent.stopPropagation()
+                                            setSelectedVariant(record)
+                                            setIsDeleteEvalModalOpen(true)
+                                        },
+                                    },
+                                ],
+                            }}
+                        >
+                            <Button
+                                onClick={(e) => e.stopPropagation()}
+                                type="text"
+                                icon={<MoreOutlined />}
+                            />
+                        </Dropdown>
+                    )
+                },
+            },
+        )
+
+        return columns
+    }, [handleNavigation, setQueryVariant, usernames])
 
     return (
         <>
@@ -323,11 +332,7 @@ const VariantsOverview = ({
                 <DeleteEvaluationModal
                     open={isDeleteEvalModalOpen}
                     onCancel={() => setIsDeleteEvalModalOpen(false)}
-                    onOk={async () => {
-                        await handleDeleteVariant(selectedVariant.variantId)
-                        setIsDeleteEvalModalOpen(false)
-                        setQueryVariant("")
-                    }}
+                    onOk={() => handleDeleteVariant(selectedVariant.variantId)}
                     evaluationType={variantNameWithRev({
                         variant_name: selectedVariant.variantName,
                         revision: selectedVariant.revision,

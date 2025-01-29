@@ -68,7 +68,6 @@ export function $updateAndRetainSelection(nodeKey: NodeKey, updateFn: () => bool
         textOffset =
             anchorOffset +
             anchorNode.getPreviousSiblings().reduce((offset, _node) => {
-                console.log("reduce siblings", _node, _node.getTextContent())
                 return offset + _node.getTextContentSize()
             }, 0)
     }

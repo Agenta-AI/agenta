@@ -1,4 +1,4 @@
-import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
+import {hashMetadata} from "../../hash"
 
 import type {
     ConfigMetadata,

@@ -68,7 +68,6 @@ export function registerCodeHighlighting(editor: LexicalEditor, tokenizer?: Toke
                 editor.update(() => {
                     for (const [key, type] of mutations) {
                         if (type !== "destroyed") {
-                            console.log("EDITOR MUTATED:", key, type)
                             const node = $getNodeByKey(key)
                             if (node !== null) {
                                 updateCodeGutter(node as CodeNode, editor)

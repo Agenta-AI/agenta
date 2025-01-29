@@ -170,9 +170,6 @@ function toggleVisibility(node: CodeLineNode, hidden: boolean): void {
 function handleToggleCollapse(node: CodeLineNode): void {
     node.toggleCollapsed()
     const shouldCollapse = node.isCollapsed()
-    console.log("Toggling collapse state for node:", node.getKey(), {
-        shouldCollapse,
-    })
     let sibling = node.getNextSibling()
 
     while (sibling && $isCodeLineNode(sibling)) {
@@ -182,8 +179,6 @@ function handleToggleCollapse(node: CodeLineNode): void {
         toggleVisibility(sibling, shouldCollapse ? true : false)
         sibling = sibling.getNextSibling()
     }
-
-    console.log("DONE! TOGGLING")
 }
 
 export function CodeFormattingPlugin(): null {

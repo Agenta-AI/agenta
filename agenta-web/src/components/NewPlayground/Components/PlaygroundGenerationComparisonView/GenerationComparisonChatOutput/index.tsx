@@ -64,7 +64,6 @@ const GenerationComparisonChatOutputRow = ({
                     const isInput = row.history.value.findIndex((m) => {
                         return m.__runs?.[variantId]?.message?.__id === messageId
                     })
-                    console.log("DELETE X", messageId, row, isInput)
                     if (isInput !== -1) {
                         delete row.history.value[isInput].__runs[variantId]
                     }

@@ -1,11 +1,10 @@
 import {useState, useEffect, useCallback} from "react"
+
 import type {ColumnType} from "antd/es/table"
-import {CaretRightOutlined} from "@ant-design/icons"
 import {
     Button,
     Card,
     Col,
-    Form,
     Input,
     Radio,
     Row,
@@ -15,49 +14,39 @@ import {
     Typography,
     message,
 } from "antd"
+import {useRouter} from "next/router"
+import debounce from "lodash/debounce"
+
 import {callVariant} from "@/services/api"
 import {updateEvaluationScenario, updateEvaluation} from "@/services/human-evaluations/api"
-import {useVariants} from "@/lib/hooks/useVariant"
-import {useRouter} from "next/router"
 import {EvaluationFlow} from "@/lib/enums"
-import {createUseStyles} from "react-jss"
 import {exportSingleModelEvaluationData} from "@/lib/helpers/evaluate"
-import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import {testsetRowToChatMessages} from "@/lib/helpers/testset"
 import {useQueryParam} from "@/hooks/useQuery"
-import EvaluationCardView from "../Evaluations/EvaluationCardView"
-import {
-    Evaluation,
-    EvaluationScenario,
-    KeyValuePair,
-    Variant,
-    FuncResponse,
-    BaseResponse,
-} from "@/lib/Types"
 import {
     EvaluationTypeLabels,
     batchExecute,
     camelToSnake,
     getStringOrJson,
 } from "@/lib/helpers/utils"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
-import debounce from "lodash/debounce"
+
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
+import EvaluationCardView from "../Evaluations/EvaluationCardView"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
-import ParamsForm from "../OldPlayground/ParamsForm/ParamsForm"
 import SaveTestsetModal from "../SaveTestsetModal/SaveTestsetModal"
+import ParamsFormWithRun from "./components/ParamsFormWithRun"
+
 import {variantNameWithRev} from "@/lib/helpers/variantHelper"
 import {isBaseResponse, isFuncResponse} from "@/lib/helpers/playgroundResp"
+import {useSingleModelEvaluationTableStyles} from "./assets/styles"
+
+import type {EvaluationTableProps, SingleModelEvaluationRow} from "./types"
+import type {EvaluationScenario, KeyValuePair, Variant, BaseResponse} from "@/lib/Types"
+import {useAppsData} from "@/contexts/app.context"
+import {useVariants} from "@/lib/hooks/useVariants"
 
 const {Title} = Typography
 
-interface EvaluationTableProps {
-    evaluation: Evaluation
-    evaluationScenarios: SingleModelEvaluationRow[]
-    isLoading: boolean
-}
-
-export type SingleModelEvaluationRow = EvaluationScenario & {
-    evaluationFlow: EvaluationFlow
-} & {[variantId: string]: string}
 /**
  *
  * @param evaluation - Evaluation object
@@ -65,136 +54,25 @@ export type SingleModelEvaluationRow = EvaluationScenario & {
  * @param columnsCount - Number of variants to compare face to face (per default 2)
  * @returns
  */
-
-const useStyles = createUseStyles({
-    appVariant: {
-        backgroundColor: "rgb(201 255 216)",
-        color: "rgb(0 0 0)",
-        padding: 4,
-        borderRadius: 5,
-    },
-    inputTestContainer: {
-        display: "flex",
-        justifyContent: "space-between",
-    },
-    inputTest: {
-        backgroundColor: "rgb(201 255 216)",
-        color: "rgb(0 0 0)",
-        padding: 4,
-        borderRadius: 5,
-    },
-    inputTestBtn: {
-        width: "100%",
-        display: "flex",
-        justifyContent: "flex-end",
-        "& button": {
-            marginLeft: 10,
-        },
-        marginTop: "0.75rem",
-    },
-    recordInput: {
-        marginBottom: 10,
-    },
-    card: {
-        marginBottom: 20,
-    },
-    statCorrect: {
-        "& .ant-statistic-content-value": {
-            color: "#3f8600",
-        },
-    },
-    statWrong: {
-        "& .ant-statistic-content-value": {
-            color: "#cf1322",
-        },
-    },
-    viewModeRow: {
-        display: "flex",
-        justifyContent: "flex-end",
-        margin: "1rem 0",
-        position: "sticky",
-        top: 36,
-        zIndex: 1,
-    },
-    sideBar: {
-        marginTop: "1rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "2rem",
-        border: "1px solid #d9d9d9",
-        borderRadius: 6,
-        padding: "1rem",
-        alignSelf: "flex-start",
-        "&>h4.ant-typography": {
-            margin: 0,
-        },
-        flex: 0.35,
-        minWidth: 240,
-        maxWidth: 500,
-    },
-})
-
-export const ParamsFormWithRun = ({
-    evaluation,
-    record,
-    rowIndex,
-    onRun,
-    onParamChange,
-    variantData,
-}: {
-    record: SingleModelEvaluationRow
-    rowIndex: number
-    evaluation: Evaluation
-    onRun: () => void
-    onParamChange: (name: string, value: any) => void
-    variantData: ReturnType<typeof useVariants>
-}) => {
-    const classes = useStyles()
-    const [form] = Form.useForm()
-
-    return (
-        <div>
-            {evaluation.testset.testsetChatColumn ? (
-                evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] || " - "
-            ) : (
-                <ParamsForm
-                    isChatVariant={false}
-                    onParamChange={onParamChange}
-                    inputParams={
-                        variantData[0].inputParams?.map((item) => ({
-                            ...item,
-                            value: record.inputs.find((ip) => ip.input_name === item.name)
-                                ?.input_value,
-                        })) || []
-                    }
-                    onFinish={onRun}
-                    form={form}
-                />
-            )}
-
-            <div className={classes.inputTestBtn}>
-                <Button
-                    onClick={evaluation.testset.testsetChatColumn ? onRun : form.submit}
-                    icon={<CaretRightOutlined />}
-                >
-                    Run
-                </Button>
-            </div>
-        </div>
-    )
-}
-
 const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     evaluation,
     evaluationScenarios,
     isLoading,
 }) => {
-    const classes = useStyles()
+    const classes = useSingleModelEvaluationTableStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
     const variants = evaluation.variants
+    const {currentApp} = useAppsData()
 
-    const variantData = useVariants(appId, variants)
+    const {data} = useVariants(currentApp)(
+        {
+            appId: appId,
+        },
+        variants,
+    )
+
+    const variantData = data?.variants || []
 
     const [rows, setRows] = useState<SingleModelEvaluationRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -334,7 +212,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     let result = await callVariant(
                         inputParamsDict,
                         variantData[idx].inputParams!,
-                        variantData[idx].optParams!,
+                        variantData[idx].promptOptParams!,
                         appId || "",
                         variants[idx].baseId || "",
                         variantData[idx].isChatVariant
@@ -352,6 +230,8 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         res = {version: "2.0", data: result.message} as BaseResponse
                     } else if (isBaseResponse(result)) {
                         res = result as BaseResponse
+                    } else if (result.data) {
+                        res = {version: "2.0", data: result.data} as BaseResponse
                     } else {
                         res = {version: "2.0", data: ""} as BaseResponse
                         console.error("Unknown response type:", result)

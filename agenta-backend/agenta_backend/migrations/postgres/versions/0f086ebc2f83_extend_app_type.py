@@ -1,9 +1,7 @@
 """Extend app_type
-
 Revision ID: 0f086ebc2f83
 Revises: 0f086ebc2f82
 Create Date: 2025-01-08 10:24:00
-
 """
 
 from typing import Sequence, Union
