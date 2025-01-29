@@ -133,7 +133,7 @@ const GenerationCompletionRow = ({
 
     return (
         <>
-            <div className={clsx(["flex flex-col gap-4", classes.container, className])} {...props}>
+            <div className={clsx(["flex flex-col gap-4", classes.container])} {...props}>
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
@@ -167,13 +167,7 @@ const GenerationCompletionRow = ({
             </div>
 
             {!inputOnly && variableIds.length > 0 ? (
-                <div
-                    className={clsx(
-                        "h-[48px] flex items-center px-4",
-                        classes.container,
-                        className,
-                    )}
-                >
+                <div className={clsx("h-[48px] flex items-center px-4", classes.container)}>
                     <RunButton onClick={runRow} disabled={!canRun || isRunning} className="flex" />
                 </div>
             ) : null}
