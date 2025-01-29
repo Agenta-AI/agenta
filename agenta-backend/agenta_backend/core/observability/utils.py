@@ -388,7 +388,9 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
             and span.meta
             and span.metrics
         ):
-            model = span.meta.get("response.model")
+            model = span.meta.get("response.model") or span.meta.get(
+                "configuration.model"
+            )
             prompt_tokens = span.metrics.get("unit.tokens.prompt", 0.0)
             completion_tokens = span.metrics.get("unit.tokens.completion", 0.0)
 

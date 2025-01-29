@@ -54,7 +54,6 @@ export const NewVariantParametersView = ({selectedVariant}: {selectedVariant: Va
                         <Typography.Text className={classes.subTitle}>Messages</Typography.Text>
                         <div className="flex flex-col items-start gap-2">
                             {agConfigMessages.map((message, index) => {
-                                console.log("looping messages", message)
                                 return (
                                     <ResultTag
                                         key={`${message.role}-index`}

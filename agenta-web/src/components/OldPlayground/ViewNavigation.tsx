@@ -2,7 +2,7 @@ import React, {useEffect, useRef} from "react"
 import {Col, Row, Divider, Button, Tooltip, notification, Typography} from "antd"
 import TestView from "./Views/TestView"
 import ParametersView from "./Views/ParametersView"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useLegacyVariant} from "@/lib/hooks/useLegacyVariant"
 import {Environment, Variant} from "@/lib/Types"
 import {useRouter} from "next/router"
 import {useState} from "react"
@@ -74,7 +74,7 @@ const ViewNavigation: React.FC<Props> = ({
         variantErrorLogs,
         setIsLogsLoading,
         onClickShowLogs,
-    } = useVariant(appId, variant)
+    } = useLegacyVariant({appId}, variant)
 
     const [retrying, setRetrying] = useState(false)
     const [isParamsCollapsed, setIsParamsCollapsed] = useState("1")

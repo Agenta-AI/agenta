@@ -204,7 +204,6 @@ const GenerationChatRow = ({
                             rowId={messageRow?.__id}
                             result={historyItem?.__result}
                             isRunning={historyItem?.__isRunning}
-                            isMessageDeletable={!!messageRow}
                             disabled={!messageRow}
                         />
                     )

@@ -9,7 +9,7 @@ import {useAppsData} from "@/contexts/app.context"
 import {useProfileData} from "@/contexts/profile.context"
 import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/lib/helpers/llmProviders"
-import {dynamicComponent, dynamicContext} from "@/lib/helpers/dynamic"
+import {dynamicComponent} from "@/lib/helpers/dynamic"
 import dayjs from "dayjs"
 import {useAppTheme} from "@/components/Layout/ThemeContextProvider"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
@@ -21,6 +21,7 @@ import {useVaultSecret} from "@/hooks/useVaultSecret"
 import useTemplates from "@/services/app-selector/hooks/useTemplates"
 import {useStyles} from "./assets/styles"
 import {getTemplateKey, timeout} from "./assets/helpers"
+import {useOrgData} from "@/contexts/org.context"
 
 const CreateAppStatusModal: any = dynamicComponent(
     "pages/app-management/modals/CreateAppStatusModal",
@@ -63,21 +64,13 @@ const AppManagement: React.FC = () => {
         appId: undefined,
     })
     const {secrets} = useVaultSecret()
-
     const {project} = useProjectData()
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
     const {selectedOrg} = useOrgData()
 
     const [{data: templates = [], isLoading: isLoadingTemplates}, noTemplateMessage] =
         useTemplates()
 
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
-
-    const handleTemplateCardClick = async (template_id: ServiceType) => {
+    const handleTemplateCardClick = async (template_id: string) => {
         setIsAddAppFromTemplatedModal(false)
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys

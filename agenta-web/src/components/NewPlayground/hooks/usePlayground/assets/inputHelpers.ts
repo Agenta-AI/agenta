@@ -1,6 +1,6 @@
 import {transformPrimitive} from "../../../assets/utilities/genericTransformer"
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
-import {hashMetadata} from "@/components/NewPlayground/assets/utilities/hash"
+import {hashMetadata} from "../../../assets/hash"
 
 import type {
     EnhancedObjectConfig,
