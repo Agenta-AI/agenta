@@ -14,6 +14,7 @@ import {Inter} from "next/font/google"
 import AgSWRConfig from "@/lib/api/SWRConfig"
 import {useSentryIntegrations} from "@/lib/helpers/sentry/hook/useSentryIntegrations"
 import OrgContextProvider from "@/contexts/org.context"
+import {App as AppComponent} from "antd"
 
 const NoMobilePageWrapper = dynamicComponent("NoMobilePageWrapper/NoMobilePageWrapper")
 const CustomPosthogProvider = dynamic(() => import("@/lib/helpers/analytics/AgPosthogProvider"))
@@ -43,10 +44,12 @@ export default function App({Component, pageProps}: AppProps) {
                                     <OrgContextProvider>
                                         <ProjectContextProvider>
                                             <AppContextProvider>
-                                                <Layout>
-                                                    <Component {...pageProps} />
-                                                    <NoMobilePageWrapper />
-                                                </Layout>
+                                                <AppComponent>
+                                                    <Layout>
+                                                        <Component {...pageProps} />
+                                                        <NoMobilePageWrapper />
+                                                    </Layout>
+                                                </AppComponent>
                                             </AppContextProvider>
                                         </ProjectContextProvider>
                                     </OrgContextProvider>
