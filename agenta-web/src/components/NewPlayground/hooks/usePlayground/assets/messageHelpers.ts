@@ -1,5 +1,5 @@
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
-import {hashMetadata} from "../../../assets/utilities/hash"
+import {hashMetadata} from "../../../assets/hash"
 
 import type {Enhanced, ObjectMetadata} from "../../../assets/utilities/genericTransformer/types"
 import {Message} from "postcss"

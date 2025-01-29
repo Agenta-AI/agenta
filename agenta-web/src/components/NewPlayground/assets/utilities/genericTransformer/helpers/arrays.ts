@@ -2,7 +2,7 @@ import {createMetadata} from "./metadata"
 
 import type {ArraySchema, ArrayMetadata, ConfigMetadata} from "../types"
 import {generateId} from "../utilities/string"
-import {hashMetadata} from "../../hash"
+import {hashMetadata} from "../../../hash"
 
 /** Create a new object instance based on metadata schema */
 export function createObjectFromMetadata(metadata: ConfigMetadata) {
