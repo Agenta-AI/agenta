@@ -13,7 +13,7 @@ const SharedEditor = ({
     header,
     footer,
     editorType = "borderless",
-    state = "default",
+    state = "filled",
     ...props
 }: SharedEditorProps) => {
     return (
@@ -25,13 +25,15 @@ const SharedEditor = ({
                     hover:border-[#394857] focus:border-[#1C2C3D] box-shadow-[0px 0px 0px 2px rgba(5,23,41,0.10)]
                     ${state === "readOnly" && "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none"}
                     ${state === "disabled" && "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none"}
+                    ${state === "filled" && "hover:border-[transparent] focus:border-[transparent]"}
 
                     `,
                 editorType === "borderless" &&
                     `
-                    border-[#FFF] hover:border-[#394857] focus:border-[#1C2C3D] box-shadow-[0px 0px 0px 2px rgba(5,23,41,0.10)]
+                    border-[transparent] hover:border-[#394857] focus:border-[#1C2C3D] box-shadow-[0px 0px 0px 2px rgba(5,23,41,0.10)]
                     ${state === "readOnly" && "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none"}
                     ${state === "disabled" && "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none"}
+                    ${state === "filled" && "hover:border-[transparent] focus:border-[transparent]"}
                     `,
                 props.className,
             )}
