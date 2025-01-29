@@ -11,7 +11,7 @@ from agenta_backend.models.api.api_models import (
     Dict,
 )
 
-agenta_registry_repo = os.getenv("REGISTRY_REPO_NAME")
+agenta_registry_repo = os.getenv("DOCKER_HUB_NAMESPACE")
 
 client = docker.from_env()
 

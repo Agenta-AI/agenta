@@ -1,41 +1,72 @@
-x-common-config: &common-config
-  networks:
-    - agenta-network
+x-networks: &networks
+    networks:
+        - agenta-network
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+x-common: &common
+    <<: *networks
+    env_file: ".env.development"
+    restart: always
+
+x-services: &services
+    <<: *common
+    environment:
+        - AGENTA_HOST=http://host.docker.internal
+    labels:
+        - "traefik.http.routers.${SERVICE_NAME}.rule=PathPrefix(`/services/${SERVICE_NAME}/`)"
+        - "traefik.http.routers.${SERVICE_NAME}.entrypoints=web"
+        - "traefik.http.middlewares.${SERVICE_NAME}-strip.stripprefix.prefixes=/services/${SERVICE_NAME}"
+        - "traefik.http.middlewares.${SERVICE_NAME}-strip.stripprefix.forceslash=true"
+        - "traefik.http.routers.${SERVICE_NAME}.middlewares=${SERVICE_NAME}-strip"
+        - "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=80"
+        - "traefik.http.routers.${SERVICE_NAME}.service=${SERVICE_NAME}"
 
 services:
     reverse-proxy:
+        <<: *common
         image: traefik:v2.10
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
         ports:
             - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
             - "8080:8080"
+        
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
+        
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        networks:
-            - agenta-network
-        restart: always
+
+    agenta-web:
+        <<: *common
+        build:
+            context: ./agenta-web
+            dockerfile: dev.Dockerfile
+        ports:
+            - "3000:3000"
+        
+        volumes:
+            - ./agenta-web/src:/app/src
+            - ./agenta-web/public:/app/public
+            - .nextjs_cache:/app/.next
+        
+        labels:
+            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web.entrypoints=web"
+            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
+
+        environment:
+            - NEXT_PUBLIC_AGENTA_API_URL=${AGENTA_API_URL}
+            - NEXT_PUBLIC_POSTHOG_API_KEY=${POSTHOG_API_KEY}
 
     backend:
+        <<: *common
         build: ./agenta-backend
-        env_file: ".env.development"
-        volumes:
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
-            - ./agenta-backend/migrations:/app/migrations
-            - ./agenta-backend/tests:/app/tests
-            - /var/run/docker.sock:/var/run/docker.sock
-            - ./agenta-backend/db:/db
-        labels:
-            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
-            - "traefik.http.routers.backend.entrypoints=web"
-            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.backend.middlewares=backend-strip"
-            - "traefik.http.services.backend.loadbalancer.server.port=8000"
-            - "traefik.http.routers.backend.service=backend"
-        networks:
-            - agenta-network
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
+        
         command:
             [
                 "uvicorn",
@@ -50,167 +81,135 @@ services:
                 "--root-path",
                 "/api",
             ]
+
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
+            - ./agenta-backend/tests:/app/tests
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/db:/db
+        
+        labels:
+            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.backend.entrypoints=web"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
+            - "traefik.http.services.backend.loadbalancer.server.port=8000"
+            - "traefik.http.routers.backend.service=backend"
+
+    apply_alembic_migration:
+        <<: *common
+        build: ./agenta-backend
+
         depends_on:
             postgres:
                 condition: service_healthy
-            apply_alembic_migration:
-                condition: service_completed_successfully
-        restart: always
+        restart: no
 
-    apply_alembic_migration:
-        build: ./agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
-        env_file: ".env.development"
+        
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/agenta_backend:/app/agenta_backend
-        depends_on:
-            postgres:
-                condition: service_healthy
-        networks:
-            - agenta-network
-
-    agenta-web:
-        build:
-            context: ./agenta-web
-            dockerfile: dev.Dockerfile
-        env_file: ".env.development"
-        volumes:
-            - ./agenta-web/src:/app/src
-            - ./agenta-web/public:/app/public
-            - .nextjs_cache:/app/.next
-        ports:
-            - "3000:3000"
-        networks:
-            - agenta-network
-        labels:
-            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
-            - "traefik.http.routers.agenta-web.entrypoints=web"
-            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-        restart: always
 
     redis:
+        <<: *common
         image: redis:latest
-        networks:
-            - agenta-network
+
         volumes:
             - redis_data:/data
-        restart: always
 
     rabbitmq:
+        <<: *common
         image: rabbitmq:3-management
         ports:
             - "5672:5672"
             - "15672:15672"
+
         volumes:
             - ./rabbitmq_data:/var/lib/rabbitmq
-        environment:
-            RABBITMQ_DEFAULT_USER: "guest"
-            RABBITMQ_DEFAULT_PASS: "guest"
-        networks:
-            - agenta-network
+        
 
     celery_worker:
+        <<: *common
         build: ./agenta-backend
-        command: >
-            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
-        env_file: ".env.development"
-        volumes:
-            - ./agenta-backend/agenta_backend:/app/agenta_backend
-            - /var/run/docker.sock:/var/run/docker.sock
+
         depends_on:
             - postgres
             - rabbitmq
             - redis
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        networks:
-            - agenta-network
+
+        command: >
+            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+        
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - /var/run/docker.sock:/var/run/docker.sock
+        
 
     postgres:
+        <<: *common
         image: postgres:16.2
-        restart: always
-        environment:
-            POSTGRES_USER: username
-            POSTGRES_PASSWORD: password
-            POSTGRES_DB: agenta_oss
         ports:
             - "5432:5432"
-        networks:
-            - agenta-network
-        volumes:
-            - postgresdb-data:/var/lib/postgresql/data/
-            - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
+            test: ["CMD-SHELL", "sh -c 'pg_isready -U $POSTGRES_USER -d $POSTGRES_DB'"]
             interval: 10s
             timeout: 5s
             retries: 5
 
-    pgadmin:
-        image: dpage/pgadmin4
-        restart: always
-        environment:
-            PGADMIN_DEFAULT_EMAIL: "admin@example.com"
-            PGADMIN_DEFAULT_PASSWORD: "password"
-            PGADMIN_SERVER_HOST: "postgres"
-            PGADMIN_SERVER_PORT: 5432
-            PGADMIN_SERVER_USER: "username"
-            PGADMIN_SERVER_PASSWORD: "password"
-            PGADMIN_SERVER_DB: agenta_oss
-        ports:
-            - "5050:80"
-        networks:
-            - agenta-network
         volumes:
-            - pgadmin-data:/var/lib/pgadmin
-        depends_on:
-            postgres:
-                condition: service_healthy
+            - postgresdb-data:/var/lib/postgresql/data/
+            - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+        environment:
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_DB=${POSTGRES_DB}
 
     completion:
+        <<: *services
         build:
             context: .
             dockerfile: services/completion/docker/Dockerfile
+
         volumes:
             - ./services/completion/src:/app
             - ./agenta-cli:/app/cli
-        env_file: ".env.development"
+
         environment:
-            - AGENTA_HOST=http://host.docker.internal
-        networks:
-            - agenta-network
-        labels:
-            - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
-            - "traefik.http.routers.completion.entrypoints=web"
-            - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
-            - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.completion.middlewares=completion-strip"
-            - "traefik.http.services.completion.loadbalancer.server.port=80"
-            - "traefik.http.routers.completion.service=completion"
+            - SERVICE_NAME=completion
+        
     
     chat:
+        <<: *services
         build:
             context: .
             dockerfile: services/chat/docker/Dockerfile
+
         volumes:
             - ./services/chat/src:/app
             - ./agenta-cli:/app/cli
-        env_file: ".env.development"
-        environment:
-            - AGENTA_HOST=http://host.docker.internal
-        networks:
-            - agenta-network
-        labels:
-            - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
-            - "traefik.http.routers.chat.entrypoints=web"
-            - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/services/chat"
-            - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.chat.middlewares=chat-strip"
-            - "traefik.http.services.chat.loadbalancer.server.port=80"
-            - "traefik.http.routers.chat.service=chat"
 
+        environment:
+            - SERVICE_NAME=chat
+        
+
+    pgadmin:
+        <<: *common
+        image: dpage/pgadmin4
+        ports:
+            - "5050:80"
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+        
+        volumes:
+            - pgadmin-data:/var/lib/pgadmin
+        
 networks:
     agenta-network:
         name: agenta-network

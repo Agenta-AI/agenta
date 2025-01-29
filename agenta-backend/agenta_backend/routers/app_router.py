@@ -79,7 +79,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
+registry_repo_name = os.environ.get("DOCKER_HUB_NAMESPACE")
 
 
 @router.get(
@@ -614,7 +614,7 @@ async def create_app_and_variant_from_template(
         if isCloudEE()
         else "Step 4: Creating image instance and adding variant based on image"
     )
-    repo_name = os.environ.get("AGENTA_TEMPLATE_REPO", "agentaai/templates_v2")
+    repo_name = os.environ.get("DOCKER_HUB_TEMPLATES_REPO", "agentaai/templates_v2")
     image_name = f"{repo_name}:{template_db.name}"
     app_variant_db = await app_manager.add_variant_based_on_image(
         app=app,
