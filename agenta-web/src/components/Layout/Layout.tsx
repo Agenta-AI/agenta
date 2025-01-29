@@ -1,23 +1,14 @@
 import {memo, useEffect, useMemo} from "react"
 
 import clsx from "clsx"
-import {
-    Breadcrumb,
-    Button,
-    ConfigProvider,
-    Layout,
-    Modal,
-    Skeleton,
-    Space,
-    Typography,
-    theme,
-} from "antd"
+
+import {Button, ConfigProvider, Layout, Modal, Skeleton, Space, Typography, theme} from "antd"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
 import {isDemo} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
 import {useElementSize} from "usehooks-ts"
-import {createUseStyles} from "react-jss"
+
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
 import ErrorFallback from "./ErrorFallback"
@@ -25,143 +16,46 @@ import {useAppsData} from "@/contexts/app.context"
 import {useRouter} from "next/router"
 import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
-import {JSSTheme, StyleProps as MainStyleProps} from "@/lib/Types"
-import {Lightning} from "@phosphor-icons/react"
-import packageJsonData from "../../../package.json"
 import {useProjectData} from "@/contexts/project.context"
 import {useOrgData} from "@/contexts/org.context"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
+
+import {useStyles, type StyleProps} from "./assets/styles"
+import {BreadcrumbContainer} from "./assets/Breadcrumbs"
+import {useVariants} from "@/lib/hooks/useVariants"
 
 const Sidebar: any = dynamicComponent("Sidebar/Sidebar", () => <Skeleton className="w-[236px]" />)
 
 const {Content, Footer} = Layout
 const {Text} = Typography
 
-interface StyleProps extends MainStyleProps {
-    footerHeight: number
-}
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    layout: ({themeMode}: StyleProps) => ({
-        display: "flex",
-        background: themeMode === "dark" ? "#141414" : "#ffffff",
-        height: "100%",
-        minHeight: "100vh",
-        position: "relative",
-    }),
-    content: ({footerHeight}: StyleProps) => ({
-        height: `calc(100% - ${footerHeight ?? 0}px)`,
-        paddingLeft: "1.5rem",
-        paddingRight: "1.5rem",
-        marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
-        flex: 1,
-    }),
-    breadcrumbContainer: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        padding: "8px 1.5rem",
-        marginBottom: 24,
-        borderBottom: "1px solid #eaeff5",
-    },
-    footer: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        textAlign: "center",
-        padding: "5px 20px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    footerLeft: {
-        fontSize: 18,
-    },
-    footerLinkIcon: ({themeMode}: StyleProps) => ({
-        color: themeMode === "dark" ? "#fff" : "#000",
-    }),
-    topRightBar: {
-        display: "flex",
-        alignItems: "center",
-        gap: "1rem",
-        "& span.ant-typography": {
-            color: "rgba(0, 0, 0, 0.45)",
-        },
-    },
-    banner: {
-        position: "sticky",
-        zIndex: 10,
-        top: 0,
-        left: 0,
-        height: 38,
-        backgroundColor: "#1c2c3d",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        color: "#fff",
-        fontSize: 12,
-        lineHeight: "20px",
-        fontWeight: 500,
-        "& span": {
-            fontWeight: 600,
-        },
-    },
-    notFoundContainer: {
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        alignItems: "center",
-        justifyContent: "center",
-        "& .ant-typography:nth-of-type(1)": {
-            fontSize: 24,
-            fontWeight: 600,
-        },
-        "& .ant-typography:nth-of-type(2)": {
-            fontSize: 14,
-            marginTop: 8,
-        },
-    },
-}))
-
 type LayoutProps = {
     children: React.ReactNode
 }
 
-const BreadcrumbRoot = memo(() => {
-    return (
-        <div className="flex items-center gap-1">
-            <Lightning size={16} />
-            <Link href="/apps">Apps</Link>
-        </div>
+const WithVariants = ({children, currentApp}) => {
+    useVariants(currentApp)(
+        {
+            appId: currentApp?.app_id,
+        },
+        [],
     )
-})
 
-const BreadcrumbContainer = memo(({appTheme, isNewPlayground, appName}) => {
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const breadcrumbItems = useMemo(() => {
-        return [
-            {
-                title: <BreadcrumbRoot />,
-            },
-            {title: appName || ""},
-        ]
-    }, [appName])
+    return <>{children}</>
+}
 
-    return (
-        <div
-            className={clsx(classes.breadcrumbContainer, {
-                "[&&]:!mb-0": isNewPlayground,
-            })}
-        >
-            <Breadcrumb items={breadcrumbItems} />
-            <div className={classes.topRightBar}>
-                <Text>agenta v{packageJsonData.version}</Text>
-            </div>
-        </div>
-    )
+const AppWithVariants = memo(({children, isAppRoute}) => {
+    const {currentApp} = useAppsData()
+
+    if (isAppRoute) {
+        if (!currentApp) {
+            return null
+        } else {
+            return <WithVariants currentApp={currentApp}>{children}</WithVariants>
+        }
+    } else {
+        return <>{children}</>
+    }
 })
 
 const App: React.FC<LayoutProps> = ({children}) => {
@@ -285,79 +179,87 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </ErrorBoundary>
                         </Layout>
                     ) : (
-                        <div>
-                            {project?.is_demo && (
-                                <div className={classes.banner}>
-                                    You are in <span>a view-only</span> demo workspace. To go back
-                                    to your workspace{" "}
-                                    <span
-                                        className="cursor-pointer"
-                                        onClick={handleBackToWorkspaceSwitch}
-                                    >
-                                        click here
-                                    </span>
-                                </div>
-                            )}
-                            <Layout hasSider className={classes.layout}>
-                                <Sidebar />
-                                <Layout className={classes.layout}>
-                                    <div>
-                                        <BreadcrumbContainer
-                                            appTheme={appTheme}
-                                            appName={currentApp?.app_name}
-                                            isNewPlayground={isNewPlayground}
-                                        />
-                                        <Content
-                                            className={clsx(classes.content, {
-                                                "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                    isNewPlayground,
-                                            })}
+                        <AppWithVariants isAppRoute={isAppRoute}>
+                            <div>
+                                {project?.is_demo && (
+                                    <div className={classes.banner}>
+                                        You are in <span>a view-only</span> demo workspace. To go
+                                        back to your workspace{" "}
+                                        <span
+                                            className="cursor-pointer"
+                                            onClick={handleBackToWorkspaceSwitch}
                                         >
-                                            <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                                <ConfigProvider
-                                                    theme={{
-                                                        algorithm:
-                                                            appTheme === "dark"
-                                                                ? theme.darkAlgorithm
-                                                                : theme.defaultAlgorithm,
-                                                    }}
-                                                >
-                                                    {children}
-                                                </ConfigProvider>
-                                                {contextHolder}
-                                            </ErrorBoundary>
-                                        </Content>
+                                            click here
+                                        </span>
                                     </div>
-                                    <Footer ref={footerRef} className={classes.footer}>
-                                        <Space className={classes.footerLeft} size={10}>
-                                            <Link
-                                                href={"https://github.com/Agenta-AI/agenta"}
-                                                target="_blank"
+                                )}
+                                <Layout hasSider className={classes.layout}>
+                                    <Sidebar />
+                                    <Layout className={classes.layout}>
+                                        <div>
+                                            <BreadcrumbContainer
+                                                appTheme={appTheme}
+                                                appName={currentApp?.app_name}
+                                                isNewPlayground={isNewPlayground}
+                                            />
+                                            <Content
+                                                className={clsx(classes.content, {
+                                                    "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                        isNewPlayground,
+                                                })}
                                             >
-                                                <GithubFilled className={classes.footerLinkIcon} />
-                                            </Link>
-                                            <Link
-                                                href={"https://www.linkedin.com/company/agenta-ai/"}
-                                                target="_blank"
-                                            >
-                                                <LinkedinFilled
-                                                    className={classes.footerLinkIcon}
-                                                />
-                                            </Link>
-                                            <Link
-                                                href={"https://twitter.com/agenta_ai"}
-                                                target="_blank"
-                                            >
-                                                <TwitterOutlined
-                                                    className={classes.footerLinkIcon}
-                                                />
-                                            </Link>
-                                        </Space>
-                                        <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                                    </Footer>
+                                                <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                                    <ConfigProvider
+                                                        theme={{
+                                                            algorithm:
+                                                                appTheme === "dark"
+                                                                    ? theme.darkAlgorithm
+                                                                    : theme.defaultAlgorithm,
+                                                        }}
+                                                    >
+                                                        {children}
+                                                    </ConfigProvider>
+                                                    {contextHolder}
+                                                </ErrorBoundary>
+                                            </Content>
+                                        </div>
+                                        <Footer ref={footerRef} className={classes.footer}>
+                                            <Space className={classes.footerLeft} size={10}>
+                                                <Link
+                                                    href={"https://github.com/Agenta-AI/agenta"}
+                                                    target="_blank"
+                                                >
+                                                    <GithubFilled
+                                                        className={classes.footerLinkIcon}
+                                                    />
+                                                </Link>
+                                                <Link
+                                                    href={
+                                                        "https://www.linkedin.com/company/agenta-ai/"
+                                                    }
+                                                    target="_blank"
+                                                >
+                                                    <LinkedinFilled
+                                                        className={classes.footerLinkIcon}
+                                                    />
+                                                </Link>
+                                                <Link
+                                                    href={"https://twitter.com/agenta_ai"}
+                                                    target="_blank"
+                                                >
+                                                    <TwitterOutlined
+                                                        className={classes.footerLinkIcon}
+                                                    />
+                                                </Link>
+                                            </Space>
+                                            <div>
+                                                Copyright © {new Date().getFullYear()} | Agenta.
+                                            </div>
+                                        </Footer>
+                                    </Layout>
                                 </Layout>
-                            </Layout>
-                        </div>
+                            </div>
+                        </AppWithVariants>
                     )}
                 </ThemeProvider>
             )}
