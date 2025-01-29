@@ -716,12 +716,6 @@ async def add_variant_from_url(
         deployment_id=deployment.id,
     )
 
-    await db_manager.deploy_to_environment(
-        environment_name="production",
-        variant_id=str(db_app_variant.id),
-        user_uid=user_uid,
-    )
-
     logger.debug("End: Successfully created variant: %s", db_app_variant)
 
     return db_app_variant
