@@ -70,12 +70,15 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         isLoading,
         mutate: fetchTraces,
         error,
-    } = useTraces({
-        pagination,
-        sort,
-        filters,
-        traceTabs,
-    })
+    } = useTraces(
+        {
+            pagination,
+            sort,
+            filters,
+            traceTabs,
+        },
+        appId,
+    )
     const {traces, traceCount} = data || {}
 
     const clearQueryStates = () => {

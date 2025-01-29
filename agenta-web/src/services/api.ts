@@ -138,12 +138,12 @@ export async function callVariant(
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
-    const base_url = `${appContainerURI}/generate`
-    const secure_url = `${base_url}?project_id=${projectId}`
+    const base_url = `${appContainerURI}/generate?application_id=${appId}`
+    const secure_url = `${base_url}&project_id=${projectId}`
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
     let response = await axios
-        .post(base_url, requestBody, {
+        .post(`base_url`, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
         } as any)

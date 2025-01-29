@@ -15,14 +15,24 @@ async function runVariantInputRow(payload: {
     projectId: string
     messageId?: string
 }) {
-    const {variant, rowId, uri, inputRow, messageId, messageRow, allMetadata, headers, projectId} =
-        payload
+    const {
+        variant,
+        rowId,
+        uri,
+        inputRow,
+        messageId,
+        messageRow,
+        allMetadata,
+        headers,
+        projectId,
+        appId,
+    } = payload
     const requestBody = transformToRequestBody({variant, inputRow, messageRow, allMetadata})
     let result
 
     try {
         const response = await fetch(
-            `${uri}/generate${headers.Authorization ? `?project_id=${projectId}` : ""}`,
+            `${uri}/generate${headers.Authorization ? `?project_id=${projectId}&application_id=${appId}` : `?application_id=${appId}`}`,
             {
                 method: "POST",
                 headers: {
