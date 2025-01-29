@@ -1,15 +1,9 @@
-import {buildNodeTree, observabilityTransformer} from "@/lib/helpers/observability_helpers"
-import {fetchAllTraces} from "@/services/observability/core"
-import {
-    _AgentaRootsResponse,
-    AgentaNodeDTO,
-    AgentaRootsDTO,
-    AgentaTreeDTO,
-} from "@/services/observability/types"
+import type {_AgentaRootsResponse} from "@/services/observability/types"
 import React, {createContext, PropsWithChildren, useContext, useEffect, useState} from "react"
 import {useRouter} from "next/router"
 import {SortResult} from "@/components/Filters/Sort"
 import {Filter} from "@/lib/Types"
+import {useTraces} from "@/services/observability/hooks/useTraces"
 
 type ObservabilityContextType = {
     traces: _AgentaRootsResponse[]
@@ -60,9 +54,6 @@ export const getObservabilityValues = () => observabilityContextValues
 const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [traces, setTraces] = useState<_AgentaRootsResponse[]>([])
-    const [traceCount, setTraceCount] = useState(0)
-    const [isLoading, setIsLoading] = useState(true)
     // query states
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
@@ -74,77 +65,18 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     const [sort, setSort] = useState<SortResult>({} as SortResult)
     const [pagination, setPagination] = useState({page: 1, size: 50})
 
-    const fetchTraces = async () => {
-        try {
-            setIsLoading(true)
-
-            const queries = generateTraceQueryString()
-
-            const data = await fetchAllTraces(queries)
-
-            const transformedTraces: _AgentaRootsResponse[] = []
-
-            if (data?.roots) {
-                transformedTraces.push(
-                    ...data.roots.flatMap((item: AgentaRootsDTO) =>
-                        observabilityTransformer(item.trees[0]),
-                    ),
-                )
-            }
-
-            if (data?.trees) {
-                transformedTraces.push(
-                    ...data.trees.flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
-                )
-            }
-
-            if (data?.nodes) {
-                transformedTraces.push(
-                    ...data.nodes
-                        .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
-                        .flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
-                )
-            }
-
-            setTraces(transformedTraces)
-            setTraceCount(data?.count)
-        } catch (error) {
-            console.error(error)
-            console.error("Failed to fetch traces:", error)
-        } finally {
-            setIsLoading(false)
-        }
-    }
-
-    const generateTraceQueryString = () => {
-        const params: Record<string, any> = {
-            size: pagination.size,
-            page: pagination.page,
-            focus: traceTabs === "chat" ? "node" : traceTabs,
-        }
-
-        if (filters.length > 0) {
-            const sanitizedFilters = filters.map(({isPermanent, ...rest}) => rest)
-
-            params.filtering = JSON.stringify({conditions: sanitizedFilters})
-        }
-
-        if (sort) {
-            if (sort.type === "standard") {
-                params.oldest = sort.sorted
-            } else if (
-                sort.type === "custom" &&
-                (sort.customRange?.startTime || sort.customRange?.endTime)
-            ) {
-                const {startTime, endTime} = sort.customRange
-
-                if (startTime) params.oldest = startTime
-                if (endTime) params.newest = endTime
-            }
-        }
-
-        return params
-    }
+    const {
+        data,
+        isLoading,
+        mutate: fetchTraces,
+        error,
+    } = useTraces({
+        pagination,
+        sort,
+        filters,
+        traceTabs,
+    })
+    const {traces, traceCount} = data || {}
 
     const clearQueryStates = () => {
         setSearchQuery("")
@@ -154,11 +86,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         setPagination({page: 1, size: 10})
     }
 
-    useEffect(() => {
-        fetchTraces()
-    }, [appId, filters, traceTabs, sort, pagination])
-
-    observabilityContextValues.traces = traces
+    observabilityContextValues.traces = traces || []
     observabilityContextValues.isLoading = isLoading
     observabilityContextValues.fetchTraces = fetchTraces
     observabilityContextValues.count = traceCount
@@ -166,7 +94,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     return (
         <ObservabilityContext.Provider
             value={{
-                traces,
+                traces: traces || [],
                 isLoading,
                 fetchTraces,
                 count: traceCount || 0,
