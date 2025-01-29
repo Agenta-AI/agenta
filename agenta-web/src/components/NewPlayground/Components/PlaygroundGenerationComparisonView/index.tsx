@@ -8,6 +8,7 @@ import GenerationComparisonCompletionOutput from "./GenerationComparisonCompleti
 import GenerationComparisonChatOutput from "./GenerationComparisonChatOutput"
 
 import type {PlaygroundStateData} from "../../hooks/usePlayground/types"
+import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 
 const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
     const {isChat} = usePlayground({
@@ -27,21 +28,28 @@ const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
 }
 
 const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
-    const {isChat, displayedVariants} = usePlayground({
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            return {isChat: state.variants[0].isChat}
-        }, []),
+    const {isChat, displayedVariants, chatHistory} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const history = findPropertyInObject(state, rowId)
+                const chatHistory = history.history.value?.map((item) => item.__id)
+                return {isChat: state.variants[0].isChat, chatHistory}
+            },
+            [rowId],
+        ),
     })
 
-    return (displayedVariants || []).map((variantId) => (
-        <div className="!w-[400px] shrink-0 self-stretch relative" key={variantId}>
-            {isChat ? (
-                <GenerationComparisonChatOutput variantId={variantId} rowId={rowId} />
-            ) : (
-                <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />
-            )}
+    return (
+        <div className="!w-[400px] shrink-0 self-stretch relative">
+            {isChat
+                ? (chatHistory || []).map((chatId) => (
+                      <GenerationComparisonChatOutput historyId={chatId} rowId={rowId} />
+                  ))
+                : displayedVariants?.map((variantId) => (
+                      <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />
+                  ))}
         </div>
-    ))
+    )
 }
 
 export {GenerationComparisonInput, GenerationComparisonOutput}
