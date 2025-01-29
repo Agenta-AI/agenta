@@ -1,6 +1,6 @@
 import crypto from "crypto"
 import stableHash from "stable-hash"
-import {updateMetadataAtom} from "../../state"
+import {updateMetadataAtom} from "../state"
 
 const hashCache = new WeakMap()
 

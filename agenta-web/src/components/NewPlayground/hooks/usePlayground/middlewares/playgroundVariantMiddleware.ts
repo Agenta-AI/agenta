@@ -425,13 +425,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             )
 
                             if (!clonedVariant) return clonedState
-
-                            // Get current input keys before update
-                            // const previousInputKeys = getVariantInputKeys(clonedVariant)
-                            // const previousMessages = getVariantMessages(clonedVariant)
-
-                            // const clonedPrevMsg = structuredClone(previousMessages)
-
                             const updateValues =
                                 typeof updates === "function" ? updates(clonedVariant) : updates
 

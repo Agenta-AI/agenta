@@ -5,7 +5,7 @@ import router from "next/router"
 import {Rocket} from "@phosphor-icons/react"
 
 import {usePostHogAg} from "@/lib/helpers/analytics/hooks/usePostHogAg"
-import {createPublishVariant, useEnvironments} from "@/services/deployment/api"
+import {createPublishVariant} from "@/services/deployment/api"
 
 import {message} from "../../../state/messageContext"
 import usePlayground from "../../../hooks/usePlayground"
@@ -14,17 +14,15 @@ import DeploymentEnvironmentTable from "./assets/DeploymentEnvironmentTable"
 
 import {DeployVariantModalProps} from "./types"
 import {EnhancedVariant} from "@/components/NewPlayground/assets/utilities/transformer/types/transformedVariant"
+import {useEnvironments} from "@/services/deployment/hooks/useEnvironments"
 
 const DeployVariantModal = ({variantId, ...props}: DeployVariantModalProps) => {
     const {variantName, revision} = usePlayground({
         variantId,
         hookId: "DeployVariantModal",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
-                return {variantName: variant.variantName, revision: variant.revision}
-            },
-            [variantId],
-        ),
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            return {variantName: variant.variantName, revision: variant.revision}
+        }, []),
     })
     const {environments, mutate, isEnvironmentsLoading} = useEnvironments()
     const posthog = usePostHogAg()
