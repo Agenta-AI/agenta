@@ -1,13 +1,17 @@
 import {useCallback} from "react"
+import dynamic from "next/dynamic"
 import clsx from "clsx"
 import {useStyles} from "../styles"
-import GenerationResultUtils from "../../PlaygroundGenerations/assets/GenerationResultUtils"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
+const GenerationResultUtils = dynamic(
+    () => import("../../PlaygroundGenerations/assets/GenerationResultUtils"),
+    {ssr: false},
+)
 
 const GenerationComparisonCompletionOutput = ({
     rowId,

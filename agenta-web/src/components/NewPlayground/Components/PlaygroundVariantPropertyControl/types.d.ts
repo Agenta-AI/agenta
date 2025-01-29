@@ -87,6 +87,7 @@ export type RenderFunctions = {
         view?: string
         withTooltip?: boolean
         placeholder?: string
+        disabled?: boolean
     }) => React.ReactElement | null
 }
 

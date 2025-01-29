@@ -29,10 +29,6 @@ AGENTA_SDK_AUTH_CACHE = str(environ.get("AGENTA_SDK_AUTH_CACHE", True)).lower() 
 
 AGENTA_SDK_AUTH_CACHE = False
 
-AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED = str(
-    environ.get("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", True)
-).lower() in ("true", "1", "t")
-
 
 class Deny(Response):
     def __init__(self) -> None:
@@ -64,9 +60,6 @@ class AuthorizationMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        if AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED:
-            return await call_next(request)
-
         try:
             authorization = (
                 request.headers.get("Authorization")

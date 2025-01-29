@@ -2,6 +2,7 @@ import logging
 import os
 from time import sleep
 from typing import List
+from urllib.parse import urlparse
 
 import docker
 from agenta_backend.models.api.api_models import (
@@ -83,8 +84,10 @@ def start_container(
         # Merge the default labels with environment-specific labels
         if os.environ.get("ENVIRONMENT") == "production":
             # Production specific labels
+            parsed_url = urlparse(os.environ.get("AGENTA_API_URL"))
+
             production_labels = {
-                f"traefik.http.routers.{container_name}.rule": f"Host(`{os.environ['BARE_DOMAIN_NAME']}`) && PathPrefix(`/{uri_path}`)",
+                f"traefik.http.routers.{container_name}.rule": f"Host(`{parsed_url.hostname}`) && PathPrefix(`/{uri_path}`)",
             }
             labels.update(production_labels)
 
@@ -124,7 +127,7 @@ def start_container(
             logs = container.logs().decode("utf-8")
             raise Exception(f"Container exited immediately. Docker Logs: {logs}")
         return {
-            "uri": f"{os.environ['DOMAIN_NAME']}{':' + os.environ['AGENTA_PORT'] if os.environ.get('AGENTA_PORT') else ''}/{uri_path}",
+            "uri": f"{os.environ['AGENTA_API_URL']}/{uri_path}",
             "container_id": container.id,
             "container_name": container_name,
         }

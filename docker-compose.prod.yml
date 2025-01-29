@@ -14,15 +14,15 @@ services:
     backend:
         build: ./agenta-backend
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - ALLOW_ORIGINS=${ALLOW_ORIGINS}
             - ENVIRONMENT=production
-            - FEATURE_FLAG=oss
+            - LICENSE=oss
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
-            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
-            - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - RABBITMQ_URL=amqp://guest@rabbitmq//
+            - REDIS_URL=redis://redis:6379/0
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
@@ -32,7 +32,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
         labels:
-            - "traefik.http.routers.backend.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/api/`)"
+            - "traefik.http.routers.backend.rule=Host(`${AGENTA_BARE_DOMAIN}`) && PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
             - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
             - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
@@ -70,10 +70,10 @@ services:
         build: ./agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
-            - FEATURE_FLAG=oss
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - LICENSE=oss
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - AGENTA_AUTO_MIGRATIONS=false
+            - ALEMBIC_AUTO_MIGRATIONS=false
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/agenta_backend:/app/agenta_backend
@@ -95,7 +95,7 @@ services:
         networks:
             - agenta-network
         labels:
-            - "traefik.http.routers.agenta-web.rule=Host(`${BARE_DOMAIN_NAME}`) && PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web.rule=Host(`${AGENTA_BARE_DOMAIN}`) && PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
         environment:
@@ -130,9 +130,9 @@ services:
         environment:
             - REDIS_URL=redis://redis:6379/0
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
-            - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - FEATURE_FLAG=oss
+            - RABBITMQ_URL=amqp://guest@rabbitmq//
+            - REDIS_URL=redis://redis:6379/0
+            - LICENSE=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - /var/run/docker.sock:/var/run/docker.sock

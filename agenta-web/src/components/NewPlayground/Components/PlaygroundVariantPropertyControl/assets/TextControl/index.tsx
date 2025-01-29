@@ -36,7 +36,6 @@ const TextControl = ({
                     "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
                     className,
                 )}
-                // {...props}
             >
                 <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
                     {metadata.title}
@@ -57,10 +56,7 @@ const TextControl = ({
     }
 
     return (
-        <div
-            className={clsx("relative bg-transparent", className)}
-            // {...props}
-        >
+        <div className={clsx("relative bg-transparent", className)}>
             <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
                 {metadata.title}
             </Typography>

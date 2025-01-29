@@ -14,6 +14,7 @@ const PromptMessageContentOptions = ({
     className,
     propertyId,
     isMessageDeletable,
+    disabled,
 }: PromptMessageContentOptionsProps) => {
     const {propertyGetter} = usePlayground()
 

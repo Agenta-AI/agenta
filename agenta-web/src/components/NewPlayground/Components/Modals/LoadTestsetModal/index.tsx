@@ -11,6 +11,7 @@ import NoResultsFound from "@/components/NoResultsFound/NoResultsFound"
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     testsetData,
     setTestsetData,
+    isChat = false,
     ...props
 }) => {
     const classes = useStyles()
@@ -159,7 +160,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                         </Typography.Text>
 
                         <Table
-                            rowSelection={{type: "checkbox", ...rowSelection}}
+                            rowSelection={{type: isChat ? "radio" : "checkbox", ...rowSelection}}
                             loading={isLoadingTestset}
                             dataSource={testsetCsvData.map((data, index) => ({...data, id: index}))}
                             columns={columnDef}
@@ -177,7 +178,11 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                                                 selectedRowKeys.filter((row) => row !== rowIndex),
                                             )
                                         } else {
-                                            setSelectedRowKeys([...selectedRowKeys, rowIndex])
+                                            if (isChat) {
+                                                setSelectedRowKeys([rowIndex])
+                                            } else {
+                                                setSelectedRowKeys([...selectedRowKeys, rowIndex])
+                                            }
                                         }
                                     }
                                 },
