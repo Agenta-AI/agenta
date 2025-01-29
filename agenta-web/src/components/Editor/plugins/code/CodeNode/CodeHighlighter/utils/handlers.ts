@@ -178,7 +178,6 @@ export function $handleShiftLines(
 }
 
 export function $handleMoveTo(type: LexicalCommand<KeyboardEvent>, event: KeyboardEvent): boolean {
-    console.log("handleMoveTo!!!!!")
     const selection = $getSelection()
     if (!$isRangeSelection(selection)) {
         return false
