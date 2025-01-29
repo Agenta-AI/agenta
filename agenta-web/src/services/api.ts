@@ -143,7 +143,7 @@ export async function callVariant(
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
     let response = await axios
-        .post(`base_url`, requestBody, {
+        .post(base_url, requestBody, {
             signal,
             _ignoreError: ignoreAxiosError,
         } as any)
