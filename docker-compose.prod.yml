@@ -20,10 +20,10 @@ services:
             - ENVIRONMENT=production
             - LICENSE=oss
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
+            - DOCKER_HUB_TEMPLATES_REPO=agentaai/templates_v2
             - RABBITMQ_URL=amqp://guest@rabbitmq//
             - REDIS_URL=redis://redis:6379/0
-            - REGISTRY_REPO_NAME=agentaai
+            - DOCKER_HUB_NAMESPACE=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend

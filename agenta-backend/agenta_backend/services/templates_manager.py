@@ -20,7 +20,7 @@ if isCloud() or isOss():
     from agenta_backend.services import container_manager
 
 
-agenta_template_repo = os.getenv("AGENTA_TEMPLATE_REPO")
+agenta_template_repo = os.getenv("DOCKER_HUB_TEMPLATES_REPO")
 docker_hub_url = os.getenv("DOCKER_HUB_URL")
 
 

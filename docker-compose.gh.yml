@@ -19,13 +19,13 @@ services:
             - REDIS_URL=redis://redis:6379/0
             - LICENSE=oss
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
+            - DOCKER_HUB_TEMPLATES_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
             - AGENTA_BARE_DOMAIN=${AGENTA_BARE_DOMAIN:-localhost}
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
             - RABBITMQ_URL=amqp://guest@rabbitmq//
             - REDIS_URL=redis://redis:6379/0
-            - REGISTRY_REPO_NAME=agentaai
+            - DOCKER_HUB_NAMESPACE=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
             - AGENTA_PORT=${AGENTA_PORT:-80}
             - SERVICE_URL_TEMPLATE=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}/services/{path}
