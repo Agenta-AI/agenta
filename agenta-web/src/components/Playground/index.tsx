@@ -26,9 +26,11 @@ const PlaygroundRouter = () => {
             return <OldPlayground />
         } else {
             if (!router.query.playground) {
-                router.replace(`${router.asPath}?playground=new-playground`, undefined, {
-                    shallow: true,
-                })
+                router.replace(
+                    {query: {...router.query, playground: "new-playground"}},
+                    undefined,
+                    {shallow: true},
+                )
             }
             return <NewPlayground />
         }
