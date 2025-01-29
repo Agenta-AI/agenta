@@ -18,18 +18,18 @@ services:
     backend:
         build: ./agenta-backend
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
-            - BARE_DOMAIN_NAME=localhost
+            - AGENTA_BARE_DOMAIN=localhost
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
             - WEBSITE_DOMAIN_NAME=${WEBSITE_DOMAIN_NAME:-http://localhost}
-            - FEATURE_FLAG=oss
+            - LICENSE=oss
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
             - POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
-            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
-            - CELERY_RESULT_BACKEND=redis://redis:6379/0
+            - RABBITMQ_URL=amqp://guest@rabbitmq//
+            - REDIS_URL=redis://redis:6379/0
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
             - AGENTA_PORT=${AGENTA_PORT:-80}
@@ -77,10 +77,10 @@ services:
         build: ./agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
-            - FEATURE_FLAG=oss
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - LICENSE=oss
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - AGENTA_AUTO_MIGRATIONS=false
+            - ALEMBIC_AUTO_MIGRATIONS=false
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/migrations:/app/migrations
@@ -138,12 +138,12 @@ services:
         command: >
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
-            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
+            - RABBITMQ_URL=amqp://guest@rabbitmq//
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - FEATURE_FLAG=oss
+            - REDIS_URL=redis://redis:6379/0
+            - LICENSE=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - /var/run/docker.sock:/var/run/docker.sock
@@ -199,33 +199,13 @@ services:
 
     completion:
         extends:
-            file: ./services/completion/docker-compose.yml
+            file: ./services/src/completion/docker-compose.yml
             service: completion
     
     chat:
         extends:
-            file: ./services/chat/docker-compose.yml
+            file: ./services/src/chat/docker-compose.yml
             service: chat
-
-    completion-old-sdk:
-        extends:
-            file: ./services/testing/completion-old-sdk/docker-compose.yml
-            service: completion-old-sdk
-
-    chat-old-sdk:
-        extends:
-            file: ./services/testing/chat-old-sdk/docker-compose.yml
-            service: chat-old-sdk
-
-    completion-new-sdk:
-        extends:
-            file: ./services/testing/completion-new-sdk/docker-compose.yml
-            service: completion-new-sdk
-    
-    chat-new-sdk:
-        extends:
-            file: ./services/testing/chat-new-sdk/docker-compose.yml
-            service: chat-new-sdk
 
 networks:
     agenta-network:

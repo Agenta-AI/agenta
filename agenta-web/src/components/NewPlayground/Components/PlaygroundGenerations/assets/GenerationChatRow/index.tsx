@@ -33,6 +33,7 @@ export const GenerationChatRowOutput = ({
     viewAs,
     result,
     isRunning,
+    isMessageDeletable,
 }: GenerationChatRowProps) => {
     const {viewType} = usePlayground()
     const isComparisonView = viewType === "comparison"
@@ -56,13 +57,14 @@ export const GenerationChatRowOutput = ({
             ])}
         >
             <PromptMessageConfig
-                variantId={variantId}
+                variantId={variantId as string}
                 rowId={rowId}
                 messageId={message.__id}
                 disabled={disabled}
                 deleteMessage={deleteMessage}
-                debug
                 className="w-full"
+                isMessageDeletable={isMessageDeletable}
+                debug
             />
             {!!result ? (
                 <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
@@ -79,13 +81,12 @@ const GenerationChatRow = ({
     messageId,
     rowId,
     viewAs,
-    noResults,
 }: GenerationChatRowProps) => {
-    const {history, messageRow, runTests, mutate, viewType, isRunning} = usePlayground({
+    const {history, messageRow, runTests, mutate, viewType} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const variant = findVariantById(state, variantId)
+                const variant = findVariantById(state, variantId as string)
 
                 if (messageId) {
                     return {
@@ -211,18 +212,8 @@ const GenerationChatRow = ({
             </div>
             {withControls ? (
                 <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
-                    <RunButton
-                        size="small"
-                        onClick={() => runTests?.()}
-                        disabled={isRunning}
-                        className="flex"
-                    />
-                    <AddButton
-                        disabled={isRunning}
-                        size="small"
-                        label="Message"
-                        onClick={addNewMessageToRowHistory}
-                    />
+                    <RunButton size="small" onClick={() => runTests?.()} className="flex" />
+                    <AddButton size="small" label="Message" onClick={addNewMessageToRowHistory} />
                 </div>
             ) : null}
         </>

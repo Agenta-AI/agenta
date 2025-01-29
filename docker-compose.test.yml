@@ -15,14 +15,14 @@ services:
         build: ./agenta-backend
         container_name: agenta-backend-test
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/postgres
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=${ENVIRONMENT}
-            - BARE_DOMAIN_NAME=localhost
+            - AGENTA_BARE_DOMAIN=localhost
             - DOMAIN_NAME=http://localhost
-            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
-            - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - FEATURE_FLAG=oss
+            - RABBITMQ_URL=amqp://guest@rabbitmq//
+            - REDIS_URL=redis://redis:6379/0
+            - LICENSE=oss
             - OPENAI_API_KEY=${OPENAI_API_KEY}
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - AGENTA_TEMPLATE_REPO=agentaai/templates_v2
@@ -69,10 +69,10 @@ services:
         build: ./agenta-backend
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
         environment:
-            - FEATURE_FLAG=oss
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
+            - LICENSE=oss
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/postgres
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
-            - AGENTA_AUTO_MIGRATIONS=true
+            - ALEMBIC_AUTO_MIGRATIONS=true
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/agenta_backend:/app/agenta_backend
@@ -128,13 +128,13 @@ services:
         command: >
             watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
         environment:
-            - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/postgres
+            - POSTGRES_URL=postgresql+asyncpg://username:password@postgres:5432/postgres
             - REDIS_URL=redis://redis:6379/0
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - ENVIRONMENT=${ENVIRONMENT}
-            - CELERY_BROKER_URL=amqp://guest@rabbitmq//
-            - CELERY_RESULT_BACKEND=redis://redis:6379/0
-            - FEATURE_FLAG=oss
+            - RABBITMQ_URL=amqp://guest@rabbitmq//
+            - REDIS_URL=redis://redis:6379/0
+            - LICENSE=oss
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - /var/run/docker.sock:/var/run/docker.sock
