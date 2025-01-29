@@ -504,6 +504,7 @@ async def remove_app(
     """
 
     app = await db_manager.fetch_app_by_id(app_id)
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
