@@ -12,7 +12,7 @@ interface ExtendedPostHog extends PostHog {
 }
 
 export const usePostHogAg = (): ExtendedPostHog | null => {
-    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
+    const trackingEnabled = process.env.NEXT_PUBLIC_POSTHOG_ENABLED === "true"
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
 

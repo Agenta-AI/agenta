@@ -28,11 +28,11 @@ services:
 
         image: traefik:v2.10
         ports:
-            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
+            - "80:80"
             - "8080:8080"
-        
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
-        
+
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
 
@@ -41,20 +41,19 @@ services:
 
         build:
             context: ./agenta-web
-            dockerfile: dev.Dockerfile
+            dockerfile: prod.Dockerfile
         ports:
             - "3000:3000"
-        
+
         volumes:
             - ./agenta-web/src:/app/src
             - ./agenta-web/public:/app/public
-            - .nextjs_cache:/app/.next
-        
+
         labels:
             - "traefik.http.routers.agenta-web.rule=Host(`${AGENTA_BARE_DOMAIN}`) && PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
-
+        
         environment:
             - NEXT_PUBLIC_AGENTA_API_URL=${AGENTA_API_URL}
             - NEXT_PUBLIC_POSTHOG_API_KEY=${POSTHOG_API_KEY}
@@ -69,7 +68,7 @@ services:
                 condition: service_healthy
             apply_alembic_migration:
                 condition: service_completed_successfully
-        
+
         command:
             [
                 "uvicorn",
@@ -91,7 +90,7 @@ services:
             - ./agenta-backend/tests:/app/tests
             - /var/run/docker.sock:/var/run/docker.sock
             - ./agenta-backend/db:/db
-        
+
         labels:
             - "traefik.http.routers.backend.rule=Host(`${AGENTA_BARE_DOMAIN}`) && PathPrefix(`/api/`)"
             - "traefik.http.routers.backend.entrypoints=web"
@@ -112,10 +111,9 @@ services:
         restart: no
 
         command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
-        
+
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-            - ./agenta-backend/migrations:/app/migrations
             - ./agenta-backend/agenta_backend:/app/agenta_backend
 
     redis:
@@ -136,14 +134,13 @@ services:
 
         volumes:
             - ./rabbitmq_data:/var/lib/rabbitmq
-        
+
     celery_worker:
         <<: *common
 
         build: ./agenta-backend
 
         depends_on:
-            - postgres
             - rabbitmq
             - redis
 
@@ -202,10 +199,10 @@ services:
 
         environment:
             - SERVICE_NAME=chat
-        
+
     pgadmin:
         <<: *common
-        
+
         image: dpage/pgadmin4
         ports:
             - "5050:80"
@@ -216,7 +213,7 @@ services:
         
         volumes:
             - pgadmin-data:/var/lib/pgadmin
-        
+
 networks:
     agenta-network:
         name: agenta-network
@@ -225,4 +222,3 @@ volumes:
     postgresdb-data:
     redis_data:
     pgadmin-data:
-    nextjs_cache:

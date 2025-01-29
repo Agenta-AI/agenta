@@ -29,7 +29,7 @@ const nextConfig = {
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
-    ...(process.env.NEXT_PUBLIC_FF === "cloud" && {
+    ...(process.env.NEXT_PUBLIC_LICENSE === "cloud" && {
         experimental: {
             instrumentationHook: true,
         },
@@ -62,7 +62,7 @@ const nextConfig = {
             )
         }
 
-        if (process.env.NEXT_PUBLIC_FF === "cloud") {
+        if (process.env.NEXT_PUBLIC_LICENSE === "cloud") {
             config.plugins.push(
                 new webpack.DefinePlugin({
                     __SENTRY_DEBUG__: false,
@@ -78,7 +78,7 @@ const nextConfig = {
     },
 }
 
-if (process.env.NEXT_PUBLIC_FF === "cloud") {
+if (process.env.NEXT_PUBLIC_LICENSE === "cloud") {
     const {withSentryConfig} = require("@sentry/nextjs")
 
     module.exports = withBundleAnalyzer(
