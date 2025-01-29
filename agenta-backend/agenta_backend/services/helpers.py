@@ -142,3 +142,33 @@ async def ensure_required_llm_keys_exist(
         )
 
     return True, None
+
+
+def find_key_occurrences(
+    data: Dict[Any, Any], target_key: str, path=""
+) -> List[Dict[str, Any]]:
+    """
+    Recursively finds all occurrences of a specific key in a nested dictionary.
+
+    :param data: The dictionary to search.
+    :param target_key: The key to find.
+    :param path: The current path in the dictionary (for tracking locations).
+    :return: A list of dictionaries containing 'path' and 'value' for each occurrence.
+    """
+    results = []
+
+    if isinstance(data, dict):  # If it's a dictionary, traverse it
+        for key, value in data.items():
+            new_path = f"{path}.{key}" if path else key  # Update path
+            if key == target_key:
+                results.extend(value)  # Store match
+
+            # Recursively search inside dictionaries and lists
+            results.extend(find_key_occurrences(value, target_key, new_path))
+
+    elif isinstance(data, list):  # If it's a list, iterate through elements
+        for index, item in enumerate(data):
+            new_path = f"{path}[{index}]"  # Track list index in path
+            results.extend(find_key_occurrences(item, target_key, new_path))
+
+    return results
