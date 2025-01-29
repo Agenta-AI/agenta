@@ -23,7 +23,7 @@ import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescr
 import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
 import {useRouter} from "next/router"
 import {fetchAppContainerURL} from "@/services/api"
-import {useVariant} from "@/lib/hooks/useVariant"
+import {useLegacyVariant} from "@/lib/hooks/useLegacyVariant"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import VariantPopover from "../variants/VariantPopover"
@@ -151,7 +151,7 @@ const DeploymentDrawer = ({
         }
     }
 
-    const {inputParams, isChatVariant} = useVariant(appId, variant!)
+    const {inputParams, isChatVariant} = useLegacyVariant({appId}, variant!)
 
     const params = createParams(
         inputParams,
