@@ -206,27 +206,7 @@ services:
         extends:
             file: ./services/chat/docker-compose.yml
             service: chat
-
-    completion-old-sdk:
-        extends:
-            file: ./services/testing/completion-old-sdk/docker-compose.yml
-            service: completion-old-sdk
-
-    chat-old-sdk:
-        extends:
-            file: ./services/testing/chat-old-sdk/docker-compose.yml
-            service: chat-old-sdk
-
-    completion-new-sdk:
-        extends:
-            file: ./services/testing/completion-new-sdk/docker-compose.yml
-            service: completion-new-sdk
-    
-    chat-new-sdk:
-        extends:
-            file: ./services/testing/chat-new-sdk/docker-compose.yml
-            service: chat-new-sdk
-
+            
 networks:
     agenta-network:
         name: agenta-network
