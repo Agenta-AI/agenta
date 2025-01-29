@@ -4,7 +4,7 @@ import {_AgentaRootsResponse, AgentaRootsDTO, AgentaTreeDTO} from "../types"
 import {buildNodeTree, observabilityTransformer} from "@/lib/helpers/observability_helpers"
 import useSWR from "swr"
 
-export const useTraces = ({pagination, sort, filters, traceTabs}) => {
+export const useTraces = ({pagination, sort, filters, traceTabs}, appId: string) => {
     const generateTraceQueryString = useCallback(() => {
         const params: Record<string, any> = {
             size: pagination.size,
@@ -36,7 +36,7 @@ export const useTraces = ({pagination, sort, filters, traceTabs}) => {
     }, [])
     const fetcher = async () => {
         const queries = generateTraceQueryString()
-        const data = await fetchAllTraces(queries)
+        const data = await fetchAllTraces(queries, appId)
 
         const transformedTraces: _AgentaRootsResponse[] = []
 
