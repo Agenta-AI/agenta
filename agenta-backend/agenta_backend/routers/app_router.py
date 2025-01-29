@@ -372,7 +372,7 @@ async def add_variant_from_image(
                 status_code=403,
             )
 
-    variant_db = await app_manager.add_variant_based_on_image(
+    variant_db = await app_manager.add_variant_from_image(
         app=app,
         project_id=str(app.project_id),
         variant_name=payload.variant_name,
@@ -504,6 +504,7 @@ async def remove_app(
     """
 
     app = await db_manager.fetch_app_by_id(app_id)
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
