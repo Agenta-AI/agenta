@@ -1,22 +1,22 @@
-import React, {useState} from "react"
+import React, {useCallback, useState} from "react"
 import {Modal} from "antd"
 import {useAppsData} from "@/contexts/app.context"
 import {deleteApp} from "@/services/app-selector/api"
 import {ListAppsItem} from "@/lib/Types"
 
-type DeleteAppModalProps = {
+interface DeleteAppModalProps extends React.ComponentProps<typeof Modal> {
     appDetails: ListAppsItem
-} & React.ComponentProps<typeof Modal>
+}
 
 const DeleteAppModal = ({appDetails, ...props}: DeleteAppModalProps) => {
     const [confirmLoading, setConfirmLoading] = useState(false)
     const {mutate} = useAppsData()
 
-    const handleDeleteOk = async () => {
+    const handleDeleteOk = useCallback(async () => {
         setConfirmLoading(true)
         try {
-            await deleteApp(appDetails.app_id)
-            mutate()
+            const res = await deleteApp(appDetails.app_id)
+            await mutate()
         } catch (error) {
             console.error(error)
         } finally {
@@ -25,7 +25,7 @@ const DeleteAppModal = ({appDetails, ...props}: DeleteAppModalProps) => {
             props.onCancel?.({} as any)
             setConfirmLoading(false)
         }
-    }
+    }, [appDetails, mutate, props])
 
     return (
         <Modal
