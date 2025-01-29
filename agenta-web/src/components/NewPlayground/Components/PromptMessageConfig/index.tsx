@@ -9,6 +9,7 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 import type {PromptMessageConfigProps} from "./types"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
 import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
+import SharedEditor from "../SharedEditor"
 const PromptMessageContentOptions = dynamic(
     () =>
         import(
@@ -92,43 +93,44 @@ const PromptMessageConfig = ({
     componentLogger("PromptMessageConfig", variantId, messageId, message)
 
     return (
-        <div
-            className={clsx(
-                "w-full flex flex-col items-start gap-2 relative group/item",
-                className,
-            )}
-            {...props}
-        >
-            <div className="w-full flex items-center justify-between">
-                <PlaygroundVariantPropertyControl
-                    propertyId={message.role}
-                    variantId={variantId}
-                    rowId={rowId}
-                    as="SimpleDropdownSelect"
-                    disabled={disabled}
-                />
-
-                {!disabled && (
-                    <PromptMessageContentOptions
-                        className="invisible group-hover/item:visible"
-                        deleteMessage={deleteMessage}
-                        propertyId={message.content}
+        <SharedEditor
+            state="readOnly"
+            editorType="border"
+            header={
+                <div className="w-full flex items-center justify-between">
+                    <PlaygroundVariantPropertyControl
+                        propertyId={message.role}
                         variantId={variantId}
-                        messageId={messageId}
-                        isMessageDeletable={isMessageDeletable}
+                        rowId={rowId}
+                        as="SimpleDropdownSelect"
                         disabled={disabled}
                     />
-                )}
-            </div>
-            <PlaygroundVariantPropertyControl
-                rowId={rowId}
-                propertyId={message.content}
-                variantId={variantId}
-                as="PromptMessageContent"
-                className={clsx("w-full", inputClassName)}
-                disabled={disabled}
-            />
-        </div>
+
+                    {!disabled && (
+                        <PromptMessageContentOptions
+                            className="invisible group-hover/item:visible"
+                            deleteMessage={deleteMessage}
+                            propertyId={message.content}
+                            variantId={variantId}
+                            messageId={messageId}
+                            isMessageDeletable={isMessageDeletable}
+                            disabled={disabled}
+                        />
+                    )}
+                </div>
+            }
+            footer={
+                <PlaygroundVariantPropertyControl
+                    rowId={rowId}
+                    propertyId={message.content}
+                    variantId={variantId}
+                    as="PromptMessageContent"
+                    className={clsx("w-full", inputClassName)}
+                    disabled={disabled}
+                />
+            }
+            {...props}
+        />
     )
 }
 
