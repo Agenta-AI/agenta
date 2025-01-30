@@ -147,7 +147,7 @@ const GenerationCompletionRow = ({
                                         propertyId={variableId}
                                         view={view}
                                         rowId={rowId}
-                                        className="*:!border-none *:!px-0"
+                                        className="*:!border-none !p-[11px]"
                                     />
 
                                     {!inputOnly && (
