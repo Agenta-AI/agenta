@@ -185,8 +185,6 @@ const GenerationChatRow = ({
         })
     }, [mutate, rowId])
 
-    console.log("historyItem", historyItem)
-
     return !historyItem ? null : (
         <>
             <div
