@@ -241,10 +241,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 {isComparisonView
                                     ? ((rowIds as string[]) || []).map((rowId) => {
                                           return (
-                                              <div
-                                                  key={rowId}
-                                                  className="[&::-webkit-scrollbar]:w-0 flex flex-shrink-0"
-                                              >
+                                              <div className="border border-solid border-red-500">
                                                   <GenerationComparisonOutput rowId={rowId} />
                                               </div>
                                           )

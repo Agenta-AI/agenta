@@ -40,15 +40,7 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     })
 
     return (
-        <div
-            className={clsx([
-                "shrink-0 self-stretch relative min-h-[100px]",
-                {
-                    "!w-[400px]": !isChat,
-                    "w-full flex": isChat,
-                },
-            ])}
-        >
+        <div className="border border-solid border-blue-500">
             {isChat
                 ? (chatHistory || []).map((chatId) => (
                       <GenerationComparisonChatOutput historyId={chatId} rowId={rowId} />

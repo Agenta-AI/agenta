@@ -89,17 +89,16 @@ import clsx from "clsx"
 // }
 
 const GenerationComparisonChatOutput = ({
-    variantId,
     className,
     rowId,
     historyId,
 }: GenerationComparisonChatOutputProps) => {
     const {messages, messageRow} = usePlayground({
-        variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const historyMessage = findPropertyInObject(state, historyId)
+                console.log(historyMessage)
                 const displayedVariants = state.selected
                 const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
                 const runs = displayedVariants
@@ -117,29 +116,26 @@ const GenerationComparisonChatOutput = ({
                     .filter(Boolean)
                 return {messages: runs, messageRow}
             },
-            [variantId, rowId],
+            [rowId],
         ),
     })
-    console.log("message", variantId, messages)
+
     return (
-        <>
+        <div className="border border-solid border-green-500 flex">
             {(messages || []).map((historyItem) => (
-                <GenerationChatRowOutput
-                    message={historyItem}
-                    variantId={variantId}
-                    deleteMessage={() => {}}
-                    rowId={messageRow?.__id}
-                    result={historyItem?.__result}
-                    isRunning={historyItem?.__isRunning}
-                    isMessageDeletable={!!messageRow}
-                    disabled={!messageRow}
-                />
+                <div className="!w-[400px] shrink-0">
+                    <GenerationChatRowOutput
+                        message={historyItem}
+                        deleteMessage={() => {}}
+                        rowId={messageRow?.__id}
+                        result={historyItem?.__result}
+                        isRunning={historyItem?.__isRunning}
+                        isMessageDeletable={!!messageRow}
+                        disabled={!messageRow}
+                    />
+                </div>
             ))}
-        </>
-        // <div className={clsx("flex flex-col w-full", className)}>
-        //     <div>
-        //     </div>
-        // </div>
+        </div>
     )
 }
 
