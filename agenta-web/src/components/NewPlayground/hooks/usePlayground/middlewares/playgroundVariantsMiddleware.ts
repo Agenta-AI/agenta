@@ -224,20 +224,20 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 const messagesInRow = messageRow.history.value
 
                                 let lastMessage = messagesInRow[messagesInRow.length - 1]
-                                if (
-                                    !!lastMessage &&
-                                    !extractValueByMetadata(lastMessage, getAllMetadata())
-                                ) {
-                                    messageRow.history.value = [
-                                        ...messageRow.history.value.filter(
-                                            (m) => m.__id !== lastMessage.__id,
-                                        ),
-                                    ]
-                                    lastMessage =
-                                        messageRow.history.value[
-                                            messageRow.history.value.length - 1
-                                        ]
-                                }
+                                // if (
+                                //     !!lastMessage &&
+                                //     !extractValueByMetadata(lastMessage, getAllMetadata())
+                                // ) {
+                                //     messageRow.history.value = [
+                                //         ...messageRow.history.value.filter(
+                                //             (m) => m.__id !== lastMessage.__id,
+                                //         ),
+                                //     ]
+                                //     lastMessage =
+                                //         messageRow.history.value[
+                                //             messageRow.history.value.length - 1
+                                //         ]
+                                // }
 
                                 // const emptyMessage = createMessageFromSchema(
                                 //     getMetadataLazy(
