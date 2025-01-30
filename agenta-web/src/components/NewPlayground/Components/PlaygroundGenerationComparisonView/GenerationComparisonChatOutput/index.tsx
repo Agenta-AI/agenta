@@ -121,22 +121,24 @@ const GenerationComparisonChatOutput = ({
     })
     console.log("message", messages)
     return (
-        <div className={clsx("flex flex-col w-full", className)}>
-            <div>
-                {(messages || []).map((historyItem) => (
-                    <GenerationChatRowOutput
-                        message={historyItem}
-                        variantId={variantId}
-                        deleteMessage={() => {}}
-                        rowId={messageRow?.__id}
-                        result={historyItem?.__result}
-                        isRunning={historyItem?.__isRunning}
-                        isMessageDeletable={!!messageRow}
-                        disabled={!messageRow}
-                    />
-                ))}
-            </div>
-        </div>
+        <>
+            {(messages || []).map((historyItem) => (
+                <GenerationChatRowOutput
+                    message={historyItem}
+                    variantId={variantId}
+                    deleteMessage={() => {}}
+                    rowId={messageRow?.__id}
+                    result={historyItem?.__result}
+                    isRunning={historyItem?.__isRunning}
+                    isMessageDeletable={!!messageRow}
+                    disabled={!messageRow}
+                />
+            ))}
+        </>
+        // <div className={clsx("flex flex-col w-full", className)}>
+        //     <div>
+        //     </div>
+        // </div>
     )
 }
 

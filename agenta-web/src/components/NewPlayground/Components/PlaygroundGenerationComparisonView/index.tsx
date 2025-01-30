@@ -1,5 +1,5 @@
 import {useCallback} from "react"
-
+import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 
 import GenerationComparisonCompletionInput from "./GenerationComparisonCompletionInput"
@@ -40,7 +40,15 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     })
 
     return (
-        <div className="!w-[400px] shrink-0 self-stretch relative">
+        <div
+            className={clsx([
+                "shrink-0 self-stretch relative min-h-[100px]",
+                {
+                    "!w-[400px]": !isChat,
+                    "w-full flex": isChat,
+                },
+            ])}
+        >
             {isChat
                 ? (chatHistory || []).map((chatId) => (
                       <GenerationComparisonChatOutput historyId={chatId} rowId={rowId} />
