@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 from celery import shared_task, states
 
+from agenta_backend.services import helpers
 from agenta_backend.utils.common import isCloudEE
 
 if isCloudEE():
@@ -467,35 +468,68 @@ async def aggregate_evaluator_results(
     return aggregated_results
 
 
-def get_app_inputs(app_variant_parameters, openapi_parameters) -> List[Dict[str, str]]:
+def get_app_inputs(parameters, openapi_parameters) -> List[Dict[str, str]]:
     """
     Get a list of application inputs based on the app variant parameters and openapi parameters.
 
     Args:
-        app_variant_parameters (dict): A dictionary containing the app variant parameters.
+        parameters (dict): A dictionary containing the app variant parameters.
         openapi_parameters (list): A list of openapi parameters.
 
     Returns:
         list: A list of dictionaries representing the application inputs, where each dictionary contains the input name and type.
     """
+    # ---
+    inputs = []
+    # ---
 
-    list_inputs = []
     for param in openapi_parameters:
         if param["type"] == "input":
-            list_inputs.append({"name": param["name"], "type": "input"})
+            # ---
+            item = {"name": param["name"], "type": "input"}
+            inputs.append(item)
+            # ---
+
         # in case of dynamic inputs (as in our templates)
         elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
             if (
-                param["name"] in app_variant_parameters
+                param["name"] in parameters
             ):  # in case we have modified in the playground the default list of inputs (e.g. country_name)
-                input_names = [_["name"] for _ in app_variant_parameters[param["name"]]]
+                input_names = [_["name"] for _ in parameters[param["name"]]]
             else:  # otherwise we use the default from the openapi
                 input_names = param["default"]
+
             for input_name in input_names:
-                list_inputs.append({"name": input_name, "type": "dict_input"})
+                # ---
+                item = {"name": input_name, "type": "dict_input"}
+                inputs.append(item)
+                # ---
+
         elif param["type"] == "messages":
-            list_inputs.append({"name": param["name"], "type": "messages"})
+            # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
+            # ---
+            item = {"name": "chat", "type": "messages"}
+            inputs.append(item)
+            # ---
         elif param["type"] == "file_url":
-            list_inputs.append({"name": param["name"], "type": "file_url"})
-    return list_inputs
+            # ---
+            item = {"name": param["name"], "type": "file_url"}
+            inputs.append(item)
+            # ---
+        else:
+            # if param["name"] in parameters:  # hotfix
+            #     # ---
+            #     item = {"name": param["name"], "type": param["type"]}
+            #     inputs.append(item)
+            #     # ---
+            pass
+
+    if "ag_config" in parameters:
+        input_keys = helpers.find_key_occurrences(parameters, "input_keys")
+        inputs.extend(input_keys)
+
+        reserved_keys = ["inputs", "ag_config"]
+        inputs = [input for input in inputs if input["name"] not in reserved_keys]
+
+    return inputs
