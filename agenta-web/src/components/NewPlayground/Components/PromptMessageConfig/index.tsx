@@ -1,6 +1,5 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 import dynamic from "next/dynamic"
-import clsx from "clsx"
 
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import usePlayground from "../../hooks/usePlayground"
@@ -10,6 +9,10 @@ import type {PromptMessageConfigProps} from "./types"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
 import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
 import SharedEditor from "../SharedEditor"
+import {Enhanced, EnhancedObjectConfig} from "../../assets/utilities/genericTransformer/types"
+import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
+import {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import {getMetadataLazy} from "../../state"
 const PromptMessageContentOptions = dynamic(
     () =>
         import(
@@ -86,6 +89,95 @@ const PromptMessageConfig = ({
         ),
     })
 
+    const {
+        mutate,
+        handleParamUpdate: updateVariantProperty,
+        baseProperty,
+    } = usePlayground({
+        hookId: "PlaygroundVariantPropertyControl",
+        stateSelector: (state) => {
+            const object = !!rowId
+                ? state.generationData.inputs.value.find((v) => v.__id === rowId) ||
+                  (state.generationData.messages.value || []).find((v) => v.__id === rowId)
+                : variantId
+                  ? state.variants.find((v) => v.id === variantId)
+                  : null
+
+            if (!object) {
+                return {}
+            } else {
+                const property = !!rowId
+                    ? (findPropertyInObject(object, message?.content) as EnhancedObjectConfig<any>)
+                    : (findPropertyById(
+                          object as EnhancedVariant,
+                          message?.content,
+                      ) as EnhancedObjectConfig<any>)
+                return {baseProperty: property}
+            }
+        },
+    })
+
+    const property = useMemo(() => {
+        if (!baseProperty) return null
+
+        const {__metadata, value} = baseProperty
+
+        const handler = rowId
+            ? (e: any) => {
+                  mutate(
+                      (clonedState) => {
+                          if (!clonedState) return clonedState
+                          const val =
+                              e !== null && e !== undefined
+                                  ? typeof e === "object" && "target" in e
+                                      ? e.target.value
+                                      : e
+                                  : null
+
+                          const generationData = structuredClone(clonedState.generationData)
+                          const object =
+                              generationData.inputs.value.find((v) => v.__id === rowId) ||
+                              generationData.messages.value.find((v) => v.__id === rowId)
+
+                          if (!object) {
+                              return clonedState
+                          }
+
+                          const property = findPropertyInObject(
+                              object,
+                              message?.content,
+                          ) as Enhanced<any>
+
+                          if (!property) return clonedState
+
+                          property.value = val
+
+                          clonedState.generationData = generationData
+
+                          return clonedState
+                      },
+                      {
+                          revalidate: false,
+                      },
+                  )
+              }
+            : (newValue: any) => {
+                  updateVariantProperty?.(newValue, baseProperty.__id, variantId)
+              }
+
+        return {
+            __metadata: getMetadataLazy(__metadata),
+            value,
+            handleChange: handler,
+        }
+    }, [baseProperty, mutate, message?.content, rowId, updateVariantProperty, variantId])
+
+    if (!property) {
+        return null
+    }
+
+    const {__metadata: metadata, value, handleChange} = property
+
     if (!message) {
         return null
     }
@@ -117,16 +209,11 @@ const PromptMessageConfig = ({
                     )}
                 </div>
             }
-            footer={
-                <PlaygroundVariantPropertyControl
-                    rowId={rowId}
-                    propertyId={message.content}
-                    variantId={variantId}
-                    as="PromptMessageContent"
-                    className={clsx("w-full", inputClassName)}
-                    disabled={disabled}
-                />
-            }
+            handleChange={handleChange}
+            initialValue={value}
+            editorClassName={className}
+            placeholder={metadata?.description}
+            disabled={disabled}
             {...props}
         />
     )
