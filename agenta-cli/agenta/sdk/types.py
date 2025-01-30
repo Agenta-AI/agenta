@@ -7,7 +7,7 @@ from pydantic import ConfigDict, BaseModel, HttpUrl
 from agenta.client.backend.types.agenta_node_dto import AgentaNodeDto
 from agenta.client.backend.types.agenta_nodes_response import AgentaNodesResponse
 from typing import Annotated, List, Union, Optional, Dict, Literal, Any
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 from agenta.sdk.assets import supported_llm_models
 
 
@@ -425,7 +425,7 @@ class PromptTemplate(BaseModel):
         }
     }
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def init_messages(cls, values):
         if "messages" not in values:
             messages = []

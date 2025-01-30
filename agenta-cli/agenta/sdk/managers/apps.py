@@ -31,7 +31,7 @@ class AppManager:
 
     @classmethod
     @handle_exceptions()
-    async def list(cls):
+    async def alist(cls):
         apps_response = await ag.async_api.apps.list_apps()
         return apps_response
 
@@ -43,7 +43,7 @@ class AppManager:
 
     @classmethod
     @handle_exceptions()
-    async def update(cls, *, app_id: str, app_name: str):
+    async def aupdate(cls, *, app_id: str, app_name: str):
         app_response = await ag.async_api.apps.update_app(
             app_id=app_id, app_name=app_name
         )
@@ -57,6 +57,6 @@ class AppManager:
 
     @classmethod
     @handle_exceptions()
-    async def delete(cls, *, app_id: str):
+    async def adelete(cls, *, app_id: str):
         await ag.async_api.apps.remove_app(app_id=app_id)
         return None
