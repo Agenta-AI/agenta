@@ -31,6 +31,7 @@ const SharedEditor = ({
     disabled,
     handleChange,
     editorProps,
+    className,
     ...props
 }: SharedEditorProps) => {
     const [localValue, setLocalValue] = useDebounceInput<string>(
@@ -51,6 +52,7 @@ const SharedEditor = ({
         <div
             className={clsx(
                 "w-full flex flex-col items-start gap-2 relative group/item transition-all duration-300 ease-in-out p-[11px] border border-solid border-[#BDC7D1] rounded-lg",
+                "[&_.agenta-rich-text-editor]:w-full",
                 editorType === "border" &&
                     `
                     hover:border-[#394857] focus:border-[#1C2C3D] box-shadow-[0px 0px 0px 2px rgba(5,23,41,0.10)]
@@ -66,7 +68,7 @@ const SharedEditor = ({
                     ${state === "disabled" && "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none"}
                     ${state === "filled" && "hover:border-[transparent] focus:border-[transparent]"}
                     `,
-                props.className,
+                className,
             )}
             {...props}
         >
