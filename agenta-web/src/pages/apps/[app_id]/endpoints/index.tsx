@@ -9,7 +9,7 @@ import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python
 import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {Environment, GenericObject, Parameter, Variant} from "@/lib/Types"
+import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {fetchAppContainerURL} from "@/services/api"
@@ -17,11 +17,28 @@ import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
 import {useQueryParam} from "@/hooks/useQuery"
 import {useEnvironments} from "@/services/deployment/hooks/useEnvironments"
-import {useStyles} from "./assets/styles"
 import {useVariants} from "@/lib/hooks/useVariants"
 import {useAppsData} from "@/contexts/app.context"
+import {createUseStyles} from "react-jss"
 
 const DeploymentHistory: any = dynamicComponent("DeploymentHistory/DeploymentHistory")
+
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    container: {
+        display: "flex",
+        flexDirection: "column",
+        rowGap: 20,
+    },
+    envButtons: {
+        "& .ant-radio-button-wrapper-checked": {
+            backgroundColor: theme.colorPrimary,
+            color: theme.colorWhite,
+            "&:hover": {
+                color: theme.colorWhite,
+            },
+        },
+    },
+}))
 
 const {Text, Title} = Typography
 
