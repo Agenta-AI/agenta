@@ -70,6 +70,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         ).map((variant) => {
                             return {
                                 ...variant,
+                                variant: variant,
                                 promptOptParams: variant.prompts.reduce((acc, prompt) => {
                                     Object.keys(prompt.llmConfig).map((key) => {
                                         if (["__id", "__metadata"].includes(key)) {

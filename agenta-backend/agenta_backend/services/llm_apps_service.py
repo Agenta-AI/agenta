@@ -6,11 +6,10 @@ import aiohttp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-
-from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
-
+from agenta_backend.services import helpers
 from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
 
 if isCloudEE():
     from agenta_backend.cloud.services.auth_helper import sign_secret_token
@@ -140,7 +139,9 @@ async def make_payload(
     inputs_dict = {}
     for param in openapi_parameters:
         if param["type"] == "input":
-            payload[param["name"]] = datapoint.get(param["name"], "")
+            payload[param["name"]] = datapoint.get(
+                param["name"], parameters.get(param["name"], "")
+            )
         # in case of dynamic inputs (as in our templates)
         elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
@@ -163,8 +164,13 @@ async def make_payload(
             if param["name"] in parameters:  # hotfix
                 payload[param["name"]] = parameters[param["name"]]
 
+    if "ag_config" in parameters:
+        input_keys = helpers.find_key_occurrences(parameters, "input_keys")
+        inputs_dict = {key: datapoint.get(key, None) for key in input_keys}
+
     if inputs_dict:
         payload["inputs"] = inputs_dict
+
     return payload
 
 

@@ -94,8 +94,6 @@ const PromptMessageConfig = ({
 
     return (
         <SharedEditor
-            state="readOnly"
-            editorType="border"
             header={
                 <div className="w-full flex items-center justify-between">
                     <PlaygroundVariantPropertyControl
