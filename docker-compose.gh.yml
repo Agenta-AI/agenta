@@ -83,7 +83,7 @@ services:
         container_name: agenta-web-1
         build:
             context: ./agenta-web
-            dockerfile: prod.Dockerfile
+            dockerfile: prod.gh.Dockerfile
         image: ghcr.io/agenta-ai/agenta-web
         expose:
             - "3000"
