@@ -47,31 +47,28 @@ export const GenerationChatRowOutput = ({
             />
         </div>
     ) : (
-        // <div
-        //     className={clsx([
-        //         "w-full flex flex-col items-start gap-2 relative group/option",
-        //         {
-        //             "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] px-4 pt-2":
-        //                 isComparisonView,
-        //         },
-        //     ])}
-        // >
-        <PromptMessageConfig
-            variantId={variantId as string}
-            rowId={rowId}
-            messageId={message?.__id}
-            disabled={disabled}
-            deleteMessage={deleteMessage}
-            className="w-full"
-            isMessageDeletable={isMessageDeletable}
-            debug
-        />
-        //     {!!result ? (
-        //         <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
-        //             <GenerationResultUtils result={result} />
-        //         </div>
-        //     ) : null}
-        // </div>
+        <div
+            className={clsx([
+                "w-full flex flex-col items-start gap-2 relative group/option",
+                {"!gap-0": isComparisonView},
+            ])}
+        >
+            <PromptMessageConfig
+                variantId={variantId as string}
+                rowId={rowId}
+                messageId={message?.__id}
+                disabled={disabled}
+                deleteMessage={deleteMessage}
+                className="w-full"
+                isMessageDeletable={isMessageDeletable}
+                debug
+            />
+            {!!result ? (
+                <div className={clsx([{"h-[48px] px-3 flex items-center": isComparisonView}])}>
+                    <GenerationResultUtils result={result} />
+                </div>
+            ) : null}
+        </div>
     )
 }
 
@@ -191,10 +188,6 @@ const GenerationChatRow = ({
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
-                    {
-                        "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                            viewType === "comparison",
-                    },
                 ])}
             >
                 <GenerationChatRowOutput
@@ -215,7 +208,12 @@ const GenerationChatRow = ({
             </div>
             {withControls ? (
                 <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
-                    <RunButton size="small" onClick={() => runTests?.()} className="flex" />
+                    <RunButton
+                        size="small"
+                        disabled={historyItem?.__isRunning}
+                        onClick={() => runTests?.()}
+                        className="flex"
+                    />
                     <AddButton size="small" label="Message" onClick={addNewMessageToRowHistory} />
                 </div>
             ) : null}

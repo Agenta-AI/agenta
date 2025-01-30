@@ -40,7 +40,7 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     })
 
     return (
-        <div className="border border-solid border-blue-500">
+        <div>
             {isChat
                 ? (chatHistory || []).map((chatId, historyIndex) => (
                       <GenerationComparisonChatOutput

@@ -4,13 +4,12 @@ import clsx from "clsx"
 
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputRowProps} from "./types"
+import {GenerationComparisonChatOutputProps} from "./types"
 import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
-import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
-import PlaygroundComparisonGenerationInputHeader from "../assets/GenerationComparisonInputHeader/index."
+import clsx from "clsx"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 
@@ -19,11 +18,10 @@ const GenerationComparisonChatOutputCell = ({
     historyId,
     rowId,
     variantIndex,
-    historyIndex,
     isFirstRow,
     isLastRow,
 }: any) => {
-    const {message, messageRow, viewType, inputRowIds} = usePlayground({
+    const {message, messageRow, inputRowIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
@@ -63,64 +61,33 @@ const GenerationComparisonChatOutputCell = ({
 
     return (
         <>
-            {/**
-             * The first cell in the comparison view should show the input
-             * and the following cells should show the output from service
-             */}
-            {variantIndex === 0 && (
-                <div className="!w-[400px]">
-                    {/**
-                     * We want to show dynamic variables only in the first history
-                     * row of the comparison view
-                     */}
-                    {isFirstRow && (
-                        <>
-                            <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[2]" />
-                            {inputRowIds.map((inputRowId) => {
+            <div className="shrink-0 sticky left-0 z-[4] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
+                {variantIndex === 0 && (
+                    <div className="!w-[399.2px] shrink-0 sticky top-8 z-[2]">
+                        {isFirstRow &&
+                            inputRowIds.map((inputRowId) => {
                                 return (
                                     <GenerationCompletionRow
                                         key={inputRowId}
                                         variantId={variantId}
                                         rowId={inputRowId}
                                         inputOnly={true}
-                                        className={clsx([
-                                            {
-                                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                                    viewType === "comparison",
-                                            },
-                                        ])}
                                     />
                                 )
                             })}
-                        </>
-                    )}
 
-                    <GenerationChatRow
-                        rowId={rowId}
-                        historyId={historyId}
-                        viewAs={"input"}
-                        withControls={isLastRow} // Only show controls (to add a message) in the last row
-                    />
-                </div>
-            )}
-
-            <div className="!w-[400px] shrink-0 self-stretch flex flex-col">
-                {isFirstRow && (
-                    <GenerationComparisonOutputHeader
-                        key={variantId}
-                        variantId={variantId}
-                        className="!w-[400px] sticky top-0 z-[2]"
-                    />
+                        <GenerationChatRow
+                            rowId={rowId}
+                            historyId={historyId}
+                            viewAs={"input"}
+                            withControls={isLastRow} // Only show controls (to add a message) in the last row
+                        />
+                    </div>
                 )}
+            </div>
 
-                <div
-                    className={clsx([
-                        "sticky top-8 z-[2]",
-                        {
-                            grow: message?.__isRunning && variantId,
-                        },
-                    ])}
-                >
+            <div>
+                <div className="!w-[399px] shrink-0 sticky top-8 z-[2]">
                     <GenerationChatRowOutput
                         message={message}
                         deleteMessage={() => {}}
@@ -137,7 +104,6 @@ const GenerationComparisonChatOutputCell = ({
 }
 
 const GenerationComparisonChatOutput = ({
-    className,
     rowId,
     historyId,
     isLastRow,
@@ -146,7 +112,12 @@ const GenerationComparisonChatOutput = ({
     const {displayedVariants} = usePlayground()
 
     return (
-        <div className="border border-solid border-green-500 flex">
+        <div
+            className={clsx([
+                "flex",
+                {" border-0 border-b border-solid border-[rgba(5,23,41,0.06)]": !isLastRow},
+            ])}
+        >
             {(displayedVariants || []).map((variantId, variantIndex) => (
                 <GenerationComparisonChatOutputCell
                     key={`${historyId}-${variantId}`}
