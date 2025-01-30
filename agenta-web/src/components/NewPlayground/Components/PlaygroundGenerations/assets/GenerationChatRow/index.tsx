@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import clsx from "clsx"
 import dynamic from "next/dynamic"
@@ -32,17 +32,17 @@ export const GenerationChatRowOutput = ({
     deleteMessage,
     viewAs,
     result,
-    isRunning,
+    isRunning: propsIsRunning,
     isMessageDeletable,
 }: GenerationChatRowProps) => {
     const {viewType} = usePlayground()
     const isComparisonView = viewType === "comparison"
 
-    return isRunning && viewType === "single" ? (
-        <div className="w-full flex flex-col gap-3">
+    return propsIsRunning ? (
+        <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch bg-[red]">
             <GenerationOutputText
                 text={"Generating response..."}
-                className="w-full mt-1"
+                className="mt-1"
                 disabled={disabled}
             />
         </div>

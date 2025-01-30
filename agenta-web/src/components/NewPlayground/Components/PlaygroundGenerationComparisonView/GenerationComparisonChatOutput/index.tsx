@@ -104,7 +104,7 @@ const GenerationComparisonChatOutputCell = ({
                 </div>
             )}
 
-            <div className="!w-[400px] shrink-0">
+            <div className="!w-[400px] shrink-0 self-stretch flex flex-col">
                 {isFirstRow && (
                     <GenerationComparisonOutputHeader
                         key={variantId}
@@ -113,7 +113,14 @@ const GenerationComparisonChatOutputCell = ({
                     />
                 )}
 
-                <div className="sticky top-8 z-[2]">
+                <div
+                    className={clsx([
+                        "sticky top-8 z-[2]",
+                        {
+                            grow: message?.__isRunning && variantId,
+                        },
+                    ])}
+                >
                     <GenerationChatRowOutput
                         message={message}
                         deleteMessage={() => {}}
