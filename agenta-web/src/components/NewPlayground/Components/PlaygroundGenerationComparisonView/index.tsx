@@ -44,9 +44,11 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
             {isChat
                 ? (chatHistory || []).map((chatId, historyIndex) => (
                       <GenerationComparisonChatOutput
+                          key={chatId}
                           historyId={chatId}
                           rowId={rowId}
-                          historyIndex={historyIndex}
+                          isLastRow={historyIndex === chatHistory.length - 1}
+                          isFirstRow={historyIndex === 0}
                       />
                   ))
                 : displayedVariants?.map((variantId) => (

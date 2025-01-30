@@ -8,12 +8,13 @@ export type GenerationChatRowProps = {
     variantId?: string
     disabled?: boolean
     rowId?: string
+    historyId?: string
     withControls?: boolean
     messageId?: string
     viewAs?: "input" | "output"
-    deleteMessage: (messageId: string) => void
     isRunning?: boolean
-    message: Enhanced<Message>
+    message?: Enhanced<Message>
     result?: TestResult
     isMessageDeletable?: boolean
+    deleteMessage?: (messageId: string) => void
 }
