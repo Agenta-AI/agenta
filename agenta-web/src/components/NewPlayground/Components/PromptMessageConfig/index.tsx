@@ -44,6 +44,7 @@ const PromptMessageConfig = ({
     disabled,
     debug,
     inputClassName,
+    placeholder,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -212,7 +213,7 @@ const PromptMessageConfig = ({
             handleChange={handleChange}
             initialValue={value}
             editorClassName={className}
-            placeholder={metadata?.description}
+            placeholder={placeholder || metadata?.description}
             disabled={disabled}
             {...props}
         />
