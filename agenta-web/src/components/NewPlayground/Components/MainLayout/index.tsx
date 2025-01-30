@@ -244,7 +244,10 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                 {isComparisonView
                                     ? ((rowIds as string[]) || []).map((rowId) => {
                                           return (
-                                              <div className="border border-solid border-red-500">
+                                              <div
+                                                  key={rowId}
+                                                  className="border border-solid border-red-500"
+                                              >
                                                   <GenerationComparisonOutput rowId={rowId} />
                                               </div>
                                           )
