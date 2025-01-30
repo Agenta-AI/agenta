@@ -188,7 +188,9 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
         if not app:
-            raise NoResultFound(f"No application with ID '{app_uuid}' found")
+            raise HTTPException(
+                404, detail=f"No application with ID '{app_uuid}' found"
+            )
         return app
 
 
