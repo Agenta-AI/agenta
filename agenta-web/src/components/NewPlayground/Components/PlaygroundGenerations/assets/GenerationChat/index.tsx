@@ -13,7 +13,7 @@ import type {GenerationChatProps} from "./types"
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
-    const {inputRowIds, messageRowIds, viewType, configMessageIds} = usePlayground({
+    const {inputRowIds, messageRowIds, viewType, configMessageIds, isChat} = usePlayground({
         variantId,
         registerToWebWorker: true,
         hookId: "PlaygroundConfigVariantPrompts",
@@ -53,6 +53,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                         })
                         .filter(Boolean) as string[],
                     configMessageIds: configMessages.map((message) => message.__id),
+                    isChat: state.variants[0].isChat,
                 }
             },
             [variantId],
@@ -63,22 +64,23 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     return (
         <section className="flex flex-col">
             {/* Variables */}
-            {inputRowIds.map((inputRowId) => {
-                return (
-                    <GenerationCompletionRow
-                        key={inputRowId}
-                        variantId={variantId}
-                        rowId={inputRowId}
-                        inputOnly={true}
-                        className={clsx([
-                            {
-                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                    isComparisonView,
-                            },
-                        ])}
-                    />
-                )
-            })}
+            {!isChat &&
+                inputRowIds.map((inputRowId) => {
+                    return (
+                        <GenerationCompletionRow
+                            key={inputRowId}
+                            variantId={variantId}
+                            rowId={inputRowId}
+                            inputOnly={true}
+                            className={clsx([
+                                {
+                                    "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                        isComparisonView,
+                                },
+                            ])}
+                        />
+                    )
+                })}
 
             {/* Prompt chats */}
             <div

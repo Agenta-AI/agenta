@@ -42,8 +42,12 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     return (
         <div className="border border-solid border-blue-500">
             {isChat
-                ? (chatHistory || []).map((chatId) => (
-                      <GenerationComparisonChatOutput historyId={chatId} rowId={rowId} />
+                ? (chatHistory || []).map((chatId, historyIndex) => (
+                      <GenerationComparisonChatOutput
+                          historyId={chatId}
+                          rowId={rowId}
+                          historyIndex={historyIndex}
+                      />
                   ))
                 : displayedVariants?.map((variantId) => (
                       <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />

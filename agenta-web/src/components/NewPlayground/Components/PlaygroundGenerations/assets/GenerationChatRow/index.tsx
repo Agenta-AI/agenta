@@ -59,7 +59,7 @@ export const GenerationChatRowOutput = ({
         <PromptMessageConfig
             variantId={variantId as string}
             rowId={rowId}
-            messageId={message.__id}
+            messageId={message?.__id}
             disabled={disabled}
             deleteMessage={deleteMessage}
             className="w-full"
