@@ -193,10 +193,6 @@ const GenerationChatRow = ({
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
-                    {
-                        "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                            viewType === "comparison",
-                    },
                 ])}
             >
                 <GenerationChatRowOutput
