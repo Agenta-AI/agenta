@@ -51,8 +51,9 @@ const SharedEditor = ({
     return (
         <div
             className={clsx(
-                "w-full flex flex-col items-start gap-2 relative group/item transition-all duration-300 ease-in-out p-[11px] border border-solid border-[#BDC7D1] rounded-lg",
+                "w-full flex flex-col items-start gap-2 relative group/item transition-all duration-300 ease-in-out border border-solid border-[#BDC7D1] rounded-lg",
                 "[&_.agenta-rich-text-editor]:w-full",
+                // 'p-[11px]',
                 editorType === "border" &&
                     `
                     hover:border-[#394857] focus:border-[#1C2C3D] box-shadow-[0px 0px 0px 2px rgba(5,23,41,0.10)]
