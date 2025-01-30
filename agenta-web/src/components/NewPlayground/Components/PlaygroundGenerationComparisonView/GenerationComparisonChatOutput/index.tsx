@@ -1,4 +1,7 @@
 import {useCallback} from "react"
+
+import clsx from "clsx"
+
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputRowProps} from "./types"
@@ -6,7 +9,6 @@ import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlaygrou
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
-import clsx from "clsx"
 import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
 import PlaygroundComparisonGenerationInputHeader from "../assets/GenerationComparisonInputHeader/index."
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
@@ -103,7 +105,7 @@ const GenerationComparisonChatOutputCell = ({
             )}
 
             <div className="!w-[400px] shrink-0">
-                {historyIndex === 0 && (
+                {isFirstRow && (
                     <GenerationComparisonOutputHeader
                         key={variantId}
                         variantId={variantId}
