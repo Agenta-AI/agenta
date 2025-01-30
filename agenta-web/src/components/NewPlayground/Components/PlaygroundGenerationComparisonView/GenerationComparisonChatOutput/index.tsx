@@ -12,94 +12,14 @@ import PlaygroundComparisonGenerationInputHeader from "../assets/GenerationCompa
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 
-// const GenerationComparisonChatOutputRow = ({
-//     variantId,
-
-//     historyItem,
-// }: GenerationComparisonChatOutputRowProps) => {
-//     const {mutate, messageRow, history} = usePlayground({
-//         variantId,
-//         registerToWebWorker: true,
-//         stateSelector: useCallback(
-//             (state: PlaygroundStateData) => {
-//                 // const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
-//                 // const messageHistory = messageRow.history.value
-//                 // return {
-//                 //     messageRow,
-//                 //     history: messageHistory
-//                 //         .map((historyItem) => {
-//                 //             return !historyItem.__runs?.[variantId]
-//                 //                 ? undefined
-//                 //                 : historyItem.__runs?.[variantId]
-//                 //                   ? {
-//                 //                         ...historyItem.__runs[variantId].message,
-//                 //                         __result: historyItem.__runs[variantId].__result,
-//                 //                         __isRunning: historyItem.__runs[variantId].__isRunning,
-//                 //                     }
-//                 //                   : undefined
-//                 //         })
-//                 //         .filter(Boolean),
-//                 // }
-//             },
-//             [variantId],
-//         ),
-//     })
-
-//     const handleDeleteMessage = useCallback(
-//         (messageId: string) => {
-//             mutate((clonedState) => {
-//                 if (!clonedState) return clonedState
-
-//                 if (!variantId) {
-//                     const row = clonedState.generationData.messages.value.find(
-//                         (v) => v.__id === rowId,
-//                     )
-//                     const isInput = row.history.value.findIndex((m) => m.__id === messageId)
-//                     if (isInput !== -1) {
-//                         row.history.value.splice(isInput, 1)
-//                     } else {
-//                         const isRunIndex = row.history.value.findIndex((m) => {
-//                             return m.__runs[variantId]?.message?.__id === messageId
-//                         })
-//                     }
-//                 } else if (variantId) {
-//                     const row = clonedState.generationData.messages.value.find(
-//                         (v) => v.__id === rowId,
-//                     )
-//                     const isInput = row.history.value.findIndex((m) => {
-//                         return m.__runs?.[variantId]?.message?.__id === messageId
-//                     })
-//                     if (isInput !== -1) {
-//                         delete row.history.value[isInput].__runs[variantId]
-//                     }
-//                 }
-//             })
-//         },
-//         [variantId],
-//     )
-
-//     return (
-//         <div className="flex flex-col gap-0 w-full self-stretch border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
-//             <GenerationChatRowOutput
-//                 message={historyItem}
-//                 // variantId={variantId}
-//                 deleteMessage={handleDeleteMessage}
-//                 rowId={messageRow?.__id}
-//                 result={historyItem?.__result}
-//                 isRunning={historyItem?.__isRunning}
-//                 isMessageDeletable={!!messageRow}
-//                 disabled={!messageRow}
-//             />
-//         </div>
-//     )
-// }
-
 const GenerationComparisonChatOutputCell = ({
     variantId,
     historyId,
     rowId,
     variantIndex,
     historyIndex,
+    isFirstRow,
+    isLastRow,
 }: any) => {
     const {message, messageRow, viewType, inputRowIds} = usePlayground({
         variantId,
@@ -141,9 +61,17 @@ const GenerationComparisonChatOutputCell = ({
 
     return (
         <>
+            {/**
+             * The first cell in the comparison view should show the input
+             * and the following cells should show the output from service
+             */}
             {variantIndex === 0 && (
                 <div className="!w-[400px]">
-                    {historyIndex === 0 && (
+                    {/**
+                     * We want to show dynamic variables only in the first history
+                     * row of the comparison view
+                     */}
+                    {isFirstRow && (
                         <>
                             <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[2]" />
                             {inputRowIds.map((inputRowId) => {
@@ -169,7 +97,7 @@ const GenerationComparisonChatOutputCell = ({
                         rowId={rowId}
                         historyId={historyId}
                         viewAs={"input"}
-                        withControls
+                        withControls={isLastRow}
                     />
                 </div>
             )}
@@ -203,7 +131,8 @@ const GenerationComparisonChatOutput = ({
     className,
     rowId,
     historyId,
-    historyIndex,
+    isLastRow,
+    isFirstRow,
 }: GenerationComparisonChatOutputProps) => {
     const {displayedVariants} = usePlayground()
 
@@ -215,7 +144,9 @@ const GenerationComparisonChatOutput = ({
                     historyId={historyId}
                     rowId={rowId}
                     variantIndex={variantIndex}
-                    historyIndex={historyIndex}
+                    // historyIndex={historyIndex}
+                    isLastRow={isLastRow}
+                    isFirstRow={isFirstRow}
                 />
             ))}
         </div>
