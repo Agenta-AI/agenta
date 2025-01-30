@@ -166,8 +166,8 @@ const GenerationComparisonChatOutputCell = ({
                     )}
 
                     <GenerationChatRow
-                        variantId={variantId}
                         rowId={rowId}
+                        historyId={historyId}
                         viewAs={"input"}
                         withControls
                     />

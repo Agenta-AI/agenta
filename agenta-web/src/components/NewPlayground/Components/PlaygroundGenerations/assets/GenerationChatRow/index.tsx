@@ -77,12 +77,13 @@ export const GenerationChatRowOutput = ({
 
 const GenerationChatRow = ({
     withControls,
+    historyId,
     variantId,
     messageId,
     rowId,
     viewAs,
 }: GenerationChatRowProps) => {
-    const {history, messageRow, runTests, mutate, viewType} = usePlayground({
+    const {history, historyItem, messageRow, runTests, mutate, viewType} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -99,8 +100,10 @@ const GenerationChatRow = ({
                         },
                     )
                     const messageHistory = messageRow.history.value
+                    const historyItem = messageHistory.find((item) => item.__id === historyId)
                     return {
                         messageRow,
+                        historyItem,
                         history: messageHistory
                             .map((historyItem) => {
                                 return !historyItem.__runs
@@ -117,9 +120,10 @@ const GenerationChatRow = ({
                     }
                 }
             },
-            [rowId, variantId, messageId],
+            [variantId, messageId, rowId, historyId],
         ),
     })
+
     const isComparisonView = viewType === "comparison"
 
     const deleteMessage = useCallback((messageId: string) => {
@@ -179,9 +183,11 @@ const GenerationChatRow = ({
 
             return clonedState
         })
-    }, [rowId])
+    }, [mutate, rowId])
 
-    return (
+    console.log("historyItem", historyItem)
+
+    return !historyItem ? null : (
         <>
             <div
                 className={clsx([
@@ -193,21 +199,21 @@ const GenerationChatRow = ({
                     },
                 ])}
             >
-                {history.map((historyItem) => {
+                <GenerationChatRowOutput
+                    key={historyItem.__id || `${variantId}-${rowId}-generating`}
+                    message={historyItem}
+                    variantId={variantId}
+                    deleteMessage={deleteMessage}
+                    viewAs={viewAs}
+                    rowId={messageRow?.__id}
+                    result={historyItem?.__result}
+                    isRunning={historyItem?.__isRunning}
+                    disabled={!messageRow}
+                />
+                {/* {history.map((historyItem) => {
                     return (
-                        <GenerationChatRowOutput
-                            key={historyItem.__id || `${variantId}-${rowId}-generating`}
-                            message={historyItem}
-                            variantId={variantId}
-                            deleteMessage={deleteMessage}
-                            viewAs={viewAs}
-                            rowId={messageRow?.__id}
-                            result={historyItem?.__result}
-                            isRunning={historyItem?.__isRunning}
-                            disabled={!messageRow}
-                        />
                     )
-                })}
+                })} */}
             </div>
             {withControls ? (
                 <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
