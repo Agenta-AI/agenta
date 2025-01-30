@@ -24,6 +24,7 @@ const PlaygroundGenerations = dynamic(() => import("../PlaygroundGenerations"), 
 })
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
+import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 
 const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
     const {
@@ -205,8 +206,9 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": !isComparisonView,
-                                    "grow w-full h-full overflow-auto flex [&::-webkit-scrollbar]:w-0":
+                                    "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
+                                    "flex ": !isChat,
                                 },
                             ])}
                         >
@@ -224,21 +226,23 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                   })
                                 : null}
 
-                            <div>
-                                {/* This component renders Output component header section */}
-                                {isComparisonView && !isChat ? (
-                                    <div className="flex sticky top-0 z-[1]">
-                                        {displayedVariants.map((variantId) => (
-                                            <GenerationComparisonOutputHeader
-                                                key={variantId}
-                                                variantId={variantId}
-                                                className="!w-[400px]"
-                                            />
-                                        ))}
-                                    </div>
-                                ) : null}
+                            {/* This component renders Output component header section */}
+                            {isComparisonView ? (
+                                <div className="flex sticky top-0 z-[5]">
+                                    {isChat && (
+                                        <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
+                                    )}
+                                    {displayedVariants.map((variantId) => (
+                                        <GenerationComparisonOutputHeader
+                                            key={variantId}
+                                            variantId={variantId}
+                                            className="!w-[400px] shrink-0"
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
 
-                                {/* This component renders Output components based on the view type. 
+                            {/* This component renders Output components based on the view type. 
                                     If the view is 'comparison', it uses generationData to render the component. 
                                     In 'single' view, it uses the variant id to render the component. */}
                                 {isComparisonView
@@ -246,7 +250,6 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                           return (
                                               <div
                                                   key={rowId}
-                                                  className="border border-solid border-red-500"
                                               >
                                                   <GenerationComparisonOutput rowId={rowId} />
                                               </div>
