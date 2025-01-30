@@ -96,6 +96,7 @@ const GenerationComparisonChatOutput = ({
 }: GenerationComparisonChatOutputProps) => {
     const {messages, messageRow} = usePlayground({
         variantId,
+        registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const historyMessage = findPropertyInObject(state, historyId)
@@ -119,7 +120,7 @@ const GenerationComparisonChatOutput = ({
             [variantId, rowId],
         ),
     })
-    console.log("message", messages)
+    console.log("message", variantId, messages)
     return (
         <>
             {(messages || []).map((historyItem) => (

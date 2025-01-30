@@ -239,12 +239,12 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                         ]
                                 }
 
-                                const emptyMessage = createMessageFromSchema(
-                                    getMetadataLazy(
-                                        clonedState.variants[0].prompts[0].messages.__metadata,
-                                    ).itemMetadata,
-                                )
-                                messageRow.history.value.push(emptyMessage)
+                                // const emptyMessage = createMessageFromSchema(
+                                //     getMetadataLazy(
+                                //         clonedState.variants[0].prompts[0].messages.__metadata,
+                                //     ).itemMetadata,
+                                // )
+                                // messageRow.history.value.push(emptyMessage)
 
                                 for (const variantId of visibleVariants) {
                                     const variant = clonedState.variants.find(
@@ -253,13 +253,13 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
                                     if (!variant) continue
 
-                                    handleInputRowTestStart(emptyMessage, variantId)
+                                    handleInputRowTestStart(lastMessage, variantId)
 
                                     postMessageToWorker(
                                         createWorkerMessage("runVariantInputRow", {
                                             variant,
                                             messageRow,
-                                            messageId: emptyMessage.__id,
+                                            messageId: lastMessage.__id,
                                             inputRow: variableRow,
                                             rowId: messageRow.__id,
                                             appId: config.appId!,

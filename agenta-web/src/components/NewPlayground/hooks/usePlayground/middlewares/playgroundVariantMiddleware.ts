@@ -146,10 +146,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             const handleWebWorkerChatMessage = useCallback(
                 (message) => {
-                    console.log("before check")
-                    if (!variantId) return
-                    if (message.payload.variant.id !== variantId) return
-                    console.log("after check")
+                    // console.log("before check", message.payload, variantId)
+                    // if (!variantId) return
+                    // if (message.payload.variant.id !== variantId) return
+                    console.log("after check", message)
+                    const variantId = message.payload.variant.id
                     // HANDLE INCOMING CHAT
                     const rowId = message.payload.rowId
                     swr.mutate((clonedState) => {
