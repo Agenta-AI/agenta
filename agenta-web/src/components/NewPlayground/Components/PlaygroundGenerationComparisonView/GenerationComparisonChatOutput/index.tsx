@@ -9,6 +9,8 @@ import GenerationChatRow, {
 import clsx from "clsx"
 import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
 import PlaygroundComparisonGenerationInputHeader from "../assets/GenerationComparisonInputHeader/index."
+import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
 
 // const GenerationComparisonChatOutputRow = ({
 //     variantId,
@@ -99,11 +101,13 @@ const GenerationComparisonChatOutputCell = ({
     variantIndex,
     historyIndex,
 }: any) => {
-    const {message, messageRow} = usePlayground({
+    const {message, messageRow, viewType, inputRowIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
+                const inputRows = state.generationData.inputs.value || []
+
                 const historyMessage = findPropertyInObject(state, historyId)
                 const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
 
@@ -117,9 +121,18 @@ const GenerationComparisonChatOutputCell = ({
                         }
                       : undefined
 
+                const inputRowIds = (inputRows || [])
+                    .filter((inputRow) => {
+                        return (
+                            Object.keys(getMetadataLazy(inputRow.__metadata)?.properties).length > 0
+                        )
+                    })
+                    .map((inputRow) => inputRow.__id)
+
                 return {
                     message: runs,
                     messageRow,
+                    inputRowIds,
                 }
             },
             [rowId, variantId, historyId],
@@ -131,7 +144,25 @@ const GenerationComparisonChatOutputCell = ({
             {variantIndex === 0 && (
                 <div className="!w-[400px]">
                     {historyIndex === 0 && (
-                        <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[2]" />
+                        <>
+                            <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[2]" />
+                            {inputRowIds.map((inputRowId) => {
+                                return (
+                                    <GenerationCompletionRow
+                                        key={inputRowId}
+                                        variantId={variantId}
+                                        rowId={inputRowId}
+                                        inputOnly={true}
+                                        className={clsx([
+                                            {
+                                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                                    viewType === "comparison",
+                                            },
+                                        ])}
+                                    />
+                                )
+                            })}
+                        </>
                     )}
 
                     <GenerationChatRow
@@ -148,19 +179,21 @@ const GenerationComparisonChatOutputCell = ({
                     <GenerationComparisonOutputHeader
                         key={variantId}
                         variantId={variantId}
-                        className="!w-[400px]"
+                        className="!w-[400px] sticky top-0 z-[2]"
                     />
                 )}
 
-                <GenerationChatRowOutput
-                    message={message}
-                    deleteMessage={() => {}}
-                    rowId={messageRow?.__id}
-                    result={message?.__result}
-                    isRunning={message?.__isRunning}
-                    isMessageDeletable={!!messageRow}
-                    disabled={!messageRow}
-                />
+                <div className="sticky top-8 z-[2]">
+                    <GenerationChatRowOutput
+                        message={message}
+                        deleteMessage={() => {}}
+                        rowId={messageRow?.__id}
+                        result={message?.__result}
+                        isRunning={message?.__isRunning}
+                        isMessageDeletable={!!messageRow}
+                        disabled={!messageRow}
+                    />
+                </div>
             </div>
         </>
     )
