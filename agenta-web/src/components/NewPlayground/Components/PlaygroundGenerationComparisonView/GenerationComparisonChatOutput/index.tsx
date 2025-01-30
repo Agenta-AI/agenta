@@ -10,96 +10,15 @@ import clsx from "clsx"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 
-// const GenerationComparisonChatOutputRow = ({
-//     variantId,
-
-//     historyItem,
-// }: GenerationComparisonChatOutputRowProps) => {
-//     const {mutate, messageRow, history} = usePlayground({
-//         variantId,
-//         registerToWebWorker: true,
-//         stateSelector: useCallback(
-//             (state: PlaygroundStateData) => {
-//                 // const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
-//                 // const messageHistory = messageRow.history.value
-//                 // return {
-//                 //     messageRow,
-//                 //     history: messageHistory
-//                 //         .map((historyItem) => {
-//                 //             return !historyItem.__runs?.[variantId]
-//                 //                 ? undefined
-//                 //                 : historyItem.__runs?.[variantId]
-//                 //                   ? {
-//                 //                         ...historyItem.__runs[variantId].message,
-//                 //                         __result: historyItem.__runs[variantId].__result,
-//                 //                         __isRunning: historyItem.__runs[variantId].__isRunning,
-//                 //                     }
-//                 //                   : undefined
-//                 //         })
-//                 //         .filter(Boolean),
-//                 // }
-//             },
-//             [variantId],
-//         ),
-//     })
-
-//     const handleDeleteMessage = useCallback(
-//         (messageId: string) => {
-//             mutate((clonedState) => {
-//                 if (!clonedState) return clonedState
-
-//                 if (!variantId) {
-//                     const row = clonedState.generationData.messages.value.find(
-//                         (v) => v.__id === rowId,
-//                     )
-//                     const isInput = row.history.value.findIndex((m) => m.__id === messageId)
-//                     if (isInput !== -1) {
-//                         row.history.value.splice(isInput, 1)
-//                     } else {
-//                         const isRunIndex = row.history.value.findIndex((m) => {
-//                             return m.__runs[variantId]?.message?.__id === messageId
-//                         })
-//                     }
-//                 } else if (variantId) {
-//                     const row = clonedState.generationData.messages.value.find(
-//                         (v) => v.__id === rowId,
-//                     )
-//                     const isInput = row.history.value.findIndex((m) => {
-//                         return m.__runs?.[variantId]?.message?.__id === messageId
-//                     })
-//                     if (isInput !== -1) {
-//                         delete row.history.value[isInput].__runs[variantId]
-//                     }
-//                 }
-//             })
-//         },
-//         [variantId],
-//     )
-
-//     return (
-//         <div className="flex flex-col gap-0 w-full self-stretch border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
-//             <GenerationChatRowOutput
-//                 message={historyItem}
-//                 // variantId={variantId}
-//                 deleteMessage={handleDeleteMessage}
-//                 rowId={messageRow?.__id}
-//                 result={historyItem?.__result}
-//                 isRunning={historyItem?.__isRunning}
-//                 isMessageDeletable={!!messageRow}
-//                 disabled={!messageRow}
-//             />
-//         </div>
-//     )
-// }
-
 const GenerationComparisonChatOutputCell = ({
     variantId,
     historyId,
     rowId,
     variantIndex,
-    historyIndex,
+    isFirstRow,
+    isLastRow,
 }: any) => {
-    const {message, messageRow, viewType, inputRowIds} = usePlayground({
+    const {message, messageRow, inputRowIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
@@ -136,13 +55,13 @@ const GenerationComparisonChatOutputCell = ({
             [rowId, variantId, historyId],
         ),
     })
-
+    console.log("inputRowIds", inputRowIds)
     return (
         <>
             <div className="shrink-0 sticky left-0 z-[3] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
                 {variantIndex === 0 && (
                     <div className="!w-[399.2px] shrink-0 sticky left-0 top-8 z-[2]">
-                        {historyIndex === 0 &&
+                        {isFirstRow &&
                             inputRowIds.map((inputRowId) => {
                                 return (
                                     <GenerationCompletionRow
@@ -158,7 +77,7 @@ const GenerationComparisonChatOutputCell = ({
                             rowId={rowId}
                             historyId={historyId}
                             viewAs={"input"}
-                            withControls
+                            withControls={isLastRow} // Only show controls (to add a message) in the last row
                         />
                     </div>
                 )}
@@ -182,10 +101,10 @@ const GenerationComparisonChatOutputCell = ({
 }
 
 const GenerationComparisonChatOutput = ({
-    className,
     rowId,
     historyId,
-    historyIndex,
+    isLastRow,
+    isFirstRow,
 }: GenerationComparisonChatOutputProps) => {
     const {displayedVariants} = usePlayground()
 
@@ -193,11 +112,13 @@ const GenerationComparisonChatOutput = ({
         <div className="flex border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
             {(displayedVariants || []).map((variantId, variantIndex) => (
                 <GenerationComparisonChatOutputCell
+                    key={`${historyId}-${variantId}`}
                     variantId={variantId}
                     historyId={historyId}
                     rowId={rowId}
                     variantIndex={variantIndex}
-                    historyIndex={historyIndex}
+                    isLastRow={isLastRow}
+                    isFirstRow={isFirstRow}
                 />
             ))}
         </div>
