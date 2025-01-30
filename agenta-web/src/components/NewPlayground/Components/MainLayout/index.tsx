@@ -30,6 +30,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
         rowIds,
         isComparisonView,
         visibleVariants: displayedVariants,
+        isChat,
     } = usePlayground({
         stateSelector: (state) => {
             const isChat = state.variants[0].isChat
@@ -48,6 +49,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                 rowIds,
                 isComparisonView,
                 visibleVariants: state.selected,
+                isChat: state.variants[0].isChat,
             }
         },
     })
@@ -209,21 +211,22 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             ])}
                         >
                             {/* This component renders the Input variables in comparison view  */}
-                            {isComparisonView &&
-                                (displayedVariants?.slice(0, 1) || []).map((variantId) => {
-                                    return (
-                                        <div
-                                            key={variantId}
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10 bg-white"
-                                        >
-                                            <GenerationComparisonInput variantId={variantId} />
-                                        </div>
-                                    )
-                                })}
+                            {isComparisonView && !isChat
+                                ? (displayedVariants?.slice(0, 1) || []).map((variantId) => {
+                                      return (
+                                          <div
+                                              key={variantId}
+                                              className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10 bg-white"
+                                          >
+                                              <GenerationComparisonInput variantId={variantId} />
+                                          </div>
+                                      )
+                                  })
+                                : null}
 
                             <div>
                                 {/* This component renders Output component header section */}
-                                {isComparisonView && (
+                                {isComparisonView && !isChat ? (
                                     <div className="flex sticky top-0 z-[1]">
                                         {displayedVariants.map((variantId) => (
                                             <GenerationComparisonOutputHeader
@@ -233,7 +236,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                             />
                                         ))}
                                     </div>
-                                )}
+                                ) : null}
 
                                 {/* This component renders Output components based on the view type. 
                                     If the view is 'comparison', it uses generationData to render the component. 
