@@ -6,6 +6,7 @@ import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
 import type {TextControlProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import EditorWrapper from "@/components/Editor/Editor"
+import SharedEditor from "../../../SharedEditor"
 
 const TextControl = ({
     withTooltip,
@@ -20,57 +21,42 @@ const TextControl = ({
 }: TextControlProps) => {
     const {viewType} = usePlayground()
 
-    const [localValue, setLocalValue] = useDebounceInput<string>(value, handleChange, 300, "")
-
-    const handleLocalValueChange = useCallback(
-        (value: string) => {
-            setLocalValue(value)
-        },
-        [setLocalValue],
-    )
-
     if (viewType === "single" && view !== "focus") {
         return (
-            <div
+            <SharedEditor
+                header={
+                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                        {metadata.title}
+                    </Typography>
+                }
+                handleChange={handleChange}
+                initialValue={value}
+                editorClassName={className}
+                placeholder={metadata?.description}
+                disabled={disabled}
                 className={clsx(
                     "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
                     className,
                 )}
-            >
-                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
-                    {metadata.title}
-                </Typography>
-                <EditorWrapper
-                    placeholder={metadata.description}
-                    showToolbar={false}
-                    enableTokens
-                    initialValue={localValue}
-                    onChange={(value) => {
-                        handleLocalValueChange(value.textContent)
-                    }}
-                    enableResize
-                    boundWidth
-                />
-            </div>
+                editorProps={{enableResize: true, boundWidth: true}}
+            />
         )
     }
 
     return (
-        <div className={clsx("relative bg-transparent", className)}>
-            <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
-                {metadata.title}
-            </Typography>
-
-            <EditorWrapper
-                placeholder={metadata.description}
-                showToolbar={false}
-                enableTokens
-                initialValue={localValue}
-                onChange={(value) => {
-                    handleLocalValueChange(value.textContent)
-                }}
-            />
-        </div>
+        <SharedEditor
+            header={
+                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                    {metadata.title}
+                </Typography>
+            }
+            handleChange={handleChange}
+            initialValue={value}
+            editorClassName={className}
+            placeholder={metadata?.description}
+            disabled={disabled}
+            className={clsx("relative bg-transparent", className)}
+        />
     )
 }
 
