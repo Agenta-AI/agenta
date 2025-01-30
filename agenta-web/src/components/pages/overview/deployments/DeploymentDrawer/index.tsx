@@ -1,6 +1,5 @@
-import CopyButton from "@/components/CopyButton/CopyButton"
-import {Environment, JSSTheme, Variant} from "@/lib/Types"
-import {createParams} from "@/pages/apps/[app_id]/endpoints"
+import {useEffect, useMemo, useState} from "react"
+
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
 import {
     ArrowRight,
@@ -11,108 +10,35 @@ import {
     Rocket,
     Swap,
 } from "@phosphor-icons/react"
-import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tag, Tooltip, Typography} from "antd"
-import React, {Dispatch, SetStateAction, useEffect, useState} from "react"
-import {createUseStyles} from "react-jss"
+import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
+import clsx from "clsx"
+import {useRouter} from "next/router"
+
+import {createParams} from "@/pages/apps/[app_id]/endpoints"
 import fetchConfigcURLCode from "@/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python"
 import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import invokeLlmAppcURLCode from "@/code_snippets/endpoints/invoke_llm_app/curl"
 import invokeLlmApppythonCode from "@/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/code_snippets/endpoints/invoke_llm_app/typescript"
-import CodeBlock from "@/components/DynamicCodeBlock/CodeBlock"
-import {useRouter} from "next/router"
-import {fetchAppContainerURL} from "@/services/api"
-import {useLegacyVariant} from "@/lib/hooks/useLegacyVariant"
+
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
-import VariantPopover from "../variants/VariantPopover"
+import VariantPopover from "../../variants/VariantPopover"
 import {useAppsData} from "@/contexts/app.context"
+import {useVariants} from "@/lib/hooks/useVariants"
+import {useStyles} from "./assets/styles"
+import LanguageCodeBlock from "./assets/LanguageCodeBlock"
+import useURI from "./hooks/useURI"
+
+import type {Variant} from "@/lib/Types"
+import type {DeploymentDrawerProps} from "./types"
 
 const DeploymentHistoryModal: any = dynamicComponent(
     "pages/overview/deployments/DeploymentHistoryModal",
 )
 
-interface DeploymentDrawerProps {
-    selectedEnvironment: Environment
-    variants: Variant[]
-    loadEnvironments: () => Promise<void>
-    setQueryEnv: (val: string) => void
-    setOpenChangeVariantModal: Dispatch<SetStateAction<boolean>>
-}
-
-interface LanguageCodeBlockProps {
-    selectedLang: string
-    fetchConfigCodeSnippet: Record<string, string>
-    invokeLlmAppCodeSnippet: Record<string, string>
-}
-
 const {Title, Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    drawerTitleContainer: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        "& h1.ant-typography": {
-            fontSize: theme.fontSizeHeading5,
-            fontWeight: theme.fontWeightMedium,
-            textTransform: "capitalize",
-        },
-    },
-    noDataContainer: {
-        height: 200,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-    },
-}))
-
-const LanguageCodeBlock = ({
-    selectedLang,
-    fetchConfigCodeSnippet,
-    invokeLlmAppCodeSnippet,
-}: LanguageCodeBlockProps) => {
-    return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <Text className="font-[500]">Fetch Prompt/Config</Text>
-                    <CopyButton
-                        buttonText={null}
-                        text={fetchConfigCodeSnippet[selectedLang]}
-                        icon={true}
-                    />
-                </div>
-
-                <CodeBlock
-                    key={selectedLang}
-                    language={selectedLang}
-                    value={fetchConfigCodeSnippet[selectedLang]}
-                />
-            </div>
-
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                    <Text className="font-[500]">Invoke LLM</Text>
-                    <CopyButton
-                        buttonText={null}
-                        text={invokeLlmAppCodeSnippet[selectedLang]}
-                        icon={true}
-                    />
-                </div>
-
-                <CodeBlock
-                    key={selectedLang}
-                    language={selectedLang}
-                    value={invokeLlmAppCodeSnippet[selectedLang]}
-                />
-            </div>
-        </div>
-    )
-}
 
 const DeploymentDrawer = ({
     variants,
@@ -127,38 +53,34 @@ const DeploymentDrawer = ({
     const appId = router.query.app_id as string
     const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
-    const [uri, setURI] = useState<string | null>(null)
-    const [variant, setVariant] = useState<Variant | null>(null)
+    const {data: uri} = useURI(appId, selectedEnvironment.deployed_app_variant_id)
+    const [variant] = useState<Variant | null>(
+        variants.find(
+            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
+        ) || null,
+    )
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    useEffect(() => {
-        loadURL(selectedEnvironment)
-    }, [selectedEnvironment, appId])
+    const {data} = useVariants(currentApp)({appId}, [variant!])
 
-    useEffect(() => {
-        const variant = variants.find(
-            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
+    const params = useMemo(() => {
+        const _variant = (data?.variants || []).find(
+            (item) =>
+                (item.variant.id || item.variant.variantId) ===
+                selectedEnvironment.deployed_app_variant_id,
         )
-        if (!variant) return
+        const {inputParams, isChatVariant} = _variant || {}
+        console.log("PARAMS!", data?.variants, _variant, inputParams)
 
-        setVariant(variant)
-    }, [selectedEnvironment, variants])
+        const params = createParams(
+            inputParams,
+            selectedEnvironment?.name || "none",
+            "add_a_value",
+            isChatVariant,
+        )
 
-    const loadURL = async (environment: Environment) => {
-        if (environment.deployed_app_variant_id) {
-            const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
-            setURI(`${url}/generate_deployed`)
-        }
-    }
-
-    const {inputParams, isChatVariant} = useLegacyVariant({appId}, variant!)
-
-    const params = createParams(
-        inputParams,
-        selectedEnvironment?.name || "none",
-        "add_a_value",
-        isChatVariant,
-    )
+        return params
+    }, [data?.variants, selectedEnvironment.deployed_app_variant_id, selectedEnvironment?.name])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         python: invokeLlmApppythonCode(uri!, params),
@@ -242,7 +164,7 @@ const DeploymentDrawer = ({
                 }
             >
                 {selectedEnvironment.deployed_variant_name ? (
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col">
                         <div className="flex justify-between">
                             <Text className="font-[500]">Variant Deployed</Text>
 
@@ -254,7 +176,14 @@ const DeploymentDrawer = ({
                             )}
                         </div>
 
-                        <div>
+                        <div
+                            className={clsx([
+                                "[&_.ant-tabs-nav]:sticky",
+                                "[&_.ant-tabs-nav]:-top-[25px]",
+                                "[&_.ant-tabs-nav]:bg-white",
+                                "[&_.ant-tabs-nav]:z-[1]",
+                            ])}
+                        >
                             <Tabs
                                 destroyInactiveTabPane
                                 defaultActiveKey={selectedLang}

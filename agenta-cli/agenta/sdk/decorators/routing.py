@@ -179,7 +179,6 @@ class entrypoint:
             run_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
-            response_model_exclude_unset=True,
         )(run_wrapper)
 
         # LEGACY
@@ -191,7 +190,6 @@ class entrypoint:
                 run_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
-                response_model_exclude_unset=True,
             )(run_wrapper)
         # LEGACY
         ### ----------- #
@@ -217,7 +215,6 @@ class entrypoint:
             test_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
-            response_model_exclude_unset=True,
         )(test_wrapper)
 
         # LEGACY
@@ -229,7 +226,6 @@ class entrypoint:
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
-                response_model_exclude_unset=True,
             )(test_wrapper)
         # LEGACY
 
@@ -241,7 +237,6 @@ class entrypoint:
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
-                response_model_exclude_unset=True,
             )(test_wrapper)
         # LEGACY
         ### ------------ #
@@ -587,7 +582,7 @@ class entrypoint:
         config_class_name = type(config).__name__
         config_schema = openapi_schema["components"]["schemas"][config_class_name]
         # Process each field in the config class
-        for field_name, field in config.__class__.__fields__.items():
+        for field_name, field in config.__class__.model_fields.items():
             # Check if field has Annotated metadata for MultipleChoice
             if hasattr(field, "metadata") and field.metadata:
                 for meta in field.metadata:

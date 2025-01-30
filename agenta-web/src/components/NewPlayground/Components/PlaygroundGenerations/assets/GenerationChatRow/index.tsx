@@ -188,7 +188,7 @@ const GenerationChatRow = ({
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
                     {
-                        "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                        "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
                             viewType === "comparison",
                     },
                 ])}

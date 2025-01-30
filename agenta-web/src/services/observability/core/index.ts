@@ -10,11 +10,11 @@ import {getCurrentProject} from "@/contexts/project.context"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllTraces = async (params = {}) => {
+export const fetchAllTraces = async (params = {}, appId: string) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/observability/v1/traces?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/api/observability/v1/traces?project_id=${projectId}&application_id=${appId}`,
         {params},
     )
     return response.data
