@@ -233,6 +233,7 @@ const Editor = ({
     return (
         <div
             className={clsx([
+                "agenta-rich-text-editor",
                 styles["agenta-rich-text-editor"],
                 "min-h-16",
                 "bg-[#F5F7FA] text-[#1C2C3D] relative flex flex-col px-[11px] rounded-lg",
