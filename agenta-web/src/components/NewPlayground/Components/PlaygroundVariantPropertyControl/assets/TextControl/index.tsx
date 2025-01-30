@@ -25,7 +25,7 @@ const TextControl = ({
         return (
             <SharedEditor
                 header={
-                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                         {metadata.title}
                     </Typography>
                 }
@@ -46,7 +46,7 @@ const TextControl = ({
     return (
         <SharedEditor
             header={
-                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                     {metadata.title}
                 </Typography>
             }
