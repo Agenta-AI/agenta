@@ -245,25 +245,22 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             {/* This component renders Output components based on the view type. 
                                     If the view is 'comparison', it uses generationData to render the component. 
                                     In 'single' view, it uses the variant id to render the component. */}
-                                {isComparisonView
-                                    ? ((rowIds as string[]) || []).map((rowId) => {
-                                          return (
-                                              <div
-                                                  key={rowId}
-                                              >
-                                                  <GenerationComparisonOutput rowId={rowId} />
-                                              </div>
-                                          )
-                                      })
-                                    : (displayedVariants || []).map((variantId) => {
-                                          return (
-                                              <PlaygroundGenerations
-                                                  key={variantId}
-                                                  variantId={variantId}
-                                              />
-                                          )
-                                      })}
-                            </div>
+                            {isComparisonView
+                                ? ((rowIds as string[]) || []).map((rowId) => {
+                                      return (
+                                          <div key={rowId}>
+                                              <GenerationComparisonOutput rowId={rowId} />
+                                          </div>
+                                      )
+                                  })
+                                : (displayedVariants || []).map((variantId) => {
+                                      return (
+                                          <PlaygroundGenerations
+                                              key={variantId}
+                                              variantId={variantId}
+                                          />
+                                      )
+                                  })}
                         </section>
                     </SplitterPanel>
                 </Splitter>

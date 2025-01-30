@@ -9,7 +9,6 @@ import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlaygrou
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
-import clsx from "clsx"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 
@@ -86,8 +85,24 @@ const GenerationComparisonChatOutputCell = ({
                 )}
             </div>
 
-            <div>
-                <div className="!w-[399px] shrink-0 sticky top-8 z-[2]">
+            <div
+                className={clsx([
+                    "!w-[399px]",
+                    "shrink-0",
+                    "flex flex-col self-stretch",
+                    {
+                        grow: message?.__isRunning && variantId,
+                    },
+                ])}
+            >
+                <div
+                    className={clsx([
+                        "!w-full shrink-0 sticky top-8 z-[2]",
+                        {
+                            grow: message?.__isRunning && variantId,
+                        },
+                    ])}
+                >
                     <GenerationChatRowOutput
                         message={message}
                         deleteMessage={() => {}}
