@@ -505,12 +505,12 @@ class SharedManager:
                     slug=variant_slug,
                     version=None,
                     id=None,
-                ),
+                ).model_dump(),
                 application_ref=SharedManager._ref_or_none(  # type: ignore  # type: ignore
                     slug=app_slug,
                     version=None,
                     id=app_id,
-                ),
+                ).model_dump(),
             )
         )
 
