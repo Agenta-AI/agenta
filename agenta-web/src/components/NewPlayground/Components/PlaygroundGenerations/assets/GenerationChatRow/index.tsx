@@ -47,31 +47,31 @@ export const GenerationChatRowOutput = ({
             />
         </div>
     ) : (
-        <div
-            className={clsx([
-                "w-full flex flex-col items-start gap-2 relative group/option",
-                {
-                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] px-4 pt-2":
-                        isComparisonView,
-                },
-            ])}
-        >
-            <PromptMessageConfig
-                variantId={variantId as string}
-                rowId={rowId}
-                messageId={message.__id}
-                disabled={disabled}
-                deleteMessage={deleteMessage}
-                className="w-full"
-                isMessageDeletable={isMessageDeletable}
-                debug
-            />
-            {!!result ? (
-                <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
-                    <GenerationResultUtils result={result} />
-                </div>
-            ) : null}
-        </div>
+        // <div
+        //     className={clsx([
+        //         "w-full flex flex-col items-start gap-2 relative group/option",
+        //         {
+        //             "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] px-4 pt-2":
+        //                 isComparisonView,
+        //         },
+        //     ])}
+        // >
+        <PromptMessageConfig
+            variantId={variantId as string}
+            rowId={rowId}
+            messageId={message.__id}
+            disabled={disabled}
+            deleteMessage={deleteMessage}
+            className="w-full"
+            isMessageDeletable={isMessageDeletable}
+            debug
+        />
+        //     {!!result ? (
+        //         <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
+        //             <GenerationResultUtils result={result} />
+        //         </div>
+        //     ) : null}
+        // </div>
     )
 }
 

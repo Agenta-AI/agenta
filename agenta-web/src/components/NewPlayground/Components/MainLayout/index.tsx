@@ -243,7 +243,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                           return (
                                               <div
                                                   key={rowId}
-                                                  className="[&::-webkit-scrollbar]:w-0 w-[400px] flex flex-shrink-0"
+                                                  className="[&::-webkit-scrollbar]:w-0 flex flex-shrink-0"
                                               >
                                                   <GenerationComparisonOutput rowId={rowId} />
                                               </div>
