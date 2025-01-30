@@ -55,12 +55,12 @@ const GenerationComparisonChatOutputCell = ({
             [rowId, variantId, historyId],
         ),
     })
-    console.log("inputRowIds", inputRowIds)
+
     return (
         <>
-            <div className="shrink-0 sticky left-0 z-[3] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
+            <div className="shrink-0 sticky left-0 z-[4] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
                 {variantIndex === 0 && (
-                    <div className="!w-[399.2px] shrink-0 sticky left-0 top-8 z-[2]">
+                    <div className="!w-[399.2px] shrink-0 sticky top-8 z-[2]">
                         {isFirstRow &&
                             inputRowIds.map((inputRowId) => {
                                 return (
@@ -109,7 +109,12 @@ const GenerationComparisonChatOutput = ({
     const {displayedVariants} = usePlayground()
 
     return (
-        <div className="flex border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
+        <div
+            className={clsx([
+                "flex",
+                {" border-0 border-b border-solid border-[rgba(5,23,41,0.06)]": !isLastRow},
+            ])}
+        >
             {(displayedVariants || []).map((variantId, variantIndex) => (
                 <GenerationComparisonChatOutputCell
                     key={`${historyId}-${variantId}`}
