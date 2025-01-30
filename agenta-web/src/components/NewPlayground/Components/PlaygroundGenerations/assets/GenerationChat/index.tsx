@@ -11,9 +11,10 @@ import usePlayground from "../../../../hooks/usePlayground"
 
 import type {GenerationChatProps} from "./types"
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import PromptMessageConfig from "../../../PromptMessageConfig"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
-    const {inputRowIds, messageRowIds, viewType, configMessageIds, isChat} = usePlayground({
+    const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
         hookId: "PlaygroundConfigVariantPrompts",
@@ -32,6 +33,22 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                 })
 
                 const isComparisonView = state.selected.length > 1
+                const historyIds = state.generationData.messages.value.reduce((acc, messageRow) => {
+                    return {
+                        ...acc,
+                        [messageRow.__id]: messageRow.history.value.reduce((acc, historyItem) => {
+                            const copyItem = structuredClone(historyItem)
+                            delete copyItem.__runs
+                            return [
+                                ...acc,
+                                copyItem?.__id,
+                                historyItem.__runs?.[variantId]?.__isRunning
+                                    ? `isRunning-${copyItem?.__id}`
+                                    : historyItem.__runs?.[variantId]?.__id,
+                            ].filter(Boolean)
+                        }, []),
+                    }
+                }, {})
 
                 return {
                     isRunning,
@@ -53,7 +70,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                         })
                         .filter(Boolean) as string[],
                     configMessageIds: configMessages.map((message) => message.__id),
-                    isChat: state.variants[0].isChat,
+                    historyIds,
                 }
             },
             [variantId],
@@ -63,8 +80,12 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
 
     return (
         <section className="flex flex-col">
-            {/* Variables */}
-            {!isChat &&
+            {/**
+             * Variables
+             * only displayed in single view state
+             * meaning when there's
+             */}
+            {!!variantId &&
                 inputRowIds.map((inputRowId) => {
                     return (
                         <GenerationCompletionRow
@@ -94,28 +115,34 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                     <div className={clsx(["flex flex-col gap-5", {"!gap-0": isComparisonView}])}>
                         {!isComparisonView
                             ? configMessageIds.map((messageId) => (
-                                  <GenerationChatRow
+                                  <PromptMessageConfig
                                       key={messageId}
-                                      variantId={variantId}
+                                      variantId={variantId as string}
                                       messageId={messageId}
-                                      viewAs={viewAs}
+                                      className="w-full"
+                                      isMessageDeletable={false}
+                                      disabled
+                                      debug
                                   />
                               ))
                             : null}
-                        {messageRowIds.map((messageRow) => (
-                            <GenerationChatRow
-                                key={messageRow}
-                                variantId={variantId}
-                                rowId={messageRow}
-                                withControls
-                            />
-                        ))}
+                        {messageRowIds.map((messageRow) => {
+                            return historyIds[messageRow].map((historyId, index) => {
+                                return historyId.includes("isRunning") ? (
+                                    <div key={`${historyId}-loading`}>GENERATING RESPONSE...</div>
+                                ) : (
+                                    <GenerationChatRow
+                                        key={`${messageRow}-${historyId}`}
+                                        variantId={variantId}
+                                        rowId={messageRow}
+                                        historyId={historyId}
+                                        withControls={index === historyIds[messageRow].length - 1}
+                                    />
+                                )
+                            })
+                        })}
                     </div>
                 </div>
-
-                <div
-                    className={clsx([{"flex items-center h-[48px] px-4": isComparisonView}])}
-                ></div>
             </div>
         </section>
     )

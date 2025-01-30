@@ -9,6 +9,7 @@ export type GenerationChatRowProps = {
     disabled?: boolean
     rowId?: string
     historyId?: string
+    placeholder?: string
     withControls?: boolean
     messageId?: string
     viewAs?: "input" | "output"

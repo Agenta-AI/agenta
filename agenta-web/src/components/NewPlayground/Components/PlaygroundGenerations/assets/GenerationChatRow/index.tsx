@@ -34,12 +34,13 @@ export const GenerationChatRowOutput = ({
     result,
     isRunning: propsIsRunning,
     isMessageDeletable,
+    placeholder,
 }: GenerationChatRowProps) => {
     const {viewType} = usePlayground()
     const isComparisonView = viewType === "comparison"
 
     return propsIsRunning ? (
-        <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch bg-[red]">
+        <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch">
             <GenerationOutputText
                 text={"Generating response..."}
                 className="mt-1"
@@ -62,6 +63,7 @@ export const GenerationChatRowOutput = ({
                 className="w-full"
                 isMessageDeletable={isMessageDeletable}
                 debug
+                placeholder={placeholder}
             />
             {!!result ? (
                 <div className={clsx([{"h-[48px] px-3 flex items-center": isComparisonView}])}>
@@ -97,7 +99,13 @@ const GenerationChatRow = ({
                         },
                     )
                     const messageHistory = messageRow.history.value
-                    const historyItem = messageHistory.find((item) => item.__id === historyId)
+                    let historyItem = findPropertyInObject(messageHistory, historyId)
+                    if (historyItem?.message) {
+                        historyItem = {
+                            ...historyItem,
+                            ...historyItem.message,
+                        }
+                    }
                     return {
                         messageRow,
                         historyItem,
@@ -200,6 +208,7 @@ const GenerationChatRow = ({
                     result={historyItem?.__result}
                     isRunning={historyItem?.__isRunning}
                     disabled={!messageRow}
+                    placeholder="Type a message..."
                 />
                 {/* {history.map((historyItem) => {
                     return (
