@@ -7,4 +7,5 @@ export type GenerationComparisonChatOutputProps = {
     historyId: string
     className?: string
     rowId: string
+    historyIndex?: number
 }

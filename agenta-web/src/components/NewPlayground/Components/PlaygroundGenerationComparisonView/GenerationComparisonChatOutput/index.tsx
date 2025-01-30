@@ -1,14 +1,12 @@
 import {useCallback} from "react"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputRowProps} from "./types"
+import {GenerationComparisonChatOutputProps} from "./types"
 import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
 import clsx from "clsx"
-import GenerationComparisonOutputHeader from "../assets/GenerationComparisonOutputHeader"
-import PlaygroundComparisonGenerationInputHeader from "../assets/GenerationComparisonInputHeader/index."
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
 
@@ -141,49 +139,33 @@ const GenerationComparisonChatOutputCell = ({
 
     return (
         <>
-            {variantIndex === 0 && (
-                <div className="!w-[400px]">
-                    {historyIndex === 0 && (
-                        <>
-                            <PlaygroundComparisonGenerationInputHeader className="sticky top-0 z-[2]" />
-                            {inputRowIds.map((inputRowId) => {
+            <div className="shrink-0 sticky left-0 z-[3] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
+                {variantIndex === 0 && (
+                    <div className="!w-[399.2px] shrink-0 sticky left-0 top-8 z-[2]">
+                        {historyIndex === 0 &&
+                            inputRowIds.map((inputRowId) => {
                                 return (
                                     <GenerationCompletionRow
                                         key={inputRowId}
                                         variantId={variantId}
                                         rowId={inputRowId}
                                         inputOnly={true}
-                                        className={clsx([
-                                            {
-                                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                                    viewType === "comparison",
-                                            },
-                                        ])}
                                     />
                                 )
                             })}
-                        </>
-                    )}
 
-                    <GenerationChatRow
-                        rowId={rowId}
-                        historyId={historyId}
-                        viewAs={"input"}
-                        withControls
-                    />
-                </div>
-            )}
-
-            <div className="!w-[400px] shrink-0">
-                {historyIndex === 0 && (
-                    <GenerationComparisonOutputHeader
-                        key={variantId}
-                        variantId={variantId}
-                        className="!w-[400px] sticky top-0 z-[2]"
-                    />
+                        <GenerationChatRow
+                            rowId={rowId}
+                            historyId={historyId}
+                            viewAs={"input"}
+                            withControls
+                        />
+                    </div>
                 )}
+            </div>
 
-                <div className="sticky top-8 z-[2]">
+            <div>
+                <div className="!w-[399px] shrink-0 sticky top-8 z-[2]">
                     <GenerationChatRowOutput
                         message={message}
                         deleteMessage={() => {}}
@@ -208,7 +190,7 @@ const GenerationComparisonChatOutput = ({
     const {displayedVariants} = usePlayground()
 
     return (
-        <div className="border border-solid border-green-500 flex">
+        <div className="flex border-0 border-b border-solid border-[rgba(5,23,41,0.06)]">
             {(displayedVariants || []).map((variantId, variantIndex) => (
                 <GenerationComparisonChatOutputCell
                     variantId={variantId}
