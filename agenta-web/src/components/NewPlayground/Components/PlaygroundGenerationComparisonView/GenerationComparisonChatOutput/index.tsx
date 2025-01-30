@@ -97,7 +97,7 @@ const GenerationComparisonChatOutputCell = ({
                         rowId={rowId}
                         historyId={historyId}
                         viewAs={"input"}
-                        withControls={isLastRow}
+                        withControls={isLastRow} // Only show controls (to add a message) in the last row
                     />
                 </div>
             )}
@@ -140,11 +140,11 @@ const GenerationComparisonChatOutput = ({
         <div className="border border-solid border-green-500 flex">
             {(displayedVariants || []).map((variantId, variantIndex) => (
                 <GenerationComparisonChatOutputCell
+                    key={`${historyId}-${variantId}`}
                     variantId={variantId}
                     historyId={historyId}
                     rowId={rowId}
                     variantIndex={variantIndex}
-                    // historyIndex={historyIndex}
                     isLastRow={isLastRow}
                     isFirstRow={isFirstRow}
                 />
