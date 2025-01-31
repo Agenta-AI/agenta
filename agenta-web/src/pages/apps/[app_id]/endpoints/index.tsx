@@ -72,7 +72,7 @@ export const createParams = (
 
     mainParams["environment"] = environmentName
     if (app) {
-        mainParams["app"] = app.app_type
+        mainParams["app"] = app.app_name
     }
     return JSON.stringify(mainParams, null, 2)
 }

@@ -182,7 +182,7 @@ async def make_payload(
                 # ---
 
     if "ag_config" in parameters:
-        input_keys = helpers.find_key_occurrences(parameters, "input_keys")
+        input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
         inputs = {key: datapoint.get(key, None) for key in input_keys}
 
     if inputs:

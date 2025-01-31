@@ -40,6 +40,7 @@ const PromptMessageConfig = ({
     className,
     rowId,
     deleteMessage,
+    rerunMessage,
     isMessageDeletable,
     disabled,
     debug,
@@ -47,6 +48,7 @@ const PromptMessageConfig = ({
     placeholder,
     handleChange: propsHandleChange,
     initialValue: propsInitialValue,
+    runnable,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -209,6 +211,11 @@ const PromptMessageConfig = ({
                             messageId={messageId}
                             isMessageDeletable={isMessageDeletable}
                             disabled={disabled}
+                            runnable={runnable}
+                            actions={{
+                                deleteMessage,
+                                rerunMessage,
+                            }}
                         />
                     )}
                 </div>
