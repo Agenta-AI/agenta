@@ -39,7 +39,7 @@ const SharedEditor = ({
     return (
         <div
             className={clsx(
-                "w-full flex flex-col items-start gap-2 relative group/item transition-all duration-300 ease-in-out border border-solid border-[#BDC7D1] rounded-lg",
+                "w-full flex flex-col items-start relative group/item transition-all duration-300 ease-in-out border border-solid border-[#BDC7D1] rounded-lg",
                 "[&_.agenta-rich-text-editor]:w-full",
                 "p-[11px]",
                 {
@@ -48,7 +48,7 @@ const SharedEditor = ({
                         editorType === "border",
                     "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
-                    "hover:border-[transparent] focus:border-[transparent]":
+                    "hover:border-[394857] focus:border-[394857]":
                         state === "filled" && editorType === "border",
                 },
                 {
@@ -75,7 +75,6 @@ const SharedEditor = ({
                     handleLocalValueChange(value.textContent)
                 }}
                 autoFocus={autoFocus}
-                className={editorClassName}
                 // className={clsx([
                 // "border-0",
                 // "focus:ring-0",

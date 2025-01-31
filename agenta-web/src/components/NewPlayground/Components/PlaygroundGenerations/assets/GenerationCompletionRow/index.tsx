@@ -140,7 +140,7 @@ const GenerationCompletionRow = ({
                             return (
                                 <div
                                     key={variableId}
-                                    className="relative group/item py-2 overflow-y-auto [&::-webkit-scrollbar]:w-0"
+                                    className="relative group/item px-3 py-2 overflow-y-auto [&::-webkit-scrollbar]:w-0"
                                 >
                                     <PlaygroundVariantPropertyControl
                                         variantId={variantId}

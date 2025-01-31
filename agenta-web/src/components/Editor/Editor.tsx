@@ -240,7 +240,6 @@ const Editor = ({
                 styles["agenta-rich-text-editor"],
                 "min-h-16",
                 "text-[#1C2C3D] relative flex flex-col rounded-lg",
-                "[&_p:first-child]:!mt-0",
                 {
                     "border border-solid border-[#BDC7D1]": showBorder,
                     disabled: disabled,
