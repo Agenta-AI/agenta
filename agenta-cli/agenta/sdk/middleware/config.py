@@ -133,7 +133,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
@@ -180,7 +180,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
@@ -223,7 +223,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
