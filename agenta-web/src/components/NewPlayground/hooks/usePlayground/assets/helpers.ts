@@ -208,6 +208,28 @@ export const findPropertyInObject = (obj: any, propertyId: string): any => {
     return undefined
 }
 
+/** Recursively finds the parent object containing a nested object with the specified ID */
+export const findParentOfPropertyInObject = (obj: any, propertyId: string): any => {
+    if (!obj || typeof obj !== "object") return undefined
+
+    // Recursively search through object properties
+    for (const key in obj) {
+        const value = obj[key]
+        if (typeof value === "object") {
+            // Check if the current nested object has the matching ID
+            if ("__id" in value && value.__id === propertyId) {
+                return obj // Return the parent object
+            }
+
+            // Recursively search deeper
+            const found = findParentOfPropertyInObject(value, propertyId)
+            if (found) return found
+        }
+    }
+
+    return undefined // If no parent is found, return undefined
+}
+
 // Update findPropertyInVariant to use the new utility
 const findPropertyInVariant = (variant: EnhancedVariant, propertyId?: string) => {
     if (!propertyId || !variant) return undefined
