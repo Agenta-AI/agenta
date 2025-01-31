@@ -392,32 +392,10 @@ async def add_variant_from_url(
         dict: The newly added variant.
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
+    app = await db_manager.fetch_app_by_id(app_id)
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_id),
-                permission=Permission.CREATE_APPLICATION,
-            )
-            logger.debug(
-                f"User has Permission to create app from url: {has_permission}"
-            )
-            if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        variant_db = await app_manager.add_variant_from_url(
-            app=app,
-            project_id=str(app.project_id),
-            variant_name=payload.variant_name,
-            url=payload.url,
-            base_name=payload.base_name,
-            config_name=payload.config_name,
+    if isCloudEE():
+        has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
             permission=Permission.CREATE_APPLICATION,
