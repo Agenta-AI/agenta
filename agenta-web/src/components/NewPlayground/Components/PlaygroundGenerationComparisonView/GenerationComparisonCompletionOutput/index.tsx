@@ -89,7 +89,7 @@ const GenerationComparisonCompletionOutput = ({
                         </div>
 
                         {result?.response && (
-                            <div className={clsx("w-ful h-[48px] flex items-center px-2")}>
+                            <div className={clsx("w-ful h-[48px] flex items-center px-4")}>
                                 <GenerationResultUtils result={result} />
                             </div>
                         )}
