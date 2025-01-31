@@ -75,7 +75,6 @@ const SharedEditor = ({
                     handleLocalValueChange(value.textContent)
                 }}
                 autoFocus={autoFocus}
-                className={editorClassName}
                 // className={clsx([
                 // "border-0",
                 // "focus:ring-0",
