@@ -198,6 +198,7 @@ async def invoke_app(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
+    **kwargs,
 ) -> InvokationResult:
     """
     Invokes an app for one datapoint using the openapi_parameters to determine
@@ -215,7 +216,11 @@ async def invoke_app(
     Raises:
         aiohttp.ClientError: If the POST request fails.
     """
+
     url = f"{uri}/generate"
+    if "application_id" in kwargs:
+        url = url + f"?application_id={kwargs.get('application_id')}"
+
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
     headers = None
@@ -301,6 +306,7 @@ async def run_with_retry(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
+    **kwargs,
 ) -> InvokationResult:
     """
     Runs the specified app with retry mechanism.
@@ -329,6 +335,7 @@ async def run_with_retry(
                 openapi_parameters,
                 user_id,
                 project_id,
+                **kwargs,
             )
             return result
         except aiohttp.ClientError as e:
@@ -368,6 +375,7 @@ async def batch_invoke(
     rate_limit_config: Dict,
     user_id: str,
     project_id: str,
+    **kwargs,
 ) -> List[InvokationResult]:
     """
     Invokes the LLm apps in batches, processing the testset data.
@@ -424,6 +432,7 @@ async def batch_invoke(
                     openapi_parameters,
                     user_id,
                     project_id,
+                    **kwargs,
                 )
             )
             tasks.append(task)
