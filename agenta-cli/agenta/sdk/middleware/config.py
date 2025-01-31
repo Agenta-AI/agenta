@@ -106,15 +106,18 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             config = response.json()
 
         if not config:
-            _cache.put(_hash, {"parameters": None, "references": None})
-
-            return None, None
-
-        parameters = config.get("params")
+            parameters = None
+        else:
+            parameters = config.get("params")
 
         references = {}
 
-        for ref_key in ["application_ref", "variant_ref", "environment_ref"]:
+        ref_keys = ["application_ref"]
+
+        if config:
+            ref_keys.extend(["variant_ref", "environment_ref"])
+
+        for ref_key in ref_keys:
             refs = config.get(ref_key)
             if refs:
                 ref_prefix = ref_key.split("_", maxsplit=1)[0]

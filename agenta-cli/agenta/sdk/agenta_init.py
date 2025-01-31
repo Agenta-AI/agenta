@@ -74,6 +74,8 @@ class AgentaSingleton:
             or "https://cloud.agenta.ai"
         )
 
+        log.info("Agenta - host: %s", self.host)
+
         self.app_id = app_id or config.get("app_id") or getenv("AGENTA_APP_ID")
         # if not self.app_id:
         #     raise ValueError(
