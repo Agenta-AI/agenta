@@ -133,7 +133,7 @@ const GenerationCompletionRow = ({
 
     return (
         <>
-            <div className={clsx(["flex flex-col gap-4", classes.container])} {...props}>
+            <div className={clsx(["flex flex-col gap-4", !isChat && classes.container])} {...props}>
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
