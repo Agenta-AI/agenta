@@ -1,16 +1,20 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import clsx from "clsx"
 
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
-import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
+import {
+    findParentOfPropertyInObject,
+    findPropertyInObject,
+} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import {getMetadataLazy} from "@/components/NewPlayground/state"
+import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 
 const GenerationComparisonChatOutputCell = ({
     variantId,
@@ -21,7 +25,7 @@ const GenerationComparisonChatOutputCell = ({
     isLastRow,
     isLastVariant,
 }: GenerationComparisonChatOutputCellProps) => {
-    const {message, messageRow, inputRowIds, mutate} = usePlayground({
+    const {rerunChatOutput, message, messageRow, inputRowIds, mutate} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
@@ -92,8 +96,11 @@ const GenerationComparisonChatOutputCell = ({
         [variantId],
     )
 
+    const canRerunMessage = useMemo(() => {
+        return !message?.__isRunning && !!message?.__result
+    }, [variantId, message])
     const rerunMessage = useCallback((messageId: string) => {
-        console.log("rerun message")
+        rerunChatOutput(messageId)
     }, [])
 
     return (
@@ -152,14 +159,19 @@ const GenerationComparisonChatOutputCell = ({
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
-                    <GenerationChatRowOutput
-                        message={message}
-                        deleteMessage={handleDeleteMessage}
-                        rowId={messageRow?.__id}
-                        result={message?.__result}
-                        isRunning={message?.__isRunning}
-                        disabled={!messageRow}
-                    />
+                    {!!message ? (
+                        <GenerationChatRowOutput
+                            message={message}
+                            deleteMessage={handleDeleteMessage}
+                            rerunMessage={canRerunMessage ? rerunMessage : undefined}
+                            rowId={messageRow?.__id}
+                            result={message?.__result}
+                            isRunning={message?.__isRunning}
+                            disabled={!messageRow}
+                        />
+                    ) : (
+                        <GenerationOutputText text="Click Run to generate" />
+                    )}
                 </div>
             </div>
         </>

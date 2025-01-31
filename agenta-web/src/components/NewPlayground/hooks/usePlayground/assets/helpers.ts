@@ -208,26 +208,114 @@ export const findPropertyInObject = (obj: any, propertyId: string): any => {
     return undefined
 }
 
-/** Recursively finds the parent object containing a nested object with the specified ID */
-export const findParentOfPropertyInObject = (obj: any, propertyId: string): any => {
-    if (!obj || typeof obj !== "object") return undefined
+/**
+ * Recursively searches the `history.value` array and its nested objects to find an item containing the specified ID.
+ * @param state The state object or array to search.
+ * @param targetId The ID to search for.
+ * @returns The item in `history.value` that contains the nested object with the target ID, or `undefined` if not found.
+ */
+export const findItemInHistoryValueById = (state: any, targetId: string): any => {
+    // Base case: If the state is not valid, return undefined
+    if (!state || typeof state !== "object") return undefined
 
-    // Recursively search through object properties
-    for (const key in obj) {
-        const value = obj[key]
-        if (typeof value === "object") {
-            // Check if the current nested object has the matching ID
-            if ("__id" in value && value.__id === propertyId) {
-                return obj // Return the parent object
+    // If the state is an array, iterate through its items
+    if (Array.isArray(state)) {
+        for (const item of state) {
+            // Recursively search each item in the array
+            const found = findItemInHistoryValueById(item, targetId)
+            if (found) return found // Return the found item if it exists
+        }
+    } else {
+        // If the state is an object, check if it has a `history.value` array
+        if (state.history && Array.isArray(state.history.value)) {
+            // Iterate through the `history.value` array
+            for (const historyItem of state.history.value) {
+                // Recursively search the history item and its nested objects
+                const found = findNestedObjectById(historyItem, targetId)
+                if (found) return historyItem // Return the parent history item if the target ID is found
             }
+        }
 
-            // Recursively search deeper
-            const found = findParentOfPropertyInObject(value, propertyId)
-            if (found) return found
+        // Recursively search through all properties of the object
+        for (const key in state) {
+            if (state.hasOwnProperty(key)) {
+                const value = state[key]
+                if (typeof value === "object") {
+                    const found = findItemInHistoryValueById(value, targetId) // Recursively search deeper
+                    if (found) return found // Return the found item if it exists
+                }
+            }
         }
     }
 
-    return undefined // If no parent is found, return undefined
+    return undefined // Return undefined if no matching item is found
+}
+
+/**
+ * Recursively searches a nested object for the specified ID.
+ * @param obj The object to search.
+ * @param targetId The ID to search for.
+ * @returns The object containing the target ID, or `undefined` if not found.
+ */
+const findNestedObjectById = (obj: any, targetId: string): any => {
+    // Base case: If the object is not valid, return undefined
+    if (!obj || typeof obj !== "object") return undefined
+
+    // Check if the current object has the target ID
+    if (obj.__id === targetId) {
+        return obj // Return the object if it matches the target ID
+    }
+
+    // Recursively search through all properties of the object
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            const value = obj[key]
+            if (typeof value === "object") {
+                const found = findNestedObjectById(value, targetId) // Recursively search deeper
+                if (found) return found // Return the found object if it exists
+            }
+        }
+    }
+
+    return undefined // Return undefined if no matching object is found
+}
+
+/**
+ * Recursively finds the closest parent object with an `__id` that contains a nested object with the specified ID.
+ * @param obj The object to search.
+ * @param propertyId The ID to search for.
+ * @returns The closest parent object with an `__id` that contains the target ID, or `undefined` if not found.
+ */
+export const findParentOfPropertyInObject = (obj: any, propertyId: string): any => {
+    if (!obj || typeof obj !== "object") return undefined
+
+    // Check if current object has the target ID directly (edge case)
+    if (obj.__id === propertyId) return undefined // Target shouldn't return itself
+
+    // Check if current object has a 'value' array containing the target
+    if (Array.isArray(obj.value)) {
+        for (const item of obj.value) {
+            if (item?.__id === propertyId) {
+                return obj.__id ? obj : undefined // Return parent if it has __id
+            }
+        }
+    }
+
+    // Recursively search all properties
+    for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+            const value = obj[key]
+            if (value && typeof value === "object") {
+                const found = findParentOfPropertyInObject(value, propertyId)
+                if (found) {
+                    // Return the closest parent with __id
+                    return found.__id ? found : obj.__id ? obj : undefined
+                }
+            }
+        }
+    }
+
+    return undefined
 }
 
 // Update findPropertyInVariant to use the new utility

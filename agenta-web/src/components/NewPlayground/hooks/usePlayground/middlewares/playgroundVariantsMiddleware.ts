@@ -8,7 +8,14 @@ import {
     extractValueByMetadata,
     transformToRequestBody,
 } from "../../../assets/utilities/transformer/reverseTransformer"
-import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
+import {
+    createVariantsCompare,
+    transformVariant,
+    setVariant,
+    findPropertyInObject,
+    findParentOfPropertyInObject,
+    findItemInHistoryValueById,
+} from "../assets/helpers"
 import {message} from "../../../state/messageContext"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
@@ -190,26 +197,96 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     valueReferences.current.includes("runTests"),
             )
 
+            const handleInputRowTestStart = useCallback((inputRow, variantId) => {
+                if (!inputRow?.__runs) {
+                    inputRow.__runs = {}
+                }
+
+                if (!inputRow.__runs[variantId]) {
+                    inputRow.__runs[variantId] = {
+                        __isRunning: true,
+                        __result: undefined,
+                    }
+                } else {
+                    inputRow.__runs[variantId].__isRunning = true
+                }
+
+                return inputRow
+            }, [])
+
+            Object.defineProperty(swr, "rerunChatOutput", {
+                get: () => {
+                    addToValueReferences("rerunChatOutput")
+
+                    const rerunChatOutput = (messageId: string) => {
+                        swr.mutate(
+                            async (clonedState) => {
+                                const jwt = await getJWT()
+                                if (!clonedState) return clonedState
+
+                                const outputMessage = findPropertyInObject(clonedState, messageId)
+                                const outputHistoryItem = findItemInHistoryValueById(
+                                    clonedState.generationData.messages.value,
+                                    messageId,
+                                )
+
+                                const [variantId] = Object.entries(outputHistoryItem.__runs).find(
+                                    ([key, value]) => value.message.__id === messageId,
+                                )
+                                const variant = clonedState.variants.find((v) => v.id === variantId)
+                                const messageRowHistory = findParentOfPropertyInObject(
+                                    clonedState,
+                                    outputHistoryItem.__id,
+                                )
+
+                                const variableRows = clonedState.generationData.inputs.value
+
+                                const messageRow = clonedState.generationData.messages.value.find(
+                                    (m) => {
+                                        return m.history.__id === messageRowHistory.__id
+                                    },
+                                )
+
+                                handleInputRowTestStart(outputHistoryItem, variantId)
+
+                                postMessageToWorker(
+                                    createWorkerMessage("runVariantInputRow", {
+                                        variant: clonedState.variants.find(
+                                            (v) => v.id === variantId,
+                                        ),
+                                        messageRow,
+                                        messageId: outputHistoryItem.__id,
+                                        inputRow: variableRows[0],
+                                        rowId: messageRow.__id,
+                                        appId: config.appId!,
+                                        uri: variant?.uri,
+                                        projectId: getCurrentProject().projectId,
+                                        allMetadata: getAllMetadata(),
+                                        headers: {
+                                            ...(jwt
+                                                ? {
+                                                      Authorization: `Bearer ${jwt}`,
+                                                  }
+                                                : {}),
+                                        },
+                                    }),
+                                )
+
+                                return clonedState
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        )
+                    }
+
+                    return rerunChatOutput
+                },
+            })
+
             Object.defineProperty(swr, "runTests", {
                 get: () => {
                     addToValueReferences("runTests")
-                    const handleInputRowTestStart = (inputRow, variantId) => {
-                        if (!inputRow?.__runs) {
-                            inputRow.__runs = {}
-                        }
-
-                        if (!inputRow.__runs[variantId]) {
-                            inputRow.__runs[variantId] = {
-                                __isRunning: true,
-                                __result: undefined,
-                            }
-                        } else {
-                            inputRow.__runs[variantId].__isRunning = true
-                        }
-
-                        return inputRow
-                    }
-
                     const runChatTests = (
                         clonedState: PlaygroundStateData,
                         rowId: string,
