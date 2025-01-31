@@ -23,6 +23,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         display: "flex",
         flexDirection: "column",
         "& .ant-collapse-item": {
+            display: "flex !important",
+            flexDirection: "column",
+            height: "100%",
             background: theme.colorFillAlter,
             borderRadius: `${theme.borderRadiusLG}px !important`,
             border: `1px solid ${theme.colorBorder}`,
@@ -36,13 +39,13 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "& .ant-collapse-content": {
             borderTop: `1px solid ${theme.colorBorder} !important`,
-            padding: `${theme.padding}px 0`,
+            padding: `0px`,
             lineHeight: theme.lineHeight,
             backgroundColor: `${bgColor || theme.colorBgContainer} !important`,
             borderBottomLeftRadius: theme.borderRadius,
             borderBottomRightRadius: theme.borderRadius,
             fontSize: theme.fontSize,
-            height: "100%",
+            flexGrow: 1,
             "& .ant-collapse-content-box": {
                 height: "100%",
                 padding: "0px !important",
@@ -135,14 +138,22 @@ const AccordionTreePanel = ({
                                     readOnly: true,
                                     lineNumbers: "off",
                                     lineDecorationsWidth: 0,
+                                    padding: {
+                                        top: 10,
+                                        bottom: 10,
+                                    },
                                     scrollbar: {
                                         verticalScrollbarSize: 8,
                                         horizontalScrollbarSize: 8,
-                                        handleMouseWheel: false,
+                                        alwaysConsumeMouseWheel: false,
+                                    },
+                                    stickyScroll: {
+                                        scrollWithEditor: true,
                                     },
                                 }}
                                 onMount={(editor) => {
                                     const model = editor.getModel()
+
                                     if (model) {
                                         const updateHeight = () => {
                                             const contentHeight = editor.getContentHeight()
