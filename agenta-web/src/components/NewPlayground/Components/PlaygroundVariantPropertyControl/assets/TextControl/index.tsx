@@ -52,13 +52,15 @@ const TextControl = ({
                 </Typography>
             }
             editorType="border"
-            className={clsx("relative flex flex-col gap-1 rounded-[theme(spacing.2)]", className)}
+            className={clsx(
+                "relative bg-transparent flex flex-col gap-1 rounded-[theme(spacing.2)]",
+                className,
+            )}
             handleChange={handleChange}
             initialValue={value}
             editorClassName={className}
             placeholder={metadata?.description}
             disabled={disabled}
-            className={clsx("relative bg-transparent", className)}
         />
     )
 }
