@@ -87,7 +87,7 @@ class AgentaSingleton:
 
         self.base_id = getenv("AGENTA_BASE_ID")
 
-        self.service_id = getenv("AGENTA_SERVICE_ID") or self.base_id
+        self.service_id = getenv("AGENTA_SERVICE_ID") or self.base_id or None
 
         log.info("Agenta - Service ID: %s", self.service_id)
         log.info("Agenta - Application ID: %s", self.app_id)
