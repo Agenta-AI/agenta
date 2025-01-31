@@ -1,12 +1,23 @@
 import clsx from "clsx"
-import React from "react"
+import React, {useCallback} from "react"
 import {BaseContainerProps} from "../types"
+import EditorWrapper from "@/components/Editor/Editor"
+import {useDebounceInput} from "@/hooks/useDebounceInput"
+import {EditorProps} from "@/components/Editor/types"
 
 interface SharedEditorProps extends BaseContainerProps {
-    header: React.ReactNode
-    footer: React.ReactNode
+    header?: React.ReactNode
+    footer?: React.ReactNode
     editorType?: "border" | "borderless"
     state?: "default" | "filled" | "disabled" | "readOnly" | "focus" | "typing"
+    placeholder?: string
+    handleChange: (value: string) => void
+    initialValue: any
+    editorClassName?: string
+    description?: string
+    withTooltip?: boolean
+    disabled?: boolean
+    editorProps?: EditorProps
 }
 
 const SharedEditor = ({
@@ -14,8 +25,28 @@ const SharedEditor = ({
     footer,
     editorType = "borderless",
     state = "filled",
+    placeholder,
+    initialValue,
+    editorClassName,
+    disabled,
+    handleChange,
+    editorProps,
     ...props
 }: SharedEditorProps) => {
+    const [localValue, setLocalValue] = useDebounceInput<string>(
+        initialValue,
+        handleChange,
+        300,
+        "",
+    )
+
+    const handleLocalValueChange = useCallback(
+        (value: string) => {
+            setLocalValue(value)
+        },
+        [setLocalValue],
+    )
+
     return (
         <div
             className={clsx(
@@ -40,6 +71,25 @@ const SharedEditor = ({
             {...props}
         >
             {header}
+            <EditorWrapper
+                placeholder={placeholder}
+                showToolbar={false}
+                enableTokens
+                initialValue={localValue}
+                className={editorClassName}
+                onChange={(value) => {
+                    handleLocalValueChange(value.textContent)
+                }}
+                // className={clsx([
+                // "border-0",
+                // "focus:ring-0",
+                // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
+                // className,
+                // ])}
+                disabled={disabled}
+                showBorder={false}
+                {...editorProps}
+            />
             {footer}
         </div>
     )
