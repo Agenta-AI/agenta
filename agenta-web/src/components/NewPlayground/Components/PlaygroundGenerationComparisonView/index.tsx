@@ -51,11 +51,12 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
                           isFirstRow={historyIndex === 0}
                       />
                   ))
-                : displayedVariants?.map((variantId) => (
+                : displayedVariants?.map((variantId, variantIndex) => (
                       <GenerationComparisonCompletionOutput
                           key={`${variantId}-${rowId}`}
                           rowId={rowId}
                           variantId={variantId}
+                          variantIndex={variantIndex}
                       />
                   ))}
         </div>
