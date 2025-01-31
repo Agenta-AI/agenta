@@ -1,4 +1,5 @@
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {SharedEditorProps} from "../SharedEditor"
 import type {BaseContainerProps} from "../types"
 
 /**
@@ -6,7 +7,7 @@ import type {BaseContainerProps} from "../types"
  * This component handles the configuration of individual prompt messages
  * including their roles and content.
  */
-export interface PromptMessageConfigProps extends BaseContainerProps {
+export interface PromptMessageConfigProps extends BaseContainerProps, SharedEditorProps {
     /** Unique identifier for the variant being configured */
     variantId: EnhancedVariant["id"]
     /** Unique identifier for the message being configured */
