@@ -116,8 +116,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 sort_keys=True,
             )
 
-            import os
-
             if _CACHE_ENABLED:
                 credentials = _cache.get(_hash)
 
