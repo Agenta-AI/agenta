@@ -69,9 +69,9 @@ const GenerationComparisonCompletionOutput = ({
                     {"border-b": !isLastRow},
                 ])}
             >
-                <div className="flex sticky top-9 z-[2]">
-                    <div className="!w-[399px]">
-                        <div className={clsx("w-full py-2 px-4")}>
+                <div className="flex h-full">
+                    <div className="!w-[399px] h-full relative pb-10">
+                        <div className="w-full py-2 px-4 sticky top-9 z-[2]">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
@@ -87,7 +87,11 @@ const GenerationComparisonCompletionOutput = ({
                         </div>
 
                         {result?.response && (
-                            <div className={clsx("w-ful h-[48px] flex items-center px-4")}>
+                            <div
+                                className={clsx(
+                                    "w-full h-[48px] flex items-center px-4 absolute bottom-0",
+                                )}
+                            >
                                 <GenerationResultUtils result={result} />
                             </div>
                         )}
