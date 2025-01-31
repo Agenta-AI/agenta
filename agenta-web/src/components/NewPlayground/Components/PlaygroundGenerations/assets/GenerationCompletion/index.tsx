@@ -15,17 +15,31 @@ import type {
     ArrayMetadata,
     ObjectMetadata,
 } from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
 
-const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
+const GenerationCompletion = ({
+    className,
+    variantId,
+    rowClassName,
+    rowId,
+    withControls,
+}: GenerationCompletionProps) => {
     const {inputRowIds, mutate, viewType} = usePlayground({
         variantId,
         registerToWebWorker: true,
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.inputs.value || []
-            return {
-                inputRowIds: inputRows.map((inputRow) => inputRow.__id),
-            }
-        }, []),
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const selectedVariants = state.selected.length > 1
+                const inputRowId = findPropertyInObject(state, rowId)
+                const inputRows = state.generationData.inputs.value || []
+
+                const rowIds = selectedVariants
+                    ? inputRows.map((inputRow) => inputRow.__id)
+                    : [inputRowId?.__id]
+                return {inputRowIds: rowIds}
+            },
+            [rowId, variantId],
+        ),
     })
 
     const addNewInputRow = useCallback(() => {
@@ -64,14 +78,16 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
                 )
             })}
 
-            <div
-                className={clsx([
-                    "flex items-center gap-2 mx-4 mt-2",
-                    {"mb-10": viewType !== "comparison"},
-                ])}
-            >
-                <AddButton size="small" label="Input" onClick={addNewInputRow} />
-            </div>
+            {withControls ? (
+                <div
+                    className={clsx([
+                        "flex items-center gap-2 mx-4 mt-2",
+                        {"mb-10": viewType !== "comparison"},
+                    ])}
+                >
+                    <AddButton size="small" label="Input" onClick={addNewInputRow} />
+                </div>
+            ) : null}
         </div>
     )
 }

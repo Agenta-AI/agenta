@@ -236,10 +236,13 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     If the view is 'comparison', it uses generationData to render the component. 
                                     In 'single' view, it uses the variant id to render the component. */}
                             {isComparisonView
-                                ? ((rowIds as string[]) || []).map((rowId) => {
+                                ? ((rowIds as string[]) || []).map((rowId, rowIndex) => {
                                       return (
                                           <div key={rowId}>
-                                              <GenerationComparisonOutput rowId={rowId} />
+                                              <GenerationComparisonOutput
+                                                  rowId={rowId}
+                                                  isLastRow={rowIndex === rowIds.length - 1}
+                                              />
                                           </div>
                                       )
                                   })
