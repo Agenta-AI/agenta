@@ -92,7 +92,7 @@ async def start_variant(
         if domain_name is None or domain_name == "http://localhost":
             # in the case of agenta running locally, the containers can access the host machine via this address
             domain_name = (
-                f"http://host.docker.internal:{os.environ.get('AGENTA_PORT','80')}"
+                f"http://host.docker.internal"
             )
 
         env_vars = {} if env_vars is None else env_vars  # type: ignore
@@ -100,7 +100,7 @@ async def start_variant(
             {
                 "AGENTA_BASE_ID": str(db_app_variant.base_id),
                 "AGENTA_APP_ID": str(db_app_variant.app_id),
-                "AGENTA_HOST": domain_name,
+                "AGENTA_HOST": domain_name if os.environ.get("AGENTA_PORT", "80") == "80" else f"{domain_name}:{os.environ.get('AGENTA_PORT', '80')}",
                 "AGENTA_RUNTIME": "true",
             }
         )
