@@ -15,17 +15,30 @@ import type {
     ArrayMetadata,
     ObjectMetadata,
 } from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
 
-const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCompletionProps) => {
-    const {inputRowIds, mutate, viewType} = usePlayground({
+const GenerationCompletion = ({
+    className,
+    variantId,
+    rowClassName,
+    rowId,
+    withControls,
+}: GenerationCompletionProps) => {
+    const {inputRowId, mutate, viewType, inputRowIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.inputs.value || []
-            return {
-                inputRowIds: inputRows.map((inputRow) => inputRow.__id),
-            }
-        }, []),
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRowId = findPropertyInObject(state, rowId)
+                const inputRows = state.generationData.inputs.value || []
+
+                return {
+                    inputRowId: inputRowId?.__id,
+                    inputRowIds: inputRows?.map((row) => row?.__id),
+                }
+            },
+            [rowId],
+        ),
     })
 
     const addNewInputRow = useCallback(() => {
@@ -49,29 +62,37 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
         })
     }, [mutate])
 
-    componentLogger("GenerationTestView", inputRowIds)
+    componentLogger("GenerationTestView", inputRowId)
 
     return (
         <div className={clsx(["flex flex-col", {"gap-2": viewType === "single"}], className)}>
-            {inputRowIds.map((inputRowId) => {
-                return (
+            {viewType === "comparison" ? (
+                <GenerationCompletionRow
+                    variantId={variantId}
+                    rowId={inputRowId}
+                    className={rowClassName}
+                />
+            ) : (
+                (inputRowIds || []).map((row) => (
                     <GenerationCompletionRow
-                        key={inputRowId}
+                        key={row}
                         variantId={variantId}
-                        rowId={inputRowId}
+                        rowId={row}
                         className={rowClassName}
                     />
-                )
-            })}
+                ))
+            )}
 
-            <div
-                className={clsx([
-                    "flex items-center gap-2 mx-4 mt-2",
-                    {"mb-10": viewType !== "comparison"},
-                ])}
-            >
-                <AddButton size="small" label="Input" onClick={addNewInputRow} />
-            </div>
+            {withControls ? (
+                <div
+                    className={clsx([
+                        "flex items-center gap-2 mx-4 mt-2",
+                        {"mb-10": viewType !== "comparison"},
+                    ])}
+                >
+                    <AddButton size="small" label="Input" onClick={addNewInputRow} />
+                </div>
+            ) : null}
         </div>
     )
 }

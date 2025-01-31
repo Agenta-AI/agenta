@@ -27,7 +27,7 @@ const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
     )
 }
 
-const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
+const GenerationComparisonOutput = ({rowId, isLastRow}: {rowId: string; isLastRow?: boolean}) => {
     const {isChat, displayedVariants, chatHistory} = usePlayground({
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -40,7 +40,7 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     })
 
     return (
-        <div>
+        <div className={clsx([{flex: !isChat}])}>
             {isChat
                 ? (chatHistory || []).map((chatId, historyIndex) => (
                       <GenerationComparisonChatOutput
@@ -57,6 +57,8 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
                           rowId={rowId}
                           variantId={variantId}
                           variantIndex={variantIndex}
+                          isLastRow={isLastRow}
+                          isLastVariant={variantIndex === (displayedVariants || []).length - 1}
                       />
                   ))}
         </div>
