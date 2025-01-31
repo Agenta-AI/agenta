@@ -29,6 +29,7 @@ const TextControl = ({
                         {metadata.title}
                     </Typography>
                 }
+                editorType="border"
                 handleChange={handleChange}
                 initialValue={value}
                 editorClassName={className}
@@ -50,6 +51,7 @@ const TextControl = ({
                     {metadata.title}
                 </Typography>
             }
+            editorType="border"
             className={clsx("relative flex flex-col gap-1 rounded-[theme(spacing.2)]", className)}
             handleChange={handleChange}
             initialValue={value}

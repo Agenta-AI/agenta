@@ -121,6 +121,8 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     variantId={variantId}
                     messageId={messageId}
                     deleteMessage={deleteMessage}
+                    editorType="border"
+                    editorClassName="min-h-4 [&_p:last-child]:!mb-0"
                     isMessageDeletable={messageIds?.length === 1}
                 />
             ))}
@@ -134,7 +136,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 />
             )}
 
-            <AddButton size="small" label="Message" onClick={addNewMessage} />
+            <AddButton className="mt-2" size="small" label="Message" onClick={addNewMessage} />
         </div>
     )
 }
