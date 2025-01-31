@@ -1,0 +1,92 @@
+---
+title: Deploy on a Remote Server
+description: 'Learn how to deploy Agenta on a remote server with Docker. Step-by-step guide covers environment setup, installation, and configuration for cloud or dedicated hosting environments.'
+---
+
+This guide explains how to deploy Agenta on a remote server, such as a cloud instance or dedicated machine.
+
+## Prerequisites
+
+- A remote server with:
+  - Docker installed
+  - Docker Compose installed
+  - Root access or sudo privileges
+  - Open ports for HTTP traffic (default: 80)
+- Git installed
+
+## Step 1: Configure Environment Variables
+
+Set up three essential environment variables:
+
+```bash
+# Replace 'your-domain.com' with your server's domain or IP address
+export DOMAIN_NAME="http://your-domain.com"    # Full URL including protocol
+export BARE_DOMAIN_NAME="your-domain.com"      # Domain/IP without protocol
+export AGENTA_PORT="80"                        # Port for the Agenta service
+```
+
+Note: If using an IP address instead of a domain, use the same format:
+```bash
+export DOMAIN_NAME="http://192.168.1.100"
+export BARE_DOMAIN_NAME="192.168.1.100"
+```
+
+## Step 2: Clone Agenta Repository
+
+Clone the Agenta repository and navigate to its directory:
+
+```bash
+git clone https://github.com/agenta-ai/agenta
+cd agenta
+```
+
+## Step 3: Build and Deploy
+
+Deploy Agenta in two steps:
+
+1. Build only the web interface with your environment configuration:
+```bash
+docker compose -f docker-compose.gh.yml build --no-cache agenta-web
+```
+
+:::info
+Note: We only need to rebuild the web image because the domain name is hardcoded at build time in Next.js. Other services can use the pre-built images from Docker Hub.
+:::
+
+2. Start all services:
+```bash
+docker compose -f docker-compose.gh.yml up -d
+```
+
+## Verify Your Deployment
+
+After deployment, verify that Agenta is running:
+
+1. Check container status:
+```bash
+docker compose ps
+```
+
+2. Access the web interface by opening your domain/IP in a browser:
+```
+http://your-domain.com
+```
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Check container logs:
+2. Verify environment variables are set correctly:
+3. Ensure ports are open and accessible:
+
+## Important Notes
+
+- Use HTTP instead of HTTPS for initial setup
+- Ensure your firewall allows traffic on the specified port
+- For production deployments, consider setting up HTTPS with SSL/TLS certificates (docker-compose files with tutorials are planned. Write us in the Slack channel if you are working on this and we might be able to help)
+
+
+## Need help? Either:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ) for quick support
