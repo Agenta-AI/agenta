@@ -75,7 +75,7 @@ const GenerationComparisonCompletionOutput = ({
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
-                                <GenerationOutputText text="Click To generate" />
+                                <GenerationOutputText text="Click Run to generate" />
                             ) : result.error ? (
                                 <GenerationOutputText
                                     type="danger"
