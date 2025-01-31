@@ -9,7 +9,7 @@ import fetchConfigpythonCode from "@/code_snippets/endpoints/fetch_config/python
 import fetchConfigtsCode from "@/code_snippets/endpoints/fetch_config/typescript"
 import DynamicCodeBlock from "@/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/components/ResultComponent/ResultComponent"
-import {Environment, GenericObject, JSSTheme, Parameter, Variant} from "@/lib/Types"
+import {Environment, GenericObject, JSSTheme, ListAppsItem, Parameter, Variant} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {fetchAppContainerURL} from "@/services/api"
@@ -47,6 +47,7 @@ export const createParams = (
     environmentName: string,
     value: string | number,
     isChatVariant: boolean | null,
+    app: ListAppsItem | null,
 ) => {
     let mainParams: GenericObject = {}
     let secondaryParams: GenericObject = {}
@@ -70,7 +71,9 @@ export const createParams = (
     }
 
     mainParams["environment"] = environmentName
-
+    if (app) {
+        mainParams["app"] = app.app_type
+    }
     return JSON.stringify(mainParams, null, 2)
 }
 
