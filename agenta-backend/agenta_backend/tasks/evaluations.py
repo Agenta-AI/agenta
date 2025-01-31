@@ -526,8 +526,9 @@ def get_app_inputs(parameters, openapi_parameters) -> List[Dict[str, str]]:
             pass
 
     if "ag_config" in parameters:
-        input_keys = helpers.find_key_occurrences(parameters, "input_keys")
-        inputs.extend(input_keys)
+        input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
+        items = [{"name": input_key, "type": "input"} for input_key in input_keys]
+        inputs.extend(items)
 
         reserved_keys = ["inputs", "ag_config"]
         inputs = [input for input in inputs if input["name"] not in reserved_keys]

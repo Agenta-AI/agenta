@@ -214,30 +214,14 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                     "grow w-full h-full overflow-y-auto": !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
-                                    "flex ": !isChat,
                                 },
                             ])}
                         >
-                            {/* This component renders the Input variables in comparison view  */}
-                            {isComparisonView && !isChat
-                                ? (displayedVariants?.slice(0, 1) || []).map((variantId) => {
-                                      return (
-                                          <div
-                                              key={variantId}
-                                              className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10 bg-white"
-                                          >
-                                              <GenerationComparisonInput variantId={variantId} />
-                                          </div>
-                                      )
-                                  })
-                                : null}
-
                             {/* This component renders Output component header section */}
                             {isComparisonView ? (
                                 <div className="flex sticky top-0 z-[5]">
-                                    {isChat && (
-                                        <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
-                                    )}
+                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
+
                                     {displayedVariants.map((variantId) => (
                                         <GenerationComparisonOutputHeader
                                             key={variantId}
