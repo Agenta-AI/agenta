@@ -4,7 +4,7 @@ import clsx from "clsx"
 
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {GenerationComparisonChatOutputProps} from "./types"
+import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
 import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import GenerationChatRow, {
     GenerationChatRowOutput,
@@ -19,8 +19,9 @@ const GenerationComparisonChatOutputCell = ({
     variantIndex,
     isFirstRow,
     isLastRow,
-}: any) => {
-    const {message, messageRow, inputRowIds} = usePlayground({
+    isLastVariant,
+}: GenerationComparisonChatOutputCellProps) => {
+    const {message, messageRow, inputRowIds, mutate} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
@@ -58,29 +59,79 @@ const GenerationComparisonChatOutputCell = ({
         ),
     })
 
+    const handleDeleteMessage = useCallback(
+        (messageId: string) => {
+            mutate((clonedState) => {
+                if (!clonedState) return clonedState
+
+                if (!variantId) {
+                    const row = clonedState.generationData.messages.value.find(
+                        (v) => v.__id === rowId,
+                    )
+                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                    if (isInput !== -1) {
+                        row.history.value.splice(isInput, 1)
+                    } else {
+                        const isRunIndex = row.history.value.findIndex((m) => {
+                            return m.__runs[variantId]?.message?.__id === messageId
+                        })
+                    }
+                } else if (variantId) {
+                    const row = clonedState.generationData.messages.value.find(
+                        (v) => v.__id === rowId,
+                    )
+                    const isInput = row.history.value.findIndex((m) => {
+                        return m.__runs?.[variantId]?.message?.__id === messageId
+                    })
+                    if (isInput !== -1) {
+                        delete row.history.value[isInput].__runs[variantId]
+                    }
+                }
+            })
+        },
+        [variantId],
+    )
+
     return (
         <>
-            <div className="shrink-0 sticky left-0 z-[4] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
+            <div
+                className={clsx([
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
+                    {"border-b": !isLastRow},
+                ])}
+            >
                 {variantIndex === 0 && (
-                    <div className="!w-[399.2px] shrink-0 sticky top-8 z-[2]">
-                        {isFirstRow &&
-                            inputRowIds.map((inputRowId) => {
-                                return (
-                                    <GenerationCompletionRow
-                                        key={inputRowId}
-                                        variantId={variantId}
-                                        rowId={inputRowId}
-                                        inputOnly={true}
-                                    />
-                                )
-                            })}
+                    <div className="!w-[399.2px] shrink-0 sticky top-9 z-[2]">
+                        <div
+                            className={clsx([
+                                {
+                                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
+                                        isFirstRow,
+                                },
+                            ])}
+                        >
+                            {isFirstRow &&
+                                inputRowIds.map((inputRowId) => {
+                                    return (
+                                        <GenerationCompletionRow
+                                            key={inputRowId}
+                                            variantId={variantId}
+                                            rowId={inputRowId}
+                                            inputOnly={true}
+                                        />
+                                    )
+                                })}
+                        </div>
 
-                        <GenerationChatRow
-                            rowId={rowId}
-                            historyId={historyId}
-                            viewAs={"input"}
-                            withControls={isLastRow} // Only show controls (to add a message) in the last row
-                        />
+                        <div className="p-2">
+                            <GenerationChatRow
+                                rowId={rowId}
+                                historyId={historyId}
+                                viewAs={"input"}
+                                withControls={isLastRow} // Only show controls (to add a message) in the last row
+                                isMessageDeletable={messageRow.history?.value?.length === 1}
+                            />
+                        </div>
                     </div>
                 )}
             </div>
@@ -88,28 +139,21 @@ const GenerationComparisonChatOutputCell = ({
             <div
                 className={clsx([
                     "!w-[399px]",
+                    "px-2 pt-2",
                     "shrink-0",
                     "flex flex-col self-stretch",
-                    {
-                        grow: message?.__isRunning && variantId,
-                    },
+                    "border-0 border-solid border-[rgba(5,23,41,0.06)]",
+                    {"border-b": !isLastRow},
+                    {"border-r": isLastVariant},
                 ])}
             >
-                <div
-                    className={clsx([
-                        "!w-full shrink-0 sticky top-8 z-[2]",
-                        {
-                            grow: message?.__isRunning && variantId,
-                        },
-                    ])}
-                >
+                <div className="!w-full shrink-0 sticky top-9 z-[2]">
                     <GenerationChatRowOutput
                         message={message}
-                        deleteMessage={() => {}}
+                        deleteMessage={handleDeleteMessage}
                         rowId={messageRow?.__id}
                         result={message?.__result}
                         isRunning={message?.__isRunning}
-                        isMessageDeletable={!!messageRow}
                         disabled={!messageRow}
                     />
                 </div>
@@ -127,12 +171,7 @@ const GenerationComparisonChatOutput = ({
     const {displayedVariants} = usePlayground()
 
     return (
-        <div
-            className={clsx([
-                "flex",
-                {" border-0 border-b border-solid border-[rgba(5,23,41,0.06)]": !isLastRow},
-            ])}
-        >
+        <div className="flex">
             {(displayedVariants || []).map((variantId, variantIndex) => (
                 <GenerationComparisonChatOutputCell
                     key={`${historyId}-${variantId}`}
@@ -142,6 +181,7 @@ const GenerationComparisonChatOutput = ({
                     variantIndex={variantIndex}
                     isLastRow={isLastRow}
                     isFirstRow={isFirstRow}
+                    isLastVariant={variantIndex === (displayedVariants || []).length - 1}
                 />
             ))}
         </div>
