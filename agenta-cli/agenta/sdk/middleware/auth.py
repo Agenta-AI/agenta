@@ -118,6 +118,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             import os
 
+            print(f"Auth Middleware Hash: {_hash}")
+            print(f"Auth Middleware Host: {self.host}")
+            print(f"Auth Middleware Env vars: {os.environ}")
+
             if _CACHE_ENABLED:
                 credentials = _cache.get(_hash)
 
@@ -131,6 +135,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     cookies=cookies,
                     params=params,
                 )
+
+                print(f"Auth Middleware Response: {response}")
+                print(f"Auth Middleware Response status code: {response.status_code}")
+                print(f"Auth Middleware Response JSON: {response.json()}")
 
                 if response.status_code == 401:
                     raise DenyException(
