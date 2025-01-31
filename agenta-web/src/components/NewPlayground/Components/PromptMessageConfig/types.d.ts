@@ -16,6 +16,8 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
     view?: string
     inputClassName?: string
     rowId?: string
+    runnable?: boolean
     debug?: boolean
     deleteMessage?: (messageId: string) => void
+    rerunMessage?: (messageId: string) => void
 }

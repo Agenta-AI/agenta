@@ -18,4 +18,5 @@ export type GenerationChatRowProps = {
     result?: TestResult
     isMessageDeletable?: boolean
     deleteMessage?: (messageId: string) => void
+    rerunMessage?: (messageId: string) => void
 }
