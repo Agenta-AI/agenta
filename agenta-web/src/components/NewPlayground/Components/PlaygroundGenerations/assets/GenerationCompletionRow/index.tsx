@@ -138,10 +138,7 @@ const GenerationCompletionRow = ({
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
                             return (
-                                <div
-                                    key={variableId}
-                                    className="relative group/item px-3 py-2 overflow-y-auto [&::-webkit-scrollbar]:w-0"
-                                >
+                                <div key={variableId} className="relative group/item px-3 py-2">
                                     <PlaygroundVariantPropertyControl
                                         variantId={variantId}
                                         propertyId={variableId}
@@ -154,7 +151,7 @@ const GenerationCompletionRow = ({
                                         <GenerationVariableOptions
                                             variantId={variantId as string}
                                             rowId={rowId}
-                                            className="invisible group-hover/item:visible absolute top-2 right-1"
+                                            className="invisible group-hover/item:visible absolute top-5 right-5"
                                             result={result}
                                             variableId={variableId}
                                         />
@@ -167,7 +164,7 @@ const GenerationCompletionRow = ({
             </div>
 
             {!inputOnly && variableIds.length > 0 ? (
-                <div className={clsx("h-[48px] flex items-center px-2")}>
+                <div className={clsx("h-[48px] flex items-center px-4")}>
                     <RunButton onClick={runRow} disabled={!canRun || isRunning} className="flex" />
                 </div>
             ) : null}

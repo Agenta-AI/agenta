@@ -79,9 +79,7 @@ const GenerationComparisonCompletionOutput = ({
                             ) : result.error ? (
                                 <GenerationOutputText
                                     type="danger"
-                                    text={
-                                        "Lorem ipsum dolor sit Lorem ipsum dolor sit amet consectetur adipisicing elit. Itaque possimus nisi dolorum repellendus aperiam dolor, ipsa saepe eos ut veritatis id laborum obcaecati aut, cum adipisci voluptatem? Officiis aut, ex excepturi aliquam ipsa ipsam obcaecati? Nisi, blanditiis eos totam iure magni laboriosam, omnis eligendi porro error reprehenderit consequuntur! Excepturi, quibusdam. Lorem ipsum dolor sit amet consectetur adipisicing elit. Itaque possimus nisi dolorum repellendus aperiam dolor, ipsa saepe eos ut veritatis id laborum obcaecati aut, cum adipisci voluptatem? Officiis aut, ex excepturi aliquam ipsa ipsam obcaecati? Nisi, blanditiis eos totam iure magni laboriosam, omnis eligendi porro error reprehenderit consequuntur! Excepturi, quibusdam. amet consectetur adipisicing elit. Itaque possimus nisi dolorum repellendus aperiam dolor, ipsa saepe eos ut veritatis id laborum obcaecati aut, cum adipisci voluptatem? Officiis aut, ex excepturi aliquam ipsa ipsam obcaecati? Nisi, blanditiis eos totam iure magni laboriosam, omnis eligendi porro error reprehenderit consequuntur! Excepturi, quibusdam. Lorem ipsum dolor sit amet consectetur adipisicing elit. Itaque possimus nisi dolorum repellendus aperiam dolor, ipsa saepe eos ut veritatis id laborum obcaecati aut, cum adipisci voluptatem? Officiis aut, ex excepturi aliquam ipsa ipsam obcaecati? Nisi, blanditiis eos totam iure magni laboriosam, omnis eligendi porro error reprehenderit consequuntur! Excepturi, quibusdam."
-                                    }
+                                    text={getStringOrJson(result?.metadata?.rawError)}
                                 />
                             ) : result.response ? (
                                 <GenerationOutputText text={result.response.data} />
@@ -89,7 +87,7 @@ const GenerationComparisonCompletionOutput = ({
                         </div>
 
                         {result?.response && (
-                            <div className={clsx("w-ful h-[48px] flex items-center px-2")}>
+                            <div className={clsx("w-ful h-[48px] flex items-center px-4")}>
                                 <GenerationResultUtils result={result} />
                             </div>
                         )}
