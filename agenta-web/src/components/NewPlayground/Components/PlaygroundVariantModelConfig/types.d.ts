@@ -18,10 +18,6 @@ export interface PlaygroundVariantModelConfigModalProps extends BaseContainerPro
     variantId: EnhancedVariant["id"]
     /** List of configurable model properties */
     propertyIds: string[]
-    /** Handler for saving configuration changes */
-    handleSave: () => void
-    /** Handler for closing the modal */
-    handleClose: () => void
 }
 
 /**

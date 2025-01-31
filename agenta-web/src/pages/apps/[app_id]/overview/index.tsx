@@ -1,3 +1,5 @@
+import {useCallback, useState} from "react"
+
 import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/components/pages/overview/deployments/DeploymentOverview"
@@ -7,15 +9,14 @@ import {useAppsData} from "@/contexts/app.context"
 import {useAppId} from "@/hooks/useAppId"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {Environment, JSSTheme, Variant} from "@/lib/Types"
-import {fetchSingleProfile, fetchVariants} from "@/services/api"
 import {deleteApp} from "@/services/app-selector/api"
-import {fetchEnvironments} from "@/services/deployment/api"
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilLine, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
 import {useRouter} from "next/router"
-import {useCallback, useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
+import {useAllVariantsData} from "@/lib/hooks/useAllVariantsData"
+import {useEnvironments} from "@/services/deployment/hooks/useEnvironments"
 
 const ObservabilityOverview: any = dynamicComponent(
     "pages/overview/observability/ObservabilityOverview",
@@ -43,60 +44,19 @@ export default function Overview() {
     const appId = useAppId()
     const classes = useStyles()
     const {currentApp} = useAppsData()
-    const [variants, setVariants] = useState<Variant[]>([])
     const [isVariantLoading, setIsVariantLoading] = useState(false)
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
-    const [environments, setEnvironments] = useState<Environment[]>([])
-    const [isDeploymentLoading, setIsDeploymentLoading] = useState(true)
-    const [usernames, setUsernames] = useState<Record<string, string>>({})
     const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
 
-    const loadEnvironments = useCallback(async () => {
-        try {
-            setIsDeploymentLoading(true)
-            const response = await fetchEnvironments(appId)
-            setEnvironments(response)
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setIsDeploymentLoading(false)
-        }
-    }, [appId])
+    const {usernames, data: variants, isLoading, mutate} = useAllVariantsData({appId})
+    const {
+        environments,
+        isEnvironmentsLoading: isDeploymentLoading,
+        mutate: loadEnvironments,
+    } = useEnvironments({appId})
 
-    const fetchAllVariants = async () => {
-        const usernameMap: Record<string, string> = {}
-        try {
-            setIsVariantLoading(true)
-
-            const data = await fetchVariants(appId)
-            const uniqueModifiedByIds = Array.from(
-                new Set(data.map((variant) => variant.modifiedById)),
-            )
-
-            const profiles = await Promise.all(
-                uniqueModifiedByIds.map((id) => fetchSingleProfile(id)),
-            )
-
-            profiles.forEach((profile, index) => {
-                const id = uniqueModifiedByIds[index]
-                usernameMap[id] = profile?.username || "-"
-            })
-
-            setUsernames(usernameMap)
-            setVariants(data)
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setIsVariantLoading(false)
-        }
-    }
-
-    useEffect(() => {
-        fetchAllVariants()
-    }, [appId])
-
-    const handleDeleteOk = async () => {
+    const handleDeleteOk = useCallback(async () => {
         if (!currentApp) return
 
         setIsDelAppLoading(true)
@@ -110,7 +70,7 @@ export default function Overview() {
             setIsDeleteAppModalOpen(false)
             setIsVariantLoading(false)
         }
-    }
+    }, [currentApp, router])
 
     return (
         <>
@@ -156,7 +116,7 @@ export default function Overview() {
                     variantList={variants}
                     isVariantLoading={isVariantLoading}
                     environments={environments}
-                    fetchAllVariants={fetchAllVariants}
+                    fetchAllVariants={mutate}
                     loadEnvironments={loadEnvironments}
                     usernames={usernames}
                 />

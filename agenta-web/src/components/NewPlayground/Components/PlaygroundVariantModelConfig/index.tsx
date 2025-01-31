@@ -44,18 +44,24 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         (variant: EnhancedVariant) => {
             const prompt = variant.prompts.find((p) => p.__id === promptId)
             const llmConfig = prompt?.llmConfig
+
+            const properties =
+                getEnhancedProperties(llmConfig, [
+                    "tools",
+                    "toolChoice",
+                    "responseFormat",
+                    "stream",
+                ]) || []
+
             return {
-                propertyIds: (
-                    getEnhancedProperties(llmConfig, ["tools", "toolChoice", "responseFormat"]) ||
-                    []
-                ).map((p) => p.__id),
+                propertyIds: properties.map((p) => p.__id),
                 modelName: llmConfig?.model?.value,
             }
         },
         [promptId],
     )
 
-    const {propertyIds, modelName, saveVariant} = usePlayground({
+    const {propertyIds, modelName} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantModelConfig",
         variantSelector,
@@ -66,19 +72,11 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
 
     componentLogger("PlaygroundVariantModelConfig", variantId, promptId, propertyIds, modelName)
 
-    const saveModelConfig = useCallback(() => saveVariant?.(), [saveVariant])
-
     const handleModalOpen = useCallback((e?: React.MouseEvent): void => {
         e?.preventDefault()
         e?.stopPropagation()
     }, [])
     const handleModalClose = useCallback(() => setIsModalOpen(false), [])
-
-    // Save handler with automatic modal close
-    const handleSave = useCallback(async () => {
-        await saveModelConfig?.()
-        handleModalClose()
-    }, [saveModelConfig, handleModalClose])
 
     const handleResetDefaults = useCallback(async () => {
         // await saveModelConfig?.()
@@ -95,12 +93,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
             content={
                 isModalOpen ? (
-                    <ModelConfigModal
-                        variantId={variantId}
-                        propertyIds={propertyIds || []}
-                        handleClose={handleModalClose}
-                        handleSave={handleSave}
-                    />
+                    <ModelConfigModal variantId={variantId} propertyIds={propertyIds || []} />
                 ) : null
             }
             className={className}

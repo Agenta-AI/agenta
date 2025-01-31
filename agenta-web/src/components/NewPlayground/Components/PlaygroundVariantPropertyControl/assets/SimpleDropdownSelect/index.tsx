@@ -12,21 +12,29 @@ const SimpleDropdownSelect = ({
     onChange,
     placeholder = "Select...",
     className,
+    disabled,
 }: SimpleDropdownSelectProps) => {
     const menuItems = useMemo(() => {
         return options.map((item) => ({
             ...item,
-            onClick: () => onChange(item.key as string),
+            className: "capitalize",
+            onClick: () => onChange(item.value as string),
         })) as MenuItemType[]
     }, [options, onChange])
 
     return (
-        <Dropdown menu={{items: menuItems}} trigger={["click"]}>
+        <Dropdown
+            disabled={disabled}
+            menu={{items: menuItems}}
+            trigger={["click"]}
+            overlayStyle={{width: 150}}
+        >
             <Button
                 className={clsx(
-                    "rounded-md bg-white mt-1 mx-2 px-2 border-0 flex items-center",
+                    "capitalize flex items-center hover:!bg-transparent px-1",
                     className,
                 )}
+                type="text"
             >
                 {value || placeholder} <CaretUpDown size={14} />
             </Button>

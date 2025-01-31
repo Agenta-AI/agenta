@@ -9,6 +9,5 @@ export interface EnhancedVariant<
 > extends BaseVariant {
     isChat: boolean
     prompts: T[]
-    inputs: Enhanced<InputType<string[]>[]>
-    messages: Enhanced<Message[]>
+    __isMutating?: boolean
 }

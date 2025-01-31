@@ -70,7 +70,7 @@ export async function fetchVariants(
 /**
  * Get the JWT from SuperTokens
  */
-const getJWT = async () => {
+export const getJWT = async () => {
     try {
         if (await Session.doesSessionExist()) {
             let jwt = await Session.getAccessToken()
@@ -138,8 +138,8 @@ export async function callVariant(
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
-    const base_url = `${appContainerURI}/generate`
-    const secure_url = `${base_url}?project_id=${projectId}`
+    const base_url = `${appContainerURI}/generate?application_id=${appId}`
+    const secure_url = `${base_url}&project_id=${projectId}`
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
     let response = await axios

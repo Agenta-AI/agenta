@@ -6,11 +6,10 @@ import aiohttp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-
-from agenta_backend.models.shared_models import InvokationResult, Result, Error
 from agenta_backend.utils import common
-
+from agenta_backend.services import helpers
 from agenta_backend.utils.common import isCloudEE
+from agenta_backend.models.shared_models import InvokationResult, Result, Error
 
 if isCloudEE():
     from agenta_backend.cloud.services.auth_helper import sign_secret_token
@@ -136,11 +135,18 @@ async def make_payload(
     Returns:
         Dict: The constructed payload for the app.
     """
+    # ---
     payload = {}
-    inputs_dict = {}
+    inputs = {}
+    # ---
+
     for param in openapi_parameters:
         if param["type"] == "input":
-            payload[param["name"]] = datapoint.get(param["name"], "")
+            # ---
+            item = datapoint.get(param["name"], parameters.get(param["name"], ""))
+            payload[param["name"]] = item
+            # ---
+
         # in case of dynamic inputs (as in our templates)
         elif param["type"] == "dict":
             # let's get the list of the dynamic inputs
@@ -150,21 +156,38 @@ async def make_payload(
                 input_names = [_["name"] for _ in parameters[param["name"]]]
             else:  # otherwise we use the default from the openapi
                 input_names = param["default"]
-            # now we put them in a dict which we would put under "inputs" in the payload
 
             for input_name in input_names:
-                inputs_dict[input_name] = datapoint.get(input_name, "")
+                # ---
+                item = datapoint.get(input_name, "")
+                inputs[input_name] = item
+                # ---
+
         elif param["type"] == "messages":
             # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
-            payload[param["name"]] = json.loads(datapoint.get("chat", ""))
+            # ---
+            item = json.loads(datapoint.get("chat", ""))
+            payload[param["name"]] = item
+            # ---
         elif param["type"] == "file_url":
-            payload[param["name"]] = datapoint.get(param["name"], "")
+            # ---
+            item = datapoint.get(param["name"], "")
+            payload[param["name"]] = item
+            # ---
         else:
             if param["name"] in parameters:  # hotfix
-                payload[param["name"]] = parameters[param["name"]]
+                # ---
+                item = parameters[param["name"]]
+                payload[param["name"]] = item
+                # ---
 
-    if inputs_dict:
-        payload["inputs"] = inputs_dict
+    if "ag_config" in parameters:
+        input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
+        inputs = {key: datapoint.get(key, None) for key in input_keys}
+
+    if inputs:
+        payload["inputs"] = inputs
+
     return payload
 
 

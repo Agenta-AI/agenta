@@ -1,5 +1,5 @@
 import {memo} from "react"
-import {Switch, Typography} from "antd"
+import {Switch, Tooltip, Typography} from "antd"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 import {BooleanControlProps} from "./types"
 
@@ -11,11 +11,24 @@ import {BooleanControlProps} from "./types"
  * - Directly propagates state changes without debouncing
  * - Used for simple true/false configuration options
  */
-const BooleanControl = ({label, value, onChange}: BooleanControlProps) => {
+const BooleanControl = ({
+    withTooltip,
+    description,
+    label,
+    value,
+    disabled,
+    onChange,
+}: BooleanControlProps) => {
     return (
         <PlaygroundVariantPropertyControlWrapper className="!flex-row justify-between">
-            <Typography.Text>{label}</Typography.Text>
-            <Switch checked={value} onChange={onChange} />
+            {withTooltip ? (
+                <Tooltip title={description}>
+                    <Typography.Text>{label}</Typography.Text>
+                </Tooltip>
+            ) : (
+                <Typography.Text>{label}</Typography.Text>
+            )}
+            <Switch disabled={disabled} checked={value} onChange={onChange} />
         </PlaygroundVariantPropertyControlWrapper>
     )
 }

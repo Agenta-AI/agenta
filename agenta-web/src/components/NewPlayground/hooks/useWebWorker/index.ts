@@ -1,15 +1,9 @@
-import {use, useCallback, useEffect, useRef, useState} from "react"
-import type {WorkerStatus, UseWebWorkerHookReturn, WorkerMessage} from "./types"
-import {atom, useAtom} from "jotai"
+import {useCallback, useEffect, useState} from "react"
 
-const webworkerAtom = atom<Worker | null>(null)
-webworkerAtom.onMount = (setAtom) => {
-    const worker = new Worker(new URL("./assets/playground.worker.ts", import.meta.url))
-    setAtom(worker)
-    return () => {
-        worker.terminate()
-    }
-}
+import {useAtom} from "jotai"
+
+import type {WorkerStatus, UseWebWorkerHookReturn, WorkerMessage} from "./types"
+import {webworkerAtom} from "./state"
 
 const useWebWorker = <T>(
     onMessage: (message: WorkerMessage<T>) => void,

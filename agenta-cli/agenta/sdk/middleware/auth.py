@@ -15,11 +15,7 @@ from agenta.sdk.utils.exceptions import display_exception
 import agenta as ag
 
 
-_SHARED_SERVICE = getenv("AGENTA_SHARED_SERVICE", "false").lower() in TRUTHY
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
-_UNAUTHORIZED_ALLOWED = (
-    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in TRUTHY
-)
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 _ALWAYS_ALLOW_LIST = ["/health"]
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
@@ -54,15 +50,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
-        self.resource_id = (
-            ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
-            if not _SHARED_SERVICE
-            else None
-        )
+        self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            if _UNAUTHORIZED_ALLOWED or request.url.path in _ALWAYS_ALLOW_LIST:
+            if request.url.path in _ALWAYS_ALLOW_LIST:
                 request.state.auth = {}
 
             else:
@@ -98,11 +90,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             cookies = {"sAccessToken": access_token} if access_token else None
 
-            baggage = (
-                getattr(request.state.otel, "baggage")
-                if hasattr(request.state, "otel")
-                else {}
-            )
+            baggage = request.state.otel["baggage"]
 
             project_id = (
                 # CLEANEST

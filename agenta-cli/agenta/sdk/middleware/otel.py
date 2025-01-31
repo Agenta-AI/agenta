@@ -13,7 +13,7 @@ class OTelMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: Callable):
-        setattr(request.state, "otel", {})
+        request.state.otel = {"baggage": {}}
 
         with suppress():
             baggage = await self._get_baggage(request)

@@ -1,96 +1,109 @@
 import {useCallback} from "react"
-
+import dynamic from "next/dynamic"
 import clsx from "clsx"
-import {Tag, Button} from "antd"
+import {Select} from "antd"
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 
-import usePlayground from "../../../hooks/usePlayground"
-import VariantsButton from "../../VariantsButton"
+import Version from "@/components/NewPlayground/assets/Version"
+import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
+import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
+import {PlaygroundVariantConfigHeaderProps} from "./types"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {useStyles} from "./styles"
 
-import type {VariantConfigComponentProps, VariantActionButtonProps} from "../types"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+const PlaygroundVariantHeaderMenu = dynamic(
+    () => import("../../Menus/PlaygroundVariantHeaderMenu"),
+    {ssr: false},
+)
 
-/**
- * Button to save variant changes when modifications are detected
- */
-const PlaygroundVariantSaveButton: React.FC<VariantActionButtonProps> = ({variantId}) => {
-    const {saveVariant, isDirty} = usePlayground({
-        variantId,
-        hookId: "PlaygroundVariantSaveButton",
-    })
-
-    return isDirty ? (
-        <Button type="primary" size="small" onClick={saveVariant}>
-            Save
-        </Button>
-    ) : null
-}
-
-/**
- * Button to delete variant if it's not the last variant of an app
- */
-const PlaygroundVariantDeleteButton: React.FC<VariantActionButtonProps> = ({variantId}) => {
-    const {variantIds, deleteVariant} = usePlayground({
-        variantId,
-        hookId: "PlaygroundVariantDeleteButton",
-    })
-
-    return !!variantIds && variantIds.length > 1 ? (
-        <Button type="default" color="primary" size="small" onClick={deleteVariant}>
-            Delete
-        </Button>
-    ) : null
-}
-
-/**
- * PlaygroundVariantConfigHeader displays the variant name, revision,
- * and action buttons for saving/deleting the variant.
- *
- * @component
- * @example
- * ```tsx
- * <PlaygroundVariantConfigHeader variantId="variant-123" />
- * ```
- */
-const PlaygroundVariantConfigHeader: React.FC<VariantConfigComponentProps> = ({
+const PlaygroundVariantConfigHeader = ({
     variantId,
     className,
     ...divProps
-}) => {
-    const {revision} = usePlayground({
+}: PlaygroundVariantConfigHeaderProps) => {
+    const classes = useStyles()
+    const {variantOptions, mutate, _variantId, variantRevision, isDirty} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantConfigHeader",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => ({
-                variantName: variant?.variantName,
-                revision: variant?.revision,
-            }),
-            [],
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variants = state.variants
+                const variant = variants.find((v) => v.id === variantId)
+                const isDirty = state.dirtyStates?.[variantId]
+
+                return {
+                    isDirty,
+                    _variantId: variant?.id,
+                    variantRevision: variant?.revision,
+                    variantOptions: (variants || []).map((variant) => ({
+                        label: variant.variantName,
+                        value: variant.id,
+                        disabled: state.selected.includes(variant.id),
+                    })),
+                }
+            },
+            [variantId],
         ),
     })
 
+    const switchVariant = useCallback(
+        (newVariantId: string) => {
+            mutate((clonedState) => {
+                if (!clonedState) return clonedState
+                const previousSelected = [...clonedState.selected]
+                previousSelected.splice(
+                    previousSelected.findIndex((id) => id === variantId),
+                    1,
+                    newVariantId,
+                )
+                clonedState.selected = previousSelected
+                return clonedState
+            })
+        },
+        [mutate, variantId],
+    )
+
     return (
-        <div
+        <section
             className={clsx(
-                "w-full h-[48px] px-2.5",
+                "w-full h-[48px]",
                 "flex items-center justify-between",
-                "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                 "sticky top-0 z-[1]",
-                "bg-white",
+                classes.container,
                 className,
             )}
             {...divProps}
         >
             <div className="flex items-center gap-2">
-                <VariantsButton selectedVariant={variantId} />
-                <Tag color="default" bordered={false} className="bg-[rgba(5,23,41,0.06)]">
-                    {`v${revision}`}
-                </Tag>
+                <Select
+                    showSearch
+                    style={{width: 120}}
+                    value={_variantId}
+                    onChange={(value) => switchVariant?.(value)}
+                    size="small"
+                    placeholder="Select variant"
+                    options={variantOptions}
+                    filterOption={(input, option) =>
+                        (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                    }
+                />
+
+                <Version revision={variantRevision as number} />
             </div>
             <div className="flex items-center gap-2">
-                <PlaygroundVariantSaveButton variantId={variantId} />
-                <PlaygroundVariantDeleteButton variantId={variantId} />
+                <DeployVariantButton variantId={variantId} />
+
+                <CommitVariantChangesButton
+                    variantId={variantId}
+                    label="Commit"
+                    type="primary"
+                    size="small"
+                    disabled={!isDirty}
+                />
+
+                <PlaygroundVariantHeaderMenu variantId={variantId} />
             </div>
-        </div>
+        </section>
     )
 }
 

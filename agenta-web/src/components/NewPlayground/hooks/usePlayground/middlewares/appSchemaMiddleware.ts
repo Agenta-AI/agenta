@@ -1,11 +1,10 @@
 import {useCallback} from "react"
 
 import {type Key, type SWRHook, useSWRConfig} from "swr"
-import cloneDeep from "lodash/cloneDeep"
 
 import {fetchOpenApiSchemaJson, setVariants, transformVariants} from "../assets/helpers"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {initialState} from "../../../state"
+import {initialState, specAtom, atomStore} from "../../../state"
 
 import {type FetcherOptions} from "@/lib/api/types"
 import {type Variant} from "@/lib/Types"
@@ -16,6 +15,8 @@ import type {
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
 } from "../types"
+import {initializeGenerationInputs, initializeGenerationMessages} from "../assets/generationHelpers"
+import {detectChatVariantFromOpenAISchema} from "@/components/NewPlayground/assets/utilities/genericTransformer"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -47,7 +48,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         return cachedValue
                     }
 
-                    let state = cloneDeep(cachedValue || initialState) as Data
+                    let state = structuredClone(cachedValue || initialState) as Data
 
                     if (!fetcher) {
                         return state
@@ -66,6 +67,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         }
 
                         const specResponse = await fetchOpenApiSchemaJson(uri)
+                        // write(specResponse.schema)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
@@ -76,8 +78,21 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             setVariants(state.variants, variants),
                             spec,
                         )
-                        state.spec = spec
+
+                        atomStore.set(specAtom, () => spec)
+
                         state.selected = [state.variants[0].id]
+
+                        state.generationData.inputs = initializeGenerationInputs(
+                            state.variants.filter((v) => state.selected.includes(v.id)),
+                        )
+
+                        // initializeVariantInputs(enhancedVariant)
+                        if (detectChatVariantFromOpenAISchema(spec)) {
+                            state.generationData.messages = initializeGenerationMessages(
+                                state.variants,
+                            )
+                        }
 
                         return state
                     } catch (error) {

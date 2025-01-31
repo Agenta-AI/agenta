@@ -5,4 +5,7 @@ export interface MinMaxControlProps {
     step?: number
     value?: number
     onChange: (value: number | null) => void
+    withTooltip?: boolean
+    description?: string
+    disabled?: boolean
 }
