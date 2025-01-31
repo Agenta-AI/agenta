@@ -1,5 +1,6 @@
 import {forwardRef} from "react"
 
+import clsx from "clsx"
 import {Button, type ButtonProps} from "antd"
 import {Plus} from "@phosphor-icons/react"
 
@@ -8,14 +9,14 @@ interface AddButtonProps extends ButtonProps {
 }
 
 const AddButton = forwardRef<HTMLButtonElement, AddButtonProps>(
-    ({label, ...props}: AddButtonProps, ref) => {
+    ({label, className, ...props}: AddButtonProps, ref) => {
         return (
             <Button
                 ref={ref}
                 variant="outlined"
                 color="default"
                 icon={<Plus size={14} />}
-                className="self-start"
+                className={clsx(["self-start"], className)}
                 {...props}
             >
                 {label}

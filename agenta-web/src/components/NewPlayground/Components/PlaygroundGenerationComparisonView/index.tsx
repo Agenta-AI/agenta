@@ -31,8 +31,8 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
     const {isChat, displayedVariants, chatHistory} = usePlayground({
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const history = findPropertyInObject(state, rowId)
-                const chatHistory = history.history.value?.map((item) => item.__id)
+                const chatRow = findPropertyInObject(state, rowId)
+                const chatHistory = chatRow?.history?.value?.map((item) => item.__id)
                 return {isChat: state.variants[0].isChat, chatHistory}
             },
             [rowId],
@@ -52,7 +52,11 @@ const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
                       />
                   ))
                 : displayedVariants?.map((variantId) => (
-                      <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />
+                      <GenerationComparisonCompletionOutput
+                          key={`${variantId}-${rowId}`}
+                          rowId={rowId}
+                          variantId={variantId}
+                      />
                   ))}
         </div>
     )
