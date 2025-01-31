@@ -57,6 +57,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             showToolbar = true,
             enableTokens = false,
             debug = false,
+            autoFocus = false,
             dimensions,
             enableResize = false, // New prop
             boundWidth = true, // New prop
@@ -154,6 +155,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     }
                 >
                     <EditorPlugins
+                        autoFocus={autoFocus}
                         showToolbar={showToolbar}
                         singleLine={singleLine}
                         codeOnly={codeOnly}
@@ -182,6 +184,7 @@ const Editor = ({
     language,
     showToolbar = true,
     enableTokens = false,
+    autoFocus = false,
     debug = false,
     enableResize = false, // New prop
     boundWidth = true, // New prop
@@ -233,9 +236,10 @@ const Editor = ({
     return (
         <div
             className={clsx([
+                "agenta-rich-text-editor",
                 styles["agenta-rich-text-editor"],
                 "min-h-16",
-                "bg-[#F5F7FA] text-[#1C2C3D] relative flex flex-col px-[11px] rounded-lg",
+                "text-[#1C2C3D] relative flex flex-col rounded-lg",
                 {
                     "border border-solid border-[#BDC7D1]": showBorder,
                     disabled: disabled,
@@ -257,6 +261,7 @@ const Editor = ({
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
+                    autoFocus={autoFocus}
                 />
             </LexicalComposer>
         </div>

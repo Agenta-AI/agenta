@@ -28,6 +28,7 @@ import useWebWorker from "../../useWebWorker"
 import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
+import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -146,8 +147,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             const handleWebWorkerChatMessage = useCallback(
                 (message) => {
-                    if (!variantId) return
-                    if (message.payload.variant.id !== variantId) return
+                    // if (!variantId) return
+                    // if (message.payload.variant.id !== variantId) return
+                    const variantId = message.payload.variant.id
                     // HANDLE INCOMING CHAT
                     const rowId = message.payload.rowId
                     swr.mutate((clonedState) => {
@@ -178,6 +180,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.payload.result.response?.data,
                                 ),
                                 __isRunning: false,
+                                __id: generateId(),
                             }
 
                             if (targetMessageIndex === targetRow.history.value.length - 1) {

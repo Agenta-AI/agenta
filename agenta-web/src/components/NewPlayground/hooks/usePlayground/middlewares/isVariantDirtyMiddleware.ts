@@ -3,7 +3,7 @@ import {useCallback, useRef} from "react"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import {findPropertyInObject, isPlaygroundEqual, omitDeep} from "../assets/helpers"
-import {initialState} from "../../../state"
+import {getMetadataLazy, initialState} from "../../../state"
 import {syncVariantInputs} from "../assets/inputHelpers"
 import {getUniqueInputKeys} from "../assets/generationHelpers"
 
@@ -16,6 +16,7 @@ import type {
     PlaygroundMiddlewareParams,
 } from "../types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {createMessageFromSchema} from "../assets/messageHelpers"
 /**
  * Compare two variants ignoring specified properties
  */
@@ -174,6 +175,32 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                     ),
                                     clonedState.generationData.inputs,
                                 )
+                            }
+
+                            const isChat = clonedState.variants.some((v) => v.isChat)
+
+                            if (
+                                !isPlaygroundEqual(
+                                    state.generationData.messages,
+                                    clonedState.generationData.messages,
+                                ) &&
+                                isChat
+                            ) {
+                                clonedState.generationData?.messages.value.forEach((messageRow) => {
+                                    const history = messageRow.history.value
+                                    if (!history.length) {
+                                        const emptyMessage = createMessageFromSchema(
+                                            getMetadataLazy(
+                                                clonedState.variants[0].prompts[0].messages
+                                                    .__metadata,
+                                            ).itemMetadata,
+                                            {
+                                                role: "user",
+                                            },
+                                        )
+                                        messageRow.history.value.push(emptyMessage)
+                                    }
+                                })
                             }
 
                             if (

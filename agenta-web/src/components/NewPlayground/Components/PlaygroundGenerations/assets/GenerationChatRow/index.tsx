@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import clsx from "clsx"
 import dynamic from "next/dynamic"
@@ -30,19 +30,21 @@ export const GenerationChatRowOutput = ({
     disabled = false,
     rowId,
     deleteMessage,
+    rerunMessage,
     viewAs,
     result,
-    isRunning,
+    isRunning: propsIsRunning,
     isMessageDeletable,
+    placeholder,
 }: GenerationChatRowProps) => {
     const {viewType} = usePlayground()
     const isComparisonView = viewType === "comparison"
 
-    return isRunning && viewType === "single" ? (
-        <div className="w-full flex flex-col gap-3">
+    return propsIsRunning ? (
+        <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch">
             <GenerationOutputText
                 text={"Generating response..."}
-                className="w-full mt-1"
+                className="mt-1"
                 disabled={disabled}
             />
         </div>
@@ -50,24 +52,23 @@ export const GenerationChatRowOutput = ({
         <div
             className={clsx([
                 "w-full flex flex-col items-start gap-2 relative group/option",
-                {
-                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] px-4 pt-2":
-                        isComparisonView,
-                },
+                {"!gap-0": isComparisonView},
             ])}
         >
             <PromptMessageConfig
                 variantId={variantId as string}
                 rowId={rowId}
-                messageId={message.__id}
+                messageId={message?.__id}
                 disabled={disabled}
-                deleteMessage={deleteMessage}
                 className="w-full"
                 isMessageDeletable={isMessageDeletable}
                 debug
+                placeholder={placeholder}
+                deleteMessage={deleteMessage}
+                rerunMessage={rerunMessage}
             />
             {!!result ? (
-                <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
+                <div className={clsx([{"h-[48px] flex items-center px-2": isComparisonView}])}>
                     <GenerationResultUtils result={result} />
                 </div>
             ) : null}
@@ -77,49 +78,62 @@ export const GenerationChatRowOutput = ({
 
 const GenerationChatRow = ({
     withControls,
+    historyId,
     variantId,
     messageId,
     rowId,
     viewAs,
+    isMessageDeletable,
 }: GenerationChatRowProps) => {
-    const {history, messageRow, runTests, mutate, viewType} = usePlayground({
-        variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const variant = findVariantById(state, variantId as string)
+    const {history, historyItem, messageRow, runTests, mutate, viewType, displayedVariants} =
+        usePlayground({
+            variantId,
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const variant = findVariantById(state, variantId as string)
 
-                if (messageId) {
-                    return {
-                        history: [findPropertyInObject(variant, messageId)],
+                    if (messageId) {
+                        return {
+                            history: [findPropertyInObject(variant, messageId)],
+                        }
+                    } else {
+                        const messageRow = (state.generationData.messages.value || []).find(
+                            (inputRow) => {
+                                return inputRow.__id === rowId
+                            },
+                        )
+                        const messageHistory = messageRow.history.value
+                        let historyItem = findPropertyInObject(messageHistory, historyId)
+                        if (historyItem?.message) {
+                            historyItem = {
+                                ...historyItem,
+                                ...historyItem.message,
+                            }
+                        }
+                        return {
+                            messageRow,
+                            historyItem,
+                            history: messageHistory
+                                .map((historyItem) => {
+                                    return !historyItem.__runs
+                                        ? historyItem
+                                        : variantId && historyItem.__runs[variantId]
+                                          ? {
+                                                ...historyItem.__runs[variantId].message,
+                                                __result: historyItem.__runs[variantId].__result,
+                                                __isRunning:
+                                                    historyItem.__runs[variantId].__isRunning,
+                                            }
+                                          : undefined
+                                })
+                                .filter(Boolean),
+                        }
                     }
-                } else {
-                    const messageRow = (state.generationData.messages.value || []).find(
-                        (inputRow) => {
-                            return inputRow.__id === rowId
-                        },
-                    )
-                    const messageHistory = messageRow.history.value
-                    return {
-                        messageRow,
-                        history: messageHistory
-                            .map((historyItem) => {
-                                return !historyItem.__runs
-                                    ? historyItem
-                                    : variantId && historyItem.__runs[variantId]
-                                      ? {
-                                            ...historyItem.__runs[variantId].message,
-                                            __result: historyItem.__runs[variantId].__result,
-                                            __isRunning: historyItem.__runs[variantId].__isRunning,
-                                        }
-                                      : undefined
-                            })
-                            .filter(Boolean),
-                    }
-                }
-            },
-            [rowId, variantId, messageId],
-        ),
-    })
+                },
+                [variantId, messageId, rowId, historyId],
+            ),
+        })
+
     const isComparisonView = viewType === "comparison"
 
     const deleteMessage = useCallback((messageId: string) => {
@@ -179,39 +193,65 @@ const GenerationChatRow = ({
 
             return clonedState
         })
-    }, [rowId])
+    }, [mutate, rowId])
 
-    return (
+    const canRerunMessage = useMemo(() => {
+        // check for input row [comparison], and complete message information (content, role)
+        if (!variantId && !!historyItem?.content?.value && !!historyItem?.role?.value) {
+            const areAllRunning = Object.values(historyItem?.__runs || {}).every(
+                (run) => run?.__isRunning,
+            )
+            const gotAllResponses = (displayedVariants || []).every((variantId) => {
+                return !!historyItem?.__runs?.[variantId]?.__result
+            })
+            return !areAllRunning && gotAllResponses
+        } else if (variantId) {
+            console.log("historyItem", historyItem)
+        }
+    }, [historyItem, displayedVariants])
+
+    const rerunMessage = useCallback(
+        (messageId: string) => {
+            if (!variantId) {
+                // this is an input row
+            }
+
+            console.log("rerun message", messageId, variantId)
+        },
+        [variantId],
+    )
+
+    return !historyItem ? null : (
         <>
             <div
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
-                    {
-                        "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                            viewType === "comparison",
-                    },
                 ])}
             >
-                {history.map((historyItem) => {
-                    return (
-                        <GenerationChatRowOutput
-                            key={historyItem.__id || `${variantId}-${rowId}-generating`}
-                            message={historyItem}
-                            variantId={variantId}
-                            deleteMessage={deleteMessage}
-                            viewAs={viewAs}
-                            rowId={messageRow?.__id}
-                            result={historyItem?.__result}
-                            isRunning={historyItem?.__isRunning}
-                            disabled={!messageRow}
-                        />
-                    )
-                })}
+                <GenerationChatRowOutput
+                    key={historyItem.__id || `${variantId}-${rowId}-generating`}
+                    message={historyItem}
+                    variantId={variantId}
+                    viewAs={viewAs}
+                    rowId={messageRow?.__id}
+                    result={historyItem?.__result}
+                    isRunning={historyItem?.__isRunning}
+                    disabled={!messageRow}
+                    placeholder="Type a message..."
+                    isMessageDeletable={isMessageDeletable}
+                    deleteMessage={deleteMessage}
+                    rerunMessage={canRerunMessage ? rerunMessage : undefined}
+                />
             </div>
             {withControls ? (
-                <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
-                    <RunButton size="small" onClick={() => runTests?.()} className="flex" />
+                <div className={clsx(["flex items-center gap-2 mt-5"])}>
+                    <RunButton
+                        size="small"
+                        disabled={historyItem?.__isRunning}
+                        onClick={() => runTests?.()}
+                        className="flex"
+                    />
                     <AddButton size="small" label="Message" onClick={addNewMessageToRowHistory} />
                 </div>
             ) : null}

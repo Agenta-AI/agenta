@@ -1,5 +1,5 @@
 import {useCallback} from "react"
-
+import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 
 import GenerationComparisonCompletionInput from "./GenerationComparisonCompletionInput"
@@ -8,6 +8,7 @@ import GenerationComparisonCompletionOutput from "./GenerationComparisonCompleti
 import GenerationComparisonChatOutput from "./GenerationComparisonChatOutput"
 
 import type {PlaygroundStateData} from "../../hooks/usePlayground/types"
+import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 
 const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
     const {isChat} = usePlayground({
@@ -26,22 +27,42 @@ const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
     )
 }
 
-const GenerationComparisonOutput = ({rowId}: {rowId: string}) => {
-    const {isChat, displayedVariants} = usePlayground({
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            return {isChat: state.variants[0].isChat}
-        }, []),
+const GenerationComparisonOutput = ({rowId, isLastRow}: {rowId: string; isLastRow?: boolean}) => {
+    const {isChat, displayedVariants, chatHistory} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const chatRow = findPropertyInObject(state, rowId)
+                const chatHistory = chatRow?.history?.value?.map((item) => item.__id)
+                return {isChat: state.variants[0].isChat, chatHistory}
+            },
+            [rowId],
+        ),
     })
 
-    return (displayedVariants || []).map((variantId) => (
-        <div className="!w-[400px] shrink-0 self-stretch relative" key={variantId}>
-            {isChat ? (
-                <GenerationComparisonChatOutput variantId={variantId} rowId={rowId} />
-            ) : (
-                <GenerationComparisonCompletionOutput rowId={rowId} variantId={variantId} />
-            )}
+    return (
+        <div className={clsx([{flex: !isChat}])}>
+            {isChat
+                ? (chatHistory || []).map((chatId, historyIndex) => (
+                      <GenerationComparisonChatOutput
+                          key={chatId}
+                          historyId={chatId}
+                          rowId={rowId}
+                          isLastRow={historyIndex === chatHistory.length - 1}
+                          isFirstRow={historyIndex === 0}
+                      />
+                  ))
+                : displayedVariants?.map((variantId, variantIndex) => (
+                      <GenerationComparisonCompletionOutput
+                          key={`${variantId}-${rowId}`}
+                          rowId={rowId}
+                          variantId={variantId}
+                          variantIndex={variantIndex}
+                          isLastRow={isLastRow}
+                          isLastVariant={variantIndex === (displayedVariants || []).length - 1}
+                      />
+                  ))}
         </div>
-    ))
+    )
 }
 
 export {GenerationComparisonInput, GenerationComparisonOutput}

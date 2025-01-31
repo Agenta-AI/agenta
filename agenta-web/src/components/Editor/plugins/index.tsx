@@ -42,6 +42,7 @@ const EditorPlugins = ({
     debug,
     language,
     placeholder,
+    autoFocus,
     handleUpdate,
 }: EditorPluginsProps) => {
     return (
@@ -55,14 +56,14 @@ const EditorPlugins = ({
                     />
                 }
                 placeholder={
-                    <div className="editor-placeholder absolute top-[12px] left-[1px]">
+                    <div className="editor-placeholder absolute top-[4px] left-[1px]">
                         {placeholder}
                     </div>
                 }
                 ErrorBoundary={LexicalErrorBoundary}
             />
             <HistoryPlugin />
-            <AutoFocusPlugin />
+            {autoFocus ? <AutoFocusPlugin /> : null}
             <OnChangePlugin onChange={handleUpdate} />
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
             {enableTokens && <TokenPlugin />}

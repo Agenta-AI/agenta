@@ -1,42 +1,65 @@
-import {useCallback} from "react"
-import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputRowProps} from "./types"
-import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
-import {GenerationChatRowOutput} from "../../PlaygroundGenerations/assets/GenerationChatRow"
+import {useCallback, useMemo} from "react"
+
 import clsx from "clsx"
 
-const GenerationComparisonChatOutputRow = ({
+import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
+import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
+import {
+    findParentOfPropertyInObject,
+    findPropertyInObject,
+} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
+import GenerationChatRow, {
+    GenerationChatRowOutput,
+} from "../../PlaygroundGenerations/assets/GenerationChatRow"
+import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
+import {getMetadataLazy} from "@/components/NewPlayground/state"
+import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
+
+const GenerationComparisonChatOutputCell = ({
     variantId,
+    historyId,
     rowId,
-}: GenerationComparisonChatOutputRowProps) => {
-    const {mutate, messageRow, history} = usePlayground({
+    variantIndex,
+    isFirstRow,
+    isLastRow,
+    isLastVariant,
+}: GenerationComparisonChatOutputCellProps) => {
+    const {rerunChatOutput, message, messageRow, inputRowIds, mutate} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
+                const inputRows = state.generationData.inputs.value || []
+
+                const historyMessage = findPropertyInObject(state, historyId)
                 const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
 
-                const messageHistory = messageRow.history.value
+                const runs = !historyMessage?.__runs?.[variantId]
+                    ? undefined
+                    : historyMessage?.__runs?.[variantId]
+                      ? {
+                            ...historyMessage.__runs[variantId].message,
+                            __result: historyMessage.__runs[variantId].__result,
+                            __isRunning: historyMessage.__runs[variantId].__isRunning,
+                        }
+                      : undefined
+
+                const inputRowIds = (inputRows || [])
+                    .filter((inputRow) => {
+                        return (
+                            Object.keys(getMetadataLazy(inputRow.__metadata)?.properties).length > 0
+                        )
+                    })
+                    .map((inputRow) => inputRow.__id)
 
                 return {
+                    message: runs,
                     messageRow,
-                    history: messageHistory
-                        .map((historyItem) => {
-                            return !historyItem.__runs?.[variantId]
-                                ? undefined
-                                : historyItem.__runs?.[variantId]
-                                  ? {
-                                        ...historyItem.__runs[variantId].message,
-                                        __result: historyItem.__runs[variantId].__result,
-                                        __isRunning: historyItem.__runs[variantId].__isRunning,
-                                    }
-                                  : undefined
-                        })
-                        .filter(Boolean),
+                    inputRowIds,
                 }
             },
-            [rowId, variantId],
+            [rowId, variantId, historyId],
         ),
     })
 
@@ -73,70 +96,110 @@ const GenerationComparisonChatOutputRow = ({
         [variantId],
     )
 
+    const canRerunMessage = useMemo(() => {
+        return !message?.__isRunning && !!message?.__result
+    }, [variantId, message])
+    const rerunMessage = useCallback((messageId: string) => {
+        rerunChatOutput(messageId)
+    }, [])
+
     return (
-        <div className="flex flex-col gap-0 w-full self-stretch border-0 border-r border-solid border-[rgba(5,23,41,0.06)]">
-            {history.map((historyItem, index) => {
-                return (
-                    <GenerationChatRowOutput
-                        key={historyItem?.__id || `${variantId}-${rowId}-historyIndex-${index}`}
-                        message={historyItem}
-                        variantId={variantId}
-                        deleteMessage={handleDeleteMessage}
-                        rowId={messageRow?.__id}
-                        result={historyItem?.__result}
-                        isRunning={historyItem?.__isRunning}
-                        isMessageDeletable={!!messageRow}
-                        disabled={!messageRow}
-                    />
-                )
-            })}
-        </div>
+        <>
+            <div
+                className={clsx([
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
+                    {"border-b": !isLastRow},
+                ])}
+            >
+                {variantIndex === 0 && (
+                    <div className="!w-[399.2px] shrink-0 sticky top-9 z-[2]">
+                        <div
+                            className={clsx([
+                                {
+                                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
+                                        isFirstRow,
+                                },
+                            ])}
+                        >
+                            {isFirstRow &&
+                                inputRowIds.map((inputRowId) => {
+                                    return (
+                                        <GenerationCompletionRow
+                                            key={inputRowId}
+                                            variantId={variantId}
+                                            rowId={inputRowId}
+                                            inputOnly={true}
+                                        />
+                                    )
+                                })}
+                        </div>
+
+                        <div className="p-2">
+                            <GenerationChatRow
+                                rowId={rowId}
+                                historyId={historyId}
+                                viewAs={"input"}
+                                withControls={isLastRow} // Only show controls (to add a message) in the last row
+                                isMessageDeletable={messageRow.history?.value?.length === 1}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div
+                className={clsx([
+                    "!w-[399px]",
+                    "px-2 pt-2",
+                    "shrink-0",
+                    "flex flex-col self-stretch",
+                    "border-0 border-solid border-[rgba(5,23,41,0.06)]",
+                    {"border-b": !isLastRow},
+                    {"border-r": isLastVariant},
+                ])}
+            >
+                <div className="!w-full shrink-0 sticky top-9 z-[2]">
+                    {!!message ? (
+                        <GenerationChatRowOutput
+                            message={message}
+                            deleteMessage={handleDeleteMessage}
+                            rerunMessage={canRerunMessage ? rerunMessage : undefined}
+                            rowId={messageRow?.__id}
+                            result={message?.__result}
+                            isRunning={message?.__isRunning}
+                            disabled={!messageRow}
+                        />
+                    ) : (
+                        <GenerationOutputText text="Click Run to generate" />
+                    )}
+                </div>
+            </div>
+        </>
     )
 }
 
 const GenerationComparisonChatOutput = ({
-    variantId,
-    className,
     rowId,
+    historyId,
+    isLastRow,
+    isFirstRow,
 }: GenerationComparisonChatOutputProps) => {
-    const {isVariantRunning} = usePlayground({
-        variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const messageRows = state.generationData.messages.value || []
-                const isVariantRunning = messageRows.some((messageRow) => {
-                    return !!messageRow.history.value.some((historyMessage) => {
-                        return historyMessage.__runs?.[variantId]?.__isRunning
-                    })
-                })
-
-                return {
-                    isVariantRunning,
-                }
-            },
-            [variantId, rowId],
-        ),
-    })
+    const {displayedVariants} = usePlayground()
 
     return (
-        <div className={clsx("flex flex-col w-full", className)}>
-            <div>
-                <GenerationComparisonChatOutputRow
-                    key={rowId}
+        <div className="flex">
+            {(displayedVariants || []).map((variantId, variantIndex) => (
+                <GenerationComparisonChatOutputCell
+                    key={`${historyId}-${variantId}`}
                     variantId={variantId}
+                    historyId={historyId}
                     rowId={rowId}
+                    variantIndex={variantIndex}
+                    isLastRow={isLastRow}
+                    isFirstRow={isFirstRow}
+                    isLastVariant={variantIndex === (displayedVariants || []).length - 1}
                 />
-
-                {!isVariantRunning ? (
-                    <div className="flex items-center justify-center h-[48px] text-[#a0a0a0]">
-                        No messages
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-center h-[48px] text-[#a0a0a0]">
-                        Generating response...
-                    </div>
-                )}
-            </div>
+            ))}
         </div>
     )
 }

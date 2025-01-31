@@ -8,6 +8,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     onChange?: (value: {textContent: string; tokens?: unknown[]; value?: string}) => void
     placeholder?: string
     singleLine?: boolean
+    autoFocus?: boolean
     codeOnly?: boolean
     language?: string
     showToolbar?: boolean
