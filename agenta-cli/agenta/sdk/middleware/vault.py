@@ -24,9 +24,6 @@ for arg in ProviderKind.__args__:  # type: ignore
     if hasattr(arg, "__args__"):
         _PROVIDER_KINDS.extend(arg.__args__)
 
-_UNAUTHORIZED_EXECUTION_ALLOWED = (
-    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "False").lower() in TRUTHY
-)
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
@@ -111,24 +108,23 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         vault_secrets: List[SecretDTO] = []
 
-        if not _UNAUTHORIZED_EXECUTION_ALLOWED:
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{self.host}/api/vault/v1/secrets",
-                        headers=headers,
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.host}/api/vault/v1/secrets",
+                    headers=headers,
+                )
+
+                if response.status_code != 200:
+                    vault_secrets = []
+
+                else:
+                    secrets = response.json()
+                    vault_secrets = self._transform_secrets_response_to_secret_dto(
+                        secrets
                     )
-
-                    if response.status_code != 200:
-                        vault_secrets = []
-
-                    else:
-                        secrets = response.json()
-                        vault_secrets = self._transform_secrets_response_to_secret_dto(
-                            secrets
-                        )
-            except:  # pylint: disable=bare-except
-                display_exception("Vault: Vault Secrets Exception")
+        except:  # pylint: disable=bare-except
+            display_exception("Vault: Vault Secrets Exception")
 
         merged_secrets = {}
 
