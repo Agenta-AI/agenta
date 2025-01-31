@@ -124,7 +124,7 @@ const GenerationCompletionRow = ({
                                 </>
                             ) : null}
                         </div>
-                        <div className="flex items-center w-[100px] shrink-0" />
+                        <div className="flex items-center w-[50px] shrink-0" />
                     </div>
                 ) : null}
             </div>
@@ -133,28 +133,25 @@ const GenerationCompletionRow = ({
 
     return (
         <>
-            <div className={clsx(["flex flex-col gap-4", classes.container])} {...props}>
+            <div className={clsx(["flex flex-col gap-4"])} {...props}>
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
                             return (
-                                <div
-                                    key={variableId}
-                                    className="relative group/item py-2 px-4 overflow-y-auto [&::-webkit-scrollbar]:w-0"
-                                >
+                                <div key={variableId} className="relative group/item px-3 py-2">
                                     <PlaygroundVariantPropertyControl
                                         variantId={variantId}
                                         propertyId={variableId}
                                         view={view}
                                         rowId={rowId}
-                                        className="*:!border-none !p-[11px]"
+                                        className="*:!border-none"
                                     />
 
                                     {!inputOnly && (
                                         <GenerationVariableOptions
                                             variantId={variantId as string}
                                             rowId={rowId}
-                                            className="invisible group-hover/item:visible absolute top-2 right-1"
+                                            className="invisible group-hover/item:visible absolute top-5 right-5"
                                             result={result}
                                             variableId={variableId}
                                         />
@@ -167,7 +164,7 @@ const GenerationCompletionRow = ({
             </div>
 
             {!inputOnly && variableIds.length > 0 ? (
-                <div className={clsx("h-[48px] flex items-center px-4", classes.container)}>
+                <div className={clsx("h-[48px] flex items-center px-4")}>
                     <RunButton onClick={runRow} disabled={!canRun || isRunning} className="flex" />
                 </div>
             ) : null}

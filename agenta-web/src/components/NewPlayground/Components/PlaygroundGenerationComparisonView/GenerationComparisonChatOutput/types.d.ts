@@ -1,10 +1,17 @@
-export type GenerationComparisonChatOutputRowProps = {
+export type GenerationComparisonChatOutputCellProps = {
     variantId: string
     rowId: string
+    historyId: string
+    variantIndex?: number
+    isFirstRow?: boolean
+    isLastRow?: boolean
+    isLastVariant?: boolean
 }
 
 export type GenerationComparisonChatOutputProps = {
-    variantId: string
+    historyId: string
     className?: string
     rowId: string
+    isLastRow?: boolean
+    isFirstRow?: boolean
 }

@@ -70,17 +70,22 @@ const DeploymentDrawer = ({
                 selectedEnvironment.deployed_app_variant_id,
         )
         const {inputParams, isChatVariant} = _variant || {}
-        console.log("PARAMS!", data?.variants, _variant, inputParams)
 
         const params = createParams(
             inputParams,
             selectedEnvironment?.name || "none",
             "add_a_value",
             isChatVariant,
+            currentApp,
         )
 
         return params
-    }, [data?.variants, selectedEnvironment.deployed_app_variant_id, selectedEnvironment?.name])
+    }, [
+        data?.variants,
+        currentApp,
+        selectedEnvironment.deployed_app_variant_id,
+        selectedEnvironment?.name,
+    ])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         python: invokeLlmApppythonCode(uri!, params),
@@ -93,6 +98,8 @@ const DeploymentDrawer = ({
         bash: fetchConfigcURLCode(currentApp?.app_name!, selectedEnvironment?.name!),
         typescript: fetchConfigtsCode(currentApp?.app_name!, selectedEnvironment?.name!),
     }
+
+    console.log("fetchConfigCodeSnippet", fetchConfigCodeSnippet)
 
     return (
         <>

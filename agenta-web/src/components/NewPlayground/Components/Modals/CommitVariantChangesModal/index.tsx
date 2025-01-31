@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 import {Input, Modal, Typography} from "antd"
-import {FloppyDiskBack} from "@phosphor-icons/react"
+import {ArrowRight, FloppyDiskBack} from "@phosphor-icons/react"
 import {CommitVariantChangesModalProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {useStyles} from "./styles"
@@ -17,6 +17,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         variantId,
         hookId: "CommitVariantChangesModal",
     })
+    console.log("variant: ", variant)
+
     const [note, setNote] = useState("")
 
     const onClose = useCallback(() => {
@@ -47,7 +49,14 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
                     <div className="flex items-center gap-2">
                         <Text className={classes.heading}>{variant?.variantName}</Text>
-                        <Version revision={variant?.revision as number} />
+                        <div className="flex items-center gap-[6px]">
+                            <Version className="!m-0" revision={variant?.revision as number} />
+                            <ArrowRight size={14} />
+                            <Version
+                                className="!m-0"
+                                revision={(variant?.revision as number) + 1}
+                            />
+                        </div>
                     </div>
                 </div>
                 {/* <div className="flex flex-col gap-1">
