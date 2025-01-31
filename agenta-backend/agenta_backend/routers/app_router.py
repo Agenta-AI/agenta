@@ -202,28 +202,10 @@ async def create_app(
     """
 
     if isCloudEE():
-        api_key_from_headers = request.headers.get("Authorization", None)
-        if api_key_from_headers is not None:
-            api_key = api_key_from_headers.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
-            await check_apikey_action_access(
-                api_key,
-                request.state.user_id,
-                Permission.CREATE_APPLICATION,
-            )
-
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        if user_org_workspace_data is None:
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to get user org and workspace data",
-            )
-
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
-            project_id=request.state.project_id,
-            permission=Permission.CREATE_APPLICATION,
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=payload.project_id or request.state.project_id,
+            permission=Permission.EDIT_APPLICATION,
         )
         logger.debug(f"User has Permission to Create Application: {has_permission}")
         if not has_permission:
@@ -237,6 +219,7 @@ async def create_app(
         payload.app_name,
         template_key=payload.template_key,
         project_id=request.state.project_id,
+        template_key=payload.template_key,
     )
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
@@ -386,15 +369,7 @@ async def add_variant_from_image(
         str(variant_db.id),
     )
 
-    await evaluator_manager.create_ready_to_use_evaluators(
-        app_name=app.app_name,
-        project_id=str(app.project_id),
-    )
-
-    app_variant_dto = await converters.app_variant_db_to_output(
-        app_variant_db,
-    )
-    return app_variant_dto
+    return await converters.app_variant_db_to_output(app_variant_db)
 
 
 @router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
@@ -417,9 +392,32 @@ async def add_variant_from_url(
         dict: The newly added variant.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id)
-    if isCloudEE():
-        has_permission = await check_action_access(
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+
+        if isCloudEE():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=str(app.project_id),
+                permission=Permission.CREATE_APPLICATION,
+            )
+            logger.debug(
+                f"User has Permission to create app from url: {has_permission}"
+            )
+            if not has_permission:
+                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        variant_db = await app_manager.add_variant_from_url(
+            app=app,
+            project_id=str(app.project_id),
+            variant_name=payload.variant_name,
+            url=payload.url,
+            base_name=payload.base_name,
+            config_name=payload.config_name,
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
             permission=Permission.CREATE_APPLICATION,
@@ -498,6 +496,7 @@ async def remove_app(
     """
 
     app = await db_manager.fetch_app_by_id(app_id)
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,

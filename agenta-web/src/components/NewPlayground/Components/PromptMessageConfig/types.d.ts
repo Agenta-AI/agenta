@@ -11,4 +11,10 @@ export interface PromptMessageConfigProps extends BaseContainerProps {
     variantId: EnhancedVariant["id"]
     /** Unique identifier for the message being configured */
     messageId: string
+    deleteMessage: (messageId: string) => void
+    isMessageDeletable?: boolean
+    view?: string
+    inputClassName?: string
+    rowId?: string
+    debug?: boolean
 }

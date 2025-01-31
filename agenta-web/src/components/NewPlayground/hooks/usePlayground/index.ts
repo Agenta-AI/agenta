@@ -1,6 +1,6 @@
-import {useMemo} from "react"
+import {useMemo, useRef} from "react"
 
-import Router from "next/router"
+import Router, {useRouter} from "next/router"
 import useSWR, {type Middleware} from "swr"
 import {getCurrentProject} from "@/contexts/project.context"
 
@@ -34,8 +34,10 @@ const usePlayground = <Selected = unknown>(
     /**
      * Key for the SWR cache
      */
+    const router = useRouter()
+    const pathRef = useRef(router.pathname.replaceAll("/", "_"))
     const key = useMemo(
-        () => `/api/apps/${appId}/variants?project_id=${projectId}&v=2`,
+        () => `/api/apps/${appId}/variants?project_id=${projectId}&v=2&path=${pathRef.current}`,
         [appId, projectId],
     )
 

@@ -24,7 +24,7 @@ for arg in ProviderKind.__args__:  # type: ignore
     if hasattr(arg, "__args__"):
         _PROVIDER_KINDS.extend(arg.__args__)
 
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 

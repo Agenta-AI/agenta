@@ -434,6 +434,7 @@ async def remove_app(app: AppDB):
         raise ValueError(error_msg)
 
     app_variants = await db_manager.list_app_variants(str(app.id))
+
     try:
         for app_variant_db in app_variants:
             await terminate_and_remove_app_variant(
@@ -443,6 +444,8 @@ async def remove_app(app: AppDB):
                 f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
             )
 
+        app_variants = await db_manager.list_app_variants(str(app.id))
+
         if len(app_variants) == 0:
             logger.debug("remove_app_related_resources")
             await remove_app_related_resources(str(app.id), str(app.project_id))
@@ -451,7 +454,7 @@ async def remove_app(app: AppDB):
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
-            logger.debug("remove_app_related_resources")
+            logger.debug("remove_app_related_resources (exc)")
             await remove_app_related_resources(str(app.id), str(app.project_id))
         except Exception as e:
             logger.error(
@@ -711,12 +714,6 @@ async def add_variant_from_url(
     await db_manager.update_base(
         str(db_app_variant.base_id),
         deployment_id=deployment.id,
-    )
-
-    await db_manager.deploy_to_environment(
-        environment_name="production",
-        variant_id=str(db_app_variant.id),
-        user_uid=user_uid,
     )
 
     logger.debug("End: Successfully created variant: %s", db_app_variant)

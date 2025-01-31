@@ -1,13 +1,19 @@
 import {useCallback} from "react"
 
-import {message} from "antd"
-import cloneDeep from "lodash/cloneDeep"
 import {getCurrentProject} from "@/contexts/project.context"
+import {getJWT} from "@/services/api"
 
-import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
+import {
+    checkValidity,
+    extractValueByMetadata,
+    transformToRequestBody,
+} from "../../../assets/utilities/transformer/reverseTransformer"
 import {createVariantsCompare, transformVariant, setVariant} from "../assets/helpers"
+import {message} from "../../../state/messageContext"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
+import {getAllMetadata, getMetadataLazy, getSpecLazy} from "@/components/NewPlayground/state"
+import useWebWorker from "../../useWebWorker"
 
 import type {Key, SWRHook} from "swr"
 import type {FetcherOptions} from "@/lib/api/types"
@@ -18,6 +24,9 @@ import type {
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
 } from "../types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
+import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
     return <Data extends PlaygroundStateData = PlaygroundStateData>(
@@ -75,13 +84,16 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 ({
                     baseVariantName,
                     newVariantName,
+                    callback,
                 }: {
                     baseVariantName: string
                     newVariantName: string
+                    callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
                 }) => {
                     swr.mutate(
                         async (state) => {
-                            if (!state || !state.spec) return state
+                            const spec = getSpecLazy()
+                            if (!state || !spec) return state
 
                             const baseVariant = state.variants.find(
                                 (variant) => variant.variantName === baseVariantName,
@@ -109,7 +121,10 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 return
                             }
 
-                            const parameters = transformToRequestBody(baseVariant)
+                            const parameters = transformToRequestBody({
+                                variant: baseVariant,
+                                allMetadata: getAllMetadata(),
+                            })
 
                             const newVariantBody: Partial<Variant> &
                                 Pick<Variant, "variantName" | "configName" | "baseId"> = {
@@ -139,13 +154,13 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
 
                             const variantWithConfig = transformVariant(
                                 setVariant(createVariantResponse),
-                                state.spec,
+                                spec,
                             )
 
-                            const clone = cloneDeep(state)
-                            clone.variants.push(variantWithConfig)
+                            state.variants.push(variantWithConfig)
 
-                            return clone
+                            callback?.(variantWithConfig, state)
+                            return state
                         },
                         {revalidate: false},
                     )
@@ -167,6 +182,179 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                 addToValueReferences("addVariant")
                 return addVariant
             }, [addToValueReferences, addVariant])
+
+            const {postMessageToWorker, createWorkerMessage} = useWebWorker(
+                // @ts-ignore
+                swr.handleWebWorkerMessage,
+                valueReferences.current.includes("runVariantTestRow") ||
+                    valueReferences.current.includes("runTests"),
+            )
+
+            Object.defineProperty(swr, "runTests", {
+                get: () => {
+                    addToValueReferences("runTests")
+                    const handleInputRowTestStart = (inputRow, variantId) => {
+                        if (!inputRow?.__runs) {
+                            inputRow.__runs = {}
+                        }
+
+                        if (!inputRow.__runs[variantId]) {
+                            inputRow.__runs[variantId] = {
+                                __isRunning: true,
+                                __result: undefined,
+                            }
+                        } else {
+                            inputRow.__runs[variantId].__isRunning = true
+                        }
+
+                        return inputRow
+                    }
+
+                    const runChatTests = (
+                        clonedState: PlaygroundStateData,
+                        rowId: string,
+                        jwt,
+                        visibleVariants: string[],
+                    ) => {
+                        const variableRows = clonedState.generationData.inputs.value
+                        const messageRows = clonedState.generationData.messages.value
+
+                        for (const variableRow of variableRows) {
+                            for (const messageRow of messageRows) {
+                                const messagesInRow = messageRow.history.value
+
+                                let lastMessage = messagesInRow[messagesInRow.length - 1]
+                                if (
+                                    !!lastMessage &&
+                                    !extractValueByMetadata(lastMessage, getAllMetadata())
+                                ) {
+                                    messageRow.history.value = [
+                                        ...messageRow.history.value.filter(
+                                            (m) => m.__id !== lastMessage.__id,
+                                        ),
+                                    ]
+                                    lastMessage =
+                                        messageRow.history.value[
+                                            messageRow.history.value.length - 1
+                                        ]
+                                }
+
+                                const emptyMessage = createMessageFromSchema(
+                                    getMetadataLazy(
+                                        clonedState.variants[0].prompts[0].messages.__metadata,
+                                    ).itemMetadata,
+                                )
+                                messageRow.history.value.push(emptyMessage)
+
+                                for (const variantId of visibleVariants) {
+                                    const variant = clonedState.variants.find(
+                                        (v) => v.id === variantId,
+                                    )
+
+                                    if (!variant) continue
+
+                                    handleInputRowTestStart(emptyMessage, variantId)
+
+                                    postMessageToWorker(
+                                        createWorkerMessage("runVariantInputRow", {
+                                            variant,
+                                            messageRow,
+                                            messageId: emptyMessage.__id,
+                                            inputRow: variableRow,
+                                            rowId: messageRow.__id,
+                                            appId: config.appId!,
+                                            uri: variant.uri,
+                                            projectId: getCurrentProject().projectId,
+                                            allMetadata: getAllMetadata(),
+                                            headers: {
+                                                ...(jwt
+                                                    ? {
+                                                          Authorization: `Bearer ${jwt}`,
+                                                      }
+                                                    : {}),
+                                            },
+                                        }),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    const generateGenerationTestParams = (
+                        clonedState: PlaygroundStateData,
+                        rowId: string,
+                        jwt,
+                        visibleVariants: string[],
+                    ) => {
+                        const testRows = rowId
+                            ? [
+                                  clonedState.generationData.inputs.value.find(
+                                      (r) => r.__id === rowId,
+                                  ),
+                              ]
+                            : clonedState.generationData.inputs.value
+
+                        for (const testRow of testRows) {
+                            for (const variantId of visibleVariants) {
+                                const variant = clonedState.variants.find((v) => v.id === variantId)
+                                if (!variant || !testRow) continue
+
+                                handleInputRowTestStart(testRow, variantId)
+
+                                postMessageToWorker(
+                                    createWorkerMessage("runVariantInputRow", {
+                                        variant,
+                                        inputRow: testRow,
+                                        rowId: testRow.__id,
+                                        appId: config.appId!,
+                                        uri: variant.uri,
+                                        projectId: getCurrentProject().projectId,
+                                        allMetadata: getAllMetadata(),
+                                        headers: {
+                                            ...(jwt
+                                                ? {
+                                                      Authorization: `Bearer ${jwt}`,
+                                                  }
+                                                : {}),
+                                        },
+                                    }),
+                                )
+                            }
+                        }
+                    }
+
+                    const runTests = (rowId?: string, variantId?: string) => {
+                        swr.mutate(
+                            async (clonedState) => {
+                                const jwt = await getJWT()
+                                if (!clonedState) return clonedState
+                                const visibleVariants = variantId
+                                    ? [variantId]
+                                    : clonedState.selected
+
+                                const isChat = clonedState.variants.some((v) => v.isChat)
+
+                                if (isChat) {
+                                    runChatTests(clonedState, rowId, jwt, visibleVariants)
+                                } else {
+                                    generateGenerationTestParams(
+                                        clonedState,
+                                        rowId,
+                                        jwt,
+                                        visibleVariants,
+                                    )
+                                }
+
+                                return clonedState
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        )
+                    }
+
+                    return runTests
+                },
+            })
 
             Object.defineProperty(swr, "variants", {
                 get: getVariants,

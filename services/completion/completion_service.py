@@ -22,7 +22,7 @@ class MyConfig(BaseModel):
     prompt: PromptTemplate = Field(
         default=PromptTemplate(
             system_prompt="You are an expert in geography",
-            user_prompt="What is the capital of {country}?",
+            user_prompt="What is the capital of {{country}}?",
         )
     )
 
@@ -47,7 +47,7 @@ async def generate(
 
     if not api_key:
         raise HTTPException(
-            status_code=422,
+            status_code=424,
             detail=f"API key not found for model {config.prompt.llm_config.model}",
         )
 

@@ -17,7 +17,7 @@ from agenta.sdk.utils.exceptions import suppress
 import agenta as ag
 
 
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
@@ -123,7 +123,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
                     ref_part = refs.get(ref_part_key)
 
                     if ref_part:
-                        references[ref_prefix + "." + ref_part_key] = ref_part
+                        references[ref_prefix + "." + ref_part_key] = str(ref_part)
 
         _cache.put(_hash, {"parameters": parameters, "references": references})
 
@@ -133,7 +133,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
@@ -160,19 +160,27 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             or body.get("app")
         )
 
-        if not any([application_id, application_slug]):
+        application_version = (
+            # CLEANEST
+            baggage.get("application_version")
+            # ALTERNATIVE
+            or request.query_params.get("application_version")
+        )
+
+        if not any([application_id, application_slug, application_version]):
             return None
 
         return Reference(
             id=application_id,
             slug=application_slug,
+            version=application_version,
         )
 
     async def _parse_variant_ref(
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
@@ -215,7 +223,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:

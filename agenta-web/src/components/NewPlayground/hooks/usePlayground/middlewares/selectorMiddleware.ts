@@ -1,10 +1,10 @@
 import {useCallback} from "react"
 
-import isEqual from "lodash/isEqual"
+import {findPropertyInObject, isPlaygroundEqual} from "../assets/helpers"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
-import {type FetcherOptions} from "@/lib/api/types"
+import type {FetcherOptions} from "@/lib/api/types"
 import type {Key, SWRHook} from "swr"
 import type {
     PlaygroundStateData,
@@ -62,7 +62,7 @@ const selectorMiddleware: PlaygroundMiddleware = <
                             nextSelected = b ? stateSelector(b) : undefined
                         }
 
-                        const _isEqual = isEqual(prevSelected, nextSelected)
+                        const _isEqual = isPlaygroundEqual(prevSelected, nextSelected)
                         logger(`COMPARE - SELECTED`, _isEqual, prevSelected, nextSelected)
                         return _isEqual
                     },
@@ -103,6 +103,14 @@ const selectorMiddleware: PlaygroundMiddleware = <
                     })
                 }
             }
+
+            Object.defineProperty(swr, "propertyGetter", {
+                get: () => {
+                    return (propertyId: string) => {
+                        return findPropertyInObject(swr.data, propertyId)
+                    }
+                },
+            })
 
             return swr
         }

@@ -6,7 +6,12 @@ import clsx from "clsx"
 
 import type {PromptMessageUserSelectProps} from "./types"
 
-const PromptMessageUserSelect = ({value, options, onChange}: PromptMessageUserSelectProps) => {
+const PromptMessageUserSelect = ({
+    disabled,
+    value,
+    options,
+    onChange,
+}: PromptMessageUserSelectProps) => {
     const menuItems: MenuProps["items"] = useMemo(() => {
         return options.map((option) => ({
             key: option,
@@ -16,7 +21,7 @@ const PromptMessageUserSelect = ({value, options, onChange}: PromptMessageUserSe
     }, [options, onChange])
 
     return (
-        <Dropdown menu={{items: menuItems}} trigger={["click"]}>
+        <Dropdown disabled={disabled} menu={{items: menuItems}} trigger={["click"]}>
             <Button
                 className={clsx([
                     "rounded-md",

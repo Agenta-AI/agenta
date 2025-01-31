@@ -1,5 +1,7 @@
-import {useQueryParam} from "@/hooks/useQuery"
-import {ChatMessage, Evaluation, EvaluationScenario, Variant} from "@/lib/Types"
+import {useCallback, useEffect, useMemo, useRef} from "react"
+
+import debounce from "lodash/debounce"
+import {useLocalStorage} from "usehooks-ts"
 import {
     LeftOutlined,
     LoadingOutlined,
@@ -8,139 +10,22 @@ import {
     RightOutlined,
 } from "@ant-design/icons"
 import {Button, Empty, Form, Input, Result, Space, Tooltip, Typography, theme} from "antd"
-import React, {useCallback, useEffect, useMemo, useRef} from "react"
-import {createUseStyles} from "react-jss"
+
+import ParamsForm from "@/components/OldPlayground/ParamsForm/ParamsForm"
+import {testsetRowToChatMessages} from "@/lib/helpers/testset"
+import AlertPopup from "@/components/AlertPopup/AlertPopup"
+import {useQueryParam} from "@/hooks/useQuery"
+import {EvaluationType} from "@/lib/enums"
+
 import EvaluationVotePanel from "./EvaluationVotePanel"
 import EvaluationCard from "./EvaluationCard"
-import {ABTestingEvaluationTableRow} from "@/components/EvaluationTable/ABTestingEvaluationTable"
-import AlertPopup from "@/components/AlertPopup/AlertPopup"
-import {useLocalStorage} from "usehooks-ts"
-import {testsetRowToChatMessages} from "@/lib/helpers/testset"
-import debounce from "lodash/debounce"
-import {EvaluationType} from "@/lib/enums"
-import ParamsForm from "@/components/OldPlayground/ParamsForm/ParamsForm"
-import {useVariants} from "@/lib/hooks/useVariant"
 
-export const VARIANT_COLORS = [
-    "#297F87", // "#722ed1",
-    "#F6D167", //"#13c2c2",
-    "#4caf50",
-]
+import {useStyles} from "./assets/styles"
 
-const useStyles = createUseStyles({
-    root: {
-        display: "flex",
-        gap: "1rem",
-        outline: "none",
-    },
-    evaluation: {
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        padding: "1rem",
-        "& .ant-divider": {
-            margin: "2rem 0 1.5rem 0",
-        },
-        "& h5.ant-typography": {
-            margin: 0,
-            marginBottom: "1rem",
-        },
-        gap: "1rem",
-    },
-    heading: {
-        width: "100%",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        gap: "0.75rem",
-        "& .ant-typography": {
-            margin: 0,
-            fontWeight: 400,
-        },
-    },
-    headingDivider: {
-        position: "relative",
-    },
-    helpIcon: {
-        position: "absolute",
-        right: 0,
-        top: 42,
-        fontSize: 16,
-    },
-    instructions: {
-        paddingInlineStart: 0,
-        "& code": {
-            backgroundColor: "rgba(0, 0, 0, 0.05)",
-            padding: "0.1rem 0.3rem",
-            borderRadius: 3,
-        },
-        "& li": {
-            marginBottom: "0.5rem",
-        },
-    },
-    note: {
-        marginTop: "1.25rem",
-        marginBottom: "-1rem",
-        whiteSpace: "pre-line",
-        display: "flex",
-        alignItems: "flex-start",
+import type {ChatMessage, EvaluationScenario} from "@/lib/Types"
+import type {EvaluationCardViewProps} from "./types"
 
-        "& .anticon": {
-            marginTop: 4,
-        },
-    },
-    chatInputsCon: {
-        marginTop: "0.5rem",
-    },
-    correctAnswerCon: {
-        marginBottom: "0.5rem",
-    },
-    toolBar: {
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5rem",
-        justifyContent: "flex-end",
-        "& .anticon": {
-            fontSize: 18,
-            cursor: "pointer",
-        },
-    },
-    sideBar: {
-        marginTop: "1rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "2rem",
-        border: "1px solid #d9d9d9",
-        borderRadius: 6,
-        padding: "1rem",
-        alignSelf: "flex-start",
-        "&>h4.ant-typography": {
-            margin: 0,
-        },
-        flex: 0.35,
-        minWidth: 240,
-        maxWidth: 500,
-    },
-    centeredItem: {
-        display: "grid",
-        placeItems: "center",
-        width: "100%",
-    },
-})
-
-interface Props {
-    variants: Variant[]
-    evaluationScenarios: ABTestingEvaluationTableRow[]
-    onRun: (id: string) => void
-    onVote: (id: string, vote: string | number | null) => void
-    onInputChange: Function
-    updateEvaluationScenarioData: (id: string, data: Partial<EvaluationScenario>) => void
-    evaluation: Evaluation
-    variantData: ReturnType<typeof useVariants>
-    isLoading: boolean
-}
-
-const EvaluationCardView: React.FC<Props> = ({
+const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
     variants,
     evaluationScenarios,
     onRun,
@@ -360,35 +245,37 @@ const EvaluationCardView: React.FC<Props> = ({
 
                         <div>
                             <Typography.Text style={{fontSize: 20}}>Inputs</Typography.Text>
-                            <ParamsForm
-                                isChatVariant={isChat}
-                                onParamChange={(name, value) =>
-                                    isChat
-                                        ? onChatChange(value)
-                                        : onInputChange(
-                                              {target: {value}} as any,
-                                              scenarioId,
-                                              scenario.inputs.findIndex(
-                                                  (ip) => ip.input_name === name,
-                                              ),
-                                          )
-                                }
-                                inputParams={
-                                    isChat
-                                        ? [{name: "chat", value: chat} as any]
-                                        : variantData[0].inputParams?.map((item) => ({
-                                              ...item,
-                                              value: scenario.inputs.find(
-                                                  (ip) => ip.input_name === item.name,
-                                              )?.input_value,
-                                          })) || []
-                                }
-                                key={scenarioId}
-                                useChatDefaultValue
-                                form={form}
-                                onFinish={() => onRun(scenarioId)}
-                                imageSize="large"
-                            />
+                            {variantData[0] ? (
+                                <ParamsForm
+                                    isChatVariant={isChat}
+                                    onParamChange={(name, value) =>
+                                        isChat
+                                            ? onChatChange(value)
+                                            : onInputChange(
+                                                  {target: {value}} as any,
+                                                  scenarioId,
+                                                  scenario.inputs.findIndex(
+                                                      (ip) => ip.input_name === name,
+                                                  ),
+                                              )
+                                    }
+                                    inputParams={
+                                        isChat
+                                            ? [{name: "chat", value: chat} as any]
+                                            : variantData[0].inputParams?.map((item) => ({
+                                                  ...item,
+                                                  value: scenario.inputs.find(
+                                                      (ip) => ip.input_name === item.name,
+                                                  )?.input_value,
+                                              })) || []
+                                    }
+                                    key={scenarioId}
+                                    useChatDefaultValue
+                                    form={form}
+                                    onFinish={() => onRun(scenarioId)}
+                                    imageSize="large"
+                                />
+                            ) : null}
                         </div>
 
                         <div className={classes.toolBar}>
