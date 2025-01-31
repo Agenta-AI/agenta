@@ -13,6 +13,9 @@ services:
 
     agenta-backend:
         container_name: agenta-backend-1
+        build:
+          context: ./agenta-backend
+          dockerfile: Dockerfile.gh
         image: ghcr.io/agenta-ai/agenta-backend
         environment:
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
