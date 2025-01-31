@@ -90,11 +90,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             cookies = {"sAccessToken": access_token} if access_token else None
 
-            baggage = (
-                getattr(request.state.otel, "baggage")
-                if hasattr(request.state, "otel")
-                else {}
-            )
+            baggage = request.state.otel["baggage"]
 
             project_id = (
                 # CLEANEST
