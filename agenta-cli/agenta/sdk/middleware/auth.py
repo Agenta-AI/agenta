@@ -17,9 +17,7 @@ import agenta as ag
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 _ALWAYS_ALLOW_LIST = ["/health"]
-_UNAUTHORIZED_EXECUTION_ALLOWED = (
-    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "False").lower() in TRUTHY
-)
+
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
 
@@ -56,10 +54,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            if (
-                request.url.path in _ALWAYS_ALLOW_LIST
-                or _UNAUTHORIZED_EXECUTION_ALLOWED
-            ):
+            if request.url.path in _ALWAYS_ALLOW_LIST:
                 request.state.auth = {}
 
             else:
@@ -120,8 +115,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 },
                 sort_keys=True,
             )
-
-            import os
 
             if _CACHE_ENABLED:
                 credentials = _cache.get(_hash)
