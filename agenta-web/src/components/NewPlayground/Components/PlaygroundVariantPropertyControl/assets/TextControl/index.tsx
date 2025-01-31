@@ -51,7 +51,7 @@ const TextControl = ({
                     {metadata.title}
                 </Typography>
             }
-            editorType="border"
+            editorType="borderless"
             className={clsx(
                 "relative bg-transparent flex flex-col gap-1 rounded-[theme(spacing.2)]",
                 className,
