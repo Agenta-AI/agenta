@@ -57,6 +57,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             showToolbar = true,
             enableTokens = false,
             debug = false,
+            autoFocus = false,
             dimensions,
             enableResize = false, // New prop
             boundWidth = true, // New prop
@@ -154,6 +155,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     }
                 >
                     <EditorPlugins
+                        autoFocus={autoFocus}
                         showToolbar={showToolbar}
                         singleLine={singleLine}
                         codeOnly={codeOnly}
@@ -182,6 +184,7 @@ const Editor = ({
     language,
     showToolbar = true,
     enableTokens = false,
+    autoFocus = false,
     debug = false,
     enableResize = false, // New prop
     boundWidth = true, // New prop
@@ -259,6 +262,7 @@ const Editor = ({
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
+                    autoFocus={autoFocus}
                 />
             </LexicalComposer>
         </div>

@@ -1,24 +1,11 @@
+import {useCallback} from "react"
+
 import clsx from "clsx"
-import React, {useCallback} from "react"
-import {BaseContainerProps} from "../types"
+
 import EditorWrapper from "@/components/Editor/Editor"
 import {useDebounceInput} from "@/hooks/useDebounceInput"
-import {EditorProps} from "@/components/Editor/types"
 
-export interface SharedEditorProps extends BaseContainerProps {
-    header?: React.ReactNode
-    footer?: React.ReactNode
-    editorType?: "border" | "borderless"
-    state?: "default" | "filled" | "disabled" | "readOnly" | "focus" | "typing"
-    placeholder?: string
-    handleChange: (value: string) => void
-    initialValue: any
-    editorClassName?: string
-    description?: string
-    withTooltip?: boolean
-    disabled?: boolean
-    editorProps?: EditorProps
-}
+import type {SharedEditorProps} from "./types"
 
 const SharedEditor = ({
     header,
@@ -32,6 +19,7 @@ const SharedEditor = ({
     handleChange,
     editorProps,
     className,
+    autoFocus,
     ...props
 }: SharedEditorProps) => {
     const [localValue, setLocalValue] = useDebounceInput<string>(
@@ -86,6 +74,7 @@ const SharedEditor = ({
                 onChange={(value) => {
                     handleLocalValueChange(value.textContent)
                 }}
+                autoFocus={autoFocus}
                 className={editorClassName}
                 // className={clsx([
                 // "border-0",

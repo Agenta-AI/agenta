@@ -42,6 +42,7 @@ const EditorPlugins = ({
     debug,
     language,
     placeholder,
+    autoFocus,
     handleUpdate,
 }: EditorPluginsProps) => {
     return (
@@ -62,7 +63,7 @@ const EditorPlugins = ({
                 ErrorBoundary={LexicalErrorBoundary}
             />
             <HistoryPlugin />
-            <AutoFocusPlugin />
+            {autoFocus ? <AutoFocusPlugin /> : null}
             <OnChangePlugin onChange={handleUpdate} />
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
             {enableTokens && <TokenPlugin />}
