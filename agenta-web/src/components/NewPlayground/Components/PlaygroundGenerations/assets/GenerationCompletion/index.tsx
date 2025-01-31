@@ -66,8 +66,8 @@ const GenerationCompletion = ({className, variantId, rowClassName}: GenerationCo
 
             <div
                 className={clsx([
-                    "flex items-center gap-2 mx-4",
-                    {"mt-2": viewType === "comparison"},
+                    "flex items-center gap-2 mx-4 mt-2",
+                    {"mb-10": viewType !== "comparison"},
                 ])}
             >
                 <AddButton size="small" label="Input" onClick={addNewInputRow} />

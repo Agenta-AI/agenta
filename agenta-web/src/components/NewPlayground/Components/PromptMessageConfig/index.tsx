@@ -45,6 +45,8 @@ const PromptMessageConfig = ({
     debug,
     inputClassName,
     placeholder,
+    handleChange: propsHandleChange,
+    initialValue: propsInitialValue,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -194,6 +196,7 @@ const PromptMessageConfig = ({
                         variantId={variantId}
                         rowId={rowId}
                         as="SimpleDropdownSelect"
+                        className="pl-0"
                         disabled={disabled}
                     />
 
@@ -210,8 +213,8 @@ const PromptMessageConfig = ({
                     )}
                 </div>
             }
-            handleChange={handleChange}
-            initialValue={value}
+            handleChange={propsHandleChange || handleChange}
+            initialValue={propsInitialValue || value}
             editorClassName={className}
             placeholder={placeholder || metadata?.description}
             disabled={disabled}
