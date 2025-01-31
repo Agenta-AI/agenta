@@ -202,14 +202,14 @@ services:
             file: ./services/completion/docker-compose.yml
             service: completion
         environment:
-            - AGENTA_HOST=${DOMAIN_NAME:-http://backend}:${AGENTA_PORT:-80}
+            - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
     
     chat:
         extends:
             file: ./services/chat/docker-compose.yml
             service: chat
         environment:
-            - AGENTA_HOST=${DOMAIN_NAME:-http://backend}:${AGENTA_PORT:-80}
+            - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
             
 networks:
     agenta-network:
