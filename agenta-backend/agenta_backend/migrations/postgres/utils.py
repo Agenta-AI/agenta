@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"])
+alembic_cfg = Config(os.environ["ALEMBIC_CONFIG_PATH"])
 script = ScriptDirectory.from_config(alembic_cfg)
 
 
@@ -90,7 +90,7 @@ async def get_pending_migration_head():
         the pending migration head
     """
 
-    engine = create_async_engine(url=os.environ["POSTGRES_URI"])
+    engine = create_async_engine(url=os.environ["POSTGRES_URL"])
     try:
         current_migration_script_head = script.get_current_head()
         migration_head_from_db = await get_current_migration_head_from_db(engine=engine)
@@ -108,12 +108,12 @@ async def get_pending_migration_head():
 
 def run_alembic_migration():
     """
-    Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
+    Applies migration for first-time users and also checks the environment variable "ALEMBIC_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
     """
 
     try:
         pending_migration_head = asyncio.run(get_pending_migration_head())
-        APPLY_AUTO_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
+        APPLY_AUTO_MIGRATIONS = os.environ.get("ALEMBIC_AUTO_MIGRATIONS")
         FIRST_TIME_USER = True if "alembic_version" in pending_migration_head else False
 
         if FIRST_TIME_USER or APPLY_AUTO_MIGRATIONS == "true":
@@ -166,7 +166,7 @@ async def check_if_templates_table_exist():
     Checks if the templates table exists in the database.
     """
 
-    engine = create_async_engine(url=os.environ["POSTGRES_URI"])
+    engine = create_async_engine(url=os.environ["POSTGRES_URL"])
     async with engine.connect() as connection:
         try:
             await connection.execute(text("SELECT id FROM templates"))  # type: ignore

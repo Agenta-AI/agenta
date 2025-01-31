@@ -1,8 +1,8 @@
 import os
 from kombu import Exchange, Queue
 
-BROKER_URL = os.getenv("CELERY_BROKER_URL")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
+BROKER_URL = os.getenv("RABBITMQ_URL")
+CELERY_RESULT_BACKEND = os.getenv("REDIS_URL")
 CELERY_TASK_SERIALIZER = "json"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_RESULT_SERIALIZER = "json"

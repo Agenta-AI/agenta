@@ -62,7 +62,7 @@ def check_for_multiple_default_projects(session: Session) -> Sequence[ProjectDB]
 
 def create_default_project():
     PROJECT_NAME = "Default Project"
-    engine = create_engine(os.getenv("POSTGRES_URI"))
+    engine = create_engine(os.getenv("POSTGRES_URL"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -85,7 +85,7 @@ def create_default_project():
 
 
 def remove_default_project():
-    engine = create_engine(os.getenv("POSTGRES_URI"))
+    engine = create_engine(os.getenv("POSTGRES_URL"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -108,7 +108,7 @@ def remove_default_project():
 
 
 def add_project_id_to_db_entities():
-    engine = create_engine(os.getenv("POSTGRES_URI"))
+    engine = create_engine(os.getenv("POSTGRES_URL"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -149,7 +149,7 @@ def add_project_id_to_db_entities():
 
 
 def remove_project_id_from_db_entities():
-    engine = create_engine(os.getenv("POSTGRES_URI"))
+    engine = create_engine(os.getenv("POSTGRES_URL"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:

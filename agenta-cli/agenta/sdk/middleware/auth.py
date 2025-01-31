@@ -17,9 +17,6 @@ import agenta as ag
 
 _SHARED_SERVICE = getenv("AGENTA_SHARED_SERVICE", "false").lower() in TRUTHY
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
-_UNAUTHORIZED_ALLOWED = (
-    getenv("AGENTA_UNAUTHORIZED_EXECUTION_ALLOWED", "false").lower() in TRUTHY
-)
 _ALWAYS_ALLOW_LIST = ["/health"]
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
@@ -62,13 +59,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            if _UNAUTHORIZED_ALLOWED or request.url.path in _ALWAYS_ALLOW_LIST:
-                request.state.auth = {}
+            credentials = await self._get_credentials(request)
 
-            else:
-                credentials = await self._get_credentials(request)
-
-                request.state.auth = {"credentials": credentials}
+            request.state.auth = {"credentials": credentials}
 
             return await call_next(request)
 

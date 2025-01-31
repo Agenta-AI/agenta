@@ -1,0 +1,224 @@
+x-networks: &networks
+    networks:
+        - agenta-network
+    extra_hosts:
+        - "host.docker.internal:host-gateway"
+
+x-common: &common
+    <<: *networks
+    env_file: ".env.development"
+    restart: always
+
+x-services: &services
+    <<: *common
+    environment:
+        - AGENTA_HOST=http://host.docker.internal
+    labels:
+        - "traefik.http.routers.${SERVICE_NAME}.rule=PathPrefix(`/services/${SERVICE_NAME}/`)"
+        - "traefik.http.routers.${SERVICE_NAME}.entrypoints=web"
+        - "traefik.http.middlewares.${SERVICE_NAME}-strip.stripprefix.prefixes=/services/${SERVICE_NAME}"
+        - "traefik.http.middlewares.${SERVICE_NAME}-strip.stripprefix.forceslash=true"
+        - "traefik.http.routers.${SERVICE_NAME}.middlewares=${SERVICE_NAME}-strip"
+        - "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=80"
+        - "traefik.http.routers.${SERVICE_NAME}.service=${SERVICE_NAME}"
+
+services:
+    reverse-proxy:
+        <<: *common
+
+        image: traefik:v2.10
+        ports:
+            - "80:80"
+            - "8080:8080"
+
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:80
+
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+
+    agenta-web:
+        <<: *common
+
+        build:
+            context: ./agenta-web
+            dockerfile: prod.Dockerfile
+        ports:
+            - "3000:3000"
+
+        volumes:
+            - ./agenta-web/src:/app/src
+            - ./agenta-web/public:/app/public
+
+        labels:
+            - "traefik.http.routers.agenta-web.rule=Host(`${AGENTA_BARE_DOMAIN}`) && PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web.entrypoints=web"
+            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
+        
+        environment:
+            - NEXT_PUBLIC_AGENTA_API_URL=${AGENTA_API_URL}
+            - NEXT_PUBLIC_POSTHOG_API_KEY=${POSTHOG_API_KEY}
+
+    backend:
+        <<: *common
+
+        build: ./agenta-backend
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+            apply_alembic_migration:
+                condition: service_completed_successfully
+
+        command:
+            [
+                "uvicorn",
+                "agenta_backend.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "8000",
+                "--reload",
+                "--log-level",
+                "info",
+                "--root-path",
+                "/api",
+            ]
+
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - ./agenta-backend/migrations:/app/migrations
+            - ./agenta-backend/tests:/app/tests
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/db:/db
+
+        labels:
+            - "traefik.http.routers.backend.rule=Host(`${AGENTA_BARE_DOMAIN}`) && PathPrefix(`/api/`)"
+            - "traefik.http.routers.backend.entrypoints=web"
+            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.backend.middlewares=backend-strip"
+            - "traefik.http.services.backend.loadbalancer.server.port=8000"
+            - "traefik.http.routers.backend.service=backend"
+
+    apply_alembic_migration:
+        <<: *common
+
+        build: ./agenta-backend
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: no
+
+        command: sh -c "python -c 'from agenta_backend.migrations.postgres.utils import run_alembic_migration; run_alembic_migration()'"
+
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+
+    redis:
+        <<: *common
+
+        image: redis:latest
+
+        volumes:
+            - redis_data:/data
+
+    rabbitmq:
+        <<: *common
+
+        image: rabbitmq:3-management
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+
+        volumes:
+            - ./rabbitmq_data:/var/lib/rabbitmq
+
+    celery_worker:
+        <<: *common
+
+        build: ./agenta-backend
+
+        depends_on:
+            - rabbitmq
+            - redis
+
+        command: >
+            watchmedo auto-restart --directory=./agenta_backend --pattern=*.py --recursive -- celery -A agenta_backend.main.celery_app worker --concurrency=1 --loglevel=INFO
+        
+        volumes:
+            - ./agenta-backend/agenta_backend:/app/agenta_backend
+            - /var/run/docker.sock:/var/run/docker.sock
+
+    postgres:
+        <<: *common
+
+        image: postgres:16.2
+        ports:
+            - "5432:5432"
+
+        healthcheck:
+            test: ["CMD-SHELL", "sh -c 'pg_isready -U $POSTGRES_USER -d $POSTGRES_DB'"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+        volumes:
+            - postgresdb-data:/var/lib/postgresql/data/
+            - ./docker-assets/postgres/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+
+        environment:
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_DB=${POSTGRES_DB}
+
+    completion:
+        <<: *services
+
+        build:
+            context: .
+            dockerfile: services/completion/docker/Dockerfile
+
+        volumes:
+            - ./services/completion/src:/app
+            - ./agenta-cli:/app/cli
+
+        environment:
+            - SERVICE_NAME=completion
+        
+    chat:
+        <<: *services
+
+        build:
+            context: .
+            dockerfile: services/chat/docker/Dockerfile
+
+        volumes:
+            - ./services/chat/src:/app
+            - ./agenta-cli:/app/cli
+
+        environment:
+            - SERVICE_NAME=chat
+
+    pgadmin:
+        <<: *common
+
+        image: dpage/pgadmin4
+        ports:
+            - "5050:80"
+
+        depends_on:
+            postgres:
+                condition: service_healthy
+        
+        volumes:
+            - pgadmin-data:/var/lib/pgadmin
+
+networks:
+    agenta-network:
+        name: agenta-network
+
+volumes:
+    postgresdb-data:
+    redis_data:
+    pgadmin-data:

@@ -10,15 +10,15 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from agenta_backend.dbs.postgres.shared.config import POSTGRES_URI
+from agenta_backend.dbs.postgres.shared.config import POSTGRES_URL
 
 
 class Engine:
     def __init__(self) -> None:
-        self.postgres_uri = POSTGRES_URI
+        self.POSTGRES_URL = POSTGRES_URL
 
         self.async_engine: AsyncEngine = create_async_engine(
-            url=self.postgres_uri,
+            url=self.POSTGRES_URL,
         )
         self.async_session_maker = async_sessionmaker(
             autocommit=False,

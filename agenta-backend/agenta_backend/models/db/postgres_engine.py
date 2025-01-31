@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from agenta_backend.models.db.config import POSTGRES_URI
+from agenta_backend.models.db.config import POSTGRES_URL
 
 
 class DBEngine:
@@ -18,8 +18,8 @@ class DBEngine:
     """
 
     def __init__(self) -> None:
-        self.postgres_uri = POSTGRES_URI
-        self.engine = create_async_engine(url=self.postgres_uri)  # type: ignore
+        self.POSTGRES_URL = POSTGRES_URL
+        self.engine = create_async_engine(url=self.POSTGRES_URL)  # type: ignore
         self.async_session_maker = async_sessionmaker(
             bind=self.engine, class_=AsyncSession, expire_on_commit=False
         )

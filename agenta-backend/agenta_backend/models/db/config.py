@@ -8,4 +8,4 @@ logger.setLevel(logging.INFO)
 
 
 # Environment variables
-POSTGRES_URI = os.environ.get("POSTGRES_URI")
+POSTGRES_URL = os.environ.get("POSTGRES_URL")

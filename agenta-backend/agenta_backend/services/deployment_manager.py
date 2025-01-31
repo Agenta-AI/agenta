@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-agenta_registry_repo = os.getenv("REGISTRY_REPO_NAME")
+agenta_registry_repo = os.getenv("DOCKER_HUB_NAMESPACE")
 
 
 async def start_service(

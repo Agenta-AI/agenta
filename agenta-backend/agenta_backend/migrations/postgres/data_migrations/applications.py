@@ -24,7 +24,7 @@ def get_app_db(session: Session, app_id: str) -> Optional[DeprecatedAppDB]:
 
 
 def update_evaluators_with_app_name():
-    engine = create_engine(os.getenv("POSTGRES_URI"))
+    engine = create_engine(os.getenv("POSTGRES_URL"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:

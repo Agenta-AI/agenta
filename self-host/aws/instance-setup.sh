@@ -35,7 +35,7 @@ fi
 
 echo "IP/DOMAIN_NAME: $DOMAIN_NAME"
 
-echo "BARE_DOMAIN_NAME=$DOMAIN_NAME" >> .env
+echo "AGENTA_BARE_DOMAIN=$DOMAIN_NAME" >> .env
 echo "DOMAIN_NAME=http://$DOMAIN_NAME" >> .env
 
 
