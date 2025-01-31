@@ -66,7 +66,7 @@ export const GenerationChatRowOutput = ({
                 placeholder={placeholder}
             />
             {!!result ? (
-                <div className={clsx([{"h-[48px] px-3 flex items-center": isComparisonView}])}>
+                <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
                     <GenerationResultUtils result={result} />
                 </div>
             ) : null}
@@ -81,6 +81,7 @@ const GenerationChatRow = ({
     messageId,
     rowId,
     viewAs,
+    isMessageDeletable,
 }: GenerationChatRowProps) => {
     const {history, historyItem, messageRow, runTests, mutate, viewType} = usePlayground({
         variantId,
@@ -209,14 +210,11 @@ const GenerationChatRow = ({
                     isRunning={historyItem?.__isRunning}
                     disabled={!messageRow}
                     placeholder="Type a message..."
+                    isMessageDeletable={isMessageDeletable}
                 />
-                {/* {history.map((historyItem) => {
-                    return (
-                    )
-                })} */}
             </div>
             {withControls ? (
-                <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
+                <div className={clsx(["flex items-center gap-2 mt-5"])}>
                     <RunButton
                         size="small"
                         disabled={historyItem?.__isRunning}
