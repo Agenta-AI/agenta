@@ -102,9 +102,13 @@ def build_image_job(
 
     try:
         if isCloudProd():
-            dockerfile = "Dockerfile.cloud"
+            dockerfile = "Dockerfile.cloud.agenta"
+            if not Path(temp_dir / dockerfile).exists():
+                dockerfile = "Dockerfile.cloud"  # For backward compatibility
         else:
-            dockerfile = "Dockerfile"
+            dockerfile = "Dockerfile.oss.agenta"
+            if not Path(temp_dir / dockerfile).exists():
+                dockerfile = "Dockerfile"  # For backward compatibility
 
         image, build_log = client.images.build(
             path=str(temp_dir),
