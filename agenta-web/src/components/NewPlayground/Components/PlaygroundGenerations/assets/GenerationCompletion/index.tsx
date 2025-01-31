@@ -24,21 +24,20 @@ const GenerationCompletion = ({
     rowId,
     withControls,
 }: GenerationCompletionProps) => {
-    const {inputRowIds, mutate, viewType} = usePlayground({
+    const {inputRowId, mutate, viewType, inputRowIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const selectedVariants = state.selected.length > 1
                 const inputRowId = findPropertyInObject(state, rowId)
                 const inputRows = state.generationData.inputs.value || []
 
-                const rowIds = selectedVariants
-                    ? inputRows.map((inputRow) => inputRow.__id)
-                    : [inputRowId?.__id]
-                return {inputRowIds: rowIds}
+                return {
+                    inputRowId: inputRowId?.__id,
+                    inputRowIds: inputRows?.map((row) => row?.__id),
+                }
             },
-            [rowId, variantId],
+            [rowId],
         ),
     })
 
@@ -63,20 +62,26 @@ const GenerationCompletion = ({
         })
     }, [mutate])
 
-    componentLogger("GenerationTestView", inputRowIds)
+    componentLogger("GenerationTestView", inputRowId)
 
     return (
         <div className={clsx(["flex flex-col", {"gap-2": viewType === "single"}], className)}>
-            {inputRowIds.map((inputRowId) => {
-                return (
+            {viewType === "comparison" ? (
+                <GenerationCompletionRow
+                    variantId={variantId}
+                    rowId={inputRowId}
+                    className={rowClassName}
+                />
+            ) : (
+                (inputRowIds || []).map((row) => (
                     <GenerationCompletionRow
-                        key={inputRowId}
+                        key={row}
                         variantId={variantId}
-                        rowId={inputRowId}
+                        rowId={row}
                         className={rowClassName}
                     />
-                )
-            })}
+                ))
+            )}
 
             {withControls ? (
                 <div
