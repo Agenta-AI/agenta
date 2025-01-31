@@ -24,28 +24,14 @@ Once complete, access Agenta at `http://localhost`.
 
 ## Using a Custom Port
 
-To run Agenta on a different port, you'll need to modify the frontend configuration and rebuild the container. Here's how:
+To run Agenta on a different port, you'll need to re-build the frontend image. Here's how:
 
-1. Clone the repository:
+1. Build and run with your chosen port:
 ```bash
-git clone https://github.com/Agenta-AI/agenta.git
-cd agenta
+AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml build --no-cache && AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml up -d
 ```
 
-2. Update the API URL in `agenta-web/.env.gh`:
-```bash
-# Change this line:
-NEXT_PUBLIC_AGENTA_API_URL=http://localhost
-# To include your desired port (e.g., port 90):
-NEXT_PUBLIC_AGENTA_API_URL=http://localhost:90
-```
-
-3. Build and run with your chosen port:
-```bash
-AGENTA_PORT=90 docker compose -f docker-compose.gh.yml up -d --build
-```
-
-Access Agenta at `http://localhost:90` (or your chosen port).
+Access Agenta at `http://localhost:8081` (or your chosen port).
 
 ## Upgrading Agenta to the Latest Version
 
