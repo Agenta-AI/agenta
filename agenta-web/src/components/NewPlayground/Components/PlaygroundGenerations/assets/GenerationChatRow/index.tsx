@@ -68,7 +68,7 @@ export const GenerationChatRowOutput = ({
                 rerunMessage={rerunMessage}
             />
             {!!result ? (
-                <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
+                <div className={clsx([{"h-[48px] flex items-center px-2": isComparisonView}])}>
                     <GenerationResultUtils result={result} />
                 </div>
             ) : null}
