@@ -61,7 +61,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
                 if (!clonedState) return clonedState
 
                 const _metadata = getMetadataLazy<ArrayMetadata>(
-                    clonedState?.generationData.__metadata,
+                    clonedState?.generationData.inputs.__metadata,
                 )
                 const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
 
