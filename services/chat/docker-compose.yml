@@ -21,6 +21,8 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     networks:
       - agenta-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
       - "traefik.http.routers.chat.entrypoints=web"
