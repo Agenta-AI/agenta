@@ -21,7 +21,7 @@ class InlineMiddleware(BaseHTTPMiddleware):
         request.state.inline = False
 
         with suppress():
-            baggage = request.state.otel.get("baggage") if request.state.otel else {}
+            baggage = request.state.otel["baggage"]
 
             inline = (
                 str(
