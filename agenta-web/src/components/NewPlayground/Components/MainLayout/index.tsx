@@ -147,13 +147,18 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
             {...divProps}
         >
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
-                <Splitter className="h-full" layout={isComparisonView ? "vertical" : "horizontal"}>
+                <Splitter
+                    key={`${isComparisonView ? "comparison" : "single"}-splitter`}
+                    className="h-full"
+                    layout={isComparisonView ? "vertical" : "horizontal"}
+                >
                     <SplitterPanel
                         defaultSize="50%"
                         min="20%"
                         max="70%"
                         className="!h-full"
                         collapsible
+                        key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-config`}
                     >
                         <section
                             ref={setConfigPanelRef}
@@ -198,6 +203,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         })}
                         collapsible
                         defaultSize="50%"
+                        key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-runs`}
                     >
                         {isComparisonView && <GenerationComparisonHeader />}
 
