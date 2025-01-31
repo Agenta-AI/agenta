@@ -116,6 +116,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 sort_keys=True,
             )
 
+            print(f"Auth Middleware Hash: {_hash}")
+            print(f"Auth Middleware Host: {self.host}")
+
             if _CACHE_ENABLED:
                 credentials = _cache.get(_hash)
 
