@@ -28,7 +28,7 @@ To run Agenta on a different port, you'll need to re-build the frontend image. H
 
 1. Build and run with your chosen port:
 ```bash
-AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml build --no-cache && AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml up -d
+AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml build --no-cache agenta-web && AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml up -d
 ```
 
 Access Agenta at `http://localhost:8081` (or your chosen port).
