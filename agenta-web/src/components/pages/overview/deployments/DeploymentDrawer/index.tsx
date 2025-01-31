@@ -76,11 +76,9 @@ const DeploymentDrawer = ({
             selectedEnvironment?.name || "none",
             "add_a_value",
             isChatVariant,
+            currentApp,
         )
 
-        if (currentApp?.app_type) {
-            params["app"] = currentApp?.app_type
-        }
         return params
     }, [
         data?.variants,
