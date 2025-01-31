@@ -30,6 +30,7 @@ export const GenerationChatRowOutput = ({
     disabled = false,
     rowId,
     deleteMessage,
+    rerunMessage,
     viewAs,
     result,
     isRunning: propsIsRunning,
@@ -59,11 +60,12 @@ export const GenerationChatRowOutput = ({
                 rowId={rowId}
                 messageId={message?.__id}
                 disabled={disabled}
-                deleteMessage={deleteMessage}
                 className="w-full"
                 isMessageDeletable={isMessageDeletable}
                 debug
                 placeholder={placeholder}
+                deleteMessage={deleteMessage}
+                rerunMessage={rerunMessage}
             />
             {!!result ? (
                 <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
@@ -191,6 +193,10 @@ const GenerationChatRow = ({
         })
     }, [mutate, rowId])
 
+    const rerunMessage = useCallback((messageId: string) => {
+        console.log("rerun message", messageId, variantId)
+    }, [])
+
     return !historyItem ? null : (
         <>
             <div
@@ -203,7 +209,6 @@ const GenerationChatRow = ({
                     key={historyItem.__id || `${variantId}-${rowId}-generating`}
                     message={historyItem}
                     variantId={variantId}
-                    deleteMessage={deleteMessage}
                     viewAs={viewAs}
                     rowId={messageRow?.__id}
                     result={historyItem?.__result}
@@ -211,6 +216,8 @@ const GenerationChatRow = ({
                     disabled={!messageRow}
                     placeholder="Type a message..."
                     isMessageDeletable={isMessageDeletable}
+                    deleteMessage={deleteMessage}
+                    rerunMessage={rerunMessage}
                 />
             </div>
             {withControls ? (

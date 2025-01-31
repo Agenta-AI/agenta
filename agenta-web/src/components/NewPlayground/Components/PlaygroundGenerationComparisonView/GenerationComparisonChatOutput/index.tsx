@@ -92,6 +92,10 @@ const GenerationComparisonChatOutputCell = ({
         [variantId],
     )
 
+    const rerunMessage = useCallback((messageId: string) => {
+        console.log("rerun message")
+    }, [])
+
     return (
         <>
             <div

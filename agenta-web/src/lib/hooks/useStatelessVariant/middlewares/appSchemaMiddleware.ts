@@ -15,7 +15,6 @@ import type {
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
 } from "../types"
-import {initializeComparisonInputs} from "../assets/comparisonHelpers"
 import isEqual from "lodash/isEqual"
 import {toSnakeCase} from "../assets/genericTransformer/utilities/string"
 
@@ -56,6 +55,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             throw new Error("No uri found for the new app type")
                         }
 
+                        console.log("USESTATELESS VARIANT fetch open api json", uri)
                         const specResponse = await fetchOpenApiSchemaJson(uri)
                         // write(specResponse.schema)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
