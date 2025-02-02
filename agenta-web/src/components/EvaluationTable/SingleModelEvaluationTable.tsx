@@ -212,7 +212,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     let result = await callVariant(
                         inputParamsDict,
                         variantData[idx].inputParams!,
-                        variantData[idx].promptOptParams!,
+                        variantData[idx].parameters || variantData[idx].promptOptParams!,
                         appId || "",
                         variants[idx].baseId || "",
                         variantData[idx].isChatVariant
