@@ -6,12 +6,16 @@ import {GenerationResultUtilsProps} from "./types"
 import clsx from "clsx"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/lib/helpers/formatters"
 import StatusRenderer from "@/components/pages/observability/components/StatusRenderer"
-import {NodeStatusDTO} from "@/services/observability/types"
+import {NodeStatusCode, NodeStatusDTO} from "@/services/observability/types"
 import TraceDrawerButton from "../../../Drawers/TraceDrawer"
 
 const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className, result}) => {
     const metric = result?.response?.tree?.nodes?.[0].metrics?.acc
-    const status = result?.response?.tree.nodes[0].status as NodeStatusDTO
+    const status = result?.error
+        ? {
+              code: NodeStatusCode.ERROR,
+          }
+        : (result?.response?.tree.nodes[0].status as NodeStatusDTO)
     const durations = metric?.duration?.total
     const tokens = metric?.tokens?.total
     const costs = metric?.costs?.total
