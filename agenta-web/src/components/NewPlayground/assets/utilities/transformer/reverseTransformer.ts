@@ -186,7 +186,7 @@ export function transformToRequestBody({
         data.inputs = extractInputValues(variant, inputRow)
 
         if (variant.isChat) {
-            data.messages = [...rawConfig.messages]
+            data.messages = []
             if (chatHistory) {
                 data.messages.push(...chatHistory)
             } else {
