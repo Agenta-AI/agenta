@@ -9,6 +9,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 import {getStringOrJson} from "@/lib/helpers/utils"
 import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
+import SharedEditor from "../../SharedEditor"
 const GenerationResultUtils = dynamic(
     () => import("../../PlaygroundGenerations/assets/GenerationResultUtils"),
     {ssr: false},
@@ -82,7 +83,18 @@ const GenerationComparisonCompletionOutput = ({
                                     text={getStringOrJson(result?.metadata?.rawError)}
                                 />
                             ) : result.response ? (
-                                <GenerationOutputText text={result.response.data} />
+                                <SharedEditor
+                                    initialValue={result.response.data}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className="!pt-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
+                                />
                             ) : null}
                         </div>
 
