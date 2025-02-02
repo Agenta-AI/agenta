@@ -44,6 +44,8 @@ const GenerationComparisonCompletionOutput = ({
         ),
     })
 
+    console.log("result", result)
+
     return (
         <>
             <div
@@ -78,13 +80,27 @@ const GenerationComparisonCompletionOutput = ({
                             ) : !result ? (
                                 <GenerationOutputText text="Click Run to generate" />
                             ) : result.error ? (
-                                <GenerationOutputText
-                                    type="danger"
-                                    text={getStringOrJson(result?.metadata?.rawError)}
+                                <SharedEditor
+                                    initialValue={result?.error}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className={clsx([
+                                        "!pt-0",
+                                        {
+                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                                                result?.error,
+                                        },
+                                    ])}
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
                                 />
                             ) : result.response ? (
                                 <SharedEditor
-                                    initialValue={result.response.data}
+                                    initialValue={result?.response?.data}
                                     editorType="borderless"
                                     state="filled"
                                     readOnly
@@ -97,16 +113,6 @@ const GenerationComparisonCompletionOutput = ({
                                 />
                             ) : null}
                         </div>
-
-                        {result?.response && (
-                            <div
-                                className={clsx(
-                                    "w-full h-[48px] flex items-center px-4 absolute bottom-0",
-                                )}
-                            >
-                                <GenerationResultUtils result={result} />
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
