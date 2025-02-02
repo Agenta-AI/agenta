@@ -1,12 +1,60 @@
 import {useEffect, useState, useRef} from "react"
+
+import {HeadingNode, QuoteNode} from "@lexical/rich-text"
+import {ListItemNode, ListNode} from "@lexical/list"
+import {AutoLinkNode, LinkNode} from "@lexical/link"
+import {HashtagNode} from "@lexical/hashtag"
+import {CodeHighlightNode, CodeNode} from "@lexical/code"
+import {MarkNode} from "@lexical/mark"
+import {OverflowNode} from "@lexical/overflow"
+import {HorizontalRuleNode} from "@lexical/react/LexicalHorizontalRuleNode"
+import {TableCellNode, TableNode, TableRowNode} from "@lexical/table"
+
 import {theme} from "../../assets/theme"
 import {TokenNode} from "../../plugins/token/TokenNode"
 import {TokenInputNode} from "../../plugins/token/TokenInputNode"
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {ComponentProps} from "react"
 import type {EditorProps} from "../../types"
-
 type LexicalComposerProps = ComponentProps<typeof LexicalComposer>
+
+const initialNodes = [
+    HeadingNode,
+    ListNode,
+    ListItemNode,
+    QuoteNode,
+    CodeNode,
+    TableNode,
+    TableCellNode,
+    TableRowNode,
+    HashtagNode,
+    CodeHighlightNode,
+    AutoLinkNode,
+    LinkNode,
+    OverflowNode,
+    // PollNode,
+    // StickyNode,
+    // ImageNode,
+    // InlineImageNode,
+    // MentionNode,
+    // EmojiNode,
+    // ExcalidrawNode,
+    // EquationNode,
+    // AutocompleteNode,
+    // KeywordNode,
+    HorizontalRuleNode,
+    // TweetNode,
+    // YouTubeNode,
+    // FigmaNode,
+    MarkNode,
+    // CollapsibleContainerNode,
+    // CollapsibleContentNode,
+    // CollapsibleTitleNode,
+    // PageBreakNode,
+    // LayoutContainerNode,
+    // LayoutItemNode,
+    // SpecialTextNode,
+]
 
 const useEditorConfig = ({
     id,
@@ -38,7 +86,7 @@ const useEditorConfig = ({
             const newConfig = {
                 namespace: `editor-${id}`,
                 onError: console.error,
-                nodes,
+                nodes: [...initialNodes, ...nodes],
                 editorState: initialEditorState,
                 theme,
                 editable: !disabled,
