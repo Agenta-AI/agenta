@@ -105,7 +105,7 @@ const Sidebar: React.FC = () => {
                 <div className={classes.sliderContainer}>
                     <div
                         className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
-                            isSidebarExpanded ? "w-[40px] relative left-[7px]" : "w-full"
+                            isSidebarExpanded ? "w-[49px] relative left-[7px]" : "w-full"
                         }`}
                     >
                         <div
