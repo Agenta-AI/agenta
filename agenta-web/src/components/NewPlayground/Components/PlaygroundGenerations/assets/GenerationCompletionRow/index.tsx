@@ -14,6 +14,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 import RunButton from "@/components/NewPlayground/assets/RunButton"
 import {useStyles} from "./styles"
 import {getStringOrJson} from "@/lib/helpers/utils"
+import SharedEditor from "../../../SharedEditor"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -117,11 +118,18 @@ const GenerationCompletionRow = ({
                                     text={getStringOrJson(result?.metadata?.rawError)}
                                 />
                             ) : result.response ? (
-                                <>
-                                    <GenerationOutputText text={result.response.data} />
-
-                                    <GenerationResultUtils result={result} />
-                                </>
+                                <SharedEditor
+                                    initialValue={result.response.data}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className="!pt-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
+                                />
                             ) : null}
                         </div>
                         <div className="flex items-center w-[50px] shrink-0" />
