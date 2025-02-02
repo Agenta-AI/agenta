@@ -164,6 +164,7 @@ export function transformToRequestBody({
     inputRow,
     messageRow,
     allMetadata = {},
+    chatHistory,
 }: {
     variant: EnhancedVariant
     inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
@@ -186,21 +187,29 @@ export function transformToRequestBody({
 
         if (variant.isChat) {
             data.messages = [...rawConfig.messages]
-            const messageHistory = messageRow?.history.value || []
-            data.messages.push(
-                ...messageHistory
-                    .flatMap((historyMessage) => {
-                        if (historyMessage.__runs && historyMessage.__runs[variant.id]?.message) {
-                            return extractValueByMetadata(
-                                historyMessage.__runs[variant.id]?.message,
-                                allMetadata,
-                            )
-                        } else {
-                            return extractValueByMetadata(historyMessage, allMetadata)
-                        }
-                    })
-                    .filter(Boolean),
-            )
+            if (chatHistory) {
+                data.messages.push(...chatHistory)
+            } else {
+                const messageHistory = messageRow?.history.value || []
+
+                data.messages.push(
+                    ...messageHistory
+                        .flatMap((historyMessage) => {
+                            if (
+                                historyMessage.__runs &&
+                                historyMessage.__runs[variant.id]?.message
+                            ) {
+                                return extractValueByMetadata(
+                                    historyMessage.__runs[variant.id]?.message,
+                                    allMetadata,
+                                )
+                            } else {
+                                return extractValueByMetadata(historyMessage, allMetadata)
+                            }
+                        })
+                        .filter(Boolean),
+                )
+            }
         }
     }
 

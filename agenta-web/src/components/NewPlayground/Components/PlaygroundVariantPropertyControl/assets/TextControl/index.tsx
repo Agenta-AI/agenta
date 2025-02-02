@@ -18,6 +18,7 @@ const TextControl = ({
     as,
     view,
     disabled,
+    ...props
 }: TextControlProps) => {
     const {viewType} = usePlayground()
 
@@ -40,6 +41,7 @@ const TextControl = ({
                     className,
                 )}
                 editorProps={{enableResize: true, boundWidth: true}}
+                {...props}
             />
         )
     }
@@ -61,6 +63,7 @@ const TextControl = ({
             editorClassName={className}
             placeholder={metadata?.description}
             disabled={disabled}
+            {...props}
         />
     )
 }

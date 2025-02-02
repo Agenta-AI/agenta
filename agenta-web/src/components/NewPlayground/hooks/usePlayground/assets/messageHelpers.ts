@@ -3,7 +3,11 @@ import {hashMetadata} from "../../../assets/hash"
 
 import type {Enhanced, ObjectMetadata} from "../../../assets/utilities/genericTransformer/types"
 import {Message} from "postcss"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
+import {
+    checkValidity,
+    extractValueByMetadata,
+} from "@/components/NewPlayground/assets/utilities/transformer/reverseTransformer"
 
 export const createMessageFromSchema = (
     metadata: ObjectMetadata,
@@ -62,4 +66,45 @@ export const createMessageRow = (
             __metadata: hashMetadata(arrayMetadata),
         },
     }
+}
+
+export const constructChatHistory = ({
+    messageRow,
+    messageId,
+    variantId,
+    includeLastMessage = false,
+}) => {
+    let constructedHistory = []
+    const allMetadata = getAllMetadata()
+
+    if (messageRow) {
+        for (const historyItem of messageRow.history.value) {
+            let userMessage = extractValueByMetadata(historyItem, allMetadata)
+
+            userMessage = checkValidity(historyItem, allMetadata) ? userMessage : undefined
+
+            if (historyItem.__id === messageId) {
+                if (includeLastMessage) {
+                    constructedHistory.push(userMessage)
+                }
+                break
+            }
+
+            constructedHistory.push(userMessage)
+
+            const variantResponse = historyItem.__runs[variantId]?.message
+            if (variantResponse?.__id === messageId) {
+                break
+            }
+            let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
+
+            llmResponse = checkValidity(variantResponse, allMetadata) ? llmResponse : undefined
+
+            constructedHistory.push(llmResponse)
+        }
+    }
+
+    constructedHistory = constructedHistory.filter(Boolean)
+
+    return constructedHistory
 }

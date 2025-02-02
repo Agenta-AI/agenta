@@ -12,6 +12,7 @@ import usePlayground from "../../../../hooks/usePlayground"
 import type {GenerationChatProps} from "./types"
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import PromptMessageConfig from "../../../PromptMessageConfig"
+import TextControl from "../../../PlaygroundVariantPropertyControl/assets/TextControl"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({
@@ -112,7 +113,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
             >
                 <div className="flex flex-col gap-1">
                     {!isComparisonView && <Typography>Chat</Typography>}
-                    <div className={clsx(["flex flex-col gap-5", {"!gap-0": isComparisonView}])}>
+                    <div className={clsx(["flex flex-col gap-2", {"!gap-0": isComparisonView}])}>
                         {!isComparisonView
                             ? configMessageIds.map((messageId) => (
                                   <PromptMessageConfig
@@ -121,6 +122,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                                       messageId={messageId}
                                       className="w-full"
                                       isMessageDeletable={false}
+                                      state="readOnly"
                                       disabled
                                       debug
                                   />
@@ -129,7 +131,14 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                         {messageRowIds.map((messageRow) => {
                             return historyIds[messageRow].map((historyId, index) => {
                                 return historyId.includes("isRunning") ? (
-                                    <div key={`${historyId}-loading`}>GENERATING RESPONSE...</div>
+                                    // <div key={`${historyId}-loading`}>GENERATING RESPONSE...</div>
+                                    <TextControl
+                                        key={`${historyId}-loading`}
+                                        value="Generating response..."
+                                        editorType="borderless"
+                                        state="readOnly"
+                                        metadata={{}}
+                                    />
                                 ) : (
                                     <GenerationChatRow
                                         key={`${messageRow}-${historyId}`}
