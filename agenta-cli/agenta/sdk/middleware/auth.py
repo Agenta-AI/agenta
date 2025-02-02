@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import display_exception
+from agenta.sdk.utils.logging import log
 
 import agenta as ag
 
@@ -90,6 +91,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             cookies = {"sAccessToken": access_token} if access_token else None
 
+            if not headers and not cookies:
+                log.debug(
+                    f"No authentication credentials found in request  - Headers present: {bool(headers)}, Cookies present: {bool(cookies)}"
+                )
+
             baggage = request.state.otel["baggage"]
 
             project_id = (
@@ -98,6 +104,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 # ALTERNATIVE
                 or request.query_params.get("project_id")
             )
+
+            if not project_id:
+                log.debug("No project ID found in request")
 
             params = {"action": "run_service", "resource_type": "service"}
 
@@ -120,53 +129,113 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 credentials = _cache.get(_hash)
 
                 if credentials:
+                    log.debug("Using cached credentials")
                     return credentials
 
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.host}/api/permissions/verify",
-                    headers=headers,
-                    cookies=cookies,
-                    params=params,
-                )
+            try:
+                async with httpx.AsyncClient() as client:
+                    try:
+                        response = await client.get(
+                            f"{self.host}/api/permissions/verify",
+                            headers=headers,
+                            cookies=cookies,
+                            params=params,
+                            timeout=30.0,
+                        )
+                    except httpx.TimeoutException as exc:
+                        log.debug(f"Timeout while connecting to auth server: {exc}")
+                        raise DenyException(
+                            status_code=504,
+                            content="Connection timed out while verifying permissions. Please check your network connection and try again. If the issue persists, the authentication server might be experiencing high load.",
+                        ) from exc
+                    except httpx.ConnectError as exc:
+                        log.debug(f"Connection error to auth server: {exc}")
+                        raise DenyException(
+                            status_code=503,
+                            content=f"Could not connect to authentication server at {self.host}. Please check if the server is running and accessible.",
+                        ) from exc
+                    except httpx.NetworkError as exc:
+                        log.debug(f"Network error with auth server: {exc}")
+                        raise DenyException(
+                            status_code=503,
+                            content="Network error occurred while connecting to authentication server. Please check your network connection.",
+                        ) from exc
+                    except httpx.HTTPError as exc:
+                        log.debug(f"HTTP error from auth server: {exc}")
+                        raise DenyException(
+                            status_code=502,
+                            content=f"Unexpected HTTP error while connecting to authentication server: {str(exc)}",
+                        ) from exc
 
-                if response.status_code == 401:
-                    raise DenyException(
-                        status_code=401,
-                        content="Invalid credentials",
-                    )
-                elif response.status_code == 403:
-                    raise DenyException(
-                        status_code=403,
-                        content="Service execution not allowed.",
-                    )
-                elif response.status_code != 200:
-                    raise DenyException(
-                        status_code=400,
-                        content="Auth: Unexpected Error.",
-                    )
+                    if response.status_code == 401:
+                        log.debug("Auth server returned 401 - Invalid credentials")
+                        raise DenyException(
+                            status_code=401,
+                            content="Invalid credentials. Please check your authentication token or login again.",
+                        )
+                    elif response.status_code == 403:
+                        log.debug("Auth server returned 403 - Permission denied")
+                        raise DenyException(
+                            status_code=403,
+                            content="You don't have permission to execute this service. Please check your access rights or contact your administrator.",
+                        )
+                    elif response.status_code != 200:
+                        log.debug(
+                            f"Auth server returned unexpected status: {response.status_code}"
+                        )
+                        raise DenyException(
+                            status_code=400,
+                            content=f"Authentication server returned unexpected status code {response.status_code}. Please try again later or contact support if the issue persists.",
+                        )
 
-                auth = response.json()
+                    try:
+                        auth = response.json()
+                    except ValueError as exc:
+                        log.debug(f"Failed to parse auth server response: {exc}")
+                        raise DenyException(
+                            status_code=502,
+                            content="Authentication server returned invalid JSON response. Please try again later or contact support.",
+                        ) from exc
 
-                if auth.get("effect") != "allow":
-                    raise DenyException(
-                        status_code=403,
-                        content="Service execution not allowed.",
-                    )
+                    if not isinstance(auth, dict):
+                        log.debug(f"Invalid auth response format: {type(auth)}")
+                        raise DenyException(
+                            status_code=502,
+                            content="Authentication server returned invalid response format. Please try again later or contact support.",
+                        )
 
-                credentials = auth.get("credentials")
+                    effect = auth.get("effect")
+                    if effect != "allow":
+                        log.debug("Auth denied by server - Auth effect: {effect}")
+                        raise DenyException(
+                            status_code=403,
+                            content="Service execution denied by authentication server. Please check your permissions or contact your administrator.",
+                        )
 
-                _cache.put(_hash, credentials)
+                    credentials = auth.get("credentials")
+                    if not credentials:
+                        log.debug("No credentials in auth response")
 
-                return credentials
+                    _cache.put(_hash, credentials)
+
+                    return credentials
+
+            except DenyException as deny:
+                raise deny
+            except Exception as exc:  # pylint: disable=bare-except
+                log.debug(f"Unexpected error during auth server communication: {exc}")
+                raise DenyException(
+                    status_code=500,
+                    content=f"Unexpected error during authentication: {str(exc)}. Please try again later or contact support if the issue persists.",
+                ) from exc
 
         except DenyException as deny:
             raise deny
-
-        except Exception as exc:  # pylint: disable=bare-except
+        except Exception as exc:
+            log.debug(f"Unexpected error in auth middleware: {exc}")
             display_exception("Auth Middleware Exception (suppressed)")
 
             raise DenyException(
                 status_code=500,
-                content="Auth: Unexpected Error.",
+                content="An unexpected error occurred during authentication. Please try again later or contact support if the issue persists.",
             ) from exc
