@@ -219,7 +219,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                         let result = await callVariant(
                             inputParamsDict,
                             _variants[idx].inputParams!,
-                            _variants[idx].promptOptParams!,
+                            variantData[idx].parameters || variantData[idx].promptOptParams!,
                             appId || "",
                             _variants[idx].baseId || "",
                             _variants[idx].isChatVariant
