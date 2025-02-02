@@ -92,8 +92,7 @@ const Sidebar: React.FC = () => {
                 theme={appTheme}
                 className={classes.sidebar}
                 collapsible
-                collapsed={isSidebarExpanded}
-                width={236}
+                width={collapsed ? 80 : 236}
                 trigger={null}
                 onMouseOver={() => {
                     if (collapsed) setIsHovered(true)
@@ -102,7 +101,13 @@ const Sidebar: React.FC = () => {
                     if (collapsed) setIsHovered(false)
                 }}
             >
-                <div className={classes.sliderContainer}>
+                <div
+                    className={clsx([
+                        classes.sliderContainer,
+                        "absolute left-0 top-0 h-full bg-white dark:bg-gray-900 transition-opacity duration-300",
+                        collapsed ? (isHovered ? "w-[236px]" : "w-[80px]") : "w-[236px]",
+                    ])}
+                >
                     <div
                         className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
                             isSidebarExpanded ? "w-[49px] relative left-[7px]" : "w-full"
