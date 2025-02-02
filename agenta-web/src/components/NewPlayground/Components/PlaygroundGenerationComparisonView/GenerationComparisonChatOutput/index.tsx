@@ -99,9 +99,13 @@ const GenerationComparisonChatOutputCell = ({
     const canRerunMessage = useMemo(() => {
         return !message?.__isRunning && !!message?.__result
     }, [variantId, message])
-    const rerunMessage = useCallback((messageId: string) => {
-        rerunChatOutput(messageId)
-    }, [])
+
+    const rerunMessage = useCallback(
+        (messageId: string) => {
+            rerunChatOutput(messageId, variantId)
+        },
+        [variantId],
+    )
 
     return (
         <>
