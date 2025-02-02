@@ -110,11 +110,7 @@ export const clearRuns = (state: PlaygroundStateData) => {
         const messages = state.generationData.messages.value
 
         for (const message of messages) {
-            let historyArray = message.history.value
-
-            for (const history of historyArray) {
-                history.__runs = {}
-            }
+            message.history.value = []
         }
     } else {
         const inputs = state.generationData.inputs.value
