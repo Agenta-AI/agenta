@@ -120,7 +120,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                                       key={messageId}
                                       variantId={variantId as string}
                                       messageId={messageId}
-                                      className="w-full"
+                                      editorClassName="w-full"
                                       isMessageDeletable={false}
                                       state="readOnly"
                                       disabled

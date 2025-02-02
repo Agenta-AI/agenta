@@ -44,7 +44,7 @@ const PromptMessageConfig = ({
     isMessageDeletable,
     disabled,
     debug,
-    inputClassName,
+    editorClassName,
     placeholder,
     handleChange: propsHandleChange,
     initialValue: propsInitialValue,
@@ -198,7 +198,7 @@ const PromptMessageConfig = ({
                         variantId={variantId}
                         rowId={rowId}
                         as="SimpleDropdownSelect"
-                        className="pl-0"
+                        className="message-user-select pl-0"
                         disabled={disabled}
                     />
 
@@ -222,9 +222,10 @@ const PromptMessageConfig = ({
             }
             handleChange={propsHandleChange || handleChange}
             initialValue={propsInitialValue || value}
-            editorClassName={className}
+            editorClassName={editorClassName}
             placeholder={placeholder || metadata?.description}
             disabled={disabled}
+            className={className}
             {...props}
         />
     )

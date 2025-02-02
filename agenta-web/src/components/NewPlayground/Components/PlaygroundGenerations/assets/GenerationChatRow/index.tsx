@@ -69,7 +69,14 @@ export const GenerationChatRowOutput = ({
                 rowId={rowId}
                 messageId={message?.__id}
                 disabled={disabled}
-                className={clsx(["w-full", messageProps?.className])}
+                className={clsx([
+                    "w-full",
+                    messageProps?.className,
+                    {
+                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                            message?.__result?.error,
+                    },
+                ])}
                 isMessageDeletable={isMessageDeletable}
                 debug
                 placeholder={placeholder}
@@ -82,6 +89,7 @@ export const GenerationChatRowOutput = ({
                         </div>
                     ) : null
                 }
+                state={message?.__result?.error ? "readOnly" : "filled"}
             />
         </div>
     )
