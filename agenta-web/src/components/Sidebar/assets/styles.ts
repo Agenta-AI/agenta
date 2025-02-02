@@ -14,10 +14,12 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
     siderWrapper: {
         border: `0.01px solid ${theme.isDark ? "#222" : "#ddd"}`,
+        zIndex: 1000,
     },
     sliderContainer: {
         display: "flex",
         flexDirection: "column",
+        borderRight: `0.01px solid ${theme.colorBorder}`,
         height: "100%",
         padding: "10px",
         "& > div:nth-of-type(1)": {
