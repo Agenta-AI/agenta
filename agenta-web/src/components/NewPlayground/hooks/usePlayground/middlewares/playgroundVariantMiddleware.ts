@@ -171,14 +171,21 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             const metadata = getMetadataLazy(targetMessage.__metadata)
                             if (!metadata) return clonedState
 
+                            const incomingMessage = createMessageFromSchema(
+                                metadata,
+                                message?.payload?.result?.error
+                                    ? {
+                                          role: "Error",
+                                          content: message.payload.result?.error,
+                                      }
+                                    : message.payload.result.response?.data,
+                            )
+
                             targetMessage.__runs[variantId] = {
                                 __result: {
                                     ...message.payload.result,
                                 },
-                                message: createMessageFromSchema(
-                                    metadata,
-                                    message.payload.result.response?.data,
-                                ),
+                                message: incomingMessage,
                                 __isRunning: false,
                                 __id: generateId(),
                             }

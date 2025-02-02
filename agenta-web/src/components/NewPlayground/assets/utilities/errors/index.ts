@@ -9,20 +9,24 @@ import type {ValidationError, ApiError} from "./types"
  * - Generic value errors
  */
 function formatSingleError(error: ValidationError): string {
-    const location = formatLocation(error.loc)
+    if (error.loc) {
+        const location = formatLocation(error.loc)
 
-    // Try constraint-based message first
-    const constraintMessage = getConstraintMessage(location, error)
-    if (constraintMessage) return constraintMessage
+        // Try constraint-based message first
+        const constraintMessage = getConstraintMessage(location, error)
+        if (constraintMessage) return constraintMessage
 
-    // Handle other error types
-    switch (error.type) {
-        case "type_error":
-            return `${location} must be a valid ${error.ctx?.expected_type}`
-        case "value_error":
-            return `Invalid value for ${location}: ${error.msg}`
-        default:
-            return `${location}: ${error.msg}`
+        // Handle other error types
+        switch (error.type) {
+            case "type_error":
+                return `${location} must be a valid ${error.ctx?.expected_type}`
+            case "value_error":
+                return `Invalid value for ${location}: ${error.msg}`
+            default:
+                return `${location}: ${error.msg}`
+        }
+    } else {
+        return error.message
     }
 }
 
@@ -45,7 +49,11 @@ export function parseValidationError(error: unknown): string {
         }
 
         if ("type" in error && "loc" in error) {
-            return formatSingleError(error as ValidationError)
+            try {
+                return formatSingleError(error as ValidationError)
+            } catch {
+                return error.message
+            }
         }
 
         return "An unexpected error occurred"
