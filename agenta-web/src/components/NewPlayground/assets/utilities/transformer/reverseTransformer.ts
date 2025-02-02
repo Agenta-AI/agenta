@@ -195,17 +195,21 @@ export function transformToRequestBody({
                 data.messages.push(
                     ...messageHistory
                         .flatMap((historyMessage) => {
+                            const messages = [extractValueByMetadata(historyMessage, allMetadata)]
+
                             if (
                                 historyMessage.__runs &&
                                 historyMessage.__runs[variant.id]?.message
                             ) {
-                                return extractValueByMetadata(
-                                    historyMessage.__runs[variant.id]?.message,
-                                    allMetadata,
+                                messages.push(
+                                    extractValueByMetadata(
+                                        historyMessage.__runs[variant.id]?.message,
+                                        allMetadata,
+                                    ),
                                 )
-                            } else {
-                                return extractValueByMetadata(historyMessage, allMetadata)
                             }
+
+                            return messages
                         })
                         .filter(Boolean),
                 )
