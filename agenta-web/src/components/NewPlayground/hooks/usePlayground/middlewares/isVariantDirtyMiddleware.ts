@@ -239,7 +239,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             return clonedState
                         },
                         {
-                            revalidate: false,
+                            revalidate: options?.revalidate || false,
                         },
                     )
                 },
