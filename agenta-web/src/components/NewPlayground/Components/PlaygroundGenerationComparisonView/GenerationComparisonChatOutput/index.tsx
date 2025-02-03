@@ -136,13 +136,20 @@ const GenerationComparisonChatOutputCell = ({
                                 })}
                         </div>
 
-                        <div className="p-2">
+                        <div>
                             <GenerationChatRow
                                 rowId={rowId}
                                 historyId={historyId}
                                 viewAs={"input"}
                                 withControls={isLastRow} // Only show controls (to add a message) in the last row
                                 isMessageDeletable={messageRow.history?.value?.length === 1}
+                                messageProps={{
+                                    className: "!p-0",
+                                    editorClassName: "!p-3",
+                                    headerClassName:
+                                        "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                    footerClassName: "px-3",
+                                }}
                             />
                         </div>
                     </div>
@@ -152,7 +159,6 @@ const GenerationComparisonChatOutputCell = ({
             <div
                 className={clsx([
                     "!w-[400px]",
-                    "px-2 pt-2",
                     "shrink-0",
                     "flex flex-col self-stretch",
                     "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
@@ -169,9 +175,18 @@ const GenerationComparisonChatOutputCell = ({
                             result={message?.__result}
                             isRunning={message?.__isRunning}
                             disabled={!messageRow}
+                            messageProps={{
+                                className: "!p-0",
+                                editorClassName: "!p-3",
+                                headerClassName:
+                                    "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                footerClassName: "px-3 h-[48px] !m-0",
+                            }}
                         />
                     ) : (
-                        <GenerationOutputText text="Click Run to generate" />
+                        <div className="p-3">
+                            <GenerationOutputText text="Click Run to generate" />
+                        </div>
                     )}
                 </div>
             </div>

@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 import dynamic from "next/dynamic"
-
+import clsx from "clsx"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import usePlayground from "../../hooks/usePlayground"
 import {componentLogger} from "../../assets/utilities/componentLogger"
@@ -49,6 +49,7 @@ const PromptMessageConfig = ({
     handleChange: propsHandleChange,
     initialValue: propsInitialValue,
     runnable,
+    headerClassName,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
@@ -192,7 +193,7 @@ const PromptMessageConfig = ({
     return (
         <SharedEditor
             header={
-                <div className="w-full flex items-center justify-between">
+                <div className={clsx("w-full flex items-center justify-between", headerClassName)}>
                     <PlaygroundVariantPropertyControl
                         propertyId={message.role}
                         variantId={variantId}
@@ -205,7 +206,6 @@ const PromptMessageConfig = ({
                     {!disabled && (
                         <PromptMessageContentOptions
                             className="invisible group-hover/item:visible"
-                            deleteMessage={deleteMessage}
                             propertyId={message.content}
                             variantId={variantId}
                             messageId={messageId}
