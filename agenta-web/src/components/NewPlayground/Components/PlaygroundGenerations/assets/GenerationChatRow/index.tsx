@@ -3,7 +3,6 @@ import {useCallback, useMemo} from "react"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import GenerationOutputText from "../GenerationOutputText"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {
     findPropertyInObject,
@@ -44,11 +43,6 @@ export const GenerationChatRowOutput = ({
 
     return propsIsRunning ? (
         <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch">
-            {/* <GenerationOutputText
-                text={"Generating response..."}
-                className="mt-1"
-                disabled={disabled}
-            /> */}
             <TextControl
                 value="Generating response..."
                 editorType="borderless"
@@ -84,7 +78,12 @@ export const GenerationChatRowOutput = ({
                 rerunMessage={rerunMessage}
                 footer={
                     !!result ? (
-                        <div className={clsx(["flex items-center mt-2"])}>
+                        <div
+                            className={clsx([
+                                "flex items-center mt-2",
+                                messageProps?.footerClassName,
+                            ])}
+                        >
                             <GenerationResultUtils result={result} />
                         </div>
                     ) : null
@@ -103,6 +102,7 @@ const GenerationChatRow = ({
     rowId,
     viewAs,
     isMessageDeletable,
+    messageProps,
 }: GenerationChatRowProps) => {
     const {
         historyItem,
@@ -276,6 +276,7 @@ const GenerationChatRow = ({
                     placeholder="Type a message..."
                     messageProps={{
                         className: "[&]:!min-h-4",
+                        ...messageProps,
                     }}
                     isMessageDeletable={isMessageDeletable}
                     deleteMessage={deleteMessage}
@@ -283,7 +284,12 @@ const GenerationChatRow = ({
                 />
             </div>
             {withControls ? (
-                <div className={clsx(["flex items-center gap-2 mt-5"])}>
+                <div
+                    className={clsx([
+                        "flex items-center gap-2 mt-5",
+                        {"px-3": viewType === "comparison"},
+                    ])}
+                >
                     <RunButton
                         size="small"
                         disabled={historyItem?.__isRunning}

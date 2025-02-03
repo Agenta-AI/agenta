@@ -6,5 +6,8 @@ export type PromptMessageContentOptionsProps = {
     isMessageDeletable?: boolean
     disabled?: boolean
     runnable?: boolean
-    deleteMessage: (messageId: string) => void
+    actions: {
+        deleteMessage?: (messageId: string) => void
+        rerunMessage?: (messageId: string) => void
+    }
 }

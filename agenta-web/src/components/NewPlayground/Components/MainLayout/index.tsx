@@ -6,10 +6,7 @@ import useAnimationFrame from "use-animation-frame"
 
 import usePlayground from "../../hooks/usePlayground"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
-import {
-    GenerationComparisonInput,
-    GenerationComparisonOutput,
-} from "../PlaygroundGenerationComparisonView"
+import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 
 import type {BaseContainerProps} from "../types"
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
