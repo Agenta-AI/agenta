@@ -1,12 +1,10 @@
 import {useCallback} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
-import {useStyles} from "../styles"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {getStringOrJson} from "@/lib/helpers/utils"
 import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
 import SharedEditor from "../../SharedEditor"
@@ -24,7 +22,6 @@ const GenerationComparisonCompletionOutput = ({
     isLastRow,
     isLastVariant,
 }: GenerationComparisonCompletionOutputProps) => {
-    const classes = useStyles()
     const {result, isRunning, inputRow} = usePlayground({
         registerToWebWorker: true,
         variantId,
@@ -73,7 +70,7 @@ const GenerationComparisonCompletionOutput = ({
                 ])}
             >
                 <div className="flex h-full">
-                    <div className="!w-[399px] h-full relative pb-10">
+                    <div className="!w-[399px] h-full">
                         <div className="w-full py-2 px-4 sticky top-9 z-[2]">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />

@@ -219,7 +219,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         >
                             {/* This component renders Output component header section */}
                             {isComparisonView ? (
-                                <div className="flex sticky top-0 z-[5]">
+                                <div className="flex min-w-fit sticky top-0 z-[5]">
                                     <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
 
                                     {displayedVariants.map((variantId) => (
@@ -238,7 +238,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             {isComparisonView
                                 ? ((rowIds as string[]) || []).map((rowId, rowIndex) => {
                                       return (
-                                          <div key={rowId}>
+                                          <div key={rowId} className="min-w-fit">
                                               <GenerationComparisonOutput
                                                   rowId={rowId}
                                                   isLastRow={rowIndex === rowIds.length - 1}
