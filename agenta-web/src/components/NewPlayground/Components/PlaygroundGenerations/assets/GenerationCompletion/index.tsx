@@ -29,7 +29,7 @@ const GenerationCompletion = ({
         registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRowId = findPropertyInObject(state, rowId)
+                const inputRowId = findPropertyInObject(state, rowId as string)
                 const inputRows = state.generationData.inputs.value || []
 
                 return {
