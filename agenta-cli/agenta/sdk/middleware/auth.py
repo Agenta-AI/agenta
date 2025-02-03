@@ -63,7 +63,21 @@ class AuthMiddleware(BaseHTTPMiddleware):
         import json
 
         # Log the request details
-        logging.info(
+        logging.error(
+            json.dumps(
+                {
+                    "host": host,
+                    "method": request.method,
+                    "path": path,
+                    "query_params": query,
+                    "headers": headers,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+
+        print(
             json.dumps(
                 {
                     "host": host,
