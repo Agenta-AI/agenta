@@ -86,7 +86,7 @@ def create_default_project():
             raise e
 
 
-def add_default_testset_to_project(session: Session, project_id: str):
+def add_completion_testset_to_project(session: Session, project_id: str):
     try:
         json_path = os.path.join(
             db_manager.PARENT_DIRECTORY,
@@ -207,7 +207,7 @@ def add_project_id_to_db_entities():
                     offset += BATCH_SIZE
 
             # add default testset and evaluators
-            add_default_testset_to_project(
+            add_completion_testset_to_project(
                 session=session,
                 project_id=str(default_project.id),
             )
