@@ -44,6 +44,8 @@ import type {EvaluationTableProps, SingleModelEvaluationRow} from "./types"
 import type {EvaluationScenario, KeyValuePair, Variant, BaseResponse} from "@/lib/Types"
 import {useAppsData} from "@/contexts/app.context"
 import {useVariants} from "@/lib/hooks/useVariants"
+import {transformToRequestBody} from "@/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
+import {getAllMetadata} from "@/lib/hooks/useStatelessVariant/state"
 
 const {Title} = Typography
 
@@ -212,7 +214,13 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     let result = await callVariant(
                         inputParamsDict,
                         variantData[idx].inputParams!,
-                        variantData[idx].parameters || variantData[idx].promptOptParams!,
+                        variantData[idx].parameters
+                            ? transformToRequestBody(
+                                  variantData[idx].variant,
+                                  undefined,
+                                  getAllMetadata(),
+                              )
+                            : variantData[idx].promptOptParams!,
                         appId || "",
                         variants[idx].baseId || "",
                         variantData[idx].isChatVariant
