@@ -1,12 +1,10 @@
 import {useCallback} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
-import {useStyles} from "../styles"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {getStringOrJson} from "@/lib/helpers/utils"
 import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
 import SharedEditor from "../../SharedEditor"
@@ -18,14 +16,12 @@ const GenerationResultUtils = dynamic(
 const GenerationComparisonCompletionOutput = ({
     rowId,
     focusDisable = false,
-    className,
     variantId,
     variantIndex,
     isLastRow,
     isLastVariant,
 }: GenerationComparisonCompletionOutputProps) => {
-    const classes = useStyles()
-    const {result, isRunning, inputRow} = usePlayground({
+    const {result, isRunning} = usePlayground({
         registerToWebWorker: true,
         variantId,
         stateSelector: useCallback(
@@ -35,27 +31,23 @@ const GenerationComparisonCompletionOutput = ({
                 return {
                     result: variantRun?.__result,
                     isRunning: variantRun?.__isRunning,
-                    inputRow,
-
-                    variantRun,
                 }
             },
             [rowId, variantId],
         ),
     })
 
-    console.log("result", result)
-
     return (
         <>
             <div
                 className={clsx([
-                    "border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3]",
+                    "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3]",
+                    {"border-r": variantIndex === 0},
                     {"border-b": !isLastRow},
                 ])}
             >
                 {variantIndex === 0 && (
-                    <div className="!w-[399px] shrink-0 sticky top-9 z-[2]">
+                    <div className="!w-[399px] shrink-0 sticky top-9 z-[2] border-0">
                         <GenerationCompletion
                             variantId={variantId}
                             rowId={rowId}
@@ -67,13 +59,12 @@ const GenerationComparisonCompletionOutput = ({
 
             <div
                 className={clsx([
-                    "border-0 border-solid border-[rgba(5,23,41,0.06)]",
-                    {"border-r": isLastVariant},
+                    "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-b": !isLastRow},
                 ])}
             >
                 <div className="flex h-full">
-                    <div className="!w-[399px] h-full relative pb-10">
+                    <div className="!w-[399px] h-full">
                         <div className="w-full py-2 px-4 sticky top-9 z-[2]">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />

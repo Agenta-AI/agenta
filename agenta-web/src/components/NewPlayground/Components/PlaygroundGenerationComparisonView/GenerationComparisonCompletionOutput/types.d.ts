@@ -4,6 +4,8 @@ import {OutputFormat} from "../../Drawers/GenerationFocusDrawer/types"
 export type GenerationComparisonCompletionOutputProps = {
     rowId: string
     focusDisable?: boolean
-    className?: string
     variantId: string
+    variantIndex?: number
+    isLastRow?: boolean
+    isLastVariant?: boolean
 }
