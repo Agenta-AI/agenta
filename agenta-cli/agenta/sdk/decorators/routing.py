@@ -598,9 +598,12 @@ class entrypoint:
             for schema_name, schema_value in openapi_schema["components"][
                 "schemas"
             ].items():
-                new_schema_name = schema_name.replace(
-                    AGENTA_RUNTIME_PREFIX.lstrip("/").replace("/", "_") + "_", ""
-                ).strip("_")
+                if AGENTA_RUNTIME_PREFIX and AGENTA_RUNTIME_PREFIX != "":
+                    new_schema_name = schema_name.replace(
+                        AGENTA_RUNTIME_PREFIX.lstrip("/").replace("/", "_") + "_", ""
+                    ).strip("_")
+                else:
+                    new_schema_name = schema_name
                 updated_schemas[new_schema_name] = schema_value
                 schema_name_map[schema_name] = new_schema_name  # Store mapping
 
@@ -642,6 +645,8 @@ class entrypoint:
 
             # ✅ Add Agenta SDK version info
             openapi_schema["agenta_sdk"] = {"version": get_current_version()}
+
+            print(openapi_schema)
 
         return openapi_schema
 
