@@ -43,6 +43,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                     logger(`FETCH - ENTER`)
 
+                    if (cachedValue && !cachedValue.error) {
+                        logger(`FETCH - RETURN CACHE AND DO NOT REFETCH`, cachedValue)
+                        return cachedValue
+                    }
+
                     let state = structuredClone(cachedValue || initialState) as Data
 
                     if (!fetcher) {
@@ -89,6 +94,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 )
                             }
 
+                            state.error = undefined
                             return state
                         } catch (err) {
                             throw new Error("Error fetching spec")
