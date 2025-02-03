@@ -383,11 +383,6 @@ async def add_variant_from_image(
     )
     app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
 
-    logger.debug("Step 8: We create ready-to use evaluators")
-    await evaluator_manager.create_ready_to_use_evaluators(
-        app_name=app.app_name, project_id=str(app.project_id)
-    )
-
     return await converters.app_variant_db_to_output(app_variant_db)
 
 
@@ -530,29 +525,9 @@ async def create_app_and_variant_from_template(
     )
 
     logger.debug(
-        "Step 8: Creating testset for app variant"
+        "Step 8: Starting variant and injecting environment variables"
         if isCloudEE()
-        else "Step 5: Creating testset for app variant"
-    )
-    await db_manager.add_testset_to_app_variant(
-        template_name=template_db.name,  # type: ignore
-        app_name=app.app_name,  # type: ignore
-        project_id=str(app.project_id),
-    )
-
-    logger.debug(
-        "Step 9: We create ready-to use evaluators"
-        if isCloudEE()
-        else "Step 6: We create ready-to use evaluators"
-    )
-    await evaluator_manager.create_ready_to_use_evaluators(
-        app_name=app.app_name, project_id=str(app.project_id)
-    )
-
-    logger.debug(
-        "Step 10: Starting variant and injecting environment variables"
-        if isCloudEE()
-        else "Step 7: Starting variant and injecting environment variables"
+        else "Step 5: Starting variant and injecting environment variables"
     )
 
     envvars = {}

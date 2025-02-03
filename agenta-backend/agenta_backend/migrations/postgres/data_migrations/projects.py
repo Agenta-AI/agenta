@@ -1,4 +1,5 @@
 import os
+import uuid
 import traceback
 from typing import Sequence
 
@@ -8,6 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from agenta_backend.services import db_manager, evaluator_manager
 from agenta_backend.models.deprecated_models import ProjectScopedAppDB as AppDB
 from agenta_backend.models.db_models import (
     ProjectDB,
@@ -84,6 +86,73 @@ def create_default_project():
             raise e
 
 
+def add_completion_testset_to_project(session: Session, project_id: str):
+    try:
+        json_path = os.path.join(
+            db_manager.PARENT_DIRECTORY,
+            "resources",
+            "default_testsets",
+            "completion_testset.json",
+        )
+        if os.path.exists(json_path):
+            csvdata = db_manager.get_json(json_path)
+            testset = {
+                "name": f"completion_testset",
+                "csvdata": csvdata,
+            }
+            testset_db = TestSetDB(
+                **testset,
+                project_id=uuid.UUID(project_id),
+            )
+
+            session.add(testset_db)
+            session.commit()
+
+        print("Added completion testset to project.")
+    except Exception as e:
+        print(f"An error occurred in adding the default testset: {e}")
+
+
+def add_default_evaluators_to_project(session: Session, project_id: str):
+    try:
+        direct_use_evaluators = [
+            evaluator
+            for evaluator in evaluator_manager.get_evaluators()
+            if evaluator.direct_use
+        ]
+
+        for evaluator in direct_use_evaluators:
+            settings_values = {
+                setting_name: setting.get("default")
+                for setting_name, setting in evaluator.settings_template.items()
+                if setting.get("ground_truth_key") is True
+                and setting.get("default", "")
+            }
+
+            for setting_name, default_value in settings_values.items():
+                assert (
+                    default_value != ""
+                ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+
+            assert hasattr(evaluator, "name") and hasattr(
+                evaluator, "key"
+            ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
+
+            evaluator_config = EvaluatorConfigDB(
+                project_id=uuid.UUID(project_id),
+                name=evaluator.name,
+                evaluator_key=evaluator.key,
+                settings_values=settings_values,
+            )
+            session.add(evaluator_config)
+
+        session.commit()
+
+        print("Added default evalutors to project.")
+    except Exception as e:
+        print(f"An error occurred in adding default evaluators: {e}")
+
+
 def remove_default_project():
     engine = create_engine(os.getenv("POSTGRES_URI"))
     sync_session = sessionmaker(engine, expire_on_commit=False)
@@ -137,6 +206,14 @@ def add_project_id_to_db_entities():
                     session.commit()
                     offset += BATCH_SIZE
 
+            # add default testset and evaluators
+            add_completion_testset_to_project(
+                session=session,
+                project_id=str(default_project.id),
+            )
+            add_default_evaluators_to_project(
+                session=session, project_id=str(default_project.id)
+            )
         except Exception as e:
             session.rollback()
             click.echo(
