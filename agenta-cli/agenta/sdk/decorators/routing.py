@@ -6,6 +6,7 @@ from traceback import format_exception
 from asyncio import sleep
 from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
+from os import environ
 
 from fastapi import Body, FastAPI, HTTPException, Request
 
@@ -38,8 +39,14 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
+AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
-app = FastAPI()
+app = FastAPI(
+    root_path=AGENTA_RUNTIME_PREFIX,  # Prefix for all routes
+    docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
+    openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
+)
+
 log.setLevel("DEBUG")
 
 
