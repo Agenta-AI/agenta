@@ -39,18 +39,18 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
+log.setLevel("DEBUG")
+
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
 app = FastAPI(
-    root_path=AGENTA_RUNTIME_PREFIX,  # Prefix for all routes
     docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
     openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
 )
 
-log.setLevel("DEBUG")
+app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
 
-
-app.include_router(router, prefix="")
+log.error("Agenta - Runtime Prefix:" + AGENTA_RUNTIME_PREFIX)
 
 
 class PathValidator(BaseModel):
