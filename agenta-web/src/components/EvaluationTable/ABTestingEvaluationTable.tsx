@@ -45,6 +45,8 @@ import {useAppsData} from "@/contexts/app.context"
 import {useVariants} from "@/lib/hooks/useVariants"
 import {VARIANT_COLORS} from "../Evaluations/EvaluationCardView/assets/styles"
 import {useEvaluationResults} from "@/services/human-evaluations/hooks/useEvaluationResults"
+import {transformToRequestBody} from "@/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
+import {getAllMetadata} from "@/lib/hooks/useStatelessVariant/state"
 
 const {Title} = Typography
 
@@ -215,11 +217,18 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
             await Promise.all(
                 evalVariants.map(async (variant: Variant, idx: number) => {
                     setRowValue(rowIndex, variant.variantId, "loading...")
+
                     try {
                         let result = await callVariant(
                             inputParamsDict,
                             _variants[idx].inputParams!,
-                            variantData[idx].parameters || variantData[idx].promptOptParams!,
+                            variantData[idx].parameters
+                                ? transformToRequestBody(
+                                      variantData[idx].variant,
+                                      undefined,
+                                      getAllMetadata(),
+                                  )
+                                : variantData[idx].promptOptParams!,
                             appId || "",
                             _variants[idx].baseId || "",
                             _variants[idx].isChatVariant
