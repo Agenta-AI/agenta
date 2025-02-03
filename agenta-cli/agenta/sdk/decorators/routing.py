@@ -276,46 +276,18 @@ class entrypoint:
             )
         # LEGACY
 
-        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
-        openapi_schema = app.openapi()
-
-        # # ✅ Remove prefix from all OpenAPI paths
-        # updated_paths = {}
-        # for path, methods in openapi_schema["paths"].items():
-        #     new_path = (
-        #         path[len(AGENTA_RUNTIME_PREFIX) :]
-        #         if path.startswith(AGENTA_RUNTIME_PREFIX)
-        #         else path
-        #     )
-        #     updated_paths[new_path] = methods
-        # openapi_schema["paths"] = updated_paths  # Replace paths
-
-        # # ✅ Remove prefix from schema names
-        # if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
-        #     updated_schemas = {}
-        #     for schema_name, schema_value in openapi_schema["components"][
-        #         "schemas"
-        #     ].items():
-        #         new_schema_name = schema_name.replace(
-        #             AGENTA_RUNTIME_PREFIX.lstrip("/").replace("/", "_"), ""
-        #         ).strip("_")
-        #         updated_schemas[new_schema_name] = schema_value
-        #     openapi_schema["components"]["schemas"] = updated_schemas
-
-        # # ✅ Add Agenta SDK version info
-        # openapi_schema["agenta_sdk"] = {"version": get_current_version()}
-
-        # ✅ Store modified schema
-        app.openapi_schema = openapi_schema
+        openapi_schema = self.openapi()
 
         for _route in entrypoint.routes:
             if _route["config"] is not None:
                 self.override_config_in_schema(
                     openapi_schema=openapi_schema,
                     func_name=_route["func"],
-                    endpoint=_route["endpoint"],
+                    endpoint=_route["endpoint"].replace(AGENTA_RUNTIME_PREFIX, ""),
                     config=_route["config"],
                 )
+
+        app.openapi_schema = openapi_schema
         ### --------------- #
 
     def parse_config(self) -> Tuple[Optional[Type[BaseModel]], Dict[str, Any]]:
@@ -602,6 +574,77 @@ class entrypoint:
                 )
             )
 
+    def openapi(self):
+        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
+
+        openapi_schema = app.openapi()
+
+        # ✅ Fix paths by removing the prefix
+        updated_paths = {}
+        for path, methods in openapi_schema["paths"].items():
+            new_path = (
+                path[len(AGENTA_RUNTIME_PREFIX) :]
+                if path.startswith(AGENTA_RUNTIME_PREFIX)
+                else path
+            )
+            updated_paths[new_path] = methods
+        openapi_schema["paths"] = updated_paths  # Replace paths
+
+        # ✅ Fix schema names and update `$ref` references
+        if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
+            updated_schemas = {}
+            schema_name_map = {}  # Map old schema names to new schema names
+
+            for schema_name, schema_value in openapi_schema["components"][
+                "schemas"
+            ].items():
+                new_schema_name = schema_name.replace(
+                    AGENTA_RUNTIME_PREFIX.lstrip("/").replace("/", "_") + "_", ""
+                ).strip("_")
+                updated_schemas[new_schema_name] = schema_value
+                schema_name_map[schema_name] = new_schema_name  # Store mapping
+
+            # ✅ Fix `$ref` references
+            for path, methods in updated_paths.items():
+                for method in methods.values():
+                    if "requestBody" in method and "content" in method["requestBody"]:
+                        for content_type, content in method["requestBody"][
+                            "content"
+                        ].items():
+                            if "$ref" in content["schema"]:
+                                old_ref = content["schema"]["$ref"]
+                                schema_name = old_ref.split("/")[
+                                    -1
+                                ]  # Extract schema name
+                                if schema_name in schema_name_map:
+                                    content["schema"][
+                                        "$ref"
+                                    ] = f"#/components/schemas/{schema_name_map[schema_name]}"
+
+                    if "responses" in method:
+                        for status_code, response in method["responses"].items():
+                            if "content" in response:
+                                for content_type, content in response[
+                                    "content"
+                                ].items():
+                                    if "$ref" in content["schema"]:
+                                        old_ref = content["schema"]["$ref"]
+                                        schema_name = old_ref.split("/")[
+                                            -1
+                                        ]  # Extract schema name
+                                        if schema_name in schema_name_map:
+                                            content["schema"][
+                                                "$ref"
+                                            ] = f"#/components/schemas/{schema_name_map[schema_name]}"
+
+            # ✅ Update OpenAPI schema with fixed schemas
+            openapi_schema["components"]["schemas"] = updated_schemas
+
+            # ✅ Add Agenta SDK version info
+            openapi_schema["agenta_sdk"] = {"version": get_current_version()}
+
+        return openapi_schema
+
     def override_config_in_schema(
         self,
         openapi_schema: dict,
@@ -611,6 +654,7 @@ class entrypoint:
     ):
         """Override config in OpenAPI schema to add agenta-specific metadata."""
         endpoint = endpoint[1:].replace("/", "_")
+
         schema_key = f"Body_{func_name}_{endpoint}_post"
         schema_to_override = openapi_schema["components"]["schemas"][schema_key]
 
