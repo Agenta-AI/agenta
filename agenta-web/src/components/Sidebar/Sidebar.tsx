@@ -193,7 +193,7 @@ const Sidebar: React.FC = () => {
                                 }}
                                 items={bottomItems}
                                 collapsed={isSidebarExpanded}
-                                mode="vertical"
+                                mode={isSidebarExpanded ? "inline" : "vertical"}
                             />
                         </div>
                     </ErrorBoundary>
