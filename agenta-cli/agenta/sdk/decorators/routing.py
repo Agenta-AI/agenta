@@ -278,7 +278,36 @@ class entrypoint:
 
         app.openapi_schema = None  # Forces FastAPI to re-generate the schema
         openapi_schema = app.openapi()
+
+        # ✅ Remove prefix from all OpenAPI paths
+        updated_paths = {}
+        for path, methods in openapi_schema["paths"].items():
+            new_path = (
+                path[len(AGENTA_RUNTIME_PREFIX) :]
+                if path.startswith(AGENTA_RUNTIME_PREFIX)
+                else path
+            )
+            updated_paths[new_path] = methods
+        openapi_schema["paths"] = updated_paths  # Replace paths
+
+        # ✅ Remove prefix from schema names
+        if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
+            updated_schemas = {}
+            for schema_name, schema_value in openapi_schema["components"][
+                "schemas"
+            ].items():
+                new_schema_name = schema_name.replace(
+                    AGENTA_RUNTIME_PREFIX.lstrip("/").replace("/", "_"), ""
+                ).strip("_")
+                updated_schemas[new_schema_name] = schema_value
+            openapi_schema["components"]["schemas"] = updated_schemas
+
+        # ✅ Add Agenta SDK version info
         openapi_schema["agenta_sdk"] = {"version": get_current_version()}
+
+        # ✅ Store modified schema
+        app.openapi_schema = openapi_schema
+
         for _route in entrypoint.routes:
             if _route["config"] is not None:
                 self.override_config_in_schema(
