@@ -39,18 +39,18 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
+log.setLevel("DEBUG")
+
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
 app = FastAPI(
-    root_path=AGENTA_RUNTIME_PREFIX,  # Prefix for all routes
     docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
     openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
 )
 
-log.setLevel("DEBUG")
+app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
 
-
-app.include_router(router, prefix="")
+log.error("Agenta - Runtime Prefix:" + AGENTA_RUNTIME_PREFIX)
 
 
 class PathValidator(BaseModel):
@@ -121,13 +121,13 @@ class entrypoint:
     routes = list()
 
     _middleware = False
-    _run_path = "/run"
-    _test_path = "/test"
+    _run_path = f"{AGENTA_RUNTIME_PREFIX}/run"
+    _test_path = f"{AGENTA_RUNTIME_PREFIX}/test"
     _config_key = "ag_config"
     # LEGACY
-    _legacy_playground_run_path = "/playground/run"
-    _legacy_generate_path = "/generate"
-    _legacy_generate_deployed_path = "/generate_deployed"
+    _legacy_playground_run_path = f"{AGENTA_RUNTIME_PREFIX}/playground/run"
+    _legacy_generate_path = f"{AGENTA_RUNTIME_PREFIX}/generate"
+    _legacy_generate_deployed_path = f"{AGENTA_RUNTIME_PREFIX}/generate_deployed"
 
     def __init__(
         self,
