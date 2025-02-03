@@ -13,7 +13,7 @@ function shouldIncludeValue(value: unknown): boolean {
 /**
  * Extract raw value based on metadata type
  */
-function extractValueByMetadata(
+export function extractValueByMetadata(
     enhanced: Record<string, any> | null | undefined,
     allMetadata: Record<string, ConfigMetadata>,
 ): unknown {

@@ -27,7 +27,7 @@ export interface AgentaConfig {
 
 /** Variant configuration structure */
 export interface VariantParameters {
-    agentaConfig: AgentaConfig
+    agConfig: AgentaConfig
 }
 
 /** Base variant interface */
