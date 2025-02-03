@@ -29,6 +29,7 @@ from .sdk.agenta_init import Config, AgentaSingleton, init as _init
 from .sdk.utils.costs import calculate_token_usage
 from .sdk.client import Agenta
 from .sdk.litellm import litellm as callbacks
+from .sdk.managers.apps import AppManager
 from .sdk.managers.vault import VaultManager
 from .sdk.managers.secrets import SecretsManager
 from .sdk.managers.config import ConfigManager
@@ -36,6 +37,7 @@ from .sdk.managers.variant import VariantManager
 from .sdk.managers.deployment import DeploymentManager
 from .sdk import assets as assets
 from .sdk import tracer
+from .client.exceptions import APIRequestError
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()

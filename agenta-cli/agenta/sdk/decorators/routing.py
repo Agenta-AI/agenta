@@ -1,4 +1,3 @@
-from sre_parse import NOT_LITERAL_UNI_IGNORE
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List
 from inspect import signature, iscoroutinefunction, Signature, Parameter
 from functools import wraps

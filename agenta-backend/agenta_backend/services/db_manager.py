@@ -188,7 +188,9 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
         if not app:
-            raise NoResultFound(f"No application with ID '{app_uuid}' found")
+            raise HTTPException(
+                404, detail=f"No application with ID '{app_uuid}' found"
+            )
         return app
 
 
@@ -784,7 +786,10 @@ async def create_app_and_envs(
         app_name=app_name, project_id=project_id
     )
     if app is not None:
-        raise ValueError("App with the same name already exists")
+        raise HTTPException(
+            status_code=400,
+            detail="App with the same name already exists",
+        )
 
     app_type = await get_app_type(
         template_id=template_id,

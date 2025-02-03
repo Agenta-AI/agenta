@@ -18,7 +18,7 @@ class OTelMiddleware(BaseHTTPMiddleware):
         with suppress():
             baggage = await self._get_baggage(request)
 
-            request.state.otel = {"baggage": baggage}
+            setattr(request.state, "otel", {"baggage": baggage})
 
         return await call_next(request)
 
