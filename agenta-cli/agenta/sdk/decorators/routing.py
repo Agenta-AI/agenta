@@ -182,7 +182,7 @@ class entrypoint:
         self.update_run_wrapper_signature(wrapper=run_wrapper)
 
         run_route = f"{entrypoint._run_path}{route_path}"
-        app.post(
+        router.post(
             run_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
@@ -193,7 +193,7 @@ class entrypoint:
         # - calls to /generate_deployed must be replaced with calls to /run
         if route_path == "":
             run_route = entrypoint._legacy_generate_deployed_path
-            app.post(
+            router.post(
                 run_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
@@ -218,7 +218,7 @@ class entrypoint:
         self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
 
         test_route = f"{entrypoint._test_path}{route_path}"
-        app.post(
+        router.post(
             test_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
@@ -229,7 +229,7 @@ class entrypoint:
         # - calls to /generate must be replaced with calls to /test
         if route_path == "":
             test_route = entrypoint._legacy_generate_path
-            app.post(
+            router.post(
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
@@ -240,7 +240,7 @@ class entrypoint:
         # TODO: Removing this implies no breaking changes
         if route_path == "":
             test_route = entrypoint._legacy_playground_run_path
-            app.post(
+            router.post(
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
