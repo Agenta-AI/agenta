@@ -6,6 +6,7 @@ from traceback import format_exception
 from asyncio import sleep
 from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
+from os import environ
 
 from fastapi import Body, FastAPI, HTTPException, Request
 
@@ -42,8 +43,9 @@ import agenta as ag
 app = FastAPI()
 log.setLevel("DEBUG")
 
+AGENTA_RUNTIME_PREFIX = environ("AGENTA_RUNTIME_PREFIX", "")
 
-app.include_router(router, prefix="")
+app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
 
 
 class PathValidator(BaseModel):
