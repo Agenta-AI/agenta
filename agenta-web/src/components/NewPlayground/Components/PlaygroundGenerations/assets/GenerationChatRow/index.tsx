@@ -128,7 +128,7 @@ const GenerationChatRow = ({
                             return inputRow.__id === rowId
                         },
                     )
-                    const messageHistory = messageRow.history.value
+                    const messageHistory = messageRow?.history?.value || []
                     let historyItem = findPropertyInObject(messageHistory, historyId)
                     if (historyItem?.message) {
                         historyItem = {
