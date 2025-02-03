@@ -104,7 +104,7 @@ const Sidebar: React.FC = () => {
                 <div
                     className={clsx([
                         classes.sliderContainer,
-                        "absolute left-0 top-0 h-full bg-white dark:bg-gray-900 transition-opacity duration-300",
+                        "absolute left-0 top-0 h-full bg-white dark:bg-gray-900 transition-all duration-300",
                         collapsed ? (isHovered ? "w-[236px]" : "w-[80px]") : "w-[236px]",
                     ])}
                 >
