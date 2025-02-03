@@ -96,7 +96,7 @@ const GenerationComparisonCompletionOutput = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className="!pt-0"
+                                    className="!p-0"
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
