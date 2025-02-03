@@ -22,4 +22,6 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
     rerunMessage?: (messageId: string) => void
     editorClassName?: string
     headerClassName?: string
+    handleChange?: (value: string) => void
+    initialValue?: string
 }

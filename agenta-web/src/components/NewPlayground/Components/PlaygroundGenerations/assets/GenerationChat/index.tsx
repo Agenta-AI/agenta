@@ -131,7 +131,6 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                         {messageRowIds.map((messageRow) => {
                             return historyIds[messageRow].map((historyId, index) => {
                                 return historyId.includes("isRunning") ? (
-                                    // <div key={`${historyId}-loading`}>GENERATING RESPONSE...</div>
                                     <TextControl
                                         key={`${historyId}-loading`}
                                         value="Generating response..."
