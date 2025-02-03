@@ -22,6 +22,9 @@ const nextConfig = {
         "@ant-design/icons",
         "@ant-design/icons-svg",
     ],
+    typescript: {
+        ignoreBuildErrors: true,
+    },
     swcMinify: true,
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],

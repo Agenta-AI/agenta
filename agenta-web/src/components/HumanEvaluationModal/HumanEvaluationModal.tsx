@@ -1,128 +1,26 @@
-import React, {useEffect, useState} from "react"
-import {GenericObject, JSSTheme, Parameter, Variant, StyleProps} from "@/lib/Types"
+import {useEffect, useState} from "react"
+
+import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
+import {CaretDown, Play} from "@phosphor-icons/react"
+import {useRouter} from "next/router"
+
 import {fetchVariants} from "@/services/api"
 import {createNewEvaluation} from "@/services/human-evaluations/api"
 import {isDemo} from "@/lib/helpers/utils"
-import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
 import {getErrorMessage} from "@/lib/helpers/errorHandler"
 import {EvaluationType} from "@/lib/enums"
 import {PERMISSION_ERR_MSG} from "@/lib/api/assets/axiosConfig"
 import {getAllVariantParameters} from "@/lib/helpers/variantHelper"
-import {useRouter} from "next/router"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {createUseStyles} from "react-jss"
-import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useLoadTestsetsList} from "@/services/testsets/api"
-import {CaretDown, Play} from "@phosphor-icons/react"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    evaluationContainer: {
-        border: "1px solid lightgrey",
-        padding: "20px",
-        borderRadius: "14px",
-        marginBottom: 50,
-    },
-    evaluationImg: ({themeMode}: StyleProps) => ({
-        width: 24,
-        height: 24,
-        marginRight: "8px",
-        filter: themeMode === "dark" ? "invert(1)" : "none",
-    }),
-    createCustomEvalBtn: {
-        color: "#fff  !important",
-        backgroundColor: "#0fbf0f",
-        marginRight: "20px",
-        borderColor: "#0fbf0f !important",
-    },
-    evaluationType: {
-        display: "flex",
-        alignItems: "center",
-    },
-    dropdownStyles: {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        width: "100%",
-    },
-    dropdownBtn: {
-        marginRight: 10,
-        width: "100%",
-    },
-    optionSelected: {
-        border: "1px solid #1668dc",
-        "& .ant-select-selection-item": {
-            color: "#1668dc !important",
-        },
-    },
-    radioGroup: {
-        width: "100%",
-        "& .ant-radio-button-wrapper": {
-            marginBottom: "0.5rem",
-            borderRadius: theme.borderRadius,
-            borderLeft: `1px solid ${theme.colorBorder}`,
-            "&::before": {
-                display: "none",
-            },
-        },
-        "& .ant-radio-button-wrapper-checked ": {
-            borderLeft: `1px solid ${theme.colorPrimary}`,
-        },
-    },
-    radioBtn: {
-        display: "block",
-        marginBottom: "10px",
-    },
-    selectGroup: {
-        width: "100%",
-        display: "block",
-        "& .ant-select-selector": {
-            borderRadius: 0,
-        },
-        "& .ant-select-selection-item": {
-            marginLeft: 34,
-        },
-    },
-    customCodeSelectContainer: {
-        position: "relative",
-    },
-    customCodeIcon: {
-        position: "absolute",
-        left: 16,
-        top: 4.5,
-        pointerEvents: "none",
-    },
-    thresholdStyles: {
-        paddingLeft: 10,
-        paddingRight: 10,
-    },
-    variantDropdown: {
-        marginRight: 10,
-        width: "100%",
-    },
-    newCodeEval: {
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        color: "#1668dc",
-    },
-    newCodeEvalList: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
-    dropdownItemLabels: {
-        fontSize: theme.fontSizeSM,
-        lineHeight: theme.lineHeightSM,
-        color: theme.colorTextDescription,
-    },
-}))
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+import EvaluationErrorModal from "../Evaluations/EvaluationErrorModal"
 
-interface HumanEvaluationModalProps {
-    isEvalModalOpen: boolean
-    setIsEvalModalOpen: React.Dispatch<React.SetStateAction<boolean>>
-    evaluationType: "single_model_test" | "human_a_b_testing"
-}
+import {useStyles} from "./assets/styles"
+
+import type {GenericObject, Parameter, Variant, StyleProps} from "@/lib/Types"
+import type {HumanEvaluationModalProps} from "./types"
 
 const HumanEvaluationModal = ({
     isEvalModalOpen,
@@ -185,17 +83,33 @@ const HumanEvaluationModal = ({
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {
-                    // Map the variants to an array of promises
-                    const promises = variants.map((variant) =>
-                        getAllVariantParameters(appId, variant).then((data) => ({
-                            variantName: variant.variantName,
-                            inputs:
-                                data?.inputs.map((inputParam: Parameter) => inputParam.name) || [],
-                        })),
-                    )
+                    const hasAgConfig = variants.some((variant) => variant.parameters?.ag_config)
+                    let results: {
+                        variantName: string
+                        inputs: string[]
+                    }[]
 
-                    // Wait for all promises to complete and collect results
-                    const results = await Promise.all(promises)
+                    if (hasAgConfig) {
+                        results = variants.map((variant) => {
+                            return {
+                                variantName: variant.variantName,
+                                inputs: variant.parameters?.ag_config?.prompt?.input_keys || [],
+                            }
+                        })
+                    } else {
+                        // Map the variants to an array of promises
+                        const promises = variants.map((variant) =>
+                            getAllVariantParameters(appId, variant).then((data) => ({
+                                variantName: variant.variantName,
+                                inputs:
+                                    data?.inputs.map((inputParam: Parameter) => inputParam.name) ||
+                                    [],
+                            })),
+                        )
+
+                        // Wait for all promises to complete and collect results
+                        results = await Promise.all(promises)
+                    }
 
                     // Reduce the results into the desired newVariantsInputs object structure
                     const newVariantsInputs: Record<string, string[]> = results.reduce(

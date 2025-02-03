@@ -70,7 +70,7 @@ export async function fetchVariants(
 /**
  * Get the JWT from SuperTokens
  */
-const getJWT = async () => {
+export const getJWT = async () => {
     try {
         if (await Session.doesSessionExist()) {
             let jwt = await Session.getAccessToken()
@@ -120,12 +120,15 @@ export async function callVariant(
     }
     optionalParameters = optionalParameters || []
 
-    const optParams = optionalParameters
-        .filter((param) => param.type !== "object") // remove dicts from optional parameters
-        .reduce((acc: any, param) => {
-            acc[param.name] = param.default
-            return acc
-        }, {})
+    const optParams = Array.isArray(optionalParameters)
+        ? optionalParameters
+              .filter((param) => param.type !== "object") // remove dicts from optional parameters
+              .reduce((acc: any, param) => {
+                  acc[param.name] = param.default
+                  return acc
+              }, {})
+        : optionalParameters
+
     const requestBody = {
         ...mainInputParams,
         ...optParams,
@@ -138,8 +141,8 @@ export async function callVariant(
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
-    const base_url = `${appContainerURI}/generate`
-    const secure_url = `${base_url}?project_id=${projectId}`
+    const base_url = `${appContainerURI}/generate?application_id=${appId}`
+    const secure_url = `${base_url}&project_id=${projectId}`
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
     let response = await axios
@@ -190,6 +193,7 @@ export const fetchVariantParametersFromOpenAPI = async (
     baseId?: string,
     ignoreAxiosError: boolean = false,
 ) => {
+    console.log("fetchVariantParametersFromOpenAPI", appId, variantId, baseId)
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()

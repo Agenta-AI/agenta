@@ -17,7 +17,7 @@ from agenta.sdk.utils.exceptions import suppress
 import agenta as ag
 
 
-_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
@@ -40,7 +40,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable,
     ):
-        request.state.config = {}
+        request.state.config = {"parameters": None, "references": None}
 
         with suppress():
             parameters, references = await self._get_config(request)
@@ -92,7 +92,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
                 return parameters, references
 
-        config = None
+        config = {}
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.host}/api/variants/configs/fetch",
@@ -100,29 +100,34 @@ class ConfigMiddleware(BaseHTTPMiddleware):
                 json=refs,
             )
 
-            if response.status_code != 200:
-                return None, None
-
-            config = response.json()
+            if response.status_code == 200:
+                config = response.json()
 
         if not config:
-            _cache.put(_hash, {"parameters": None, "references": None})
-
-            return None, None
-
-        parameters = config.get("params")
+            config["application_ref"] = refs[
+                "application_ref"
+            ]  # by default, application_ref will always have an id
+            parameters = None
+        else:
+            parameters = config.get("params")
 
         references = {}
 
-        for ref_key in ["application_ref", "variant_ref", "environment_ref"]:
+        ref_keys = ["application_ref"]
+
+        if config:
+            ref_keys.extend(["variant_ref", "environment_ref"])
+
+        for ref_key in ref_keys:
             refs = config.get(ref_key)
-            ref_prefix = ref_key.split("_", maxsplit=1)[0]
+            if refs:
+                ref_prefix = ref_key.split("_", maxsplit=1)[0]
 
-            for ref_part_key in ["id", "slug", "version"]:
-                ref_part = refs.get(ref_part_key)
+                for ref_part_key in ["id", "slug", "version"]:
+                    ref_part = refs.get(ref_part_key)
 
-                if ref_part:
-                    references[ref_prefix + "." + ref_part_key] = ref_part
+                    if ref_part:
+                        references[ref_prefix + "." + ref_part_key] = str(ref_part)
 
         _cache.put(_hash, {"parameters": parameters, "references": references})
 
@@ -132,7 +137,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
@@ -159,19 +164,27 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             or body.get("app")
         )
 
-        if not any([application_id, application_slug]):
+        application_version = (
+            # CLEANEST
+            baggage.get("application_version")
+            # ALTERNATIVE
+            or request.query_params.get("application_version")
+        )
+
+        if not any([application_id, application_slug, application_version]):
             return None
 
         return Reference(
             id=application_id,
             slug=application_slug,
+            version=application_version,
         )
 
     async def _parse_variant_ref(
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:
@@ -214,7 +227,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         self,
         request: Request,
     ) -> Optional[Reference]:
-        baggage = request.state.otel.get("baggage") if request.state.otel else {}
+        baggage = request.state.otel["baggage"]
 
         body = {}
         try:

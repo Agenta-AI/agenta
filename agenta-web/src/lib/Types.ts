@@ -42,6 +42,7 @@ export interface Variant {
     parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
     previousVariantName?: null | string // name of the variant that was forked from. Only set in the case of forked variants
     variantId: string
+    uri?: string
     baseId: string
     baseName: string
     configName: string

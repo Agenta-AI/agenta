@@ -19,9 +19,6 @@ class MyConfig(BaseModel):
     )
     max_tokens: int = Field(default=-1, ge=-1, le=4000)
     prompt_system: str = Field(default=SYSTEM_PROMPT)
-    multiselect: Annotated[str, ag.MultipleChoice(choices=["a", "b", "c"])] = Field(
-        default="a"
-    )
 
 
 @ag.route("/llm_call", config_schema=MyConfig)

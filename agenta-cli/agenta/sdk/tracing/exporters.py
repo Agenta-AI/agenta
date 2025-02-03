@@ -48,7 +48,6 @@ class InlineTraceExporter(SpanExporter):
         trace_id: int,
     ) -> bool:
         is_ready = trace_id in self._registry
-
         return is_ready
 
     def fetch(

@@ -14,4 +14,5 @@ export type TestsetTraceData = {
 export type TestsetDrawerProps = {
     onClose: () => void
     data: TestsetTraceData[]
+    showSelectedSpanText?: boolean
 } & React.ComponentProps<typeof Drawer>

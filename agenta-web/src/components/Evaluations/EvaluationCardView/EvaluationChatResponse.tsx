@@ -1,7 +1,7 @@
 import {ChatRole, Evaluation, Variant} from "@/lib/Types"
 import React from "react"
 import {createUseStyles} from "react-jss"
-import {VARIANT_COLORS} from "."
+import {VARIANT_COLORS} from "./assets/styles"
 import {Space, Typography} from "antd"
 import ChatInputs from "@/components/ChatInputs/ChatInputs"
 import {v4 as uuidv4} from "uuid"

@@ -611,7 +611,14 @@ const AutoEvaluation = () => {
                 bordered
                 pagination={false}
                 onRow={(record) => ({
-                    style: {cursor: "pointer"},
+                    style: {
+                        cursor: [
+                            EvaluationStatus.FINISHED_WITH_ERRORS,
+                            EvaluationStatus.FINISHED,
+                        ].includes(record.status.value)
+                            ? "pointer"
+                            : "not-allowed",
+                    },
                     onClick: () => {
                         if (
                             record.status.value === EvaluationStatus.FINISHED ||

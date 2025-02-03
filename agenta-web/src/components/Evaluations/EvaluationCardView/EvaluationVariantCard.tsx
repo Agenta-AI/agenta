@@ -4,7 +4,7 @@ import {Typography} from "antd"
 import React from "react"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
-import {VARIANT_COLORS} from "."
+import {VARIANT_COLORS} from "./assets/styles"
 
 const useStyles = createUseStyles({
     root: ({themeMode}: StyleProps) => ({

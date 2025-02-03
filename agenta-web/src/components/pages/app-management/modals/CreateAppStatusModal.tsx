@@ -136,7 +136,9 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                         },
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
-                    if (appId) router.push(`/apps/${appId}/playground`)
+                    if (appId) {
+                        router.push(`/apps/${appId}/playground`)
+                    }
                     return obj
                 case "bad_request":
                 case "error":
@@ -169,7 +171,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             }
             return prev
         })
-    }, [status])
+    }, [appId, details, router, status])
 
     return (
         <Modal

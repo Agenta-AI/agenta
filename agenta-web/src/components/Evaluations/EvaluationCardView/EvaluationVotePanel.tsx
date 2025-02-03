@@ -2,7 +2,7 @@ import {Variant} from "@/lib/Types"
 import {Button, ConfigProvider, InputNumber, Spin, Typography, theme} from "antd"
 import React from "react"
 import {createUseStyles} from "react-jss"
-import {VARIANT_COLORS} from "."
+import {VARIANT_COLORS} from "./assets/styles"
 import {v4 as uuidv4} from "uuid"
 
 const useStyles = createUseStyles({

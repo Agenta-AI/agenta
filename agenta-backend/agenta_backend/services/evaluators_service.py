@@ -38,7 +38,11 @@ def validate_string_output(
 
     Args:
         evaluator_key (str): the key of the evaluator
-        output (Union[str, Dict[str, Any]]): the llm response
+        output (Union[str, Dict[str, Any]]): The LLM response. It can be:
+            - A string.
+            - A dictionary with the string under the "content" key.
+            - A dictionary with the string under the "data" key.
+            - A dictionary with the string under the "content" key, nested inside the "data" key.
 
     Raises:
         Exception: requires output to be a string
@@ -47,12 +51,35 @@ def validate_string_output(
         str: output
     """
 
-    output = output.get("data", "") if isinstance(output, dict) else output
-    if not isinstance(output, str):
+    if isinstance(output, dict):
+        # Case 1: Check if "content" exists at the top level
+        if "content" in output and isinstance(output["content"], str):
+            final_output = output["content"]
+        # Case 2: Check if "data" exists at the top level and is a string
+        elif "data" in output and isinstance(output["data"], str):
+            final_output = output["data"]
+        # Case 3: Check if "data" exists and contains a nested "content" key with a string
+        elif (
+            "data" in output
+            and isinstance(output["data"], dict)
+            and "content" in output["data"]
+            and isinstance(output["data"]["content"], str)
+        ):
+            final_output = output["data"]["content"]
+        else:
+            # If none of the cases match, raise an error
+            raise ValueError(
+                f"Evaluator {evaluator_key} requires the output to be a string, but the dictionary structure is invalid."
+            )
+    else:
+        # If output is not a dictionary, it must be a string
+        final_output = output
+
+    if not isinstance(final_output, str):
         raise Exception(
-            f"Evaluator {evaluator_key} requires the output to be a string, but received {type(output).__name__} instead. "
+            f"Evaluator {evaluator_key} requires the output to be a string, but received {type(final_output).__name__} instead. "
         )
-    return output
+    return final_output
 
 
 async def map(

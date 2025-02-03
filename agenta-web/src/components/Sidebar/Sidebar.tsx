@@ -1,14 +1,16 @@
-import React, {useEffect, useMemo, useState, useCallback} from "react"
+import {memo, useEffect, useMemo, useState, useCallback} from "react"
+
 import {useRouter} from "next/router"
 import {Button, Divider, Dropdown, Layout, Menu, Space, Tag, Tooltip, Typography} from "antd"
-import Logo from "../Logo/Logo"
 import Link from "next/link"
-import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {ErrorBoundary} from "react-error-boundary"
+import clsx from "clsx"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
+
+import Logo from "../Logo/Logo"
+import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {ErrorBoundary} from "react-error-boundary"
 import {SidebarConfig, useSidebarConfig} from "./config"
-import {JSSTheme} from "@/lib/Types"
 import {isDemo} from "@/lib/helpers/utils"
 import {useProfileData} from "@/contexts/profile.context"
 import {useSession} from "@/hooks/useSession"
@@ -17,8 +19,8 @@ import AlertPopup from "../AlertPopup/AlertPopup"
 import Avatar from "@/components/Avatar/Avatar"
 import {useProjectData} from "@/contexts/project.context"
 import {useOrgData} from "@/contexts/org.context"
-import clsx from "clsx"
 import {ItemType} from "antd/es/menu/interface"
+import {JSSTheme} from "@/lib/Types"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -102,10 +104,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const SidebarMenu: React.FC<{
+const SidebarMenu: FC<{
     items: SidebarConfig[]
     collapsed: boolean
-    menuProps?: React.ComponentProps<typeof Menu>
+    menuProps?: ComponentProps<typeof Menu>
     mode?: "horizontal" | "vertical" | "inline"
 }> = ({items, menuProps, collapsed, mode = "inline"}) => {
     const classes = useStyles()
@@ -180,7 +182,7 @@ const SidebarMenu: React.FC<{
     return <Menu mode={mode} items={transformItems(items)} {...menuProps} />
 }
 
-const Sidebar: React.FC = () => {
+const Sidebar: FC = () => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
     const classes = useStyles()
@@ -236,8 +238,16 @@ const Sidebar: React.FC = () => {
         return [[matched?.key], openKey ? [openKey] : []]
     }, [router.asPath, topItems, bottomItems])
 
+    const _isDemo = useMemo(() => isDemo(), [])
+
     useEffect(() => {
-        setOpenKey(openKeys[0])
+        setOpenKey((prevKey) => {
+            if (prevKey !== openKeys[0]) {
+                return openKeys[0]
+            }
+
+            return prevKey
+        })
     }, [openKeys[0]])
 
     const dropdownItems = useMemo(() => {
@@ -396,4 +406,4 @@ const Sidebar: React.FC = () => {
     )
 }
 
-export default Sidebar
+export default memo(Sidebar)
