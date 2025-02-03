@@ -7,6 +7,7 @@ on:
         paths:
             - "agenta-backend/**"
             - "agenta-cli/**"
+            
 
 jobs:
     serve-to-oss:
