@@ -2,9 +2,9 @@ import {useCallback, useRef} from "react"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
-import {findPropertyInObject, isPlaygroundEqual, omitDeep} from "../assets/helpers"
+import {findPropertyInObject, findVariantById, isPlaygroundEqual, omitDeep} from "../assets/helpers"
 import {getMetadataLazy, initialState} from "../../../state"
-import {syncVariantInputs} from "../assets/inputHelpers"
+import {syncVariantInputs, updateVariantPromptKeys} from "../assets/inputHelpers"
 import {getUniqueInputKeys} from "../assets/generationHelpers"
 
 import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
@@ -162,6 +162,10 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                     previousSelected.includes(variant.id),
                                 ),
                             )
+                            for (const variantId of clonedState.selected) {
+                                const _variant = findVariantById(clonedState, variantId)
+                                updateVariantPromptKeys(_variant)
+                            }
                             const currentInputs = getUniqueInputKeys(
                                 clonedState.variants.filter((variant) =>
                                     currentSelected.includes(variant.id),
