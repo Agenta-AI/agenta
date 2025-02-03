@@ -18,7 +18,7 @@ function mergeWithSavedConfig(
     variant: BaseVariant,
 ): AgentaConfigSchema["default"]["prompt"] {
     const defaultConfig = schema.default || {}
-    const savedConfig = variant.parameters?.agentaConfig?.prompt
+    const savedConfig = variant.parameters?.agConfig?.prompt
 
     // Validate and convert saved config to match AgentaConfigSchema["default"]["prompt"]
     const validatedConfig = savedConfig
@@ -48,16 +48,16 @@ export function transformToEnhancedVariant(
         throw new Error("Invalid OpenAPI schema")
     }
 
-    const agentaConfig = requestSchema.properties?.ag_config as AgentaConfigSchema
-    if (!agentaConfig?.properties?.prompt) {
+    const agConfig = requestSchema.properties?.ag_config as AgentaConfigSchema
+    if (!agConfig?.properties?.prompt) {
         throw new Error("Invalid ag_config schema")
     }
 
     // Merge schema defaults with saved configuration
-    const mergedPromptData = mergeWithSavedConfig(agentaConfig.properties.prompt, variant)
+    const mergedPromptData = mergeWithSavedConfig(agConfig.properties.prompt, variant)
 
     // Type assertion after validation
-    const typedConfig = agentaConfig as AgentaConfigSchema
+    const typedConfig = agConfig as AgentaConfigSchema
     if (!typedConfig.properties?.prompt) {
         throw new Error("Invalid ag_config schema: missing prompt properties")
     }
@@ -65,13 +65,13 @@ export function transformToEnhancedVariant(
     const isChat =
         !!requestSchema && !!requestSchema.properties && !!requestSchema.properties.messages
 
-    const prompts = [createEnhancedConfig(mergedPromptData, agentaConfig.properties.prompt)]
+    const prompts = [createEnhancedConfig(mergedPromptData, agConfig.properties.prompt)]
 
     return {
         ...variant,
         isChat,
         isChatVariant: isChat,
-        prompts: [createEnhancedConfig(mergedPromptData, agentaConfig.properties.prompt)],
+        prompts: [createEnhancedConfig(mergedPromptData, agConfig.properties.prompt)],
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
     }
