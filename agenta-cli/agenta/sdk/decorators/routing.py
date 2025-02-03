@@ -121,13 +121,13 @@ class entrypoint:
     routes = list()
 
     _middleware = False
-    _run_path = "/run"
-    _test_path = "/test"
+    _run_path = f"{AGENTA_RUNTIME_PREFIX}/run"
+    _test_path = f"{AGENTA_RUNTIME_PREFIX}/test"
     _config_key = "ag_config"
     # LEGACY
-    _legacy_playground_run_path = "/playground/run"
-    _legacy_generate_path = "/generate"
-    _legacy_generate_deployed_path = "/generate_deployed"
+    _legacy_playground_run_path = f"{AGENTA_RUNTIME_PREFIX}/playground/run"
+    _legacy_generate_path = f"{AGENTA_RUNTIME_PREFIX}/generate"
+    _legacy_generate_deployed_path = f"{AGENTA_RUNTIME_PREFIX}/generate_deployed"
 
     def __init__(
         self,
@@ -182,7 +182,7 @@ class entrypoint:
         self.update_run_wrapper_signature(wrapper=run_wrapper)
 
         run_route = f"{entrypoint._run_path}{route_path}"
-        router.post(
+        app.post(
             run_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
@@ -193,7 +193,7 @@ class entrypoint:
         # - calls to /generate_deployed must be replaced with calls to /run
         if route_path == "":
             run_route = entrypoint._legacy_generate_deployed_path
-            router.post(
+            app.post(
                 run_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
@@ -218,7 +218,7 @@ class entrypoint:
         self.update_test_wrapper_signature(wrapper=test_wrapper, config_instance=config)
 
         test_route = f"{entrypoint._test_path}{route_path}"
-        router.post(
+        app.post(
             test_route,
             response_model=BaseResponse,
             response_model_exclude_none=True,
@@ -229,7 +229,7 @@ class entrypoint:
         # - calls to /generate must be replaced with calls to /test
         if route_path == "":
             test_route = entrypoint._legacy_generate_path
-            router.post(
+            app.post(
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
@@ -240,7 +240,7 @@ class entrypoint:
         # TODO: Removing this implies no breaking changes
         if route_path == "":
             test_route = entrypoint._legacy_playground_run_path
-            router.post(
+            app.post(
                 test_route,
                 response_model=BaseResponse,
                 response_model_exclude_none=True,
