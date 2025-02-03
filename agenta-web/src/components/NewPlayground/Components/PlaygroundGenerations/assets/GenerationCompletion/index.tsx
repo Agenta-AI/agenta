@@ -90,7 +90,7 @@ const GenerationCompletion = ({
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >
-                    <AddButton size="small" label="Input" onClick={addNewInputRow} />
+                    <AddButton size="small" label="Test case" onClick={addNewInputRow} />
                 </div>
             ) : null}
         </div>
