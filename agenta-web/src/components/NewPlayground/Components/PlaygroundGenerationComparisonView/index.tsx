@@ -2,30 +2,11 @@ import {useCallback} from "react"
 import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 
-import GenerationComparisonCompletionInput from "./GenerationComparisonCompletionInput"
-import GenerationComparisonChatInput from "./GenerationComparisonChatInput"
 import GenerationComparisonCompletionOutput from "./GenerationComparisonCompletionOutput"
 import GenerationComparisonChatOutput from "./GenerationComparisonChatOutput"
 
 import type {PlaygroundStateData} from "../../hooks/usePlayground/types"
 import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
-
-const GenerationComparisonInput = ({variantId}: {variantId: string}) => {
-    const {isChat} = usePlayground({
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            return {isChat: state.variants[0].isChat}
-        }, []),
-    })
-
-    return isChat ? (
-        <GenerationComparisonChatInput />
-    ) : (
-        <GenerationComparisonCompletionInput
-            variantId={variantId}
-            rowClassName="bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
-        />
-    )
-}
 
 const GenerationComparisonOutput = ({rowId, isLastRow}: {rowId: string; isLastRow?: boolean}) => {
     const {isChat, displayedVariants, chatHistory} = usePlayground({
@@ -65,4 +46,4 @@ const GenerationComparisonOutput = ({rowId, isLastRow}: {rowId: string; isLastRo
     )
 }
 
-export {GenerationComparisonInput, GenerationComparisonOutput}
+export {GenerationComparisonOutput}
