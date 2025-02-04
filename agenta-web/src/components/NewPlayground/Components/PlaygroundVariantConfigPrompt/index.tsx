@@ -41,7 +41,7 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
             {
                 key: "1",
                 classNames: {
-                    body: "!border-t-0",
+                    body: "!border-t-0 !pt-0",
                     header: "[&.ant-collapse-header]:!px-2.5 !p-0 my-3",
                 },
                 label: (

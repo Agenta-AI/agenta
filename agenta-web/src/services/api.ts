@@ -120,12 +120,15 @@ export async function callVariant(
     }
     optionalParameters = optionalParameters || []
 
-    const optParams = optionalParameters
-        .filter((param) => param.type !== "object") // remove dicts from optional parameters
-        .reduce((acc: any, param) => {
-            acc[param.name] = param.default
-            return acc
-        }, {})
+    const optParams = Array.isArray(optionalParameters)
+        ? optionalParameters
+              .filter((param) => param.type !== "object") // remove dicts from optional parameters
+              .reduce((acc: any, param) => {
+                  acc[param.name] = param.default
+                  return acc
+              }, {})
+        : optionalParameters
+
     const requestBody = {
         ...mainInputParams,
         ...optParams,

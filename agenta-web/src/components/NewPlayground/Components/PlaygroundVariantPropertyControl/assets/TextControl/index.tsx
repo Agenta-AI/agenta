@@ -1,11 +1,8 @@
 import clsx from "clsx"
 import {Typography} from "antd"
-import {useCallback} from "react"
-import {useDebounceInput} from "../../../../../../hooks/useDebounceInput"
 
 import type {TextControlProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
-import EditorWrapper from "@/components/Editor/Editor"
 import SharedEditor from "../../../SharedEditor"
 
 const TextControl = ({
@@ -18,6 +15,7 @@ const TextControl = ({
     as,
     view,
     disabled,
+    ...props
 }: TextControlProps) => {
     const {viewType} = usePlayground()
 
@@ -25,10 +23,11 @@ const TextControl = ({
         return (
             <SharedEditor
                 header={
-                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                         {metadata.title}
                     </Typography>
                 }
+                editorType="border"
                 handleChange={handleChange}
                 initialValue={value}
                 editorClassName={className}
@@ -39,6 +38,7 @@ const TextControl = ({
                     className,
                 )}
                 editorProps={{enableResize: true, boundWidth: true}}
+                {...props}
             />
         )
     }
@@ -46,16 +46,21 @@ const TextControl = ({
     return (
         <SharedEditor
             header={
-                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF]">
+                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                     {metadata.title}
                 </Typography>
             }
+            editorType="borderless"
+            className={clsx(
+                "relative bg-transparent flex flex-col gap-1 rounded-[theme(spacing.2)]",
+                className,
+            )}
             handleChange={handleChange}
             initialValue={value}
             editorClassName={className}
             placeholder={metadata?.description}
             disabled={disabled}
-            className={clsx("relative bg-transparent", className)}
+            {...props}
         />
     )
 }

@@ -1,11 +1,11 @@
-import {useCallback} from "react"
+import {useMemo} from "react"
 import {fetchAllTraces} from "../core"
-import {_AgentaRootsResponse, AgentaRootsDTO, AgentaTreeDTO} from "../types"
+import {_AgentaRootsResponse, AgentaNodeDTO, AgentaRootsDTO, AgentaTreeDTO} from "../types"
 import {buildNodeTree, observabilityTransformer} from "@/lib/helpers/observability_helpers"
 import useSWR from "swr"
 
 export const useTraces = ({pagination, sort, filters, traceTabs}, appId: string) => {
-    const generateTraceQueryString = useCallback(() => {
+    const queryParams = useMemo(() => {
         const params: Record<string, any> = {
             size: pagination.size,
             page: pagination.page,
@@ -33,10 +33,10 @@ export const useTraces = ({pagination, sort, filters, traceTabs}, appId: string)
         }
 
         return params
-    }, [])
+    }, [traceTabs, pagination.size, pagination.page, filters, sort])
+
     const fetcher = async () => {
-        const queries = generateTraceQueryString()
-        const data = await fetchAllTraces(queries, appId)
+        const data = await fetchAllTraces(queryParams, appId)
 
         const transformedTraces: _AgentaRootsResponse[] = []
 
@@ -68,7 +68,8 @@ export const useTraces = ({pagination, sort, filters, traceTabs}, appId: string)
         }
     }
 
-    const swr = useSWR("traces", fetcher, {
+    const swrKey = ["traces", appId, JSON.stringify(queryParams)]
+    const swr = useSWR(swrKey, fetcher, {
         revalidateOnFocus: false,
         revalidateOnReconnect: false,
     })

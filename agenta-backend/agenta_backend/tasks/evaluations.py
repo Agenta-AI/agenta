@@ -144,6 +144,9 @@ def evaluate(
                 rate_limit_config,
                 user_id,
                 project_id,
+                application_id=str(
+                    app.id
+                ),  #! NOTE: removing this will break observability
             )
         )
 
