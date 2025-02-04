@@ -22,7 +22,7 @@ const ParamsFormWithRun = ({
     rowIndex,
     onRun,
     onParamChange,
-    variantData,
+    variantData = [],
     isLoading,
 }: {
     record: SingleModelEvaluationRow
@@ -34,17 +34,18 @@ const ParamsFormWithRun = ({
 }) => {
     const classes = useSingleModelEvaluationTableStyles()
     const [form] = Form.useForm()
+    const inputParams = variantData[0]?.inputParams
 
     return isLoading ? null : (
         <div>
             {evaluation.testset.testsetChatColumn ? (
                 evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] || " - "
-            ) : (
+            ) : !!inputParams ? (
                 <ParamsForm
                     isChatVariant={false}
                     onParamChange={onParamChange}
                     inputParams={
-                        variantData[0].inputParams?.map((item) => ({
+                        inputParams.map((item) => ({
                             ...item,
                             value: record.inputs.find((ip) => ip.input_name === item.name)
                                 ?.input_value,
@@ -53,7 +54,7 @@ const ParamsFormWithRun = ({
                     onFinish={onRun}
                     form={form}
                 />
-            )}
+            ) : null}
 
             <div className={classes.inputTestBtn}>
                 <Button
