@@ -33,7 +33,7 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
     onInputChange,
     updateEvaluationScenarioData,
     evaluation,
-    variantData,
+    variantData = [],
     isLoading,
 }) => {
     const classes = useStyles()
@@ -262,12 +262,14 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
                                     inputParams={
                                         isChat
                                             ? [{name: "chat", value: chat} as any]
-                                            : variantData[0].inputParams?.map((item) => ({
-                                                  ...item,
-                                                  value: scenario.inputs.find(
-                                                      (ip) => ip.input_name === item.name,
-                                                  )?.input_value,
-                                              })) || []
+                                            : ((variantData || [])[0]?.inputParams || []).map(
+                                                  (item) => ({
+                                                      ...item,
+                                                      value: scenario.inputs.find(
+                                                          (ip) => ip.input_name === item.name,
+                                                      )?.input_value,
+                                                  }),
+                                              ) || []
                                     }
                                     key={scenarioId}
                                     useChatDefaultValue
