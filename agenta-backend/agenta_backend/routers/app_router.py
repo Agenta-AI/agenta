@@ -439,6 +439,7 @@ async def add_variant_from_url(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
 
+    try:
         if isCloudEE():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
