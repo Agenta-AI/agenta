@@ -239,6 +239,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                 : [],
                             undefined,
                             true,
+                            !!variantData[idx].parameters, // isNewVariant
                         )
 
                         let res: BaseResponse | undefined

@@ -101,6 +101,7 @@ export async function callVariant(
     chatMessages?: ChatMessage[],
     signal?: AbortSignal,
     ignoreAxiosError?: boolean,
+    isNewVariant?: boolean,
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -132,10 +133,17 @@ export async function callVariant(
     const requestBody = {
         ...mainInputParams,
         ...optParams,
-        ["inputs"]: isChatVariant
-            ? chatMessages.filter((item) => item.content).map((item) => removeKeys(item, ["id"]))
-            : secondaryInputParams,
     }
+
+    if (isChatVariant) {
+        if (isNewVariant) {
+            requestBody["messages"] = chatMessages
+        } else {
+            requestBody["inputs"] = chatMessages
+        }
+    }
+
+    requestBody["inputs"] = secondaryInputParams
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
     const {projectId} = getCurrentProject()

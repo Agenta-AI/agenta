@@ -228,6 +228,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             : [],
                         undefined,
                         true,
+                        !!variantData[idx].parameters, // isNewVariant
                     )
 
                     let res: BaseResponse | undefined
