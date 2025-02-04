@@ -61,7 +61,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         [promptId],
     )
 
-    const {propertyIds, modelName} = usePlayground({
+    const {propertyIds, modelName, mutateVariant} = usePlayground({
         variantId,
         hookId: "PlaygroundVariantModelConfig",
         variantSelector,
@@ -76,12 +76,28 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         e?.preventDefault()
         e?.stopPropagation()
     }, [])
-    const handleModalClose = useCallback(() => setIsModalOpen(false), [])
 
     const handleResetDefaults = useCallback(async () => {
-        // await saveModelConfig?.()
-        handleModalClose()
-    }, [handleModalClose])
+        mutateVariant?.((variant) => {
+            const prompt = variant?.prompts.find((p) => p.__id === promptId)
+            const llmConfig = prompt?.llmConfig
+            const {model, ...restOfConfig} = llmConfig
+
+            const properties =
+                getEnhancedProperties(restOfConfig, [
+                    "tools",
+                    "toolChoice",
+                    "responseFormat",
+                    "stream",
+                ]) || []
+
+            properties.forEach((property) => {
+                property.value = null
+            })
+
+            return variant
+        })
+    }, [variantId])
 
     return (
         <Popover
