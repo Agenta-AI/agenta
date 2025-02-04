@@ -52,11 +52,82 @@ ag.init()
 
 ## Creating a new prompt
 
-Each prompt in agenta is a unique application. Currently creating a prompt is only available in the web UI. To create a new prompt, just click on create a new prompt and select whether it's a chat or completion prompt in the web UI.
+This needs review ...
+Each prompt in Agenta is a unique application. Currently creating a prompt is only available in the web UI. To create a new prompt, just click on create a new prompt and select whether it's a chat or completion prompt in the web UI.
 
-## Committing changes
+### Creating a new Application
 
-### Creating a New Variant
+To create a new application, use the `AppManager.create` method.
+
+```python
+
+app = ag.AppManager.create(
+    app_slug="my-app-slug",
+    template_key="SERVICE:chat",
+    # template_key="SERVICE:completion",
+)
+
+print("Created application:")
+print(app)
+```
+
+This command will create a new application and set its type
+
+- **Parameters:**
+  - `app_slug`: The slug of your application.
+  - `template_key`: The type of the applicaton.
+    - `SERVICE:chat`: for managed `chat` applications.
+    - `SERVICE:completion`: for managed `completion` applications.
+
+**Note:** If an application with the same `slug` already exists, the SDK will raise an exception.
+
+**Sample Output:**
+
+```python
+Created application:
+{
+    'app_id': 'my-app-id',
+    'app_slug': 'my-app-slug',
+}
+```
+
+### Renaming an Application
+
+To rename an application, use the `AppManager.update` method.
+
+```python
+
+app = ag.AppManager.rename(
+    app_id="my-app-id",
+    app_slug="my-new-app-slug",
+)
+
+print("Renamed application:")
+print(app)
+```
+
+**Sample Output:**
+
+```python
+Renamed application:
+{
+    'app_id': 'my-app-id',
+    'app_slug': 'my-new-app-slug',
+}
+```
+
+### Deleting an Application
+
+To delete an application, use the `AppManager.delete` method.
+
+```python
+
+ag.AppManager.delete(
+    app_id="my-app-id",
+)
+```
+
+### Creating a new Variant
 
 To create a new variant, use the `VariantManager.create` method.
 
