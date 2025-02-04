@@ -13,7 +13,6 @@ import GenerationOutputText from "../GenerationOutputText"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import RunButton from "@/components/NewPlayground/assets/RunButton"
 import {useStyles} from "./styles"
-import {getStringOrJson} from "@/lib/helpers/utils"
 import SharedEditor from "../../../SharedEditor"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
@@ -31,7 +30,7 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {result, variableIds, runTests, canRun, isRunning, viewType, isChat} = usePlayground({
+    const {result, variableIds, runTests, isRunning, viewType, isChat} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -41,7 +40,6 @@ const GenerationCompletionRow = ({
 
                 const variables = getEnhancedProperties(inputRow)
                 const variableIds = variables.map((p) => p.__id)
-                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
                 const result = variantId ? inputRow?.__runs?.[variantId]?.__result : null
                 const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
@@ -49,7 +47,6 @@ const GenerationCompletionRow = ({
                 return {
                     isChat: state.variants[0]?.isChat,
                     variableIds,
-                    canRun,
                     result,
                     isRunning,
                     inputText: variables?.[0]?.value, // Temporary implementation
@@ -105,7 +102,7 @@ const GenerationCompletionRow = ({
                 {!inputOnly && variableIds.length > 0 ? (
                     <div className="w-full flex gap-1 items-start">
                         <div className="w-[100px] shrink-0">
-                            <RunButton onClick={runRow} disabled={!canRun || isRunning} />
+                            <RunButton onClick={runRow} disabled={isRunning} />
                         </div>
                         <div className="flex flex-col gap-4">
                             {isRunning ? (
@@ -187,7 +184,7 @@ const GenerationCompletionRow = ({
 
             {!inputOnly && variableIds.length > 0 ? (
                 <div className={clsx("h-[48px] flex items-center px-4")}>
-                    <RunButton onClick={runRow} disabled={!canRun || isRunning} className="flex" />
+                    <RunButton onClick={runRow} disabled={isRunning} className="flex" />
                 </div>
             ) : null}
         </>
