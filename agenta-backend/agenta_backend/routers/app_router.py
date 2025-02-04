@@ -236,11 +236,18 @@ async def create_app(
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    app_db = await db_manager.create_app_and_envs(
-        payload.app_name,
-        project_id=request.state.project_id,
-        template_key=payload.template_key,
-    )
+    try:
+        app_db = await db_manager.create_app_and_envs(
+            payload.app_name,
+            project_id=request.state.project_id,
+            template_key=payload.template_key,
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="App with the same name already exists",
+        )
+
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
 
@@ -265,7 +272,13 @@ async def update_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
 
-    app = await db_manager.fetch_app_by_id(app_id)
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+    except db_manager.NoResultFound:
+        raise HTTPException(
+            status_code=404, detail=f"No application with ID '{app_id}' found"
+        )
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -357,7 +370,13 @@ async def add_variant_from_image(
         elif await deployment_manager.validate_image(image) is False:
             raise HTTPException(status_code=404, detail="Image not found")
 
-    app = await db_manager.fetch_app_by_id(app_id)
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+    except db_manager.NoResultFound:
+        raise HTTPException(
+            status_code=404, detail=f"No application with ID '{app_id}' found"
+        )
+
     if isCloudEE():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -415,6 +434,10 @@ async def add_variant_from_url(
 
     try:
         app = await db_manager.fetch_app_by_id(app_id)
+    except db_manager.NoResultFound:
+        raise HTTPException(
+            status_code=404, detail=f"No application with ID '{app_id}' found"
+        )
 
         if isCloudEE():
             has_permission = await check_action_access(
@@ -503,7 +526,12 @@ async def remove_app(
         app -- App to remove
     """
 
-    app = await db_manager.fetch_app_by_id(app_id)
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+    except db_manager.NoResultFound:
+        raise HTTPException(
+            status_code=404, detail=f"No application with ID '{app_id}' found"
+        )
 
     if isCloudEE():
         has_permission = await check_action_access(
@@ -604,11 +632,17 @@ async def create_app_and_variant_from_template(
         else "Step 3: Creating new app and initializing environments"
     )
     if app is None:
-        app = await db_manager.create_app_and_envs(
-            app_name=app_name,
-            template_id=str(template_db.id),
-            project_id=request.state.project_id,
-        )
+        try:
+            app = await db_manager.create_app_and_envs(
+                app_name=app_name,
+                template_id=str(template_db.id),
+                project_id=request.state.project_id,
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="App with the same name already exists",
+            )
 
     logger.debug(
         "Step 7: Creating image instance and adding variant based on image"

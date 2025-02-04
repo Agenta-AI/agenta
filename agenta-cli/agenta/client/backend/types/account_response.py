@@ -2,17 +2,15 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-from .config_db import ConfigDb
+from .legacy_user_response import LegacyUserResponse
+from .legacy_scopes_response import LegacyScopesResponse
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class AppVariantRevision(UniversalBaseModel):
-    id: typing.Optional[str] = None
-    revision: int
-    modified_by: str
-    config: ConfigDb
-    created_at: str
+class AccountResponse(UniversalBaseModel):
+    user: typing.Optional[LegacyUserResponse] = None
+    scopes: typing.Optional[typing.List[LegacyScopesResponse]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

@@ -2,17 +2,20 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-from .config_db import ConfigDb
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class AppVariantRevision(UniversalBaseModel):
-    id: typing.Optional[str] = None
-    revision: int
-    modified_by: str
-    config: ConfigDb
-    created_at: str
+class LegacyScopesResponse(UniversalBaseModel):
+    organization_id: typing.Optional[str] = None
+    organization_name: typing.Optional[str] = None
+    workspace_id: typing.Optional[str] = None
+    workspace_name: typing.Optional[str] = None
+    project_id: typing.Optional[str] = None
+    project_name: typing.Optional[str] = None
+    is_demo: typing.Optional[bool] = None
+    user_role: typing.Optional[str] = None
+    credentials: typing.Optional[str] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
