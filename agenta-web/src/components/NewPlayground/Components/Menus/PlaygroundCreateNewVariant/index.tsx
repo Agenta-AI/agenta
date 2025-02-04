@@ -1,6 +1,6 @@
-import {useMemo, useState} from "react"
+import {useState} from "react"
 
-import {Popover, type PopoverProps} from "antd"
+import {Popover} from "antd"
 
 import AddButton from "../../../assets/AddButton"
 import CreateNewVariantList from "./assets/CreateNewVariantList"
@@ -16,16 +16,13 @@ const PlaygroundCreateNewVariant: React.FC<PlaygroundCreateNewVariantProps> = ({
     ...popoverProps
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const triggers = useMemo(() => {
-        return (isModalOpen ? ["click", "hover"] : ["click"]) as PopoverProps["trigger"]
-    }, [isModalOpen])
 
     return (
         <Popover
             {...popoverProps}
             open={isModalOpen}
             onOpenChange={setIsModalOpen}
-            trigger={triggers}
+            trigger={["click"]}
             arrow={false}
             content={
                 <CreateNewVariantList
