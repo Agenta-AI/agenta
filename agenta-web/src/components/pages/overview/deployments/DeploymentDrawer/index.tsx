@@ -53,7 +53,7 @@ const DeploymentDrawer = ({
     const appId = router.query.app_id as string
     const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
-    const {data: uri} = useURI(appId, selectedEnvironment.deployed_app_variant_id)
+    const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
     const [variant] = useState<Variant | null>(
         variants.find(
             (variant) => variant?.variantId === selectedEnvironment.deployed_app_variant_id,
@@ -98,8 +98,6 @@ const DeploymentDrawer = ({
         bash: fetchConfigcURLCode(currentApp?.app_name!, selectedEnvironment?.name!),
         typescript: fetchConfigtsCode(currentApp?.app_name!, selectedEnvironment?.name!),
     }
-
-    console.log("fetchConfigCodeSnippet", fetchConfigCodeSnippet)
 
     return (
         <>
