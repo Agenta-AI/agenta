@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {Button, Typography} from "antd"
+import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
@@ -82,9 +82,11 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
             </Typography>
 
             <div className="flex items-center gap-2">
-                <Button size="small" onClick={clearGeneration} disabled={isRunning}>
-                    Clear
-                </Button>
+                <Tooltip title="Clear all">
+                    <Button size="small" onClick={clearGeneration} disabled={isRunning}>
+                        Clear
+                    </Button>
+                </Tooltip>
 
                 <LoadTestsetButton label="Load test set" variantId={variantId} />
 

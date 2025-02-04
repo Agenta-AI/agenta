@@ -1,7 +1,7 @@
 import {memo, useCallback} from "react"
 
 import clsx from "clsx"
-import {Button, Typography} from "antd"
+import {Button, Tooltip, Typography} from "antd"
 
 import RunButton from "../../../assets/RunButton"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
@@ -37,9 +37,11 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
             <Typography className={classes.heading}>Generations</Typography>
 
             <div className="flex items-center gap-2">
-                <Button size="small" onClick={clearGeneration}>
-                    Clear
-                </Button>
+                <Tooltip title="Clear all">
+                    <Button size="small" onClick={clearGeneration}>
+                        Clear
+                    </Button>
+                </Tooltip>
                 <LoadTestsetButton label="Load test set" />
                 <RunButton isRunAll type="primary" onClick={() => runTests?.()} />
             </div>
