@@ -68,14 +68,14 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
     const evalVariants = [...evaluation.variants]
     const {currentApp} = useAppsData()
 
-    const {data: variantData} = useVariants(currentApp)(
+    const {data} = useVariants(currentApp)(
         {
             appId: appId,
         },
         evalVariants,
     )
 
-    const _variants = variantData?.variants || []
+    const variantData = data?.variants || []
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -221,7 +221,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     try {
                         let result = await callVariant(
                             inputParamsDict,
-                            _variants[idx].inputParams!,
+                            variantData[idx].inputParams!,
                             variantData[idx].parameters
                                 ? transformToRequestBody(
                                       variantData[idx].variant,
@@ -230,8 +230,8 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                   )
                                 : variantData[idx].promptOptParams!,
                             appId || "",
-                            _variants[idx].baseId || "",
-                            _variants[idx].isChatVariant
+                            variant.baseId || "",
+                            variantData[idx].isChatVariant
                                 ? testsetRowToChatMessages(
                                       evaluation.testset.csvdata[rowIndex],
                                       false,
@@ -288,7 +288,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 showNotification,
             )
         },
-        [rows],
+        [rows, variantData],
     )
 
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = useMemo(
@@ -361,7 +361,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                     record?.inputs.findIndex((ip) => ip.input_name === name),
                                 )
                             }
-                            variantData={variantData}
+                            variantData={data}
                         />
                     )
                 },
@@ -542,7 +542,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
-                    variantData={_variants}
+                    variantData={variantData}
                     isLoading={isLoading}
                 />
             )}
