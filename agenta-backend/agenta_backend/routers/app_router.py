@@ -217,7 +217,6 @@ async def create_app(
 
     app_db = await db_manager.create_app_and_envs(
         payload.app_name,
-        template_key=payload.template_key,
         project_id=request.state.project_id,
         template_key=payload.template_key,
     )
