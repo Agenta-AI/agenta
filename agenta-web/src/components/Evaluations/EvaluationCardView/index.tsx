@@ -290,7 +290,7 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
                             <Tooltip title="Run (Enter ↵)">
                                 <PlayCircleOutlined
                                     style={{color: token.colorSuccessActive, fontSize: 24}}
-                                    onClick={form.submit}
+                                    onClick={isChat ? () => onRun(scenarioId) : form.submit}
                                 />
                             </Tooltip>
                         </div>
