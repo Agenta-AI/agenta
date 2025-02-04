@@ -67,7 +67,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     const variants = evaluation.variants
     const {currentApp} = useAppsData()
 
-    const {data} = useVariants(currentApp)(
+    const {data, isLoading: isVariantsLoading} = useVariants(currentApp)(
         {
             appId: appId,
         },
@@ -349,6 +349,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             )
                         }
                         variantData={variantData}
+                        isLoading={isVariantsLoading}
                     />
                 )
             },
@@ -527,7 +528,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
                     variantData={variantData}
-                    isLoading={isLoading}
+                    isLoading={isLoading || isVariantsLoading}
                 />
             )}
         </div>
