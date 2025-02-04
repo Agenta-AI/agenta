@@ -43,7 +43,7 @@ export default function Overview() {
     const router = useRouter()
     const appId = useAppId()
     const classes = useStyles()
-    const {currentApp} = useAppsData()
+    const {currentApp, mutate: mutateApps} = useAppsData()
     const [isVariantLoading, setIsVariantLoading] = useState(false)
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
@@ -62,6 +62,7 @@ export default function Overview() {
         setIsDelAppLoading(true)
         try {
             await deleteApp(currentApp.app_id)
+            await mutateApps()
             router.push("/apps")
         } catch (error) {
             console.error(error)
