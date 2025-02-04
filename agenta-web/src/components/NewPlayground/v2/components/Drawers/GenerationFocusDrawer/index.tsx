@@ -101,7 +101,9 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
                         focusDisable={true}
                         result={result}
                         isRunning={isRunning}
-                        className={clsx("w-full", {"w-[400px]": viewType === "comparison"})}
+                        className={clsx("w-full", {
+                            "min-w-[400px] flex-1": viewType === "comparison",
+                        })}
                         format={format}
                     />
                 ))}
