@@ -53,6 +53,44 @@ class AuthMiddleware(BaseHTTPMiddleware):
         self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
 
     async def dispatch(self, request: Request, call_next: Callable):
+        # Extract request details
+        host = request.client.host if request.client else "unknown"
+        path = request.url.path
+        query = dict(request.query_params)
+        headers = dict(request.headers)
+
+        import logging
+        import json
+
+        # Log the request details
+        logging.error(
+            json.dumps(
+                {
+                    "host": host,
+                    "method": request.method,
+                    "path": path,
+                    "query_params": query,
+                    "headers": headers,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+
+        print(
+            json.dumps(
+                {
+                    "host": host,
+                    "method": request.method,
+                    "path": path,
+                    "query_params": query,
+                    "headers": headers,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+
         try:
             if request.url.path in _ALWAYS_ALLOW_LIST:
                 request.state.auth = {}

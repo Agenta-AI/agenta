@@ -43,7 +43,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                     logger(`FETCH - ENTER`)
 
-                    if (cachedValue) {
+                    if (cachedValue && !cachedValue.error) {
                         logger(`FETCH - RETURN CACHE AND DO NOT REFETCH`, cachedValue)
                         return cachedValue
                     }
@@ -66,37 +66,42 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             throw new Error("No uri found for the new app type")
                         }
 
-                        const specResponse = await fetchOpenApiSchemaJson(uri)
-                        // write(specResponse.schema)
-                        const spec = state.spec || (specResponse.schema as OpenAPISpec)
+                        try {
+                            const specResponse = await fetchOpenApiSchemaJson(uri)
+                            const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
-                        if (!spec) {
-                            throw new Error("No spec found")
-                        }
+                            if (!spec) {
+                                throw new Error("No spec found")
+                            }
 
-                        state.variants = transformVariants(
-                            setVariants(state.variants, variants),
-                            spec,
-                        )
-
-                        atomStore.set(specAtom, () => spec)
-
-                        state.selected = [state.variants[0].id]
-
-                        state.generationData.inputs = initializeGenerationInputs(
-                            state.variants.filter((v) => state.selected.includes(v.id)),
-                        )
-
-                        // initializeVariantInputs(enhancedVariant)
-                        if (detectChatVariantFromOpenAISchema(spec)) {
-                            state.generationData.messages = initializeGenerationMessages(
-                                state.variants,
+                            state.variants = transformVariants(
+                                setVariants(state.variants, variants),
+                                spec,
                             )
-                        }
 
-                        return state
-                    } catch (error) {
-                        console.error("Error in openApiSchemaFetcher:", error)
+                            atomStore.set(specAtom, () => spec)
+
+                            state.selected = [state.variants[0].id]
+
+                            state.generationData.inputs = initializeGenerationInputs(
+                                state.variants.filter((v) => state.selected.includes(v.id)),
+                            )
+
+                            // initializeVariantInputs(enhancedVariant)
+                            if (detectChatVariantFromOpenAISchema(spec)) {
+                                state.generationData.messages = initializeGenerationMessages(
+                                    state.variants,
+                                )
+                            }
+
+                            state.error = undefined
+                            return state
+                        } catch (err) {
+                            throw new Error("Error fetching spec")
+                        }
+                    } catch (err) {
+                        console.error("Error in openApiSchemaFetcher:", err)
+                        state.error = err
                         return state
                     }
                 },

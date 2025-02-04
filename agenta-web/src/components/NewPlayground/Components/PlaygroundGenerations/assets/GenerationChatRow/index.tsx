@@ -1,9 +1,8 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import GenerationOutputText from "../GenerationOutputText"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {
     findPropertyInObject,
@@ -21,6 +20,7 @@ import type {
     ObjectMetadata,
 } from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import type {GenerationChatRowProps} from "./types"
+import TextControl from "../../../PlaygroundVariantPropertyControl/assets/TextControl"
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {ssr: false})
 
@@ -30,59 +30,89 @@ export const GenerationChatRowOutput = ({
     disabled = false,
     rowId,
     deleteMessage,
+    rerunMessage,
     viewAs,
     result,
-    isRunning,
+    isRunning: propsIsRunning,
     isMessageDeletable,
+    placeholder,
+    messageProps,
 }: GenerationChatRowProps) => {
     const {viewType} = usePlayground()
     const isComparisonView = viewType === "comparison"
 
-    return isRunning && viewType === "single" ? (
-        <div className="w-full flex flex-col gap-3">
-            <GenerationOutputText
-                text={"Generating response..."}
-                className="w-full mt-1"
-                disabled={disabled}
+    return propsIsRunning ? (
+        <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch">
+            <TextControl
+                value="Generating response..."
+                editorType="borderless"
+                state="readOnly"
+                metadata={{}}
             />
         </div>
     ) : (
         <div
             className={clsx([
                 "w-full flex flex-col items-start gap-2 relative group/option",
-                {
-                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] px-4 pt-2":
-                        isComparisonView,
-                },
+                {"!gap-0": isComparisonView},
             ])}
         >
             <PromptMessageConfig
+                {...messageProps}
                 variantId={variantId as string}
                 rowId={rowId}
-                messageId={message.__id}
+                messageId={message?.__id}
                 disabled={disabled}
-                deleteMessage={deleteMessage}
-                className="w-full"
+                className={clsx([
+                    "w-full",
+                    messageProps?.className,
+                    {
+                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                            message?.__result?.error,
+                    },
+                ])}
                 isMessageDeletable={isMessageDeletable}
                 debug
+                placeholder={placeholder}
+                deleteMessage={deleteMessage}
+                rerunMessage={rerunMessage}
+                footer={
+                    !!result ? (
+                        <div
+                            className={clsx([
+                                "flex items-center mt-2",
+                                messageProps?.footerClassName,
+                            ])}
+                        >
+                            <GenerationResultUtils result={result} />
+                        </div>
+                    ) : null
+                }
+                state={message?.__result?.error ? "readOnly" : "filled"}
             />
-            {!!result ? (
-                <div className={clsx([{"h-[48px] flex items-center": isComparisonView}])}>
-                    <GenerationResultUtils result={result} />
-                </div>
-            ) : null}
         </div>
     )
 }
 
 const GenerationChatRow = ({
     withControls,
+    historyId,
     variantId,
     messageId,
     rowId,
     viewAs,
+    isMessageDeletable,
+    messageProps,
 }: GenerationChatRowProps) => {
-    const {history, messageRow, runTests, mutate, viewType} = usePlayground({
+    const {
+        historyItem,
+        messageRow,
+        runTests,
+        mutate,
+        viewType,
+        displayedVariants,
+        rerunChatOutput,
+    } = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -98,9 +128,17 @@ const GenerationChatRow = ({
                             return inputRow.__id === rowId
                         },
                     )
-                    const messageHistory = messageRow.history.value
+                    const messageHistory = messageRow?.history?.value || []
+                    let historyItem = findPropertyInObject(messageHistory, historyId)
+                    if (historyItem?.message) {
+                        historyItem = {
+                            ...historyItem,
+                            ...historyItem.message,
+                        }
+                    }
                     return {
                         messageRow,
+                        historyItem,
                         history: messageHistory
                             .map((historyItem) => {
                                 return !historyItem.__runs
@@ -117,10 +155,9 @@ const GenerationChatRow = ({
                     }
                 }
             },
-            [rowId, variantId, messageId],
+            [variantId, messageId, rowId, historyId],
         ),
     })
-    const isComparisonView = viewType === "comparison"
 
     const deleteMessage = useCallback((messageId: string) => {
         mutate(
@@ -179,39 +216,86 @@ const GenerationChatRow = ({
 
             return clonedState
         })
-    }, [rowId])
+    }, [mutate, rowId])
 
-    return (
+    const canRerunMessage = useMemo(() => {
+        // check for input row [comparison], and complete message information (content, role)
+        if (
+            viewType === "comparison" &&
+            !variantId &&
+            !!historyItem?.content?.value &&
+            !!historyItem?.role?.value
+        ) {
+            const areAllRunning = Object.values(historyItem?.__runs || {}).every(
+                (run) => run?.__isRunning,
+            )
+            const gotAllResponses = (displayedVariants || []).every((variantId) => {
+                return !!historyItem?.__runs?.[variantId]?.__result
+            })
+            return !areAllRunning && gotAllResponses
+        } else if (viewType === "single" && !!variantId && !!historyItem) {
+            if (!historyItem?.__runs && !historyItem?.message) {
+                // this is an input row
+                const isRunning = Object.values(historyItem?.__runs || {}).every(
+                    (run) => run?.__isRunning,
+                )
+                return !isRunning
+            } else {
+                // this is a chat row
+                const isRunning = historyItem?.__isRunning
+                return !isRunning
+            }
+        }
+        return undefined
+    }, [viewType, variantId, historyItem, displayedVariants])
+
+    const rerunMessage = useCallback(
+        (messageId: string) => {
+            rerunChatOutput(messageId)
+        },
+        [rerunChatOutput],
+    )
+
+    return !historyItem ? null : (
         <>
             <div
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
                     {"!gap-0": viewType === "comparison"},
-                    {
-                        "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                            viewType === "comparison",
-                    },
                 ])}
             >
-                {history.map((historyItem) => {
-                    return (
-                        <GenerationChatRowOutput
-                            key={historyItem.__id || `${variantId}-${rowId}-generating`}
-                            message={historyItem}
-                            variantId={variantId}
-                            deleteMessage={deleteMessage}
-                            viewAs={viewAs}
-                            rowId={messageRow?.__id}
-                            result={historyItem?.__result}
-                            isRunning={historyItem?.__isRunning}
-                            disabled={!messageRow}
-                        />
-                    )
-                })}
+                <GenerationChatRowOutput
+                    key={historyItem.__id || `${variantId}-${rowId}-generating`}
+                    message={historyItem}
+                    variantId={variantId}
+                    viewAs={viewAs}
+                    rowId={messageRow?.__id}
+                    result={historyItem?.__result}
+                    isRunning={historyItem?.__isRunning}
+                    disabled={!messageRow}
+                    placeholder="Type a message..."
+                    messageProps={{
+                        className: "[&]:!min-h-4",
+                        ...messageProps,
+                    }}
+                    isMessageDeletable={isMessageDeletable}
+                    deleteMessage={deleteMessage}
+                    rerunMessage={canRerunMessage ? rerunMessage : undefined}
+                />
             </div>
             {withControls ? (
-                <div className={clsx(["flex items-center gap-2 mt-5", {"px-2": isComparisonView}])}>
-                    <RunButton size="small" onClick={() => runTests?.()} className="flex" />
+                <div
+                    className={clsx([
+                        "flex items-center gap-2 mt-5",
+                        {"px-3": viewType === "comparison"},
+                    ])}
+                >
+                    <RunButton
+                        size="small"
+                        disabled={historyItem?.__isRunning}
+                        onClick={() => runTests?.()}
+                        className="flex"
+                    />
                     <AddButton size="small" label="Message" onClick={addNewMessageToRowHistory} />
                 </div>
             ) : null}

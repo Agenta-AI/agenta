@@ -9,6 +9,8 @@ import {
     createCommand,
 } from "lexical"
 import {$getRoot} from "lexical"
+import {$convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS} from "@lexical/markdown"
+
 import {useEditorResize} from "./hooks/useEditorResize"
 import {useEditorInvariant} from "./hooks/useEditorInvariant"
 import useEditorConfig from "./hooks/useEditorConfig"
@@ -57,6 +59,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             showToolbar = true,
             enableTokens = false,
             debug = false,
+            autoFocus = false,
             dimensions,
             enableResize = false, // New prop
             boundWidth = true, // New prop
@@ -77,7 +80,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             (editorState: EditorState, _editor: LexicalEditor) => {
                 editorState.read(() => {
                     const root = $getRoot()
-                    const textContent = root.getTextContent()
+                    const textContent = $convertToMarkdownString(TRANSFORMERS)
                     const tokens: unknown[] = [] // Extract tokens if needed
 
                     const result = {
@@ -113,16 +116,19 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                         isInitRef.current = true
                         editor.update(() => {
                             // In the browser you can use the native DOMParser API to parse the HTML string.
-                            if (hydrateWithRemoteContent) {
-                                // create a lexical node with provided initial value
-                                const initialTextNode = $createTextNode(hydrateWithRemoteContent)
-                                // clear lexical editor nodes
-                                const root = $getRoot()
-                                root.select()
-                                root.clear()
+                            // if (hydrateWithRemoteContent) {
+                            //     // create a lexical node with provided initial value
+                            //     const initialTextNode = $createTextNode(hydrateWithRemoteContent)
+                            //     // clear lexical editor nodes
+                            //     const root = $getRoot()
+                            //     root.select()
+                            //     root.clear()
 
-                                // insert the new node created from initial value
-                                $insertNodes([initialTextNode])
+                            //     // insert the new node created from initial value
+                            //     $insertNodes([initialTextNode])
+                            // }
+                            if (hydrateWithRemoteContent) {
+                                $convertFromMarkdownString(hydrateWithRemoteContent, TRANSFORMERS)
                             }
                         })
                         return false
@@ -154,6 +160,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     }
                 >
                     <EditorPlugins
+                        autoFocus={autoFocus}
                         showToolbar={showToolbar}
                         singleLine={singleLine}
                         codeOnly={codeOnly}
@@ -182,6 +189,7 @@ const Editor = ({
     language,
     showToolbar = true,
     enableTokens = false,
+    autoFocus = false,
     debug = false,
     enableResize = false, // New prop
     boundWidth = true, // New prop
@@ -233,9 +241,10 @@ const Editor = ({
     return (
         <div
             className={clsx([
+                "agenta-rich-text-editor",
                 styles["agenta-rich-text-editor"],
                 "min-h-16",
-                "bg-[#F5F7FA] text-[#1C2C3D] relative flex flex-col px-[11px] rounded-lg",
+                "text-[#1C2C3D] relative flex flex-col rounded-lg",
                 {
                     "border border-solid border-[#BDC7D1]": showBorder,
                     disabled: disabled,
@@ -257,6 +266,7 @@ const Editor = ({
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
+                    autoFocus={autoFocus}
                 />
             </LexicalComposer>
         </div>

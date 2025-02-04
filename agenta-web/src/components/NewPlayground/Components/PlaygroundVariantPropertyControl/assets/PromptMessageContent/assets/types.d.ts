@@ -1,9 +1,13 @@
 export type PromptMessageContentOptionsProps = {
     messageId: string
-    deleteMessage: (messageId: string) => void
     className?: string
     propertyId: string
     variantId: string
     isMessageDeletable?: boolean
     disabled?: boolean
+    runnable?: boolean
+    actions: {
+        deleteMessage?: (messageId: string) => void
+        rerunMessage?: (messageId: string) => void
+    }
 }

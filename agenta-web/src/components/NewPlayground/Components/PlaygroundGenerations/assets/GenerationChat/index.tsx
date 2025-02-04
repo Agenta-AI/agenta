@@ -11,9 +11,11 @@ import usePlayground from "../../../../hooks/usePlayground"
 
 import type {GenerationChatProps} from "./types"
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import PromptMessageConfig from "../../../PromptMessageConfig"
+import TextControl from "../../../PlaygroundVariantPropertyControl/assets/TextControl"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
-    const {inputRowIds, messageRowIds, viewType, configMessageIds} = usePlayground({
+    const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({
         variantId,
         registerToWebWorker: true,
         hookId: "PlaygroundConfigVariantPrompts",
@@ -32,6 +34,22 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                 })
 
                 const isComparisonView = state.selected.length > 1
+                const historyIds = state.generationData.messages.value.reduce((acc, messageRow) => {
+                    return {
+                        ...acc,
+                        [messageRow.__id]: messageRow.history.value.reduce((acc, historyItem) => {
+                            const copyItem = structuredClone(historyItem)
+                            delete copyItem.__runs
+                            return [
+                                ...acc,
+                                copyItem?.__id,
+                                historyItem.__runs?.[variantId]?.__isRunning
+                                    ? `isRunning-${copyItem?.__id}`
+                                    : historyItem.__runs?.[variantId]?.__id,
+                            ].filter(Boolean)
+                        }, []),
+                    }
+                }, {})
 
                 return {
                     isRunning,
@@ -53,6 +71,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                         })
                         .filter(Boolean) as string[],
                     configMessageIds: configMessages.map((message) => message.__id),
+                    historyIds,
                 }
             },
             [variantId],
@@ -62,23 +81,28 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
 
     return (
         <section className="flex flex-col">
-            {/* Variables */}
-            {inputRowIds.map((inputRowId) => {
-                return (
-                    <GenerationCompletionRow
-                        key={inputRowId}
-                        variantId={variantId}
-                        rowId={inputRowId}
-                        inputOnly={true}
-                        className={clsx([
-                            {
-                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                    isComparisonView,
-                            },
-                        ])}
-                    />
-                )
-            })}
+            {/**
+             * Variables
+             * only displayed in single view state
+             * meaning when there's
+             */}
+            {!!variantId &&
+                inputRowIds.map((inputRowId) => {
+                    return (
+                        <GenerationCompletionRow
+                            key={inputRowId}
+                            variantId={variantId}
+                            rowId={inputRowId}
+                            inputOnly={true}
+                            className={clsx([
+                                {
+                                    "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                        isComparisonView,
+                                },
+                            ])}
+                        />
+                    )
+                })}
 
             {/* Prompt chats */}
             <div
@@ -89,31 +113,44 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
             >
                 <div className="flex flex-col gap-1">
                     {!isComparisonView && <Typography>Chat</Typography>}
-                    <div className={clsx(["flex flex-col gap-5", {"!gap-0": isComparisonView}])}>
+                    <div className={clsx(["flex flex-col gap-2", {"!gap-0": isComparisonView}])}>
                         {!isComparisonView
                             ? configMessageIds.map((messageId) => (
-                                  <GenerationChatRow
+                                  <PromptMessageConfig
                                       key={messageId}
-                                      variantId={variantId}
+                                      variantId={variantId as string}
                                       messageId={messageId}
-                                      viewAs={viewAs}
+                                      editorClassName="w-full"
+                                      isMessageDeletable={false}
+                                      state="readOnly"
+                                      disabled
+                                      debug
                                   />
                               ))
                             : null}
-                        {messageRowIds.map((messageRow) => (
-                            <GenerationChatRow
-                                key={messageRow}
-                                variantId={variantId}
-                                rowId={messageRow}
-                                withControls
-                            />
-                        ))}
+                        {messageRowIds.map((messageRow) => {
+                            return historyIds[messageRow].map((historyId, index) => {
+                                return historyId.includes("isRunning") ? (
+                                    <TextControl
+                                        key={`${historyId}-loading`}
+                                        value="Generating response..."
+                                        editorType="borderless"
+                                        state="readOnly"
+                                        metadata={{}}
+                                    />
+                                ) : (
+                                    <GenerationChatRow
+                                        key={`${messageRow}-${historyId}`}
+                                        variantId={variantId}
+                                        rowId={messageRow}
+                                        historyId={historyId}
+                                        withControls={index === historyIds[messageRow].length - 1}
+                                    />
+                                )
+                            })
+                        })}
                     </div>
                 </div>
-
-                <div
-                    className={clsx([{"flex items-center h-[48px] px-4": isComparisonView}])}
-                ></div>
             </div>
         </section>
     )

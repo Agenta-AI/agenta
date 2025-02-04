@@ -14,6 +14,7 @@ async function runVariantInputRow(payload: {
     headers: Record<string, string>
     projectId: string
     messageId?: string
+    chatHistory?: any[]
 }) {
     const {
         variant,
@@ -26,8 +27,15 @@ async function runVariantInputRow(payload: {
         headers,
         projectId,
         appId,
+        chatHistory,
     } = payload
-    const requestBody = transformToRequestBody({variant, inputRow, messageRow, allMetadata})
+    const requestBody = transformToRequestBody({
+        variant,
+        inputRow,
+        messageRow,
+        allMetadata,
+        chatHistory,
+    })
     let result
 
     try {

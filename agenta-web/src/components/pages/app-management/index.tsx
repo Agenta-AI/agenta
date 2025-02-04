@@ -86,11 +86,10 @@ const AppManagement: React.FC = () => {
             templateKey: template_id!,
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
-                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
                 if (["error", "bad_request", "timeout", "success"].includes(status))
                     setFetchingTemplate(false)
                 if (status === "success") {
-                    mutate()
+                    await mutate()
                     posthog?.capture?.("app_deployment", {
                         properties: {
                             app_id: appId,
@@ -99,6 +98,8 @@ const AppManagement: React.FC = () => {
                         },
                     })
                 }
+
+                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
             },
         })
     }

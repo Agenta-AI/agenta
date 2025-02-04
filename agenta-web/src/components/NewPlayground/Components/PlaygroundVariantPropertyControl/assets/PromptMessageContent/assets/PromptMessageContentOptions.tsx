@@ -9,14 +9,16 @@ import EnhancedButton from "@/components/NewPlayground/assets/EnhancedButton"
 import type {PromptMessageContentOptionsProps} from "./types"
 
 const PromptMessageContentOptions = ({
-    deleteMessage,
     messageId,
     className,
     propertyId,
     isMessageDeletable,
+    runnable,
+    actions,
     disabled,
 }: PromptMessageContentOptionsProps) => {
     const {propertyGetter} = usePlayground()
+    const {deleteMessage, rerunMessage} = actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 
@@ -34,12 +36,14 @@ const PromptMessageContentOptions = ({
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <EnhancedButton
-                icon={<ArrowClockwise size={14} />}
-                type="text"
-                onClick={() => console.log("Re-run")}
-                tooltipProps={{title: "Re-run"}}
-            />
+            {!!rerunMessage ? (
+                <EnhancedButton
+                    icon={<ArrowClockwise size={14} />}
+                    type="text"
+                    onClick={() => rerunMessage?.(messageId)}
+                    tooltipProps={{title: "Re-run"}}
+                />
+            ) : null}
 
             <EnhancedButton
                 icon={isCopied ? <Check size={14} /> : <Copy size={14} />}

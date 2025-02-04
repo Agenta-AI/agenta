@@ -86,7 +86,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     Clear
                 </Button>
 
-                <LoadTestsetButton label="Load Test set" variantId={variantId} />
+                <LoadTestsetButton label="Load test set" variantId={variantId} />
 
                 <TestsetDrawerButton
                     label="Add all to test set"
