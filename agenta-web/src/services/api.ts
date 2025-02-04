@@ -193,7 +193,6 @@ export const fetchVariantParametersFromOpenAPI = async (
     baseId?: string,
     ignoreAxiosError: boolean = false,
 ) => {
-    console.log("fetchVariantParametersFromOpenAPI", appId, variantId, baseId)
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()
