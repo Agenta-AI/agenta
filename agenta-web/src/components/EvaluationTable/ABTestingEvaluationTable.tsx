@@ -68,7 +68,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
     const evalVariants = [...evaluation.variants]
     const {currentApp} = useAppsData()
 
-    const {data} = useVariants(currentApp)(
+    const {data, isLoading: isVariantsLoading} = useVariants(currentApp)(
         {
             appId: appId,
         },
@@ -361,7 +361,8 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                     record?.inputs.findIndex((ip) => ip.input_name === name),
                                 )
                             }
-                            variantData={data}
+                            variantData={variantData}
+                            isLoading={isVariantsLoading}
                         />
                     )
                 },
@@ -441,7 +442,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 },
             },
         ]
-    }, [])
+    }, [isVariantsLoading])
 
     return (
         <div>
@@ -543,7 +544,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
                     variantData={variantData}
-                    isLoading={isLoading}
+                    isLoading={isLoading || isVariantsLoading}
                 />
             )}
         </div>
