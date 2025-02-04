@@ -10,7 +10,7 @@ ProviderKind = typing.Union[
         "deepinfra",
         "alephalpha",
         "groq",
-        "mistral",
+        "mistralai",
         "anthropic",
         "perplexityai",
         "togetherai",

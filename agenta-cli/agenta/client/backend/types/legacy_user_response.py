@@ -2,17 +2,12 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-from .config_db import ConfigDb
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class AppVariantRevision(UniversalBaseModel):
+class LegacyUserResponse(UniversalBaseModel):
     id: typing.Optional[str] = None
-    revision: int
-    modified_by: str
-    config: ConfigDb
-    created_at: str
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
