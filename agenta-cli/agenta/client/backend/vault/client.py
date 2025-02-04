@@ -7,8 +7,8 @@ from ..types.secret_response_dto import SecretResponseDto
 from ..core.pydantic_utilities import parse_obj_as
 from json.decoder import JSONDecodeError
 from ..core.api_error import ApiError
-from ..types.secret_dto import SecretDto
 from ..types.header_dto import HeaderDto
+from ..types.secret_dto import SecretDto
 from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
@@ -69,16 +69,16 @@ class VaultClient:
     def create_secret(
         self,
         *,
+        header: HeaderDto,
         secret: SecretDto,
-        header: typing.Optional[HeaderDto] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> SecretResponseDto:
         """
         Parameters
         ----------
-        secret : SecretDto
+        header : HeaderDto
 
-        header : typing.Optional[HeaderDto]
+        secret : SecretDto
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -90,13 +90,14 @@ class VaultClient:
 
         Examples
         --------
-        from agenta import AgentaApi, ProviderKeyDto, SecretDto
+        from agenta import AgentaApi, HeaderDto, ProviderKeyDto, SecretDto
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
             base_url="https://yourhost.com/path/to/api",
         )
         client.vault.create_secret(
+            header=HeaderDto(),
             secret=SecretDto(
                 data=ProviderKeyDto(
                     provider="openai",
@@ -390,16 +391,16 @@ class AsyncVaultClient:
     async def create_secret(
         self,
         *,
+        header: HeaderDto,
         secret: SecretDto,
-        header: typing.Optional[HeaderDto] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> SecretResponseDto:
         """
         Parameters
         ----------
-        secret : SecretDto
+        header : HeaderDto
 
-        header : typing.Optional[HeaderDto]
+        secret : SecretDto
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -413,7 +414,7 @@ class AsyncVaultClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi, ProviderKeyDto, SecretDto
+        from agenta import AsyncAgentaApi, HeaderDto, ProviderKeyDto, SecretDto
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -423,6 +424,7 @@ class AsyncVaultClient:
 
         async def main() -> None:
             await client.vault.create_secret(
+                header=HeaderDto(),
                 secret=SecretDto(
                     data=ProviderKeyDto(
                         provider="openai",

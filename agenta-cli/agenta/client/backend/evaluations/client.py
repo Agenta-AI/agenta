@@ -326,9 +326,6 @@ class EvaluationsClient:
             json={
                 "evaluations_ids": evaluations_ids,
             },
-            headers={
-                "content-type": "application/json",
-            },
             request_options=request_options,
             omit=OMIT,
         )
@@ -1046,9 +1043,6 @@ class AsyncEvaluationsClient:
             method="DELETE",
             json={
                 "evaluations_ids": evaluations_ids,
-            },
-            headers={
-                "content-type": "application/json",
             },
             request_options=request_options,
             omit=OMIT,
