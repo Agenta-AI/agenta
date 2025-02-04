@@ -556,9 +556,7 @@ class HumanEvaluationsClient:
             method="PUT",
             json={
                 "vote": vote,
-                "score": convert_and_respect_annotation_metadata(
-                    object_=score, annotation=Score, direction="write"
-                ),
+                "score": score,
                 "correct_answer": correct_answer,
                 "outputs": convert_and_respect_annotation_metadata(
                     object_=outputs,
@@ -1408,9 +1406,7 @@ class AsyncHumanEvaluationsClient:
             method="PUT",
             json={
                 "vote": vote,
-                "score": convert_and_respect_annotation_metadata(
-                    object_=score, annotation=Score, direction="write"
-                ),
+                "score": score,
                 "correct_answer": correct_answer,
                 "outputs": convert_and_respect_annotation_metadata(
                     object_=outputs,

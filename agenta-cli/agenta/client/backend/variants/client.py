@@ -293,15 +293,9 @@ class VariantsClient:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-
-
-
             app_variant -- AppVariant to remove
 
         Raises:
-
-
-
             HTTPException: If there is a problem removing the app variant
 
         Parameters
@@ -513,6 +507,85 @@ class VariantsClient:
             },
             request_options=request_options,
             omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_variant_url(
+        self,
+        variant_id: str,
+        *,
+        url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Updates the URL used in an app variant.
+
+        Args:
+            variant_id (str): The ID of the app variant to update.
+            url (str): The URL to update.
+
+        Raises:
+            HTTPException: If an error occurs while trying to update the app variant.
+
+        Returns:
+            JSONResponse: A JSON response indicating whether the update was successful or not.
+
+        Parameters
+        ----------
+        variant_id : str
+
+        url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.update_variant_url(
+            variant_id="variant_id",
+            url="url",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"variants/{jsonable_encoder(variant_id)}/service",
+            method="PUT",
+            params={
+                "url": url,
+            },
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -1648,15 +1721,9 @@ class AsyncVariantsClient:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-
-
-
             app_variant -- AppVariant to remove
 
         Raises:
-
-
-
             HTTPException: If there is a problem removing the app variant
 
         Parameters
@@ -1892,6 +1959,93 @@ class AsyncVariantsClient:
             },
             request_options=request_options,
             omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_variant_url(
+        self,
+        variant_id: str,
+        *,
+        url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Updates the URL used in an app variant.
+
+        Args:
+            variant_id (str): The ID of the app variant to update.
+            url (str): The URL to update.
+
+        Raises:
+            HTTPException: If an error occurs while trying to update the app variant.
+
+        Returns:
+            JSONResponse: A JSON response indicating whether the update was successful or not.
+
+        Parameters
+        ----------
+        variant_id : str
+
+        url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.update_variant_url(
+                variant_id="variant_id",
+                url="url",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"variants/{jsonable_encoder(variant_id)}/service",
+            method="PUT",
+            params={
+                "url": url,
+            },
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
