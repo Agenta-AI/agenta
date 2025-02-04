@@ -14,6 +14,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 import RunButton from "@/components/NewPlayground/assets/RunButton"
 import {useStyles} from "./styles"
 import {getStringOrJson} from "@/lib/helpers/utils"
+import SharedEditor from "../../../SharedEditor"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -112,19 +113,40 @@ const GenerationCompletionRow = ({
                             ) : !result ? (
                                 <GenerationOutputText text="Click run to generate output" />
                             ) : result.error ? (
-                                <GenerationOutputText
-                                    type="danger"
-                                    text={getStringOrJson(result?.metadata?.rawError)}
+                                <SharedEditor
+                                    initialValue={result?.error}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className={clsx([
+                                        "!pt-0",
+                                        {
+                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                                                result?.error,
+                                        },
+                                    ])}
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
                                 />
                             ) : result.response ? (
-                                <>
-                                    <GenerationOutputText text={result.response.data} />
-
-                                    <GenerationResultUtils result={result} />
-                                </>
+                                <SharedEditor
+                                    initialValue={result?.response?.data}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className="!pt-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
+                                />
                             ) : null}
                         </div>
-                        <div className="flex items-center w-[100px] shrink-0" />
+                        <div className="flex items-center w-[50px] shrink-0" />
                     </div>
                 ) : null}
             </div>
@@ -133,28 +155,25 @@ const GenerationCompletionRow = ({
 
     return (
         <>
-            <div className={clsx(["flex flex-col gap-4", classes.container])} {...props}>
+            <div className={clsx(["flex flex-col gap-4"])} {...props}>
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
                             return (
-                                <div
-                                    key={variableId}
-                                    className="relative group/item py-2 px-4 overflow-y-auto [&::-webkit-scrollbar]:w-0"
-                                >
+                                <div key={variableId} className="relative group/item px-3 py-2">
                                     <PlaygroundVariantPropertyControl
                                         variantId={variantId}
                                         propertyId={variableId}
                                         view={view}
                                         rowId={rowId}
-                                        className="*:!border-none !p-[11px]"
+                                        className="*:!border-none"
                                     />
 
                                     {!inputOnly && (
                                         <GenerationVariableOptions
                                             variantId={variantId as string}
                                             rowId={rowId}
-                                            className="invisible group-hover/item:visible absolute top-2 right-1"
+                                            className="invisible group-hover/item:visible absolute top-5 right-5"
                                             result={result}
                                             variableId={variableId}
                                         />
@@ -167,7 +186,7 @@ const GenerationCompletionRow = ({
             </div>
 
             {!inputOnly && variableIds.length > 0 ? (
-                <div className={clsx("h-[48px] flex items-center px-4", classes.container)}>
+                <div className={clsx("h-[48px] flex items-center px-4")}>
                     <RunButton onClick={runRow} disabled={!canRun || isRunning} className="flex" />
                 </div>
             ) : null}

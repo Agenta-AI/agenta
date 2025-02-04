@@ -92,7 +92,7 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
                 return parameters, references
 
-        config = None
+        config = {}
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.host}/api/variants/configs/fetch",
@@ -100,21 +100,25 @@ class ConfigMiddleware(BaseHTTPMiddleware):
                 json=refs,
             )
 
-            if response.status_code != 200:
-                return None, None
-
-            config = response.json()
+            if response.status_code == 200:
+                config = response.json()
 
         if not config:
-            _cache.put(_hash, {"parameters": None, "references": None})
-
-            return None, None
-
-        parameters = config.get("params")
+            config["application_ref"] = refs[
+                "application_ref"
+            ]  # by default, application_ref will always have an id
+            parameters = None
+        else:
+            parameters = config.get("params")
 
         references = {}
 
-        for ref_key in ["application_ref", "variant_ref", "environment_ref"]:
+        ref_keys = ["application_ref"]
+
+        if config:
+            ref_keys.extend(["variant_ref", "environment_ref"])
+
+        for ref_key in ref_keys:
             refs = config.get(ref_key)
             if refs:
                 ref_prefix = ref_key.split("_", maxsplit=1)[0]

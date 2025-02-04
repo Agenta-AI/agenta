@@ -1,4 +1,6 @@
 import {cloneElement, isValidElement, useEffect, useMemo, useState} from "react"
+
+import clsx from "clsx"
 import dynamic from "next/dynamic"
 import {Button} from "antd"
 import {TreeView} from "@phosphor-icons/react"
@@ -46,6 +48,7 @@ const TraceDrawerButton = ({
         () => (traces?.length ? getNodeById(traces, selected) : null),
         [selected, traces],
     )
+    console.log("activeTrace, traces", activeTrace, traces)
     return (
         <>
             {isValidElement(children) ? (
@@ -65,6 +68,8 @@ const TraceDrawerButton = ({
                     icon={icon && <TreeView size={14} />}
                     onClick={() => setIsTraceDrawerOpen(true)}
                     {...props}
+                    disabled={!traces}
+                    className={clsx([props.className])}
                 >
                     {label}
                 </Button>
@@ -76,18 +81,21 @@ const TraceDrawerButton = ({
                     onClose={() => setIsTraceDrawerOpen(false)}
                     expandable
                     headerExtra={
-                        <TraceHeader
-                            activeTrace={activeTrace as _AgentaRootsResponse}
-                            traces={traces as _AgentaRootsResponse[]}
-                            setSelectedTraceId={() => setIsTraceDrawerOpen(false)}
-                            activeTraceIndex={0}
-                        />
+                        !!activeTrace && !!traces ? (
+                            <TraceHeader
+                                activeTrace={activeTrace as _AgentaRootsResponse}
+                                traces={(traces as _AgentaRootsResponse[]) || []}
+                                setSelectedTraceId={() => setIsTraceDrawerOpen(false)}
+                                activeTraceIndex={0}
+                            />
+                        ) : null
                     }
                     mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
                     sideContent={
                         <TraceTree
                             activeTrace={activeTrace as _AgentaRootsResponse}
                             selected={selected}
+                            x
                             setSelected={setSelected}
                         />
                     }

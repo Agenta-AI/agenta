@@ -15,7 +15,6 @@ import type {
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
 } from "../types"
-import {initializeComparisonInputs} from "../assets/comparisonHelpers"
 import isEqual from "lodash/isEqual"
 import {toSnakeCase} from "../assets/genericTransformer/utilities/string"
 

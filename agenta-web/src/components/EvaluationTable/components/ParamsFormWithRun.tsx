@@ -23,6 +23,7 @@ const ParamsFormWithRun = ({
     onRun,
     onParamChange,
     variantData,
+    isLoading,
 }: {
     record: SingleModelEvaluationRow
     rowIndex: number
@@ -34,7 +35,7 @@ const ParamsFormWithRun = ({
     const classes = useSingleModelEvaluationTableStyles()
     const [form] = Form.useForm()
 
-    return (
+    return isLoading ? null : (
         <div>
             {evaluation.testset.testsetChatColumn ? (
                 evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] || " - "

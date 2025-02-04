@@ -28,6 +28,7 @@ import useWebWorker from "../../useWebWorker"
 import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
+import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -146,8 +147,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
             const handleWebWorkerChatMessage = useCallback(
                 (message) => {
-                    if (!variantId) return
-                    if (message.payload.variant.id !== variantId) return
+                    // if (!variantId) return
+                    // if (message.payload.variant.id !== variantId) return
+                    const variantId = message.payload.variant.id
                     // HANDLE INCOMING CHAT
                     const rowId = message.payload.rowId
                     swr.mutate((clonedState) => {
@@ -169,15 +171,23 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             const metadata = getMetadataLazy(targetMessage.__metadata)
                             if (!metadata) return clonedState
 
+                            const incomingMessage = createMessageFromSchema(
+                                metadata,
+                                message?.payload?.result?.error
+                                    ? {
+                                          role: "Error",
+                                          content: message.payload.result?.error,
+                                      }
+                                    : message.payload.result.response?.data,
+                            )
+
                             targetMessage.__runs[variantId] = {
                                 __result: {
                                     ...message.payload.result,
                                 },
-                                message: createMessageFromSchema(
-                                    metadata,
-                                    message.payload.result.response?.data,
-                                ),
+                                message: incomingMessage,
                                 __isRunning: false,
+                                __id: generateId(),
                             }
 
                             if (targetMessageIndex === targetRow.history.value.length - 1) {

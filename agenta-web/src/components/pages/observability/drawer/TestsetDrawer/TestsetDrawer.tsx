@@ -120,6 +120,10 @@ const TestsetDrawer = ({
         if (data.length > 0) {
             const hasDiffer = hasStructuralDifference(data)
             setIsDifferStructureExist(hasDiffer)
+
+            setTraceData(data)
+            setRowDataPreview(data[0]?.key)
+            setPreview({key: data[0]?.key || "", data: []})
         }
     }, [data])
 
@@ -206,10 +210,19 @@ const TestsetDrawer = ({
                         matchingColumn = selectedTestsetColumns.find(
                             (col) => col.column.toLowerCase() === mapName,
                         )!.column
-                    } else if (mapName === "outputs" && testsetColumnsSet.has("correct_answer")) {
-                        matchingColumn = selectedTestsetColumns.find(
+                    } else if (mapName === "outputs") {
+                        // First check if correct_answer exists in any case format
+                        const correctAnswerCol = selectedTestsetColumns.find(
                             (col) => col.column.toLowerCase() === "correct_answer",
-                        )!.column
+                        )
+
+                        if (correctAnswerCol) {
+                            matchingColumn = correctAnswerCol.column
+                        } else {
+                            // If doesn't exist, create new column entry
+                            matchingColumn = "correct_answer"
+                            testsetColumnsSet.add("correct_answer") // Add to tracking set
+                        }
                     }
 
                     return {

@@ -60,16 +60,14 @@ const TestsetDrawerButton = ({
                 </Button>
             )}
 
-            {isTestsetDrawerOpen && (
-                <TestsetDrawer
-                    open={isTestsetDrawerOpen}
-                    data={testsetTraceData as TestsetTraceData[]}
-                    showSelectedSpanText={false}
-                    onClose={() => {
-                        setIsTestsetDrawerOpen(false)
-                    }}
-                />
-            )}
+            <TestsetDrawer
+                open={isTestsetDrawerOpen}
+                data={testsetTraceData as TestsetTraceData[]}
+                showSelectedSpanText={false}
+                onClose={() => {
+                    setIsTestsetDrawerOpen(false)
+                }}
+            />
         </>
     )
 }

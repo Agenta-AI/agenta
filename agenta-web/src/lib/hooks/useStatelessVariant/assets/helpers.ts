@@ -284,7 +284,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
         projectId: variant.project_id,
         appName: variant.app_name,
         parameters: {
-            agentaConfig: variant.parameters.ag_config || {},
+            agConfig: variant.parameters.ag_config || {},
         },
         isChat: false,
         inputs: {} as EnhancedVariant["inputs"],
