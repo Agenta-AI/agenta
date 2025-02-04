@@ -11,15 +11,17 @@ logger = logging.getLogger(__name__)
 class AppManager:
     @classmethod
     @handle_exceptions()
-    def create(cls, *, app_name: str, project_id: str):
-        app_response = ag.api.apps.create_app(app_name=app_name, project_id=project_id)
+    def create(cls, *, app_slug: str, template_key: str):
+        app_response = ag.api.apps.create_app(
+            app_name=app_slug, template_key=template_key
+        )
         return app_response
 
     @classmethod
     @handle_exceptions()
-    async def acreate(cls, *, app_name: str, project_id: str):
+    async def acreate(cls, *, app_slug: str, template_key: str):
         app_response = await ag.async_api.apps.create_app(
-            app_name=app_name, project_id=project_id
+            app_name=app_slug, template_key=template_key
         )
         return app_response
 
@@ -37,15 +39,15 @@ class AppManager:
 
     @classmethod
     @handle_exceptions()
-    def update(cls, *, app_id: str, app_name: str):
-        app_response = ag.api.apps.update_app(app_id=app_id, app_name=app_name)
+    def update(cls, *, app_id: str, app_slug: str):
+        app_response = ag.api.apps.update_app(app_id=app_id, app_name=app_slug)
         return app_response
 
     @classmethod
     @handle_exceptions()
-    async def aupdate(cls, *, app_id: str, app_name: str):
+    async def aupdate(cls, *, app_id: str, app_slug: str):
         app_response = await ag.async_api.apps.update_app(
-            app_id=app_id, app_name=app_name
+            app_id=app_id, app_name=app_slug
         )
         return app_response
 
