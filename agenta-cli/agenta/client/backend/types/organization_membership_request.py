@@ -2,17 +2,16 @@
 
 from ..core.pydantic_utilities import UniversalBaseModel
 import typing
-from .config_db import ConfigDb
+from .reference import Reference
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class AppVariantRevision(UniversalBaseModel):
-    id: typing.Optional[str] = None
-    revision: int
-    modified_by: str
-    config: ConfigDb
-    created_at: str
+class OrganizationMembershipRequest(UniversalBaseModel):
+    role: typing.Literal["owner"] = "owner"
+    is_demo: bool
+    user_ref: Reference
+    organization_ref: Reference
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
