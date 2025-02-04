@@ -1,13 +1,13 @@
 import {useCallback} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
-import {useStyles} from "../styles"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import {GenerationComparisonCompletionOutputProps} from "./types"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
-import {getStringOrJson} from "@/lib/helpers/utils"
-import {getEnhancedProperties} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/enhanced"
+import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
+import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
+import SharedEditor from "../../SharedEditor"
 const GenerationResultUtils = dynamic(
     () => import("../../PlaygroundGenerations/assets/GenerationResultUtils"),
     {ssr: false},
@@ -16,82 +16,98 @@ const GenerationResultUtils = dynamic(
 const GenerationComparisonCompletionOutput = ({
     rowId,
     focusDisable = false,
-    className,
     variantId,
+    variantIndex,
+    isLastRow,
+    isLastVariant,
 }: GenerationComparisonCompletionOutputProps) => {
-    const classes = useStyles()
-    const {result, isRunning, variableIds} = usePlayground({
+    const {result, isRunning} = usePlayground({
         registerToWebWorker: true,
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRow = state.generationData.inputs.value.find((inputRow) => {
-                    return inputRow.__id === rowId
-                })
+                const inputRow = findPropertyInObject(state, rowId)
                 const variantRun = inputRow?.__runs?.[variantId]
-                const variables = getEnhancedProperties(inputRow)
-                const variableIds = variables.map((p) => p.__id)
-
                 return {
                     result: variantRun?.__result,
                     isRunning: variantRun?.__isRunning,
-                    variableIds,
                 }
             },
             [rowId, variantId],
         ),
     })
 
-    /*
-      The container height is calculated to ensure that the Output-component and Input-component heights are synchronized.
-      - 96 represents the static height of each input container.
-      - 1 accounts for the border height of each input container.
-      - 48 is the height of the Run button section in the input container, which is only added when there is no response.
-
-      If there is a response, the height is calculated as:
-      containerHeight = variableIds.length * 96 + 1
-
-      If there is no response, the height includes the Run button section:
-      containerHeight = variableIds.length * 96 + 1 + 48
-   */
-    const containerHeight = result?.response
-        ? variableIds.length * 112 + 1
-        : variableIds.length * 112 + 1 + 48
-
     return (
-        <div className={className}>
+        <>
             <div
-                style={{minHeight: containerHeight}}
-                className={clsx(
-                    "w-full py-2 px-4 relative group/item overflow-y-auto [&::-webkit-scrollbar]:w-0",
-                    classes.containerBorder,
-                )}
+                className={clsx([
+                    "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3]",
+                    {"border-r": variantIndex === 0},
+                    {"border-b": !isLastRow},
+                ])}
             >
-                {isRunning ? (
-                    <GenerationOutputText text="Running..." />
-                ) : !result ? (
-                    <GenerationOutputText text="Click run to generate output" />
-                ) : result.error ? (
-                    <GenerationOutputText
-                        type="danger"
-                        text={getStringOrJson(result?.metadata?.rawError)}
-                    />
-                ) : result.response ? (
-                    <GenerationOutputText text={result.response.data} />
-                ) : null}
+                {variantIndex === 0 && (
+                    <div className="!w-[399px] shrink-0 sticky top-9 z-[2] border-0">
+                        <GenerationCompletion
+                            variantId={variantId}
+                            rowId={rowId}
+                            withControls={isLastRow}
+                        />
+                    </div>
+                )}
             </div>
 
-            {result?.response && (
-                <div
-                    className={clsx(
-                        "w-ful h-[48px] flex items-center px-2",
-                        classes.containerBorder,
-                    )}
-                >
-                    <GenerationResultUtils result={result} />
+            <div
+                className={clsx([
+                    "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
+                    {"border-b": !isLastRow},
+                ])}
+            >
+                <div className="flex h-full">
+                    <div className="!w-[399px] h-full">
+                        <div className="w-full py-2 px-4 sticky top-9 z-[2]">
+                            {isRunning ? (
+                                <GenerationOutputText text="Running..." />
+                            ) : !result ? (
+                                <GenerationOutputText text="Click Run to generate" />
+                            ) : result.error ? (
+                                <SharedEditor
+                                    initialValue={result?.error}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className={clsx([
+                                        "!pt-0",
+                                        {
+                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                                                result?.error,
+                                        },
+                                    ])}
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
+                                />
+                            ) : result.response ? (
+                                <SharedEditor
+                                    initialValue={result?.response?.data}
+                                    editorType="borderless"
+                                    state="filled"
+                                    readOnly
+                                    disabled
+                                    className="!p-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    footer={
+                                        <GenerationResultUtils className="mt-2" result={result} />
+                                    }
+                                />
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
-            )}
-        </div>
+            </div>
+        </>
     )
 }
 

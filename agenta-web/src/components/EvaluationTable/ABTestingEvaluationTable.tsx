@@ -45,6 +45,8 @@ import {useAppsData} from "@/contexts/app.context"
 import {useVariants} from "@/lib/hooks/useVariants"
 import {VARIANT_COLORS} from "../Evaluations/EvaluationCardView/assets/styles"
 import {useEvaluationResults} from "@/services/human-evaluations/hooks/useEvaluationResults"
+import {transformToRequestBody} from "@/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
+import {getAllMetadata} from "@/lib/hooks/useStatelessVariant/state"
 
 const {Title} = Typography
 
@@ -66,14 +68,14 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
     const evalVariants = [...evaluation.variants]
     const {currentApp} = useAppsData()
 
-    const {data: variantData} = useVariants(currentApp)(
+    const {data, isLoading: isVariantsLoading} = useVariants(currentApp)(
         {
             appId: appId,
         },
         evalVariants,
     )
 
-    const _variants = variantData?.variants || []
+    const variantData = data?.variants || []
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -215,14 +217,21 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
             await Promise.all(
                 evalVariants.map(async (variant: Variant, idx: number) => {
                     setRowValue(rowIndex, variant.variantId, "loading...")
+
                     try {
                         let result = await callVariant(
                             inputParamsDict,
-                            _variants[idx].inputParams!,
-                            _variants[idx].promptOptParams!,
+                            variantData[idx].inputParams!,
+                            variantData[idx].parameters
+                                ? transformToRequestBody(
+                                      variantData[idx].variant,
+                                      undefined,
+                                      getAllMetadata(),
+                                  )
+                                : variantData[idx].promptOptParams!,
                             appId || "",
-                            _variants[idx].baseId || "",
-                            _variants[idx].isChatVariant
+                            variant.baseId || "",
+                            variantData[idx].isChatVariant
                                 ? testsetRowToChatMessages(
                                       evaluation.testset.csvdata[rowIndex],
                                       false,
@@ -279,7 +288,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 showNotification,
             )
         },
-        [rows],
+        [rows, variantData],
     )
 
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = useMemo(
@@ -353,6 +362,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                 )
                             }
                             variantData={variantData}
+                            isLoading={isVariantsLoading}
                         />
                     )
                 },
@@ -432,7 +442,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 },
             },
         ]
-    }, [])
+    }, [isVariantsLoading])
 
     return (
         <div>
@@ -533,8 +543,8 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     onInputChange={handleInputChange}
                     updateEvaluationScenarioData={updateEvaluationScenarioData}
                     evaluation={evaluation}
-                    variantData={_variants}
-                    isLoading={isLoading}
+                    variantData={variantData}
+                    isLoading={isLoading || isVariantsLoading}
                 />
             )}
         </div>

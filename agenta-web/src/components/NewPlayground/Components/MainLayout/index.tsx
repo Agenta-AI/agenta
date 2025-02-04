@@ -6,10 +6,7 @@ import useAnimationFrame from "use-animation-frame"
 
 import usePlayground from "../../hooks/usePlayground"
 import GenerationComparisonHeader from "../PlaygroundGenerationComparisonView/GenerationComparisonHeader"
-import {
-    GenerationComparisonInput,
-    GenerationComparisonOutput,
-} from "../PlaygroundGenerationComparisonView"
+import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 
 import type {BaseContainerProps} from "../types"
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -24,12 +21,14 @@ const PlaygroundGenerations = dynamic(() => import("../PlaygroundGenerations"), 
 })
 const Splitter = dynamic(() => import("antd").then((mod) => mod.Splitter), {ssr: false})
 const SplitterPanel = dynamic(() => import("antd").then((mod) => mod.Splitter.Panel), {ssr: false})
+import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 
 const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
     const {
         rowIds,
         isComparisonView,
         visibleVariants: displayedVariants,
+        isChat,
     } = usePlayground({
         stateSelector: (state) => {
             const isChat = state.variants[0].isChat
@@ -48,6 +47,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                 rowIds,
                 isComparisonView,
                 visibleVariants: state.selected,
+                isChat: state.variants[0].isChat,
             }
         },
     })
@@ -144,13 +144,18 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
             {...divProps}
         >
             <div className="w-full max-h-full h-full grow relative overflow-hidden">
-                <Splitter className="h-full" layout={isComparisonView ? "vertical" : "horizontal"}>
+                <Splitter
+                    key={`${isComparisonView ? "comparison" : "single"}-splitter`}
+                    className="h-full"
+                    layout={isComparisonView ? "vertical" : "horizontal"}
+                >
                     <SplitterPanel
                         defaultSize="50%"
                         min="20%"
                         max="70%"
                         className="!h-full"
                         collapsible
+                        key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-config`}
                     >
                         <section
                             ref={setConfigPanelRef}
@@ -195,6 +200,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         })}
                         collapsible
                         defaultSize="50%"
+                        key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-runs`}
                     >
                         {isComparisonView && <GenerationComparisonHeader />}
 
@@ -203,61 +209,48 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                             className={clsx([
                                 {
                                     "grow w-full h-full overflow-y-auto": !isComparisonView,
-                                    "grow w-full h-full overflow-auto flex [&::-webkit-scrollbar]:w-0":
+                                    "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":
                                         isComparisonView,
                                 },
                             ])}
                         >
-                            {/* This component renders the Input variables in comparison view  */}
-                            {isComparisonView &&
-                                (displayedVariants?.slice(0, 1) || []).map((variantId) => {
-                                    return (
-                                        <div
+                            {/* This component renders Output component header section */}
+                            {isComparisonView ? (
+                                <div className="flex min-w-fit sticky top-0 z-[5]">
+                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
+
+                                    {displayedVariants.map((variantId) => (
+                                        <GenerationComparisonOutputHeader
                                             key={variantId}
-                                            className="[&::-webkit-scrollbar]:w-0 w-[400px] h-full flex-shrink-0 sticky left-0 z-10 bg-white"
-                                        >
-                                            <GenerationComparisonInput variantId={variantId} />
-                                        </div>
-                                    )
-                                })}
+                                            variantId={variantId}
+                                            className="!w-[400px] shrink-0"
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
 
-                            <div>
-                                {/* This component renders Output component header section */}
-                                {isComparisonView && (
-                                    <div className="flex sticky top-0 z-[1]">
-                                        {displayedVariants.map((variantId) => (
-                                            <GenerationComparisonOutputHeader
-                                                key={variantId}
-                                                variantId={variantId}
-                                                className="!w-[400px]"
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* This component renders Output components based on the view type. 
+                            {/* This component renders Output components based on the view type. 
                                     If the view is 'comparison', it uses generationData to render the component. 
                                     In 'single' view, it uses the variant id to render the component. */}
-                                {isComparisonView
-                                    ? ((rowIds as string[]) || []).map((rowId) => {
-                                          return (
-                                              <div
-                                                  key={rowId}
-                                                  className="[&::-webkit-scrollbar]:w-0 w-[400px] flex flex-shrink-0"
-                                              >
-                                                  <GenerationComparisonOutput rowId={rowId} />
-                                              </div>
-                                          )
-                                      })
-                                    : (displayedVariants || []).map((variantId) => {
-                                          return (
-                                              <PlaygroundGenerations
-                                                  key={variantId}
-                                                  variantId={variantId}
+                            {isComparisonView
+                                ? ((rowIds as string[]) || []).map((rowId, rowIndex) => {
+                                      return (
+                                          <div key={rowId} className="min-w-fit">
+                                              <GenerationComparisonOutput
+                                                  rowId={rowId}
+                                                  isLastRow={rowIndex === rowIds.length - 1}
                                               />
-                                          )
-                                      })}
-                            </div>
+                                          </div>
+                                      )
+                                  })
+                                : (displayedVariants || []).map((variantId) => {
+                                      return (
+                                          <PlaygroundGenerations
+                                              key={variantId}
+                                              variantId={variantId}
+                                          />
+                                      )
+                                  })}
                         </section>
                     </SplitterPanel>
                 </Splitter>

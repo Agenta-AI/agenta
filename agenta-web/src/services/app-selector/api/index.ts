@@ -4,6 +4,13 @@ import {AppTemplate} from "@/lib/Types"
 import axios from "@/lib/api/assets/axiosConfig"
 import {LlmProvider} from "@/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
+import {
+    fetchOpenApiSchemaJson,
+    setVariant,
+    transformVariant,
+} from "@/lib/hooks/useStatelessVariant/assets/helpers"
+import {transformToRequestBody} from "@/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
+import {getAllMetadata} from "@/lib/hooks/useStatelessVariant/state"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -166,10 +173,25 @@ export const createAndStartTemplate = async ({
                 appName,
                 templateKey,
             })
-            const variant = await createVariant({
+            const _variant = await createVariant({
                 appId: app.app_id,
                 templateKey,
             })
+            const {schema} = await fetchOpenApiSchemaJson(_variant.uri)
+
+            if (!schema) {
+                throw new Error("No schema found")
+            }
+
+            const variant = transformVariant(setVariant(_variant), schema)
+
+            const parameters = transformToRequestBody(variant, undefined, getAllMetadata())
+            await axios.put(
+                `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
+                {
+                    parameters,
+                },
+            )
         } catch (error: any) {
             if (error?.response?.status === 400) {
                 onStatusChange?.("bad_request", error)

@@ -56,7 +56,7 @@ const DeploymentDrawer = ({
     const {data: uri} = useURI(appId, selectedEnvironment.deployed_app_variant_id)
     const [variant] = useState<Variant | null>(
         variants.find(
-            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
+            (variant) => variant?.variantId === selectedEnvironment.deployed_app_variant_id,
         ) || null,
     )
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
@@ -66,21 +66,26 @@ const DeploymentDrawer = ({
     const params = useMemo(() => {
         const _variant = (data?.variants || []).find(
             (item) =>
-                (item.variant.id || item.variant.variantId) ===
+                (item?.variant?.id || item?.variant?.variantId) ===
                 selectedEnvironment.deployed_app_variant_id,
         )
         const {inputParams, isChatVariant} = _variant || {}
-        console.log("PARAMS!", data?.variants, _variant, inputParams)
 
         const params = createParams(
             inputParams,
             selectedEnvironment?.name || "none",
             "add_a_value",
             isChatVariant,
+            currentApp,
         )
 
         return params
-    }, [data?.variants, selectedEnvironment.deployed_app_variant_id, selectedEnvironment?.name])
+    }, [
+        data?.variants,
+        currentApp,
+        selectedEnvironment.deployed_app_variant_id,
+        selectedEnvironment?.name,
+    ])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         python: invokeLlmApppythonCode(uri!, params),
@@ -93,6 +98,8 @@ const DeploymentDrawer = ({
         bash: fetchConfigcURLCode(currentApp?.app_name!, selectedEnvironment?.name!),
         typescript: fetchConfigtsCode(currentApp?.app_name!, selectedEnvironment?.name!),
     }
+
+    console.log("fetchConfigCodeSnippet", fetchConfigCodeSnippet)
 
     return (
         <>
