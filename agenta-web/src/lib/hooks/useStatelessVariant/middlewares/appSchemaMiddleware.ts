@@ -55,7 +55,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             throw new Error("No uri found for the new app type")
                         }
 
-                        console.log("USESTATELESS VARIANT fetch open api json", uri)
                         const specResponse = await fetchOpenApiSchemaJson(uri)
                         // write(specResponse.schema)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)

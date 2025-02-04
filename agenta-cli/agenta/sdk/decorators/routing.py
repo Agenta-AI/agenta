@@ -6,6 +6,7 @@ from traceback import format_exception
 from asyncio import sleep
 from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
+from os import environ
 
 from fastapi import Body, FastAPI, HTTPException, Request
 
@@ -38,12 +39,18 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
-
-app = FastAPI()
 log.setLevel("DEBUG")
 
+AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 
-app.include_router(router, prefix="")
+app = FastAPI(
+    docs_url=f"{AGENTA_RUNTIME_PREFIX}/docs",  # Swagger UI
+    openapi_url=f"{AGENTA_RUNTIME_PREFIX}/openapi.json",  # OpenAPI schema
+)
+
+app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
+
+log.error("Agenta - Runtime Prefix:" + AGENTA_RUNTIME_PREFIX)
 
 
 class PathValidator(BaseModel):
@@ -114,13 +121,13 @@ class entrypoint:
     routes = list()
 
     _middleware = False
-    _run_path = "/run"
-    _test_path = "/test"
+    _run_path = f"{AGENTA_RUNTIME_PREFIX}/run"
+    _test_path = f"{AGENTA_RUNTIME_PREFIX}/test"
     _config_key = "ag_config"
     # LEGACY
-    _legacy_playground_run_path = "/playground/run"
-    _legacy_generate_path = "/generate"
-    _legacy_generate_deployed_path = "/generate_deployed"
+    _legacy_playground_run_path = f"{AGENTA_RUNTIME_PREFIX}/playground/run"
+    _legacy_generate_path = f"{AGENTA_RUNTIME_PREFIX}/generate"
+    _legacy_generate_deployed_path = f"{AGENTA_RUNTIME_PREFIX}/generate_deployed"
 
     def __init__(
         self,
@@ -269,17 +276,18 @@ class entrypoint:
             )
         # LEGACY
 
-        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
-        openapi_schema = app.openapi()
-        openapi_schema["agenta_sdk"] = {"version": get_current_version()}
+        openapi_schema = self.openapi()
+
         for _route in entrypoint.routes:
             if _route["config"] is not None:
                 self.override_config_in_schema(
                     openapi_schema=openapi_schema,
                     func_name=_route["func"],
-                    endpoint=_route["endpoint"],
+                    endpoint=_route["endpoint"].replace(AGENTA_RUNTIME_PREFIX, ""),
                     config=_route["config"],
                 )
+
+        app.openapi_schema = openapi_schema
         ### --------------- #
 
     def parse_config(self) -> Tuple[Optional[Type[BaseModel]], Dict[str, Any]]:
@@ -566,6 +574,82 @@ class entrypoint:
                 )
             )
 
+    def openapi(self):
+        app.openapi_schema = None  # Forces FastAPI to re-generate the schema
+
+        openapi_schema = app.openapi()
+
+        # ✅ Fix paths by removing the prefix
+        updated_paths = {}
+        for path, methods in openapi_schema["paths"].items():
+            new_path = (
+                path[len(AGENTA_RUNTIME_PREFIX) :]
+                if path.startswith(AGENTA_RUNTIME_PREFIX)
+                else path
+            )
+            updated_paths[new_path] = methods
+        openapi_schema["paths"] = updated_paths  # Replace paths
+
+        # ✅ Fix schema names and update `$ref` references
+        if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
+            updated_schemas = {}
+            schema_name_map = {}  # Map old schema names to new schema names
+
+            for schema_name, schema_value in openapi_schema["components"][
+                "schemas"
+            ].items():
+                if AGENTA_RUNTIME_PREFIX and AGENTA_RUNTIME_PREFIX != "":
+                    new_schema_name = schema_name.replace(
+                        AGENTA_RUNTIME_PREFIX.lstrip("/").replace("/", "_") + "_", ""
+                    ).strip("_")
+                else:
+                    new_schema_name = schema_name
+                updated_schemas[new_schema_name] = schema_value
+                schema_name_map[schema_name] = new_schema_name  # Store mapping
+
+            # ✅ Fix `$ref` references
+            for path, methods in updated_paths.items():
+                for method in methods.values():
+                    if "requestBody" in method and "content" in method["requestBody"]:
+                        for content_type, content in method["requestBody"][
+                            "content"
+                        ].items():
+                            if "$ref" in content["schema"]:
+                                old_ref = content["schema"]["$ref"]
+                                schema_name = old_ref.split("/")[
+                                    -1
+                                ]  # Extract schema name
+                                if schema_name in schema_name_map:
+                                    content["schema"][
+                                        "$ref"
+                                    ] = f"#/components/schemas/{schema_name_map[schema_name]}"
+
+                    if "responses" in method:
+                        for status_code, response in method["responses"].items():
+                            if "content" in response:
+                                for content_type, content in response[
+                                    "content"
+                                ].items():
+                                    if "$ref" in content["schema"]:
+                                        old_ref = content["schema"]["$ref"]
+                                        schema_name = old_ref.split("/")[
+                                            -1
+                                        ]  # Extract schema name
+                                        if schema_name in schema_name_map:
+                                            content["schema"][
+                                                "$ref"
+                                            ] = f"#/components/schemas/{schema_name_map[schema_name]}"
+
+            # ✅ Update OpenAPI schema with fixed schemas
+            openapi_schema["components"]["schemas"] = updated_schemas
+
+            # ✅ Add Agenta SDK version info
+            openapi_schema["agenta_sdk"] = {"version": get_current_version()}
+
+            print(openapi_schema)
+
+        return openapi_schema
+
     def override_config_in_schema(
         self,
         openapi_schema: dict,
@@ -575,6 +659,7 @@ class entrypoint:
     ):
         """Override config in OpenAPI schema to add agenta-specific metadata."""
         endpoint = endpoint[1:].replace("/", "_")
+
         schema_key = f"Body_{func_name}_{endpoint}_post"
         schema_to_override = openapi_schema["components"]["schemas"][schema_key]
 

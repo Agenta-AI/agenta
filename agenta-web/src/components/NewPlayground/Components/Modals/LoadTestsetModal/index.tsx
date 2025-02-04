@@ -117,7 +117,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
             width={1150}
             className={classes.container}
             afterClose={() => setSelectedRowKeys([])}
-            title="Load Test set"
+            title="Load test set"
             okText="Load test set"
             okButtonProps={{
                 icon: <Play />,

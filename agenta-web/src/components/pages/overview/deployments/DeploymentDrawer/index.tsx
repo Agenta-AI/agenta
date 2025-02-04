@@ -56,7 +56,7 @@ const DeploymentDrawer = ({
     const {data: uri} = useURI(appId, selectedEnvironment.deployed_app_variant_id)
     const [variant] = useState<Variant | null>(
         variants.find(
-            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
+            (variant) => variant?.variantId === selectedEnvironment.deployed_app_variant_id,
         ) || null,
     )
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
@@ -66,7 +66,7 @@ const DeploymentDrawer = ({
     const params = useMemo(() => {
         const _variant = (data?.variants || []).find(
             (item) =>
-                (item.variant.id || item.variant.variantId) ===
+                (item?.variant?.id || item?.variant?.variantId) ===
                 selectedEnvironment.deployed_app_variant_id,
         )
         const {inputParams, isChatVariant} = _variant || {}

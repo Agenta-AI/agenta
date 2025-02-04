@@ -5,10 +5,7 @@ import clsx from "clsx"
 import usePlayground from "@/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
-import {
-    findParentOfPropertyInObject,
-    findPropertyInObject,
-} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
+import {findPropertyInObject} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
@@ -111,7 +108,8 @@ const GenerationComparisonChatOutputCell = ({
         <>
             <div
                 className={clsx([
-                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-solid border-[rgba(5,23,41,0.06)]",
+                    {"border-r": variantIndex === 0},
                     {"border-b": !isLastRow},
                 ])}
             >
@@ -138,13 +136,20 @@ const GenerationComparisonChatOutputCell = ({
                                 })}
                         </div>
 
-                        <div className="p-2">
+                        <div>
                             <GenerationChatRow
                                 rowId={rowId}
                                 historyId={historyId}
                                 viewAs={"input"}
                                 withControls={isLastRow} // Only show controls (to add a message) in the last row
                                 isMessageDeletable={messageRow.history?.value?.length === 1}
+                                messageProps={{
+                                    className: "!p-0",
+                                    editorClassName: "!p-3",
+                                    headerClassName:
+                                        "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                    footerClassName: "px-3",
+                                }}
                             />
                         </div>
                     </div>
@@ -153,13 +158,11 @@ const GenerationComparisonChatOutputCell = ({
 
             <div
                 className={clsx([
-                    "!w-[399px]",
-                    "px-2 pt-2",
+                    "!w-[400px]",
                     "shrink-0",
                     "flex flex-col self-stretch",
-                    "border-0 border-solid border-[rgba(5,23,41,0.06)]",
+                    "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-b": !isLastRow},
-                    {"border-r": isLastVariant},
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
@@ -172,9 +175,18 @@ const GenerationComparisonChatOutputCell = ({
                             result={message?.__result}
                             isRunning={message?.__isRunning}
                             disabled={!messageRow}
+                            messageProps={{
+                                className: "!p-0",
+                                editorClassName: "!p-3",
+                                headerClassName:
+                                    "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                footerClassName: "px-3 h-[48px] !m-0",
+                            }}
                         />
                     ) : (
-                        <GenerationOutputText text="Click Run to generate" />
+                        <div className="p-3">
+                            <GenerationOutputText text="Click Run to generate" />
+                        </div>
                     )}
                 </div>
             </div>

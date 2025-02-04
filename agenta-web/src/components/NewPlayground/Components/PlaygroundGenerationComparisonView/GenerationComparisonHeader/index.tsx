@@ -40,8 +40,8 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                 <Button size="small" onClick={clearGeneration}>
                     Clear
                 </Button>
-                <LoadTestsetButton label="Load Test set" />
-                <RunButton type="primary" onClick={() => runTests?.()} />
+                <LoadTestsetButton label="Load test set" />
+                <RunButton isRunAll type="primary" onClick={() => runTests?.()} />
             </div>
         </section>
     )

@@ -29,7 +29,7 @@ const GenerationCompletion = ({
         registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const inputRowId = findPropertyInObject(state, rowId)
+                const inputRowId = findPropertyInObject(state, rowId as string)
                 const inputRows = state.generationData.inputs.value || []
 
                 return {
@@ -90,7 +90,7 @@ const GenerationCompletion = ({
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >
-                    <AddButton size="small" label="Input" onClick={addNewInputRow} />
+                    <AddButton size="small" label="Test case" onClick={addNewInputRow} />
                 </div>
             ) : null}
         </div>
