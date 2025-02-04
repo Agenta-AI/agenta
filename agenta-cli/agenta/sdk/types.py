@@ -1,6 +1,10 @@
 import json
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, Union
+import re
+from jinja2 import Template, TemplateError
+from collections import defaultdict
+
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
 
@@ -440,42 +444,44 @@ class PromptTemplate(BaseModel):
                 values["messages"] = messages
         return values
 
+    def _sanitize_variable_name(self, var_name: str) -> str:
+        """
+        Sanitize variable names:
+        - Keeps only letters, numbers, underscores, and dashes.
+        - Replaces spaces with underscores.
+        - Limits length to 50 characters.
+        """
+        var_name = var_name.strip()  # Remove leading/trailing spaces
+        var_name = re.sub(r"\s+", "_", var_name)  # Replace spaces with underscores
+        var_name = re.sub(r"[^a-zA-Z0-9_-]", "", var_name)  # Remove invalid characters
+        return var_name[:50]  # Enforce max length
+
+    def _sanitize_inputs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Sanitize all input keys and return a safe mapping."""
+        return {self._sanitize_variable_name(k): v for k, v in kwargs.items()}
+
     def _format_with_template(self, content: str, kwargs: Dict[str, Any]) -> str:
-        """Internal method to format content based on template_format"""
+        """Internal method to format content safely based on template_format"""
         try:
+            sanitized_kwargs = self._sanitize_inputs(kwargs)
+
             if self.template_format == "fstring":
-                return content.format(**kwargs)
+                return content.format_map(defaultdict(str, sanitized_kwargs))
             elif self.template_format == "jinja2":
-                from jinja2 import Template, TemplateError
-
-                try:
-                    return Template(content).render(**kwargs)
-                except TemplateError as e:
-                    raise TemplateFormatError(
-                        f"Jinja2 template error in content: '{content}'. Error: {str(e)}",
-                        original_error=e,
-                    )
+                return Template(content).render(sanitized_kwargs)
             elif self.template_format == "curly":
-                import re
-
                 result = content
-                for key, value in kwargs.items():
-                    result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
-                if re.search(r"\{\{.*?\}\}", result):
-                    unreplaced = re.findall(r"\{\{(.*?)\}\}", result)
-                    raise TemplateFormatError(
-                        f"Unreplaced variables in curly template: {unreplaced}"
+                for key, value in sanitized_kwargs.items():
+                    result = re.sub(
+                        r"\{\{" + re.escape(key) + r"\}\}",
+                        str(value),
+                        result,
                     )
                 return result
             else:
                 raise TemplateFormatError(
                     f"Unknown template format: {self.template_format}"
                 )
-        except KeyError as e:
-            key = str(e).strip("'")
-            raise TemplateFormatError(
-                f"Missing required variable '{key}' in template: '{content}'"
-            )
         except Exception as e:
             raise TemplateFormatError(
                 f"Error formatting template '{content}': {str(e)}", original_error=e
@@ -490,10 +496,12 @@ class PromptTemplate(BaseModel):
             InputValidationError: If input validation fails
             TemplateFormatError: If template formatting fails
         """
+        sanitized_kwargs = self._sanitize_inputs(kwargs)
+
         # Validate inputs if input_keys is set
         if self.input_keys is not None:
-            missing = set(self.input_keys) - set(kwargs.keys())
-            extra = set(kwargs.keys()) - set(self.input_keys)
+            missing = set(self.input_keys) - set(sanitized_kwargs.keys())
+            extra = set(sanitized_kwargs.keys()) - set(self.input_keys)
 
             error_parts = []
             if missing:
@@ -514,7 +522,10 @@ class PromptTemplate(BaseModel):
         for i, msg in enumerate(self.messages):
             if msg.content:
                 try:
-                    new_content = self._format_with_template(msg.content, kwargs)
+                    new_content = self._format_with_template(
+                        msg.content,
+                        sanitized_kwargs,
+                    )
                 except TemplateFormatError as e:
                     raise TemplateFormatError(
                         f"Error in message {i} ({msg.role}): {str(e)}",
@@ -544,32 +555,23 @@ class PromptTemplate(BaseModel):
         """Convert the prompt template to kwargs compatible with litellm/openai"""
         kwargs = {
             "model": self.llm_config.model,
-            "messages": [msg.dict(exclude_none=True) for msg in self.messages],
+            "messages": [msg.model_dump(exclude_none=True) for msg in self.messages],
         }
 
         # Add optional parameters only if they are set
-        if self.llm_config.temperature is not None:
-            kwargs["temperature"] = self.llm_config.temperature
-
-        if self.llm_config.top_p is not None:
-            kwargs["top_p"] = self.llm_config.top_p
-
-        if self.llm_config.stream is not None:
-            kwargs["stream"] = self.llm_config.stream
-
-        if self.llm_config.max_tokens is not None:
-            kwargs["max_tokens"] = self.llm_config.max_tokens
-
-        if self.llm_config.frequency_penalty is not None:
-            kwargs["frequency_penalty"] = self.llm_config.frequency_penalty
-
-        if self.llm_config.presence_penalty is not None:
-            kwargs["presence_penalty"] = self.llm_config.presence_penalty
-
-        if self.llm_config.response_format:
-            kwargs["response_format"] = self.llm_config.response_format.dict(
-                by_alias=True
-            )
+        optional_fields = [
+            "temperature",
+            "top_p",
+            "stream",
+            "max_tokens",
+            "frequency_penalty",
+            "presence_penalty",
+            "response_format",
+        ]
+        for field in optional_fields:
+            value = getattr(self.llm_config, field, None)
+            if value is not None:
+                kwargs[field] = value
 
         if self.llm_config.tools:
             kwargs["tools"] = self.llm_config.tools
