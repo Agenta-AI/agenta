@@ -120,6 +120,10 @@ const TestsetDrawer = ({
         if (data.length > 0) {
             const hasDiffer = hasStructuralDifference(data)
             setIsDifferStructureExist(hasDiffer)
+
+            setTraceData(data)
+            setRowDataPreview(data[0]?.key)
+            setPreview({key: data[0]?.key || "", data: []})
         }
     }, [data])
 
