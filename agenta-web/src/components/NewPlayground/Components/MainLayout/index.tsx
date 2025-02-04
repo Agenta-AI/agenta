@@ -179,7 +179,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         key={variantId}
                                         className={clsx([
                                             {
-                                                "[&::-webkit-scrollbar]:w-0 w-[400px] h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
+                                                "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
                                                     isComparisonView,
                                             },
                                         ])}
@@ -223,7 +223,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         <GenerationComparisonOutputHeader
                                             key={variantId}
                                             variantId={variantId}
-                                            className="!w-[400px] shrink-0"
+                                            className="!min-w-[400px] flex-1 shrink-0"
                                         />
                                     ))}
                                 </div>

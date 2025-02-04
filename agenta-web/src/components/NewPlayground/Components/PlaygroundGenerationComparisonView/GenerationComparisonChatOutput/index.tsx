@@ -158,7 +158,7 @@ const GenerationComparisonChatOutputCell = ({
 
             <div
                 className={clsx([
-                    "!w-[400px]",
+                    "!min-w-[400px] flex-1",
                     "shrink-0",
                     "flex flex-col self-stretch",
                     "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
