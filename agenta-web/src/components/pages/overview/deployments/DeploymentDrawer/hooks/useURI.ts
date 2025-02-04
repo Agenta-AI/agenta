@@ -8,7 +8,7 @@ const useURI = (appId: string, variantId?: string) => {
         return `${url}/generate_deployed`
     }
 
-    const swr = useSWR("uri", !!variantId ? fetcher : null, {
+    const swr = useSWR(["uri"], !!variantId ? fetcher : null, {
         revalidateOnFocus: false,
         revalidateOnReconnect: false,
     })
