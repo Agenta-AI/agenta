@@ -109,11 +109,13 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
 
     useEffect(() => {
         if (evaluationScenarios) {
-            const obj = [...evaluationScenarios]
-            obj.forEach((item) =>
-                item.outputs.forEach((op) => (item[op.variant_id] = op.variant_output)),
-            )
-            setRows(obj)
+            setRows((prevRows) => {
+                const obj = [...evaluationScenarios]
+                obj.forEach((item) =>
+                    item.outputs.forEach((op) => (item[op.variant_id] = op.variant_output)),
+                )
+                return obj
+            })
         }
     }, [evaluationScenarios])
 
@@ -190,19 +192,9 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         [rows, setRowValue, updateEvaluationScenarioData, evalVariants],
     )
 
-    const runAllEvaluations = useCallback(async () => {
-        setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
-        batchExecute(rows.map((row) => () => runEvaluation(row.id!, rows.length - 1, false)))
-            .then(() => {
-                setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
-                mutate()
-                message.success("Evaluations Updated!")
-            })
-            .catch((err) => console.error("An error occurred:", err))
-    }, [rows])
-
     const runEvaluation = useCallback(
         async (id: string, count: number = 1, showNotification: boolean = true) => {
+            const variantData = data?.variants || []
             const rowIndex = rows.findIndex((row) => row.id === id)
             const inputParamsDict = rows[rowIndex].inputs.reduce(
                 (acc: {[key: string]: any}, item) => {
@@ -292,8 +284,19 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 showNotification,
             )
         },
-        [rows, variantData],
+        [evalVariants, data?.variants, rows],
     )
+
+    const runAllEvaluations = useCallback(async () => {
+        setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
+        batchExecute(rows.map((row) => () => runEvaluation(row.id!, rows.length - 1, false)))
+            .then(() => {
+                setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
+                mutate()
+                message.success("Evaluations Updated!")
+            })
+            .catch((err) => console.error("An error occurred:", err))
+    }, [runEvaluation, rows])
 
     const dynamicColumns: ColumnType<ABTestingEvaluationTableRow>[] = useMemo(
         () =>
@@ -446,7 +449,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 },
             },
         ]
-    }, [isVariantsLoading, rows])
+    }, [runEvaluation, isVariantsLoading, rows])
 
     return (
         <div>
