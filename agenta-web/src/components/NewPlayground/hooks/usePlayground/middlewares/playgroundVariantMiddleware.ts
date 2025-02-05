@@ -191,7 +191,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             }
 
                             if (targetMessageIndex === targetRow.history.value.length - 1) {
-                                // targetRow.history.value.push(createMessageRow())
                                 const emptyMessage = createMessageFromSchema(metadata, {
                                     role: "user",
                                 })
@@ -363,7 +362,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     } else {
                                         const saveResponse = await fetcher?.(
                                             `/api/variants/${variant.id}?project_id=${projectId}`,
-                                            {method: "GET"},
+                                            {method: "GET", cache: false},
                                         )
 
                                         const t = setVariant(saveResponse)
@@ -382,22 +381,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         clonedState.variants[index] = updatedVariant
                                         message.success("Changes saved successfully!")
 
-                                        if (
-                                            clonedState?.dirtyStates &&
-                                            clonedState.dirtyStates[updatedVariant.id]
-                                        ) {
-                                            clonedState.dirtyStates = structuredClone(
-                                                clonedState.dirtyStates,
-                                            )
-                                            clonedState.dirtyStates[updatedVariant.id] = false
+                                        clonedState.dataRef = structuredClone(clonedState.dataRef)
+                                        clonedState.dataRef[updatedVariant.id] =
+                                            structuredClone(updatedVariant)
 
-                                            // TODO: THIS NEEDS FIXING, IT IS NOT USED PROPERLY
-                                            clonedState.dataRef = new Map(clonedState.dataRef)
-                                            clonedState.dataRef.set(
-                                                updatedVariant.id,
-                                                structuredClone(updatedVariant),
-                                            )
-                                        }
                                         return clonedState
                                     }
 

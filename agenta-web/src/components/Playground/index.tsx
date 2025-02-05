@@ -39,7 +39,7 @@ const PlaygroundRouter = () => {
                 router.replace(
                     {query: {...router.query, playground: "new-playground"}},
                     undefined,
-                    {shallow: true},
+                    {shallow: false},
                 )
             }
             return <NewPlayground />
