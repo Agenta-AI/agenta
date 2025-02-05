@@ -1,6 +1,7 @@
 import {memo, useEffect, useMemo} from "react"
 
 import clsx from "clsx"
+import dynamic from "next/dynamic"
 
 import {Button, ConfigProvider, Layout, Modal, Skeleton, Space, Typography, theme} from "antd"
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
@@ -24,7 +25,10 @@ import {useStyles, type StyleProps} from "./assets/styles"
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useVariants} from "@/lib/hooks/useVariants"
 
-const Sidebar: any = dynamicComponent("Sidebar/Sidebar", () => <Skeleton className="w-[236px]" />)
+const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
+    ssr: false,
+    loading: () => <Skeleton className="w-[236px]" />,
+})
 
 const {Content, Footer} = Layout
 const {Text} = Typography
