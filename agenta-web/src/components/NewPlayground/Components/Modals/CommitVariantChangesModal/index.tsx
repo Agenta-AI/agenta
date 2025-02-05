@@ -17,7 +17,6 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         variantId,
         hookId: "CommitVariantChangesModal",
     })
-    console.log("variant: ", variant)
 
     const [note, setNote] = useState("")
 

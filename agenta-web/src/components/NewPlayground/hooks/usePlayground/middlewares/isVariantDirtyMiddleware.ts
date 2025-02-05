@@ -1,5 +1,5 @@
 import {useCallback, useRef} from "react"
-
+import dayjs from "dayjs"
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 import {findPropertyInObject, findVariantById, isPlaygroundEqual, omitDeep} from "../assets/helpers"
@@ -20,7 +20,7 @@ import {createMessageFromSchema} from "../assets/messageHelpers"
 /**
  * Compare two variants ignoring specified properties
  */
-const compareVariantsForDirtyState = (
+export const compareVariantsForDirtyState = (
     variant1: EnhancedVariant | undefined,
     variant2: EnhancedVariant | undefined,
     ignoreKeys: string[] = ["inputs", "__isMutating"],
@@ -60,15 +60,34 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     if (!data) return initialState as Data
 
                     const variants = data.variants || []
-                    const dirtyStates = {} as Record<string, boolean>
+                    const dirtyStates = data.dirtyStates || ({} as Record<string, boolean>)
 
-                    variants.forEach((variant) => {
-                        dirtyStates[variant.id] = false
-                    })
+                    const dataRef = variants.reduce(
+                        (acc, variant) => {
+                            const existingRef = data.dataRef?.[variant.id]
+                            if (
+                                !existingRef ||
+                                dayjs(variant.updatedAt).isAfter(dayjs(existingRef?.updatedAt))
+                            ) {
+                                acc[variant.id] = structuredClone(variant)
+                            } else {
+                                acc[variant.id] = existingRef
+                            }
+
+                            if (acc[variant.id] && variant) {
+                                dirtyStates[variant.id] = !compareVariantsForDirtyState(
+                                    acc[variant.id],
+                                    variant,
+                                )
+                            }
+                            return acc
+                        },
+                        data?.dataRef || ({} as Record<string, EnhancedVariant>),
+                    )
 
                     return {
                         ...data,
-                        dataRef: new Map(variants.map((v) => [v.id, structuredClone(v)])),
+                        dataRef,
                         dirtyStates,
                         variants,
                     }
@@ -83,20 +102,9 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                 compare: useCallback(
                     (a?: Data, b?: Data) => {
                         const wrappedComparison = config.compare?.(a, b)
-
-                        const isDirtyReferenced = valueReferences.current.includes("isDirty")
-
-                        if (!isDirtyReferenced) {
-                            logger(`COMPARE - WRAPPED`, wrappedComparison, a, b)
-                            return wrappedComparison
-                        } else {
-                            const isDirtyA = a?.dirtyStates?.[config.variantId ?? ""]
-                            const isDirtyB = b?.dirtyStates?.[config.variantId ?? ""]
-
-                            return isDirtyA === isDirtyB
-                        }
+                        return wrappedComparison
                     },
-                    [config, valueReferences, logger],
+                    [config],
                 ),
             } as PlaygroundSWRConfig<Data>)
 
@@ -129,10 +137,12 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
                             const variant = clonedState.variants.find((v) => v.id === variantId)
 
-                            if (
-                                variant &&
-                                !compareVariantsForDirtyState(dataRef?.get(variantId), variant)
-                            ) {
+                            const isDirty = !compareVariantsForDirtyState(
+                                dataRef?.[variantId],
+                                variant,
+                            )
+
+                            if (variant && isDirty) {
                                 const dirtyRef = state.dirtyStates
                                     ? structuredClone(state.dirtyStates)
                                     : {}
@@ -238,6 +248,39 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                         )
                                     },
                                 )
+                            }
+
+                            if (clonedState?.dirtyStates) {
+                                const dirtyStates =
+                                    clonedState.dirtyStates || ({} as Record<string, boolean>)
+
+                                const dataRef = clonedState.variants.reduce(
+                                    (acc, variant) => {
+                                        const existingRef = clonedState.dataRef?.[variant.id]
+                                        if (
+                                            !existingRef ||
+                                            dayjs(variant.updatedAt).isAfter(
+                                                dayjs(existingRef?.updatedAt),
+                                            ) ||
+                                            variant.revision > existingRef.revision
+                                        ) {
+                                            acc[variant.id] = structuredClone(variant)
+                                        } else {
+                                            acc[variant.id] = existingRef
+                                        }
+
+                                        if (acc[variant.id] && variant) {
+                                            dirtyStates[variant.id] = !compareVariantsForDirtyState(
+                                                acc[variant.id],
+                                                variant,
+                                            )
+                                        }
+                                        return acc
+                                    },
+                                    clonedState?.dataRef || ({} as Record<string, EnhancedVariant>),
+                                )
+
+                                clonedState.dataRef = dataRef
                             }
 
                             return clonedState
