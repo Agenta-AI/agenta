@@ -2,7 +2,6 @@ import {useAppId} from "@/hooks/useAppId"
 import {useSession} from "@/hooks/useSession"
 import {isDemo} from "@/lib/helpers/utils"
 import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
-import {useEffect, useState} from "react"
 import {
     ChartDonut,
     ChartLineUp,
@@ -18,23 +17,7 @@ import {
 } from "@phosphor-icons/react"
 import {useAppsData} from "@/contexts/app.context"
 import {useOrgData} from "@/contexts/org.context"
-
-export type SidebarConfig = {
-    key: string
-    title: string
-    tooltip?: string
-    link?: string
-    icon: JSX.Element
-    isHidden?: boolean
-    isBottom?: boolean
-    submenu?: Omit<SidebarConfig, "submenu">[]
-    onClick?: () => void
-    tag?: string
-    isCloudFeature?: boolean
-    cloudFeatureTooltip?: string
-    divider?: boolean
-    header?: boolean
-}
+import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
     const appId = useAppId()
