@@ -119,21 +119,25 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
 
     const handleInputChange = useCallback(
         (e: React.ChangeEvent<HTMLTextAreaElement>, id: string, inputIndex: number) => {
-            const rowIndex = rows.findIndex((row) => row.id === id)
-            const newRows = [...rows]
-            newRows[rowIndex].inputs[inputIndex].input_value = e.target.value
-            setRows(newRows)
+            setRows((oldRows) => {
+                const rowIndex = oldRows.findIndex((row) => row.id === id)
+                const newRows = [...rows]
+                newRows[rowIndex].inputs[inputIndex].input_value = e.target.value
+                return newRows
+            })
         },
         [],
     )
 
     const setRowValue = useCallback(
         (rowIndex: number, columnKey: keyof ABTestingEvaluationTableRow, value: any) => {
-            const newRows = [...rows]
-            newRows[rowIndex][columnKey] = value as never
-            setRows(newRows)
+            setRows((oldRows) => {
+                const newRows = [...oldRows]
+                newRows[rowIndex][columnKey] = value as never
+                return newRows
+            })
         },
-        [rows],
+        [],
     )
 
     const updateEvaluationScenarioData = useCallback(
@@ -168,7 +172,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
     const handleVoteClick = useCallback(
         (id: string, vote: string) => {
             const rowIndex = rows.findIndex((row) => row.id === id)
-            const evaluation_scenario_id = rows[rowIndex].id
+            const evaluation_scenario_id = rows[rowIndex]?.id
 
             if (evaluation_scenario_id) {
                 setRowValue(rowIndex, "vote", "loading")
@@ -180,7 +184,6 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     })),
                     inputs: rows[rowIndex].inputs,
                 }
-
                 updateEvaluationScenarioData(evaluation_scenario_id, data)
             }
         },
@@ -330,7 +333,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     },
                 }
             }),
-        [],
+        [evalVariants],
     )
 
     const columns = useMemo(() => {
@@ -443,7 +446,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 },
             },
         ]
-    }, [isVariantsLoading])
+    }, [isVariantsLoading, rows])
 
     return (
         <div>
