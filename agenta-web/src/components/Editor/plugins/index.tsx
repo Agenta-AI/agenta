@@ -56,7 +56,7 @@ const EditorPlugins = ({
                     />
                 }
                 placeholder={
-                    <div className="editor-placeholder absolute top-[4px] left-[1px] pointer-events-none">
+                    <div className="editor-placeholder absolute top-[4px] left-[1px] pointer-events-none text-[#BDC7D1]">
                         {placeholder}
                     </div>
                 }
