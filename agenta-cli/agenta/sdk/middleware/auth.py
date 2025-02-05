@@ -256,13 +256,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     credentials = auth.get("credentials")
 
                     if not credentials:
-                        log.debug(
-                            f"Agenta returned invalid response format: missing credentials"
-                        )
-                        raise DenyException(
-                            status_code=500,
-                            content=f"Could no verify credentials: {self.host} returned unexpected invalid response format. Please try again later or contact support if the issue persists.",
-                        )
+                        log.debug("No credentials found in the response")
 
                     _cache.put(_hash, credentials)
 
