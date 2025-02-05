@@ -66,4 +66,4 @@ async def generate(
         }
     )
 
-    return response.choices[0].message.model_dump()
+    return response.choices[0].message.model_dump(exclude_none=True)
