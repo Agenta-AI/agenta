@@ -43,6 +43,7 @@ const SharedEditor = ({
             className={clsx(
                 "w-full flex flex-col items-start relative group/item transition-all duration-300 ease-in-out border border-solid rounded-lg",
                 "[&_.agenta-rich-text-editor]:w-full",
+                "p-[11px]",
                 {
                     "border-[#BDC7D1]": editorType === "border",
                     "hover:border-[#394857] focus:border-[#1C2C3D]": editorType === "border",
@@ -66,30 +67,30 @@ const SharedEditor = ({
             onBlur={() => setIsEditorFocused(false)}
             {...props}
         >
-            {header && <div className="pl-[11px] pr-1 py-1 w-full">{header}</div>}
-            <div className="px-[11px] py-1 w-full">
-                <EditorWrapper
-                    placeholder={placeholder}
-                    showToolbar={false}
-                    enableTokens
-                    initialValue={localValue}
-                    className={editorClassName}
-                    onChange={(value) => {
-                        handleLocalValueChange(value.textContent)
-                    }}
-                    autoFocus={autoFocus}
-                    // className={clsx([
-                    // "border-0",
-                    // "focus:ring-0",
-                    // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
-                    // className,
-                    // ])}
-                    disabled={disabled}
-                    showBorder={false}
-                    {...editorProps}
-                />
-            </div>
-            {footer && <div className="px-[11px] py-[6px] w-full">{footer}</div>}
+            {header}
+
+            <EditorWrapper
+                placeholder={placeholder}
+                showToolbar={false}
+                enableTokens
+                initialValue={localValue}
+                className={editorClassName}
+                onChange={(value) => {
+                    handleLocalValueChange(value.textContent)
+                }}
+                autoFocus={autoFocus}
+                // className={clsx([
+                // "border-0",
+                // "focus:ring-0",
+                // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
+                // className,
+                // ])}
+                disabled={disabled}
+                showBorder={false}
+                {...editorProps}
+            />
+
+            {footer}
         </div>
     )
 }
