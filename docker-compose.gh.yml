@@ -93,8 +93,8 @@ services:
                 - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=true
                 - NEXT_PUBLIC_POSTHOG_API_KEY=phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7
         image: ghcr.io/agenta-ai/agenta-web
-        expose:
-            - "3000"
+        ports:
+            - "3000:3000"
         networks:
             - agenta-network
         labels:
