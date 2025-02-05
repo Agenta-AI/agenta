@@ -1,0 +1,75 @@
+@baseUrl = http://localhost
+@service = chat
+
+### These request can be run using the Rest Client extension in vsCode
+
+### Health Check
+GET {{baseUrl}}/{{service}}/health HTTP/1.1
+
+### OpenAPI
+GET {{baseUrl}}/{{service}}/openapi.json HTTP/1.1
+
+### Basic Text Response - Single message
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "response_format": {
+          "type": "text"
+        }
+      },
+      "messages": [
+        {
+          "content": "You are an expert in geography.",
+          "role": "system"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "messages": [
+    {
+      "content": "What is the capital of france?",
+      "role": "user"
+    }
+  ],
+  "inputs": {} # to remove
+}
+
+
+### Basic Text Response - Single message
+POST {{baseUrl}}/{{service}}/generate HTTP/1.1
+Content-Type: application/json
+
+{
+  "ag_config": {
+    "prompt": {
+      "llm_config": {
+        "model": "gpt-4",
+        "response_format": {
+          "type": "text"
+        }
+      },
+      "messages": [
+        {
+          "content": "You are an expert in {country}.",
+          "role": "system"
+        }
+      ],
+      "template_format": "fstring"
+    }
+  },
+  "inputs": {
+    "country": "France",
+  },
+  "messages": [
+    {
+      "content": "What is the capital?",
+      "role": "user"
+    }
+  ]
+}
