@@ -125,18 +125,15 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     return await db_manager.delete_evaluator_config(evaluator_config_id)
 
 
-async def create_ready_to_use_evaluators(app_name: str, project_id: str):
+async def create_ready_to_use_evaluators(project_id: str):
     """
     Create configurations for all evaluators that are marked for direct use.
-
     This function retrieves all evaluators from the evaluator manager, filters
     out those marked for direct use, and creates configuration entries for them
     in the database using the database manager.
-
     Args:
         app_name (str): The name of the application.
         project_id (str): The ID of the project.
-
     Returns:
         Nothing. The function works by side effect, modifying the database.
     """
@@ -162,7 +159,7 @@ async def create_ready_to_use_evaluators(app_name: str, project_id: str):
         ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
             project_id=project_id,
-            app_name=app_name,
+            app_name=None,
             name=evaluator.name,
             evaluator_key=evaluator.key,
             settings_values=settings_values,

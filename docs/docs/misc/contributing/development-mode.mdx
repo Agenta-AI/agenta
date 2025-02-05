@@ -5,7 +5,29 @@ description: "Some pointers to start contributing in Agenta"
 
 **Description:** This quick start guide provides pointers for contributing to Agenta by working on the CLI, SDK, backend, and frontend code. Additionally, it covers how to debug the backend effectively.
 
-### Development mode for CLI or SDK
+## Deploying Agenta locally in Development Mode
+
+Running Agenta in development mode provides you with hot-reloading, so you can make changes to the code and see the effects right away. This is particularly useful when working on the CLI or SDK.
+
+### 1. Clone the Repository and Navigate to the Folder
+
+```bash
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta
+```
+
+### 2. Launch the Agenta Server
+
+```bash
+docker compose -f "docker-compose.yml" up -d --build
+```
+
+### 3. Verify the Installation
+
+Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, you're good to go.
+
+
+## Using development mode for CLI or SDK
 
 If you are making changes to the CLI or SDK, you certainly want to use **your** version of the code instead of the one that you installed using `pip`. Here is how you can do that
 
@@ -35,7 +57,7 @@ Don't forget to reinstall agenta after you finish development.
 
 </details>
 
-### How to streamline working on the SDK
+## How to streamline working on the SDK
 
 Let's say you want to add a new type of parameters to the SDK, let's say IntParam, how can you work and test that quickly?
 Here is how I do it:
@@ -63,17 +85,7 @@ Now run `python main.py` (making sure of course that you have dealt with the dep
 
 Now you can make changes to the code of the sdk lying in the subfolder `agenta` and the code of your app and see the changes directly in the api. So, for our example, I would add the class for IntParam to the SDK, use it in the app, then take a look at the openapi.json to see if it works correctly, then run the app using the shell to see if everything works correctly.
 
-### Working on Backend Code
-
-No special steps are required for working on the backend code. Docker Compose automatically mounts the volume containing the code. Any changes you make will be immediately reflected in the backend.
-
-### Working on Frontend Code
-
-Similar to the backend, Docker Compose mounts the volume containing the frontend code. Consequently, any changes you make will be directly applied to the frontend.
-
-It was noticed that sometimes when agenta-web is run as a standalone NextJS app and not as a Docker container, it takes lesser CPU usage. To run agenta-web as a standalone app in parallel with docker-compose, execute the `start_web_standalone.sh` script present in the project's root.
-
-### Debugging Backend
+## Debugging the Backend
 
 The recommended method for debugging the backend is to check the logs from Docker. Here's how:
 
