@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
 import {Button, Divider, Dropdown, Layout, Typography} from "antd"
 import Logo from "../Logo/Logo"
@@ -82,8 +82,16 @@ const Sidebar: React.FC = () => {
         return [[matched?.key], openKey ? [openKey] : []]
     }, [router.asPath, topItems, bottomItems])
 
+    const _isDemo = useMemo(() => isDemo(), [])
+
     useEffect(() => {
-        setOpenKey(openKeys[0])
+        setOpenKey((prevKey) => {
+            if (prevKey !== openKeys[0]) {
+                return openKeys[0]
+            }
+
+            return prevKey
+        })
     }, [openKeys[0]])
 
     return (
@@ -203,4 +211,4 @@ const Sidebar: React.FC = () => {
     )
 }
 
-export default Sidebar
+export default memo(Sidebar)

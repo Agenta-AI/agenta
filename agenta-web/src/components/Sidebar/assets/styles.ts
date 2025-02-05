@@ -19,7 +19,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     sliderContainer: {
         display: "flex",
         flexDirection: "column",
-        borderRight: `0.01px solid ${theme.colorBorder}`,
+        borderRight: "0.01px solid rgba(5, 23, 41, 0.06)",
         height: "100%",
         padding: "10px",
         "& > div:nth-of-type(1)": {
