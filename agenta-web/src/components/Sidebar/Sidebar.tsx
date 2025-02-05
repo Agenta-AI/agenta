@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 import {useRouter} from "next/router"
 import {Button, Divider, Dropdown, Layout, Typography} from "antd"
 import Logo from "../Logo/Logo"
