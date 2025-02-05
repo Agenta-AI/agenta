@@ -8,6 +8,7 @@ import PlaygroundVariantConfigPromptCollapseContent from "./assets/PlaygroundVar
 import {componentLogger} from "../../assets/utilities/componentLogger"
 
 import type {PlaygroundVariantConfigPromptComponentProps} from "./types"
+import {useStyles} from "./styles"
 
 /**
  * PlaygroundVariantConfigPrompt renders a collapsible configuration section for a single prompt.
@@ -27,12 +28,14 @@ import type {PlaygroundVariantConfigPromptComponentProps} from "./types"
  * />
  * ```
  */
+
 const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptComponentProps> = ({
     variantId,
     promptId,
     className,
 }) => {
     const defaultActiveKey = useRef(["1"])
+    const classes = useStyles()
 
     componentLogger("PlaygroundVariantConfigPrompt", variantId, promptId)
 
@@ -64,7 +67,7 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
     return (
         <Collapse
             ghost
-            className={clsx("rounded-none", className)}
+            className={clsx("rounded-none", className, classes.collapseContainer)}
             bordered={false}
             defaultActiveKey={defaultActiveKey.current}
             items={items}

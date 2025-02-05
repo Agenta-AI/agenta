@@ -24,4 +24,5 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
     headerClassName?: string
     handleChange?: (value: string) => void
     initialValue?: string
+    editorType?: "border" | "borderless"
 }

@@ -199,7 +199,7 @@ const PromptMessageConfig = ({
                         variantId={variantId}
                         rowId={rowId}
                         as="SimpleDropdownSelect"
-                        className="message-user-select pl-0"
+                        className="message-user-select"
                         disabled={disabled}
                     />
 
