@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import display_exception
+from agenta.sdk.utils.logging import log
 
 import agenta as ag
 
@@ -131,6 +132,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
             cookies = {"sAccessToken": access_token} if access_token else None
 
+            if not headers and not cookies:
+                log.debug("No auth header nor auth cookie found in the request")
+
             baggage = request.state.otel["baggage"]
 
             project_id = (
@@ -139,6 +143,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 # ALTERNATIVE
                 or request.query_params.get("project_id")
             )
+
+            if not project_id:
+                log.debug("No project ID found in request")
 
             params = {"action": "run_service", "resource_type": "service"}
 
@@ -161,53 +168,122 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 credentials = _cache.get(_hash)
 
                 if credentials:
+                    log.debug("Using cached credentials")
                     return credentials
 
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.host}/api/permissions/verify",
-                    headers=headers,
-                    cookies=cookies,
-                    params=params,
+            try:
+                async with httpx.AsyncClient() as client:
+                    try:
+                        response = await client.get(
+                            f"{self.host}/api/permissions/verify",
+                            headers=headers,
+                            cookies=cookies,
+                            params=params,
+                            timeout=30.0,
+                        )
+                    except httpx.TimeoutException as exc:
+                        log.debug(f"Timeout error while verify credentials: {exc}")
+                        raise DenyException(
+                            status_code=504,
+                            content="Could not verify credentials: connection to {self.host} timed out. Please check your network connection.",
+                        ) from exc
+                    except httpx.ConnectError as exc:
+                        log.debug(f"Connection error while verify credentials: {exc}")
+                        raise DenyException(
+                            status_code=503,
+                            content=f"Could not verify credentials: connection to {self.host} failed. Please check if agenta is available.",
+                        ) from exc
+                    except httpx.NetworkError as exc:
+                        log.debug(f"Network error while verify credentials: {exc}")
+                        raise DenyException(
+                            status_code=503,
+                            content="Could not verify credentials: connection to {self.host} failed. Please check your network connection.",
+                        ) from exc
+                    except httpx.HTTPError as exc:
+                        log.debug(f"HTTP error while verify credentials: {exc}")
+                        raise DenyException(
+                            status_code=502,
+                            content=f"Could not verify credentials: connection to {self.host} failed. Please check if agenta is available.",
+                        ) from exc
+
+                    if response.status_code == 401:
+                        log.debug("Agenta returned 401 - Invalid credentials")
+                        raise DenyException(
+                            status_code=401,
+                            content="Invalid credentials. Please check your credentials or login again.",
+                        )
+                    elif response.status_code == 403:
+                        log.debug("Agenta returned 403 - Permission denied")
+                        raise DenyException(
+                            status_code=403,
+                            content="Permission denied. Please check your permissions or contact your administrator.",
+                        )
+                    elif response.status_code != 200:
+                        log.debug(
+                            f"Agenta returned {response.status_code} - Unexpected status code"
+                        )
+                        raise DenyException(
+                            status_code=500,
+                            content=f"Could no verify credentials: {self.host} returned unexpected status code {response.status_code}. Please try again later or contact support if the issue persists.",
+                        )
+
+                    try:
+                        auth = response.json()
+                    except ValueError as exc:
+                        log.debug(f"Agenta returned invalid JSON response: {exc}")
+                        raise DenyException(
+                            status_code=500,
+                            content=f"Could no verify credentials: {self.host} returned unexpected invalid JSON response. Please try again later or contact support if the issue persists.",
+                        ) from exc
+
+                    if not isinstance(auth, dict):
+                        log.debug(
+                            f"Agenta returned invalid response format: {type(auth)}"
+                        )
+                        raise DenyException(
+                            status_code=500,
+                            content=f"Could no verify credentials: {self.host} returned unexpected invalid response format. Please try again later or contact support if the issue persists.",
+                        )
+
+                    effect = auth.get("effect")
+                    if effect != "allow":
+                        log.debug("Access denied by Agenta - effect: {effect}")
+                        raise DenyException(
+                            status_code=403,
+                            content="Permission denied. Please check your permissions or contact your administrator.",
+                        )
+
+                    credentials = auth.get("credentials")
+
+                    if not credentials:
+                        log.debug(
+                            f"Agenta returned invalid response format: missing credentials"
+                        )
+                        raise DenyException(
+                            status_code=500,
+                            content=f"Could no verify credentials: {self.host} returned unexpected invalid response format. Please try again later or contact support if the issue persists.",
+                        )
+
+                    _cache.put(_hash, credentials)
+
+                    return credentials
+
+            except DenyException as deny:
+                raise deny
+            except Exception as exc:  # pylint: disable=bare-except
+                log.debug(
+                    f"Unexpected error while verifying credentials (remote): {exc}"
                 )
-
-                if response.status_code == 401:
-                    raise DenyException(
-                        status_code=401,
-                        content="Invalid credentials",
-                    )
-                elif response.status_code == 403:
-                    raise DenyException(
-                        status_code=403,
-                        content="Service execution not allowed.",
-                    )
-                elif response.status_code != 200:
-                    raise DenyException(
-                        status_code=400,
-                        content="Auth: Unexpected Error.",
-                    )
-
-                auth = response.json()
-
-                if auth.get("effect") != "allow":
-                    raise DenyException(
-                        status_code=403,
-                        content="Service execution not allowed.",
-                    )
-
-                credentials = auth.get("credentials")
-
-                _cache.put(_hash, credentials)
-
-                return credentials
+                raise DenyException(
+                    status_code=500,
+                    content=f"Could no verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
+                ) from exc
 
         except DenyException as deny:
             raise deny
-
-        except Exception as exc:  # pylint: disable=bare-except
-            display_exception("Auth Middleware Exception (suppressed)")
-
+        except Exception as exc:
+            log.debug(f"Unexpected error while verifying credentials (local): {exc}")
             raise DenyException(
                 status_code=500,
-                content="Auth: Unexpected Error.",
+                content=f"Could no verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
             ) from exc
