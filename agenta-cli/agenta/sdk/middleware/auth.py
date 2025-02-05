@@ -14,9 +14,12 @@ from agenta.sdk.utils.exceptions import display_exception
 
 import agenta as ag
 
+AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
+
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
-_ALWAYS_ALLOW_LIST = ["/health"]
+
+_ALWAYS_ALLOW_LIST = [f"{AGENTA_RUNTIME_PREFIX}/health"]
 
 _cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
 
