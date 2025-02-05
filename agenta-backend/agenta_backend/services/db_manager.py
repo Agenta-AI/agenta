@@ -3179,17 +3179,18 @@ async def fetch_evaluator_config_by_appId(
 
 async def create_evaluator_config(
     project_id: str,
-    app_name: str,
     name: str,
     evaluator_key: str,
+    app_name: Optional[str] = None,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
 
     async with engine.session() as session:
+        name_suffix = f" ({app_name})" if app_name else ""
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
-            name=f"{name} ({app_name})",
+            name=f"{name}{name_suffix}",
             evaluator_key=evaluator_key,
             settings_values=settings_values,
         )
