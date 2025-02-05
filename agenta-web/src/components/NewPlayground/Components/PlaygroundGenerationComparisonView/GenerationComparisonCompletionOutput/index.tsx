@@ -39,32 +39,35 @@ const GenerationComparisonCompletionOutput = ({
 
     return (
         <>
-            <div
-                className={clsx([
-                    "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3]",
-                    {"border-r": variantIndex === 0},
-                    {"border-b": !isLastRow},
-                ])}
-            >
-                {variantIndex === 0 && (
-                    <div className="!w-[399px] shrink-0 sticky top-9 z-[2] border-0">
-                        <GenerationCompletion
-                            variantId={variantId}
-                            rowId={rowId}
-                            withControls={isLastRow}
-                        />
-                    </div>
-                )}
-            </div>
+            {variantIndex === 0 ? (
+                <div
+                    className={clsx([
+                        "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3] !w-[400px]",
+                        {"border-r": variantIndex === 0},
+                        {"border-b": !isLastRow},
+                    ])}
+                >
+                    {variantIndex === 0 && (
+                        <div className="w-full flex-1 shrink-0 sticky top-9 z-[2] border-0">
+                            <GenerationCompletion
+                                variantId={variantId}
+                                rowId={rowId}
+                                withControls={isLastRow}
+                            />
+                        </div>
+                    )}
+                </div>
+            ) : null}
 
             <div
                 className={clsx([
+                    "!min-w-[400px] flex-1",
                     "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-b": !isLastRow},
                 ])}
             >
                 <div className="flex h-full">
-                    <div className="!w-[399px] h-full">
+                    <div className="w-full flex-1 h-full">
                         <div className="w-full py-2 px-4 sticky top-9 z-[2]">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
