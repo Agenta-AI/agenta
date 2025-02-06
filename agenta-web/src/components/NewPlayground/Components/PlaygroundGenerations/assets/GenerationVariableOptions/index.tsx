@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
 import {Copy, MinusCircle} from "@phosphor-icons/react"
 import {Button} from "antd"
@@ -9,7 +9,7 @@ import {getEnhancedProperties} from "../../../../assets/utilities/genericTransfo
 import {createInputRow} from "../../../../hooks/usePlayground/assets/inputHelpers"
 import {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
 import usePlayground from "../../../../hooks/usePlayground"
-import {getMetadataLazy} from "../../../../state"
+import {getMetadataLazy, getResponseLazy} from "../../../../state"
 
 import type {
     ArrayMetadata,
@@ -21,23 +21,30 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
     rowId,
     variantId,
     className,
-    result,
+    resultHash,
     variableId,
 }) => {
     const {mutate, viewType, inputRows, variable} = usePlayground({
         variantId,
         hookId: "GenerationVariableOptions",
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const inputRows = state.generationData.inputs.value || []
-            const inputRow = inputRows.find((inputRow) => {
-                return inputRow.__id === rowId
-            })
-            const variables = getEnhancedProperties(inputRow)
-            const variable = variables.find((p) => p.__id === variableId)
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRows = state.generationData.inputs.value || []
+                const inputRow = inputRows.find((inputRow) => {
+                    return inputRow.__id === rowId
+                })
+                const variables = getEnhancedProperties(inputRow)
+                const variable = variables.find((p) => p.__id === variableId)
 
-            return {inputRows, variable}
-        }, []),
+                return {inputRows, variable}
+            },
+            [rowId, variableId],
+        ),
     })
+
+    const result = useMemo(() => {
+        return getResponseLazy(resultHash)
+    }, [resultHash])
 
     const deleteInputRow = useCallback(() => {
         mutate(

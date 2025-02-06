@@ -17,7 +17,7 @@ const config: SWRConfiguration = {
                     return res
                 })
             default:
-                return axios.get(url).then((res) => {
+                return axios.get(url, options).then((res) => {
                     return res.data
                 })
         }

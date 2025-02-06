@@ -397,6 +397,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
         name: "",
+        updatedAt: variant.updated_at,
     } as EnhancedVariant
 }
 

@@ -45,7 +45,7 @@ const useWebWorker = <T>(
         }
 
         return () => {
-            if (worker && shouldListen) {
+            if (worker) {
                 worker.removeEventListener("message", handleMessageFromWorker)
             }
         }

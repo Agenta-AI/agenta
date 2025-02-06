@@ -128,7 +128,6 @@ const GenerationComparisonChatOutputCell = ({
                                     return (
                                         <GenerationCompletionRow
                                             key={inputRowId}
-                                            variantId={variantId}
                                             rowId={inputRowId}
                                             inputOnly={true}
                                         />
@@ -170,9 +169,10 @@ const GenerationComparisonChatOutputCell = ({
                         <GenerationChatRowOutput
                             message={message}
                             deleteMessage={handleDeleteMessage}
+                            variantId={variantId}
                             rerunMessage={canRerunMessage ? rerunMessage : undefined}
                             rowId={messageRow?.__id}
-                            result={message?.__result}
+                            resultHash={message?.__result}
                             isRunning={message?.__isRunning}
                             disabled={!messageRow}
                             messageProps={{

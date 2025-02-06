@@ -48,7 +48,6 @@ const TraceDrawerButton = ({
         () => (traces?.length ? getNodeById(traces, selected) : null),
         [selected, traces],
     )
-    console.log("activeTrace, traces", activeTrace, traces)
     return (
         <>
             {isValidElement(children) ? (
