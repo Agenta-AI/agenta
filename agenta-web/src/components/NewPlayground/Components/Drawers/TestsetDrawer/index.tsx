@@ -5,6 +5,7 @@ import {Database} from "@phosphor-icons/react"
 import {TestsetDrawerButtonProps} from "./types"
 import {_AgentaRootsResponse} from "@/services/observability/types"
 import {TestsetTraceData} from "@/components/pages/observability/drawer/TestsetDrawer/assets/types"
+import {getResponseLazy} from "@/components/NewPlayground/state"
 const TestsetDrawer = dynamic(
     () => import("@/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
 )
@@ -13,13 +14,18 @@ const TestsetDrawerButton = ({
     label,
     icon = true,
     children,
-    results,
+    resultHashes,
     ...props
 }: TestsetDrawerButtonProps) => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
     const testsetTraceData = useMemo(() => {
-        const traces = Array.isArray(results) ? results : [results]
+        const traceHashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
+        const traces = traceHashes
+            .map((hash) => {
+                return getResponseLazy(hash)
+            })
+            .filter((tr) => !!tr)
 
         if (traces.length === 0) return []
         const extractedData = traces
@@ -33,7 +39,7 @@ const TestsetDrawerButton = ({
             .filter((result) => result.data)
 
         return extractedData
-    }, [results])
+    }, [resultHashes])
 
     return (
         <>

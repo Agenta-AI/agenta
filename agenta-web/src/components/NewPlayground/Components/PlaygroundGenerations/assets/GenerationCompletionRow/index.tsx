@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 import dynamic from "next/dynamic"
 
 import clsx from "clsx"
@@ -14,6 +14,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 import RunButton from "@/components/NewPlayground/assets/RunButton"
 import {useStyles} from "./styles"
 import SharedEditor from "../../../SharedEditor"
+import {getResponseLazy} from "@/components/NewPlayground/state"
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
 })
@@ -30,8 +31,10 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {result, variableIds, runTests, isRunning, viewType, isChat} = usePlayground({
+    const {resultHash, variableIds, runTests, isRunning, viewType, isChat} = usePlayground({
         variantId,
+        rowId,
+        registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const inputRow = state.generationData.inputs.value.find((inputRow) => {
@@ -41,13 +44,13 @@ const GenerationCompletionRow = ({
                 const variables = getEnhancedProperties(inputRow)
                 const variableIds = variables.map((p) => p.__id)
 
-                const result = variantId ? inputRow?.__runs?.[variantId]?.__result : null
+                const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
                 const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
 
                 return {
                     isChat: state.variants[0]?.isChat,
                     variableIds,
-                    result,
+                    resultHash,
                     isRunning,
                     inputText: variables?.[0]?.value, // Temporary implementation
                 }
@@ -55,6 +58,10 @@ const GenerationCompletionRow = ({
             [rowId, variantId],
         ),
     })
+
+    const result = useMemo(() => {
+        return getResponseLazy(resultHash)
+    }, [resultHash])
 
     const runRow = useCallback(async () => {
         runTests?.(rowId, viewType === "single" ? variantId : undefined)
@@ -94,7 +101,7 @@ const GenerationCompletionRow = ({
                             variantId={variantId}
                             rowId={rowId}
                             className="invisible group-hover/item:visible"
-                            result={result}
+                            resultHash={resultHash}
                         />
                     ) : null}
                 </div>
@@ -171,7 +178,7 @@ const GenerationCompletionRow = ({
                                             variantId={variantId as string}
                                             rowId={rowId}
                                             className="invisible group-hover/item:visible absolute top-5 right-5"
-                                            result={result}
+                                            resultHash={resultHash}
                                             variableId={variableId}
                                         />
                                     )}

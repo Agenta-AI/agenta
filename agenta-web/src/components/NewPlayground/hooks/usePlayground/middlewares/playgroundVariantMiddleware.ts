@@ -29,6 +29,7 @@ import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
 import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
+import {hashVariant, hashResponse} from "@/components/NewPlayground/assets/hash"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -181,17 +182,15 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     : message.payload.result.response?.data,
                             )
 
+                            const responseHash = hashResponse(message.payload.result)
                             targetMessage.__runs[variantId] = {
-                                __result: {
-                                    ...message.payload.result,
-                                },
+                                __result: responseHash,
                                 message: incomingMessage,
                                 __isRunning: false,
                                 __id: generateId(),
                             }
 
                             if (targetMessageIndex === targetRow.history.value.length - 1) {
-                                // targetRow.history.value.push(createMessageRow())
                                 const emptyMessage = createMessageFromSchema(metadata, {
                                     role: "user",
                                 })
@@ -202,7 +201,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return clonedState
                     })
                 },
-                [swr, variantId],
+                [swr],
             )
 
             const handleWebWorkerMessage = useCallback(
@@ -225,6 +224,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 }) => {
+                    if (message.payload.variant.id !== config.variantId) return
+                    if (message.payload.rowId !== config.rowId) return
+
                     const variantId = message.payload.variant.id
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
@@ -242,8 +244,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                 if (!inputTestRow || !inputTestRow.__runs) return clonedState
 
+                                const responseHash = hashResponse(message.payload.result)
                                 inputTestRow.__runs[variantId] = {
-                                    __result: message.payload.result,
+                                    __result: responseHash,
                                     __isRunning: false,
                                 }
 
@@ -252,12 +255,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 },
-                [swr, handleWebWorkerChatMessage],
+                [config.rowId, config.variantId, handleWebWorkerChatMessage, swr],
             )
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
                 handleWebWorkerMessage,
-                config.registerToWebWorker,
+                config.registerToWebWorker && !!variantId,
             )
 
             /**
@@ -286,9 +289,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             )
                             if (!variant) return state
 
+                            const _variantId = variant.id
                             try {
                                 const deleteResponse = await fetcher?.(
-                                    `/api/variants/${variant.id}?project_id=${projectId}`,
+                                    `/api/variants/${_variantId}?project_id=${projectId}`,
                                     {
                                         method: "DELETE",
                                     },
@@ -299,8 +303,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.error("Failed to delete variant")
                                 }
 
+                                if (state.selected.includes(_variantId)) {
+                                    state.selected.splice(state.selected.indexOf(_variantId), 1)
+                                }
+
                                 state?.variants?.forEach((v: EnhancedVariant) => {
-                                    if (v.id === variant.id) {
+                                    if (v.id === _variantId) {
                                         const index = state.variants.indexOf(v)
                                         state.variants.splice(index, 1)
                                     }
@@ -363,7 +371,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     } else {
                                         const saveResponse = await fetcher?.(
                                             `/api/variants/${variant.id}?project_id=${projectId}`,
-                                            {method: "GET"},
+                                            {method: "GET", cache: false},
                                         )
 
                                         const t = setVariant(saveResponse)
@@ -382,22 +390,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         clonedState.variants[index] = updatedVariant
                                         message.success("Changes saved successfully!")
 
-                                        if (
-                                            clonedState?.dirtyStates &&
-                                            clonedState.dirtyStates[updatedVariant.id]
-                                        ) {
-                                            clonedState.dirtyStates = structuredClone(
-                                                clonedState.dirtyStates,
-                                            )
-                                            clonedState.dirtyStates[updatedVariant.id] = false
+                                        clonedState.dataRef = structuredClone(clonedState.dataRef)
+                                        clonedState.dataRef[updatedVariant.id] =
+                                            hashVariant(updatedVariant)
 
-                                            // TODO: THIS NEEDS FIXING, IT IS NOT USED PROPERLY
-                                            clonedState.dataRef = new Map(clonedState.dataRef)
-                                            clonedState.dataRef.set(
-                                                updatedVariant.id,
-                                                structuredClone(updatedVariant),
-                                            )
-                                        }
                                         return clonedState
                                     }
 

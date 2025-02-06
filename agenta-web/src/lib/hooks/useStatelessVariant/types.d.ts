@@ -29,7 +29,7 @@ interface SelectorConfig<T = any, Selected = unknown> {
 
 // Base state shape
 export interface PlaygroundStateData extends InitialStateType {
-    dataRef?: Map<string, EnhancedVariant>
+    dataRef?: Record<string, EnhancedVariant>
     [key: string]: any
 }
 
