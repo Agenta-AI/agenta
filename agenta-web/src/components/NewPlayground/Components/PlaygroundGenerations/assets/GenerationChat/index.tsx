@@ -17,7 +17,6 @@ import TextControl from "../../../PlaygroundVariantPropertyControl/assets/TextCo
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({
         variantId,
-        registerToWebWorker: true,
         hookId: "PlaygroundConfigVariantPrompts",
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -91,7 +90,6 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                     return (
                         <GenerationCompletionRow
                             key={inputRowId}
-                            variantId={variantId}
                             rowId={inputRowId}
                             inputOnly={true}
                             className={clsx([
@@ -130,21 +128,14 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                             : null}
                         {messageRowIds.map((messageRow) => {
                             return historyIds[messageRow].map((historyId, index) => {
-                                return historyId.includes("isRunning") ? (
-                                    <TextControl
-                                        key={`${historyId}-loading`}
-                                        value="Generating response..."
-                                        editorType="borderless"
-                                        state="readOnly"
-                                        metadata={{}}
-                                    />
-                                ) : (
+                                return (
                                     <GenerationChatRow
                                         key={`${messageRow}-${historyId}`}
                                         variantId={variantId}
                                         rowId={messageRow}
                                         historyId={historyId}
                                         withControls={index === historyIds[messageRow].length - 1}
+                                        isRunning={historyId.includes("isRunning")}
                                     />
                                 )
                             })

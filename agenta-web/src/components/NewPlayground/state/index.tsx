@@ -6,6 +6,20 @@ import type {ConfigMetadata} from "../assets/utilities/genericTransformer/types"
 // Create an atom store
 export const atomStore = createStore()
 
+// Atom to store responses
+export const responseAtom = atom<Record<string, ConfigMetadata>>({})
+export const getResponseLazy = <T extends ConfigMetadata>(hash?: string): T | null => {
+    if (!hash) return null
+
+    return (atomStore.get(responseAtom)[hash] as T) || null
+}
+export const getAllResponses = (): Record<string, ConfigMetadata> => {
+    return atomStore.get(responseAtom) || {}
+}
+export const updateResponseAtom = async (metadata: Record<string, any>) => {
+    atomStore.set(responseAtom, (prev) => ({...prev, ...metadata}))
+}
+
 class TaskQueue {
     private queue: Promise<void> = Promise.resolve()
 
@@ -44,7 +58,7 @@ export const updateMetadataAtom = async (metadata: Record<string, any>) => {
 
 // Atom to store variantsRef
 export const variantsRefAtom = atom<Record<string, ConfigMetadata>>({})
-// Lazy reader for metadata
+// Lazy reader for variantsRef
 export const getVariantsLazy = <T extends ConfigMetadata>(hash?: string): T | null => {
     if (!hash) return null
 

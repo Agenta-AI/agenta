@@ -1,6 +1,6 @@
 import crypto from "crypto"
 import stableHash from "stable-hash"
-import {updateMetadataAtom, updateVariantsRefAtom} from "../state"
+import {updateMetadataAtom, updateVariantsRefAtom, updateResponseAtom} from "../state"
 
 const hashCache = new WeakMap()
 
@@ -33,6 +33,17 @@ export const hashMetadata = (metadata: any) => {
         updateMetadataAtom({[metadataHash]: metadata})
 
         return metadataHash
+    }
+}
+
+export const hashResponse = (response: any) => {
+    if (typeof response === "string") {
+        return response
+    } else {
+        const responseHash = hash(response)
+        updateResponseAtom({[responseHash]: response})
+
+        return responseHash
     }
 }
 
