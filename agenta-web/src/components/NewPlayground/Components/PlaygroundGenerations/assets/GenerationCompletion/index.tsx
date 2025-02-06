@@ -72,7 +72,6 @@ const GenerationCompletion = ({
                     className={rowClassName}
                 />
             ) : (
-                // null
                 (inputRowIds || []).map((row) => (
                     <GenerationCompletionRow
                         key={row}
