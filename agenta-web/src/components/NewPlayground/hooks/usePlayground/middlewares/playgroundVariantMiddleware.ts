@@ -289,9 +289,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             )
                             if (!variant) return state
 
+                            const _variantId = variant.id
                             try {
                                 const deleteResponse = await fetcher?.(
-                                    `/api/variants/${variant.id}?project_id=${projectId}`,
+                                    `/api/variants/${_variantId}?project_id=${projectId}`,
                                     {
                                         method: "DELETE",
                                     },
@@ -302,8 +303,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     message.error("Failed to delete variant")
                                 }
 
+                                if (state.selected.includes(_variantId)) {
+                                    state.selected.splice(state.selected.indexOf(_variantId), 1)
+                                }
+
                                 state?.variants?.forEach((v: EnhancedVariant) => {
-                                    if (v.id === variant.id) {
+                                    if (v.id === _variantId) {
                                         const index = state.variants.indexOf(v)
                                         state.variants.splice(index, 1)
                                     }
