@@ -216,17 +216,17 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     try {
                         let result = await callVariant(
                             inputParamsDict,
-                            variantData[idx].inputParams!,
-                            variantData[idx].parameters
+                            (data?.variants || [])[idx].inputParams!,
+                            (data?.variants || [])[idx].parameters
                                 ? transformToRequestBody(
-                                      variantData[idx].variant,
+                                      (data?.variants || [])[idx].variant,
                                       undefined,
                                       getAllMetadata(),
                                   )
-                                : variantData[idx].promptOptParams!,
+                                : (data?.variants || [])[idx].promptOptParams!,
                             appId || "",
                             variant.baseId || "",
-                            variantData[idx].isChatVariant
+                            (data?.variants || [])[idx].isChatVariant
                                 ? testsetRowToChatMessages(
                                       evaluation.testset.csvdata[rowIndex],
                                       false,
@@ -234,7 +234,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                 : [],
                             undefined,
                             true,
-                            !!variantData[idx].parameters, // isNewVariant
+                            !!(data?.variants || [])[idx].parameters, // isNewVariant
                         )
 
                         let res: BaseResponse | undefined
@@ -284,7 +284,15 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 showNotification,
             )
         },
-        [evalVariants, data?.variants, rows],
+        [
+            data?.variants,
+            rows,
+            evalVariants,
+            updateEvaluationScenarioData,
+            setRowValue,
+            appId,
+            evaluation.testset.csvdata,
+        ],
     )
 
     const runAllEvaluations = useCallback(async () => {
