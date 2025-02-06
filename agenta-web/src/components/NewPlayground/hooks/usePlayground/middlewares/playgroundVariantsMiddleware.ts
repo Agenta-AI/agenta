@@ -197,8 +197,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
                 // @ts-ignore
                 swr.handleWebWorkerMessage,
-                valueReferences.current.includes("runVariantTestRow") ||
-                    valueReferences.current.includes("runTests"),
+                false,
             )
 
             const handleInputRowTestStart = useCallback((inputRow, variantId) => {

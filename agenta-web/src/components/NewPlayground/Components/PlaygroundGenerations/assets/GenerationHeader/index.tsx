@@ -17,7 +17,7 @@ import {findVariantById} from "@/components/NewPlayground/hooks/usePlayground/as
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
-    const {results, isRunning, mutate, runTests} = usePlayground({
+    const {resultHashes, isRunning, mutate, runTests} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -26,7 +26,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                 if (variant?.isChat) {
                     const messageRows = state.generationData.messages.value
 
-                    const results = messageRows
+                    const resultHashes = messageRows
                         .flatMap((message) => {
                             const historyArray = message.history.value
                             return historyArray.map(
@@ -40,11 +40,11 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                             variantId ? history.__runs?.[variantId]?.__isRunning : false,
                         ),
                     )
-                    return {results, isRunning}
+                    return {resultHashes, isRunning}
                 } else {
                     const inputRows = state.generationData.inputs.value
 
-                    const results = inputRows.map((inputRow) =>
+                    const resultHashes = inputRows.map((inputRow) =>
                         variantId ? inputRow?.__runs?.[variantId]?.__result : null,
                     )
 
@@ -52,7 +52,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
                     )
 
-                    return {results, isRunning}
+                    return {resultHashes, isRunning}
                 }
             },
             [variantId],
@@ -95,7 +95,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     icon={false}
                     size="small"
                     disabled={isRunning}
-                    results={results}
+                    resultHashes={resultHashes}
                 />
 
                 <RunButton

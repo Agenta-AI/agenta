@@ -36,7 +36,7 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
-const uriFixer = (uri: string) => {
+export const uriFixer = (uri: string) => {
     if (!uri.includes("http://") && !uri.includes("https://")) {
         // for oss.agenta.ai
         uri = `https://${uri}`
@@ -397,6 +397,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
         name: "",
+        updatedAt: variant.updated_at,
     } as EnhancedVariant
 }
 

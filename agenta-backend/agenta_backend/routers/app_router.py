@@ -465,11 +465,6 @@ async def add_variant_from_url(
             str(variant_db.id),
         )
 
-        await evaluator_manager.create_ready_to_use_evaluators(
-            app_name=app.app_name,
-            project_id=str(app.project_id),
-        )
-
         app_variant_dto = await converters.app_variant_db_to_output(
             app_variant_db,
         )
