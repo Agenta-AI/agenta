@@ -29,6 +29,7 @@ import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
 import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
+import {hashVariant} from "@/components/NewPlayground/assets/hash"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -383,7 +384,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                         clonedState.dataRef = structuredClone(clonedState.dataRef)
                                         clonedState.dataRef[updatedVariant.id] =
-                                            structuredClone(updatedVariant)
+                                            hashVariant(updatedVariant)
 
                                         return clonedState
                                     }
