@@ -50,6 +50,7 @@ const PromptMessageConfig = ({
     initialValue: propsInitialValue,
     runnable,
     headerClassName,
+    footerClassName,
     ...props
 }: PromptMessageConfigProps) => {
     const {message} = usePlayground({
