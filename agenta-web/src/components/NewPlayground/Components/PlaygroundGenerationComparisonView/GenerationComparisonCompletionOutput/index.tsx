@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 import dynamic from "next/dynamic"
 import clsx from "clsx"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
@@ -8,6 +8,7 @@ import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlaygroun
 import {findPropertyInObject} from "@/lib/hooks/useStatelessVariant/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
 import SharedEditor from "../../SharedEditor"
+import {getResponseLazy} from "@/components/NewPlayground/state"
 const GenerationResultUtils = dynamic(
     () => import("../../PlaygroundGenerations/assets/GenerationResultUtils"),
     {ssr: false},
@@ -20,22 +21,28 @@ const GenerationComparisonCompletionOutput = ({
     variantIndex,
     isLastRow,
     isLastVariant,
+    registerToWebWorker,
 }: GenerationComparisonCompletionOutputProps) => {
-    const {result, isRunning} = usePlayground({
-        registerToWebWorker: true,
+    const {resultHash, isRunning} = usePlayground({
+        registerToWebWorker: registerToWebWorker ?? true,
         variantId,
+        rowId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const inputRow = findPropertyInObject(state, rowId)
                 const variantRun = inputRow?.__runs?.[variantId]
                 return {
-                    result: variantRun?.__result,
+                    resultHash: variantRun?.__result,
                     isRunning: variantRun?.__isRunning,
                 }
             },
             [rowId, variantId],
         ),
     })
+
+    const result = useMemo(() => {
+        return getResponseLazy(resultHash)
+    }, [resultHash])
 
     return (
         <>
@@ -49,11 +56,7 @@ const GenerationComparisonCompletionOutput = ({
                 >
                     {variantIndex === 0 && (
                         <div className="w-full flex-1 shrink-0 sticky top-9 z-[2] border-0">
-                            <GenerationCompletion
-                                variantId={variantId}
-                                rowId={rowId}
-                                withControls={isLastRow}
-                            />
+                            <GenerationCompletion rowId={rowId} withControls={isLastRow} />
                         </div>
                     )}
                 </div>

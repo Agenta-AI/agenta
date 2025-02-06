@@ -197,10 +197,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             })
                         }
 
-                        if (
-                            !isPlaygroundEqual(currentSelected, previousSelected) &&
-                            variant?.isChat
-                        ) {
+                        if (!isPlaygroundEqual(currentSelected, previousSelected) && isChat) {
                             state.generationData.messages.value.forEach((previousMessageRow) => {
                                 previousMessageRow.history.value.forEach((previousMessage) => {
                                     if (

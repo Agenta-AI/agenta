@@ -29,7 +29,7 @@ import {getAllMetadata, getMetadataLazy} from "@/components/NewPlayground/state"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {createMessageFromSchema, createMessageRow} from "../assets/messageHelpers"
 import {generateId} from "@/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
-import {hashVariant} from "@/components/NewPlayground/assets/hash"
+import {hashVariant, hashResponse} from "@/components/NewPlayground/assets/hash"
 
 export type ConfigValue = string | boolean | string[] | number | null
 
@@ -182,10 +182,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     : message.payload.result.response?.data,
                             )
 
+                            const responseHash = hashResponse(message.payload.result)
                             targetMessage.__runs[variantId] = {
-                                __result: {
-                                    ...message.payload.result,
-                                },
+                                __result: responseHash,
                                 message: incomingMessage,
                                 __isRunning: false,
                                 __id: generateId(),
@@ -202,7 +201,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         return clonedState
                     })
                 },
-                [swr, variantId],
+                [swr],
             )
 
             const handleWebWorkerMessage = useCallback(
@@ -225,6 +224,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 }) => {
+                    if (message.payload.variant.id !== config.variantId) return
+                    if (message.payload.rowId !== config.rowId) return
+
                     const variantId = message.payload.variant.id
                     if (!variantId || !message.payload.result) return
                     if (message.type === "runVariantInputRowResult") {
@@ -242,8 +244,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                 if (!inputTestRow || !inputTestRow.__runs) return clonedState
 
+                                const responseHash = hashResponse(message.payload.result)
                                 inputTestRow.__runs[variantId] = {
-                                    __result: message.payload.result,
+                                    __result: responseHash,
                                     __isRunning: false,
                                 }
 
@@ -252,12 +255,12 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         }
                     }
                 },
-                [swr, handleWebWorkerChatMessage],
+                [config.rowId, config.variantId, handleWebWorkerChatMessage, swr],
             )
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
                 handleWebWorkerMessage,
-                config.registerToWebWorker,
+                config.registerToWebWorker && !!variantId,
             )
 
             /**

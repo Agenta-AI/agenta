@@ -14,6 +14,7 @@ import {useStyles} from "./styles"
 
 import type {VariantNavigationCardProps} from "./types"
 import {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
+import {getResponseLazy} from "@/components/NewPlayground/state"
 
 const {Text} = Typography
 
@@ -24,7 +25,7 @@ const VariantNavigationCard = ({
     handleScrollClick,
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
-    const {toggleVariantDisplay, variant, results} = usePlayground({
+    const {toggleVariantDisplay, variant, resultHashes} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -32,12 +33,17 @@ const VariantNavigationCard = ({
                 const variantRuns = state.generationData.inputs.value.map(
                     (item) => item.__runs?.[variantId],
                 )
-                const results = variantRuns.map((result) => result?.__result)
-                return {results}
+                const resultHashes = variantRuns.map((result) => result?.__result)
+                return {resultHashes}
             },
             [variantId],
         ),
     })
+    const results = useMemo(() => {
+        return resultHashes.map((hash) => {
+            return getResponseLazy(hash)
+        })
+    }, [resultHashes])
     const {attributes, listeners, setNodeRef, transform, transition, isDragging, active} =
         useSortable({id})
     const style = useMemo(

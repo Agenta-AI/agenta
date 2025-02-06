@@ -25,7 +25,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
     const [format, setFormat] = useState<OutputFormat>("PRETTY")
     const {drawerWidth} = useDrawerWidth()
 
-    const {result, variableIds, runVariantTestRow, canRun, isRunning, displayedVariants, viewType} =
+    const {variableIds, runVariantTestRow, canRun, isRunning, displayedVariants, viewType} =
         usePlayground({
             variantId,
             variantSelector: useCallback(
@@ -41,7 +41,6 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
                     return {
                         variableIds,
                         canRun,
-                        result: inputRow?.__result,
                         isRunning: inputRow?.__isLoading,
                     }
                 },
@@ -99,7 +98,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
                         key={variantId}
                         variantId={variantId}
                         focusDisable={true}
-                        result={result}
+                        registerToWebWorker={props?.open}
                         isRunning={isRunning}
                         className={clsx("w-full", {
                             "min-w-[400px] flex-1": viewType === "comparison",
