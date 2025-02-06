@@ -1,0 +1,88 @@
+@host = http://127.0.0.1
+@base_url = {{host}}/api
+@port = 8888
+
+###
+
+GET {{base_url}}/apps
+Content-Type: application/json
+
+###
+
+# @name create_app
+POST {{base_url}}/apps
+Content-Type: application/json
+
+{
+  "app_name": "alooha",
+  "template_key": "SERVICE:completion"
+}
+
+###
+
+# @name list_apps
+GET {{base_url}}/apps
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+# @name create_variant
+POST {{base_url}}/apps/{{create_app.response.body.app_id}}/variant/from-service
+Content-Type: application/json
+
+{
+  "variant_name": "app.url",
+  "url": "http://localhost/completion-new-sdk-prompt",
+  "base_name": "app",
+  "config_name": "url"
+}
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+# @name update_variant_url
+PUT {{base_url}}/variants/{{create_variant.response.body.variant_id}}/service?url=http://localhost/completion-new-sdk
+Content-Type: application/json
+
+###
+
+# @name list_variants
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+GET {{list_variants.response.body.0.uri}}/health
+Content-Type: application/json
+
+###
+
+# @name delete_variant
+DELETE {{base_url}}/variants/{{create_variant.response.body.variant_id}}
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps/{{create_app.response.body.app_id}}/variants
+Content-Type: application/json
+
+###
+
+DELETE {{base_url}}/apps/{{list_apps.response.body.0.app_id}}
+Content-Type: application/json
+
+###
+
+GET {{base_url}}/apps
+Content-Type: application/json
+
+###

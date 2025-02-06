@@ -66,10 +66,10 @@ supported_llm_models = {
         "openrouter/meta-llama/llama-2-70b-chat",
     ],
     "Perplexity AI": [
-        "perplexity/pplx-7b-chat",
-        "perplexity/pplx-70b-chat",
-        "perplexity/pplx-7b-online",
-        "perplexity/pplx-70b-online",
+        "perplexity/sonar",
+        "perplexity/sonar-pro",
+        "perplexity/sonar-reasoning",
+        "perplexity/sonar-reasoning-pro",
     ],
     "Together AI": [
         "together_ai/togethercomputer/llama-2-70b-chat",
