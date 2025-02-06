@@ -35,7 +35,16 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     const cachedValue = cache.get(url)?.data
 
                     if (cachedValue) {
-                        return cachedValue
+                        if (
+                            !config.initialVariants ||
+                            (!!config.initialVariants &&
+                                isEqual(
+                                    cachedValue.variants.map((v) => v.id),
+                                    config.initialVariants.map((v) => v.id),
+                                ))
+                        ) {
+                            return cachedValue
+                        }
                     }
 
                     let state = structuredClone(cachedValue || initialState) as Data
