@@ -36,7 +36,7 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
-const uriFixer = (uri: string) => {
+export const uriFixer = (uri: string) => {
     if (!uri.includes("http://") && !uri.includes("https://")) {
         // for oss.agenta.ai
         uri = `https://${uri}`

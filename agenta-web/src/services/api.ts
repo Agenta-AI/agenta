@@ -16,6 +16,7 @@ import {
     BaseResponse,
     User,
 } from "@/lib/Types"
+import {uriFixer} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -59,6 +60,7 @@ export async function fetchVariants(
                 updatedAt: formatDay(variant.updated_at),
                 modifiedById: variant.modified_by_id,
                 createdAt: formatDay(variant.created_at),
+                uri: uriFixer(variant.uri),
             }
             return v
         })
