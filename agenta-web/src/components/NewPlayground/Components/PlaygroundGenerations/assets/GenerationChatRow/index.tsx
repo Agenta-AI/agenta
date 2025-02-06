@@ -48,6 +48,14 @@ export const GenerationChatRowOutput = ({
         return getResponseLazy(resultHash)
     }, [resultHash])
 
+    const messageResult = useMemo(() => {
+        if (message?.__result) {
+            return getResponseLazy(message.__result)
+        }
+
+        return undefined
+    }, [message?.__result])
+
     return propsIsRunning ? (
         <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch">
             <TextControl
@@ -74,8 +82,8 @@ export const GenerationChatRowOutput = ({
                     "w-full",
                     messageProps?.className,
                     {
-                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
-                            message?.__result?.error,
+                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red] [&_.message-user-select]:pointer-events-none":
+                            messageResult?.error,
                     },
                 ])}
                 isMessageDeletable={isMessageDeletable}
@@ -95,7 +103,7 @@ export const GenerationChatRowOutput = ({
                         </div>
                     ) : null
                 }
-                state={message?.__result?.error ? "readOnly" : "filled"}
+                state={messageResult?.error ? "readOnly" : "filled"}
             />
         </div>
     )
