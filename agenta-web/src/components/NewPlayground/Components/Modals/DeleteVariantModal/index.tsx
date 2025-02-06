@@ -11,8 +11,8 @@ const {Text} = Typography
 
 const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...props}) => {
     const classes = useStyles()
-    const {deleteVariant, isMutating, variantName, setSelectedVariant, _variantIds} = usePlayground(
-        {
+    const {deleteVariant, isMutating, viewType, variantName, setSelectedVariant, _variantIds} =
+        usePlayground({
             variantId,
             stateSelector: useCallback(
                 (state: PlaygroundStateData) => {
@@ -27,8 +27,7 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
                 },
                 [variantId],
             ),
-        },
-    )
+        })
 
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
@@ -45,21 +44,23 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
                     ?.slice(0, itemIndex)
                     .concat(_variantIds?.slice(itemIndex + 1))
 
-                let nextId: string | undefined
+                if (viewType === "single") {
+                    let nextId: string | undefined
 
-                // If there's a variant after the deleted one, select it. If there's no variant after, select the previous one
-                if (itemIndex < (updatedVariants?.length as number)) {
-                    nextId = updatedVariants?.[itemIndex]
-                } else if (itemIndex - 1 >= 0) {
-                    nextId = updatedVariants?.[itemIndex - 1]
+                    // If there's a variant after the deleted one, select it. If there's no variant after, select the previous one
+                    if (itemIndex < (updatedVariants?.length as number)) {
+                        nextId = updatedVariants?.[itemIndex]
+                    } else if (itemIndex - 1 >= 0) {
+                        nextId = updatedVariants?.[itemIndex - 1]
+                    }
+
+                    setSelectedVariant?.(nextId as string)
                 }
-
-                setSelectedVariant?.(nextId as string)
             })
             .then(() => {
                 onClose()
             })
-    }, [deleteVariant, _variantIds, setSelectedVariant])
+    }, [deleteVariant, _variantIds, viewType, setSelectedVariant])
 
     return (
         <Modal

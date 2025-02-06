@@ -26,7 +26,6 @@ const GenerationCompletion = ({
 }: GenerationCompletionProps) => {
     const {inputRowId, mutate, viewType, inputRowIds} = usePlayground({
         variantId,
-        registerToWebWorker: true,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
                 const inputRowId = findPropertyInObject(state, rowId as string)

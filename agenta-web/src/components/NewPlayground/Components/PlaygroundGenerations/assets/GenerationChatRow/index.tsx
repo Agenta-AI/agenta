@@ -11,7 +11,7 @@ import {
 import PromptMessageConfig from "../../../PromptMessageConfig"
 import AddButton from "@/components/NewPlayground/assets/AddButton"
 import RunButton from "@/components/NewPlayground/assets/RunButton"
-import {getMetadataLazy} from "@/components/NewPlayground/state"
+import {getMetadataLazy, getResponseLazy} from "@/components/NewPlayground/state"
 import {createMessageFromSchema} from "@/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 
 import type {PlaygroundStateData} from "@/components/NewPlayground/hooks/usePlayground/types"
@@ -32,14 +32,29 @@ export const GenerationChatRowOutput = ({
     deleteMessage,
     rerunMessage,
     viewAs,
-    result,
+    resultHash,
     isRunning: propsIsRunning,
     isMessageDeletable,
     placeholder,
     messageProps,
 }: GenerationChatRowProps) => {
-    const {viewType} = usePlayground()
+    const {viewType} = usePlayground({
+        variantId,
+        rowId,
+        registerToWebWorker: true,
+    })
     const isComparisonView = viewType === "comparison"
+    const result = useMemo(() => {
+        return getResponseLazy(resultHash)
+    }, [resultHash])
+
+    const messageResult = useMemo(() => {
+        if (message?.__result) {
+            return getResponseLazy(message.__result)
+        }
+
+        return undefined
+    }, [message?.__result])
 
     return propsIsRunning ? (
         <div className="w-full flex flex-col gap-3 items-center justify-center h-full self-stretch">
@@ -67,8 +82,8 @@ export const GenerationChatRowOutput = ({
                     "w-full",
                     messageProps?.className,
                     {
-                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
-                            message?.__result?.error,
+                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red] [&_.message-user-select]:pointer-events-none":
+                            messageResult?.error,
                     },
                 ])}
                 isMessageDeletable={isMessageDeletable}
@@ -88,7 +103,7 @@ export const GenerationChatRowOutput = ({
                         </div>
                     ) : null
                 }
-                state={message?.__result?.error ? "readOnly" : "filled"}
+                state={messageResult?.error ? "readOnly" : "filled"}
             />
         </div>
     )
@@ -103,6 +118,7 @@ const GenerationChatRow = ({
     viewAs,
     isMessageDeletable,
     messageProps,
+    isRunning,
 }: GenerationChatRowProps) => {
     const {
         historyItem,
@@ -139,6 +155,7 @@ const GenerationChatRow = ({
                     return {
                         messageRow,
                         historyItem,
+                        // isRunning: historyItem?.__runs?.[variantId]?.__isRunning,
                         history: messageHistory
                             .map((historyItem) => {
                                 return !historyItem.__runs
@@ -256,7 +273,7 @@ const GenerationChatRow = ({
         [rerunChatOutput],
     )
 
-    return !historyItem ? null : (
+    return (
         <>
             <div
                 className={clsx([
@@ -265,13 +282,13 @@ const GenerationChatRow = ({
                 ])}
             >
                 <GenerationChatRowOutput
-                    key={historyItem.__id || `${variantId}-${rowId}-generating`}
+                    key={historyItem?.__id || `${variantId}-${rowId}-generating`}
                     message={historyItem}
                     variantId={variantId}
                     viewAs={viewAs}
                     rowId={messageRow?.__id}
-                    result={historyItem?.__result}
-                    isRunning={historyItem?.__isRunning}
+                    resultHash={historyItem?.__result}
+                    isRunning={historyItem?.__isRunning || isRunning}
                     disabled={!messageRow}
                     placeholder="Type a message..."
                     messageProps={{
