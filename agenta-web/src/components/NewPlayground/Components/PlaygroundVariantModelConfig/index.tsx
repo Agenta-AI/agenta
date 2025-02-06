@@ -104,7 +104,9 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             {...popoverProps} // Pass through Popover props
             open={isModalOpen}
             onOpenChange={setIsModalOpen}
+            overlayClassName="w-full max-w-[300px]"
             trigger={["click"]}
+            placement="bottomRight"
             arrow={false}
             title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
             content={
