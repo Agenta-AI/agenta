@@ -7,6 +7,7 @@ import {dynamicConfig} from "../dynamic"
 const AuthProvider: AuthProviderType = ({children, pageProps}) => {
     const [isInitialized, setIsInitialized] = useState(false)
     useEffect(() => {
+        if (!isDemo()) return
         const initSuperTokens = async () => {
             const {frontendConfig} = await dynamicConfig("frontendConfig")
             SuperTokensReact.init(frontendConfig())

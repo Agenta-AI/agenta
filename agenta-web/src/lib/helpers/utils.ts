@@ -373,6 +373,11 @@ export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
     for (const [key, value] of Object.entries(obj)) {
         const fullPath = prefix ? `${prefix}.${key}` : key
 
+        if (key === "outputs") {
+            paths.push(fullPath)
+            continue
+        }
+
         if (value && typeof value === "object" && !Array.isArray(value)) {
             const nestedPaths = collectKeyPathsFromObject(value, fullPath)
             paths.push(...nestedPaths)

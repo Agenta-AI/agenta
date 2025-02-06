@@ -8,7 +8,6 @@ from .types import (
     DictInput,
     MultipleChoice,
     FloatParam,
-    InFile,
     IntParam,
     MultipleChoiceParam,
     GroupedMultipleChoiceParam,
@@ -27,10 +26,14 @@ from .tracing.conventions import Reference
 from .decorators.routing import entrypoint, app, route
 from .agenta_init import Config, AgentaSingleton, init as _init
 from .utils.costs import calculate_token_usage
+from .managers.apps import AppManager
+from .managers.vault import VaultManager
 from .managers.secrets import SecretsManager
 from .managers.config import ConfigManager
 from .managers.variant import VariantManager
 from .managers.deployment import DeploymentManager
+from ..client.exceptions import APIRequestError
+
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
