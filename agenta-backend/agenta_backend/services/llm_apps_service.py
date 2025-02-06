@@ -185,13 +185,13 @@ async def make_payload(
     if "ag_config" in parameters:
         input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
         inputs = {key: datapoint.get(key, None) for key in input_keys}
-        messages = json.loads(datapoint.get("messages", '[]'))
+        messages = json.loads(datapoint.get("messages", "[]"))
         payload["messages"] = messages
         payload["inputs"] = inputs
     elif inputs:
         # append inputs for old services only if "inputs" exist
         payload["inputs"] = inputs
-        
+
     return payload
 
 
@@ -424,7 +424,7 @@ async def batch_invoke(
     async def run_batch(start_idx: int):
         tasks = []
         print(f"Preparing {start_idx} batch...")
-        
+
         end_idx = min(start_idx + batch_size, len(testset_data))
         for index in range(start_idx, end_idx):
             task = asyncio.ensure_future(
