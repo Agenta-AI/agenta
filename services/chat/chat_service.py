@@ -52,18 +52,18 @@ async def generate(
     if messages is not None:
         openai_kwargs["messages"].extend(messages)
 
-    api_key = ag.SecretsManager.get_api_key_for_model(config.prompt.llm_config.model)
+    llm_request_kwargs = ag.SecretsManager.build_llm_request(
+        config.prompt.llm_config.model
+    )
 
-    if not api_key:
+    if not llm_request_kwargs:
         raise ValueError(
             f"API key not found for model {config.prompt.llm_config.model}"
         )
 
     response = await mockllm.acompletion(
-        **{
-            "api_key": api_key,
-            **openai_kwargs,
-        }
+        **llm_request_kwargs,
+        **openai_kwargs,
     )
 
     return response.choices[0].message.model_dump(exclude_none=True)
