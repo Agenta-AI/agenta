@@ -12,7 +12,7 @@ import React, {
     useEffect,
     useCallback,
 } from "react"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from '@/hooks/useLazyEffect'
 import {useProfileData} from "@/contexts/profile.context"
 
 const LS_ORG_KEY = "selectedOrg"
@@ -67,7 +67,7 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             .finally(() => setLoadingOrgs(false))
     }, [])
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (user?.id && orgs.length > 0) {
             setLoadingOrgDetails(true)
             const org =
@@ -86,7 +86,7 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         }
     }, [user?.id, orgs])
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         localStorage.setItem(LS_ORG_KEY, selectedOrg?.id || "")
     }, [selectedOrg?.id])
 
