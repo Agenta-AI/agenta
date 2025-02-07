@@ -90,7 +90,13 @@ class VaultClient:
 
         Examples
         --------
-        from agenta import AgentaApi, HeaderDto, ProviderKeyDto, SecretDto
+        from agenta import (
+            AgentaApi,
+            HeaderDto,
+            SecretDto,
+            StandardProvideDto,
+            StandardProviderSettingsDto,
+        )
 
         client = AgentaApi(
             api_key="YOUR_API_KEY",
@@ -99,9 +105,11 @@ class VaultClient:
         client.vault.create_secret(
             header=HeaderDto(),
             secret=SecretDto(
-                data=ProviderKeyDto(
-                    provider="openai",
-                    key="key",
+                data=StandardProvideDto(
+                    kind="openai",
+                    provider=StandardProviderSettingsDto(
+                        key="key",
+                    ),
                 ),
             ),
         )
@@ -414,7 +422,13 @@ class AsyncVaultClient:
         --------
         import asyncio
 
-        from agenta import AsyncAgentaApi, HeaderDto, ProviderKeyDto, SecretDto
+        from agenta import (
+            AsyncAgentaApi,
+            HeaderDto,
+            SecretDto,
+            StandardProvideDto,
+            StandardProviderSettingsDto,
+        )
 
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -426,9 +440,11 @@ class AsyncVaultClient:
             await client.vault.create_secret(
                 header=HeaderDto(),
                 secret=SecretDto(
-                    data=ProviderKeyDto(
-                        provider="openai",
-                        key="key",
+                    data=StandardProvideDto(
+                        kind="openai",
+                        provider=StandardProviderSettingsDto(
+                            key="key",
+                        ),
                     ),
                 ),
             )
