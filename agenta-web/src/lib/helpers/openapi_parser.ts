@@ -2,7 +2,12 @@
 
 import {GenericObject, Parameter} from "../Types"
 
-const getBodySchemaName = (schema: GenericObject): string => {
+export const getBodySchemaName = (schema: GenericObject): string => {
+    // Try v3 structure first
+    const v3BodySchemaRef =
+        schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema
+            ?.title
+
     // Try v2 structure first
     const v2BodySchemaRef =
         schema?.paths?.["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema?.[
@@ -16,7 +21,7 @@ const getBodySchemaName = (schema: GenericObject): string => {
         ]
 
     // Determine the body schema reference to use
-    const bodySchemaRef = v2BodySchemaRef || v1BodySchemaRef
+    const bodySchemaRef = v3BodySchemaRef || v2BodySchemaRef || v1BodySchemaRef
 
     // Return the last part of the reference or an empty string
     return bodySchemaRef?.split("/")?.pop() || ""

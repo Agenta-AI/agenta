@@ -1,7 +1,7 @@
 """Added the 'app_type' column to the 'app_db' table
 
 Revision ID: 0f086ebc2f82
-Revises: 78cde3fc549c
+Revises: 847972cfa14a
 Create Date: 2024-09-09 10:11:05.429116
 
 """

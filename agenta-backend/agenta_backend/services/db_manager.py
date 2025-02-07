@@ -187,6 +187,8 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
+        if not app:
+            raise NoResultFound(f"No application with ID '{app_uuid}' found")
         return app
 
 
@@ -483,7 +485,7 @@ async def create_new_variant_base(
     app: AppDB,
     project_id: str,
     base_name: str,
-    image: ImageDB,
+    image: Optional[ImageDB] = None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
@@ -501,7 +503,7 @@ async def create_new_variant_base(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
             base_name=base_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
         )
 
         session.add(base)
@@ -536,10 +538,10 @@ async def create_new_app_variant(
     user: UserDB,
     variant_name: str,
     project_id: str,
-    image: ImageDB,
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
+    image: Optional[ImageDB] = None,
 ) -> AppVariantDB:
     """Create a new variant.
 
@@ -566,7 +568,7 @@ async def create_new_app_variant(
             modified_by_id=user.id,
             revision=0,
             variant_name=variant_name,
-            image_id=image.id,
+            image_id=image.id if image is not None else None,
             base_id=base.id,
             base_name=base_name,
             config_name=config.config_name,
@@ -666,10 +668,10 @@ async def create_image(
 async def create_deployment(
     app_id: str,
     project_id: str,
-    container_name: str,
-    container_id: str,
     uri: str,
     status: str,
+    container_name: Optional[str] = "",
+    container_id: Optional[str] = "",
 ) -> DeploymentDB:
     """Create a new deployment.
 
@@ -701,34 +703,66 @@ async def create_deployment(
             await session.refresh(deployment)
 
             return deployment
+
         except Exception as e:
             raise Exception(f"Error while creating deployment: {e}")
 
 
-async def get_app_type_from_template_by_id(template_id: Optional[str]) -> str:
+async def get_app_type_from_template_id(template_id: Optional[str]) -> Optional[str]:
     """Get the application type from the specified template.
 
     Args:
         template_id (Optional[str]): The ID of the template
 
     Returns:
-        AppType (str): The determined application type. Defaults to AppType.CUSTOM.
+        AppType (Optional[str]): The determined application type. Defaults to None.
     """
 
     if template_id is None:
-        return AppType.CUSTOM
+        return None
 
     template_db = await get_template(template_id=template_id)
     if "Completion Prompt" in template_db.title:
         return AppType.COMPLETION_TEMPLATE
     elif "Chat Prompt" in template_db.title:
         return AppType.CHAT_TEMPLATE
+
+    return None
+
+
+async def get_app_type_from_template_key(template_key: Optional[str]) -> Optional[str]:
+    """Get the application type from the specified service.
+
+    Args:
+        template_key (Optional[str]): The key of the service
+
+    Returns:
+        AppType (Optional[str]): The determined application type. Defaults to None.
+    """
+
+    if template_key in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+        return template_key
+
+    return None
+
+
+async def get_app_type(
+    template_id: Optional[str] = None,
+    template_key: Optional[str] = None,
+) -> str:
+    if template_id:
+        return await get_app_type_from_template_id(template_id=template_id)
+
+    if template_key:
+        return await get_app_type_from_template_key(template_key=template_key)
+
     return AppType.CUSTOM
 
 
 async def create_app_and_envs(
     app_name: str,
     template_id: Optional[str] = None,
+    template_key: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> AppDB:
     """
@@ -752,7 +786,11 @@ async def create_app_and_envs(
     if app is not None:
         raise ValueError("App with the same name already exists")
 
-    app_type = await get_app_type_from_template_by_id(template_id=template_id)
+    app_type = await get_app_type(
+        template_id=template_id,
+        template_key=template_key,
+    )
+
     async with engine.session() as session:
         app = AppDB(
             app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
@@ -779,6 +817,25 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
         app = result.scalars().first()
         if not app:
             raise NoResultFound(f"App with {app_id} not found")
+
+        # Check if 'app_name' is in the values to update
+        if "app_name" in values_to_update:
+            new_app_name = values_to_update["app_name"]
+
+            # Check if another app with the same name exists for the user
+            existing_app_result = await session.execute(
+                select(AppDB)
+                .filter(
+                    AppDB.project_id == app.project_id
+                )  # Assuming 'user_id' exists on the AppDB model
+                .filter(AppDB.app_name == new_app_name)
+            )
+            existing_app = existing_app_result.scalars().first()
+
+            if existing_app:
+                raise Exception(
+                    f"Cannot update app name to '{new_app_name}' because another app with this name already exists."
+                )
 
         for key, value in values_to_update.items():
             if hasattr(app, key):
@@ -1206,7 +1263,6 @@ async def add_variant_from_base_and_config(
 
 async def list_apps(
     project_id: str,
-    user_uid: str,
     app_name: Optional[str] = None,
 ):
     """
@@ -1224,28 +1280,6 @@ async def list_apps(
             app_name=app_name, project_id=project_id
         )
         return [converters.app_db_to_pydantic(app_db)]
-
-    elif isCloudEE():
-        if isCloudEE():
-            user_org_workspace_data = await get_user_org_and_workspace_id(user_uid)  # type: ignore
-            has_permission = await check_rbac_permission(  # type: ignore
-                user_org_workspace_data=user_org_workspace_data,
-                project_id=project_id,
-                permission=Permission.VIEW_APPLICATION,  # type: ignore
-            )
-            logger.debug(f"User has Permission to list apps: {has_permission}")
-            if not has_permission:
-                raise HTTPException(
-                    status_code=403,
-                    detail="You do not have access to perform this action. Please contact your organization admin.",
-                )
-
-            async with engine.session() as session:
-                result = await session.execute(
-                    select(AppDB).filter_by(project_id=project_id)
-                )
-                apps = result.unique().scalars().all()
-                return [converters.app_db_to_pydantic(app) for app in apps]
 
     else:
         async with engine.session() as session:
@@ -2042,6 +2076,8 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     async with engine.session() as session:
         result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
         testset = result.scalars().first()
+        if not testset:
+            raise NoResultFound(f"Testset with id {testset_id} not found")
         return testset
 
 
@@ -3179,17 +3215,18 @@ async def fetch_evaluator_config_by_appId(
 
 async def create_evaluator_config(
     project_id: str,
-    app_name: str,
     name: str,
     evaluator_key: str,
+    app_name: Optional[str] = None,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
 
     async with engine.session() as session:
+        name_suffix = f" ({app_name})" if app_name else ""
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
-            name=f"{name} ({app_name})",
+            name=f"{name}{name_suffix}",
             evaluator_key=evaluator_key,
             settings_values=settings_values,
         )
@@ -3314,17 +3351,13 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
     Checks if the given object_id is a valid MongoDB ObjectId and fetches the corresponding
     UUID from the specified table. If the object_id is not a valid ObjectId, it is assumed
     to be a PostgreSQL UUID and returned as is.
-
     Args:
         object_id (str): The ID of the object, which could be a MongoDB ObjectId or a PostgreSQL UUID.
         table_name (str): The name of the table to fetch the UUID from.
-
     Returns:
         str: The corresponding object UUID.
-
     Raises:
         AssertionError: If the resulting object UUID is None.
-
     """
 
     from bson import ObjectId
@@ -3349,11 +3382,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
 async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> str:
     """
     Fetches a corresponding object uuid.
-
     Args:
         table_name (str):  The table name
         object_id (str):   The object identifier
-
     Returns:
         The corresponding object uuid as string.
     """
@@ -3369,7 +3400,6 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
 async def fetch_default_project() -> ProjectDB:
     """
     Fetch the default project from the database.
-
     Returns:
         ProjectDB: The default project instance.
     """

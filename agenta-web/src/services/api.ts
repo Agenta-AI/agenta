@@ -16,6 +16,7 @@ import {
     BaseResponse,
     User,
 } from "@/lib/Types"
+import {uriFixer} from "@/components/NewPlayground/hooks/usePlayground/assets/helpers"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -59,6 +60,7 @@ export async function fetchVariants(
                 updatedAt: formatDay(variant.updated_at),
                 modifiedById: variant.modified_by_id,
                 createdAt: formatDay(variant.created_at),
+                uri: uriFixer(variant.uri),
             }
             return v
         })
@@ -70,7 +72,7 @@ export async function fetchVariants(
 /**
  * Get the JWT from SuperTokens
  */
-const getJWT = async () => {
+export const getJWT = async () => {
     try {
         if (await Session.doesSessionExist()) {
             let jwt = await Session.getAccessToken()
@@ -101,6 +103,7 @@ export async function callVariant(
     chatMessages?: ChatMessage[],
     signal?: AbortSignal,
     ignoreAxiosError?: boolean,
+    isNewVariant?: boolean,
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -120,26 +123,36 @@ export async function callVariant(
     }
     optionalParameters = optionalParameters || []
 
-    const optParams = optionalParameters
-        .filter((param) => param.type !== "object") // remove dicts from optional parameters
-        .reduce((acc: any, param) => {
-            acc[param.name] = param.default
-            return acc
-        }, {})
+    const optParams = Array.isArray(optionalParameters)
+        ? optionalParameters
+              .filter((param) => param.type !== "object") // remove dicts from optional parameters
+              .reduce((acc: any, param) => {
+                  acc[param.name] = param.default
+                  return acc
+              }, {})
+        : optionalParameters
+
     const requestBody = {
         ...mainInputParams,
         ...optParams,
-        ["inputs"]: isChatVariant
-            ? chatMessages.filter((item) => item.content).map((item) => removeKeys(item, ["id"]))
-            : secondaryInputParams,
     }
+
+    if (isChatVariant) {
+        if (isNewVariant) {
+            requestBody["messages"] = chatMessages
+        } else {
+            requestBody["inputs"] = chatMessages
+        }
+    }
+
+    requestBody["inputs"] = secondaryInputParams
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
-    const base_url = `${appContainerURI}/generate`
-    const secure_url = `${base_url}?project_id=${projectId}`
+    const base_url = `${appContainerURI}/generate?application_id=${appId}`
+    const secure_url = `${base_url}&project_id=${projectId}`
     const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
     let response = await axios

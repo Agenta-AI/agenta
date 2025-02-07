@@ -912,7 +912,12 @@ def parse_legacy_analytics(
             success_count=(bucket_dto.total.count or 0) - (bucket_dto.error.count or 0),
             failure_count=bucket_dto.error.count or 0,
             cost=bucket_dto.total.cost or 0.0,
-            latency=bucket_dto.total.duration or 0.0,
+            latency=(
+                ((bucket_dto.total.duration or 0.0) / bucket_dto.total.count)
+                if bucket_dto.total.count
+                else 0.0
+            )
+            / 1_000,
             total_tokens=bucket_dto.total.tokens or 0,
         )
 

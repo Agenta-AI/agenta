@@ -10,10 +10,10 @@
   <p align="center">
     <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">Documentation</a> |
     <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">Website</a> |
-    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">Slack</a>
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ">Slack</a>
   </p>
 <div align="center">
-  <strong> <h2> The Open source LLMOps Platform </h2></strong>
+  <strong> <h1> The Open source LLMOps Platform </h1></strong>
   Prompt playground, prompt management, evaluation, and observability
 </div>
 </br>
@@ -37,7 +37,7 @@
 </p>
 
 <p align="center">
-    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA">
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ">
         <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
     </a>
     <a href="https://www.linkedin.com/company/agenta-ai/">
@@ -84,14 +84,14 @@
 
 ---
 
-# What is Agenta?
+## What is Agenta?
 
 Agenta is a platform for building production-grade LLM applications. It helps **engineering and product teams** create reliable LLM apps faster.
 
 
 Agenta provides end-to-end tools for the entire LLMOps workflow:  building (**LLM playground**, **evaluation**), deploying (**prompt and configuration management**), and monitoring (**LLM observability and tracing**).
 
-# Features
+## Features
 - **Prompt Playground**: Experiment, iterate on prompts, and compare outputs from over 50 LLM models side by side ([docs](https://docs.agenta.ai/prompt-management/using-the-playground?utm_source=github&utm_medium=referral&utm_campaign=readme))
 - **Custom Workflows**: Build a playground for any custom LLM workflow, such as RAG or agents. Enable all the team to easily iterate on its parameters and evaluate it from the web UI.
 - **LLM evaluation**: Run evaluation suite from the webUI using predefined evaluators like LLM-as-a-judge, RAG evaluators, or custom code evaluators. ([docs](https://docs.agenta.ai/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme))
@@ -101,8 +101,8 @@ Agenta provides end-to-end tools for the entire LLMOps workflow:  building (**LL
 - **LLM Monitoring**: Track cost and latency and compare different deployments.
 
   
-# Getting Started 
-## Agenta Cloud:
+## Getting Started 
+### Agenta Cloud:
 The easiest way to get started is through Agenta Cloud. It is free to signup, and comes with a generous free-tier.
 
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
@@ -113,14 +113,21 @@ The easiest way to get started is through Agenta Cloud. It is free to signup, an
       </picture>
   </a>
   
-## Self-host:
-```
+   
+### Self-hosting Agenta
+
+#### Quick Setup (Port 80)
+```bash
 mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
 docker compose -f docker-compose.gh.yml up -d
 ```
 
-# Disabling Anonymized Tracking
+#### Deployment Options
+- To use a different port or customize your deployment, see our [deployment documentation](https://docs.agenta.ai/self-host/host-locally?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- For deploying on cloud platforms, refer to our guides for [AWS](https://docs.agenta.ai/self-host/deploy_remotly/host-on-aws?utm_source=github&utm_medium=referral&utm_campaign=readme), [GCP](https://docs.agenta.ai/self-host/deploy_remotly/host-on-gcp?utm_source=github&utm_medium=referral&utm_campaign=readme), or [other remote hosting options](https://docs.agenta.ai/self-host/deploy_remotly/host-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme)
+
+## Disabling Anonymized Tracking
 
 By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry, follow these steps:
 
@@ -128,20 +135,18 @@ By default, Agenta automatically reports anonymized basic usage statistics. This
 - For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
 
 
-# Contributing
+## Contributing
 
 We warmly welcome contributions to Agenta. Feel free to submit issues, fork the repository, and send pull requests.
 
-We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA)
+We are usually hanging in our Slack. Feel free to [join our Slack and ask us anything](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ)
 
 Check out our [Contributing Guide](https://docs.agenta.ai/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme) for more information.
 
-## Contributors ✨
+### Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-
-[![All Contributors](https://img.shields.io/badge/all_contributors-48-orange.svg?style=flat-square)](#contributors-)
-
+[![All Contributors](https://img.shields.io/badge/all_contributors-49-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -212,6 +217,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://ashrafchowdury.me"><img src="https://avatars.githubusercontent.com/u/87828904?v=4?s=100" width="100px;" alt="Ashraf Chowdury"/><br /><sub><b>Ashraf Chowdury</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aashrafchowdury" title="Bug reports">🐛</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=ashrafchowdury" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/jp-agenta"><img src="https://avatars.githubusercontent.com/u/174311389?v=4?s=100" width="100px;" alt="jp-agenta"/><br /><sub><b>jp-agenta</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=jp-agenta" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Ajp-agenta" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://mrunhap.github.io"><img src="https://avatars.githubusercontent.com/u/24653356?v=4?s=100" width="100px;" alt="Mr Unhappy"/><br /><sub><b>Mr Unhappy</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amrunhap" title="Bug reports">🐛</a> <a href="#infra-mrunhap" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/morenobonaventura"><img src="https://avatars.githubusercontent.com/u/2118854?v=4?s=100" width="100px;" alt="Moreno Bonaventura"/><br /><sub><b>Moreno Bonaventura</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amorenobonaventura" title="Bug reports">🐛</a></td>
     </tr>
   </tbody>
 </table>

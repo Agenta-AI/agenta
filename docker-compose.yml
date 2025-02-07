@@ -1,3 +1,7 @@
+x-common-config: &common-config
+  networks:
+    - agenta-network
+
 services:
     reverse-proxy:
         image: traefik:v2.10
@@ -17,7 +21,6 @@ services:
             - POSTGRES_URI=postgresql+asyncpg://username:password@postgres:5432/agenta_oss
             - REDIS_URL=redis://redis:6379/0
             - ENVIRONMENT=development
-            - DATABASE_MODE=v2
             - BARE_DOMAIN_NAME=localhost
             - ALEMBIC_CFG_PATH=/app/agenta_backend/migrations/postgres/alembic.oss.ini
             - DOMAIN_NAME=${DOMAIN_NAME:-http://localhost}
@@ -30,6 +33,7 @@ services:
             - REGISTRY_REPO_NAME=agentaai
             - DOCKER_HUB_URL=https://hub.docker.com/v2/repositories
             - AGENTA_PORT=${AGENTA_PORT:-80}
+            - SERVICE_URL_TEMPLATE=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}/services/{path}
         volumes:
             - ./agenta-backend/agenta_backend:/app/agenta_backend
             - ./agenta-backend/migrations:/app/migrations
@@ -193,6 +197,20 @@ services:
             postgres:
                 condition: service_healthy
 
+    completion:
+        extends:
+            file: ./services/completion/docker-compose.yml
+            service: completion
+        environment:
+            - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
+    
+    chat:
+        extends:
+            file: ./services/chat/docker-compose.yml
+            service: chat
+        environment:
+            - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
+            
 networks:
     agenta-network:
         name: agenta-network

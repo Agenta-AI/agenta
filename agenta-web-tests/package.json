@@ -1,0 +1,23 @@
+{
+    "name": "agenta-web-tests",
+    "version": "0.1.0",
+    "type": "module",
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "test:e2e": "node --loader ts-node/esm playwright/scripts/run-tests.ts",
+        "test:e2e:ui": "node --loader ts-node/esm playwright/scripts/run-tests.ts --ui",
+        "test:e2e:debug": "node --loader ts-node/esm playwright/scripts/run-tests.ts --debug"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.49.1",
+        "@types/node": "^20.8.10",
+        "dotenv": "^16.4.7",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.2"
+    },
+    "dependencies": {
+        "axios": "^1.7.9"
+    }
+}

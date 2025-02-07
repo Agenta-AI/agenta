@@ -85,8 +85,8 @@ const DeploymentOverview = ({
             ) : (
                 <div className={classes.cardContainer}>
                     {environments.map((env, index) => {
-                        const selectedDeployedVariant = variants.find(
-                            (variant) => variant.variantId === env.deployed_app_variant_id,
+                        const selectedDeployedVariant = variants?.find(
+                            (variant) => variant?.variantId === env.deployed_app_variant_id,
                         )
 
                         return (

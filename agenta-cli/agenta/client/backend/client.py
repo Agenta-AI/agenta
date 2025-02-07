@@ -3,20 +3,21 @@
 import typing
 import httpx
 from .core.client_wrapper import SyncClientWrapper
-from .observability.client import ObservabilityClient
+from .admin.client import AdminClient
 from .vault.client import VaultClient
 from .access_control.client import AccessControlClient
 from .scopes.client import ScopesClient
 from .apps.client import AppsClient
 from .variants.client import VariantsClient
 from .evaluations.client import EvaluationsClient
+from .human_evaluations.client import HumanEvaluationsClient
 from .evaluators.client import EvaluatorsClient
 from .testsets.client import TestsetsClient
 from .containers.client import ContainersClient
 from .environments.client import EnvironmentsClient
 from .bases.client import BasesClient
 from .configs.client import ConfigsClient
-from .observability_v_1.client import ObservabilityV1Client
+from .observability.client import ObservabilityClient
 from .core.request_options import RequestOptions
 from .types.list_api_keys_response import ListApiKeysResponse
 from .core.pydantic_utilities import parse_obj_as
@@ -34,20 +35,21 @@ import datetime as dt
 from .types.workspace_role_response import WorkspaceRoleResponse
 from .types.permission import Permission
 from .core.client_wrapper import AsyncClientWrapper
-from .observability.client import AsyncObservabilityClient
+from .admin.client import AsyncAdminClient
 from .vault.client import AsyncVaultClient
 from .access_control.client import AsyncAccessControlClient
 from .scopes.client import AsyncScopesClient
 from .apps.client import AsyncAppsClient
 from .variants.client import AsyncVariantsClient
 from .evaluations.client import AsyncEvaluationsClient
+from .human_evaluations.client import AsyncHumanEvaluationsClient
 from .evaluators.client import AsyncEvaluatorsClient
 from .testsets.client import AsyncTestsetsClient
 from .containers.client import AsyncContainersClient
 from .environments.client import AsyncEnvironmentsClient
 from .bases.client import AsyncBasesClient
 from .configs.client import AsyncConfigsClient
-from .observability_v_1.client import AsyncObservabilityV1Client
+from .observability.client import AsyncObservabilityClient
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -106,22 +108,23 @@ class AgentaApi:
             else httpx.Client(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
-        self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
+        self.admin = AdminClient(client_wrapper=self._client_wrapper)
         self.vault = VaultClient(client_wrapper=self._client_wrapper)
         self.access_control = AccessControlClient(client_wrapper=self._client_wrapper)
         self.scopes = ScopesClient(client_wrapper=self._client_wrapper)
         self.apps = AppsClient(client_wrapper=self._client_wrapper)
         self.variants = VariantsClient(client_wrapper=self._client_wrapper)
         self.evaluations = EvaluationsClient(client_wrapper=self._client_wrapper)
+        self.human_evaluations = HumanEvaluationsClient(
+            client_wrapper=self._client_wrapper
+        )
         self.evaluators = EvaluatorsClient(client_wrapper=self._client_wrapper)
         self.testsets = TestsetsClient(client_wrapper=self._client_wrapper)
         self.containers = ContainersClient(client_wrapper=self._client_wrapper)
         self.environments = EnvironmentsClient(client_wrapper=self._client_wrapper)
         self.bases = BasesClient(client_wrapper=self._client_wrapper)
         self.configs = ConfigsClient(client_wrapper=self._client_wrapper)
-        self.observability_v_1 = ObservabilityV1Client(
-            client_wrapper=self._client_wrapper
-        )
+        self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
 
     def list_api_keys(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -130,10 +133,10 @@ class AgentaApi:
         List all API keys associated with the authenticated user.
 
         Args:
-        request (Request): The incoming request object.
+            request (Request): The incoming request object.
 
         Returns:
-        List[ListAPIKeysResponse]: A list of API Keys associated with the user.
+            List[ListAPIKeysResponse]: A list of API Keys associated with the user.
 
         Parameters
         ----------
@@ -181,10 +184,10 @@ class AgentaApi:
         Creates an API key for a user.
 
         Args:
-        request (Request): The request object containing the user ID in the request state.
+            request (Request): The request object containing the user ID in the request state.
 
         Returns:
-        str: The created API key.
+            str: The created API key.
 
         Parameters
         ----------
@@ -235,14 +238,14 @@ class AgentaApi:
         Delete an API key with the given key prefix for the authenticated user.
 
         Args:
-        key_prefix (str): The prefix of the API key to be deleted.
-        request (Request): The incoming request object.
+            key_prefix (str): The prefix of the API key to be deleted.
+            request (Request): The incoming request object.
 
         Returns:
-        dict: A dictionary containing a success message upon successful deletion.
+            dict: A dictionary containing a success message upon successful deletion.
 
         Raises:
-        HTTPException: If the API key is not found or does not belong to the user.
+            HTTPException: If the API key is not found or does not belong to the user.
 
         Parameters
         ----------
@@ -306,7 +309,7 @@ class AgentaApi:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
-        bool: True. If the request reaches this point, the API key is valid.
+            bool: True. If the request reaches this point, the API key is valid.
 
         Parameters
         ----------
@@ -368,13 +371,13 @@ class AgentaApi:
         Returns a list of organizations associated with the user's session.
 
         Args:
-        stoken_session (SessionContainer): The user's session token.
+            stoken_session (SessionContainer): The user's session token.
 
         Returns:
-        list[Organization]: A list of organizations associated with the user's session.
+            list[Organization]: A list of organizations associated with the user's session.
 
         Raises:
-        HTTPException: If there is an error retrieving the organizations from the database.
+            HTTPException: If there is an error retrieving the organizations from the database.
 
         Parameters
         ----------
@@ -545,11 +548,11 @@ class AgentaApi:
         Get an organization's details.
 
         Raises:
-        HTTPException: _description_
-        Permission Denied
+            HTTPException: _description_
+            Permission Denied
 
         Returns:
-        OrganizationDB Instance
+            OrganizationDB Instance
 
         Parameters
         ----------
@@ -773,12 +776,12 @@ class AgentaApi:
         Resend an invitation to a user to an Organization.
 
         Raises:
-        HTTPException: _description_; status_code: 500
-        HTTPException: Invitation not found or has expired; status_code: 400
-        HTTPException: You already belong to this organization; status_code: 400
+            HTTPException: _description_; status_code: 500
+            HTTPException: Invitation not found or has expired; status_code: 400
+            HTTPException: You already belong to this organization; status_code: 400
 
         Returns:
-        JSONResponse: Resent invitation to user; status_code: 200
+            JSONResponse: Resent invitation to user; status_code: 200
 
         Parameters
         ----------
@@ -859,12 +862,12 @@ class AgentaApi:
         Accept an invitation to a workspace.
 
         Raises:
-        HTTPException: _description_; status_code: 500
-        HTTPException: Invitation not found or has expired; status_code: 400
-        HTTPException: You already belong to this organization; status_code: 400
+            HTTPException: _description_; status_code: 500
+            HTTPException: Invitation not found or has expired; status_code: 400
+            HTTPException: You already belong to this organization; status_code: 400
 
         Returns:
-        JSONResponse: Accepted invitation to workspace; status_code: 200
+            JSONResponse: Accepted invitation to workspace; status_code: 200
 
         Parameters
         ----------
@@ -1108,10 +1111,10 @@ class AgentaApi:
         Returns a list of all available workspace roles.
 
         Returns:
-        List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+            List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
 
         Raises:
-        HTTPException: If an error occurs while retrieving the workspace roles.
+            HTTPException: If an error occurs while retrieving the workspace roles.
 
         Parameters
         ----------
@@ -1161,10 +1164,10 @@ class AgentaApi:
         Returns a list of all available workspace permissions.
 
         Returns:
-        List[Permission]: A list of Permission objects representing the available workspace permissions.
+            List[Permission]: A list of Permission objects representing the available workspace permissions.
 
         Raises:
-        HTTPException: If there is an error retrieving the workspace permissions.
+            HTTPException: If there is an error retrieving the workspace permissions.
 
         Parameters
         ----------
@@ -1218,16 +1221,16 @@ class AgentaApi:
         Assigns a role to a user in a workspace.
 
         Args:
-        payload (UserRole): The payload containing the organization id, user email, and role to assign.
-        workspace_id (str): The ID of the workspace.
-        request (Request): The FastAPI request object.
+            payload (UserRole): The payload containing the organization id, user email, and role to assign.
+            workspace_id (str): The ID of the workspace.
+            request (Request): The FastAPI request object.
 
         Returns:
-        bool: True if the role was successfully assigned, False otherwise.
+            bool: True if the role was successfully assigned, False otherwise.
 
         Raises:
-        HTTPException: If the user does not have permission to perform this action.
-        HTTPException: If there is an error assigning the role to the user.
+            HTTPException: If the user does not have permission to perform this action.
+            HTTPException: If there is an error assigning the role to the user.
 
         Parameters
         ----------
@@ -1312,18 +1315,18 @@ class AgentaApi:
         Delete a role assignment from a user in a workspace.
 
         Args:
-        workspace_id (str): The ID of the workspace.
-        email (str): The email of the user to remove the role from.
-        org_id (str): The ID of the organization.
-        role (str): The role to remove from the user.
-        request (Request): The FastAPI request object.
+            workspace_id (str): The ID of the workspace.
+            email (str): The email of the user to remove the role from.
+            org_id (str): The ID of the organization.
+            role (str): The role to remove from the user.
+            request (Request): The FastAPI request object.
 
         Returns:
-        bool: True if the role assignment was successfully deleted.
+            bool: True if the role assignment was successfully deleted.
 
         Raises:
-        HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-        HTTPException: If there is an error in updating the user's roles.
+            HTTPException: If there is an error in the request or the user does not have permission to perform the action.
+            HTTPException: If there is an error in updating the user's roles.
 
         Parameters
         ----------
@@ -1404,17 +1407,14 @@ class AgentaApi:
         Remove a user from a workspace.
 
         Parameters:
-
         - payload (UserRole): The payload containing the user email and organization ID.
         - workspace_id (str): The ID of the workspace.
         - request (Request): The FastAPI request object.
 
         Returns:
-
         - WorkspaceResponse: The updated workspace.
 
         Raises:
-
         - HTTPException: If the user does not have permission to perform this action.
         - HTTPException: If there is an error during the removal process.
 
@@ -1639,9 +1639,7 @@ class AsyncAgentaApi:
             else httpx.AsyncClient(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
-        self.observability = AsyncObservabilityClient(
-            client_wrapper=self._client_wrapper
-        )
+        self.admin = AsyncAdminClient(client_wrapper=self._client_wrapper)
         self.vault = AsyncVaultClient(client_wrapper=self._client_wrapper)
         self.access_control = AsyncAccessControlClient(
             client_wrapper=self._client_wrapper
@@ -1650,13 +1648,16 @@ class AsyncAgentaApi:
         self.apps = AsyncAppsClient(client_wrapper=self._client_wrapper)
         self.variants = AsyncVariantsClient(client_wrapper=self._client_wrapper)
         self.evaluations = AsyncEvaluationsClient(client_wrapper=self._client_wrapper)
+        self.human_evaluations = AsyncHumanEvaluationsClient(
+            client_wrapper=self._client_wrapper
+        )
         self.evaluators = AsyncEvaluatorsClient(client_wrapper=self._client_wrapper)
         self.testsets = AsyncTestsetsClient(client_wrapper=self._client_wrapper)
         self.containers = AsyncContainersClient(client_wrapper=self._client_wrapper)
         self.environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
         self.bases = AsyncBasesClient(client_wrapper=self._client_wrapper)
         self.configs = AsyncConfigsClient(client_wrapper=self._client_wrapper)
-        self.observability_v_1 = AsyncObservabilityV1Client(
+        self.observability = AsyncObservabilityClient(
             client_wrapper=self._client_wrapper
         )
 
@@ -1667,10 +1668,10 @@ class AsyncAgentaApi:
         List all API keys associated with the authenticated user.
 
         Args:
-        request (Request): The incoming request object.
+            request (Request): The incoming request object.
 
         Returns:
-        List[ListAPIKeysResponse]: A list of API Keys associated with the user.
+            List[ListAPIKeysResponse]: A list of API Keys associated with the user.
 
         Parameters
         ----------
@@ -1726,10 +1727,10 @@ class AsyncAgentaApi:
         Creates an API key for a user.
 
         Args:
-        request (Request): The request object containing the user ID in the request state.
+            request (Request): The request object containing the user ID in the request state.
 
         Returns:
-        str: The created API key.
+            str: The created API key.
 
         Parameters
         ----------
@@ -1788,14 +1789,14 @@ class AsyncAgentaApi:
         Delete an API key with the given key prefix for the authenticated user.
 
         Args:
-        key_prefix (str): The prefix of the API key to be deleted.
-        request (Request): The incoming request object.
+            key_prefix (str): The prefix of the API key to be deleted.
+            request (Request): The incoming request object.
 
         Returns:
-        dict: A dictionary containing a success message upon successful deletion.
+            dict: A dictionary containing a success message upon successful deletion.
 
         Raises:
-        HTTPException: If the API key is not found or does not belong to the user.
+            HTTPException: If the API key is not found or does not belong to the user.
 
         Parameters
         ----------
@@ -1867,7 +1868,7 @@ class AsyncAgentaApi:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
-        bool: True. If the request reaches this point, the API key is valid.
+            bool: True. If the request reaches this point, the API key is valid.
 
         Parameters
         ----------
@@ -1937,13 +1938,13 @@ class AsyncAgentaApi:
         Returns a list of organizations associated with the user's session.
 
         Args:
-        stoken_session (SessionContainer): The user's session token.
+            stoken_session (SessionContainer): The user's session token.
 
         Returns:
-        list[Organization]: A list of organizations associated with the user's session.
+            list[Organization]: A list of organizations associated with the user's session.
 
         Raises:
-        HTTPException: If there is an error retrieving the organizations from the database.
+            HTTPException: If there is an error retrieving the organizations from the database.
 
         Parameters
         ----------
@@ -2138,11 +2139,11 @@ class AsyncAgentaApi:
         Get an organization's details.
 
         Raises:
-        HTTPException: _description_
-        Permission Denied
+            HTTPException: _description_
+            Permission Denied
 
         Returns:
-        OrganizationDB Instance
+            OrganizationDB Instance
 
         Parameters
         ----------
@@ -2390,12 +2391,12 @@ class AsyncAgentaApi:
         Resend an invitation to a user to an Organization.
 
         Raises:
-        HTTPException: _description_; status_code: 500
-        HTTPException: Invitation not found or has expired; status_code: 400
-        HTTPException: You already belong to this organization; status_code: 400
+            HTTPException: _description_; status_code: 500
+            HTTPException: Invitation not found or has expired; status_code: 400
+            HTTPException: You already belong to this organization; status_code: 400
 
         Returns:
-        JSONResponse: Resent invitation to user; status_code: 200
+            JSONResponse: Resent invitation to user; status_code: 200
 
         Parameters
         ----------
@@ -2484,12 +2485,12 @@ class AsyncAgentaApi:
         Accept an invitation to a workspace.
 
         Raises:
-        HTTPException: _description_; status_code: 500
-        HTTPException: Invitation not found or has expired; status_code: 400
-        HTTPException: You already belong to this organization; status_code: 400
+            HTTPException: _description_; status_code: 500
+            HTTPException: Invitation not found or has expired; status_code: 400
+            HTTPException: You already belong to this organization; status_code: 400
 
         Returns:
-        JSONResponse: Accepted invitation to workspace; status_code: 200
+            JSONResponse: Accepted invitation to workspace; status_code: 200
 
         Parameters
         ----------
@@ -2757,10 +2758,10 @@ class AsyncAgentaApi:
         Returns a list of all available workspace roles.
 
         Returns:
-        List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+            List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
 
         Raises:
-        HTTPException: If an error occurs while retrieving the workspace roles.
+            HTTPException: If an error occurs while retrieving the workspace roles.
 
         Parameters
         ----------
@@ -2818,10 +2819,10 @@ class AsyncAgentaApi:
         Returns a list of all available workspace permissions.
 
         Returns:
-        List[Permission]: A list of Permission objects representing the available workspace permissions.
+            List[Permission]: A list of Permission objects representing the available workspace permissions.
 
         Raises:
-        HTTPException: If there is an error retrieving the workspace permissions.
+            HTTPException: If there is an error retrieving the workspace permissions.
 
         Parameters
         ----------
@@ -2883,16 +2884,16 @@ class AsyncAgentaApi:
         Assigns a role to a user in a workspace.
 
         Args:
-        payload (UserRole): The payload containing the organization id, user email, and role to assign.
-        workspace_id (str): The ID of the workspace.
-        request (Request): The FastAPI request object.
+            payload (UserRole): The payload containing the organization id, user email, and role to assign.
+            workspace_id (str): The ID of the workspace.
+            request (Request): The FastAPI request object.
 
         Returns:
-        bool: True if the role was successfully assigned, False otherwise.
+            bool: True if the role was successfully assigned, False otherwise.
 
         Raises:
-        HTTPException: If the user does not have permission to perform this action.
-        HTTPException: If there is an error assigning the role to the user.
+            HTTPException: If the user does not have permission to perform this action.
+            HTTPException: If there is an error assigning the role to the user.
 
         Parameters
         ----------
@@ -2985,18 +2986,18 @@ class AsyncAgentaApi:
         Delete a role assignment from a user in a workspace.
 
         Args:
-        workspace_id (str): The ID of the workspace.
-        email (str): The email of the user to remove the role from.
-        org_id (str): The ID of the organization.
-        role (str): The role to remove from the user.
-        request (Request): The FastAPI request object.
+            workspace_id (str): The ID of the workspace.
+            email (str): The email of the user to remove the role from.
+            org_id (str): The ID of the organization.
+            role (str): The role to remove from the user.
+            request (Request): The FastAPI request object.
 
         Returns:
-        bool: True if the role assignment was successfully deleted.
+            bool: True if the role assignment was successfully deleted.
 
         Raises:
-        HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-        HTTPException: If there is an error in updating the user's roles.
+            HTTPException: If there is an error in the request or the user does not have permission to perform the action.
+            HTTPException: If there is an error in updating the user's roles.
 
         Parameters
         ----------
@@ -3085,17 +3086,14 @@ class AsyncAgentaApi:
         Remove a user from a workspace.
 
         Parameters:
-
         - payload (UserRole): The payload containing the user email and organization ID.
         - workspace_id (str): The ID of the workspace.
         - request (Request): The FastAPI request object.
 
         Returns:
-
         - WorkspaceResponse: The updated workspace.
 
         Raises:
-
         - HTTPException: If the user does not have permission to perform this action.
         - HTTPException: If there is an error during the removal process.
 

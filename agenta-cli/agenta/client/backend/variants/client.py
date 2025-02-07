@@ -46,14 +46,14 @@ class VariantsClient:
         Same as POST /config
 
         Args:
-        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
+            payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
+            stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
         Raises:
-        HTTPException: Raised if the variant could not be added or accessed.
+            HTTPException: Raised if the variant could not be added or accessed.
 
         Returns:
-        Union[AppVariantResponse, Any]: New variant details or exception.
+            Union[AppVariantResponse, Any]: New variant details or exception.
 
         Parameters
         ----------
@@ -199,16 +199,16 @@ class VariantsClient:
         Start a variant of an app.
 
         Args:
-        variant_id (str): The ID of the variant to start.
-        action (VariantAction): The action to perform on the variant (start).
-        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the variant to start.
+            action (VariantAction): The action to perform on the variant (start).
+            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-        URI: The URL of the started variant.
+            URI: The URL of the started variant.
 
         Raises:
-        HTTPException: If the app container cannot be started.
+            HTTPException: If the app container cannot be started.
 
         Parameters
         ----------
@@ -293,10 +293,10 @@ class VariantsClient:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-        app_variant -- AppVariant to remove
+            app_variant -- AppVariant to remove
 
         Raises:
-        HTTPException: If there is a problem removing the app variant
+            HTTPException: If there is a problem removing the app variant
 
         Parameters
         ----------
@@ -362,15 +362,15 @@ class VariantsClient:
         Updates the parameters for an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the app variant to update.
+            payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If there is an error while trying to update the app variant.
+            HTTPException: If there is an error while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response containing the updated app variant parameters.
+            JSONResponse: A JSON response containing the updated app variant parameters.
 
         Parameters
         ----------
@@ -450,14 +450,14 @@ class VariantsClient:
         Updates the image used in an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        image (Image): The image information to update.
+            variant_id (str): The ID of the app variant to update.
+            image (Image): The image information to update.
 
         Raises:
-        HTTPException: If an error occurs while trying to update the app variant.
+            HTTPException: If an error occurs while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response indicating whether the update was successful or not.
+            JSONResponse: A JSON response indicating whether the update was successful or not.
 
         Parameters
         ----------
@@ -507,6 +507,85 @@ class VariantsClient:
             },
             request_options=request_options,
             omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def update_variant_url(
+        self,
+        variant_id: str,
+        *,
+        url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Updates the URL used in an app variant.
+
+        Args:
+            variant_id (str): The ID of the app variant to update.
+            url (str): The URL to update.
+
+        Raises:
+            HTTPException: If an error occurs while trying to update the app variant.
+
+        Returns:
+            JSONResponse: A JSON response indicating whether the update was successful or not.
+
+        Parameters
+        ----------
+        variant_id : str
+
+        url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.variants.update_variant_url(
+            variant_id="variant_id",
+            url="url",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"variants/{jsonable_encoder(variant_id)}/service",
+            method="PUT",
+            params={
+                "url": url,
+            },
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
@@ -1371,14 +1450,14 @@ class AsyncVariantsClient:
         Same as POST /config
 
         Args:
-        payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
+            payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
+            stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
         Raises:
-        HTTPException: Raised if the variant could not be added or accessed.
+            HTTPException: Raised if the variant could not be added or accessed.
 
         Returns:
-        Union[AppVariantResponse, Any]: New variant details or exception.
+            Union[AppVariantResponse, Any]: New variant details or exception.
 
         Parameters
         ----------
@@ -1540,16 +1619,16 @@ class AsyncVariantsClient:
         Start a variant of an app.
 
         Args:
-        variant_id (str): The ID of the variant to start.
-        action (VariantAction): The action to perform on the variant (start).
-        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the variant to start.
+            action (VariantAction): The action to perform on the variant (start).
+            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-        URI: The URL of the started variant.
+            URI: The URL of the started variant.
 
         Raises:
-        HTTPException: If the app container cannot be started.
+            HTTPException: If the app container cannot be started.
 
         Parameters
         ----------
@@ -1642,10 +1721,10 @@ class AsyncVariantsClient:
         In the case it's the last variant using the image, stop the container and remove the image.
 
         Arguments:
-        app_variant -- AppVariant to remove
+            app_variant -- AppVariant to remove
 
         Raises:
-        HTTPException: If there is a problem removing the app variant
+            HTTPException: If there is a problem removing the app variant
 
         Parameters
         ----------
@@ -1719,15 +1798,15 @@ class AsyncVariantsClient:
         Updates the parameters for an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            variant_id (str): The ID of the app variant to update.
+            payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If there is an error while trying to update the app variant.
+            HTTPException: If there is an error while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response containing the updated app variant parameters.
+            JSONResponse: A JSON response containing the updated app variant parameters.
 
         Parameters
         ----------
@@ -1815,14 +1894,14 @@ class AsyncVariantsClient:
         Updates the image used in an app variant.
 
         Args:
-        variant_id (str): The ID of the app variant to update.
-        image (Image): The image information to update.
+            variant_id (str): The ID of the app variant to update.
+            image (Image): The image information to update.
 
         Raises:
-        HTTPException: If an error occurs while trying to update the app variant.
+            HTTPException: If an error occurs while trying to update the app variant.
 
         Returns:
-        JSONResponse: A JSON response indicating whether the update was successful or not.
+            JSONResponse: A JSON response indicating whether the update was successful or not.
 
         Parameters
         ----------
@@ -1880,6 +1959,93 @@ class AsyncVariantsClient:
             },
             request_options=request_options,
             omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def update_variant_url(
+        self,
+        variant_id: str,
+        *,
+        url: str,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Updates the URL used in an app variant.
+
+        Args:
+            variant_id (str): The ID of the app variant to update.
+            url (str): The URL to update.
+
+        Raises:
+            HTTPException: If an error occurs while trying to update the app variant.
+
+        Returns:
+            JSONResponse: A JSON response indicating whether the update was successful or not.
+
+        Parameters
+        ----------
+        variant_id : str
+
+        url : str
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.variants.update_variant_url(
+                variant_id="variant_id",
+                url="url",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"variants/{jsonable_encoder(variant_id)}/service",
+            method="PUT",
+            params={
+                "url": url,
+            },
+            request_options=request_options,
         )
         try:
             if 200 <= _response.status_code < 300:
