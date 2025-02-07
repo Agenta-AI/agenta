@@ -10,11 +10,7 @@ from sqlalchemy.ext.asyncio import (
     async_scoped_session,
 )
 
-from agenta_backend.dbs.postgres.shared.config import (
-    POSTGRES_URI,
-    DATABASE_MODE,
-    MONGODB_URI,
-)
+from agenta_backend.dbs.postgres.shared.config import POSTGRES_URI
 
 
 class Engine:
@@ -35,11 +31,6 @@ class Engine:
             session_factory=self.async_session_maker,
             scopefunc=current_task,
         )
-
-        ### LEGACY CODE ###
-        self.mode = DATABASE_MODE
-        self.mongo_uri = MONGODB_URI
-        ### ----------- ###
 
     async def open(self):
         raise NotImplementedError()

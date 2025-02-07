@@ -8,6 +8,130 @@ import Image from "@theme/IdealImage";
 ```
 
 <section class="changelog">
+### Quality of life improvements
+
+_27 January 2025_
+
+**v0.32.0**
+
+
+<Image
+  style={{
+    display: "block",
+    margin: "20px",
+    textAlign: "center",
+  }}
+  img={require("/images/changelog/changelog_sidebar.gif")}
+  alt="New collapsible side menu" 
+  loading="lazy"
+/>
+
+Small release today with quality of life improvements, while we're preparing the huge release coming up in the next days:
+
+- Added a collapsible side menu for better space management
+- Enhanced frontend performance and responsiveness
+- Implemented a confirmation modal when deleting test sets
+- Improved permission handling across the platform
+- Improved frontend test coverage
+
+---
+
+### Agenta is SOC 2 Type 1 Certified
+
+_15 January 2025_
+
+**v0.31.0**
+
+<Image
+  style={{
+    display: "block",
+    margin: "20px auto",
+    width: "80%",
+    textAlign: "center",
+  }}
+  img={require("/images/changelog/soc2_type1.png")}
+  alt="SOC 2 Type 1 certification"
+  loading="lazy"
+/>
+
+We've achieved SOC 2 Type 1 certification, validating our security controls for protecting sensitive LLM development data. This certification covers our entire platform, including prompt management, evaluation frameworks, and observability tools.
+
+Key security features and improvements:
+
+- Data encryption in transit and at rest
+- Enhanced access control and authentication
+- Comprehensive security monitoring
+- Regular third-party security assessments
+- Backup and disaster recovery protocols
+
+This certification represents a significant milestone for teams using Agenta in production environments. Whether you're using our open-source platform or cloud offering, you can now build LLM applications with enterprise-grade security confidence.
+
+We've also updated our [trust center](https://trustcenter.agenta.ai) with detailed information about our security practices and compliance standards. For teams interested in learning more about our security controls or requesting our SOC 2 report, please contact [team@agenta.ai](mailto:team@agenta.ai).
+
+---
+
+### New Onboarding Flow
+
+_4 January 2025_
+
+**v0.30.0**
+
+<Image
+  style={{
+    display: "block",
+    width: "80%",
+    textAlign: "center",
+  }}
+  img={require("/images/changelog/changelog_onboarding1.png")}
+  alt="New Onboarding Flow"
+  loading="lazy"
+/>
+<Image
+  style={{
+    display: "block",
+    width: "80%",
+    textAlign: "center",
+  }}
+  img={require("/images/changelog/changelog_onboarding2.png")}
+  alt="New Onboarding Flow"
+  loading="lazy"
+/>
+We've redesigned our platform's onboarding to make getting started simpler and more intuitive. Key improvements include:
+
+- Streamlined tracing setup process
+- Added a demo RAG playground project showcasing custom workflows
+- Enhanced frontend performance
+- Fixed scroll behavior in trace view
+
+You can check out the tutorial for the RAG demo project [here](/tutorials/cookbooks/RAG-QA-docs).
+
+---
+
+### Add Spans to Test Sets
+
+_11 December 2024_
+
+**v0.29.0**
+
+<Stream controls src="109f3b8d36333d108a50239bc4cd35f0" height="400px" />
+<br />
+
+This release introduces the ability to add spans to test sets, making it easier to bootstrap your evaluation data from production. The new feature lets you:
+
+
+- Add individual or batch spans to test sets
+- Create custom mappings between spans and test sets
+- Preview test set changes before committing them
+
+Additional improvements:
+
+- Fixed CSV test set upload issues
+- Prevented viewing of incomplete evaluations
+- Added mobile compatibility warning
+- Added support for custom ports in self-hosted installations
+
+---
+
 ### Viewing Traces in the Playground and Authentication for Deployed Applications
 
 _29 November 2024_
@@ -47,8 +171,7 @@ _6 November 2024_
 <Image
   style={{
     display: "block",
-    margin: "5px auto",
-    width: "80%",
+    margin: "20px auto",
     textAlign: "center",
   }}
   img={require("/images/observability/observability.png")}
@@ -143,8 +266,7 @@ _22 August 2024_
     alt="Button for exporting evaluation results"
     style={{
       display: "block",
-      margin: "5px auto",
-      width: "80%",
+      margin: "20px auto",
       textAlign: "center",
     }}
   />
@@ -229,7 +351,11 @@ We're excited to announce two major features this week:
   <Image
     img={require("/images/changelog/rag_faithfulness.png")}
     alt="Button for exporting evaluation results"
-    style={{ width: "80%", maxWidth: "800px" }}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
   />
 </div>
 
@@ -239,7 +365,11 @@ We're excited to announce two major features this week:
      <Image
        img={require("/images/changelog/trace_in_playground.png")}
        alt="Button for exporting evaluation results"
-       style={{ width: "80%", maxWidth: "800px" }}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
      />
    </div>
 
@@ -273,7 +403,11 @@ _5 July 2024_
   <Image
     img={require("/images/changelog/export_evaluation.png")}
     alt="Button for exporting evaluation results"
-    style={{ width: "80%", maxWidth: "800px" }}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
   />
 </div>
 
@@ -305,7 +439,11 @@ _4 June 2024_
   <Image
     img={require("/images/changelog/configure_expected_answer.png")}
     alt="Configure Expected Answer"
-    style={{ width: "70%", maxWidth: "800px" }}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
   />
 </div>
 
@@ -328,7 +466,13 @@ _25 May 2024_
 
 We are excited to announce the addition of Google's Gemini to our list of supported LLM providers, bringing the total number to 12.
 
-<Image img={require("/images/changelog/gemini_screenshot.png")} />
+<Image img={require("/images/changelog/gemini_screenshot.png")}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
+ />
 
 ---
 
@@ -341,6 +485,11 @@ _24 May 2024_
 - We've improved the workflow for adding outputs to a dataset in the playground. In the past, you had to select the name of the test set each time. Now, the last used test set is selected by default..
   <Image
     img={require("/images/changelog/default-selected-testset_video.gif")}
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
   />
 - We have significantly improved the debugging experience when creating applications from code. Now, if an application fails, you can view the logs to understand the reason behind the failure.
 - We moved the copy message button in the playground to the output text area.

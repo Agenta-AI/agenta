@@ -24,11 +24,11 @@ const StatusRenderer = ({
     status,
     showMore = false,
 }: {
-    status: NodeStatusDTO
+    status?: NodeStatusDTO
     showMore?: boolean
 }) => {
-    const {label, color, icon} = statusMapper(status.code)
-    const errorMsg = status.code === NodeStatusCode.ERROR ? status.message : null
+    const {label, color, icon} = statusMapper(status?.code)
+    const errorMsg = status?.code === NodeStatusCode.ERROR ? status?.message : null
 
     return (
         <Space align="center" size={0}>

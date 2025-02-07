@@ -1,14 +1,21 @@
 import {ListAppsItem} from "@/lib/Types"
-import {getAgentaApiUrl, isDemo} from "@/lib/helpers/utils"
-import {axiosFetcher} from "@/services/api"
+import {isDemo} from "@/lib/helpers/utils"
 import {useRouter} from "next/router"
-import {PropsWithChildren, createContext, useContext, useEffect, useMemo, useState} from "react"
+import {
+    PropsWithChildren,
+    createContext,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react"
 import useSWR from "swr"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import {HookAPI} from "antd/es/modal/useModal"
 import {useLocalStorage} from "usehooks-ts"
 import {useProfileData} from "./profile.context"
 import {useProjectData, DEFAULT_UUID} from "./project.context"
+import {useOrgData} from "./org.context"
 
 type AppContextType = {
     currentApp: ListAppsItem | null
@@ -31,16 +38,9 @@ const initialValues: AppContextType = {
     setModalInstance: (context) => {},
 }
 
-const useApps = () => {
-    const [useOrgData, setUseOrgData] = useState<Function>(() => () => "")
+const useApps = (options) => {
     const {projectId} = useProjectData()
     const {user} = useProfileData()
-
-    useEffect(() => {
-        dynamicContext("org.context", {useOrgData}).then((context) => {
-            setUseOrgData(() => context.useOrgData)
-        })
-    }, [])
 
     const isMockProjectId = projectId === DEFAULT_UUID
 
@@ -49,13 +49,16 @@ const useApps = () => {
     const {data, error, isLoading, mutate} = useSWR(
         shouldFetch ? `/api/apps?` + (!isMockProjectId ? `project_id=${projectId}&` : "") : null,
         {
+            ...options,
             shouldRetryOnError: false,
+            revalidateOnFocus: false,
         },
     )
+
     return {
         data: (data || []) as ListAppsItem[],
         error,
-        isLoading: isLoading || loading,
+        isLoading: isLoading ?? loading,
         mutate,
     }
 }
@@ -69,7 +72,6 @@ const appContextValues = {...initialValues}
 export const getAppValues = () => appContextValues
 
 const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const {data: apps, error, isLoading, mutate} = useApps()
     const {isLoading: isProjectLoading} = useProjectData()
     const router = useRouter()
     const appId = router.query?.app_id as string
@@ -77,6 +79,23 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         "recentlyVisitedApp",
         null,
     )
+    const currentAppRef = useRef<ListAppsItem | null>(null)
+    const {
+        data: apps,
+        error,
+        isLoading,
+        mutate,
+    } = useApps({
+        onSuccess: (data) => {
+            if (!appId) {
+                return recentlyVisitedAppId
+                    ? data.find((item: ListAppsItem) => item.app_id === recentlyVisitedAppId) ||
+                          null
+                    : null
+            }
+            currentAppRef.current = data.find((item: ListAppsItem) => item.app_id === appId) || null
+        },
+    })
 
     useEffect(() => {
         if (appId) {
@@ -90,7 +109,12 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 ? apps.find((item: ListAppsItem) => item.app_id === recentlyVisitedAppId) || null
                 : null
         }
-        return apps.find((item: ListAppsItem) => item.app_id === appId) || null
+        if (appId && appId === currentAppRef.current?.app_id) {
+            return currentAppRef.current
+        }
+        const newApp = apps.find((item: ListAppsItem) => item.app_id === appId) || null
+        currentAppRef.current = newApp
+        return currentAppRef.current
     }, [apps, appId, recentlyVisitedAppId])
 
     useEffect(() => {
@@ -100,15 +124,6 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     }, [currentApp])
 
     const [modalInstance, setModalInstance] = useState()
-
-    appContextValues.currentApp = currentApp
-    appContextValues.recentlyVisitedAppId = recentlyVisitedAppId
-    appContextValues.apps = apps
-    appContextValues.error = error
-    appContextValues.isLoading = isLoading
-    appContextValues.mutate = mutate
-    appContextValues.modalInstance = modalInstance
-    appContextValues.setModalInstance = setModalInstance
 
     return (
         <AppContext.Provider

@@ -32,11 +32,11 @@ class AppsClient:
         Retrieve a list of app variants for a given app ID.
 
         Args:
-        app_id (str): The ID of the app to retrieve variants for.
-        stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to retrieve variants for.
+            stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
         Returns:
-        List[AppVariantResponse]: A list of app variants for the given app ID.
+            List[AppVariantResponse]: A list of app variants for the given app ID.
 
         Parameters
         ----------
@@ -102,15 +102,15 @@ class AppsClient:
         Retrieve the app variant based on the provided app_id and environment.
 
         Args:
-        app_id (str): The ID of the app to retrieve the variant for.
-        environment (str): The environment of the app variant to retrieve.
-        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to retrieve the variant for.
+            environment (str): The environment of the app variant to retrieve.
+            stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
+            HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
 
         Returns:
-        AppVariantResponse: The retrieved app variant.
+            AppVariantResponse: The retrieved app variant.
 
         Parameters
         ----------
@@ -182,14 +182,14 @@ class AppsClient:
         Retrieve a list of apps filtered by app_name.
 
         Args:
-        app_name (Optional[str]): The name of the app to filter by.
-        stoken_session (SessionContainer): The session container.
+            app_name (Optional[str]): The name of the app to filter by.
+            stoken_session (SessionContainer): The session container.
 
         Returns:
-        List[App]: A list of apps filtered by app_name.
+            List[App]: A list of apps filtered by app_name.
 
         Raises:
-        HTTPException: If there was an error retrieving the list of apps.
+            HTTPException: If there was an error retrieving the list of apps.
 
         Parameters
         ----------
@@ -249,6 +249,7 @@ class AppsClient:
         self,
         *,
         app_name: str,
+        template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
@@ -258,18 +259,20 @@ class AppsClient:
         Create a new app for a user or organization.
 
         Args:
-        payload (CreateApp): The payload containing the app name and organization ID (optional).
-        stoken_session (SessionContainer): The session container containing the user's session token.
+            payload (CreateApp): The payload containing the app name and organization ID (optional).
+            stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
-        CreateAppOutput: The output containing the newly created app's ID and name.
+            CreateAppOutput: The output containing the newly created app's ID and name.
 
         Raises:
-        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
 
         Parameters
         ----------
         app_name : str
+
+        template_key : typing.Optional[str]
 
         project_id : typing.Optional[str]
 
@@ -302,6 +305,7 @@ class AppsClient:
             method="POST",
             json={
                 "app_name": app_name,
+                "template_key": template_key,
                 "project_id": project_id,
                 "workspace_id": workspace_id,
                 "organization_id": organization_id,
@@ -343,7 +347,7 @@ class AppsClient:
         Remove app, all its variant, containers and images
 
         Arguments:
-        app -- App to remove
+            app -- App to remove
 
         Parameters
         ----------
@@ -409,15 +413,15 @@ class AppsClient:
         Update an app for a user or organization.
 
         Args:
-        app_id (str): The ID of the app.
-        payload (UpdateApp): The payload containing the app name.
-        stoken_session (SessionContainer): The session container containing the user's session token.
+            app_id (str): The ID of the app.
+            payload (UpdateApp): The payload containing the app name.
+            stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
-        UpdateAppOuput: The output containing the newly created app's ID and name.
+            UpdateAppOuput: The output containing the newly created app's ID and name.
 
         Raises:
-        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
 
         Parameters
         ----------
@@ -497,15 +501,14 @@ class AppsClient:
         Add a new variant to an app based on a Docker image.
 
         Args:
-        app_id (str): The ID of the app to add the variant to.
-        payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to add the variant to.
+            payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
 
         Raises:
-        HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+            HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
 
         Returns:
-        dict: The newly added variant.
+            dict: The newly added variant.
 
         Parameters
         ----------
@@ -584,6 +587,186 @@ class AppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    def add_variant_from_url(
+        self,
+        app_id: str,
+        *,
+        variant_name: str,
+        url: str,
+        base_name: typing.Optional[str] = OMIT,
+        config_name: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Add a new variant to an app based on a URL.
+
+        Args:
+            app_id (str): The ID of the app to add the variant to.
+            payload (AddVariantFromURLPayload): The payload containing information about the variant to add.
+
+        Raises:
+            HTTPException: If the user does not have access to the app or if there is an error adding the variant.
+
+        Returns:
+            dict: The newly added variant.
+
+        Parameters
+        ----------
+        app_id : str
+
+        variant_name : str
+
+        url : str
+
+        base_name : typing.Optional[str]
+
+        config_name : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.add_variant_from_url(
+            app_id="app_id",
+            variant_name="variant_name",
+            url="url",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}/variant/from-service",
+            method="POST",
+            json={
+                "variant_name": variant_name,
+                "url": url,
+                "base_name": base_name,
+                "config_name": config_name,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    def add_variant_from_key(
+        self,
+        app_id: str,
+        *,
+        variant_name: str,
+        key: str,
+        base_name: typing.Optional[str] = OMIT,
+        config_name: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Parameters
+        ----------
+        app_id : str
+
+        variant_name : str
+
+        key : str
+
+        base_name : typing.Optional[str]
+
+        config_name : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        from agenta import AgentaApi
+
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+        client.apps.add_variant_from_key(
+            app_id="app_id",
+            variant_name="variant_name",
+            key="key",
+        )
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}/variant/from-template",
+            method="POST",
+            json={
+                "variant_name": variant_name,
+                "key": key,
+                "base_name": base_name,
+                "config_name": config_name,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     def create_app_and_variant_from_template(
         self,
         *,
@@ -599,14 +782,14 @@ class AppsClient:
         Create an app and variant from a template.
 
         Args:
-        payload (CreateAppVariant): The payload containing the app and variant information.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            payload (CreateAppVariant): The payload containing the app and variant information.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If the user has reached the app limit or if an app with the same name already exists.
+            HTTPException: If the user has reached the app limit or if an app with the same name already exists.
 
         Returns:
-        AppVariantResponse: The output of the created app variant.
+            AppVariantResponse: The output of the created app variant.
 
         Parameters
         ----------
@@ -692,11 +875,11 @@ class AppsClient:
         Retrieve a list of environments for a given app ID.
 
         Args:
-        app_id (str): The ID of the app to retrieve environments for.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to retrieve environments for.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-        List[EnvironmentOutput]: A list of environment objects.
+            List[EnvironmentOutput]: A list of environment objects.
 
         Parameters
         ----------
@@ -827,11 +1010,11 @@ class AsyncAppsClient:
         Retrieve a list of app variants for a given app ID.
 
         Args:
-        app_id (str): The ID of the app to retrieve variants for.
-        stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to retrieve variants for.
+            stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
         Returns:
-        List[AppVariantResponse]: A list of app variants for the given app ID.
+            List[AppVariantResponse]: A list of app variants for the given app ID.
 
         Parameters
         ----------
@@ -905,15 +1088,15 @@ class AsyncAppsClient:
         Retrieve the app variant based on the provided app_id and environment.
 
         Args:
-        app_id (str): The ID of the app to retrieve the variant for.
-        environment (str): The environment of the app variant to retrieve.
-        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to retrieve the variant for.
+            environment (str): The environment of the app variant to retrieve.
+            stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
+            HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
 
         Returns:
-        AppVariantResponse: The retrieved app variant.
+            AppVariantResponse: The retrieved app variant.
 
         Parameters
         ----------
@@ -993,14 +1176,14 @@ class AsyncAppsClient:
         Retrieve a list of apps filtered by app_name.
 
         Args:
-        app_name (Optional[str]): The name of the app to filter by.
-        stoken_session (SessionContainer): The session container.
+            app_name (Optional[str]): The name of the app to filter by.
+            stoken_session (SessionContainer): The session container.
 
         Returns:
-        List[App]: A list of apps filtered by app_name.
+            List[App]: A list of apps filtered by app_name.
 
         Raises:
-        HTTPException: If there was an error retrieving the list of apps.
+            HTTPException: If there was an error retrieving the list of apps.
 
         Parameters
         ----------
@@ -1068,6 +1251,7 @@ class AsyncAppsClient:
         self,
         *,
         app_name: str,
+        template_key: typing.Optional[str] = OMIT,
         project_id: typing.Optional[str] = OMIT,
         workspace_id: typing.Optional[str] = OMIT,
         organization_id: typing.Optional[str] = OMIT,
@@ -1077,18 +1261,20 @@ class AsyncAppsClient:
         Create a new app for a user or organization.
 
         Args:
-        payload (CreateApp): The payload containing the app name and organization ID (optional).
-        stoken_session (SessionContainer): The session container containing the user's session token.
+            payload (CreateApp): The payload containing the app name and organization ID (optional).
+            stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
-        CreateAppOutput: The output containing the newly created app's ID and name.
+            CreateAppOutput: The output containing the newly created app's ID and name.
 
         Raises:
-        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
 
         Parameters
         ----------
         app_name : str
+
+        template_key : typing.Optional[str]
 
         project_id : typing.Optional[str]
 
@@ -1129,6 +1315,7 @@ class AsyncAppsClient:
             method="POST",
             json={
                 "app_name": app_name,
+                "template_key": template_key,
                 "project_id": project_id,
                 "workspace_id": workspace_id,
                 "organization_id": organization_id,
@@ -1170,7 +1357,7 @@ class AsyncAppsClient:
         Remove app, all its variant, containers and images
 
         Arguments:
-        app -- App to remove
+            app -- App to remove
 
         Parameters
         ----------
@@ -1244,15 +1431,15 @@ class AsyncAppsClient:
         Update an app for a user or organization.
 
         Args:
-        app_id (str): The ID of the app.
-        payload (UpdateApp): The payload containing the app name.
-        stoken_session (SessionContainer): The session container containing the user's session token.
+            app_id (str): The ID of the app.
+            payload (UpdateApp): The payload containing the app name.
+            stoken_session (SessionContainer): The session container containing the user's session token.
 
         Returns:
-        UpdateAppOuput: The output containing the newly created app's ID and name.
+            UpdateAppOuput: The output containing the newly created app's ID and name.
 
         Raises:
-        HTTPException: If there is an error creating the app or the user does not have permission to access the app.
+            HTTPException: If there is an error creating the app or the user does not have permission to access the app.
 
         Parameters
         ----------
@@ -1340,15 +1527,14 @@ class AsyncAppsClient:
         Add a new variant to an app based on a Docker image.
 
         Args:
-        app_id (str): The ID of the app to add the variant to.
-        payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to add the variant to.
+            payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
 
         Raises:
-        HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
+            HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
 
         Returns:
-        dict: The newly added variant.
+            dict: The newly added variant.
 
         Parameters
         ----------
@@ -1435,6 +1621,202 @@ class AsyncAppsClient:
             raise ApiError(status_code=_response.status_code, body=_response.text)
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
+    async def add_variant_from_url(
+        self,
+        app_id: str,
+        *,
+        variant_name: str,
+        url: str,
+        base_name: typing.Optional[str] = OMIT,
+        config_name: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Add a new variant to an app based on a URL.
+
+        Args:
+            app_id (str): The ID of the app to add the variant to.
+            payload (AddVariantFromURLPayload): The payload containing information about the variant to add.
+
+        Raises:
+            HTTPException: If the user does not have access to the app or if there is an error adding the variant.
+
+        Returns:
+            dict: The newly added variant.
+
+        Parameters
+        ----------
+        app_id : str
+
+        variant_name : str
+
+        url : str
+
+        base_name : typing.Optional[str]
+
+        config_name : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.apps.add_variant_from_url(
+                app_id="app_id",
+                variant_name="variant_name",
+                url="url",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}/variant/from-service",
+            method="POST",
+            json={
+                "variant_name": variant_name,
+                "url": url,
+                "base_name": base_name,
+                "config_name": config_name,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
+    async def add_variant_from_key(
+        self,
+        app_id: str,
+        *,
+        variant_name: str,
+        key: str,
+        base_name: typing.Optional[str] = OMIT,
+        config_name: typing.Optional[str] = OMIT,
+        request_options: typing.Optional[RequestOptions] = None,
+    ) -> typing.Optional[typing.Any]:
+        """
+        Parameters
+        ----------
+        app_id : str
+
+        variant_name : str
+
+        key : str
+
+        base_name : typing.Optional[str]
+
+        config_name : typing.Optional[str]
+
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+
+        Returns
+        -------
+        typing.Optional[typing.Any]
+            Successful Response
+
+        Examples
+        --------
+        import asyncio
+
+        from agenta import AsyncAgentaApi
+
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+            base_url="https://yourhost.com/path/to/api",
+        )
+
+
+        async def main() -> None:
+            await client.apps.add_variant_from_key(
+                app_id="app_id",
+                variant_name="variant_name",
+                key="key",
+            )
+
+
+        asyncio.run(main())
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            f"apps/{jsonable_encoder(app_id)}/variant/from-template",
+            method="POST",
+            json={
+                "variant_name": variant_name,
+                "key": key,
+                "base_name": base_name,
+                "config_name": config_name,
+            },
+            headers={
+                "content-type": "application/json",
+            },
+            request_options=request_options,
+            omit=OMIT,
+        )
+        try:
+            if 200 <= _response.status_code < 300:
+                return typing.cast(
+                    typing.Optional[typing.Any],
+                    parse_obj_as(
+                        type_=typing.Optional[typing.Any],  # type: ignore
+                        object_=_response.json(),
+                    ),
+                )
+            if _response.status_code == 422:
+                raise UnprocessableEntityError(
+                    typing.cast(
+                        HttpValidationError,
+                        parse_obj_as(
+                            type_=HttpValidationError,  # type: ignore
+                            object_=_response.json(),
+                        ),
+                    )
+                )
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, body=_response.text)
+        raise ApiError(status_code=_response.status_code, body=_response_json)
+
     async def create_app_and_variant_from_template(
         self,
         *,
@@ -1450,14 +1832,14 @@ class AsyncAppsClient:
         Create an app and variant from a template.
 
         Args:
-        payload (CreateAppVariant): The payload containing the app and variant information.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            payload (CreateAppVariant): The payload containing the app and variant information.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Raises:
-        HTTPException: If the user has reached the app limit or if an app with the same name already exists.
+            HTTPException: If the user has reached the app limit or if an app with the same name already exists.
 
         Returns:
-        AppVariantResponse: The output of the created app variant.
+            AppVariantResponse: The output of the created app variant.
 
         Parameters
         ----------
@@ -1551,11 +1933,11 @@ class AsyncAppsClient:
         Retrieve a list of environments for a given app ID.
 
         Args:
-        app_id (str): The ID of the app to retrieve environments for.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+            app_id (str): The ID of the app to retrieve environments for.
+            stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
         Returns:
-        List[EnvironmentOutput]: A list of environment objects.
+            List[EnvironmentOutput]: A list of environment objects.
 
         Parameters
         ----------

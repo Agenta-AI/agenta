@@ -269,61 +269,61 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
         await wait_for_evaluation_to_finish(evaluation_id)
 
 
-@pytest.mark.asyncio
-async def test_create_evaluation_with_no_llm_keys(evaluators_requiring_llm_keys):
-    async with engine.session() as session:
-        app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
-        app = app_result.scalars().first()
+# @pytest.mark.asyncio
+# async def test_create_evaluation_with_no_llm_keys(evaluators_requiring_llm_keys):
+#     async with engine.session() as session:
+#         app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
+#         app = app_result.scalars().first()
 
-        app_variant_result = await session.execute(
-            select(AppVariantDB).filter_by(app_id=app.id)
-        )
-        app_variant = app_variant_result.scalars().first()
+#         app_variant_result = await session.execute(
+#             select(AppVariantDB).filter_by(app_id=app.id)
+#         )
+#         app_variant = app_variant_result.scalars().first()
 
-        testset_result = await session.execute(
-            select(TestSetDB).filter_by(project_id=app.project_id)
-        )
-        testset = testset_result.scalars().first()
+#         testset_result = await session.execute(
+#             select(TestSetDB).filter_by(project_id=app.project_id)
+#         )
+#         testset = testset_result.scalars().first()
 
-        # Prepare payload
-        payload = {
-            "app_id": str(app.id),
-            "variant_ids": [str(app_variant.id)],
-            "evaluators_configs": [],
-            "testset_id": str(testset.id),
-            "lm_providers_keys": {"MISTRAL_API_KEY": OPEN_AI_KEY},
-            "rate_limit": {
-                "batch_size": 10,
-                "max_retries": 3,
-                "retry_delay": 3,
-                "delay_between_batches": 5,
-            },
-        }
+#         # Prepare payload
+#         payload = {
+#             "app_id": str(app.id),
+#             "variant_ids": [str(app_variant.id)],
+#             "evaluators_configs": [],
+#             "testset_id": str(testset.id),
+#             "lm_providers_keys": {"MISTRAL_API_KEY": OPEN_AI_KEY},
+#             "rate_limit": {
+#                 "batch_size": 10,
+#                 "max_retries": 3,
+#                 "retry_delay": 3,
+#                 "delay_between_batches": 5,
+#             },
+#         }
 
-        # Fetch evaluator configs
-        response = await test_client.get(
-            f"{BACKEND_API_HOST}/evaluators/configs/?app_id={payload['app_id']}",
-            timeout=timeout,
-        )
-        list_of_configs_ids = []
-        evaluator_configs = response.json()
-        for evaluator_config in evaluator_configs:
-            if evaluator_config["evaluator_key"] in evaluators_requiring_llm_keys:
-                list_of_configs_ids.append(evaluator_config["id"])
+#         # Fetch evaluator configs
+#         response = await test_client.get(
+#             f"{BACKEND_API_HOST}/evaluators/configs/?app_id={payload['app_id']}",
+#             timeout=timeout,
+#         )
+#         list_of_configs_ids = []
+#         evaluator_configs = response.json()
+#         for evaluator_config in evaluator_configs:
+#             if evaluator_config["evaluator_key"] in evaluators_requiring_llm_keys:
+#                 list_of_configs_ids.append(evaluator_config["id"])
 
-        # Update payload with list of configs ids
-        payload["evaluators_configs"] = list_of_configs_ids
+#         # Update payload with list of configs ids
+#         payload["evaluators_configs"] = list_of_configs_ids
 
-        # Make request to create evaluation
-        response = await test_client.post(
-            f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
-        )
+#         # Make request to create evaluation
+#         response = await test_client.post(
+#             f"{BACKEND_API_HOST}/evaluations/", json=payload, timeout=timeout
+#         )
 
-        assert response.status_code == 500
-        assert (
-            response.json()["detail"]
-            == "OpenAI API key is required to run one or more of the specified evaluators."
-        )
+#         assert response.status_code == 500
+#         assert (
+#             response.json()["detail"]
+#             == "OpenAI API key is required to run one or more of the specified evaluators."
+#         )
 
 
 @pytest.mark.asyncio

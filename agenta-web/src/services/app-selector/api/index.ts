@@ -1,10 +1,16 @@
+import {getOrgValues} from "@/contexts/org.context"
 import {getCurrentProject} from "@/contexts/project.context"
 import {AppTemplate} from "@/lib/Types"
 import axios from "@/lib/api/assets/axiosConfig"
-import {dynamicContext} from "@/lib/helpers/dynamic"
 import {LlmProvider} from "@/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
-import {waitForAppToStart} from "@/services/api"
+import {
+    fetchOpenApiSchemaJson,
+    setVariant,
+    transformVariant,
+} from "@/lib/hooks/useStatelessVariant/assets/helpers"
+import {transformToRequestBody} from "@/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
+import {getAllMetadata} from "@/lib/hooks/useStatelessVariant/state"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -24,6 +30,86 @@ export async function deleteApp(appId: string) {
     await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`, {
         data: {app_id: appId},
     })
+}
+
+/**
+ * New function to create an app according to
+ * backend changes which can be checked at
+ * agenta-backend/tests/variants-from-service-url.http
+ * agenta-backend/tests/variants-from-template-key.http
+ * @returns
+ */
+export enum ServiceType {
+    Completion = "SERVICE:completion",
+    Chat = "SERVICE:chat",
+}
+export const createApp = async ({
+    templateKey,
+    appName,
+}: {
+    appName: string
+    templateKey: ServiceType
+}) => {
+    const {selectedOrg} = getOrgValues()
+    const response = await axios.post(`${getAgentaApiUrl()}/api/apps`, {
+        app_name: appName,
+        template_key: templateKey,
+        organization_id: selectedOrg?.id,
+        workspace_id: selectedOrg?.default_workspace.id,
+    })
+    return response.data
+}
+
+export const createVariant = async ({
+    appId,
+    variantName = "app.key",
+    baseName = "app",
+    templateKey,
+    serviceUrl,
+}: {
+    appId: string
+    variantName?: string
+    baseName?: string
+    templateKey?: ServiceType
+    serviceUrl?: string
+}) => {
+    type CreateVariantRequestBody = {
+        config_name: string
+        variant_name: string
+        base_name: string
+        key?: ServiceType
+        url?: string
+    }
+
+    /**
+     * this functions utilizes either serviceUrl or templateKey
+     */
+    // check for correct usage of serviceUrl and templateKey
+    if (serviceUrl && templateKey) {
+        throw new Error("Either serviceUrl or templateKey should be provided")
+    } else if (!serviceUrl && !templateKey) {
+        throw new Error("Either serviceUrl or templateKey should be provided")
+    }
+
+    const endpoint = `${getAgentaApiUrl()}/api/apps/${appId}/variant/${
+        serviceUrl ? "from-service" : "from-template"
+    }`
+
+    const body: CreateVariantRequestBody = {
+        variant_name: variantName,
+        base_name: baseName,
+    } as CreateVariantRequestBody
+
+    if (!!serviceUrl) {
+        body.config_name = "url"
+        body.url = serviceUrl
+    } else if (!!templateKey) {
+        body.config_name = "key"
+        body.key = templateKey
+    }
+
+    const response = await axios.post(endpoint, body)
+    return response.data
 }
 
 export const createAppFromTemplate = async (
@@ -59,14 +145,12 @@ export const updateAppName = async (
 export const createAndStartTemplate = async ({
     appName,
     providerKey,
-    templateId,
-    timeout,
+    templateKey,
     onStatusChange,
 }: {
     appName: string
+    templateKey: ServiceType
     providerKey: Array<LlmProvider>
-    templateId: string
-    timeout?: number
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
         details?: any,
@@ -82,24 +166,31 @@ export const createAndStartTemplate = async ({
     )
 
     try {
-        const {getOrgValues} = await dynamicContext("org.context", {
-            getOrgValues: () => ({
-                selectedOrg: {id: undefined, default_workspace: {id: undefined}},
-            }),
-        })
-        const {selectedOrg} = getOrgValues()
         onStatusChange?.("creating_app")
         let app
         try {
-            app = await createAppFromTemplate(
+            app = await createApp({
+                appName,
+                templateKey,
+            })
+            const _variant = await createVariant({
+                appId: app.app_id,
+                templateKey,
+            })
+            const {schema} = await fetchOpenApiSchemaJson(_variant.uri)
+
+            if (!schema) {
+                throw new Error("No schema found")
+            }
+
+            const variant = transformVariant(setVariant(_variant), schema)
+
+            const parameters = transformToRequestBody(variant, undefined, getAllMetadata())
+            await axios.put(
+                `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
                 {
-                    app_name: appName,
-                    template_id: templateId,
-                    organization_id: selectedOrg.id,
-                    workspace_id: selectedOrg.default_workspace.id,
-                    env_vars: apiKeys,
+                    parameters,
                 },
-                true,
             )
         } catch (error: any) {
             if (error?.response?.status === 400) {
@@ -107,21 +198,9 @@ export const createAndStartTemplate = async ({
                 return
             }
             throw error
+        } finally {
+            onStatusChange?.("success", "", app?.app_id)
         }
-
-        onStatusChange?.("starting_app", "", app?.data?.app_id)
-        try {
-            const {promise} = await waitForAppToStart({appId: app?.data?.app_id, timeout})
-            await promise
-        } catch (error: any) {
-            if (error.message === "timeout") {
-                onStatusChange?.("timeout", "", app?.data?.app_id)
-                return
-            }
-            throw error
-        }
-
-        onStatusChange?.("success", "", app?.data?.app_id)
     } catch (error) {
         onStatusChange?.("error", error)
     }

@@ -106,7 +106,7 @@ class AppDB(Base):
         nullable=False,
     )
     app_name = Column(String)
-    app_type = Column(Enum(AppType, name="app_enumtype"), nullable=True)
+    app_type = Column(Enum(AppType, name="app_type_enum"), nullable=True)
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )

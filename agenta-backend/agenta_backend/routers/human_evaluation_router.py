@@ -54,6 +54,7 @@ async def create_human_evaluation(
     Returns:
         _description_
     """
+
     try:
         app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
         if app is None:
@@ -83,12 +84,6 @@ async def create_human_evaluation(
             status_code=400,
             detail="columns in the test set should match the names of the inputs in the variant",
         )
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code, detail=str(e))
 
 
 @router.get("/", response_model=List[HumanEvaluation])
@@ -105,27 +100,23 @@ async def fetch_list_human_evaluations(
         List[HumanEvaluation]: A list of evaluations.
     """
 
-    try:
-        app = await db_manager.fetch_app_by_id(app_id=app_id)
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(app.project_id),
-                permission=Permission.VIEW_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
-
-        return await evaluation_service.fetch_list_human_evaluations(
-            app_id, str(app.project_id)
+    app = await db_manager.fetch_app_by_id(app_id=app_id)
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app.project_id),
+            permission=Permission.VIEW_EVALUATION,
         )
-    except Exception as e:
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            raise HTTPException(
+                detail=error_msg,
+                status_code=403,
+            )
+
+    return await evaluation_service.fetch_list_human_evaluations(
+        app_id, str(app.project_id)
+    )
 
 
 @router.get("/{evaluation_id}/", response_model=HumanEvaluation)
@@ -141,28 +132,25 @@ async def fetch_human_evaluation(
     Returns:
         HumanEvaluation: The fetched evaluation.
     """
-    try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
-        if not human_evaluation:
-            raise HTTPException(status_code=404, detail="Evaluation not found")
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(human_evaluation.project_id),
-                permission=Permission.VIEW_EVALUATION,
+    human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+    if not human_evaluation:
+        raise HTTPException(status_code=404, detail="Evaluation not found")
+
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(human_evaluation.project_id),
+            permission=Permission.VIEW_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            raise HTTPException(
+                detail=error_msg,
+                status_code=403,
             )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
 
-        return await evaluation_service.fetch_human_evaluation(human_evaluation)
-    except Exception as e:
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+    return await evaluation_service.fetch_human_evaluation(human_evaluation)
 
 
 @router.get(
@@ -186,40 +174,33 @@ async def fetch_human_evaluation_scenarios(
         List[EvaluationScenario]: A list of evaluation scenarios.
     """
 
-    try:
-        human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
-        if human_evaluation is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation with id {evaluation_id} not found",
-            )
-
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(human_evaluation.project_id),
-                permission=Permission.VIEW_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
-
-        eval_scenarios = (
-            await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(
-                human_evaluation
-            )
+    human_evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+    if human_evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation with id {evaluation_id} not found",
         )
 
-        return eval_scenarios
-    except Exception as e:
-        import traceback
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(human_evaluation.project_id),
+            permission=Permission.VIEW_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            raise HTTPException(
+                detail=error_msg,
+                status_code=403,
+            )
 
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+    eval_scenarios = (
+        await evaluation_service.fetch_human_evaluation_scenarios_for_evaluation(
+            human_evaluation
+        )
+    )
+
+    return eval_scenarios
 
 
 @router.put("/{evaluation_id}/", operation_id="update_human_evaluation")
@@ -283,41 +264,35 @@ async def update_evaluation_scenario_router(
     Returns:
         None: 204 No Content status code upon successful update.
     """
-    try:
-        evaluation_scenario_db = await db_manager.fetch_human_evaluation_scenario_by_id(
-            evaluation_scenario_id
+
+    evaluation_scenario_db = await db_manager.fetch_human_evaluation_scenario_by_id(
+        evaluation_scenario_id
+    )
+    if evaluation_scenario_db is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
         )
-        if evaluation_scenario_db is None:
+
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluation_scenario_db.project_id),
+            permission=Permission.EDIT_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
+                detail=error_msg,
+                status_code=403,
             )
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluation_scenario_db.project_id),
-                permission=Permission.EDIT_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
-
-        await update_human_evaluation_scenario(
-            evaluation_scenario_db,
-            payload,
-            evaluation_type,
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except UpdateEvaluationScenarioError as e:
-        import traceback
-
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+    await update_human_evaluation_scenario(
+        evaluation_scenario_db,
+        payload,
+        evaluation_type,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/evaluation_scenario/{evaluation_scenario_id}/score/")
@@ -335,36 +310,33 @@ async def get_evaluation_scenario_score_router(
     Returns:
         Dictionary containing the scenario ID and its score.
     """
-    try:
-        evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
-            evaluation_scenario_id
+
+    evaluation_scenario = db_manager.fetch_evaluation_scenario_by_id(
+        evaluation_scenario_id
+    )
+    if evaluation_scenario is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
         )
-        if evaluation_scenario is None:
+
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluation_scenario.project_id),
+            permission=Permission.VIEW_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
+                detail=error_msg,
+                status_code=403,
             )
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluation_scenario.project_id),
-                permission=Permission.VIEW_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
-
-        return {
-            "scenario_id": str(evaluation_scenario.id),
-            "score": evaluation_scenario.score,
-        }
-    except Exception as e:
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+    return {
+        "scenario_id": str(evaluation_scenario.id),
+        "score": evaluation_scenario.score,
+    }
 
 
 @router.put("/evaluation_scenario/{evaluation_scenario_id}/score/")
@@ -381,37 +353,34 @@ async def update_evaluation_scenario_score_router(
     Returns:
         None: 204 No Content status code upon successful update.
     """
-    try:
-        evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
-            evaluation_scenario_id
+
+    evaluation_scenario = await db_manager.fetch_evaluation_scenario_by_id(
+        evaluation_scenario_id
+    )
+    if evaluation_scenario is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
         )
-        if evaluation_scenario is None:
+
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluation_scenario.project_id),
+            permission=Permission.VIEW_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation scenario with id {evaluation_scenario_id} not found",
+                detail=error_msg,
+                status_code=403,
             )
 
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluation_scenario.project_id),
-                permission=Permission.VIEW_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
-
-        await db_manager.update_human_evaluation_scenario(
-            evaluation_scenario_id=str(evaluation_scenario.id),  # type: ignore
-            values_to_update=payload.model_dump(),
-        )
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+    await db_manager.update_human_evaluation_scenario(
+        evaluation_scenario_id=str(evaluation_scenario.id),  # type: ignore
+        values_to_update=payload.model_dump(),
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{evaluation_id}/results/", operation_id="fetch_results")
@@ -428,41 +397,34 @@ async def fetch_results(
         _description_
     """
 
-    try:
-        evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
-        if evaluation is None:
+    evaluation = await db_manager.fetch_human_evaluation_by_id(evaluation_id)
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Evaluation with id {evaluation_id} not found",
+        )
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluation.project_id),
+            permission=Permission.VIEW_EVALUATION,
+        )
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
             raise HTTPException(
-                status_code=404,
-                detail=f"Evaluation with id {evaluation_id} not found",
+                detail=error_msg,
+                status_code=403,
             )
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluation.project_id),
-                permission=Permission.VIEW_EVALUATION,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
 
-        if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
-            results = await results_service.fetch_results_for_evaluation(evaluation)
-            return {"votes_data": results}
+    if evaluation.evaluation_type == EvaluationType.human_a_b_testing:
+        results = await results_service.fetch_results_for_evaluation(evaluation)
+        return {"votes_data": results}
 
-        elif evaluation.evaluation_type == EvaluationType.single_model_test:
-            results = await results_service.fetch_results_for_single_model_test(
-                evaluation_id
-            )
-            return {"results_data": results}
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e)) from e
+    elif evaluation.evaluation_type == EvaluationType.single_model_test:
+        results = await results_service.fetch_results_for_single_model_test(
+            evaluation_id
+        )
+        return {"results_data": results}
 
 
 @router.delete("/", response_model=List[str])
@@ -480,28 +442,21 @@ async def delete_evaluations(
     A list of the deleted comparison tables' IDs.
     """
 
-    try:
-        evaluation = await db_manager.fetch_human_evaluation_by_id(
-            payload.evaluations_ids[0]
+    evaluation = await db_manager.fetch_human_evaluation_by_id(
+        payload.evaluations_ids[0]
+    )
+    if isCloudEE():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(evaluation.project_id),
+            permission=Permission.DELETE_EVALUATION,
         )
-        if isCloudEE():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(evaluation.project_id),
-                permission=Permission.DELETE_EVALUATION,
+        if not has_permission:
+            error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
+            raise HTTPException(
+                detail=error_msg,
+                status_code=403,
             )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your Organization Admin."
-                raise HTTPException(
-                    detail=error_msg,
-                    status_code=403,
-                )
 
-        await evaluation_service.delete_human_evaluations(payload.evaluations_ids)
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        status_code = e.status_code if hasattr(e, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(e))
+    await evaluation_service.delete_human_evaluations(payload.evaluations_ids)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
