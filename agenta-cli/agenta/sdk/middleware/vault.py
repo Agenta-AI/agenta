@@ -7,11 +7,12 @@ from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from agenta.sdk.utils.constants import TRUTHY
-from agenta.client.backend.types.provider_kind import ProviderKind
+from agenta.client.backend.types.standard_provider_kind import StandardProviderKind
+from agenta.client.backend.types.custom_provider_kind import CustomProviderKind
 from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.client.backend.types.secret_dto import SecretDto as SecretDTO
-from agenta.client.backend.types.provider_key_dto import (
-    ProviderKeyDto as ProviderKeyDTO,
+from agenta.client.backend.types.secret_dto import (
+    SecretDto as SecretDTO,
+    Data as ProviderKeyDTO,
 )
 from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 
@@ -19,10 +20,15 @@ import agenta as ag
 
 
 _PROVIDER_KINDS = []
+_CUSTOM_PROVIDER_KINDS = []
 
-for arg in ProviderKind.__args__:  # type: ignore
+for arg in StandardProviderKind.__args__:  # type: ignore
     if hasattr(arg, "__args__"):
         _PROVIDER_KINDS.extend(arg.__args__)
+
+for arg in CustomProviderKind.__args__:  # type: ignore
+    if hasattr(arg, "__args__"):
+        _CUSTOM_PROVIDER_KINDS.extend(arg.__args__)
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
@@ -35,17 +41,55 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
 
-    def _transform_secrets_response_to_secret_dto(
-        self, secrets_list: List[Dict[str, Any]]
+    def _transform_vault_secrets(
+        self, secrets: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        secrets_dto_dict = [
-            {
-                "kind": secret.get("secret", {}).get("kind"),
-                "data": secret.get("secret", {}).get("data", {}),
-            }
-            for secret in secrets_list
-        ]
-        return secrets_dto_dict
+        transformed = []
+
+        for secret in secrets:
+            secret_kind = secret["secret"].get("kind", None)
+            data = secret["secret"].get("data", {})
+
+            if data["kind"] in _CUSTOM_PROVIDER_KINDS:
+                transformed.append(
+                    {
+                        "kind": secret_kind,
+                        "data": {
+                            "provider": {
+                                "slug": data.get("kind", None),
+                                "extras": (
+                                    {
+                                        "api_key": data["provider"]["key"],
+                                        "api_base": data["provider"]["url"],
+                                        "api_version": data["provider"]["version"],
+                                    }
+                                    if (
+                                        "url" in data["provider"]
+                                        and "version" in data["provider"]
+                                        and "key" in data["provider"]
+                                    )
+                                    else (
+                                        data["provider"]["credentials"]
+                                        if "credentials" in data["provider"]
+                                        else {}
+                                    )
+                                ),
+                            },
+                            "models": [
+                                model["slug"] for model in data.get("models", [])
+                            ],
+                        },
+                    }
+                )
+            else:
+                transformed.append(
+                    {
+                        "kind": secret_kind,
+                        "data": data,
+                    }
+                )
+
+        return transformed
 
     async def dispatch(
         self,
@@ -120,26 +164,11 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 else:
                     secrets = response.json()
-                    vault_secrets = self._transform_secrets_response_to_secret_dto(
-                        secrets
-                    )
+                    vault_secrets = self._transform_vault_secrets(secrets)
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
-        merged_secrets = {}
-
-        if local_secrets:
-            for secret in local_secrets:
-                provider = secret["data"]["provider"]
-                merged_secrets[provider] = secret
-
-        if vault_secrets:
-            for secret in vault_secrets:
-                provider = secret["data"]["provider"]
-                merged_secrets[provider] = secret
-
-        secrets = list(merged_secrets.values())
-
+        secrets = local_secrets + vault_secrets
         _cache.put(_hash, {"secrets": secrets})
 
         return secrets
