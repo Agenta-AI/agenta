@@ -43,19 +43,19 @@ async def generate(
                 detail=f"Invalid inputs. Expected: {sorted(required_keys)}, got: {sorted(provided_keys)}",
             )
 
-    api_key = ag.SecretsManager.get_api_key_for_model(config.prompt.llm_config.model)
+    llm_request_kwargs = ag.SecretsManager.build_llm_request(
+        config.prompt.llm_config.model
+    )
 
-    if not api_key:
+    if not llm_request_kwargs:
         raise HTTPException(
             status_code=424,
             detail=f"API key not found for model {config.prompt.llm_config.model}",
         )
 
     response = await mockllm.acompletion(
-        **{
-            "api_key": api_key,
-            **config.prompt.format(**inputs).to_openai_kwargs(),
-        }
+        **llm_request_kwargs,
+        **config.prompt.format(**inputs).to_openai_kwargs(),
     )
 
     message = response.choices[0].message
