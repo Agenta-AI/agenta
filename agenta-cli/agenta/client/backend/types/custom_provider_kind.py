@@ -3,8 +3,6 @@
 import typing
 
 CustomProviderKind = typing.Union[
-    typing.Literal[
-        "custom", "azure", "bedrock", "sagemaker", "sagemaker_chat", "vertex"
-    ],
+    typing.Literal["custom", "azure", "bedrock", "sagemaker", "vertex"],
     typing.Any,
 ]
