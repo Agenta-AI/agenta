@@ -1,6 +1,6 @@
 from os import getenv
 from json import dumps
-from typing import Callable, Dict, Optional, List, Any, get_args
+from typing import Callable, Dict, Optional, List
 
 import httpx
 from fastapi import FastAPI, Request
@@ -8,7 +8,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.client.backend.types.standard_provider_kind import StandardProviderKind
-from agenta.client.backend.types.custom_provider_kind import CustomProviderKind
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.client.backend.types.secret_dto import (
     SecretDto as SecretDTO,
@@ -20,15 +19,10 @@ import agenta as ag
 
 
 _PROVIDER_KINDS = []
-_CUSTOM_PROVIDER_KINDS = []
 
 for arg in StandardProviderKind.__args__:  # type: ignore
     if hasattr(arg, "__args__"):
         _PROVIDER_KINDS.extend(arg.__args__)
-
-for arg in CustomProviderKind.__args__:  # type: ignore
-    if hasattr(arg, "__args__"):
-        _CUSTOM_PROVIDER_KINDS.extend(arg.__args__)
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
@@ -40,56 +34,6 @@ class VaultMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
-
-    def _transform_vault_secrets(
-        self, secrets: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        transformed = []
-
-        for secret in secrets:
-            secret_kind = secret["secret"].get("kind", None)
-            data = secret["secret"].get("data", {})
-
-            if data["kind"] in _CUSTOM_PROVIDER_KINDS:
-                transformed.append(
-                    {
-                        "kind": secret_kind,
-                        "data": {
-                            "provider": {
-                                "slug": data.get("kind", None),
-                                "extras": (
-                                    {
-                                        "api_key": data["provider"]["key"],
-                                        "api_base": data["provider"]["url"],
-                                        "api_version": data["provider"]["version"],
-                                    }
-                                    if (
-                                        "url" in data["provider"]
-                                        and "version" in data["provider"]
-                                        and "key" in data["provider"]
-                                    )
-                                    else (
-                                        data["provider"]["credentials"]
-                                        if "credentials" in data["provider"]
-                                        else {}
-                                    )
-                                ),
-                            },
-                            "models": [
-                                model["slug"] for model in data.get("models", [])
-                            ],
-                        },
-                    }
-                )
-            else:
-                transformed.append(
-                    {
-                        "kind": secret_kind,
-                        "data": data,
-                    }
-                )
-
-        return transformed
 
     async def dispatch(
         self,
@@ -139,7 +83,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     continue
 
                 secret = SecretDTO(
-                    # kind=...  # defaults to 'provider_kind'
+                    kind="provider_kind",
                     data=ProviderKeyDTO(
                         provider=provider,
                         key=key,
@@ -163,8 +107,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     vault_secrets = []
 
                 else:
-                    secrets = response.json()
-                    vault_secrets = self._transform_vault_secrets(secrets)
+                    vault_secrets = response.json()
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
