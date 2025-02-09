@@ -70,7 +70,7 @@ class SecretsManager:
                                 k in data.get("provider", {})
                                 for k in ["key", "url", "version"]
                             )
-                            else data.get("provider", {}).get("credentials", {})
+                            else data.get("provider", {}).get("extras", {})
                         ),
                     },
                     "models": [
