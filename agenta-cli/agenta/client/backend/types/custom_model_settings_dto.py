@@ -6,7 +6,7 @@ from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
 
-class CustomerModelSettingsDto(UniversalBaseModel):
+class CustomModelSettingsDto(UniversalBaseModel):
     slug: str
     extras: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
 

@@ -4,7 +4,7 @@ from ..core.pydantic_utilities import UniversalBaseModel
 from .custom_provider_kind import CustomProviderKind
 from .custom_provider_settings_dto import CustomProviderSettingsDto
 import typing
-from .customer_model_settings_dto import CustomerModelSettingsDto
+from .custom_model_settings_dto import CustomModelSettingsDto
 from ..core.pydantic_utilities import IS_PYDANTIC_V2
 import pydantic
 
@@ -12,7 +12,7 @@ import pydantic
 class CustomProviderDto(UniversalBaseModel):
     kind: CustomProviderKind
     provider: CustomProviderSettingsDto
-    models: typing.Optional[typing.List[CustomerModelSettingsDto]] = None
+    models: typing.Optional[typing.List[CustomModelSettingsDto]] = None
 
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(

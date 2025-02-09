@@ -26,7 +26,7 @@ from .create_app_output import CreateAppOutput
 from .custom_provider_dto import CustomProviderDto
 from .custom_provider_kind import CustomProviderKind
 from .custom_provider_settings_dto import CustomProviderSettingsDto
-from .customer_model_settings_dto import CustomerModelSettingsDto
+from .custom_model_settings_dto import CustomModelSettingsDto
 from .data import Data
 from .delete_evaluation import DeleteEvaluation
 from .docker_env_vars import DockerEnvVars
@@ -155,7 +155,7 @@ __all__ = [
     "CustomProviderDto",
     "CustomProviderKind",
     "CustomProviderSettingsDto",
-    "CustomerModelSettingsDto",
+    "CustomModelSettingsDto",
     "Data",
     "DeleteEvaluation",
     "DockerEnvVars",
