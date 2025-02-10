@@ -111,19 +111,25 @@ class VaultMiddleware(BaseHTTPMiddleware):
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
-        merged_secrets = {}
+        secrets = local_secrets + vault_secrets
+
+        standard_secrets = {}
+        custom_secrets = []
 
         if local_secrets:
             for secret in local_secrets:
-                provider = secret["data"]["kind"]
-                merged_secrets[provider] = secret
+                standard_secrets[secret["data"]["kind"]] = secret
 
         if vault_secrets:
             for secret in vault_secrets:
-                provider = secret["data"]["kind"]
-                merged_secrets[provider] = secret
+                if secret["kind"] == "provider_key":
+                    standard_secrets[secret["data"]["kind"]] = secret
+                elif secret["kind"] == "custom_provider":
+                    custom_secrets.append(secret)
 
-        secrets = list(merged_secrets.values())
+        standard_secrets = list(standard_secrets.values())
+
+        secrets = standard_secrets + custom_secrets
 
         _cache.put(_hash, {"secrets": secrets})
 
