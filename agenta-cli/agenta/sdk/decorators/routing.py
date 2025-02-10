@@ -49,7 +49,7 @@ app = FastAPI(
 
 app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
 
-log.error("Agenta - Runtime Prefix:" + AGENTA_RUNTIME_PREFIX)
+log.info("Agenta - Runtime Prefix:" + (AGENTA_RUNTIME_PREFIX or None))
 
 
 class PathValidator(BaseModel):
@@ -644,8 +644,6 @@ class entrypoint:
 
             # ✅ Add Agenta SDK version info
             openapi_schema["agenta_sdk"] = {"version": get_current_version()}
-
-            print(openapi_schema)
 
         return openapi_schema
 
