@@ -190,6 +190,22 @@ services:
             postgres:
                 condition: service_healthy
 
+    completion:
+        image: ghcr.io/agenta-ai/agenta-completion
+        extends:
+            file: ./services/completion/docker-compose.gh.yml
+            service: completion
+        environment:
+            - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
+    
+    chat:
+        image: ghcr.io/agenta-ai/agenta-chat
+        extends:
+            file: ./services/chat/docker-compose.gh.yml
+            service: chat
+        environment:
+            - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
+
 networks:
     agenta-network:
         name: agenta-network
