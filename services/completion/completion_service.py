@@ -43,18 +43,18 @@ async def generate(
                 detail=f"Invalid inputs. Expected: {sorted(required_keys)}, got: {sorted(provided_keys)}",
             )
 
-    provider_model_settings = ag.SecretsManager.get_provider_model_settings(
+    provider_settings = ag.SecretsManager.get_provider_settings(
         config.prompt.llm_config.model
     )
 
-    if not provider_model_settings:
+    if not provider_settings:
         raise HTTPException(
             status_code=500,
-            detail=f"Provider/Model settings not found for model {config.prompt.llm_config.model}",
+            detail=f"Provider settings not found for model {config.prompt.llm_config.model}",
         )
 
     response = await mockllm.acompletion(
-        **provider_model_settings,
+        **provider_settings,
         **config.prompt.format(**inputs).to_openai_kwargs(),
     )
 

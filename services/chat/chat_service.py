@@ -52,18 +52,18 @@ async def generate(
     if messages is not None:
         openai_kwargs["messages"].extend(messages)
 
-    provider_model_settings = ag.SecretsManager.get_provider_model_settings(
+    provider_settings = ag.SecretsManager.get_provider_settings(
         config.prompt.llm_config.model
     )
 
-    if not provider_model_settings:
+    if not provider_settings:
         raise HTTPException(
             status_code=500,
-            detail=f"Provider/Model settings not found for model {config.prompt.llm_config.model}",
+            detail=f"Provider settings not found for model {config.prompt.llm_config.model}",
         )
 
     response = await mockllm.acompletion(
-        **provider_model_settings,
+        **provider_settings,
         **openai_kwargs,
     )
 
