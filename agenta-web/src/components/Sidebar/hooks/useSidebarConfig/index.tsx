@@ -98,7 +98,7 @@ export const useSidebarConfig = () => {
             link: "/settings",
             icon: <Gear size={16} />,
             isBottom: true,
-            isHidden: !isOss,
+            isHidden: true,
         },
         {
             key: "help-docs-link",
