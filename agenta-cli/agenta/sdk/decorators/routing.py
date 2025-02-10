@@ -49,8 +49,6 @@ app = FastAPI(
 
 app.include_router(router, prefix=AGENTA_RUNTIME_PREFIX)
 
-log.info("Agenta - Runtime Prefix:" + (AGENTA_RUNTIME_PREFIX or None))
-
 
 class PathValidator(BaseModel):
     url: HttpUrl
