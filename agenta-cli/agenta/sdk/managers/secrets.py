@@ -2,7 +2,7 @@ import re
 from typing import Optional, Dict, Any, List
 
 from agenta.sdk.context.routing import routing_context
-from agenta.sdk.assets import model_to_provider_mapping
+from agenta.sdk.assets import model_to_provider_mapping as _standard_providers
 
 
 class SecretsManager:
@@ -24,7 +24,7 @@ class SecretsManager:
         if not secrets:
             return None
 
-        provider = model_to_provider_mapping.get(model)
+        provider = _standard_providers.get(model)
 
         if not provider:
             return None
@@ -38,7 +38,7 @@ class SecretsManager:
         return None
 
     @staticmethod
-    def _transform_standard_secrets(
+    def _parse_standard_secrets(
         secret: Dict[str, Any], standard_secrets: List[Dict[str, Any]]
     ):
         standard_secrets.append(
@@ -49,17 +49,17 @@ class SecretsManager:
         )
 
     @staticmethod
-    def _transform_custom_provider_secrets(
+    def _parse_custom_secrets(
         secret: Dict[str, Any],
-        custom_provider_secrets: List[Dict[str, Any]],
+        custom_secrets: List[Dict[str, Any]],
     ):
         data = secret.get("secret", {}).get("data", {})
-        custom_provider_secrets.append(
+        custom_secrets.append(
             {
                 "kind": secret.get("secret", {}).get("kind", ""),
                 "data": {
                     "provider": {
-                        "slug": data.get("kind", ""),
+                        "kind": data.get("kind", ""),
                         "extras": (
                             {
                                 "api_key": data["provider"]["key"],
@@ -81,29 +81,41 @@ class SecretsManager:
         )
 
     @staticmethod
-    def _transform_vault_secrets(secrets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _parse_secrets(secrets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         standard_secrets = []
-        custom_provider_secrets = []
+        custom_secrets = []
 
         for secret in secrets:
             data = secret.get("secret", {}).get("data", {})
 
             if data.get("kind") == "provider_key":
-                SecretsManager._transform_standard_secrets(
+                SecretsManager._parse_standard_secrets(
                     secret=secret,
                     standard_secrets=standard_secrets,
                 )
             elif data.get("kind") == "custom_provider":
-                SecretsManager._transform_custom_provider_secrets(
+                SecretsManager._parse_custom_secrets(
                     secret=secret,
-                    custom_provider_secrets=custom_provider_secrets,  # Fix argument name
+                    custom_secrets=custom_secrets,
                 )
 
-        vault_secrets = standard_secrets + custom_provider_secrets
-        return vault_secrets
+        secrets = standard_secrets + custom_secrets
+
+        return secrets
 
     @staticmethod
-    def get_provider_model_settings(model: str) -> Dict:
+    def _custom_providers_get(*, model: str, secrets: list[dict]):
+        for secret in secrets:
+            models = [
+                model.get("slug", "")
+                for model in secret.get("data", {}).get("models", [])
+            ]
+            if model in models:
+                return secret.get("data", {}).get("kind", None)
+        return None
+
+    @staticmethod
+    def get_provider_settings(model: str) -> Dict:
         """
         Builds the LLM request with appropriate kwargs based on the custom provider/model
 
@@ -119,32 +131,25 @@ class SecretsManager:
         if not secrets:
             return None
 
-        vault_secrets = SecretsManager._transform_vault_secrets(secrets=secrets)
+        secrets = SecretsManager._parse_secrets(secrets=secrets)
 
         # STEP 2: check model exists in supported standard models
-        provider_to_use = model_to_provider_mapping.get(model)
-        if not provider_to_use:
+        provider = _standard_providers.get(model)
+        if not provider:
             # i). check and get provider kind if model exists in custom provider models
-            def get_provider_name(*, model: str, secrets: list[dict]):
-                for secret in secrets:
-                    models = [
-                        model.get("slug", "")
-                        for model in secret.get("data", {}).get("models", [])
-                    ]
-                    if model in models:
-                        return secret.get("data", {}).get("kind", None)
-                return None
+            provider = SecretsManager._custom_providers_get(
+                model=model,
+                secrets=secrets,
+            )
 
-            provider_to_use = get_provider_name(model=model, secrets=vault_secrets)
-
-        # STEP 2b: return None in the case provider_to_use is None
-        if not provider_to_use:
+        # STEP 2b: return None in the case provider is None
+        if not provider:
             return None
 
-        # STEP 3: initialize provider model settings and simplify provider name
-        provider_model_settings = {}
+        # STEP 3: initialize provider settings and simplify provider name
+        provider_settings = {}
         provider_name = re.sub(
-            r"[\s_-]+", "", provider_to_use.lower()
+            r"[\s_-]+", "", provider.lower()
         )  # normalizing other special characters too (azure-openai)
 
         # STEP 4: get credentials for model
@@ -155,21 +160,22 @@ class SecretsManager:
             # i). Extract API key if present
             # (for standard models -- openai/anthropic/gemini, etc)
             if secret.get("kind") == "provider_key":
-                provider_slug = secret_data.get("kind", "")
+                provider_kind = secret_data.get("kind", "")
 
-                if provider_slug == provider_name:
+                if provider_kind == provider_name:
                     if "key" in provider_info:
-                        provider_model_settings["api_key"] = provider_info["key"]
+                        provider_settings["api_key"] = provider_info["key"]
                 break
 
             # ii). Extract Credentials if present
             # (for custom providers -- aws bedrock/sagemaker, vertexai, etc)
             elif secret.get("kind") == "custom_provider":
-                provider_slug = provider_info.get("slug", "").lower().replace(" ", "")
+                provider_kind = provider_info.get("kind", "").lower().replace(" ", "")
                 provider_extras = provider_info.get("extras", {})
-                if provider_slug == provider_name:
+
+                if provider_kind == provider_name:
                     if provider_extras:
-                        provider_model_settings.update(provider_extras)
+                        provider_settings.update(provider_extras)
                 break
 
-        return provider_model_settings
+        return provider_settings
