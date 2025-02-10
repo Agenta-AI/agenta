@@ -9,6 +9,8 @@ on:
 env:
   BACKEND_IMAGE_NAME: agenta-backend
   WEB_IMAGE_NAME: agenta-web
+  CHAT_IMAGE_NAME: agenta-chat
+  COMPLETION_IMAGE_NAME: agenta-completion
   IMAGE_OWNER_NAME: agenta-ai
   REPOSITORY_USERNAME: ${{ github.actor }}
 
@@ -48,4 +50,18 @@ jobs:
           cd agenta-web
           docker build --no-cache -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.WEB_IMAGE_NAME }} -f prod.gh.Dockerfile .
           docker push ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.WEB_IMAGE_NAME }}
+
+      - name: Build, tag and push Chat image to Github Container Registry
+        id: build-chat-image
+        run: |
+          cd services/chat
+          docker build --no-cache -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.CHAT_IMAGE_NAME }} -f Dockerfile.gh .
+          docker push ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.CHAT_IMAGE_NAME }}
+
+      - name: Build, tag and push Completion image to Github Container Registry
+        id: build-completion-image
+        run: |
+          cd services/completion
+          docker build --no-cache -t ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.COMPLETION_IMAGE_NAME }} -f Dockerfile.gh .
+          docker push ghcr.io/${{ env.IMAGE_OWNER_NAME }}/${{ env.COMPLETION_IMAGE_NAME }}
 
