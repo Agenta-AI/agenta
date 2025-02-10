@@ -19,10 +19,10 @@ mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
 echo "OPENAI_API_KEY=sk-xxx" > .env
 docker compose -f docker-compose.gh.yml --env-file .env up -d --pull always
-# OR 
-# docker compose -f docker-compose.gh.yml pull
-# docker compose -f docker-compose.gh.yml --env-file .env up -d
 ```
+:::info
+Include in the `.env` file all the LLM provider keys that you would like the playground to have access to.
+:::
 
 Once complete, access Agenta at `http://localhost`.
 
@@ -53,9 +53,6 @@ echo "OPENAI_API_KEY=sk-xxx" > .env
 
 # Update and restart containers
 docker compose -f docker-compose.gh.yml --env-file .env up -d --pull always
-# OR 
-# docker compose -f docker-compose.gh.yml pull
-# docker compose -f docker-compose.gh.yml --env-file .env up -d
 ```
 
 The system will automatically handle database migrations. If you encounter migration issues, consult the [migration guide](/self-host/migration/applying-schema-migration).
