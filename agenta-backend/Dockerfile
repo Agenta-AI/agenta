@@ -3,13 +3,13 @@ FROM python:3.9-slim-buster
 
 WORKDIR /app
 
-# Install git and clone the necessary repository
-RUN apt-get update -y \
-    && apt-get install -y git
-
 # Ensure pip and poetry are up to date
 RUN pip install --upgrade pip \
     && pip install poetry
+
+# Install git and clone the necessary repository
+RUN apt-get update -y \
+    && apt-get install -y git
 
 # Copy only requirements and alembic configuration file
 # to cache them in docker layer
