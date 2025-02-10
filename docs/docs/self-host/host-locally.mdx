@@ -17,8 +17,12 @@ To deploy Agenta on port 80, run these commands:
 ```bash
 mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
-docker compose -f docker-compose.gh.yml up -d
+echo "OPENAI_API_KEY=sk-xxx" > .env
+docker compose -f docker-compose.gh.yml --env-file .env up -d --pull always
 ```
+:::info
+Include in the `.env` file all the LLM provider keys that you would like the playground to have access to.
+:::
 
 Once complete, access Agenta at `http://localhost`.
 
@@ -28,7 +32,10 @@ To run Agenta on a different port, you'll need to re-build the frontend image. H
 
 1. Build and run with your chosen port:
 ```bash
-AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml build --no-cache agenta-web && AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml up -d
+echo "OPENAI_API_KEY=sk-xxx" > .env
+docker compose -f docker-compose.gh.yml pull
+AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml build --no-cache agenta-web
+AGENTA_PORT=8081 docker compose -f docker-compose.gh.yml --env-file .env up -d
 ```
 
 Access Agenta at `http://localhost:8081` (or your chosen port).
@@ -41,8 +48,11 @@ To update your local installation:
 # Download the latest compose file
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
 
+# Updating your LLM provider keys
+echo "OPENAI_API_KEY=sk-xxx" > .env
+
 # Update and restart containers
-docker compose -f docker-compose.gh.yml up -d --pull always
+docker compose -f docker-compose.gh.yml --env-file .env up -d --pull always
 ```
 
 The system will automatically handle database migrations. If you encounter migration issues, consult the [migration guide](/self-host/migration/applying-schema-migration).

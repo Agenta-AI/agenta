@@ -120,7 +120,8 @@ The easiest way to get started is through Agenta Cloud. It is free to signup, an
 ```bash
 mkdir agenta && cd agenta
 curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
-docker compose -f docker-compose.gh.yml up -d
+echo "OPENAI_API_KEY=sk-xxx" > .env
+docker compose -f docker-compose.gh.yml --env-file .env up -d --pull always
 ```
 
 #### Deployment Options
