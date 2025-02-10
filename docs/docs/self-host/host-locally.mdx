@@ -30,7 +30,13 @@ Once complete, access Agenta at `http://localhost`.
 
 To run Agenta on a different port, you'll need to re-build the frontend image. Here's how:
 
-1. Build and run with your chosen port:
+1. Clone the repository
+``bash
+git clone https://github.com/Agenta-AI/agenta
+cd agenta
+```
+
+2. Build and run with your chosen port:
 ```bash
 echo "OPENAI_API_KEY=sk-xxx" > .env
 docker compose -f docker-compose.gh.yml pull
