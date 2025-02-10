@@ -21,7 +21,7 @@ import {PlaygroundStateData} from "../types"
  * @returns Array of variable names found in the string
  */
 export function extractVariables(input: string): string[] {
-    const variablePattern = /\{\s*(\w+)\s*\}/g
+    const variablePattern = /\{\{\s*(\w+)\s*\}\}/g
     const variables: string[] = []
 
     let match: RegExpExecArray | null
