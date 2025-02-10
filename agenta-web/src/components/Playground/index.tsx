@@ -3,9 +3,10 @@ import {useMemo} from "react"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {Spin, Typography} from "antd"
+import useSWR from "swr"
 
+import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {ListAppsItem} from "@/lib/Types"
-import {useApps} from "@/contexts/app.context"
 
 const NewPlayground = dynamic(() => import("../NewPlayground/Playground"), {ssr: false})
 const OldPlayground = dynamic(() => import("../OldPlayground/Playground"), {ssr: false})
@@ -13,7 +14,7 @@ const OldPlayground = dynamic(() => import("../OldPlayground/Playground"), {ssr:
 const PlaygroundRouter = () => {
     const router = useRouter()
     const appId = router.query.app_id
-    const {isLoading, data} = useApps()
+    const {isLoading, data} = useSWR(`${getAgentaApiUrl()}/api/apps`)
 
     const app = useMemo(() => {
         return (data || [])?.find((item: ListAppsItem) => item.app_id === appId)
