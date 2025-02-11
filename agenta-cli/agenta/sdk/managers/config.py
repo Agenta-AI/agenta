@@ -51,10 +51,10 @@ class ConfigManager:
 
         if not parameters:
             return None
-
+        if "ag_config" in parameters:
+            parameters = parameters["ag_config"]
         if not schema:
             return parameters
-
         return schema(**parameters)
 
     @staticmethod
@@ -97,11 +97,14 @@ class ConfigManager:
             environment_slug=environment_slug,
             environment_version=environment_version,
         )
-
+        if "ag_config" in config.params:
+            params = config.params["ag_config"]
+        else:
+            params = config.params
         if schema:
-            return schema(**config.params)
+            return schema(**params)
 
-        return config.params
+        return params
 
     @staticmethod
     async def aget_from_registry(
@@ -143,11 +146,15 @@ class ConfigManager:
             environment_slug=environment_slug,
             environment_version=environment_version,
         )
+        if "ag_config" in config.params:
+            params = config.params["ag_config"]
+        else:
+            params = config.params
 
         if schema:
-            return schema(**config.params)
+            return schema(**params)
 
-        return config.params
+        return params
 
     @staticmethod
     def get_from_yaml(
