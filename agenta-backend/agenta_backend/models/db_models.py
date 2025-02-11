@@ -21,6 +21,7 @@ from agenta_backend.models.shared_models import TemplateType, AppType
 CASCADE_ALL_DELETE = "all, delete-orphan"
 
 
+# KEEP in oss/
 class UserDB(Base):
     __tablename__ = "users"
 
@@ -42,6 +43,7 @@ class UserDB(Base):
     )
 
 
+# KEEP in oss/
 class ProjectDB(Base):
     __tablename__ = "projects"
 
@@ -69,6 +71,7 @@ class ProjectDB(Base):
     testset = relationship("TestSetDB", cascade=CASCADE_ALL_DELETE, backref="project")
 
 
+# KEEP in oss/ or KILL
 class ImageDB(Base):
     __tablename__ = "docker_images"
 
@@ -95,6 +98,7 @@ class ImageDB(Base):
     )
 
 
+# KEEP in oss/
 class AppDB(Base):
     __tablename__ = "app_db"
 
@@ -131,6 +135,7 @@ class AppDB(Base):
     )
 
 
+# KEEP in oss/
 class DeploymentDB(Base):
     __tablename__ = "deployments"
 
@@ -160,6 +165,7 @@ class DeploymentDB(Base):
     app = relationship("AppDB", back_populates="deployment")
 
 
+# KEEP in oss/
 class VariantBaseDB(Base):
     __tablename__ = "bases"
 
@@ -194,6 +200,7 @@ class VariantBaseDB(Base):
     project = relationship("ProjectDB")
 
 
+# KEEP in oss/
 class AppVariantDB(Base):
     __tablename__ = "app_variants"
 
@@ -241,6 +248,7 @@ class AppVariantDB(Base):
     )
 
 
+# KEEP in oss/
 class AppVariantRevisionsDB(Base):
     __tablename__ = "app_variant_revisions"
 
@@ -279,6 +287,7 @@ class AppVariantRevisionsDB(Base):
         return {"config_name": self.config_name, "parameters": self.config_parameters}
 
 
+# KEEP in oss/
 class AppEnvironmentDB(Base):
     __tablename__ = "environments"
 
@@ -316,6 +325,7 @@ class AppEnvironmentDB(Base):
     deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
 
 
+# KEEP in oss/
 class AppEnvironmentRevisionDB(Base):
     __tablename__ = "environments_revisions"
 
@@ -348,6 +358,7 @@ class AppEnvironmentRevisionDB(Base):
     modified_by = relationship("UserDB")
 
 
+# KEEP in oss/ or KILL
 class TemplateDB(Base):
     __tablename__ = "templates"
 
@@ -372,6 +383,7 @@ class TemplateDB(Base):
     )
 
 
+# KEEP in oss/
 class TestSetDB(Base):
     __tablename__ = "testsets"
 
@@ -395,6 +407,7 @@ class TestSetDB(Base):
     )
 
 
+# KEEP in oss/
 class EvaluatorConfigDB(Base):
     __tablename__ = "evaluators_configs"
 
@@ -420,6 +433,7 @@ class EvaluatorConfigDB(Base):
     )
 
 
+# MOVE TO ee/
 class HumanEvaluationVariantDB(Base):
     __tablename__ = "human_evaluation_variants"
 
@@ -446,6 +460,7 @@ class HumanEvaluationVariantDB(Base):
     )
 
 
+# MOVE TO ee/
 class HumanEvaluationDB(Base):
     __tablename__ = "human_evaluations"
 
@@ -483,6 +498,7 @@ class HumanEvaluationDB(Base):
     )
 
 
+# MOVE TO ee/
 class HumanEvaluationScenarioDB(Base):
     __tablename__ = "human_evaluations_scenarios"
 
@@ -518,6 +534,7 @@ class HumanEvaluationScenarioDB(Base):
     note = Column(String)
 
 
+# MOVE TO ee/
 class EvaluationAggregatedResultDB(Base):
     __tablename__ = "evaluation_aggregated_results"
 
@@ -539,6 +556,7 @@ class EvaluationAggregatedResultDB(Base):
     evaluator_config = relationship("EvaluatorConfigDB", backref="evaluator_config")
 
 
+# MOVE TO ee/
 class EvaluationScenarioResultDB(Base):
     __tablename__ = "evaluation_scenario_results"
 
@@ -558,6 +576,7 @@ class EvaluationScenarioResultDB(Base):
     result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
 
 
+# MOVE TO ee/
 class EvaluationDB(Base):
     __tablename__ = "evaluations"
 
@@ -611,6 +630,7 @@ class EvaluationDB(Base):
     )
 
 
+# MOVE TO ee/
 class EvaluationEvaluatorConfigDB(Base):
     __tablename__ = "evaluation_evaluator_configs"
 
@@ -633,6 +653,7 @@ class EvaluationEvaluatorConfigDB(Base):
     )
 
 
+# MOVE TO ee/
 class EvaluationScenarioDB(Base):
     __tablename__ = "evaluation_scenarios"
 
@@ -681,6 +702,7 @@ class EvaluationScenarioDB(Base):
     )
 
 
+# KEEP in oss/ or KILL
 class IDsMappingDB(Base):
     __tablename__ = "ids_mapping"
 
