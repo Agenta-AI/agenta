@@ -1,4 +1,6 @@
-import {dynamicComponent} from "@/lib/helpers/dynamic"
+import {useCallback, useEffect, useMemo, useState} from "react"
+import dynamic from "next/dynamic"
+
 import EmptyComponent from "@/components/EmptyComponent"
 import GenericDrawer from "@/components/GenericDrawer"
 import {nodeTypeStyles} from "./components/AvatarTreeContent"
@@ -34,7 +36,7 @@ import {
 import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
-import React, {useCallback, useEffect, useMemo, useState} from "react"
+
 import {createUseStyles} from "react-jss"
 import {Database, Export} from "@phosphor-icons/react"
 import {getAppValues} from "@/contexts/app.context"
@@ -42,10 +44,9 @@ import {convertToCsv, downloadCsv} from "@/lib/helpers/fileManipulations"
 import useLazyEffect from "@/hooks/useLazyEffect"
 import {getStringOrJson} from "@/lib/helpers/utils"
 import ObservabilityContextProvider, {useObservabilityData} from "@/contexts/observability.context"
-import {TestsetTraceData, TestsetDrawerProps} from "./drawer/TestsetDrawer/assets/types"
-const TestsetDrawer = dynamicComponent<TestsetDrawerProps>(
-    "pages/observability/drawer/TestsetDrawer/TestsetDrawer",
-)
+import {TestsetTraceData} from "./drawer/TestsetDrawer/assets/types"
+
+const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
