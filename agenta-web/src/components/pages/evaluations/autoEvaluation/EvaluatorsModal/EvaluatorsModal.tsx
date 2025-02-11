@@ -53,7 +53,6 @@ const EvaluatorsModal = ({
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
-    // const [variants, setVariants] = useState<Variant[] | null>(null)
     const [testsets, setTestsets] = useState<testset[] | null>(null)
     const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
     const [selectedTestcase, setSelectedTestcase] = useState<{
