@@ -198,18 +198,76 @@ services:
                 condition: service_healthy
 
     completion:
-        extends:
-            file: ./services/completion/docker-compose.yml
-            service: completion
+        build: ./services/completion
+        volumes:
+            - ./services/completion:/app
+            - ./agenta-cli:/agenta-cli
         environment:
+            #
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+            - COHERE_API_KEY=${COHERE_API_KEY}
+            - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+            - ANYSCALE_API_KEY=${ANYSCALE_API_KEY}
+            - PERPLEXITYAI_API_KEY=${PERPLEXITYAI_API_KEY}
+            - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
+            - TOGETHERAI_API_KEY=${TOGETHERAI_API_KEY}
+            - ALEPHALPHA_API_KEY=${ALEPHALPHA_API_KEY}
+            - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+            - GROQ_API_KEY=${GROQ_API_KEY}
+            - GEMINI_API_KEY=${GEMINI_API_KEY}
+            #
             - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
+            - AGENTA_RUNTIME_PREFIX=${AGENTA_RUNTIME_PREFIX}
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        labels:
+            - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
+            - "traefik.http.routers.completion.entrypoints=web"
+            - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
+            - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.completion.middlewares=completion-strip"
+            - "traefik.http.services.completion.loadbalancer.server.port=80"
+            - "traefik.http.routers.completion.service=completion"
+        networks:
+            - agenta-network
+        restart: always
     
     chat:
-        extends:
-            file: ./services/chat/docker-compose.yml
-            service: chat
+        build: ./services/chat
+        volumes:
+            - ./services/chat:/app
+            - ./agenta-cli:/agenta-cli
         environment:
+            #
+            - OPENAI_API_KEY=${OPENAI_API_KEY}
+            - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+            - COHERE_API_KEY=${COHERE_API_KEY}
+            - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+            - ANYSCALE_API_KEY=${ANYSCALE_API_KEY}
+            - PERPLEXITYAI_API_KEY=${PERPLEXITYAI_API_KEY}
+            - DEEPINFRA_API_KEY=${DEEPINFRA_API_KEY}
+            - TOGETHERAI_API_KEY=${TOGETHERAI_API_KEY}
+            - ALEPHALPHA_API_KEY=${ALEPHALPHA_API_KEY}
+            - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+            - GROQ_API_KEY=${GROQ_API_KEY}
+            - GEMINI_API_KEY=${GEMINI_API_KEY}
+            #
             - AGENTA_HOST=${DOMAIN_NAME:-http://host.docker.internal}:${AGENTA_PORT:-80}
+            - AGENTA_RUNTIME_PREFIX=${AGENTA_RUNTIME_PREFIX}
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        labels:
+            - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
+            - "traefik.http.routers.chat.entrypoints=web"
+            - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/services/chat"
+            - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.chat.middlewares=chat-strip"
+            - "traefik.http.services.chat.loadbalancer.server.port=80"
+            - "traefik.http.routers.chat.service=chat"
+        networks:
+            - agenta-network
+        restart: always
             
 networks:
     agenta-network:
