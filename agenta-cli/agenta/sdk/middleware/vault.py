@@ -1,17 +1,17 @@
 from os import getenv
 from json import dumps
-from typing import Callable, Dict, Optional, List, Any, get_args
+from typing import Callable, Dict, Optional, List
 
 import httpx
 from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from agenta.sdk.utils.constants import TRUTHY
-from agenta.client.backend.types.provider_kind import ProviderKind
+from agenta.client.backend.types.standard_provider_kind import StandardProviderKind
 from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.client.backend.types.secret_dto import SecretDto as SecretDTO
-from agenta.client.backend.types.provider_key_dto import (
-    ProviderKeyDto as ProviderKeyDTO,
+from agenta.client.backend.types.secret_dto import (
+    SecretDto as SecretDTO,
+    Data as ProviderKeyDTO,
 )
 from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
 
@@ -20,7 +20,7 @@ import agenta as ag
 
 _PROVIDER_KINDS = []
 
-for arg in ProviderKind.__args__:  # type: ignore
+for arg in StandardProviderKind.__args__:  # type: ignore
     if hasattr(arg, "__args__"):
         _PROVIDER_KINDS.extend(arg.__args__)
 
@@ -34,18 +34,6 @@ class VaultMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
-
-    def _transform_secrets_response_to_secret_dto(
-        self, secrets_list: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        secrets_dto_dict = [
-            {
-                "kind": secret.get("secret", {}).get("kind"),
-                "data": secret.get("secret", {}).get("data", {}),
-            }
-            for secret in secrets_list
-        ]
-        return secrets_dto_dict
 
     async def dispatch(
         self,
@@ -95,7 +83,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     continue
 
                 secret = SecretDTO(
-                    # kind=...  # defaults to 'provider_kind'
+                    kind="provider_kind",
                     data=ProviderKeyDTO(
                         provider=provider,
                         key=key,
@@ -119,26 +107,29 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     vault_secrets = []
 
                 else:
-                    secrets = response.json()
-                    vault_secrets = self._transform_secrets_response_to_secret_dto(
-                        secrets
-                    )
+                    vault_secrets = response.json()
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
 
-        merged_secrets = {}
+        secrets = local_secrets + vault_secrets
+
+        standard_secrets = {}
+        custom_secrets = []
 
         if local_secrets:
             for secret in local_secrets:
-                provider = secret["data"]["provider"]
-                merged_secrets[provider] = secret
+                standard_secrets[secret["data"]["kind"]] = secret
 
         if vault_secrets:
             for secret in vault_secrets:
-                provider = secret["data"]["provider"]
-                merged_secrets[provider] = secret
+                if secret["kind"] == "provider_key":
+                    standard_secrets[secret["data"]["kind"]] = secret
+                elif secret["kind"] == "custom_provider":
+                    custom_secrets.append(secret)
 
-        secrets = list(merged_secrets.values())
+        standard_secrets = list(standard_secrets.values())
+
+        secrets = standard_secrets + custom_secrets
 
         _cache.put(_hash, {"secrets": secrets})
 

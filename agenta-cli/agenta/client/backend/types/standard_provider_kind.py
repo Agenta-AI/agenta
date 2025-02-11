@@ -2,7 +2,7 @@
 
 import typing
 
-ProviderKind = typing.Union[
+StandardProviderKind = typing.Union[
     typing.Literal[
         "openai",
         "cohere",
