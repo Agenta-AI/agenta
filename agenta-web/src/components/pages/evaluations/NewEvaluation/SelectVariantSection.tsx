@@ -74,11 +74,9 @@ const SelectVariantSection = ({
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                const parameters =
-                    (
-                        (record.parameters?.ag_config as unknown as Record<string, unknown>)
-                            ?.prompt as Record<string, unknown>
-                    )?.llm_config || record.parameters
+                const parameters = record.isNewVariant
+                    ? record.parameters.prompt?.llm_config
+                    : record.parameters
                 return parameters && Object.keys(parameters).length
                     ? Object.values(
                           filterVariantParameters({record: parameters, key: "model"}),

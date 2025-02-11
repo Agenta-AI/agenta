@@ -155,12 +155,11 @@ const VariantsOverview = ({
                 onHeaderCell: () => ({
                     style: {minWidth: 160},
                 }),
-                render: (_, record) => {
-                    const parameters =
-                        (
-                            (record.parameters?.ag_config as unknown as Record<string, unknown>)
-                                ?.prompt as Record<string, unknown>
-                        )?.llm_config || record.parameters
+                render: (_, variant) => {
+                    const parameters = variant.isNewVariant
+                        ? variant.parameters.prompt?.llm_config
+                        : variant.parameters
+
                     return parameters && Object.keys(parameters).length
                         ? Object.values(
                               filterVariantParameters({record: parameters, key: "model"}),

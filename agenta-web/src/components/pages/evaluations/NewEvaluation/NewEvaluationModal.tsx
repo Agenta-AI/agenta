@@ -1,20 +1,23 @@
+import {useEffect, useMemo, useState} from "react"
+
 import {useAppId} from "@/hooks/useAppId"
 import {JSSTheme, LLMRunRateLimit, testset, Variant} from "@/lib/Types"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/lib/helpers/utils"
-import {fetchSingleProfile, fetchVariants} from "@/services/api"
+import {fetchSingleProfile} from "@/services/api"
 import {createEvalutaiton} from "@/services/evaluations/api"
 import {fetchTestsets} from "@/services/testsets/api"
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Modal, Spin, Space, message, Button} from "antd"
 import {useAtom} from "jotai"
-import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
 import SelectTestsetSection from "./SelectTestsetSection"
 import SelectVariantSection from "./SelectVariantSection"
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
 import {dynamicComponent} from "@/lib/helpers/dynamic"
 import {useVaultSecret} from "@/hooks/useVaultSecret"
+import {useVariants} from "@/lib/hooks/useVariants"
+import {useAppsData} from "@/contexts/app.context"
 
 const AdvancedSettingsPopover: any = dynamicComponent(
     "pages/evaluations/NewEvaluation/AdvancedSettingsPopover",
@@ -64,9 +67,8 @@ type Props = {
 const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const classes = useStyles()
     const appId = useAppId()
-    const [fetching, setFetching] = useState(false)
+    const [_fetching, setFetching] = useState(false)
     const [testSets, setTestSets] = useState<testset[]>([])
-    const [variants, setVariants] = useState<Variant[]>([])
     const [usernames, setUsernames] = useState<Record<string, string>>({})
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [evaluators] = useAtom(evaluatorsAtom)
@@ -75,11 +77,36 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
     const {secrets} = useVaultSecret()
-
+    const {currentApp} = useAppsData()
     const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
     const handlePanelChange = (key: string | string[]) => {
         setActivePanel((prevKey) => (prevKey === key ? null : (key as string)))
     }
+
+    const {data, isLoading} = useVariants(currentApp)({
+        appId,
+        onSuccess: async (data) => {
+            const variants = data?.variants || []
+
+            const usernameMap: Record<string, string> = {}
+            const uniqueModifiedByIds = Array.from(
+                new Set(variants.map((variant) => variant.modifiedById)),
+            ).filter((id) => id)
+
+            const profiles = await Promise.all(
+                uniqueModifiedByIds.map((id) => fetchSingleProfile(id)),
+            )
+
+            profiles.forEach((profile, index) => {
+                const id = uniqueModifiedByIds[index]
+                usernameMap[id] = profile?.username || "-"
+            })
+
+            setUsernames(usernameMap)
+        },
+    })
+
+    const variants = useMemo(() => data?.variants || [], [data])
 
     useEffect(() => {
         const fetchData = async () => {
@@ -89,28 +116,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             setSelectedVariantIds([])
 
             try {
-                const [testSets, variants] = await Promise.all([
-                    fetchTestsets(),
-                    fetchVariants(appId),
-                ])
-
-                const usernameMap: Record<string, string> = {}
-                const uniqueModifiedByIds = Array.from(
-                    new Set(variants.map((variant) => variant.modifiedById)),
-                )
-
-                const profiles = await Promise.all(
-                    uniqueModifiedByIds.map((id) => fetchSingleProfile(id)),
-                )
-
-                profiles.forEach((profile, index) => {
-                    const id = uniqueModifiedByIds[index]
-                    usernameMap[id] = profile?.username || "-"
-                })
+                const [testSets] = await Promise.all([fetchTestsets()])
 
                 setTestSets(testSets)
-                setVariants(variants)
-                setUsernames(usernameMap)
             } catch (error) {
                 console.error(error)
             } finally {
@@ -120,6 +128,10 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
 
         fetchData()
     }, [props.open, appId])
+
+    const fetching = useMemo(() => {
+        return _fetching || isLoading
+    }, [_fetching, isLoading])
 
     const [rateLimitValues, setRateLimitValues] = useState<LLMRunRateLimit>({
         batch_size: 10,

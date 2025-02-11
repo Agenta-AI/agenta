@@ -50,6 +50,7 @@ export interface Variant {
     updatedAt: string
     createdAt: string
     modifiedById: string
+    isNewVariant?: boolean
 }
 
 // Define the interface for the tabs item in playground page

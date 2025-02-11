@@ -13,14 +13,23 @@ const ResultTag = memo(({value1, value2, className, popoverContent, ...props}: R
         value2 !== undefined ? (
             <>
                 <span className="value1">{value1}</span>
-                <span className="value2">{value2}</span>
+                <span
+                    className={clsx([
+                        "value2 overflow-hidden break-words",
+                        {
+                            "whitespace-pre-line": value1 !== "inputs",
+                        },
+                    ])}
+                >
+                    {value2}
+                </span>
             </>
         ) : (
             <div className="singleValue">{value1}</div>
         )
 
     const tag = (
-        <Tag className={clsx(classes.resultTag, className)} {...props}>
+        <Tag className={clsx(classes.resultTag, className, "max-w-full")} {...props}>
             {content}
         </Tag>
     )

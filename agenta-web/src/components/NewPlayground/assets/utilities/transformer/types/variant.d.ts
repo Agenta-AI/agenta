@@ -25,11 +25,6 @@ export interface AgentaConfig {
     prompts?: AgentaConfigPrompt[]
 }
 
-/** Variant configuration structure */
-export interface VariantParameters {
-    agConfig: AgentaConfig
-}
-
 /** Base variant interface */
 export interface BaseVariant {
     id: string
@@ -47,5 +42,5 @@ export interface BaseVariant {
     appName: string
     templateVariantName: string
     variantName: string
-    parameters?: VariantParameters
+    parameters?: AgentaConfig
 }

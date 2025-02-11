@@ -18,7 +18,7 @@ function mergeWithSavedConfig(
     variant: BaseVariant,
 ): AgentaConfigSchema["default"]["prompt"] {
     const defaultConfig = schema.default || {}
-    const savedConfig = variant.parameters?.agConfig?.prompt
+    const savedConfig = variant.parameters?.prompt
 
     // Validate and convert saved config to match AgentaConfigSchema["default"]["prompt"]
     const validatedConfig = savedConfig

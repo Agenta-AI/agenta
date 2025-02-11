@@ -351,6 +351,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 if (!variant) return state
 
                                 try {
+                                    // we are not passing any input / message row information
+                                    // because we are only interested in the configuration here
                                     const parameters = transformToRequestBody({
                                         variant,
                                         allMetadata: getAllMetadata(),
@@ -360,7 +362,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         {
                                             method: "PUT",
                                             body: {
-                                                parameters,
+                                                parameters: {
+                                                    ...parameters.ag_config,
+                                                    ag_config: null,
+                                                }, // send only the "contents" ag_config
                                             },
                                         },
                                     )

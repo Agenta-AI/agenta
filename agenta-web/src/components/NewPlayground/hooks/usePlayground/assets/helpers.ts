@@ -373,9 +373,17 @@ export const compareVariant = (
 export const setVariant = (variant: any): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
+
     if (variant.parameters.agenta_config) {
-        variant.parameters.ag_config = variant.parameters.agenta_config
+        variant.parameters = {
+            ...variant.parameters.agenta_config,
+        }
         delete variant.parameters.agenta_config
+    } else if (variant.parameters.ag_config) {
+        variant.parameters = {
+            ...variant.parameters.ag_config,
+        }
+        delete variant.parameters.ag_config
     }
 
     return {
@@ -390,14 +398,14 @@ export const setVariant = (variant: any): EnhancedVariant => {
         configName: variant.config_name,
         projectId: variant.project_id,
         appName: variant.app_name,
-        parameters: {
-            agConfig: variant.parameters.ag_config || {},
-        },
+        parameters: variant.parameters,
         isChat: false,
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
         name: "",
         updatedAt: variant.updated_at,
+        createdAt: variant.created_at,
+        isNewVariant: true,
     } as EnhancedVariant
 }
 

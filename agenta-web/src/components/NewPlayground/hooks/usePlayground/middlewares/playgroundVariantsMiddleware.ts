@@ -3,11 +3,7 @@ import {useCallback} from "react"
 import {getCurrentProject} from "@/contexts/project.context"
 import {getJWT} from "@/services/api"
 
-import {
-    checkValidity,
-    extractValueByMetadata,
-    transformToRequestBody,
-} from "../../../assets/utilities/transformer/reverseTransformer"
+import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
 import {
     createVariantsCompare,
     transformVariant,
@@ -19,7 +15,7 @@ import {
 import {message} from "../../../state/messageContext"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-import {getAllMetadata, getMetadataLazy, getSpecLazy} from "@/components/NewPlayground/state"
+import {getAllMetadata, getSpecLazy} from "@/components/NewPlayground/state"
 import useWebWorker from "../../useWebWorker"
 
 import type {Key, SWRHook} from "swr"
@@ -32,11 +28,7 @@ import type {
     PlaygroundMiddlewareParams,
 } from "../types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {
-    constructChatHistory,
-    createMessageFromSchema,
-    createMessageRow,
-} from "../assets/messageHelpers"
+import {constructChatHistory} from "../assets/messageHelpers"
 import {ConfigMetadata} from "@/components/NewPlayground/assets/utilities/genericTransformer/types"
 
 const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {

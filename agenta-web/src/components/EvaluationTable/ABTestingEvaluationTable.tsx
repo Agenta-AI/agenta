@@ -212,12 +212,11 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
             await Promise.all(
                 evalVariants.map(async (variant: Variant, idx: number) => {
                     setRowValue(rowIndex, variant.variantId, "loading...")
-
                     try {
                         let result = await callVariant(
                             inputParamsDict,
                             (data?.variants || [])[idx].inputParams!,
-                            (data?.variants || [])[idx].parameters
+                            (data?.variants || [])[idx].isNewVariant
                                 ? transformToRequestBody(
                                       (data?.variants || [])[idx].variant,
                                       undefined,

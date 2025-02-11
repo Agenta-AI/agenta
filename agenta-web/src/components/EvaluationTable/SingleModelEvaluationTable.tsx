@@ -214,7 +214,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     let result = await callVariant(
                         inputParamsDict,
                         variantData[idx].inputParams!,
-                        variantData[idx].parameters
+                        variantData[idx].isNewVariant
                             ? transformToRequestBody(
                                   variantData[idx].variant,
                                   undefined,

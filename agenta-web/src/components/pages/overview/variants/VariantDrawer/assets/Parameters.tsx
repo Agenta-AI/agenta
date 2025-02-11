@@ -9,11 +9,7 @@ import {Variant} from "@/lib/Types"
 
 export const NewVariantParametersView = ({selectedVariant}: {selectedVariant: Variant}) => {
     const {promptLlmConfig, agConfigMessages, agConfigVariables} = useMemo(() => {
-        const ag_config = selectedVariant.parameters?.ag_config as unknown as Record<
-            string,
-            unknown
-        >
-        const prompt = ag_config?.prompt as Record<string, unknown>
+        const prompt = selectedVariant.parameters?.prompt as unknown as Record<string, unknown>
         const promptLlmConfig = prompt.llm_config
         const agConfigMessages = prompt.messages as {
             content: string

@@ -11,6 +11,7 @@ import type {EnhancedVariant} from "./transformer/types"
 
 import {getJWT} from "@/services/api"
 import {getCurrentProject} from "@/contexts/project.context"
+import {formatDay} from "@/lib/helpers/dateTimeHelper"
 
 /**
  * Recursively omit specified keys from an object
@@ -267,12 +268,20 @@ export const setVariant = (variant: any): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
     if (variant.parameters.agenta_config) {
-        variant.parameters.ag_config = variant.parameters.agenta_config
+        variant.parameters = {
+            ...variant.parameters.agenta_config,
+        }
         delete variant.parameters.agenta_config
+    } else if (variant.parameters.ag_config) {
+        variant.parameters = {
+            ...variant.parameters.ag_config,
+        }
+        delete variant.parameters.ag_config
     }
 
     return {
         id: variant.variant_id,
+        variantId: variant.variant_id,
         uri: uriFixer(variant.uri),
         appId: variant.app_id,
         baseId: variant.base_id,
@@ -283,13 +292,15 @@ export const setVariant = (variant: any): EnhancedVariant => {
         configName: variant.config_name,
         projectId: variant.project_id,
         appName: variant.app_name,
-        parameters: {
-            agConfig: variant.parameters.ag_config || {},
-        },
+        parameters: variant.parameters,
         isChat: false,
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
         name: "",
+        modifiedById: variant.modified_by_id,
+        createdAt: formatDay(variant.created_at),
+        updatedAt: formatDay(variant.updated_at),
+        isNewVariant: true,
     } as EnhancedVariant
 }
 

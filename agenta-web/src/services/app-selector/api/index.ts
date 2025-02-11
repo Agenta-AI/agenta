@@ -189,7 +189,7 @@ export const createAndStartTemplate = async ({
             await axios.put(
                 `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
                 {
-                    parameters,
+                    parameters: parameters.ag_config,
                 },
             )
         } catch (error: any) {

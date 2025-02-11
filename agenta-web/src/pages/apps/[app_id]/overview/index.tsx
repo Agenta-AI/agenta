@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import AbTestingEvaluation from "@/components/HumanEvaluations/AbTestingEvaluation"
 import AutomaticEvalOverview from "@/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
@@ -49,12 +49,16 @@ export default function Overview() {
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
     const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
 
-    const {usernames, data: variants, isLoading, mutate} = useAllVariantsData({appId})
+    const {usernames, data: _variants, isLoading, mutate} = useAllVariantsData({appId})
     const {
         environments,
         isEnvironmentsLoading: isDeploymentLoading,
         mutate: loadEnvironments,
     } = useEnvironments({appId})
+
+    const variants = useMemo(() => {
+        return (_variants || []).map((v) => v.variant)
+    }, [_variants])
 
     const handleDeleteOk = useCallback(async () => {
         if (!currentApp) return

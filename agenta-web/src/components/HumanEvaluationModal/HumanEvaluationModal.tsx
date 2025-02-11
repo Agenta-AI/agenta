@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {use, useEffect, useMemo, useState} from "react"
 
 import {Button, Col, Dropdown, MenuProps, Modal, ModalProps, Row, Spin, message} from "antd"
 import {CaretDown, Play} from "@phosphor-icons/react"
@@ -21,6 +21,8 @@ import {useStyles} from "./assets/styles"
 
 import type {GenericObject, Parameter, Variant, StyleProps} from "@/lib/Types"
 import type {HumanEvaluationModalProps} from "./types"
+import {useVariants} from "@/lib/hooks/useVariants"
+import {useAppsData} from "@/contexts/app.context"
 
 const HumanEvaluationModal = ({
     isEvalModalOpen,
@@ -29,9 +31,9 @@ const HumanEvaluationModal = ({
 }: HumanEvaluationModalProps) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
+    const {currentApp} = useAppsData()
     const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
     const [isError, setIsError] = useState<boolean | string>(false)
-    const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
     const [selectedTestset, setSelectedTestset] = useState<{
@@ -60,52 +62,39 @@ const HumanEvaluationModal = ({
         "Evaluations/ShareEvaluationModal",
     )
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const backendVariants = await fetchVariants(appId)
+    const {data, isLoading: appVariantsLoading} = useVariants(currentApp)({
+        appId,
+    })
 
-                if (backendVariants.length > 0) {
-                    setVariants(backendVariants)
-                }
-
-                setAppVariantsLoading(false)
-            } catch (error) {
-                setIsError("Failed to fetch variants")
-                setAppVariantsLoading(false)
-            }
-        }
-
-        fetchData()
-    }, [appId])
+    const variants = useMemo(() => (data?.variants || []).map((v) => v.variant), [data?.variants])
 
     useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {
-                    const hasAgConfig = variants.some((variant) => variant.parameters?.ag_config)
+                    const isNewAppVariant = variants.some((variant) => variant.isNewVariant)
                     let results: {
                         variantName: string
                         inputs: string[]
                     }[]
 
-                    if (hasAgConfig) {
+                    if (isNewAppVariant) {
                         results = variants.map((variant) => {
                             return {
                                 variantName: variant.variantName,
-                                inputs: variant.parameters?.ag_config?.prompt?.input_keys || [],
+                                inputs: variant.parameters?.prompt?.input_keys || [],
                             }
                         })
                     } else {
                         // Map the variants to an array of promises
-                        const promises = variants.map((variant) =>
-                            getAllVariantParameters(appId, variant).then((data) => ({
+                        const promises = variants.map((variant) => {
+                            return getAllVariantParameters(appId, variant).then((data) => ({
                                 variantName: variant.variantName,
                                 inputs:
                                     data?.inputs.map((inputParam: Parameter) => inputParam.name) ||
                                     [],
-                            })),
-                        )
+                            }))
+                        })
 
                         // Wait for all promises to complete and collect results
                         results = await Promise.all(promises)
@@ -203,7 +192,7 @@ const HumanEvaluationModal = ({
                             >
                                 <span>{variant.variantName}</span>
                                 <span className={classes.dropdownItemLabels}>
-                                    #{variant.variantId.split("-")[0]}
+                                    #{(variant.variantId || variant.id).split("-")[0]}
                                 </span>
                             </div>
                         </>
@@ -241,7 +230,7 @@ const HumanEvaluationModal = ({
 
         // 2. We create a new app evaluation
         const evaluationTableId = await createNewEvaluation({
-            variant_ids: selectedVariants.map((variant) => variant.variantId),
+            variant_ids: selectedVariants.map((variant) => variant.variantId || variant.id),
             appId,
             inputs: variantsInputs[selectedVariants[0].variantName],
             evaluationType: EvaluationType[evaluationType as keyof typeof EvaluationType],
@@ -264,7 +253,7 @@ const HumanEvaluationModal = ({
         }
 
         // 3 We set the variants
-        setVariants(selectedVariants)
+        // setVariants(selectedVariants)
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
             router.push(`/apps/${appId}/evaluations/human_a_b_testing/${evaluationTableId}`)
@@ -341,8 +330,10 @@ const HumanEvaluationModal = ({
                                             <Button
                                                 disabled={
                                                     !(
-                                                        selectedVariants[0].variantId &&
-                                                        selectedVariants[0].variantId &&
+                                                        (selectedVariants[0].variantId ||
+                                                            selectedVariants[0].id) &&
+                                                        (selectedVariants[0].variantId ||
+                                                            selectedVariants[0].id) &&
                                                         selectedTestset._id
                                                     )
                                                 }
@@ -381,7 +372,7 @@ const HumanEvaluationModal = ({
                 open={shareModalOpen}
                 onCancel={() => setShareModalOpen(false)}
                 destroyOnClose
-                variantIds={selectedVariants.map((v) => v.variantId)}
+                variantIds={selectedVariants.map((v) => v.variantId || v.id)}
                 testsetId={selectedTestset._id}
                 evaluationType={EvaluationType.human_a_b_testing}
             />
