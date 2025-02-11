@@ -1,31 +1,30 @@
-DO $$ 
-BEGIN
-   IF NOT EXISTS (
-      SELECT 
-      FROM   pg_catalog.pg_database 
-      WHERE  datname = 'agenta_oss') THEN
-      CREATE DATABASE agenta_oss;
-   END IF;
-END
-$$;
+-- Ensure we are connected to the default postgres database before creating new databases
+\c postgres
 
--- Create the username role with a password
-DO $$
-BEGIN
-   IF NOT EXISTS (
-      SELECT 
-      FROM   pg_catalog.pg_roles 
-      WHERE  rolname = 'username') THEN
-      CREATE ROLE username WITH LOGIN PASSWORD 'password';
-   END IF;
-END
-$$;
+-- Create the 'username' role with a password if it doesn't exist
+SELECT 'CREATE ROLE username WITH LOGIN PASSWORD ''password'''
+WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'username')\gexec
+
+-- Create the 'agenta_oss' database if it doesn't exist
+SELECT 'CREATE DATABASE agenta_oss'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss')\gexec
+
+-- Create the 'supertokens_oss' database if it doesn't exist
+SELECT 'CREATE DATABASE supertokens_oss'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'supertokens_oss')\gexec
+\gexec
 
 -- Grant necessary permissions to username
 GRANT ALL PRIVILEGES ON DATABASE agenta_oss TO username;
+GRANT ALL PRIVILEGES ON DATABASE supertokens_oss TO username;
 
--- Connect to the agenta_oss database
+-- Connect to the 'agenta_oss' database and grant schema permissions
 \c agenta_oss
-
--- Grant schema permissions to username
 GRANT ALL ON SCHEMA public TO username;
+
+-- Connect to the 'supertokens_oss' database and grant schema permissions
+\c supertokens_oss
+GRANT ALL ON SCHEMA public TO username;
+
+-- Return to postgres
+\c postgres
