@@ -94,7 +94,7 @@ class VaultClient:
             AgentaApi,
             HeaderDto,
             SecretDto,
-            StandardProvideDto,
+            StandardProviderDto,
             StandardProviderSettingsDto,
         )
 
@@ -105,7 +105,7 @@ class VaultClient:
         client.vault.create_secret(
             header=HeaderDto(),
             secret=SecretDto(
-                data=StandardProvideDto(
+                data=StandardProviderDto(
                     kind="openai",
                     provider=StandardProviderSettingsDto(
                         key="key",
@@ -426,7 +426,7 @@ class AsyncVaultClient:
             AsyncAgentaApi,
             HeaderDto,
             SecretDto,
-            StandardProvideDto,
+            StandardProviderDto,
             StandardProviderSettingsDto,
         )
 
@@ -440,7 +440,7 @@ class AsyncVaultClient:
             await client.vault.create_secret(
                 header=HeaderDto(),
                 secret=SecretDto(
-                    data=StandardProvideDto(
+                    data=StandardProviderDto(
                         kind="openai",
                         provider=StandardProviderSettingsDto(
                             key="key",

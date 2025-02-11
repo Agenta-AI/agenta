@@ -101,7 +101,7 @@ from .secret_response_dto import SecretResponseDto
 from .simple_evaluation_output import SimpleEvaluationOutput
 from .span_dto import SpanDto
 from .span_dto_nodes_value import SpanDtoNodesValue
-from .standard_provide_dto import StandardProvideDto
+from .standard_provider_dto import StandardProviderDto
 from .standard_provider_kind import StandardProviderKind
 from .standard_provider_settings_dto import StandardProviderSettingsDto
 from .status_code import StatusCode
@@ -230,7 +230,7 @@ __all__ = [
     "SimpleEvaluationOutput",
     "SpanDto",
     "SpanDtoNodesValue",
-    "StandardProvideDto",
+    "StandardProviderDto",
     "StandardProviderKind",
     "StandardProviderSettingsDto",
     "StatusCode",
