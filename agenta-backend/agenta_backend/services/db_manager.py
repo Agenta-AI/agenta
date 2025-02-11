@@ -15,9 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, aliased, load_only
 
 from agenta_backend.models import converters
+from agenta_backend.services import user_service
 from agenta_backend.utils.common import isCloudEE
 from agenta_backend.services.json_importer_helper import get_json
-
 from agenta_backend.dbs.postgres.shared.engine import engine
 
 
@@ -1037,15 +1037,26 @@ async def get_user(user_uid: str) -> UserDB:
             raise Exception("Please login or signup")
 
         if user is None and not isCloudEE():
-            user_db = UserDB(uid="0")
-
-            session.add(user_db)
-            await session.commit()
-            await session.refresh(user_db)
-
+            payload = {"uid": "0", "email": "demo@agenta.ai"}
+            user_db = await create_accounts(payload=payload)
             return user_db
 
         return user
+
+
+async def create_accounts(payload: dict) -> UserDB:
+    """Create a new account in the database.
+
+    Args:
+        payload (dict): The payload to create the user
+
+    Returns:
+        UserDB: instance of user
+    """
+
+    user_info = {**payload, "username": payload["email"].split("@")[0]}
+    user_db = await user_service.create_new_user(payload=user_info)
+    return user_db
 
 
 async def get_user_with_uid(user_uid: str):
