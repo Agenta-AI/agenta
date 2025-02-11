@@ -6,12 +6,13 @@ import {Modal} from "antd"
 import {useAtom} from "jotai"
 import React, {useEffect, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {fetchVariants} from "@/services/api"
 import {fetchTestsets} from "@/services/testsets/api"
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import NewEvaluator from "./NewEvaluator"
 import Evaluators from "./Evaluators"
 import {useLocalStorage} from "usehooks-ts"
+import {useVariants} from "@/lib/hooks/useVariants"
+import {useAppsData} from "@/contexts/app.context"
 
 type EvaluatorsModalProps = {
     current: number
@@ -52,7 +53,7 @@ const EvaluatorsModal = ({
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
-    const [variants, setVariants] = useState<Variant[] | null>(null)
+    // const [variants, setVariants] = useState<Variant[] | null>(null)
     const [testsets, setTestsets] = useState<testset[] | null>(null)
     const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
     const [selectedTestcase, setSelectedTestcase] = useState<{
@@ -60,6 +61,7 @@ const EvaluatorsModal = ({
     }>({
         testcase: null,
     })
+    const {currentApp} = useAppsData()
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)
@@ -78,24 +80,26 @@ const EvaluatorsModal = ({
             .finally(() => setFetchingEvalConfigs(false))
     }
 
+    const {data} = useVariants(currentApp)({
+        appId,
+        onSuccess: (data) => {
+            if (data?.variants?.length) {
+                setSelectedVariant(data?.variants[0])
+            }
+        },
+    })
+
     useEffect(() => {
-        Promise.all([
-            fetchAllEvaluators(),
-            fetchAllEvaluatorConfigs(appId),
-            fetchVariants(appId),
-            fetchTestsets(),
-        ]).then(([evaluators, configs, variants, testsets]) => {
-            setEvaluators(evaluators)
-            setEvaluatorConfigs(configs)
-            setVariants(variants)
-            if (variants.length) {
-                setSelectedVariant(variants[0])
-            }
-            setTestsets(testsets)
-            if (testsets.length) {
-                setSelectedTestset(testsets[0]._id)
-            }
-        })
+        Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId), fetchTestsets()]).then(
+            ([evaluators, configs, testsets]) => {
+                setEvaluators(evaluators)
+                setEvaluatorConfigs(configs)
+                setTestsets(testsets)
+                if (testsets.length) {
+                    setSelectedTestset(testsets[0]._id)
+                }
+            },
+        )
     }, [appId])
 
     const steps = [
@@ -142,7 +146,7 @@ const EvaluatorsModal = ({
                         setCloneConfig(false)
                         setEditEvalEditValues(null)
                     }}
-                    variants={variants}
+                    variants={data?.variants || []}
                     testsets={testsets}
                     onSuccess={() => {
                         evalConfigFetcher()
