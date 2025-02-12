@@ -55,7 +55,9 @@ def extract_result_from_response(response: dict):
                 value["data"] = str(value.get("data"))
 
             if "tree" in response:
-                trace_tree = response.get("tree", {}).get("nodes", [])[0]
+                _tree = response.get("tree") or {}
+                _nodes = _tree.get("nodes") or []
+                trace_tree = {} if not _nodes else _nodes[0]
 
                 duration_ms = get_nested_value(
                     trace_tree, ["metrics", "acc", "duration", "total"]
@@ -99,24 +101,31 @@ def extract_result_from_response(response: dict):
         kind = "text" if isinstance(value, str) else "object"
 
     except ValueError as ve:
-        print(f"Input validation error: {ve}")
-        value = {"error": str(ve)}
+        logger.error(f"Input validation error: {ve}")
+        value = {"version": "3.0", "data": str(ve)}
         kind = "error"
 
     except KeyError as ke:
-        print(f"Missing key: {ke}")
-        value = {"error": f"Missing key: {ke}"}
+        logger.error(f"Missing key: {ke}")
+        value = {"version": "3.0", "data": f"Missing key: {ke}"}
         kind = "error"
 
     except TypeError as te:
-        print(f"Type error: {te}")
-        value = {"error": f"Type error: {te}"}
+        logger.error(f"Type error: {te}")
+        value = {"version": "3.0", "data": f"Type error: {te}"}
         kind = "error"
 
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        value = {"error": f"Unexpected error: {e}"}
+        logger.error(f"Unexpected error: {e}")
+        value = {"version": "3.0", "data": f"Unexpected error: {e}"}
         kind = "error"
+
+    # Ensure value always has a data field and version
+    if isinstance(value, dict):
+        if "data" not in value:
+            value["data"] = ""
+        if "version" not in value:
+            value["version"] = "3.0"
 
     return value, kind, cost, latency
 
