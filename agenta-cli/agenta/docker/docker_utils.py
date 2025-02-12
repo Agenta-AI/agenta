@@ -20,14 +20,14 @@ def create_dockerfile(out_folder: Path) -> Path:
     """
     assert Path(out_folder).exists(), f"Folder {out_folder} does not exist."
     dockerfile_template = (
-        Path(__file__).parent / "docker-assets" / "Dockerfile.template"
+        Path(__file__).parent / "docker-assets" / "Dockerfile.oss.template"
     )
-    dockerfile_path = out_folder / "Dockerfile"
+    dockerfile_path = out_folder / "Dockerfile.oss.agenta"
     shutil.copy(dockerfile_template, dockerfile_path)
     dockerfile_template = (
         Path(__file__).parent / "docker-assets" / "Dockerfile.cloud.template"
     )
-    dockerfile_path = out_folder / "Dockerfile.cloud"
+    dockerfile_path = out_folder / "Dockerfile.cloud.agenta"
     shutil.copy(dockerfile_template, dockerfile_path)
 
     return dockerfile_path
