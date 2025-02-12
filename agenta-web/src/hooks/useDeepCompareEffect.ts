@@ -3,7 +3,7 @@ import React, {useEffect, useRef} from "react"
 import useLazyEffect from "./useLazyEffect"
 
 function useDeepCompareMemoize(value: any) {
-    const ref = useRef()
+    const ref = useRef(null)
 
     if (!isEqual(value, ref.current)) {
         ref.current = value
