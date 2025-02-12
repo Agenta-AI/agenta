@@ -5,7 +5,7 @@ import {CloudArrowUp, Copy, GearSix, Note, Rocket, Trash} from "@phosphor-icons/
 import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
-import React, {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
 import VariantDrawer from "./VariantDrawer"
 import {useQueryParam} from "@/hooks/useQuery"

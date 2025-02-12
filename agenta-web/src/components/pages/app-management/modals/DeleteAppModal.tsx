@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from "react"
+import {useCallback, useState} from "react"
 import {Modal} from "antd"
 import {useAppsData} from "@/contexts/app.context"
 import {deleteApp} from "@/services/app-selector/api"
