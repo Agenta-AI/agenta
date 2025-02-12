@@ -74,7 +74,7 @@ const AppManagement: React.FC = () => {
         setIsAddAppFromTemplatedModal(false)
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
-        if (redirectIfNoLLMKeys()) return
+        // if (redirectIfNoLLMKeys()) return
 
         setFetchingTemplate(true)
         setStatusModalOpen(true)
