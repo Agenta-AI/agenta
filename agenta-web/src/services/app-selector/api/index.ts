@@ -52,12 +52,11 @@ export const createApp = async ({
 }) => {
     const {selectedOrg} = getOrgValues()
     const {projectId} = getCurrentProject()
-    const response = await axios.post(`${getAgentaApiUrl()}/api/apps`, {
+    const response = await axios.post(`${getAgentaApiUrl()}/api/apps?project_id=${projectId}`, {
         app_name: appName,
         template_key: templateKey,
         organization_id: selectedOrg?.id,
         workspace_id: selectedOrg?.default_workspace.id,
-        project_id: projectId,
     })
     return response.data
 }
