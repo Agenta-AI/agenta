@@ -12,7 +12,7 @@ import React, {
     useEffect,
     useCallback,
 } from "react"
-import useLazyEffect from '@/hooks/useLazyEffect'
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {useProfileData} from "@/contexts/profile.context"
 
 const LS_ORG_KEY = "selectedOrg"
