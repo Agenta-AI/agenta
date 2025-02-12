@@ -14,11 +14,14 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const initPosthog = useCallback(async () => {
         if (!!posthogClient) return
         if (loadingPosthog) return
+        if (!process.env.NEXT_PUBLIC_POSTHOG_API_KEY) return
 
         setLoadingPosthog(true)
 
         try {
             const posthog = (await import("posthog-js")).default
+
+            if (!process.env.NEXT_PUBLIC_POSTHOG_API_KEY) return
 
             posthog.init(process.env.NEXT_PUBLIC_POSTHOG_API_KEY!, {
                 api_host: "https://app.posthog.com",
@@ -54,4 +57,12 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     return <>{children}</>
 }
 
-export default CustomPosthogProvider
+const CustomPosthogProviderWrapper: CustomPosthogProviderType = ({children, config}) => {
+    if (process.env.NEXT_PUBLIC_POSTHOG_API_KEY) {
+        return <CustomPosthogProvider config={config}>{children}</CustomPosthogProvider>
+    } else {
+        return <>{children}</>
+    }
+}
+
+export default CustomPosthogProviderWrapper

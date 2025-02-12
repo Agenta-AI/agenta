@@ -78,9 +78,11 @@ const ApplicationManagementSection = ({
     return (
         <>
             <div className="my-10 flex flex-col gap-2">
-                <Flex justify="space-between" align="center">
+                <Flex justify="space-between" align="center" wrap>
                     <Space>
-                        <Title level={2}>Application</Title>
+                        <Title level={2} className="!my-2 shrink-0">
+                            Application
+                        </Title>
                         <Button
                             type="primary"
                             data-cy="create-new-app-button"

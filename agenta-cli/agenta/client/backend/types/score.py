@@ -2,4 +2,4 @@
 
 import typing
 
-Score = typing.Union[str, int]
+Score = typing.Optional[typing.Any]

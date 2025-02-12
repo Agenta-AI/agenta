@@ -138,7 +138,7 @@ import openai
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 
 os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
-${isDemo() ? `os.environ["AGENTA_API_KEY"] = ${apiKeyValue || "{API_KEY}"}` : ""}
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""}
 
 ag.init()
 OpenAIInstrumentor().instrument()

@@ -3,7 +3,7 @@
 import typing
 import httpx
 from .core.client_wrapper import SyncClientWrapper
-from .observability.client import ObservabilityClient
+from .admin.client import AdminClient
 from .vault.client import VaultClient
 from .access_control.client import AccessControlClient
 from .scopes.client import ScopesClient
@@ -17,7 +17,7 @@ from .containers.client import ContainersClient
 from .environments.client import EnvironmentsClient
 from .bases.client import BasesClient
 from .configs.client import ConfigsClient
-from .observability_v_1.client import ObservabilityV1Client
+from .observability.client import ObservabilityClient
 from .core.request_options import RequestOptions
 from .types.list_api_keys_response import ListApiKeysResponse
 from .core.pydantic_utilities import parse_obj_as
@@ -35,7 +35,7 @@ import datetime as dt
 from .types.workspace_role_response import WorkspaceRoleResponse
 from .types.permission import Permission
 from .core.client_wrapper import AsyncClientWrapper
-from .observability.client import AsyncObservabilityClient
+from .admin.client import AsyncAdminClient
 from .vault.client import AsyncVaultClient
 from .access_control.client import AsyncAccessControlClient
 from .scopes.client import AsyncScopesClient
@@ -49,7 +49,7 @@ from .containers.client import AsyncContainersClient
 from .environments.client import AsyncEnvironmentsClient
 from .bases.client import AsyncBasesClient
 from .configs.client import AsyncConfigsClient
-from .observability_v_1.client import AsyncObservabilityV1Client
+from .observability.client import AsyncObservabilityClient
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -108,7 +108,7 @@ class AgentaApi:
             else httpx.Client(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
-        self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
+        self.admin = AdminClient(client_wrapper=self._client_wrapper)
         self.vault = VaultClient(client_wrapper=self._client_wrapper)
         self.access_control = AccessControlClient(client_wrapper=self._client_wrapper)
         self.scopes = ScopesClient(client_wrapper=self._client_wrapper)
@@ -124,9 +124,7 @@ class AgentaApi:
         self.environments = EnvironmentsClient(client_wrapper=self._client_wrapper)
         self.bases = BasesClient(client_wrapper=self._client_wrapper)
         self.configs = ConfigsClient(client_wrapper=self._client_wrapper)
-        self.observability_v_1 = ObservabilityV1Client(
-            client_wrapper=self._client_wrapper
-        )
+        self.observability = ObservabilityClient(client_wrapper=self._client_wrapper)
 
     def list_api_keys(
         self, *, request_options: typing.Optional[RequestOptions] = None
@@ -311,9 +309,6 @@ class AgentaApi:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
-
-
-
             bool: True. If the request reaches this point, the API key is valid.
 
         Parameters
@@ -1644,9 +1639,7 @@ class AsyncAgentaApi:
             else httpx.AsyncClient(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
-        self.observability = AsyncObservabilityClient(
-            client_wrapper=self._client_wrapper
-        )
+        self.admin = AsyncAdminClient(client_wrapper=self._client_wrapper)
         self.vault = AsyncVaultClient(client_wrapper=self._client_wrapper)
         self.access_control = AsyncAccessControlClient(
             client_wrapper=self._client_wrapper
@@ -1664,7 +1657,7 @@ class AsyncAgentaApi:
         self.environments = AsyncEnvironmentsClient(client_wrapper=self._client_wrapper)
         self.bases = AsyncBasesClient(client_wrapper=self._client_wrapper)
         self.configs = AsyncConfigsClient(client_wrapper=self._client_wrapper)
-        self.observability_v_1 = AsyncObservabilityV1Client(
+        self.observability = AsyncObservabilityClient(
             client_wrapper=self._client_wrapper
         )
 
@@ -1875,9 +1868,6 @@ class AsyncAgentaApi:
         """
         This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
         Returns:
-
-
-
             bool: True. If the request reaches this point, the API key is valid.
 
         Parameters

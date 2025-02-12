@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta_backend"
-version = "0.31.0"
+version = "0.33.4"
 description = ""
 authors = ["Mahmoud Mabrouk <mahmoudmabrouk.mail@gmail.com>"]
 readme = "README.md"
@@ -19,7 +19,7 @@ backoff = "^2.2.1"
 redis = "^4.6.0"
 aiodocker = "^0.21.0"
 sendgrid = "^6.10.0"
-restrictedpython = { version = "^7.3", python = ">=3.9,<3.12" }
+restrictedpython = { version = "^8.0", python = ">=3.9,<3.12" }
 pytest-mock = "^3.11.1"
 boto3 = "^1.28.63"
 asyncer = "^0.0.2"
@@ -50,6 +50,9 @@ pytest = "^7.3.1"
 httpx = "^0.24.0"
 pytest-asyncio = "^0.21.1"
 faker = "^23.2.0"
+pexpect = "^4.9.0"
+pytest-xdist = "^3.6.1"
+pytz = "^2024.2"
 
 [build-system]
 requires = ["poetry-core"]

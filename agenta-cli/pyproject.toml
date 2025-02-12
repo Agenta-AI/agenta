@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.31.0"
+version = "0.33.4"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -51,9 +51,6 @@ uvicorn = "^0.34.0"
 requests = "^2.32.3"
 pexpect = "^4.9.0"
 boto3 = "^1.35.87"
-
-[tool.pytest.ini_options]
-asyncio_default_fixture_loop_scope = "function"
 
 [build-system]
 requires = ["poetry-core"]

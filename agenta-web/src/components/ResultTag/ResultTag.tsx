@@ -1,42 +1,12 @@
-import {JSSTheme} from "@/lib/Types"
-import {Popover, Tag} from "antd"
 import {memo} from "react"
-import {createUseStyles} from "react-jss"
 
-type ResultTagProps = {
-    popoverContent?: React.ReactNode
-    value1: string | React.ReactNode
-    value2?: React.ReactNode
-} & React.ComponentProps<typeof Tag>
+import clsx from "clsx"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    resultTag: {
-        display: "flex",
-        alignItems: "center",
-        width: "fit-content",
-        padding: 0,
-        cursor: "pointer",
-        "& > span.value1": {
-            backgroundColor: "rgba(0, 0, 0, 0.02)",
-            flex: 1,
-            padding: "0px 8px",
-            borderRight: `1px solid ${theme.colorBorder}`,
-        },
-        "& > span.value2": {
-            background: theme.colorBgContainer,
-            padding: "0px 8px 0px 4px",
-            borderRadius: "inherit",
-        },
-        "& > div.singleValue": {
-            padding: "0px 8px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-        },
-    },
-}))
+import {Popover, Tag} from "antd"
+import {useStyles} from "./assets/styles"
+import type {ResultTagProps} from "./types"
 
-const ResultTag = memo(({value1, value2, popoverContent, ...props}: ResultTagProps) => {
+const ResultTag = memo(({value1, value2, className, popoverContent, ...props}: ResultTagProps) => {
     const classes = useStyles()
 
     const content =
@@ -50,7 +20,7 @@ const ResultTag = memo(({value1, value2, popoverContent, ...props}: ResultTagPro
         )
 
     const tag = (
-        <Tag className={classes.resultTag} {...props}>
+        <Tag className={clsx(classes.resultTag, className)} {...props}>
             {content}
         </Tag>
     )

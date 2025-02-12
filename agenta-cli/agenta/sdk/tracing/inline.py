@@ -701,15 +701,6 @@ def _parse_from_semconv(
 def _parse_from_links(
     otel_span_dto: OTelSpanDTO,
 ) -> dict:
-    # TESTING
-    otel_span_dto.links = [
-        OTelLinkDTO(
-            context=otel_span_dto.context,
-            attributes={"ag.type.link": "testcase"},
-        )
-    ]
-    # -------
-
     # LINKS
     links = None
     otel_links = None
@@ -926,8 +917,9 @@ def parse_to_agenta_span_dto(
     if span_dto.refs:
         span_dto.refs = _unmarshal_attributes(span_dto.refs)
 
-    for link in span_dto.links:
-        link.tree_id = None
+    if isinstance(span_dto.links, list):
+        for link in span_dto.links:
+            link.tree_id = None
 
     if span_dto.nodes:
         for v in span_dto.nodes.values():
@@ -1030,6 +1022,24 @@ def _parse_readable_spans(
     otel_span_dtos = list()
 
     for span in spans:
+        otel_events = [
+            OTelEventDTO(
+                name=event.name,
+                timestamp=_timestamp_ns_to_datetime(event.timestamp),
+                attributes=event.attributes,
+            )
+            for event in span.events
+        ]
+        otel_links = [
+            OTelLinkDTO(
+                context=OTelContextDTO(
+                    trace_id=_int_to_hex(link.context.trace_id, 128),
+                    span_id=_int_to_hex(link.context.span_id, 64),
+                ),
+                attributes=link.attributes,
+            )
+            for link in span.links
+        ]
         otel_span_dto = OTelSpanDTO(
             context=OTelContextDTO(
                 trace_id=_int_to_hex(span.get_span_context().trace_id, 128),
@@ -1045,14 +1055,7 @@ def _parse_readable_spans(
             status_code=OTelStatusCode("STATUS_CODE_" + span.status.status_code.name),
             status_message=span.status.description,
             attributes=span.attributes,
-            events=[
-                OTelEventDTO(
-                    name=event.name,
-                    timestamp=_timestamp_ns_to_datetime(event.timestamp),
-                    attributes=event.attributes,
-                )
-                for event in span.events
-            ],
+            events=otel_events if len(otel_events) > 0 else None,
             parent=(
                 OTelContextDTO(
                     trace_id=_int_to_hex(span.parent.trace_id, 128),
@@ -1061,16 +1064,7 @@ def _parse_readable_spans(
                 if span.parent
                 else None
             ),
-            links=[
-                OTelLinkDTO(
-                    context=OTelContextDTO(
-                        trace_id=_int_to_hex(link.context.trace_id, 128),
-                        span_id=_int_to_hex(link.context.span_id, 64),
-                    ),
-                    attributes=link.attributes,
-                )
-                for link in span.links
-            ],
+            links=otel_links if len(otel_links) > 0 else None,
         )
 
         otel_span_dtos.append(otel_span_dto)
@@ -1121,7 +1115,9 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
             and span.meta
             and span.metrics
         ):
-            model = span.meta.get("response.model")
+            model = span.meta.get("response.model") or span.meta.get(
+                "configuration.model"
+            )
             prompt_tokens = span.metrics.get("unit.tokens.prompt", 0.0)
             completion_tokens = span.metrics.get("unit.tokens.completion", 0.0)
 
