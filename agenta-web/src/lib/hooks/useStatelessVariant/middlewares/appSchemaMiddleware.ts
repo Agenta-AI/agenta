@@ -65,7 +65,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         }
 
                         const specResponse = await fetchOpenApiSchemaJson(uri)
-                        // write(specResponse.schema)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
@@ -73,7 +72,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         }
 
                         state.variants = transformVariants(
-                            setVariants(state.variants, variants),
+                            config.initialVariants?.length
+                                ? config.initialVariants
+                                : setVariants(state.variants, variants),
                             spec,
                         ).map((variant) => {
                             return {
