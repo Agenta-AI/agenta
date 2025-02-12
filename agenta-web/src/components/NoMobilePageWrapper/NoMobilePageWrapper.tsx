@@ -55,7 +55,7 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
             className={clsx([
                 "fixed top-0 left-0 right-0 bottom-0", // overlay the entire screen
                 "flex flex-col items-center justify-center gap-4", // flex config
-                "z-[9999]",
+                "z-9999",
                 overlay, // TODO: better theme connected tailwind color classes
             ])}
             unmount

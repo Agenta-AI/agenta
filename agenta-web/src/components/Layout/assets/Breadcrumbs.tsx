@@ -33,7 +33,7 @@ export const BreadcrumbContainer = memo(({appTheme, isNewPlayground, appName}) =
     return (
         <div
             className={clsx(classes.breadcrumbContainer, {
-                "[&&]:!mb-0": isNewPlayground,
+                "[&&]:mb-0!": isNewPlayground,
             })}
         >
             <Breadcrumb items={breadcrumbItems} />

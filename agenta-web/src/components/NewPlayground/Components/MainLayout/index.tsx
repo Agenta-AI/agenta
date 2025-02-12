@@ -153,7 +153,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         defaultSize="50%"
                         min="20%"
                         max="70%"
-                        className="!h-full"
+                        className="h-full!"
                         collapsible
                         key={`${isComparisonView ? "comparison" : "single"}-splitter-panel-config`}
                     >
@@ -169,7 +169,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         >
                             {isComparisonView && (
                                 <PromptComparisonVariantNavigation
-                                    className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
+                                    className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
                                     handleScroll={handleScroll}
                                 />
                             )}
@@ -179,7 +179,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                                         key={variantId}
                                         className={clsx([
                                             {
-                                                "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
+                                                "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
                                                     isComparisonView,
                                             },
                                         ])}
@@ -195,8 +195,8 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                     </SplitterPanel>
 
                     <SplitterPanel
-                        className={clsx("!h-full @container", {
-                            "!overflow-y-hidden flex flex-col": isComparisonView,
+                        className={clsx("h-full! @container", {
+                            "overflow-y-hidden! flex flex-col": isComparisonView,
                         })}
                         collapsible
                         defaultSize="50%"
@@ -216,14 +216,14 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         >
                             {/* This component renders Output component header section */}
                             {isComparisonView ? (
-                                <div className="flex min-w-fit sticky top-0 z-[5]">
-                                    <PlaygroundComparisonGenerationInputHeader className="!w-[400px] shrink-0 sticky left-0 top-0 z-[5]" />
+                                <div className="flex min-w-fit sticky top-0 z-5">
+                                    <PlaygroundComparisonGenerationInputHeader className="w-[400px]! shrink-0 sticky left-0 top-0 z-5" />
 
                                     {displayedVariants.map((variantId) => (
                                         <GenerationComparisonOutputHeader
                                             key={variantId}
                                             variantId={variantId}
-                                            className="!min-w-[400px] flex-1 shrink-0"
+                                            className="min-w-[400px]! flex-1 shrink-0"
                                         />
                                     ))}
                                 </div>

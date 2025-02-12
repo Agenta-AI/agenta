@@ -129,7 +129,7 @@ const WriteOwnAppModal = ({...props}: Props) => {
                     <a
                         href="https://docs.agenta.ai/guides/tutorials/a-more-complicated-tutorial-draft"
                         target="_blank"
-                        className="!underline !underline-offset-2"
+                        className="underline! underline-offset-2!"
                     >
                         Click here
                     </a>

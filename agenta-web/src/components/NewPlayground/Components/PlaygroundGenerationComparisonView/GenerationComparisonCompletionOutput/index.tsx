@@ -49,13 +49,13 @@ const GenerationComparisonCompletionOutput = ({
             {variantIndex === 0 ? (
                 <div
                     className={clsx([
-                        "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3] !w-[400px]",
+                        "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-3 w-[400px]!",
                         {"border-r": variantIndex === 0},
                         {"border-b": !isLastRow},
                     ])}
                 >
                     {variantIndex === 0 && (
-                        <div className="w-full flex-1 shrink-0 sticky top-9 z-[2] border-0">
+                        <div className="w-full flex-1 shrink-0 sticky top-9 z-2 border-0">
                             <GenerationCompletion rowId={rowId} withControls={isLastRow} />
                         </div>
                     )}
@@ -64,14 +64,14 @@ const GenerationComparisonCompletionOutput = ({
 
             <div
                 className={clsx([
-                    "!min-w-[400px] flex-1",
+                    "min-w-[400px]! flex-1",
                     "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-b": !isLastRow},
                 ])}
             >
                 <div className="flex h-full">
                     <div className="w-full flex-1 h-full">
-                        <div className="w-full py-2 px-4 sticky top-9 z-[2]">
+                        <div className="w-full py-2 px-4 sticky top-9 z-2">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
@@ -84,13 +84,13 @@ const GenerationComparisonCompletionOutput = ({
                                     readOnly
                                     disabled
                                     className={clsx([
-                                        "!pt-0",
+                                        "pt-0!",
                                         {
-                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                                            "[&_.agenta-rich-text-editor_*]:text-[red]! [&_.message-user-select]:text-[red]":
                                                 result?.error,
                                         },
                                     ])}
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:mt-0!"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }
@@ -102,8 +102,8 @@ const GenerationComparisonCompletionOutput = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className="!p-0"
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    className="p-0!"
+                                    editorClassName="min-h-4 [&_p:first-child]:mt-0!"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }

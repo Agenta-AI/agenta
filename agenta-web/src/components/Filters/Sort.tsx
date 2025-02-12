@@ -161,7 +161,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
             <Popover
                 title={null}
                 trigger="click"
-                overlayClassName={`${classes.popover} ${customOptionSelected ? "!w-[536px]" : "!w-[256px]"} h-[345px]`}
+                overlayClassName={`${classes.popover} ${customOptionSelected ? "w-[536px]!" : "w-[256px]!"} h-[345px]`}
                 arrow={false}
                 afterOpenChange={() => {
                     if (sort == "custom" && !customTime.startTime && !customTime.endTime) {
@@ -187,7 +187,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
                                 ))}
 
                                 <div className="-ml-1 -mr-1.5">
-                                    <Divider className="!my-1" />
+                                    <Divider className="my-1!" />
                                 </div>
 
                                 <div
@@ -207,7 +207,7 @@ const Sort: React.FC<Props> = ({onSortApply, defaultSortValue}) => {
 
                         {customOptionSelected && (
                             <>
-                                <Divider className="!m-0 !h-[340px]" type="vertical" />
+                                <Divider className="m-0! h-[340px]!" type="vertical" />
 
                                 <div className="flex-1 flex flex-col justify-between">
                                     <div>

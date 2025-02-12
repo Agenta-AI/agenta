@@ -31,7 +31,7 @@ const SimpleDropdownSelect = ({
         >
             <Button
                 className={clsx(
-                    "capitalize flex items-center px-[7px] hover:!bg-[rgba(5,23,41,0.15)]",
+                    "capitalize flex items-center px-[7px] hover:bg-[rgba(5,23,41,0.15)]!",
                     className,
                 )}
                 type="text"

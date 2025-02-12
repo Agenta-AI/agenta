@@ -49,10 +49,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     <div className="flex items-center gap-2">
                         <Text className={classes.heading}>{variant?.variantName}</Text>
                         <div className="flex items-center gap-[6px]">
-                            <Version className="!m-0" revision={variant?.revision as number} />
+                            <Version className="m-0!" revision={variant?.revision as number} />
                             <ArrowRight size={14} />
                             <Version
-                                className="!m-0"
+                                className="m-0!"
                                 revision={(variant?.revision as number) + 1}
                             />
                         </div>

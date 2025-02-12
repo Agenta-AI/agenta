@@ -149,7 +149,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                     </div>
 
                     <div className="-ml-4 -mr-2">
-                        <Divider className="!m-0" />
+                        <Divider className="m-0!" />
                     </div>
 
                     <div className={classes.filterContainer}>

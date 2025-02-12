@@ -72,7 +72,7 @@ export function PrettierButton({getCodeDOMNode}: Props) {
     return (
         <>
             <button
-                className={`p-1 hover:bg-gray-100 rounded ${error ? "text-red-600" : ""}`}
+                className={`p-1 hover:bg-gray-100 rounded-sm ${error ? "text-red-600" : ""}`}
                 onClick={formatCode}
                 onMouseEnter={() => error && setShowError(true)}
                 onMouseLeave={() => setShowError(false)}
@@ -81,7 +81,7 @@ export function PrettierButton({getCodeDOMNode}: Props) {
                 <Wand2 size={16} />
             </button>
             {showError && error && (
-                <div className="absolute top-full right-0 mt-1 text-xs text-red-600 bg-white p-2 rounded shadow-lg">
+                <div className="absolute top-full right-0 mt-1 text-xs text-red-600 bg-white p-2 rounded-sm shadow-lg">
                     {error}
                 </div>
             )}

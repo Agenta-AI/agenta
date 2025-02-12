@@ -9,7 +9,7 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
                 viewBox="0 0 160 160"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className={`${isFinish && "*:!stroke-[#36cfc9] *:!shadow-[0px_0px_10px_0px_#B2F8FF]"}`}
+                className={`${isFinish && "*:stroke-[#36cfc9]! *:shadow-[0px_0px_10px_0px_#B2F8FF]!"}`}
             >
                 <path
                     d="M77 140C62.0921 139.336 47.9729 133.117 37.4232 122.568C26.8734 112.018 20.6577 97.902 20 83"

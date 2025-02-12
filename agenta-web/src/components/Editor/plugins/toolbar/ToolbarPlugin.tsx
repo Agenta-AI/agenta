@@ -36,7 +36,7 @@ export function ToolbarPlugin(): JSX.Element {
         )
     }, [editor, updateToolbar])
 
-    const toolbarButton = "p-2 rounded hover:bg-gray-100 transition-colors"
+    const toolbarButton = "p-2 rounded-sm hover:bg-gray-100 transition-colors"
     const activeClass = "bg-gray-200"
 
     return (

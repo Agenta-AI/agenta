@@ -1,5 +1,6 @@
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss/utilities" layer(utilities);
+
+@config '../../tailwind.config.ts';
 
 html,
 body {

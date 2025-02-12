@@ -80,7 +80,7 @@ const ApplicationManagementSection = ({
             <div className="my-10 flex flex-col gap-2">
                 <Flex justify="space-between" align="center" wrap>
                     <Space>
-                        <Title level={2} className="!my-2 shrink-0">
+                        <Title level={2} className="my-2! shrink-0">
                             Application
                         </Title>
                         <Button

@@ -186,7 +186,7 @@ const DeploymentDrawer = ({
                                 "[&_.ant-tabs-nav]:sticky",
                                 "[&_.ant-tabs-nav]:-top-[25px]",
                                 "[&_.ant-tabs-nav]:bg-white",
-                                "[&_.ant-tabs-nav]:z-[1]",
+                                "[&_.ant-tabs-nav]:z-1",
                             ])}
                         >
                             <Tabs

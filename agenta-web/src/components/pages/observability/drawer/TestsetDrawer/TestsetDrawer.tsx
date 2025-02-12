@@ -135,8 +135,8 @@ const TestsetDrawer = ({
                 ? [
                       {
                           value: "divider",
-                          label: <Divider className="!my-1" />,
-                          className: "!p-0 !m-0 !min-h-0.5 !cursor-default",
+                          label: <Divider className="my-1!" />,
+                          className: "p-0! m-0! min-h-0.5! cursor-default!",
                           disabled: true,
                       },
                   ]
@@ -702,7 +702,7 @@ const TestsetDrawer = ({
                                 <Editor
                                     className={clsx([
                                         classes.editor,
-                                        selectedTraceData?.isEdited && "!border-blue-400",
+                                        selectedTraceData?.isEdited && "border-blue-400!",
                                     ])}
                                     height={210}
                                     language={editorFormat.toLowerCase()}
@@ -904,7 +904,7 @@ const TestsetDrawer = ({
                                                         index >=
                                                         totalRows - selectedTestsetTestCases.length
                                                     ) {
-                                                        return "!bg-[#fafafa]"
+                                                        return "bg-[#fafafa]!"
                                                     }
                                                 }
                                                 return ""

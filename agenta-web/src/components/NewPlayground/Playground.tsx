@@ -37,7 +37,7 @@ const PlaygroundWrapper = ({children}) => {
             <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
                 <div className="flex gap-2 items-center justify-center">
                     <Spin />
-                    <Title level={3} className="!m-0">
+                    <Title level={3} className="m-0!">
                         Loading Playground...
                     </Title>
                 </div>

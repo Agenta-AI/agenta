@@ -71,7 +71,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 </>
                             ),
                         },
-                        item.divider && {type: "divider", className: "!my-4"},
+                        item.divider && {type: "divider", className: "my-4!"},
                     ]
                 }
             })

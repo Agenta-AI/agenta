@@ -31,7 +31,7 @@ const PromptFocusDrawer: React.FC<PromptFocusDrawerProps> = ({variantId, ...prop
             <Drawer
                 placement={"right"}
                 width={drawerWidth}
-                classNames={{body: "!p-0"}}
+                classNames={{body: "p-0!"}}
                 onClose={onClose}
                 {...props}
                 title={

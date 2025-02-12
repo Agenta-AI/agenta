@@ -20,7 +20,7 @@ const BooleanControl = ({
     onChange,
 }: BooleanControlProps) => {
     return (
-        <PlaygroundVariantPropertyControlWrapper className="!flex-row justify-between">
+        <PlaygroundVariantPropertyControlWrapper className="flex-row! justify-between">
             {withTooltip ? (
                 <Tooltip title={description}>
                     <Typography.Text>{label}</Typography.Text>

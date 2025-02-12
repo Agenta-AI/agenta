@@ -17,7 +17,7 @@ const GenerationFocusDrawerHeader = ({
     rowId,
 }: GenerationFocusDrawerHeaderProps) => {
     return (
-        <section className={clsx("!w-full flex items-center justify-between", className)}>
+        <section className={clsx("w-full! flex items-center justify-between", className)}>
             <Space className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
                     <Button

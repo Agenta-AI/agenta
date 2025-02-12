@@ -8,7 +8,7 @@ const PlaygroundPromptToolsConfig = () => {
             {
                 key: "1",
                 classNames: {
-                    header: "[&.ant-collapse-header]:!px-2.5",
+                    header: "[&.ant-collapse-header]:px-2.5!",
                 },
                 label: "Tools",
                 children: <PlaygroundPromptTools />,

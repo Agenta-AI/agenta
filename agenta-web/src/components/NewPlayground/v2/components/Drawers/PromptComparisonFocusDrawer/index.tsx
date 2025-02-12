@@ -16,7 +16,7 @@ const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = 
         <>
             <Drawer
                 placement={"right"}
-                classNames={{body: "!p-0"}}
+                classNames={{body: "p-0!"}}
                 width={drawerWidth}
                 onClose={onClose}
                 title="Variant view"
@@ -26,7 +26,7 @@ const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = 
                     {(displayedVariants || []).map((variantId) => (
                         <div
                             key={variantId}
-                            className="[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full overflow-y-auto !overflow-x-hidden flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
+                            className="[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full overflow-y-auto overflow-x-hidden! shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)]"
                         >
                             <PlaygroundVariantConfig variantId={variantId as string} />
                         </div>

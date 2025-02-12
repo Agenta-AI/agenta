@@ -68,7 +68,7 @@ const PlaygroundVariantConfigHeader = ({
             className={clsx(
                 "w-full h-[48px]",
                 "flex items-center justify-between",
-                "sticky top-0 z-[1]",
+                "sticky top-0 z-1",
                 classes.container,
                 className,
             )}

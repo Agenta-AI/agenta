@@ -33,7 +33,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <TraceDrawerButton result={result} size="small" className="!mr-1" type="default" />
+            <TraceDrawerButton result={result} size="small" className="mr-1!" type="default" />
 
             <StatusRenderer status={status} />
 

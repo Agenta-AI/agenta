@@ -33,10 +33,7 @@ const TextControl = ({
                 editorClassName={className}
                 placeholder={metadata?.description}
                 disabled={disabled}
-                className={clsx(
-                    "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
-                    className,
-                )}
+                className={clsx("relative flex flex-col gap-1 rounded-[--spacing(2)]", className)}
                 editorProps={{enableResize: true, boundWidth: true}}
                 {...props}
             />
@@ -52,7 +49,7 @@ const TextControl = ({
             }
             editorType="borderless"
             className={clsx(
-                "relative bg-transparent flex flex-col gap-1 rounded-[theme(spacing.2)]",
+                "relative bg-transparent flex flex-col gap-1 rounded-[--spacing(2)]",
                 className,
             )}
             handleChange={handleChange}

@@ -171,12 +171,12 @@ export function CodeActionMenuPlugin(): JSX.Element | null {
                     </div>
                 )}
             </div>
-            <button className="p-1 hover:bg-gray-100 rounded" onClick={copyContent} title="Copy">
+            <button className="p-1 hover:bg-gray-100 rounded-sm" onClick={copyContent} title="Copy">
                 <Copy size={16} />
             </button>
             <PrettierButton getCodeDOMNode={getCodeDOMNode} />
             <button
-                className="p-1 hover:bg-gray-100 rounded text-red-600"
+                className="p-1 hover:bg-gray-100 rounded-sm text-red-600"
                 onClick={deleteContent}
                 title="Delete"
             >

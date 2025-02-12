@@ -47,7 +47,7 @@ const MinMaxControl = ({
     )
 
     return (
-        <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
+        <PlaygroundVariantPropertyControlWrapper className="gap-0! mb-0">
             <Tooltip title={description || ""} placement="right">
                 <div className="flex items-center gap-2 justify-between">
                     <Typography.Text>{label}</Typography.Text>
@@ -60,7 +60,7 @@ const MinMaxControl = ({
                             value={localValue}
                             onChange={handleValueChange}
                             disabled={disabled}
-                            className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left"
+                            className="w-[60px] [&_input]:text-center! [&:hover_input]:text-left!"
                         />
 
                         {localValue ? (

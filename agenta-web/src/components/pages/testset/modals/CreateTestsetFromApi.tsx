@@ -55,7 +55,7 @@ const LanguageCodeBlock = ({selectedLang, codeSnippets}: LanguageCodeBlockProps)
                 <CopyButton buttonText={null} text={codeSnippets[selectedLang]} icon={true} />
             </div>
 
-            <div className="w-[430px] max-h-[380px] !overflow-y-auto">
+            <div className="w-[430px] max-h-[380px] overflow-y-auto!">
                 <CodeBlock
                     key={selectedLang}
                     language={selectedLang}
@@ -142,7 +142,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         selectedLang={selectedLang}
                                     />
                                 ),
-                                icon: <FileTs size={14} className="!-mb-[3px]" />,
+                                icon: <FileTs size={14} className="-mb-[3px]!" />,
                             },
                             {
                                 key: "bash",
@@ -153,7 +153,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         selectedLang={selectedLang}
                                     />
                                 ),
-                                icon: <FileCode size={14} className="!-mb-[3px]" />,
+                                icon: <FileCode size={14} className="-mb-[3px]!" />,
                             },
                         ]}
                     />

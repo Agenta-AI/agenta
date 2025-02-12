@@ -9,7 +9,7 @@ const PlaygroundPromptTool = () => {
                 <PlaygroundPromptToolsOptions className="invisible group-hover/item:visible" />
             </div>
 
-            <Input.TextArea placeholder="Type your JSON here" className="!h-[250px]" />
+            <Input.TextArea placeholder="Type your JSON here" className="h-[250px]!" />
         </section>
     )
 }

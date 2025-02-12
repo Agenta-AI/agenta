@@ -108,13 +108,13 @@ const GenerationComparisonChatOutputCell = ({
         <>
             <div
                 className={clsx([
-                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-solid border-[rgba(5,23,41,0.06)]",
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-4 bg-white border-0 border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-r": variantIndex === 0},
                     {"border-b": !isLastRow},
                 ])}
             >
                 {variantIndex === 0 && (
-                    <div className="!w-[399.2px] shrink-0 sticky top-9 z-[2]">
+                    <div className="w-[399.2px]! shrink-0 sticky top-9 z-2">
                         <div
                             className={clsx([
                                 {
@@ -143,8 +143,8 @@ const GenerationComparisonChatOutputCell = ({
                                 withControls={isLastRow} // Only show controls (to add a message) in the last row
                                 isMessageDeletable={messageRow.history?.value?.length === 1}
                                 messageProps={{
-                                    className: "!p-0",
-                                    editorClassName: "!p-3",
+                                    className: "p-0!",
+                                    editorClassName: "p-3!",
                                     headerClassName:
                                         "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                                     footerClassName: "px-3",
@@ -157,14 +157,14 @@ const GenerationComparisonChatOutputCell = ({
 
             <div
                 className={clsx([
-                    "!min-w-[400px] flex-1",
+                    "min-w-[400px]! flex-1",
                     "shrink-0",
                     "flex flex-col self-stretch",
                     "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-b": !isLastRow},
                 ])}
             >
-                <div className="!w-full shrink-0 sticky top-9 z-[2]">
+                <div className="w-full! shrink-0 sticky top-9 z-2">
                     {!!message ? (
                         <GenerationChatRowOutput
                             message={message}
@@ -176,11 +176,11 @@ const GenerationComparisonChatOutputCell = ({
                             isRunning={message?.__isRunning}
                             disabled={!messageRow}
                             messageProps={{
-                                className: "!p-0",
-                                editorClassName: "!p-3",
+                                className: "p-0!",
+                                editorClassName: "p-3!",
                                 headerClassName:
                                     "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                                footerClassName: "px-3 h-[48px] !m-0",
+                                footerClassName: "px-3 h-[48px] m-0!",
                             }}
                         />
                     ) : (

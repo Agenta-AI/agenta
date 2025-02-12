@@ -122,7 +122,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     messageId={messageId}
                     deleteMessage={deleteMessage}
                     editorType="border"
-                    editorClassName="min-h-4 [&_p:last-child]:!mb-0"
+                    editorClassName="min-h-4 [&_p:last-child]:mb-0!"
                     isMessageDeletable={messageIds?.length === 1}
                 />
             ))}

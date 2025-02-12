@@ -124,13 +124,13 @@ const GenerationCompletionRow = ({
                                     readOnly
                                     disabled
                                     className={clsx([
-                                        "!pt-0",
+                                        "pt-0!",
                                         {
-                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                                            "[&_.agenta-rich-text-editor_*]:text-[red]! [&_.message-user-select]:text-[red]":
                                                 result?.error,
                                         },
                                     ])}
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:mt-0!"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }
@@ -142,8 +142,8 @@ const GenerationCompletionRow = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className="!pt-0"
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    className="pt-0!"
+                                    editorClassName="min-h-4 [&_p:first-child]:mt-0!"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }
@@ -170,7 +170,7 @@ const GenerationCompletionRow = ({
                                         propertyId={variableId}
                                         view={view}
                                         rowId={rowId}
-                                        className="*:!border-none"
+                                        className="*:border-none!"
                                     />
 
                                     {!inputOnly && (

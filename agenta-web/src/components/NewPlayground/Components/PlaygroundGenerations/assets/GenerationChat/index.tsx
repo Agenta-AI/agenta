@@ -106,12 +106,12 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
             <div
                 className={clsx([
                     "flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                    {"!border-none !p-0 !gap-0": isComparisonView},
+                    {"border-none! p-0! gap-0!": isComparisonView},
                 ])}
             >
                 <div className="flex flex-col gap-1">
                     {!isComparisonView && <Typography>Chat</Typography>}
-                    <div className={clsx(["flex flex-col gap-2", {"!gap-0": isComparisonView}])}>
+                    <div className={clsx(["flex flex-col gap-2", {"gap-0!": isComparisonView}])}>
                         {!isComparisonView
                             ? configMessageIds.map((messageId) => (
                                   <PromptMessageConfig

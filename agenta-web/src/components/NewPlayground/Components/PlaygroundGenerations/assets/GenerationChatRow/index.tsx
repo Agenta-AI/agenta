@@ -69,7 +69,7 @@ export const GenerationChatRowOutput = ({
         <div
             className={clsx([
                 "w-full flex flex-col items-start gap-2 relative group/option",
-                {"!gap-0": isComparisonView},
+                {"gap-0!": isComparisonView},
             ])}
         >
             <PromptMessageConfig
@@ -82,7 +82,7 @@ export const GenerationChatRowOutput = ({
                     "w-full",
                     messageProps?.className,
                     {
-                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red] [&_.message-user-select]:pointer-events-none":
+                        "[&_.agenta-rich-text-editor_*]:text-[red]! [&_.message-user-select]:text-[red] [&_.message-user-select]:pointer-events-none":
                             messageResult?.error,
                     },
                 ])}
@@ -278,7 +278,7 @@ const GenerationChatRow = ({
             <div
                 className={clsx([
                     "flex flex-col items-start gap-5 w-full",
-                    {"!gap-0": viewType === "comparison"},
+                    {"gap-0!": viewType === "comparison"},
                 ])}
             >
                 <GenerationChatRowOutput
@@ -292,7 +292,7 @@ const GenerationChatRow = ({
                     disabled={!messageRow}
                     placeholder="Type a message..."
                     messageProps={{
-                        className: "[&]:!min-h-4",
+                        className: "[&]:min-h-4!",
                         ...messageProps,
                     }}
                     isMessageDeletable={isMessageDeletable}

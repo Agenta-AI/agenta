@@ -49,7 +49,7 @@ const SharedEditor = ({
                     "hover:border-[#394857] focus:border-[#1C2C3D]": editorType === "border",
                     "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
-                    "hover:border-[394857] focus:border-[394857]":
+                    "hover:border-394857 focus:border-394857":
                         state === "filled" && editorType === "border",
                 },
                 {
@@ -60,7 +60,7 @@ const SharedEditor = ({
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
                 },
-                isEditorFocused && "!border-[#1C2C3D]",
+                isEditorFocused && "border-[#1C2C3D]!",
                 className,
             )}
             onFocus={() => setIsEditorFocused(true)}

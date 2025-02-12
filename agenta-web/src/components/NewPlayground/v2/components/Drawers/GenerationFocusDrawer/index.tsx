@@ -61,7 +61,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
             placement={"right"}
             width={drawerWidth}
             onClose={onClose}
-            classNames={{body: "!p-0 !overflow-x-hidden"}}
+            classNames={{body: "p-0! overflow-x-hidden!"}}
             {...props}
             title={
                 <GenerationFocusDrawerHeader
@@ -81,7 +81,7 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
                 key={rowId}
                 variantId={variantId}
                 rowId={rowId}
-                className="!border-none"
+                className="border-none!"
                 inputOnly={true}
                 view="focus"
             />

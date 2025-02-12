@@ -10,7 +10,7 @@ const PromptFocusDrawerHeader: React.FC<PromptFocusDrawerHeaderProps> = ({
     variantId,
 }) => {
     return (
-        <div className="!w-full flex items-center justify-between">
+        <div className="w-full! flex items-center justify-between">
             <Space className="flex items-center gap-2">
                 <Typography.Text>{variantName}</Typography.Text>
                 <Version revision={revision} />
