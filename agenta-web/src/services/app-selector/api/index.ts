@@ -51,11 +51,13 @@ export const createApp = async ({
     templateKey: ServiceType
 }) => {
     const {selectedOrg} = getOrgValues()
+    const {projectId} = getCurrentProject()
     const response = await axios.post(`${getAgentaApiUrl()}/api/apps`, {
         app_name: appName,
         template_key: templateKey,
         organization_id: selectedOrg?.id,
         workspace_id: selectedOrg?.default_workspace.id,
+        project_id: projectId,
     })
     return response.data
 }
