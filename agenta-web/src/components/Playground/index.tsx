@@ -8,6 +8,7 @@ import useSWR from "swr"
 import {getAgentaApiUrl} from "@/lib/helpers/utils"
 import {ListAppsItem} from "@/lib/Types"
 import {getCurrentProject} from "@/contexts/project.context"
+import {useApps, useAppsData} from "@/contexts/app.context"
 
 const NewPlayground = dynamic(() => import("../NewPlayground/Playground"), {ssr: false})
 const OldPlayground = dynamic(() => import("../OldPlayground/Playground"), {ssr: false})
@@ -16,7 +17,7 @@ const PlaygroundRouter = () => {
     const router = useRouter()
     const {projectId} = getCurrentProject()
     const appId = router.query.app_id
-    const {isLoading, data} = useSWR(`${getAgentaApiUrl()}/api/apps?project_id=${projectId}`)
+    const {isLoading, data} = useApps()
 
     const app = useMemo(() => {
         return (data || [])?.find((item: ListAppsItem) => item.app_id === appId)
