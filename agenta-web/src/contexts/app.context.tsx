@@ -38,7 +38,7 @@ const initialValues: AppContextType = {
     setModalInstance: (context) => {},
 }
 
-const useApps = (options) => {
+export const useApps = (options = {}) => {
     const {projectId} = useProjectData()
     const {user} = useProfileData()
 

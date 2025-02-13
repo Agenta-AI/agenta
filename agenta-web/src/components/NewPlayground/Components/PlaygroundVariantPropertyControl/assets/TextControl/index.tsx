@@ -52,11 +52,7 @@ const TextControl = ({
                 "relative bg-transparent flex flex-col gap-1 rounded-[--spacing(2)]",
                 className,
             )}
-            handleChange={handleChange}
             initialValue={value}
-            editorClassName={className}
-            placeholder={metadata?.description}
-            disabled={disabled}
             {...props}
         />
     )
