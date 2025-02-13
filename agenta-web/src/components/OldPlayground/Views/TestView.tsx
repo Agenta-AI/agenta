@@ -807,6 +807,7 @@ const App: React.FC<TestViewProps> = ({
                 onOk={() => router.push("/settings?tab=secrets")}
                 onCancel={() => setIsLLMProviderMissingModalOpen(false)}
                 okText={"View LLM Keys"}
+                {...(!isDemo() && {footer: null})}
             >
                 <p>
                     The API key for the LLM is either incorrect or missing. Please ensure that you
