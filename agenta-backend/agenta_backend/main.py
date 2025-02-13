@@ -35,6 +35,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from celery import Celery
 
 
+from agenta_backend.dbs.secrets.dao import SecretsDAO
+from agenta_backend.core.secrets.services import VaultService
+from agenta_backend.apis.fastapi.vault.router import VaultRouter
 from agenta_backend.dbs.postgres.observability.dao import ObservabilityDAO
 from agenta_backend.core.observability.service import ObservabilityService
 from agenta_backend.apis.fastapi.observability.router import ObservabilityRouter
@@ -130,6 +133,10 @@ observability = ObservabilityRouter(ObservabilityService(ObservabilityDAO()))
 app.include_router(
     router=observability.router, prefix="/observability/v1", tags=["Observability"]
 )
+
+vault_router = VaultRouter(VaultService(SecretsDAO()))
+app.include_router(vault_router.router, prefix="/vault/v1", tags=["Vault"])
+
 
 if isCloudEE():
     import agenta_backend.cloud.main as cloud

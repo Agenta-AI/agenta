@@ -278,6 +278,51 @@ export interface LlmProvidersKeys {
     GEMINI_API_KEY: string
 }
 
+export type HeaderDTO = {
+    name?: string | null
+    description?: string | null
+}
+
+export type SecretDTO = {
+    kind: SecretDTOKind
+    data: {
+        key: string
+        provider: SecretDTOProvider
+    }
+}
+
+type LifecycleDTO = {
+    created_at?: string | null
+    updated_at?: string | null
+    updated_by_id?: string | null
+}
+
+export enum SecretDTOKind {
+    PROVIDER_KEY = "provider_key",
+}
+
+export enum SecretDTOProvider {
+    OPENAI = "openai",
+    COHERE = "cohere",
+    ANYSCALE = "anyscale",
+    DEEPINFRA = "deepinfra",
+    ALEPHALPHA = "alephalpha",
+    GROQ = "groq",
+    MISTRALAI = "mistralai",
+    ANTHROPIC = "anthropic",
+    PERPLEXITYAI = "perplexityai",
+    TOGETHERAI = "togetherai",
+    OPENROUTER = "openrouter",
+    GEMINI = "gemini",
+}
+
+export type VaultSecretDTO = {
+    header?: HeaderDTO | null
+    secret: SecretDTO
+    id: string
+    lifecycle: LifecycleDTO
+}
+
 export interface AppTemplate {
     app_name: string
     template_id: string

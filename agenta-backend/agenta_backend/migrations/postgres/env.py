@@ -25,6 +25,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 from agenta_backend.dbs.postgres.shared.base import Base
 
+import agenta_backend.dbs.secrets.dbes
 import agenta_backend.dbs.postgres.observability.dbes
 
 
