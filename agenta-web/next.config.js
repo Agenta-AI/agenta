@@ -4,6 +4,19 @@ const COMMON_CONFIG = {
     output: "standalone",
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx"],
+    transpilePackages: [
+        "@lobehub/icons",
+        "@lobehub/fluent-emoji",
+        "rc-util",
+        "antd",
+        "rc-pagination",
+        "rc-picker",
+        "rc-tree",
+        "rc-input",
+        "rc-table",
+        "@ant-design/icons",
+        "@ant-design/icons-svg",
+    ],
     productionBrowserSourceMaps: true,
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
@@ -28,20 +41,6 @@ if (isDevelopment) {
 
     const prodConfig = {
         ...COMMON_CONFIG,
-        transpilePackages: [
-            "@lobehub/ui",
-            "@lobehub/icons",
-            "@lobehub/fluent-emoji",
-            "rc-util",
-            "antd",
-            "rc-pagination",
-            "rc-picker",
-            "rc-tree",
-            "rc-input",
-            "rc-table",
-            "@ant-design/icons",
-            "@ant-design/icons-svg",
-        ],
         typescript: {
             ignoreBuildErrors: true,
         },
