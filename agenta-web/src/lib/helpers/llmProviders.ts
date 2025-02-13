@@ -1,4 +1,4 @@
-import cloneDeep from "lodash/cloneDeep"
+import {SecretDTOProvider, VaultSecretDTO} from "../Types"
 
 export const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -24,63 +24,33 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Gemini", key: "", name: "GEMINI_API_KEY"},
 ]
 
-export const getApikeys = () => {
-    if (typeof window !== "undefined") {
-        const llmAvailableProvidersTokenString = localStorage.getItem(llmAvailableProvidersToken)
-        const apiKeys: Array<LlmProvider> = []
+export const transformSecret = (secrets: VaultSecretDTO[]) => {
+    return secrets.reduce((acc, curr) => {
+        const name = curr.header?.name
+        const {key, provider} = curr.secret.data
 
-        if (llmAvailableProvidersTokenString !== null) {
-            const llmAvailableProvidersTokenArray = JSON.parse(llmAvailableProvidersTokenString)
-
-            if (
-                Array.isArray(llmAvailableProvidersTokenArray) &&
-                llmAvailableProvidersTokenArray.length > 0
-            ) {
-                for (let i = 0; i < llmAvailableProvidersTokenArray.length; i++) {
-                    if (llmAvailableProvidersTokenArray[i].key !== "") {
-                        apiKeys.push(llmAvailableProvidersTokenArray[i])
-                    }
-                }
-            }
+        const envNameMap: Record<string, string> = {
+            [SecretDTOProvider.OPENAI]: "OPENAI_API_KEY",
+            [SecretDTOProvider.COHERE]: "COHERE_API_KEY",
+            [SecretDTOProvider.ANYSCALE]: "ANYSCALE_API_KEY",
+            [SecretDTOProvider.DEEPINFRA]: "DEEPINFRA_API_KEY",
+            [SecretDTOProvider.ALEPHALPHA]: "ALEPHALPHA_API_KEY",
+            [SecretDTOProvider.GROQ]: "GROQ_API_KEY",
+            [SecretDTOProvider.MISTRALAI]: "MISTRAL_API_KEY",
+            [SecretDTOProvider.ANTHROPIC]: "ANTHROPIC_API_KEY",
+            [SecretDTOProvider.PERPLEXITYAI]: "PERPLEXITYAI_API_KEY",
+            [SecretDTOProvider.TOGETHERAI]: "TOGETHERAI_API_KEY",
+            [SecretDTOProvider.OPENROUTER]: "OPENROUTER_API_KEY",
+            [SecretDTOProvider.GEMINI]: "GEMINI_API_KEY",
         }
-        return apiKeys
-    }
-}
 
-export const saveLlmProviderKey = (providerName: string, keyValue: string) => {
-    // TODO: add encryption here
-    const keys = getAllProviderLlmKeys()
-    const item = keys.find((item: LlmProvider) => item.title === providerName)
-    if (item) item.key = keyValue
-    localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-}
+        acc.push({
+            title: name || "",
+            key: key,
+            name: envNameMap[provider] || "",
+            id: curr.id,
+        })
 
-export const getAllProviderLlmKeys = () => {
-    const providers = cloneDeep(llmAvailableProviders)
-    try {
-        if (typeof window !== "undefined") {
-            const providersInStorage: LlmProvider[] = JSON.parse(
-                localStorage.getItem(llmAvailableProvidersToken) || "[{}]",
-            )
-            for (const provider of providers) {
-                provider.key = providersInStorage.find((p) => p.title === provider.title)?.key || ""
-            }
-        }
-    } catch (error) {
-        console.error(error)
-    }
-    return providers
-}
-
-export const removeSingleLlmProviderKey = (providerName: string) => {
-    const keys = getAllProviderLlmKeys()
-    const item = keys.find((item: LlmProvider) => item.title === providerName)
-    if (item) item.key = ""
-    localStorage.setItem(llmAvailableProvidersToken, JSON.stringify(keys))
-}
-
-export const removeLlmProviderKey = () => {
-    if (typeof window !== "undefined") {
-        localStorage.removeItem(llmAvailableProvidersToken)
-    }
+        return acc
+    }, [] as LlmProvider[])
 }
