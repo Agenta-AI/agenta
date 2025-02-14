@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo} from "react"
+import {memo, useEffect, useMemo, useRef} from "react"
 
 import clsx from "clsx"
 import dynamic from "next/dynamic"
@@ -8,7 +8,7 @@ import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import Link from "next/link"
 import {isDemo} from "@/lib/helpers/utils"
 import {useAppTheme} from "./ThemeContextProvider"
-import {useElementSize} from "usehooks-ts"
+import {useResizeObserver} from "usehooks-ts"
 
 import NoSSRWrapper from "../NoSSRWrapper/NoSSRWrapper"
 import {ErrorBoundary} from "react-error-boundary"
@@ -19,7 +19,6 @@ import {useProfileData} from "@/contexts/profile.context"
 import {ThemeProvider} from "react-jss"
 import {useProjectData} from "@/contexts/project.context"
 import {useOrgData} from "@/contexts/org.context"
-import {dynamicComponent} from "@/lib/helpers/dynamic"
 
 import {useStyles, type StyleProps} from "./assets/styles"
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
@@ -31,7 +30,6 @@ const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
 })
 
 const {Content, Footer} = Layout
-const {Text} = Typography
 
 type LayoutProps = {
     children: React.ReactNode
@@ -66,7 +64,11 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
     const {appTheme} = useAppTheme()
     const {currentApp, isLoading, error} = useAppsData()
-    const [footerRef, {height: footerHeight}] = useElementSize()
+    const ref = useRef<HTMLElement | null>(null)
+    const {height: footerHeight} = useResizeObserver({
+        ref,
+        box: "border-box",
+    })
     const {project, projects} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
@@ -227,7 +229,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                                 </ErrorBoundary>
                                             </Content>
                                         </div>
-                                        <Footer ref={footerRef} className={classes.footer}>
+                                        <Footer className={classes.footer}>
                                             <Space className={classes.footerLeft} size={10}>
                                                 <Link
                                                     href={"https://github.com/Agenta-AI/agenta"}
