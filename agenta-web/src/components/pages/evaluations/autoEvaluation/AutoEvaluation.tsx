@@ -36,7 +36,7 @@ import {useRouter} from "next/router"
 import EditColumns, {generateEditItems} from "./Filters/EditColumns"
 import StatusRenderer from "../cellRenderers/StatusRenderer"
 import {runningStatuses, statusMapper} from "../../evaluations/cellRenderers/cellRenderers"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {shortPoll} from "@/lib/helpers/utils"
 import {getFilterParams} from "./Filters/SearchFilter"
 import uniqBy from "lodash/uniqBy"
@@ -85,7 +85,7 @@ const AutoEvaluation = () => {
         [evaluationList],
     )
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         stoppers.current?.()
 
         if (runningEvaluationIds.length) {

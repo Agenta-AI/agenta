@@ -21,7 +21,7 @@ import NewEvaluationModal from "../../evaluations/NewEvaluation/NewEvaluationMod
 import {useAtom} from "jotai"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/lib/atoms/evaluation"
 import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {shortPoll} from "@/lib/helpers/utils"
 import DeleteEvaluationModal from "@/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import EvaluationErrorPopover from "../../evaluations/EvaluationErrorProps/EvaluationErrorPopover"
@@ -82,7 +82,7 @@ const AutomaticEvalOverview = () => {
         [evaluationList],
     )
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         stoppers.current?.()
 
         if (runningEvaluationIds.length) {

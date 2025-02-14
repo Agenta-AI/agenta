@@ -8,7 +8,7 @@ import {fetchTestset, updateTestset} from "@/services/testsets/api"
 import {useRouter} from "next/router"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import useBlockNavigation from "@/hooks/useBlockNavigation"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import useStateCallback from "@/hooks/useStateCallback"
 import {AxiosResponse} from "axios"
 import EditRowModal from "./EditRowModal"
@@ -106,7 +106,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         cancelText: "Proceed without saving",
     })
 
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (isDataChanged) {
             setUnSavedChanges(true)
         }

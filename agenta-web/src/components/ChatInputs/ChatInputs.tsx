@@ -4,7 +4,7 @@ import {Button, Input, Select, Space, Tooltip} from "antd"
 import cloneDeep from "lodash/cloneDeep"
 import React, {useEffect, useRef, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {useUpdateEffect} from "usehooks-ts"
+import useLazyEffect from "@/hooks/useLazyEffect"
 import {v4 as uuidv4} from "uuid"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import CopyButton from "../CopyButton/CopyButton"
@@ -122,14 +122,7 @@ const ChatInputs: React.FC<Props> = ({
         onChangeRef.current = onChange
     }, [onChange])
 
-    // disabled for now (to be reverted if there are issues after this change)
-    // useUpdateEffect(() => {
-    //     if (onChangeRef.current) {
-    //         onChangeRef.current(cloneDeep(messages))
-    //     }
-    // }, [messages])
-
-    useUpdateEffect(() => {
+    useLazyEffect(() => {
         if (Array.isArray(value)) setMessages(cloneDeep(value))
     }, [JSON.stringify(value)])
 
