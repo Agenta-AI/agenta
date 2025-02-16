@@ -51,7 +51,7 @@ class CoPConfig(BaseModel):
 # highlight-end
 
 # highlight-next-line
-@ag.route("/", schema=CoPConfig)
+@ag.route("/", config_schema=CoPConfig)
 def generate(blog_post: str):
     # highlight-next-line
     config = ag.ConfigManager.get_from_route(schema=CoPConfig)
