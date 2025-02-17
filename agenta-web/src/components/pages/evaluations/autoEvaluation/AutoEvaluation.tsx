@@ -540,7 +540,10 @@ const AutoEvaluation = () => {
                     <Button
                         icon={<Gauge size={14} />}
                         className={classes.button}
-                        onClick={() => setIsConfigEvaluatorModalOpen("open")}
+                        onClick={() => {
+                            setIsConfigEvaluatorModalOpen("open")
+                            setCurrent(0)
+                        }}
                     >
                         Configure evaluators
                     </Button>
