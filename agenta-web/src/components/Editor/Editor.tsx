@@ -1,13 +1,9 @@
+import {forwardRef, useCallback, useEffect, useRef} from "react"
+
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
+import {v4 as uuidv4} from "uuid"
 import clsx from "clsx"
-import {
-    $createTextNode,
-    $insertNodes,
-    COMMAND_PRIORITY_LOW,
-    EditorState,
-    LexicalEditor,
-    createCommand,
-} from "lexical"
+import {COMMAND_PRIORITY_LOW, EditorState, LexicalEditor, createCommand} from "lexical"
 import {$getRoot} from "lexical"
 import {$convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS} from "@lexical/markdown"
 
@@ -17,7 +13,6 @@ import useEditorConfig from "./hooks/useEditorConfig"
 import EditorPlugins from "./plugins"
 
 import type {EditorProps} from "./types"
-import {forwardRef, useCallback, useEffect, useRef} from "react"
 import {mergeRegister} from "@lexical/utils"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 
@@ -49,7 +44,7 @@ export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
 const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
     (
         {
-            id = crypto.randomUUID(),
+            id = uuidv4(),
             initialValue = "",
             onChange,
             placeholder = "Enter some text...",
@@ -178,7 +173,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 )
 
 const Editor = ({
-    id = crypto.randomUUID(),
+    id = uuidv4(),
     initialValue = "",
     disabled = false,
     className,
