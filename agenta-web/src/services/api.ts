@@ -119,10 +119,7 @@ export async function callVariant(
             secondaryInputParams[key] = inputParametersDict[key]
         } else {
             // Parse the value if key is "messages"
-            mainInputParams[key] =
-                key === "messages"
-                    ? JSON.parse(inputParametersDict[key] || "null")
-                    : inputParametersDict[key]
+            mainInputParams[key] = inputParametersDict[key]
         }
     }
     optionalParameters = optionalParameters || []
