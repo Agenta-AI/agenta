@@ -130,6 +130,43 @@ export const safeParse = (str: string, fallback: any = "") => {
     }
 }
 
+export const extractChatMessages = (testcase: any) => {
+    if (testcase.messages) return formatMessages(parseStringToJson(testcase.messages))
+    if (testcase.chat) return formatMessages(parseStringToJson(testcase.chat))
+
+    const filteredEntries = Object.entries(testcase).filter(([key]) => key !== "correct_answer")
+
+    for (const [_, value] of filteredEntries) {
+        const parsedValue = parseStringToJson(value)
+        if (Array.isArray(parsedValue)) {
+            return formatMessages(parsedValue)
+        }
+    }
+
+    return []
+}
+
+const parseStringToJson = (value: any) => {
+    if (typeof value === "string") {
+        try {
+            return JSON.parse(value)
+        } catch {
+            return value
+        }
+    }
+    return value
+}
+
+const formatMessages = (messages: any) => {
+    if (typeof messages === "object" && !Array.isArray(messages)) {
+        messages = Object.values(messages)
+    }
+
+    return Array.isArray(messages)
+        ? messages.map(({role, content, id}) => ({role, content, id}))
+        : []
+}
+
 export const getAgentaApiUrl = () => {
     const apiUrl = process.env.NEXT_PUBLIC_AGENTA_API_URL
 
