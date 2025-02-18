@@ -647,10 +647,7 @@ const AutoEvaluation = () => {
             {isConfigEvaluatorModalOpen === "open" && (
                 <EvaluatorsModal
                     open={isConfigEvaluatorModalOpen === "open"}
-                    onCancel={() => {
-                        setIsConfigEvaluatorModalOpen("")
-                        setCurrent(0)
-                    }}
+                    onCancel={() => setIsConfigEvaluatorModalOpen("")}
                     current={current}
                     setCurrent={setCurrent}
                 />
