@@ -131,8 +131,9 @@ export const safeParse = (str: string, fallback: any = "") => {
 }
 
 export const extractChatMessages = (testcase: any) => {
-    if (testcase.messages) return formatMessages(parseStringToJson(testcase.messages))
-    if (testcase.chat) return formatMessages(parseStringToJson(testcase.chat))
+    if (testcase.messages)
+        return formatMessages(normalizeMessages(parseStringToJson(testcase.messages)))
+    if (testcase.chat) return formatMessages(normalizeMessages(parseStringToJson(testcase.chat)))
 
     const filteredEntries = Object.entries(testcase).filter(([key]) => key !== "correct_answer")
 
@@ -155,6 +156,13 @@ const parseStringToJson = (value: any) => {
         }
     }
     return value
+}
+
+const normalizeMessages = (messages: any) => {
+    if (!Array.isArray(messages) && typeof messages === "object") {
+        return [messages]
+    }
+    return messages
 }
 
 const formatMessages = (messages: any) => {
