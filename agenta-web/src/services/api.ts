@@ -107,7 +107,7 @@ export async function callVariant(
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
-    const mainInputParams: Record<string, string> = {} // Parameters with input = true
+    const mainInputParams: Record<string, any> = {} // Parameters with input = true
     const secondaryInputParams: Record<string, string> = {} // Parameters with input = false
 
     for (let key of Object.keys(inputParametersDict)) {
@@ -118,6 +118,7 @@ export async function callVariant(
         if (paramDefinition && !paramDefinition.input) {
             secondaryInputParams[key] = inputParametersDict[key]
         } else {
+            // Parse the value if key is "messages"
             mainInputParams[key] = inputParametersDict[key]
         }
     }
