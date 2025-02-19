@@ -79,14 +79,13 @@ const EvaluatorsModal = ({
             .finally(() => setFetchingEvalConfigs(false))
     }
 
-    const {data} = useVariants(currentApp)({
-        appId,
-        onSuccess: (data) => {
-            if (data?.variants?.length) {
-                setSelectedVariant(data?.variants[0])
-            }
-        },
-    })
+    const {data} = useVariants(currentApp)({appId})
+
+    useEffect(() => {
+        if (data?.variants?.length) {
+            setSelectedVariant(data?.variants[0].variant)
+        }
+    }, [data])
 
     useEffect(() => {
         Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId), fetchTestsets()]).then(
