@@ -32,10 +32,10 @@ const Sidebar: React.FC = () => {
     const menu = useSidebarConfig()
     const {user} = useProfileData()
     const {logout} = useSession()
-    const {project} = useProjectData()
+    const {project, projects} = useProjectData()
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
     const [isHovered, setIsHovered] = useState(false)
-    const dropdownItems = useDropdownItems({logout, orgs, selectedOrg, user, project})
+    const dropdownItems = useDropdownItems({logout, orgs, selectedOrg, user, project, projects})
 
     const isSidebarExpanded = useMemo(() => collapsed && !isHovered, [collapsed, isHovered])
 
