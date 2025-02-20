@@ -7,4 +7,5 @@ export type UseDropdownItemsProps = {
     orgs: Org[]
     project: ProjectsResponse | null
     logout: () => void
+    projects: ProjectsResponse[]
 }

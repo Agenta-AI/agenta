@@ -15,11 +15,18 @@ export const useDropdownItems = ({
     orgs,
     project,
     logout,
+    projects,
 }: UseDropdownItemsProps) => {
+    const filteredOrgs = useMemo(() => {
+        return projects.flatMap((project) =>
+            orgs.filter((org) => org.id === project.organization_id && !project.is_demo),
+        )
+    }, [projects, orgs])
+
     const dropdownItems = useMemo(() => {
         if (selectedOrg?.id && user?.id && isDemo()) {
             return [
-                ...orgs.map((org: any) => ({
+                ...filteredOrgs.map((org: any) => ({
                     key: org.id,
                     label: (
                         <Space>
@@ -58,7 +65,7 @@ export const useDropdownItems = ({
         } else {
             return []
         }
-    }, [logout, orgs, project?.is_demo, selectedOrg?.id, user?.id])
+    }, [logout, filteredOrgs, project?.is_demo, selectedOrg?.id, user?.id])
 
     return dropdownItems
 }
