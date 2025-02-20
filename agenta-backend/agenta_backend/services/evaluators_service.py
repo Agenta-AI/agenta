@@ -248,27 +248,18 @@ async def auto_field_match_test(
     settings_values: Dict[str, Any],
     lm_providers_keys: Dict[str, Any],  # pylint: disable=unused-argument
 ) -> Result:
-    print(f"Starting auto_field_match_test with output: {output}")
     try:
         output = validate_string_output("field_match_test", output)
-        print(f"Validated output: {output}")
         correct_answer = get_correct_answer(data_point, settings_values)
-        print(f"Correct answer: {correct_answer}")
-        inputs = {
-            "ground_truth": correct_answer,
-            "prediction": output,
-            "settings": settings_values,
-        }
-        print(f"Prepared inputs: {inputs}")
+        inputs = {"ground_truth": correct_answer, "prediction": output}
         response = await field_match_test(
             input=EvaluatorInputInterface(
                 **{"inputs": inputs, "settings": settings_values}
             )
         )
-        print(f"Field match test response: {response}")
         return Result(type="bool", value=response["outputs"]["success"])
     except ValueError as e:
-        print(f"ValueError occurred: {e}")
+        logging.debug("Field Match Test Failed because of Error: %s", str(e))
         return Result(
             type="error",
             value=None,
@@ -277,7 +268,6 @@ async def auto_field_match_test(
             ),
         )
     except Exception as e:  # pylint: disable=broad-except
-        print(f"Exception occurred: {e}")
         logging.debug("Field Match Test Failed because of Error: %s", str(e))
         return Result(type="bool", value=False)
 
@@ -289,24 +279,22 @@ async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInt
     if "json_field" not in input.settings:
         raise ValueError("Error: json_field is not provided in settings")
 
-    print(f"Starting field_match_test with input: {input}")
     try:
         prediction_json = json.loads(input.inputs["prediction"])
-        print(f"Parsed prediction JSON: {prediction_json}")
-    except json.JSONDecodeError as e:
-        print(f"JSON decode error: {e}")
+    except json.JSONDecodeError:
+        logging.debug(
+            "Field Match Test Failed because the LLM output is not valid JSON"
+        )
         return {"outputs": {"success": False}}
     try:
         prediction_field = prediction_json[input.settings["json_field"]]
-        print(f"Parsed prediction field: {prediction_field}")
-    except KeyError as e:
-        print(
-            f"KeyError occurred: {e}. Field name : {input.settings['json_field']} not in llm output"
+    except KeyError:
+        logging.debug(
+            "Field Match Test Failed the field does not exist in the LLM output"
         )
         return {"outputs": {"success": False}}
 
     result = prediction_field == input.inputs["ground_truth"]
-    print(f"Match result: {result}")
     return {"outputs": {"success": result}}
 
 
