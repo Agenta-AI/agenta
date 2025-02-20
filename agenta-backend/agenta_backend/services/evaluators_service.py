@@ -253,10 +253,13 @@ async def auto_field_match_test(
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
         response = await field_match_test(
-            input=EvaluatorInputInterface(**{"inputs": inputs})
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
         )
         return Result(type="bool", value=response["outputs"]["success"])
     except ValueError as e:
+        logging.debug("Field Match Test Failed because of Error: %s", str(e))
         return Result(
             type="error",
             value=None,
@@ -270,8 +273,28 @@ async def auto_field_match_test(
 
 
 async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    prediction_json = json.loads(input.inputs["prediction"])
-    result = prediction_json == input.inputs["ground_truth"]
+    # Sanity checks
+    if input.settings is None:
+        raise ValueError("Error: Settings are not provided to field_match_test")
+    if "json_field" not in input.settings:
+        raise ValueError("Error: json_field is not provided in settings")
+
+    try:
+        prediction_json = json.loads(input.inputs["prediction"])
+    except json.JSONDecodeError:
+        logging.debug(
+            "Field Match Test Failed because the LLM output is not valid JSON"
+        )
+        return {"outputs": {"success": False}}
+    try:
+        prediction_field = prediction_json[input.settings["json_field"]]
+    except KeyError:
+        logging.debug(
+            "Field Match Test Failed the field does not exist in the LLM output"
+        )
+        return {"outputs": {"success": False}}
+
+    result = prediction_field == input.inputs["ground_truth"]
     return {"outputs": {"success": result}}
 
 
