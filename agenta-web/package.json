@@ -90,7 +90,7 @@
         "papaparse": "^5.4.1",
         "postcss": "^8.4.47",
         "postcss-antd-fixes": "^0.2.0",
-        "posthog-js": "^1.104.4",
+        "posthog-js": "^1.223.3",
         "promise-retry": "^2.0.1",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
