@@ -33,7 +33,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-backend
+        image: ghcr.io/agenta-ai/agenta-api
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -84,7 +84,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-backend
+        image: ghcr.io/agenta-ai/agenta-api
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -111,7 +111,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-backend
+        image: ghcr.io/agenta-ai/agenta-api
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
