@@ -1,0 +1,23 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+        "dev": {
+            "cache": false
+        },
+        "lint": {
+            "dependsOn": ["^build"],
+            "cache": false
+        },
+        "lint:fix": {
+            "dependsOn": ["^build"],
+            "cache": false
+        },
+        "@agenta/ee#build": {
+            "outputs": [".next/**"]
+        },
+        "@agenta/oss#build": {
+            "outputs": [".next/**"]
+        }
+    },
+    "globalDependencies": ["*/**/tsconfig.json"]
+}

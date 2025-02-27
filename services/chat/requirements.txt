@@ -1,0 +1,4 @@
+openai
+agenta
+uvicorn
+google-generativeai

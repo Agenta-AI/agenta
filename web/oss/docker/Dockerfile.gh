@@ -1,0 +1,54 @@
+FROM node:20.18.0-slim as base
+
+ARG NEXT_PUBLIC_AGENTA_API_URL="http://localhost"
+ARG NEXT_PUBLIC_FF="oss"
+ARG NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED="false"
+ARG NEXT_PUBLIC_POSTHOG_API_KEY=""
+ARG NEXT_PUBLIC_FEATURE_API_KEYS=""
+ARG NEXT_PUBLIC_INTERCOM_APP_ID=""
+ARG TURBO_TELEMETRY_DISABLED=1
+
+ENV NEXT_PUBLIC_AGENTA_API_URL=$NEXT_PUBLIC_AGENTA_API_URL
+ENV NEXT_PUBLIC_FF=$NEXT_PUBLIC_FF
+ENV TURBO_TELEMETRY_DISABLED=$TURBO_TELEMETRY_DISABLED
+ENV NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=$NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED
+ENV NEXT_PUBLIC_FEATURE_API_KEYS=$NEXT_PUBLIC_FEATURE_API_KEYS
+ENV NEXT_PUBLIC_INTERCOM_APP_ID=$NEXT_PUBLIC_INTERCOM_APP_ID
+ENV NEXT_PUBLIC_POSTHOG_API_KEY=$NEXT_PUBLIC_POSTHOG_API_KEY
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+RUN apt-get update && apt-get install -y jq
+
+COPY . .
+RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
+    npm install -g pnpm@${PNPM_VERSION}
+
+RUN pnpm add -g turbo
+RUN turbo prune @agenta/oss --docker
+
+# BUILDER ---------------------------------------------------------------------
+
+FROM base AS builder
+
+WORKDIR /app
+
+COPY --from=base ./out/json/ .
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile --filter=@agenta/oss
+COPY --from=base /out/full/ .
+
+RUN npx next telemetry disable
+
+RUN pnpm turbo run build --filter=@agenta/oss
+
+# RUNNER ----------------------------------------------------------------------
+
+FROM base AS runner
+
+WORKDIR /app
+
+COPY --from=builder /app/oss/.next/standalone /app
+
+EXPOSE 3000

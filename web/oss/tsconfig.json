@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+        "noEmit": true,
+        "esModuleInterop": true,
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "jsx": "preserve",
+        "incremental": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/oss/*": ["src/*", "src/lib/noop/index.tsx"],
+            "@/agenta-oss-common/*": ["../ee/src/*", "src/*", "src/lib/noop/index.tsx"]
+        }
+    },
+    "include": ["next-env.d.ts", "**/*.d.ts", "**/*.ts", "**/*.tsx"],
+    "exclude": ["node_modules", "cypress.config.ts", "cypress/**/*"]
+}
