@@ -1,6 +1,14 @@
+**/*.pyc
+**/*/node_modules
+**/*.next
+**/*.pnpm-store
+
+web/node_modules/
+
 /.nox/
 /docs/_build/
 __pycache__/
+.mypy_cache/
 *.env
 env/
 tests/poetry.lock
@@ -13,6 +21,7 @@ examples/pitch_genius/agenta.py
 examples/pitch_genius/main.py
 agenta-backend/db/deploy.db
 
+.DS_Store
 .vscode
 examples/**/config.toml
 examples/**/agenta.py
@@ -43,10 +52,6 @@ agenta-backend/agenta_backend/cloud/**
 agenta-web/src/ee/**
 agenta-web/src/pages/apps/index.tsx
 agenta-web/src/pages/auth/[[...path]].tsx
-docker-compose.cloud.dev.yml
-docker-compose.demo.prod.yml
-docker-compose.demo.dev.yml
-docker-compose.cloud.prod.yml
 agenta-web/src/pages/auth/[[...path]].tsx
 agenta-web/cypress/screenshots/
 agenta-web/cypress/videos/
@@ -61,7 +66,6 @@ agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/202401311
 agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240203035221_move_org_existing_members_to_workspace.py
 agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240201102156_update_org_invitation.py
 agenta-backend/agenta_backend/migrations/migrations/v0_11_0_to_v0_12_0/20240203035520_add_workspace_field_to_db_models.py
-docker-compose.oss.prod.yml
 agenta-backend/agenta_backend/services/benchmark.ipynb
 examples/baby_name_generator/docker/_app.py
 examples/baby_name_generator/docker/.agentaignore
