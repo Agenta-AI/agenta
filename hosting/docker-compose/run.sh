@@ -97,7 +97,7 @@ fi
 COMPOSE_CMD="docker compose -f $COMPOSE_FILE"
 
 # If ENV_FILE is not provided, set it explicitly
-if [[ -z "$ENV_FILE" ]]; then
+if [[ -z "./hosting/docker-compose/$LICENSE/$ENV_FILE" ]]; then
     ENV_FILE=".env.$LICENSE.$STAGE"
 fi
 

@@ -37,8 +37,7 @@
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "prepare": "cd .. && husky"
+        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore"
     },
     "pnpm": {
         "ignoredBuiltDependencies": [

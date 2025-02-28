@@ -2,14 +2,16 @@
 **/*/node_modules
 **/*.next
 **/*.pnpm-store
+**/*.env*
 
-web/node_modules/
+! ./hosting/docker-compose/oss/.env.oss.dev
+! ./hosting/docker-compose/oss/.env.oss.gh
+! ./hosting/docker-compose/ee/.env.ee.dev
+! ./hosting/docker-compose/ee/.env.ee.gh
 
 /.nox/
 /docs/_build/
 __pycache__/
-.mypy_cache/
-*.env
 env/
 tests/poetry.lock
 agenta-cli/agenta/templates/main.py
