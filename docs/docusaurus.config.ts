@@ -7,7 +7,7 @@ import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
 import "dotenv/config";
 
 const config: Config = {
-  title: "Agenta Documentation",
+  title: "Docs - Agenta",
   tagline: "The LLMOps platform.",
   favicon: "images/favicon.ico",
   // Set the production url of your site here
@@ -20,7 +20,7 @@ const config: Config = {
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "throw",
-
+  titleDelimiter: "-",
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
@@ -74,8 +74,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    // Replace with your project's social card
-    image: "images/simple-img.png",
+    image: "images/social-card.png",
     docs: {
       sidebar: {
         hideable: false,
@@ -287,8 +286,20 @@ const config: Config = {
         to: "/custom-workflows/quick-start",
       },
       {
+        from: "/self-host/deploy_remotely/host-remotely",
+        to: "/self-host/host-remotely",
+      },
+      {
+        from: "/self-host/deploy_remotely/host-on-kubernetes",
+        to: "/self-host/host-on-kubernetes",
+      },
+      {
+        from: "/self-host/migration/applying-schema-migration",
+        to: "/self-host/applying-schema-migration",
+      },
+      {
         from: "/reference/sdk/quick_start",
-        to: "/reference/sdk/deprecated-v2/quick_start",
+        to: "/reference/sdk/configuration-management",
       },
       {
         from: "/reference/cli/quick-usage",

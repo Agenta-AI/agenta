@@ -1,5 +1,6 @@
 supported_llm_models = {
     "Anthropic": [
+        "anthropic/claude-3-7-sonnet-20250219",
         "anthropic/claude-3-5-sonnet-20241022",
         "anthropic/claude-3-5-sonnet-20240620",
         "anthropic/claude-3-5-haiku-20241022",
@@ -50,6 +51,7 @@ supported_llm_models = {
         "mistral/mistral-large-latest",
     ],
     "OpenAI": [
+        "gpt-4.5-preview",
         "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo",
         "gpt-4",
@@ -65,6 +67,7 @@ supported_llm_models = {
         "openrouter/anthropic/claude-3.5-haiku-20241022:beta",
         "openrouter/anthropic/claude-3.5-haiku:beta",
         "openrouter/anthropic/claude-3.5-sonnet",
+        "openrouter/anthropic/claude-3.7-sonnet",
         "openrouter/anthropic/claude-3.5-sonnet-20240620",
         "openrouter/anthropic/claude-3.5-sonnet-20240620:beta",
         "openrouter/anthropic/claude-3.5-sonnet:beta",

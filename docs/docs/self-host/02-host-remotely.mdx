@@ -1,0 +1,119 @@
+---
+title: Deploy on a Remote Server
+description: 'Learn how to deploy Agenta on a remote server with Docker. Step-by-step guide covers environment setup, installation, and configuration for cloud or dedicated hosting environments.'
+---
+
+# Deploy on a Remote Server
+
+This guide walks you through deploying Agenta on a remote server, such as a cloud instance or dedicated machine.
+
+## Prerequisites
+
+Before starting, ensure you have:
+
+- A remote server with:
+  - Docker installed
+  - Docker Compose installed
+  - Root access or sudo privileges
+  - Open ports for HTTP traffic (default: 80)
+- Git installed on the server
+
+## Step 1: Clone the Repository
+
+Clone the Agenta repository and navigate to its directory:
+
+```bash
+git clone https://github.com/agenta-ai/agenta
+cd agenta
+```
+
+## Step 2: Configure Environment Variables
+
+Edit the environment configuration file at `/hosting/docker-compose/oss/.env.oss.gh` with your server details:
+
+```bash
+# Core configuration
+AGENTA_RUNTIME_PREFIX=
+AGENTA_PORT=80                         # The port Agenta will run on
+BARE_DOMAIN_NAME=mydomain.ai           # Domain name without protocol
+DOMAIN_NAME=http://mydomain.ai         # Domain name with protocol
+WEBSITE_DOMAIN_NAME=http://mydomain.ai # Same as DOMAIN_NAME unless web container is hosted elsewhere
+AGENTA_HOST=http://mydomain.ai:80      # API domain name
+SERVICE_URL_TEMPLATE=http://mydomain.ai:80/services/{path} # URL template for services
+```
+
+You can also customize database connection settings for Redis, PostgreSQL, and RabbitMQ in the same file if needed.
+
+**Using an IP address instead of a domain name:**
+If you're using an IP address rather than a domain name, use the same format:
+
+```bash
+DOMAIN_NAME=http://192.168.1.100
+BARE_DOMAIN_NAME=192.168.1.100
+```
+
+## Step 3: Build and Deploy
+
+Run the following command to build and deploy Agenta:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d --build
+```
+
+:::info
+At the moment, you need to rebuild the web image because the domain name is hardcoded at build time in Next.js. Other services can use the pre-built images from Docker Hub.
+:::
+
+## Step 4: Verify Your Deployment
+
+After deployment, verify that Agenta is running correctly:
+
+1. Check container status:
+   ```bash
+   docker compose ps
+   ```
+
+2. Access the web interface in your browser:
+   ```
+   http://mydomain.ai
+   ```
+   
+   Or if using an IP address:
+   ```
+   http://192.168.1.100
+   ```
+
+## Troubleshooting
+
+If you encounter issues with your deployment:
+
+1. Check container logs for errors:
+   ```bash
+   docker compose logs
+   ```
+   
+   To view logs for a specific service:
+   ```bash
+   docker compose logs [service-name]
+   ```
+
+2. Verify environment variables are set correctly in the `.env.oss.gh` file
+
+3. Ensure the server firewall allows traffic on port 80 (or your custom port)
+
+4. Check that all required Docker services are running:
+   ```bash
+   docker compose ps
+   ```
+
+## Important Notes
+
+- This guide uses HTTP for initial setup. For production environments, you should configure HTTPS.
+- For production deployments, set up HTTPS with SSL/TLS certificates (documentation for this is planned).
+- Resource requirements will vary based on your usage patterns. Monitor system resources after deployment.
+
+## Getting Help
+
+If you need assistance, you can:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ) for direct support

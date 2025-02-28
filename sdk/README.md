@@ -116,24 +116,25 @@ The easiest way to get started is through Agenta Cloud. It is free to signup, an
    
 ### Self-hosting Agenta
 
-#### Quick Setup (Port 80)
+1. Clone Agenta:
 ```bash
-mkdir agenta && cd agenta
-curl -L https://raw.githubusercontent.com/agenta-ai/agenta/main/docker-compose.gh.yml -o docker-compose.gh.yml
-echo "OPENAI_API_KEY=sk-xxx" > .env
-docker compose -f docker-compose.gh.yml --env-file .env up -d --pull always
+git clone https://github.com/Agenta-AI/agenta && cd agenta
 ```
 
-#### Deployment Options
-- To use a different port or customize your deployment, see our [deployment documentation](https://docs.agenta.ai/self-host/host-locally?utm_source=github&utm_medium=referral&utm_campaign=readme)
-- For deploying on cloud platforms, refer to our guides for [AWS](https://docs.agenta.ai/self-host/deploy_remotly/host-on-aws?utm_source=github&utm_medium=referral&utm_campaign=readme), [GCP](https://docs.agenta.ai/self-host/deploy_remotly/host-on-gcp?utm_source=github&utm_medium=referral&utm_campaign=readme), or [other remote hosting options](https://docs.agenta.ai/self-host/deploy_remotly/host-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme)
+2. Edit `hosting/docker-compose/oss/.env.oss.gh` and add your LLM provider API keys.
+
+3. Start Agenta services:
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+```
+
+4. Access Agenta at `http://localhost`.
+
+For deploying on a remote host, or using different ports refers to our [self-hosting](https://docs.agenta.ai/self-host/host-locally?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://docs.agenta.ai/self-host/host-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ## Disabling Anonymized Tracking
 
-By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry, follow these steps:
-
-- For web: Set `TELEMETRY_TRACKING_ENABLED` to `false` in your `agenta-web/.env` file.
-- For CLI: Set `telemetry_tracking_enabled` to `false` in your `~/.agenta/config.toml` file.
+By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry set `TELEMETRY_ENABLED` to `false` in your `.env` file.
 
 
 ## Contributing
