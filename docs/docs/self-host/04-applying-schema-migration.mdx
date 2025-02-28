@@ -1,0 +1,43 @@
+---
+title: Applying Schema Migration
+description: "Guide for applying schema migration changes to the PostgreSQL database."
+---
+
+This guide provides step-by-step instructions for applying schema migration to upgrade your Agenta deployment.
+
+## Applying the Migration
+
+To apply schema migrations using Alembic within your Docker environment, run the following command:
+
+```bash
+docker exec -w /app/agenta_backend/migrations/postgres agenta-backend-1 alembic -c alembic.oss.ini upgrade head
+```
+
+**Explanation:**  
+- `docker exec`: Runs the command in an existing container.
+- `-w /app/agenta_backend/migrations/postgres`: Sets the working directory inside the container to the migrations directory.
+- `agenta-backend-1`: The name of the Docker container running the backend.
+- `alembic -c alembic.oss.ini upgrade head`: Applies all new migrations up to the latest available version (`head`), using Alembic configuration file `alembic.oss.ini`.
+
+This ensures that Alembic correctly identifies the migration scripts and settings located in the migrations directory of your backend container.
+
+### Post Migration
+
+After completing the migration, ensure you check the data integrity in PostgreSQL by accessing Agenta on the web and verifying that your data is intact and everything works fine.
+
+In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic -c alembic.oss.ini downgrade head`. Afterwards, create a GitHub issue describing the problem you encountered.
+
+## Automatic Migration Configuration
+:::warning
+Use automatic migrations cautiously in production environments. Always verify your migrations thoroughly on staging or development environments before deployment to live systems.
+:::
+You may prefer automatic migrations as part of your container's startup process rather than manually running migrations each time. Agenta provides a configuration option specifically for automated migrations.
+
+To enable automatic migrations, set the environment variable `AGENTA_AUTO_MIGRATION` to `true` within the environment file used in your docker-compose.yml file.
+
+Upon enabling this setting, the Agenta backend container applies destination schema migrations automatically during container startup, eliminating manual execution steps.
+
+
+:::warning  
+Regularly backup your PostgreSQL database before performing schema migrations, particularly on production databases.
+:::

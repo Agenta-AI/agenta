@@ -3,11 +3,11 @@ title: "Development Mode in Agenta"
 description: "Some pointers to start contributing in Agenta"
 ---
 
-**Description:** This quick start guide provides pointers for contributing to Agenta by working on the CLI, SDK, backend, and frontend code. Additionally, it covers how to debug the backend effectively.
+**Description:** This quick start guide provides pointers for contributing to Agenta by working on the SDK, backend, and frontend code. Additionally, it covers how to debug the backend effectively.
 
 ## Deploying Agenta locally in Development Mode
 
-Running Agenta in development mode provides you with hot-reloading, so you can make changes to the code and see the effects right away. This is particularly useful when working on the CLI or SDK.
+Running Agenta in development mode provides you with hot-reloading, so you can make changes to the code and see the effects right away. This is particularly useful when working on the SDK.
 
 ### 1. Clone the Repository and Navigate to the Folder
 
@@ -19,71 +19,18 @@ cd agenta
 ### 2. Launch the Agenta Server
 
 ```bash
-docker compose -f "docker-compose.yml" up -d --build
+./hosting/docker-compose/run.sh --license oss --dev
+```
+
+You can start the nextjs web app outside of the container by running
+
+```bash
+./hosting/docker-compose/run.sh --license oss --dev --no-web
 ```
 
 ### 3. Verify the Installation
 
 Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, you're good to go.
-
-
-## Using development mode for CLI or SDK
-
-If you are making changes to the CLI or SDK, you certainly want to use **your** version of the code instead of the one that you installed using `pip`. Here is how you can do that
-
-1. Navigate to the `agenta-cli` folder.
-2. Activate the virtual environment by running `poetry shell` in your terminal.
-
-Now, you should be using your own version of agenta. To make sure that is true, run `which agenta` and check that the folder that you get is the one from `agenta-cli`.
-
-<details>
-<summary>If running agenta in your terminal still doesn't work after following the above steps, try the following:</summary>
-
-**Solution 1:**
-
-1. Leave the poetry environement (simply run `exit`)
-2. Run `pip uninstall agenta`
-3. Run again `poetry shell`
-
-Don't forget to reinstall agenta after you finish development.
-
-**Solution 2:**
-
-- In the terminal where the poetry virtual environment is activated, run `which agenta`.
-- Copy the path where `agenta` is located, and add `export agenta=/replace/path/to/agenta` at the last line in your shell configuration file. If you're running Ubuntu, your shell configuration file will be `~/.bashrc`.
-- Go to the terminal where you tried running `agenta`, and apply the changes you've made by running `source ~/.bashrc`. Proceed to run `export` to confirm `agenta` has been exported.
-- If you see `agenta` along with its path, proceed to initialize your application by running `$agenta init` and follow through the steps.
-- When you're ready to serve your app, run `$agenta variant serve`.
-
-</details>
-
-## How to streamline working on the SDK
-
-Let's say you want to add a new type of parameters to the SDK, let's say IntParam, how can you work and test that quickly?
-Here is how I do it:
-
-- Create a new application, a new variant, and serve it. This will copy the agenta folder into the application folder
-- Go to `main.py`, it should look like this:
-
-```python
-
-if __name__ == "__main__":
-    assert os.environ["ROOT_PATH"] != ""
-    run("agenta:app", host="0.0.0.0", port=80, root_path=os.environ["ROOT_PATH"])
-```
-
-Change the `main.py` to this
-
-```python
-if __name__ == "__main__":
-    run("agenta:app", host="0.0.0.0", port=801, auto_reload=True)
-```
-
-Rename the file including the code of your variant to `_app.py`
-
-Now run `python main.py` (making sure of course that you have dealt with the dependencies), this will start uvicorn and publish the api of the variant to the port 801
-
-Now you can make changes to the code of the sdk lying in the subfolder `agenta` and the code of your app and see the changes directly in the api. So, for our example, I would add the class for IntParam to the SDK, use it in the app, then take a look at the openapi.json to see if it works correctly, then run the app using the shell to see if everything works correctly.
 
 ## Debugging the Backend
 

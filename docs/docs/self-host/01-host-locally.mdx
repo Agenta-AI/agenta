@@ -1,0 +1,94 @@
+---
+title: Deploy Locally
+description: "Learn how to deploy Agenta locally using Docker, either on port 80 or a custom port. Step-by-step guide covering installation, configuration, troubleshooting, and version updates"
+sidebar_position: 1
+---
+
+This guide explains how to set up Agenta on your local machine, either using the default port 80 or a custom port.
+
+## Prerequisites
+
+- Docker installed on your machine ([Download Docker](https://docs.docker.com/get-docker/))
+
+## Quick Setup (Port 80)
+
+1. Clone Agenta:
+```bash
+git clone https://github.com/Agenta-AI/agenta && cd agenta
+```
+
+2. Edit `hosting/docker-compose/oss/.env.oss.gh` and add your LLM provider API keys.
+
+3. Start Agenta services:
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+```
+
+4. Access Agenta at `http://localhost`.
+
+## Using a Custom Port
+
+To use a different port (e.g., 81):
+
+
+1. Clone Agenta:
+```bash
+git clone https://github.com/Agenta-AI/agenta && cd agenta
+```
+
+2. Edit `hosting/docker-compose/oss/.env.oss.gh` and add your LLM provider API keys.
+
+3. Edit the port configuration in the environment file `/hosting/docker-compose/oss/.env.oss.gh`:
+```bash
+AGENTA_PORT=81
+AGENTA_HOST=http://host.docker.internal:81
+SERVICE_URL_TEMPLATE=http://localhost:81/services/{path}
+```
+
+4. Build and run:
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d --build
+```
+
+:::info
+You need at least to rebuild the web image because the port is hardcoded at build time in Next.js. You can use the pre-build image for the rest of the services.
+:::
+
+4. Access Agenta at `http://localhost:81`.
+
+## Upgrading to the Latest Version of Agenta
+
+To update your local Agenta installation to the most recent version, use the following command:
+
+```bash
+docker compose -f docker-compose.gh.yml --env-file .env.oss.gh up -d  --profile with-web --pull always
+```
+
+`--pull always` instructs Docker to fetch the latest images before starting the containers, ensuring you're running the most up-to-date version of Agenta.
+
+## Migrations 
+
+The system will automatically handle database migrations. If you encounter migration issues, consult the [migration guide](/self-host/applying-schema-migration).
+
+## Troubleshooting
+
+If Agenta doesn't start properly, check these common issues:
+
+1. Port conflicts: Verify if another application is using your chosen port.
+2. Container status: Run `docker ps` to check if all Agenta containers are running
+3. Logs: Examine container logs with:
+   ```bash
+   docker logs agenta-oss-gh-web
+   docker logs agenta-oss-gh-api
+   ```
+
+
+:::info
+To set up a development environment with features like hot-reloading, refer to our [Development Guide](/misc/contributing/development-mode).
+::: 
+
+Need help? Either:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ) for quick support
+
+
