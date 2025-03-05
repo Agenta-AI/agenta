@@ -17,6 +17,7 @@ import {createInputRow} from "@/oss/components/NewPlayground/hooks/usePlayground
 import {createMessageFromSchema} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 import {getMetadataLazy} from "@/oss/components/NewPlayground/state"
+import {safeParse} from "@/oss/lib/helpers/utils"
 
 import {LoadTestsetButtonProps} from "./types"
 
@@ -58,33 +59,44 @@ const LoadTestsetButton = ({
 
                     if (isChat) {
                         const messageRow = clonedState.generationData.messages.value[0]
+
                         if (!messageRow) return clonedState
 
                         data.forEach((row) => {
-                            const chatMessages = inputKeys
-                                ?.map((key) => {
-                                    if (row[key] && typeof row[key] === "string") {
-                                        return {content: row[key]}
-                                    }
-                                    return null
-                                })
-                                .filter(Boolean)
+                            const chatMessages = safeParse(row.messages)
 
                             const _metadata = getMetadataLazy<ArrayMetadata>(
                                 messageRow.history.__metadata,
                             )
-                            const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
+                            const messageMetadata = _metadata?.itemMetadata as ObjectMetadata
 
-                            if (!itemMetadata) return
+                            if (!messageMetadata) return
 
                             const newMessages = chatMessages?.map((chat) => {
-                                return createMessageFromSchema(itemMetadata, {
-                                    role: "user",
+                                return createMessageFromSchema(messageMetadata, {
+                                    role: chat?.role,
                                     content: chat?.content,
                                 })
                             })
 
-                            messageRow.history.value.push(...newMessages)
+                            messageRow.history.value = [...newMessages]
+
+                            const generationMetadata = clonedState.generationData.inputs.__metadata
+                            const parentMetadata =
+                                getMetadataLazy<ArrayMetadata<ObjectMetadata>>(generationMetadata)
+                            const inputMetadata = parentMetadata?.itemMetadata
+
+                            if (!inputMetadata) return clonedState
+
+                            const _inputKeys = Object.keys(inputMetadata.properties)
+                            const newRow = createInputRow(_inputKeys, inputMetadata)
+
+                            for (const key of _inputKeys as (keyof typeof newRow)[]) {
+                                const newRowProperty = newRow[key] as Enhanced<string>
+                                newRowProperty.value = row[key]
+                            }
+
+                            clonedState.generationData.inputs.value = [newRow]
                         })
 
                         return clonedState

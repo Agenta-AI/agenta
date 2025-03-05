@@ -4,9 +4,12 @@ import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {getProfileValues} from "@/oss/contexts/profile.context"
+import {getCurrentProject, DEFAULT_UUID} from "@/oss/contexts/project.context"
+import {getJWT} from "@/oss/services/api"
 
 import {getErrorMessage, globalErrorHandler} from "../../helpers/errorHandler"
-import {getAgentaApiUrl} from "../../helpers/utils"
+import {getAgentaApiUrl, isDemo} from "../../helpers/utils"
 
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."
@@ -16,6 +19,32 @@ const axios = axiosApi.create({
     headers: {
         "Content-Type": "application/json",
     },
+})
+
+axios.interceptors.request.use(async (config) => {
+    if (!isDemo()) return config
+    const jwt = await getJWT()
+
+    const profile = getProfileValues()
+
+    const {projectId} = getCurrentProject()
+    if (
+        !jwt ||
+        !profile.user ||
+        projectId === DEFAULT_UUID ||
+        config.url?.includes("?project_id=") ||
+        config.url?.includes("&project_id=")
+    ) {
+        return config
+    }
+
+    if (config.params && !config.params.project_id) {
+        config.params.project_id = projectId
+    } else if (!config.params) {
+        config.params = {project_id: projectId}
+    }
+
+    return config
 })
 
 axios.interceptors.response.use(
