@@ -1,5 +1,6 @@
+import {type ReactNode, type ComponentType, type FC, createElement} from "react"
+
 import {
-    IconType,
     OpenAI,
     Mistral,
     Cohere,
@@ -30,7 +31,7 @@ interface GroupedSelectProps {
     handleChange: (value: string) => void
 }
 
-const iconMap: Record<string, React.ComponentType<any>> = {
+const iconMap: Record<string, ComponentType<any>> = {
     "Open AI": OpenAI,
     "Mistral AI": Mistral.Color,
     Cohere: Cohere.Color,
@@ -42,25 +43,21 @@ const iconMap: Record<string, React.ComponentType<any>> = {
     Gemini: Gemini.Color,
 }
 
-const filterOption = (input: string, option?: {label: React.ReactNode; value: string}) =>
+const filterOption = (input: string, option?: {label: ReactNode; value: string}) =>
     (option?.value ?? "").toLowerCase().includes(input.toLowerCase())
 
-export const ModelName: React.FC<{label: string; value: string}> = ({label, value}) => {
+export const ModelName: FC<{label: string; value: string}> = ({label, value}) => {
     const classes = useStyles()
 
     return (
         <div className={classes.option}>
-            {iconMap[value] ? React.createElement(iconMap[value]) : null}
+            {iconMap[value] ? createElement(iconMap[value]) : null}
             {label}
         </div>
     )
 }
 
-export const GroupedSelect: React.FC<GroupedSelectProps> = ({
-    choices,
-    defaultValue,
-    handleChange,
-}) => {
+export const GroupedSelect: FC<GroupedSelectProps> = ({choices, defaultValue, handleChange}) => {
     const classes = useStyles()
 
     const options = Object.entries(choices).map(([groupLabel, groupChoices]) => ({
