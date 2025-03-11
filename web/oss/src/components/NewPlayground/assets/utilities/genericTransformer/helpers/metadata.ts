@@ -6,6 +6,7 @@ import type {
     PrimitiveSchema,
     ConfigMetadata,
     SchemaType,
+    ObjectMetadata,
 } from "../types"
 import {isSchema} from "../utilities/schema"
 import {toCamelCase} from "../utilities/string"
@@ -181,39 +182,43 @@ function processObjectWithAdditionalProps(schema: SchemaProperty): ConfigMetadat
     }
 }
 
-export function createMetadata(schema: SchemaProperty): ConfigMetadata {
+export function createMetadata(schema: SchemaProperty, key?: string): ConfigMetadata {
     if (!schema) {
         throw new Error("Cannot create metadata from undefined schema")
     }
 
+    let metadata: ConfigMetadata | undefined = undefined
     // Handle integer type conversion early
     if ("type" in schema && schema.type === "integer") {
-        return createPrimitiveMetadata({
+        metadata = createPrimitiveMetadata({
             ...schema,
-            type: "number",
+            type: "integer",
         } as PrimitiveSchema)
-    }
-
-    if (isSchema.anyOf(schema)) {
-        return processAnyOfSchema(schema)
-    }
-
-    if (isSchema.primitive(schema)) {
-        return createPrimitiveMetadata(schema)
-    }
-
-    if (isSchema.array(schema)) {
-        return processArraySchema(schema)
-    }
-
-    if (isSchema.object(schema)) {
+    } else if (isSchema.anyOf(schema)) {
+        metadata = processAnyOfSchema(schema)
+    } else if (isSchema.primitive(schema)) {
+        metadata = createPrimitiveMetadata(schema)
+    } else if (isSchema.array(schema)) {
+        metadata = processArraySchema(schema)
+    } else if (isSchema.object(schema)) {
         // Check for both regular objects and those with additionalProperties
         if ("additionalProperties" in schema || isSimpleObjectSchema(schema)) {
-            return processObjectWithAdditionalProps(schema)
+            metadata = processObjectWithAdditionalProps(schema)
         }
-        return processObjectSchema(schema)
+        metadata = processObjectSchema(schema)
     }
 
-    console.debug("Unsupported schema type", schema)
-    throw new Error(`Unsupported schema: ${JSON.stringify(schema)}`)
+    if (metadata) {
+        return {
+            ...metadata,
+            key,
+        }
+    } else {
+        console.debug("Unsupported schema type", schema)
+        throw new Error(`Unsupported schema: ${JSON.stringify(schema)}`)
+    }
+}
+
+export function isObjectMetadata(metadata: ConfigMetadata): metadata is ObjectMetadata {
+    return metadata.type === "object"
 }

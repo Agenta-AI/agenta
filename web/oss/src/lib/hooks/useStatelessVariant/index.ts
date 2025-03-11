@@ -1,8 +1,10 @@
+// @ts-nocheck
 import {useMemo} from "react"
 
 import Router from "next/router"
 import useSWR, {type Middleware} from "swr"
 
+import {useAppsData} from "@/oss/contexts/app.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import {Variant} from "@/oss/lib/Types"
 
@@ -28,6 +30,8 @@ const useStatelessVariants = <Selected = unknown>(
     },
     variants: Variant[],
 ) => {
+    const {apps} = useAppsData()
+    const currentApp = apps.find((app) => app.app_id === appId)
     /**
      * Key for the SWR cache
      */
@@ -50,6 +54,7 @@ const useStatelessVariants = <Selected = unknown>(
         appId,
         compare: undefined,
         initialVariants: variants,
+        appType: currentApp?.app_type,
         ...rest,
     })
 

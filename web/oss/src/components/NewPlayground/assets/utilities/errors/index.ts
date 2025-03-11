@@ -26,7 +26,7 @@ function formatSingleError(error: ValidationError): string {
                 return `${location}: ${error.msg}`
         }
     } else {
-        return error.message
+        return error.message || "An unknown error occurred"
     }
 }
 
@@ -35,7 +35,7 @@ function formatSingleError(error: ValidationError): string {
  * Handles both single and multiple validation errors
  * Provides fallback error messages for unexpected error structures
  */
-export function parseValidationError(error: unknown): string {
+export function parseValidationError(error: unknown): string | undefined {
     try {
         if (!error || typeof error !== "object") {
             return "An unknown error occurred"
@@ -52,7 +52,7 @@ export function parseValidationError(error: unknown): string {
             try {
                 return formatSingleError(error as ValidationError)
             } catch {
-                return error.message
+                return (error as ValidationError).message
             }
         }
 

@@ -1,4 +1,8 @@
-import {ConfigMetadata} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {
+    ConfigMetadata,
+    OpenAPISpec,
+} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {GenerationChatRow, GenerationInputRow} from "@/oss/components/NewPlayground/state/types"
 
 import {parseValidationError} from "../../../assets/utilities/errors"
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
@@ -7,8 +11,8 @@ import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
     allMetadata: Record<string, ConfigMetadata>
-    inputRow: EnhancedVariant["inputs"]["value"][number]
-    messageRow?: EnhancedVariant["messages"]["value"][number]
+    inputRow: GenerationInputRow
+    messageRow?: GenerationChatRow
     rowId: string
     appId: string
     uri: string
@@ -16,6 +20,7 @@ async function runVariantInputRow(payload: {
     projectId: string
     messageId?: string
     chatHistory?: any[]
+    spec: OpenAPISpec
 }) {
     const {
         variant,
@@ -29,6 +34,7 @@ async function runVariantInputRow(payload: {
         projectId,
         appId,
         chatHistory,
+        spec,
     } = payload
     const requestBody = transformToRequestBody({
         variant,
@@ -36,6 +42,7 @@ async function runVariantInputRow(payload: {
         messageRow,
         allMetadata,
         chatHistory,
+        spec,
     })
     let result
 
@@ -46,6 +53,7 @@ async function runVariantInputRow(payload: {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "ngrok-skip-browser-warning": "1",
                     ...headers,
                 },
                 body: JSON.stringify(requestBody),

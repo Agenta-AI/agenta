@@ -1,11 +1,15 @@
 import {hashMetadata} from "../../../assets/hash"
-import {
+import type {
+    Enhanced,
     EnhancedObjectConfig,
-    type EnhancedConfigValue,
+    ObjectMetadata,
+    EnhancedConfigValue,
+    OpenAPISpec,
 } from "../../../assets/utilities/genericTransformer/types"
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
 import type {AgentaConfigPrompt, EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {PlaygroundStateData} from "../types"
+import type {MessageWithRuns} from "../../../state/types"
+import type {PlaygroundStateData} from "../types"
 
 import {createInputRow, createInputSchema} from "./inputHelpers"
 import {createMessageRow} from "./messageHelpers"
@@ -29,11 +33,29 @@ export const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigV
     return Array.from(uniqueKeys)
 }
 
-export const initializeGenerationInputs = (variants: EnhancedVariant[]) => {
-    // Get all unique input keys across all variants
-    const uniqueInputKeys = getUniqueInputKeys(variants)
+export const extractInputKeysFromSchema = (spec: OpenAPISpec) => {
+    const requestSchema =
+        spec.paths["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema
+    if (!requestSchema || !("properties" in requestSchema)) {
+        throw new Error("Invalid OpenAPI schema")
+    }
+    const expectedProperties = requestSchema.properties || {}
+    const expectedPropertyKeys = Object.keys(expectedProperties).filter(
+        (key) => !["ag_config", "messages"].includes(key),
+    )
+    return expectedPropertyKeys
+}
 
-    const inputStrings = Array.from(uniqueInputKeys).map((enhancedKey) => enhancedKey.value)
+export const initializeGenerationInputs = (variants: EnhancedVariant[], spec?: OpenAPISpec) => {
+    // Get all unique input keys across all variants
+    const isCustomWorkflow = variants.some((variant) => variant.isCustom)
+    let inputStrings: string[] = []
+    if (isCustomWorkflow && spec) {
+        inputStrings = extractInputKeysFromSchema(spec)
+    } else {
+        const uniqueInputKeys = getUniqueInputKeys(variants)
+        inputStrings = Array.from(uniqueInputKeys).map((enhancedKey) => enhancedKey.value)
+    }
     const inputSchema = createInputSchema(inputStrings)
     const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
 
@@ -77,28 +99,73 @@ export const extractMessages = (
 export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
     const uniqueSystemMessages = getUniqueMessages(variants)
 
-    const emptyMessage = structuredClone(uniqueSystemMessages[0])
-    emptyMessage.__id = generateId()
+    if (uniqueSystemMessages.length === 0) {
+        // const emptyMessage = {}
+        // emptyMessage.__id = generateId()
 
-    const initialMessageRows = []
+        // const initialMessageRows = []
 
-    for (const key in emptyMessage) {
-        if (key !== "__id" && key !== "__metadata") {
-            emptyMessage[key].value = ""
+        // for (const key in emptyMessage) {
+        //     if (key !== "__id" && key !== "__metadata") {
+        //         ;(
+        //             emptyMessage[key as keyof typeof emptyMessage] as EnhancedConfigValue<string>
+        //         ).value = ""
+        //     }
+        // }
+
+        // emptyMessage.role.value = "user" // initial chat message is from user
+
+        // const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
+        // initialMessageRows.push(
+        //     createMessageRow(
+        //         emptyMessage,
+        //         uniqueSystemMessages[0].__metadata as ObjectMetadata,
+        //         messagesMetadata,
+        //     ),
+        // )
+        return {
+            __id: generateId(),
+            __metadata: {},
+            value: [],
+        } as Enhanced<
+            {
+                history: MessageWithRuns[]
+            }[]
+        >
+    } else {
+        const emptyMessage = structuredClone(uniqueSystemMessages[0])
+        emptyMessage.__id = generateId()
+
+        const initialMessageRows = []
+
+        for (const key in emptyMessage) {
+            if (key !== "__id" && key !== "__metadata") {
+                ;(
+                    emptyMessage[key as keyof typeof emptyMessage] as EnhancedConfigValue<string>
+                ).value = ""
+            }
         }
-    }
 
-    emptyMessage.role.value = "user" // initial chat message is from user
+        emptyMessage.role.value = "user" // initial chat message is from user
 
-    const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
-    initialMessageRows.push(
-        createMessageRow(emptyMessage, uniqueSystemMessages[0].__metadata, messagesMetadata),
-    )
+        const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
+        initialMessageRows.push(
+            createMessageRow(
+                emptyMessage,
+                uniqueSystemMessages[0].__metadata as ObjectMetadata,
+                messagesMetadata,
+            ),
+        )
 
-    return {
-        __id: generateId(),
-        __metadata: {},
-        value: initialMessageRows,
+        return {
+            __id: generateId(),
+            __metadata: {},
+            value: initialMessageRows,
+        } as Enhanced<
+            {
+                history: MessageWithRuns[]
+            }[]
+        >
     }
 }
 
@@ -109,13 +176,24 @@ export const clearRuns = (state: PlaygroundStateData) => {
         const messages = state.generationData.messages.value
 
         for (const message of messages) {
+            const x = message.history
+            const y = x.value
+            for (const history of y) {
+                const z = history.__runs || {}
+                for (const run of Object.values(z)) {
+                    if (!run) continue
+                    run.__isRunning = false
+                    run.__result = null
+                }
+            }
             message.history.value = []
         }
     } else {
         const inputs = state.generationData.inputs.value
         for (const inputRow of inputs) {
-            const rowRuns = Object.values(inputRow.__runs)
+            const rowRuns = Object.values(inputRow.__runs || [])
             for (const run of rowRuns) {
+                if (!run) continue
                 run.__isRunning = false
                 run.__result = null
             }

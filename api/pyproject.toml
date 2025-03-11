@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.34.7"
+version = "0.35.0"
 description = "Agenta API"
 authors = [{ name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" }]
 
@@ -47,7 +47,7 @@ alembic = "^1.13.2"
 numpy = "1.26.3"
 autoevals = "^0.0.83"
 supertokens-python = "^0.26.1"
-protobuf = "^4.25.4"
+opentelemetry-proto = "1.27.0"
 litellm = "^1.48.0"
 click = "^8.1.8"
 

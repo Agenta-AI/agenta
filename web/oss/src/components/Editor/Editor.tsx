@@ -109,17 +109,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                         isInitRef.current = true
                         editor.update(() => {
                             // In the browser you can use the native DOMParser API to parse the HTML string.
-                            // if (hydrateWithRemoteContent) {
-                            //     // create a lexical node with provided initial value
-                            //     const initialTextNode = $createTextNode(hydrateWithRemoteContent)
-                            //     // clear lexical editor nodes
-                            //     const root = $getRoot()
-                            //     root.select()
-                            //     root.clear()
-
-                            //     // insert the new node created from initial value
-                            //     $insertNodes([initialTextNode])
-                            // }
                             if (hydrateWithRemoteContent) {
                                 $convertFromMarkdownString(hydrateWithRemoteContent, TRANSFORMERS)
                             }

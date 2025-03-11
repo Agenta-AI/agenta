@@ -31,7 +31,7 @@ const PlaygroundRouter = () => {
             </div>
         )
     } else if (app) {
-        if (!app.app_type || app.app_type.includes(" (old)") || app.app_type === "custom") {
+        if (!app.app_type || app.app_type.includes(" (old)")) {
             return <OldPlayground />
         } else {
             if (!router.query.playground) {

@@ -2,6 +2,7 @@ import {dereference} from "@scalar/openapi-parser"
 import isEqual from "fast-deep-equal"
 
 import {getCurrentProject} from "@/oss/contexts/project.context"
+import {uriFixer} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 import {getJWT} from "@/oss/services/api"
 
 import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
@@ -37,17 +38,6 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
-export const uriFixer = (uri: string) => {
-    if (!uri.includes("http://") && !uri.includes("https://")) {
-        // for oss.agenta.ai
-        uri = `https://${uri}`
-    } else if (!uri.includes("/services/")) {
-        uri = uri.replace("/chat", "/services/chat")
-        uri = uri.replace("/completion", "/services/completion")
-    }
-    return uri
-}
-
 /**
  * FETCHERS
  */
@@ -63,6 +53,7 @@ export const fetchOpenApiSchemaJson = async (uri: string) => {
         `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
         {
             headers: {
+                "ngrok-skip-browser-warning": "1",
                 ...(jwt
                     ? {
                           Authorization: `Bearer ${jwt}`,
@@ -85,8 +76,12 @@ export const fetchOpenApiSchemaJson = async (uri: string) => {
  * @param variant - The variant to fetch and update schema for
  * @returns Promise containing the updated variant
  */
-export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) => {
-    const enhancedVariant = transformToEnhancedVariant(variant, schema)
+export const transformVariant = (
+    variant: EnhancedVariant,
+    schema: OpenAPISpec,
+    appType?: string,
+) => {
+    const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
 
     // Update prompt keys and initialize inputs
     updateVariantPromptKeys(enhancedVariant)
@@ -99,8 +94,12 @@ export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) 
  * @param variants - Array of variants to fetch and update schemas for
  * @returns Promise containing updated variants with their schemas
  */
-export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
-    return variants.map((variant) => transformVariant(variant, spec))
+export const transformVariants = (
+    variants: EnhancedVariant[],
+    spec: OpenAPISpec,
+    appType?: string,
+) => {
+    return variants.map((variant) => transformVariant(variant, spec, appType))
 }
 
 /**
@@ -395,8 +394,6 @@ export const setVariant = (variant: any): EnhancedVariant => {
             agConfig: variant.parameters.ag_config || {},
         },
         isChat: false,
-        inputs: {} as EnhancedVariant["inputs"],
-        messages: {} as EnhancedVariant["messages"],
         name: "",
         updatedAt: variant.updated_at,
     } as EnhancedVariant

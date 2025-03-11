@@ -20,7 +20,7 @@ export interface AgentaConfigPrompt {
     templateFormat?: string
 }
 
-export interface AgentaConfig {
+export interface AgentaConfig extends Record<string, unknown> {
     prompt: AgentaConfigPrompt
     prompts?: AgentaConfigPrompt[]
 }

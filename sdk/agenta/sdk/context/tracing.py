@@ -7,6 +7,8 @@ from pydantic import BaseModel
 
 
 class TracingContext(BaseModel):
+    traceparent: Optional[Dict[str, Any]] = None
+    baggage: Optional[Dict[str, Any]] = None
     credentials: Optional[str] = None
     parameters: Optional[Dict[str, Any]] = None
     references: Optional[Dict[str, Any]] = None

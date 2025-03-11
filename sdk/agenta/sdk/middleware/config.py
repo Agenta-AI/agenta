@@ -10,7 +10,7 @@ from fastapi import Request, FastAPI
 
 import httpx
 
-from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import suppress
 
@@ -19,7 +19,7 @@ import agenta as ag
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
-_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
+_cache = TTLLRUCache()
 
 
 class Reference(BaseModel):
@@ -147,37 +147,32 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
         application_id = (
             # CLEANEST
-            baggage.get("application_id")
+            baggage.get("ag.refs.application.id")
             # ALTERNATIVE
             or request.query_params.get("application_id")
             # LEGACY
+            or baggage.get("application_id")
             or request.query_params.get("app_id")
             or self.application_id
         )
         application_slug = (
             # CLEANEST
-            baggage.get("application_slug")
+            baggage.get("ag.refs.application.slug")
             # ALTERNATIVE
             or request.query_params.get("application_slug")
             # LEGACY
+            or baggage.get("application_slug")
             or request.query_params.get("app_slug")
             or body.get("app")
         )
 
-        application_version = (
-            # CLEANEST
-            baggage.get("application_version")
-            # ALTERNATIVE
-            or request.query_params.get("application_version")
-        )
-
-        if not any([application_id, application_slug, application_version]):
+        if not any([application_id, application_slug, None]):
             return None
 
         return Reference(
             id=application_id,
             slug=application_slug,
-            version=application_version,
+            version=None,
         )
 
     async def _parse_variant_ref(
@@ -194,24 +189,29 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
         variant_id = (
             # CLEANEST
-            baggage.get("variant_id")
+            baggage.get("ag.refs.variant.id")
             # ALTERNATIVE
             or request.query_params.get("variant_id")
+            # LEGACY
+            or baggage.get("variant_id")
         )
         variant_slug = (
             # CLEANEST
-            baggage.get("variant_slug")
+            baggage.get("ag.refs.variant.slug")
             # ALTERNATIVE
             or request.query_params.get("variant_slug")
             # LEGACY
+            or baggage.get("variant_slug")
             or request.query_params.get("config")
             or body.get("config")
         )
         variant_version = (
             # CLEANEST
-            baggage.get("variant_version")
+            baggage.get("ag.refs.variant.version")
             # ALTERNATIVE
             or request.query_params.get("variant_version")
+            # LEGACY
+            or baggage.get("variant_version")
         )
 
         if not any([variant_id, variant_slug, variant_version]):
@@ -237,24 +237,29 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
         environment_id = (
             # CLEANEST
-            baggage.get("environment_id")
+            baggage.get("ag.refs.environment.id")
             # ALTERNATIVE
             or request.query_params.get("environment_id")
+            # LEGACY
+            or baggage.get("environment_id")
         )
         environment_slug = (
             # CLEANEST
-            baggage.get("environment_slug")
+            baggage.get("ag.refs.environment.slug")
             # ALTERNATIVE
             or request.query_params.get("environment_slug")
             # LEGACY
+            or baggage.get("environment_slug")
             or request.query_params.get("environment")
             or body.get("environment")
         )
         environment_version = (
             # CLEANEST
-            baggage.get("environment_version")
+            baggage.get("ag.refs.environment.version")
             # ALTERNATIVE
             or request.query_params.get("environment_version")
+            # LEGACY
+            or baggage.get("environment_version")
         )
 
         if not any([environment_id, environment_slug, environment_version]):

@@ -199,11 +199,11 @@ evaluators = [
                 "default": [
                     {
                         "role": "system",
-                        "content": "You are an evaluator grading an LLM App.\n You will be given INPUTS, the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.\n Here is the grade criteria to follow:\n:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER\n\nSCORE:\n-The score should be between 0 and 10\n-A score of 10 means that the answer is perfect. This is the highest (best) score. \nA score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.\n\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER",
+                        "content": "You are an evaluator grading an LLM App.\n You will be the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.\n Here is the grade criteria to follow:\n:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER\n\nSCORE:\n-The score should be between 0 and 10\n-A score of 10 means that the answer is perfect. This is the highest (best) score. \nA score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.\n\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER",
                     },
                     {
                         "role": "user",
-                        "content": "INPUTS:\n country: {country}\nCORRECT ANSWER:{correct_answer}\nLLM APP OUTPUT: {prediction}.",
+                        "content": "CORRECT ANSWER:{correct_answer}\nLLM APP OUTPUT: {prediction}.",
                     },
                 ],
             },

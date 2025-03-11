@@ -46,6 +46,7 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
     }
 
     return (
+        // @ts-ignore
         <Transition
             show={!dismissed && shouldDisplay}
             enter="transition-opacity duration-75"

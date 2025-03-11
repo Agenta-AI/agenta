@@ -1,5 +1,5 @@
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
-import type {SharedEditorProps} from "../SharedEditor"
+import type {SharedEditorProps} from "../SharedEditor/types"
 import type {BaseContainerProps} from "../types"
 
 /**
@@ -18,11 +18,13 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
     rowId?: string
     runnable?: boolean
     debug?: boolean
-    deleteMessage?: (messageId: string) => void
-    rerunMessage?: (messageId: string) => void
     editorClassName?: string
     headerClassName?: string
-    handleChange?: (value: string) => void
+    footerClassName?: string
     initialValue?: string
     editorType?: "border" | "borderless"
+
+    deleteMessage?: (messageId: string) => void
+    rerunMessage?: (messageId: string) => void
+    handleChange?: (value: string) => void
 }

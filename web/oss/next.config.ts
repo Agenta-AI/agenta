@@ -1,17 +1,16 @@
 import path from "path"
 
+import type {NextConfig} from "next"
+
 const isDevelopment = process.env.NODE_ENV === "development"
 
-const COMMON_CONFIG = {
+const COMMON_CONFIG: NextConfig = {
     output: "standalone",
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
-    },
-    typescript: {
-        ignoreBuildErrors: true,
     },
     eslint: {
         ignoreDuringBuilds: true,
@@ -42,7 +41,7 @@ const COMMON_CONFIG = {
                   "@ant-design/icons-svg",
               ],
               webpack: (config, {webpack, isServer}) => {
-                  const envs = {}
+                  const envs: Record<string, string | undefined> = {}
                   config.cache = false
 
                   Object.keys(process.env).forEach((env) => {

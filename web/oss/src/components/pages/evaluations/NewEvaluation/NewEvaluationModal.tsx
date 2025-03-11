@@ -12,7 +12,7 @@ import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import {JSSTheme, LLMRunRateLimit, testset, Variant} from "@/oss/lib/Types"
 import {fetchSingleProfile, fetchVariants} from "@/oss/services/api"
-import {createEvalutaiton} from "@/oss/services/evaluations/api"
+import {createEvaluation} from "@/oss/services/evaluations/api"
 import {fetchTestsets} from "@/oss/services/testsets/api"
 
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
@@ -163,7 +163,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         if (!validateSubmission()) return
 
         setSubmitLoading(true)
-        createEvalutaiton(appId, {
+        createEvaluation(appId, {
             testset_id: selectedTestsetId,
             variant_ids: selectedVariantIds,
             evaluators_configs: selectedEvalConfigs,

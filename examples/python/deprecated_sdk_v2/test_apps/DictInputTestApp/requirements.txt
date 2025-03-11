@@ -1,3 +1,0 @@
-langchain
-openai
-agenta

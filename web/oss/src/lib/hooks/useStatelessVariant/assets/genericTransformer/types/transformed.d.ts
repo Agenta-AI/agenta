@@ -1,6 +1,6 @@
 import type {ConfigMetadata} from "./metadata"
 
-type Merge<A, B> = {
+export type Merge<A, B> = {
     [K in keyof A | keyof B]: K extends keyof A
         ? K extends keyof B
             ? A[K] | B[K]
@@ -12,7 +12,8 @@ type Merge<A, B> = {
 
 export interface Common<T extends ConfigMetadata = ConfigMetadata> {
     __id: string
-    __metadata: T
+    __metadata: T | string
+    __name?: string
 }
 
 /** Enhanced primitive value with metadata */
@@ -38,7 +39,7 @@ type EnhanceOrNot<K extends string | number | symbol, T> =
 
 /** Enhanced object configuration with special handling for __ prefixed keys */
 export type EnhancedObjectConfig<T> = Common & {
-    [K in keyof T]: EnhanceOrNot<K & string, T[K]>
+    [K in keyof T]: EnhanceOrNot<K, T[K]>
 }
 
 /** Generic enhanced configuration type */
@@ -47,5 +48,3 @@ export type Enhanced<T> = T extends (infer U)[]
     : T extends Record<string, any>
       ? EnhancedObjectConfig<T>
       : EnhancedConfigValue<T>
-//    &
-// Common

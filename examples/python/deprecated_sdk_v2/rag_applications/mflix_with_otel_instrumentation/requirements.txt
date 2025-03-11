@@ -1,6 +1,0 @@
-agenta
-python-dotenv
-pymongo
-openai
-certifi
-opentelemetry.instrumentation.openai

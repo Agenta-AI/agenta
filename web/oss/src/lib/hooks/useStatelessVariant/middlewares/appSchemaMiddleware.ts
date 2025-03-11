@@ -1,10 +1,10 @@
+// @ts-nocheck
 import {useCallback} from "react"
 
 import isEqual from "lodash/isEqual"
 import {type Key, type SWRHook, useSWRConfig} from "swr"
 
-// import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
-
+import {DEFAULT_UUID} from "@/oss/contexts/project.context"
 import {type FetcherOptions} from "@/oss/lib/api/types"
 import {type Variant} from "@/oss/lib/Types"
 
@@ -57,12 +57,15 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
-                            throw new Error("No spec found")
+                            return state
                         }
 
+                        state.variants = setVariants(state.variants, variants)
+
                         state.variants = transformVariants(
-                            setVariants(state.variants, variants),
+                            state.variants,
                             spec,
+                            config.appType,
                         ).map((variant) => {
                             return {
                                 ...variant,

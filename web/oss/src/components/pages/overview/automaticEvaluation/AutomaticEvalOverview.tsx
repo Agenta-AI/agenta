@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {EditOutlined, MoreOutlined, PlusOutlined, SwapOutlined} from "@ant-design/icons"

@@ -26,7 +26,20 @@ def hello_mock_response(*args, **kwargs) -> MockResponseModel:
         ],
     )
 
+def chat_mock_response(*args, **kwargs) -> MockResponseModel:
+    return MockResponseModel(
+        choices=[
+            MockChoiceModel(
+                message=MockMessageModel(
+                    content="world",
+                    role="assistant"
+                )
+            )
+        ],
+    )
+
 
 MOCKS: dict[str, Callable[..., MockResponseModel]] = {
     "hello": hello_mock_response,
+    "chat": chat_mock_response
 }

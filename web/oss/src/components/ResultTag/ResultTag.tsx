@@ -13,10 +13,14 @@ const ResultTag = memo(({value1, value2, className, popoverContent, ...props}: R
         value2 !== undefined ? (
             <>
                 <span className="value1">{value1}</span>
-                <span className="value2">{value2}</span>
+                <span className="value2 break-words overflow-hidden whitespace-break-spaces">
+                    {value2}
+                </span>
             </>
         ) : (
-            <div className="singleValue">{value1}</div>
+            <div className="singleValue break-words overflow-hidden whitespace-break-spaces">
+                {value1}
+            </div>
         )
 
     const tag = (

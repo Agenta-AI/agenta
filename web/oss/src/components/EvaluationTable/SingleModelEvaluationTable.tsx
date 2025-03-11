@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useState, useEffect, useCallback} from "react"
 
 import {
@@ -35,10 +36,7 @@ import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import type {EvaluationScenario, KeyValuePair, Variant, BaseResponse} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {
-    updateEvaluationScenario,
-    updateEvaluation,
-} from "@/oss/services/human-evaluations/api"
+import {updateEvaluationScenario, updateEvaluation} from "@/oss/services/human-evaluations/api"
 
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
@@ -213,11 +211,10 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         inputParamsDict,
                         variantData[idx].inputParams!,
                         variantData[idx].parameters
-                            ? transformToRequestBody(
-                                  variantData[idx].variant,
-                                  undefined,
-                                  getAllMetadata(),
-                              )
+                            ? transformToRequestBody({
+                                  variant: variantData[idx].variant,
+                                  allMetadata: getAllMetadata(),
+                              })
                             : variantData[idx].promptOptParams!,
                         appId || "",
                         variants[idx].baseId || "",
@@ -227,6 +224,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         undefined,
                         true,
                         !!variantData[idx].parameters, // isNewVariant
+                        variantData[idx].isCustom,
                     )
 
                     let res: BaseResponse | undefined

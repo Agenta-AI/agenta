@@ -7,8 +7,6 @@ description: "Reference for custom workflows SDK in Agenta which allows you to b
 
 The Custom Workflows SDK allows you to define and expose specific stages of your LLM workflows as API endpoints. By decorating your functions with `@ag.route` and `@ag.entrypoint`, you can create custom routes that integrate with the Agenta for playground interactions, evaluations, and deployments.
 
-Workflows can be deployed to Agenta using the [CLI](/reference/cli/cli-reference#agenta-variant-serve).
-
 ---
 
 ## Decorators
@@ -99,8 +97,8 @@ The following types are accepted in the configuration schema:
 - **Integer (`int`)**
 - **Float (`float`)**
 - **Boolean (`bool`)**
-- **Enumerations (using `Annotated` with choices)**
-- **Grouped Enumerations**
+
+Both enumerations and grouped enumerations where a string can be chosen from a list of options are supported through the use of `MCField`. This is a factory function that returns a `pydantic` `Field` object with additional metadata for the Agenta UI to render appropriate selection controls.
 
 ### Defining Fields with Constraints and Defaults
 
@@ -128,29 +126,29 @@ In this example:
 
 ### Defining Choices for Enumerations
 
-For fields that should present a set of choices (like a dropdown menu), use `Annotated` along with `ag.MultipleChoice` or `ag.GroupedMultipleChoice` to specify the choices. The default value is still specified using `Field(default=...)`.
+For fields that should present a set of choices (like a dropdown menu), use `str` as type along with `MCField` to specify the choices. 
 
-#### Example with `ag.MultipleChoice`
+#### Example with Multiple choices
 
 ```python
 from pydantic import BaseModel, Field
-from typing import Annotated
+from agenta.sdk.types import MCField
 import agenta as ag
 
 class MyConfig(BaseModel):
-    language: Annotated[str, ag.MultipleChoice(choices=["English", "Spanish", "French"])] = Field(default="English")
+    language: str = MCField(default="English", choices=["English", "Spanish", "French"])
 ```
 
 In this example:
 
 - `language` is a string field that allows selection among "English", "Spanish", or "French".
-- The default value is set to "English" via `Field(default="English")`.
+- The default value is set to "English".
 
-#### Example with `ag.GroupedMultipleChoice`
+#### Example with Grouped Multiple Choices
 
 ```python
 from pydantic import BaseModel, Field
-from typing import Annotated
+from agenta.sdk.types import MCField
 import agenta as ag
 
 supported_models = {
@@ -159,7 +157,7 @@ supported_models = {
 }
 
 class MyConfig(BaseModel):
-    model: Annotated[str, ag.GroupedMultipleChoice(choices=supported_models)] = Field(default="gpt-3.5-turbo")
+    model: str = MCField(default="gpt-3.5-turbo", choices=supported_models)
 ```
 
 In this example:
@@ -180,13 +178,13 @@ The fields in the configuration schema are represented in the Agenta playground 
   - Shown as **checkboxes**.
 - **Enumerations**:
   - Shown as **dropdown menus**.
-  - Choices are defined using `Annotated` with `ag.MultipleChoice` or `ag.GroupedMultipleChoice`, and the default is specified via `Field`.
+  - Choices and default are defined using `MCField`.
 
 ### Complete Example
 
 ```python
 from pydantic import BaseModel, Field
-from typing import Annotated
+from agenta.sdk.types import MCField
 import agenta as ag
 
 supported_llm_models = {
@@ -208,7 +206,7 @@ supported_llm_models = {
 
 class MyConfig(BaseModel):
     temperature: float = Field(default=1.0, ge=0.0, le=2.0)
-    model: Annotated[str, ag.GroupedMultipleChoice(choices=supported_llm_models)] = Field(default="gpt-3.5-turbo")
+    model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
     max_tokens: int = Field(default=-1, ge=-1, le=4000)
     prompt_system: str = Field(default="System prompt text")
     prompt_user: str = Field(default="User prompt text")
@@ -222,7 +220,7 @@ In this example:
 
 - Various field types are used, including strings, floats, integers, and booleans.
 - Constraints are specified using `Field` parameters like `ge` and `le`.
-- The `model` field uses `Annotated` with `ag.GroupedMultipleChoice` to define grouped choices.
+- The `model` field uses `MCField` to define grouped choices.
 - Default values are specified using `Field(default=...)`.
 
 ### Importing Supported Models

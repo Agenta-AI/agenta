@@ -21,6 +21,7 @@ const AgGridReact = dynamic(
             (module) => module.ModuleRegistry,
         )
         ModuleRegistry.registerModules([ClientSideRowModelModule])
+        // @ts-ignore
         ModuleRegistry.registerModules([CsvExportModule])
 
         const AgGridReact = await import("@ag-grid-community/react").then((mod) => mod.AgGridReact)

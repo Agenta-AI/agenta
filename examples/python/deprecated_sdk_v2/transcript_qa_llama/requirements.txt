@@ -1,3 +1,0 @@
-llama_index==0.7.24.post1
-agenta
-python-dotenv

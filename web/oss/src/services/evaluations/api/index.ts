@@ -167,7 +167,7 @@ export interface CreateEvaluationData {
     lm_providers_keys: KeyValuePair
     correct_answer_column: string
 }
-export const createEvalutaiton = async (appId: string, evaluation: CreateEvaluationData) => {
+export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
     const {projectId} = getCurrentProject()
 
     return axios.post(`/api/evaluations?project_id=${projectId}`, {...evaluation, app_id: appId})

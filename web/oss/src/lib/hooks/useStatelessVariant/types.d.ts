@@ -76,7 +76,6 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
     saveVariant?: () => Promise<void>
     setSelectedVariant?: (variantId: string) => void
-    runVariantTestRow?: (rowId: string) => Promise<void>
     handleParamUpdate?: (value: any, propertyId: string, variantId?: string) => void
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty

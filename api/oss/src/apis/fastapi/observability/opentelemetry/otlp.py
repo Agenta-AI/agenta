@@ -1,7 +1,13 @@
 from typing import List
 from datetime import datetime
 
+import logging
+import gzip
+import zlib
+
+# from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto
 import oss.src.apis.fastapi.observability.opentelemetry.traces_proto as Trace_Proto
+
 
 from google.protobuf.json_format import MessageToDict
 
@@ -12,6 +18,7 @@ from oss.src.core.observability.dtos import (
     OTelLinkDTO,
 )
 
+log = logging.getLogger(__name__)
 
 SPAN_KINDS = [
     "SPAN_KIND_UNSPECIFIED",
@@ -29,6 +36,33 @@ SPAN_STATUS_CODES = [
 ]
 
 
+def _is_gzip(data):
+    return data[:2] == b"\x1f\x8b"
+
+
+def _is_zlib(data):
+    return data[:2] in [b"\x78\x01", b"\x78\x9c", b"\x78\xda"]
+
+
+def _detect_compression(data):
+    if _is_gzip(data):
+        return "gzip"
+    elif _is_zlib(data):
+        return "zlib"
+    else:
+        return "unknown or uncompressed"
+
+
+def _decompress_data(data: bytes) -> bytes:
+    compression_type = _detect_compression(data)
+    if compression_type == "gzip":
+        return gzip.decompress(data)
+    elif compression_type == "zlib":
+        return zlib.decompress(data)
+    else:
+        return data
+
+
 def _parse_attribute(attribute):
     raw_value = attribute.value
     value_type = list(MessageToDict(raw_value).keys())[0].replace("V", "_v")
@@ -44,7 +78,13 @@ def _parse_timestamp(timestamp_ns: int) -> str:
 
 
 def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
+    try:
+        otlp_stream = _decompress_data(otlp_stream)
+    except (OSError, zlib.error) as e:
+        log.error("Decompression failed: {%s}", e)
+
     proto = Trace_Proto.TracesData()
+
     proto.ParseFromString(otlp_stream)
 
     otel_span_dtos = []

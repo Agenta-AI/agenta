@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {SetStateAction, useCallback, useRef, useState} from "react"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"

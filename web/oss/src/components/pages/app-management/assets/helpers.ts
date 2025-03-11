@@ -8,6 +8,8 @@ export const getTemplateKey = (template: Template) => {
             return ServiceType.Completion
         case "Chat Prompt":
             return ServiceType.Chat
+        case "Custom Workflow":
+            return ServiceType.Custom
         default:
             return undefined
     }

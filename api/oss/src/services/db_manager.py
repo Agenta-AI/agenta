@@ -740,7 +740,11 @@ async def get_app_type_from_template_key(template_key: Optional[str]) -> Optiona
         AppType (Optional[str]): The determined application type. Defaults to None.
     """
 
-    if template_key in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
+    if template_key in [
+        AppType.CHAT_SERVICE,
+        AppType.COMPLETION_SERVICE,
+        AppType.CUSTOM,
+    ]:
         return template_key
 
     return None

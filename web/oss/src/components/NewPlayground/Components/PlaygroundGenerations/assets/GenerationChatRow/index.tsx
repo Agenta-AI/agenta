@@ -7,6 +7,7 @@ import AddButton from "@/oss/components/NewPlayground/assets/AddButton"
 import RunButton from "@/oss/components/NewPlayground/assets/RunButton"
 import type {
     ArrayMetadata,
+    Enhanced,
     ObjectMetadata,
 } from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
@@ -17,6 +18,10 @@ import {
 import {createMessageFromSchema} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 import {getMetadataLazy, getResponseLazy} from "@/oss/components/NewPlayground/state"
+import {
+    GenerationChatHistoryItem,
+    MessageWithRuns,
+} from "@/oss/components/NewPlayground/state/types"
 
 import TextControl from "../../../PlaygroundVariantPropertyControl/assets/TextControl"
 import PromptMessageConfig from "../../../PromptMessageConfig"
@@ -32,7 +37,6 @@ export const GenerationChatRowOutput = ({
     rowId,
     deleteMessage,
     rerunMessage,
-    viewAs,
     resultHash,
     isRunning: propsIsRunning,
     isMessageDeletable,
@@ -146,17 +150,21 @@ const GenerationChatRow = ({
                         },
                     )
                     const messageHistory = messageRow?.history?.value || []
-                    let historyItem = findPropertyInObject(messageHistory, historyId)
-                    if (historyItem?.message) {
+                    let historyItem = findPropertyInObject(
+                        messageHistory,
+                        historyId || "",
+                    ) as Enhanced<MessageWithRuns>
+
+                    const historyMessage = historyItem?.message
+                    if (historyMessage) {
                         historyItem = {
                             ...historyItem,
-                            ...historyItem.message,
+                            ...historyMessage,
                         }
                     }
                     return {
                         messageRow,
                         historyItem,
-                        // isRunning: historyItem?.__runs?.[variantId]?.__isRunning,
                         history: messageHistory
                             .map((historyItem) => {
                                 return !historyItem.__runs
@@ -186,25 +194,29 @@ const GenerationChatRow = ({
                     const row = clonedState.generationData.messages.value.find(
                         (v) => v.__id === rowId,
                     )
-                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
-                    if (isInput !== -1) {
-                        row.history.value.splice(isInput, 1)
+                    if (row) {
+                        const isInput = row.history.value.findIndex((m) => m.__id === messageId)
+                        if (isInput !== -1) {
+                            row.history.value.splice(isInput, 1)
+                        }
                     }
                 } else if (variantId) {
                     const row = clonedState.generationData.messages.value.find(
                         (v) => v.__id === rowId,
                     )
-                    const isInput = row.history.value.findIndex((m) => {
-                        return m.__id === messageId
-                    })
-                    if (isInput !== -1) {
-                        row.history.value.splice(isInput, 1)
-                    } else {
-                        const isRunIndex = row.history.value.findIndex((m) => {
-                            return m.__runs[variantId]?.message?.__id === messageId
+                    if (row) {
+                        const isInput = row.history.value.findIndex((m) => {
+                            return m.__id === messageId
                         })
-                        if (isRunIndex !== -1) {
-                            delete row.history.value[isRunIndex].__runs[variantId]
+                        if (isInput !== -1) {
+                            row.history.value.splice(isInput, 1)
+                        } else {
+                            const isRunIndex = row.history.value.findIndex((m) => {
+                                return m.__runs?.[variantId]?.message?.__id === messageId
+                            })
+                            if (isRunIndex !== -1) {
+                                delete row.history.value[isRunIndex].__runs?.[variantId]
+                            }
                         }
                     }
                 }
@@ -230,7 +242,9 @@ const GenerationChatRow = ({
                 role: "user",
             })
 
-            messageRow.history.value.push(emptyMessage)
+            if (emptyMessage) {
+                messageRow.history.value.push(emptyMessage as GenerationChatHistoryItem)
+            }
 
             return clonedState
         })
@@ -269,7 +283,7 @@ const GenerationChatRow = ({
 
     const rerunMessage = useCallback(
         (messageId: string) => {
-            rerunChatOutput(messageId)
+            rerunChatOutput?.(messageId)
         },
         [rerunChatOutput],
     )

@@ -1,7 +1,6 @@
 import Session from "supertokens-auth-react/recipe/session"
 
-import {uriFixer} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
-import {getCurrentProject} from "@/oss/contexts/project.context"
+import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {
@@ -19,6 +18,8 @@ import {
     User,
 } from "@/oss/lib/Types"
 
+import {uriFixer} from "../lib/hooks/useStatelessVariant/assets/helpers"
+
 //Prefix convention:
 //  - fetch: GET single entity from server
 //  - fetchAll: GET all entities from server
@@ -34,6 +35,10 @@ export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.da
 
 export async function fetchVariants(appId: string, ignoreAxiosError = false): Promise<Variant[]> {
     const {projectId} = getCurrentProject()
+
+    if (!projectId || projectId === DEFAULT_UUID) {
+        return []
+    }
 
     const response = await axios.get(
         `${getAgentaApiUrl()}/api/apps/${appId}/variants?project_id=${projectId}`,
@@ -104,6 +109,7 @@ export async function callVariant(
     signal?: AbortSignal,
     ignoreAxiosError?: boolean,
     isNewVariant?: boolean,
+    isCustomVariant?: boolean,
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -145,7 +151,15 @@ export async function callVariant(
         }
     }
 
-    requestBody["inputs"] = secondaryInputParams
+    if (isCustomVariant) {
+        for (const key of Object.keys(inputParametersDict)) {
+            if (key !== "inputs") {
+                requestBody[key] = inputParametersDict[key]
+            }
+        }
+    } else {
+        requestBody["inputs"] = secondaryInputParams
+    }
 
     const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
     const {projectId} = getCurrentProject()

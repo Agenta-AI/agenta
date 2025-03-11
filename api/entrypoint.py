@@ -121,6 +121,8 @@ app.include_router(
     router=observability.router, prefix="/observability/v1", tags=["Observability"]
 )
 
+app.include_router(router=observability.otlp, prefix="/otlp", tags=["Observability"])
+
 if isCloudEE():
     import ee.src.main as ee
 

@@ -52,7 +52,9 @@ const MinMaxControl = ({
         <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
             <Tooltip title={description || ""} placement="right">
                 <div className="flex items-center gap-2 justify-between">
-                    <Typography.Text>{label}</Typography.Text>
+                    <Typography.Text className="playground-property-control-label">
+                        {label}
+                    </Typography.Text>
 
                     <div className="flex items-center gap-1">
                         <InputNumber

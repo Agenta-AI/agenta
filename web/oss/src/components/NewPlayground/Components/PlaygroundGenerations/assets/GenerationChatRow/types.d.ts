@@ -1,22 +1,22 @@
-import type {Enhanced} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
-import type {
-    Message,
-    TestResult,
-} from "@/oss/components/NewPlayground/assets/utilities/transformer/types"
+import type {TestResult} from "@/oss/components/NewPlayground/assets/utilities/transformer/types"
+
+import {PromptMessageConfigProps} from "../../../PromptMessageConfig/types"
 
 export interface GenerationChatRowProps {
     variantId?: string
     disabled?: boolean
     rowId?: string
+    resultHash?: TestResult | string | null
     historyId?: string
     placeholder?: string
     withControls?: boolean
     messageId?: string
     viewAs?: "input" | "output"
     isRunning?: boolean
-    message?: Enhanced<Message>
+    message?: GenerationChatHistoryItem
     result?: TestResult
     isMessageDeletable?: boolean
+    messageProps?: Partial<PromptMessageConfigProps>
     deleteMessage?: (messageId: string) => void
     rerunMessage?: (messageId: string) => void
 }

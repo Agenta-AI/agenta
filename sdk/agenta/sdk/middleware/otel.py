@@ -4,8 +4,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, FastAPI
 
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.tracing.propagation import extract
 
 
 class OTelMiddleware(BaseHTTPMiddleware):
@@ -13,28 +15,11 @@ class OTelMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request: Request, call_next: Callable):
-        request.state.otel = {"baggage": {}}
+        request.state.otel = {"baggage": {}, "traceparent": None}
 
         with suppress():
-            baggage = await self._get_baggage(request)
+            _, traceparent, baggage = extract(request.headers)
 
-            request.state.otel = {"baggage": baggage}
+            request.state.otel = {"baggage": baggage, "traceparent": traceparent}
 
         return await call_next(request)
-
-    async def _get_baggage(
-        self,
-        request,
-    ):
-        _baggage = {"baggage": request.headers.get("Baggage", "")}
-
-        context = W3CBaggagePropagator().extract(_baggage)
-
-        baggage = {}
-
-        if context:
-            for partial in context.values():
-                for key, value in partial.items():
-                    baggage[key] = value
-
-        return baggage

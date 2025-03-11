@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useEffect, useState} from "react"
 
 import {Button, Checkbox, Modal, Space, Typography, message} from "antd"

@@ -21,6 +21,8 @@ from agenta.sdk.tracing.exporters import InlineExporter, OTLPExporter
 from agenta.sdk.tracing.spans import CustomSpan
 from agenta.sdk.tracing.inline import parse_inline_trace
 from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
+from agenta.sdk.tracing.propagation import extract, inject
+from agenta.sdk.utils.cache import TTLLRUCache
 
 
 class Tracing(metaclass=Singleton):
@@ -42,7 +44,7 @@ class Tracing(metaclass=Singleton):
         # REFERENCES
         self.references: Dict[str, str] = dict()
         # CREDENTIALS
-        self.credentials: Dict[int, str] = dict()
+        self.credentials: TTLLRUCache = TTLLRUCache(ttl=(60 * 60))  # 1 hour x 512 keys
 
         # TRACER PROVIDER
         self.tracer_provider: Optional[TracerProvider] = None
@@ -62,37 +64,33 @@ class Tracing(metaclass=Singleton):
     def configure(
         self,
         api_key: Optional[str] = None,
-        service_id: Optional[str] = None,
-        # DEPRECATING
-        app_id: Optional[str] = None,
+        inline: Optional[bool] = True,
     ):
         # HEADERS (OTLP)
         if api_key:
             self.headers["Authorization"] = f"ApiKey {api_key}"
-        # REFERENCES
-        if service_id:
-            self.references["service.id"] = service_id
-        if app_id:
-            self.references["application.id"] = app_id
 
         # TRACER PROVIDER
         self.tracer_provider = TracerProvider(
             resource=Resource(attributes={"service.name": "agenta-sdk"})
         )
-        # TRACE PROCESSORS -- INLINE
-        self.inline = TraceProcessor(
-            InlineExporter(
-                registry=self.inline_spans,
-            ),
-            references=self.references,
-        )
-        self.tracer_provider.add_span_processor(self.inline)
+
+        # --- INLINE
+        if inline:
+            # TRACE PROCESSORS -- INLINE
+            self.inline = TraceProcessor(
+                InlineExporter(
+                    registry=self.inline_spans,
+                ),
+                references=self.references,
+                inline=inline,
+            )
+            self.tracer_provider.add_span_processor(self.inline)
+        # --- INLINE
+
         # TRACE PROCESSORS -- OTLP
         try:
-            log.info(
-                "Agenta - OLTP URL: %s",
-                self.otlp_url,
-            )
+            log.info("Agenta - OLTP URL: %s", self.otlp_url)
             # check(
             #     self.otlp_url,
             #     headers=self.headers,
@@ -205,7 +203,7 @@ class Tracing(metaclass=Singleton):
         is_ready = True
 
         with suppress():
-            if trace_id is not None:
+            if self.inline and trace_id:
                 is_ready = self.inline.is_ready(trace_id)
 
         return is_ready
@@ -217,15 +215,30 @@ class Tracing(metaclass=Singleton):
         _inline_trace = {}
 
         with suppress():
-            is_ready = self.inline.is_ready(trace_id)
+            if self.inline and trace_id:
+                is_ready = self.inline.is_ready(trace_id)
 
-            if is_ready is True:
-                otel_spans = self.inline.fetch(trace_id)
+                if is_ready is True:
+                    otel_spans = self.inline.fetch(trace_id)
 
-                if otel_spans:
-                    _inline_trace = parse_inline_trace(otel_spans)
+                    if otel_spans:
+                        _inline_trace = parse_inline_trace(otel_spans)
 
         return _inline_trace
+
+    def extract(
+        self,
+        *args,
+        **kwargs,
+    ):
+        return extract(*args, **kwargs)
+
+    def inject(
+        self,
+        *args,
+        **kwargs,
+    ):
+        return inject(*args, **kwargs)
 
 
 def get_tracer(

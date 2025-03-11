@@ -67,12 +67,109 @@ const ParamsForm: React.FC<Props> = ({
     const chat = inputParams.find((param) => param.name === "chat")?.value
 
     return isChatVariant ? (
-        <ChatInputs
-            value={useChatDefaultValue ? undefined : chat}
-            defaultValue={useChatDefaultValue ? chat : undefined}
-            onChange={(val) => onParamChange?.("chat", val)}
-            isLoading={isLoading}
-        />
+        <>
+            <Form form={form} className={classes.form} onFinish={onFinish}>
+                {/*@ts-ignore*/}
+                {(_, formInstance) => {
+                    return inputParams.map((param, index) => {
+                        const type =
+                            param.type === "file_url"
+                                ? "url"
+                                : param.type === "integer"
+                                  ? "number"
+                                  : param.type
+
+                        return (
+                            <Form.Item
+                                key={param.name}
+                                name={param.name}
+                                rules={[
+                                    {
+                                        required: param.required,
+                                        message: "This field is required",
+                                    },
+                                ]}
+                                initialValue={param.value}
+                            >
+                                <div className={classes.formItemRow}>
+                                    {type === "url" &&
+                                        param.value &&
+                                        formInstance.getFieldError(param.name).length === 0 && (
+                                            <Image
+                                                src={param.value}
+                                                width={imgHeight * ASPECT_RATIO}
+                                                height={imgHeight}
+                                                className={classes.cover}
+                                                fallback="/assets/fallback.png"
+                                                alt={param.name}
+                                            />
+                                        )}
+
+                                    {type === "number" && (
+                                        <InputNumber
+                                            data-cy={`testview-input-parameters-${index}`}
+                                            key={index}
+                                            className={
+                                                !isPlaygroundComponent
+                                                    ? classes.paramValueContainer
+                                                    : ""
+                                            }
+                                            style={{
+                                                height: "54px",
+                                                minHeight: "54px",
+                                                maxHeight: "186px",
+                                                width: "100%",
+                                            }}
+                                            controls={false}
+                                            type={type}
+                                            value={param.value}
+                                            placeholder={`${renameVariables(param.name)} (${type})`}
+                                            onChange={(value) => onParamChange?.(param.name, value)}
+                                            disabled={!isPlaygroundComponent}
+                                        />
+                                    )}
+
+                                    {type === "string" && (
+                                        <Input.TextArea
+                                            data-cy={`testview-input-parameters-${index}`}
+                                            key={index}
+                                            className={
+                                                !isPlaygroundComponent
+                                                    ? classes.paramValueContainer
+                                                    : ""
+                                            }
+                                            value={param.value}
+                                            placeholder={`${renameVariables(param.name)} (${type})`}
+                                            onChange={(e) =>
+                                                onParamChange?.(param.name, e.target.value)
+                                            }
+                                            disabled={!isPlaygroundComponent}
+                                            autoSize={{minRows: 2, maxRows: 8}}
+                                        />
+                                    )}
+
+                                    {type === "boolean" && (
+                                        <Switch
+                                            disabled={!isPlaygroundComponent}
+                                            value={param.value}
+                                            onChange={(checked: boolean) =>
+                                                onParamChange?.(param.name, checked)
+                                            }
+                                        />
+                                    )}
+                                </div>
+                            </Form.Item>
+                        )
+                    })
+                }}
+            </Form>
+            <ChatInputs
+                value={useChatDefaultValue ? undefined : chat}
+                defaultValue={useChatDefaultValue ? chat : undefined}
+                onChange={(val) => onParamChange?.("chat", val)}
+                isLoading={isLoading}
+            />
+        </>
     ) : (
         <Form form={form} className={classes.form} onFinish={onFinish}>
             {/*@ts-ignore*/}

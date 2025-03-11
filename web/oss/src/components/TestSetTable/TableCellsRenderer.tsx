@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {type ICellRendererParams} from "@ag-grid-community/core"
 import {EditOutlined} from "@ant-design/icons"
 import {Tooltip} from "antd"

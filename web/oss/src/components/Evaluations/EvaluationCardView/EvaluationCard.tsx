@@ -1,7 +1,7 @@
 import {createUseStyles} from "react-jss"
 
-import {ABTestingEvaluationTableRow} from "@/oss/components/EvaluationTable/ABTestingEvaluationTable"
-import {Evaluation, Variant} from "@/oss/lib/Types"
+import type {ABTestingEvaluationTableRow} from "@/oss/components/EvaluationTable/types"
+import type {Evaluation, Variant} from "@/oss/lib/Types"
 
 import EvaluationChatResponse from "./EvaluationChatResponse"
 import EvaluationVariantCard from "./EvaluationVariantCard"

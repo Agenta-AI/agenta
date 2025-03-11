@@ -9,10 +9,10 @@ import type {
     ObjectMetadata,
 } from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import {findPropertyInObject} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {createInputRow} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 import {getMetadataLazy} from "@/oss/components/NewPlayground/state"
-import {findPropertyInObject} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"
 

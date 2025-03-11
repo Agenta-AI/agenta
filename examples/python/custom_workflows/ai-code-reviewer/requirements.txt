@@ -1,3 +1,4 @@
 opentelemetry-instrumentation-openai
 openai
 agenta
+uvicorn

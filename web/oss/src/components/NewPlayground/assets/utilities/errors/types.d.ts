@@ -13,6 +13,7 @@ export interface ValidationError {
     msg: string
     input: unknown
     ctx?: Record<string, unknown>
+    message?: string
 }
 
 export interface ApiError {

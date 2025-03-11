@@ -1,10 +1,15 @@
+import {useMemo} from "react"
+
 import {CloseOutlined, MoreOutlined} from "@ant-design/icons"
 import {CloudArrowUp, Lightning, Rocket, Trash} from "@phosphor-icons/react"
 import {Badge, Button, Drawer, Dropdown, Tabs, Tag, theme, Typography} from "antd"
 
+import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
+import {Variant} from "@/oss/lib/Types"
 
 import {VariantParametersView, NewVariantParametersView} from "./assets/Parameters"
 import {useStyles} from "./assets/styles"
@@ -23,6 +28,17 @@ const VariantDrawer = ({
     const {token} = useToken()
     const classes = useStyles()
     const appId = useAppId()
+    const {currentApp} = useAppsData()
+    const variantsData = useVariants(currentApp)(
+        {
+            appId: appId,
+        },
+        [selectedVariant!],
+    )
+    const variant = useMemo(
+        () => variantsData?.data?.variants.find((v: Variant) => v.variantId === selectedVariant.id),
+        [variantsData?.data?.variants, selectedVariant.variantId],
+    )
 
     return (
         <Drawer
@@ -114,11 +130,12 @@ const VariantDrawer = ({
                             {
                                 key: "configuration",
                                 label: "Configuration",
-                                children: selectedVariant.parameters?.ag_config ? (
-                                    <NewVariantParametersView selectedVariant={selectedVariant} />
-                                ) : (
-                                    <VariantParametersView selectedVariant={selectedVariant} />
-                                ),
+                                children:
+                                    variant?.isCustom || selectedVariant.parameters?.ag_config ? (
+                                        <NewVariantParametersView selectedVariant={variant} />
+                                    ) : (
+                                        <VariantParametersView selectedVariant={selectedVariant} />
+                                    ),
                             },
                         ]}
                     />

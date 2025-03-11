@@ -32,7 +32,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     className,
     ...props
 }) => {
-    const {inputKeys, messageIds, mutateVariant, hasVariable, mutate} = usePlayground({
+    const {isCustom, inputKeys, messageIds, mutateVariant, hasVariable, mutate} = usePlayground({
         variantId,
         hookId: "PlaygroundConfigVariantPrompts",
         variantSelector: useCallback(
@@ -48,6 +48,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     messageIds: messages.value.map((message) => message.__id),
                     inputKeys: prompt.inputKeys.value || [],
                     hasVariable: prompt.inputKeys.value.length > 0,
+                    isCustom: variant.isCustom,
                 }
             },
             [promptId],
@@ -114,7 +115,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     )
 
     return (
-        <div className={clsx("flex flex-col gap-2", className)} {...props}>
+        <div className={clsx("flex flex-col gap-2 pt-3", className)} {...props}>
             {messageIds.map((messageId) => (
                 <PromptMessageConfig
                     key={messageId}
@@ -127,7 +128,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 />
             ))}
 
-            {!hasVariable && (
+            {!isCustom && !hasVariable && (
                 <Alert
                     closable
                     message="Add a new variable by wrapping variable name with {{ and }}."

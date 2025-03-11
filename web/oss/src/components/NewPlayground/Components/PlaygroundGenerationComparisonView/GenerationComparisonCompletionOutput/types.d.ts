@@ -5,4 +5,5 @@ export interface GenerationComparisonCompletionOutputProps {
     variantIndex?: number
     isLastRow?: boolean
     isLastVariant?: boolean
+    registerToWebWorker?: boolean
 }

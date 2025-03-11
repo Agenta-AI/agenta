@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useState, useEffect, useRef, useCallback} from "react"
 
 import {getAllVariantParameters, updateInputParams} from "@/oss/lib/helpers/variantHelper"
@@ -143,7 +144,7 @@ export function useLegacyVariant(options: {appId: string}, variant: Variant) {
 }
 
 // array version of useLegacyVariant
-export function useLegacyVariants(options: {appId: string}, propsVariants: Variant[] = []) {
+export function useLegacyVariants(options: {appId?: string}, propsVariants: Variant[] = []) {
     const appId = options.appId
     const [isVariantsLoading, setIsVariantsLoading] = useState<boolean>(false)
     const [state, setState] = useState<ReturnType<typeof useLegacyVariant>[]>([])

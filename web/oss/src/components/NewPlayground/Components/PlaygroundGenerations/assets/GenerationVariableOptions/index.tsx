@@ -74,7 +74,9 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
 
                 if (!itemMetadata) return clonedState
 
-                const inputKeys = Object.keys(itemMetadata.properties)
+                const inputKeys = Object.keys(
+                    itemMetadata.properties,
+                ) as (keyof typeof existingRow)[]
                 const newRow = createInputRow(inputKeys, itemMetadata)
 
                 const existingRow = clonedState?.generationData.inputs.value.find(

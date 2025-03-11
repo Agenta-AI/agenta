@@ -1,11 +1,12 @@
 import {useCallback, useRef} from "react"
 
 import dayjs from "dayjs"
-import type {Key, KeyedMutator, SWRResponse, SWRHook} from "swr"
+import type {Key, SWRHook} from "swr"
 
 import {hashVariant} from "@/oss/components/NewPlayground/assets/hash"
 import {type FetcherOptions} from "@/oss/lib/api/types"
 
+import {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {getMetadataLazy, getVariantsLazy, initialState} from "../../../state"
 import {getUniqueInputKeys} from "../assets/generationHelpers"
@@ -17,9 +18,11 @@ import type {
     PlaygroundMiddleware,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
+    CustomKeyedMutator,
+    MutateFunction,
+    PlaygroundResponse,
 } from "../types"
 
-import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 /**
  * Compare two variants ignoring specified properties
  */
@@ -37,24 +40,25 @@ export const compareVariantsForDirtyState = (
     return isPlaygroundEqual(cleanVariant1, cleanVariant2)
 }
 
-type MutateFunction<T extends PlaygroundStateData = PlaygroundStateData> = (
-    state: T | Promise<T> | undefined,
-) => T | Promise<T>
-
-const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
-    return <Data extends PlaygroundStateData = PlaygroundStateData>(
+const isVariantDirtyMiddleware: PlaygroundMiddleware = <
+    Data extends PlaygroundStateData = PlaygroundStateData,
+    Selected = unknown,
+>(
+    useSWRNext: SWRHook,
+) => {
+    return (
         key: Key,
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
         config: PlaygroundSWRConfig<Data>,
     ) => {
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
-            const {logger, valueReferences, addToValueReferences, checkInvalidSelector} =
-                usePlaygroundUtilities({
-                    config: {
-                        ...config,
-                        name: "isVariantDirtyMiddleware",
-                    },
-                })
+            // const {logger, valueReferences, addToValueReferences, checkInvalidSelector} =
+            //     usePlaygroundUtilities({
+            //         config: {
+            //             ...config,
+            //             name: "isVariantDirtyMiddleware",
+            //         },
+            //     })
 
             const fetcherWithIsDirty = useCallback(
                 async (url: string, options?: FetcherOptions): Promise<Data> => {
@@ -68,10 +72,11 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     const dataRef = variants.reduce(
                         (acc, variant) => {
                             const existingRef = data.dataRef?.[variant.id]
+                            const existingVariant = getVariantsLazy(existingRef)
                             const variantHash = hashVariant(variant)
                             if (
                                 !existingRef ||
-                                dayjs(variant.updatedAt).isAfter(dayjs(existingRef?.updatedAt))
+                                dayjs(variant.updatedAt).isAfter(dayjs(existingVariant?.updatedAt))
                             ) {
                                 acc[variant.id] = variantHash
                                 // structuredClone(variant)
@@ -82,14 +87,15 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             if (acc[variant.id] && variant && variantHash !== acc[variant.id]) {
                                 const newVariant = getVariantsLazy(variantHash)
                                 const previousVariant = getVariantsLazy(acc[variant.id])
-                                dirtyStates[variant.id] = !compareVariantsForDirtyState(
-                                    previousVariant,
-                                    newVariant,
-                                )
+                                if (newVariant) {
+                                    dirtyStates[variant.id] = previousVariant
+                                        ? !compareVariantsForDirtyState(previousVariant, newVariant)
+                                        : false
+                                }
                             }
                             return acc
                         },
-                        data?.dataRef || ({} as Record<string, EnhancedVariant>),
+                        data?.dataRef || ({} as Record<string, string>),
                     )
 
                     return {
@@ -113,11 +119,11 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                     },
                     [config],
                 ),
-            } as PlaygroundSWRConfig<Data>)
+            } as PlaygroundSWRConfig<Data>) as PlaygroundResponse<Data, Selected>
 
-            const originalMutateRef = useRef<SWRResponse<Data, Error>["mutate"]>(swr.mutate)
+            const originalMutateRef = useRef<PlaygroundResponse<Data, Error>["mutate"]>(swr.mutate)
 
-            const wrappedMutate = useCallback<KeyedMutator<Data>>(async (data, options) => {
+            const wrappedMutate = useCallback<CustomKeyedMutator<Data>>(async (data, options) => {
                 const mutate = originalMutateRef.current
 
                 return mutate(
@@ -126,16 +132,22 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
 
                         if (!clonedState || !state) return state
 
-                        let newState: Data
+                        // let newState: Data
 
                         if (typeof data === "function") {
                             const updateFn = data as MutateFunction<Data>
-                            const result = await updateFn(clonedState)
-                            newState = result ?? clonedState
+                            await updateFn(clonedState)
+                            // newState = result ?? clonedState
                         } else if (data !== undefined) {
                             // Handle partial state update
-                            for (const key in data) {
-                                clonedState[key] = data[key]
+                            const partialData = data as Partial<Data>
+                            for (const key in partialData) {
+                                if (
+                                    partialData.hasOwnProperty(key) &&
+                                    clonedState.hasOwnProperty(key)
+                                ) {
+                                    ;(clonedState as Data)[key] = partialData[key]!
+                                }
                             }
                         }
 
@@ -157,6 +169,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                         )
                         for (const variantId of clonedState.selected) {
                             const _variant = findVariantById(clonedState, variantId)
+                            if (!_variant || _variant.isCustom) continue
                             updateVariantPromptKeys(_variant)
                         }
                         const currentInputs = getUniqueInputKeys(
@@ -186,15 +199,20 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                             clonedState.generationData?.messages.value.forEach((messageRow) => {
                                 const history = messageRow.history.value
                                 if (!history.length) {
-                                    const emptyMessage = createMessageFromSchema(
-                                        getMetadataLazy(
-                                            clonedState.variants[0].prompts[0].messages.__metadata,
-                                        ).itemMetadata,
-                                        {
-                                            role: "user",
-                                        },
-                                    )
-                                    messageRow.history.value.push(emptyMessage)
+                                    const genericMetadata =
+                                        clonedState.variants[0].prompts[0].messages.__metadata
+                                    if (!genericMetadata) return
+                                    const arrayMetadata =
+                                        getMetadataLazy<ArrayMetadata>(genericMetadata)
+                                    const itemMetadata = arrayMetadata?.itemMetadata
+                                    if (!itemMetadata) return
+
+                                    const emptyMessage = createMessageFromSchema(itemMetadata, {
+                                        role: "user",
+                                    })
+                                    if (emptyMessage) {
+                                        messageRow.history.value.push(emptyMessage)
+                                    }
                                 }
                             })
                         }
@@ -214,11 +232,12 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                             ...previousMessage.__runs,
                                             ...Object.keys(previousMessage.__runs).reduce(
                                                 (acc, key) => {
+                                                    if (!acc) acc = {}
                                                     acc[currentSelected[0]] =
-                                                        previousMessage.__runs[key]
+                                                        previousMessage.__runs?.[key]
                                                     return acc
                                                 },
-                                                {},
+                                                {} as typeof currentMessage.__runs,
                                             ),
                                         }
                                     }
@@ -239,27 +258,35 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => 
                                         const existingVariant = getVariantsLazy(existingRef)
                                         const newVariant = getVariantsLazy(variantHash)
                                         if (
-                                            !existingRef ||
+                                            !existingVariant ||
                                             dayjs(variant.updatedAt).isAfter(
-                                                dayjs(existingRef?.updatedAt),
+                                                dayjs(existingVariant?.updatedAt),
                                             ) ||
-                                            variant.revision > existingRef.revision
+                                            variant.revision > existingVariant.revision
                                         ) {
                                             acc[variant.id] = variantHash
                                         } else {
-                                            acc[variant.id] = existingRef
+                                            if (existingRef) {
+                                                acc[variant.id] = existingRef
+                                            } else {
+                                                delete acc[variant.id]
+                                            }
                                         }
 
-                                        dirtyStates[variant.id] = !compareVariantsForDirtyState(
-                                            existingVariant,
-                                            newVariant,
-                                        )
+                                        if (newVariant) {
+                                            dirtyStates[variant.id] = existingVariant
+                                                ? !compareVariantsForDirtyState(
+                                                      existingVariant,
+                                                      newVariant,
+                                                  )
+                                                : false
+                                        }
                                     } else {
                                         dirtyStates[variant.id] = false
                                     }
                                     return acc
                                 },
-                                clonedState?.dataRef || ({} as Record<string, EnhancedVariant>),
+                                clonedState?.dataRef || ({} as Record<string, string>),
                             )
 
                             clonedState.dataRef = dataRef

@@ -7,6 +7,8 @@ import SharedEditor from "../../../SharedEditor"
 
 import type {TextControlProps} from "./types"
 
+const _handleChange = () => undefined
+
 const TextControl = ({
     withTooltip,
     description,
@@ -25,12 +27,12 @@ const TextControl = ({
         return (
             <SharedEditor
                 header={
-                    <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
+                    <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                         {metadata.title}
                     </Typography>
                 }
                 editorType="border"
-                handleChange={handleChange}
+                handleChange={handleChange || _handleChange}
                 initialValue={value}
                 editorClassName={className}
                 placeholder={metadata?.description}
@@ -48,7 +50,7 @@ const TextControl = ({
     return (
         <SharedEditor
             header={
-                <Typography className="font-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
+                <Typography className=" playground-property-control-labelfont-[500] text-[12px] leading-[20px] text-[#1677FF] font-mono">
                     {metadata.title}
                 </Typography>
             }
@@ -57,7 +59,7 @@ const TextControl = ({
                 "relative bg-transparent flex flex-col gap-1 rounded-[theme(spacing.2)]",
                 className,
             )}
-            handleChange={handleChange}
+            handleChange={handleChange || _handleChange}
             initialValue={value}
             editorClassName={className}
             placeholder={metadata?.description}

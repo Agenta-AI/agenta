@@ -17,6 +17,7 @@ const TestsetDrawerButton = ({
     icon = true,
     children,
     resultHashes,
+    results,
     ...props
 }: TestsetDrawerButtonProps) => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)

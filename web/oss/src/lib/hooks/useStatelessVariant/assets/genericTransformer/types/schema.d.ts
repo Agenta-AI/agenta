@@ -1,4 +1,6 @@
-import {Base, BaseOption} from "./base"
+import {Base} from "./base"
+import {BaseOption} from "./options"
+import {Merge} from "./transformed"
 
 /** Common schema types */
 export type SchemaType =
@@ -16,6 +18,7 @@ export interface BaseSchema extends Base {
     default?: unknown
     const?: unknown
     enum?: unknown[]
+    key?: string
 }
 
 export interface BaseSchemaProperties extends BaseSchema {
@@ -49,6 +52,7 @@ export type SchemaProperty =
           type: "object"
           properties?: Record<string, SchemaProperty>
           additionalProperties?: SchemaProperty | boolean
+          "x-parameters"?: Merge<BaseSchema, {prompt: boolean}>
       })
     | (BaseSchemaProperties & {
           anyOf: SchemaProperty[]

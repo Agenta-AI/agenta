@@ -5,7 +5,6 @@ export interface GenerationComparisonChatOutputCellProps {
     variantIndex?: number
     isFirstRow?: boolean
     isLastRow?: boolean
-    isLastVariant?: boolean
 }
 
 export interface GenerationComparisonChatOutputProps {

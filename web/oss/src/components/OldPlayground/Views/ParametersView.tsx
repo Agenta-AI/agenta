@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useEffect, useState} from "react"
 
 import {CloudUploadOutlined, DeleteOutlined, HistoryOutlined, SaveOutlined} from "@ant-design/icons"

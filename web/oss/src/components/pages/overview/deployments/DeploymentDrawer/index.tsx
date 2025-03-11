@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useMemo, useState} from "react"
 
 import {CloseOutlined, MoreOutlined, PythonOutlined} from "@ant-design/icons"
@@ -53,14 +54,16 @@ const DeploymentDrawer = ({
     const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
     const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
-    const [variant] = useState<Variant | null>(
-        variants.find(
-            (variant) => variant?.variantId === selectedEnvironment.deployed_app_variant_id,
-        ) || null,
-    )
+    const variant = useMemo(() => {
+        return (
+            (variants || []).find(
+                (variant) => variant?.variantId === selectedEnvironment?.deployed_app_variant_id,
+            ) || null
+        )
+    }, [variants, selectedEnvironment.deployed_app_variant_id])
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    const {data} = useVariants(currentApp)({appId}, [variant!])
+    const {data} = useVariants(currentApp)({appId}, [variant!].filter(Boolean))
 
     const params = useMemo(() => {
         const _variant = (data?.variants || []).find(

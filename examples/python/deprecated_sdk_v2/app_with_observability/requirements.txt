@@ -1,4 +1,0 @@
-agenta
-openai
-pymongo
-litellm

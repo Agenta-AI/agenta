@@ -18,12 +18,8 @@ const GenericDrawer = dynamic(() => import("@/oss/components/GenericDrawer"))
 const TraceContent = dynamic(
     () => import("@/oss/components/pages/observability/drawer/TraceContent"),
 )
-const TraceHeader = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/TraceHeader"),
-)
-const TraceTree = dynamic(
-    () => import("@/oss/components/pages/observability/drawer/TraceTree"),
-)
+const TraceHeader = dynamic(() => import("@/oss/components/pages/observability/drawer/TraceHeader"))
+const TraceTree = dynamic(() => import("@/oss/components/pages/observability/drawer/TraceTree"))
 
 const TraceDrawerButton = ({
     label,
@@ -102,7 +98,6 @@ const TraceDrawerButton = ({
                         <TraceTree
                             activeTrace={activeTrace as _AgentaRootsResponse}
                             selected={selected}
-                            x
                             setSelected={setSelected}
                         />
                     }

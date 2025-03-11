@@ -8,7 +8,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import display_exception
 from agenta.sdk.utils.logging import log
@@ -22,7 +22,7 @@ _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in T
 
 _ALWAYS_ALLOW_LIST = [f"{AGENTA_RUNTIME_PREFIX}/health"]
 
-_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
+_cache = TTLLRUCache()
 
 
 class DenyResponse(JSONResponse):
@@ -54,7 +54,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
-        self.resource_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.service_id
 
     async def dispatch(self, request: Request, call_next: Callable):
         try:
@@ -110,9 +109,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 log.debug("No project ID found in request")
 
             params = {"action": "run_service", "resource_type": "service"}
-
-            if self.resource_id:
-                params["resource_id"] = self.resource_id
 
             if project_id:
                 params["project_id"] = project_id

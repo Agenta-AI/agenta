@@ -1,12 +1,14 @@
-import {Typography} from "antd"
+import {Tooltip, Typography} from "antd"
 
 import {EnhancedConfigValue} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 
+import {getMetadataLazy} from "../../../state"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
 import BooleanControl from "./BooleanControl"
 import MinMaxControl from "./MinMaxControl"
 import MultiSelectControl from "./MultiSelectControl"
+import PlaygroundVariantPropertyControlWrapper from "./PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContent from "./PromptMessageContent"
 import SimpleDropdownSelect from "./SimpleDropdownSelect"
 import TextControl from "./TextControl"
@@ -42,9 +44,16 @@ export const renderMap: RenderFunctions = {
         )
     },
 
-    boolean: ({withTooltip, metadata, value, handleChange}) => (
-        <BooleanControl label={metadata.title || ""} value={value} onChange={handleChange} />
-    ),
+    boolean: ({withTooltip, metadata, value, handleChange}) => {
+        return (
+            <BooleanControl
+                description={metadata.description}
+                label={metadata.title || ""}
+                value={value}
+                onChange={handleChange}
+            />
+        )
+    },
 
     string: ({
         placeholder,
@@ -72,6 +81,7 @@ export const renderMap: RenderFunctions = {
                     />
                 )
             }
+
             return (
                 <MultiSelectControl
                     label={metadata.title || ""}
@@ -110,6 +120,11 @@ export const renderMap: RenderFunctions = {
                 description={metadata.description}
                 withTooltip={withTooltip}
                 disabled={disabled}
+                {...(disabled
+                    ? {
+                          state: "disabled",
+                      }
+                    : {})}
             />
         )
     },
@@ -120,13 +135,16 @@ export const renderMap: RenderFunctions = {
         return (
             <div className="flex flex-col gap-2">
                 {value.value.map((item: EnhancedConfigValue<ArrayItemValue>) => {
-                    switch (item.__metadata.type) {
+                    const metadata = getMetadataLazy(item.__metadata)
+                    if (!metadata) return null
+
+                    switch (metadata.type) {
                         case "string":
                             return (
                                 <div key={item.__id}>
                                     {renderMap.string({
                                         withTooltip,
-                                        metadata: item.__metadata,
+                                        metadata: metadata,
                                         value: item.value,
                                         disabled,
                                         handleChange: (newValue) => {
@@ -146,7 +164,7 @@ export const renderMap: RenderFunctions = {
                                     {renderMap.number({
                                         disabled,
                                         withTooltip,
-                                        metadata: item.__metadata,
+                                        metadata: metadata,
                                         value: item.value,
                                         handleChange: (newValue) => {
                                             updateArrayItem(
@@ -165,7 +183,7 @@ export const renderMap: RenderFunctions = {
                                     {renderMap.boolean({
                                         withTooltip,
                                         disabled,
-                                        metadata: item.__metadata,
+                                        metadata: metadata,
                                         value: item.value,
                                         handleChange: (newValue) => {
                                             updateArrayItem(
@@ -186,7 +204,55 @@ export const renderMap: RenderFunctions = {
         )
     },
 
-    object: () => <Typography.Text>Object input not implemented</Typography.Text>,
+    object: (props) => {
+        const metadata = props.metadata
+        const objectProperties = metadata.properties
+        const withTooltip = props.withTooltip
+        const baseProperty = props.baseProperty
+        return (
+            <PlaygroundVariantPropertyControlWrapper>
+                <div className="border-0 border-t border-solid border-t-[rgba(5,23,41,0.06)] py-3">
+                    {withTooltip ? (
+                        <Tooltip title={props.metadata.description}>
+                            <Typography.Text className="playground-property-control-label text-[14px] w-fit">
+                                {props.metadata.key}
+                            </Typography.Text>
+                        </Tooltip>
+                    ) : (
+                        <Typography.Text className="playground-property-control-label text-[14px]">
+                            {props.metadata.key}
+                        </Typography.Text>
+                    )}
+                </div>
+
+                <div className="">
+                    {Object.entries(objectProperties).map(([key, value]) => {
+                        const metadataType = value.type
+                        const fnc = renderMap[metadataType as keyof typeof renderMap] as
+                            | ((props: any) => React.ReactElement)
+                            | undefined
+
+                        return fnc ? (
+                            <div key={key}>
+                                {fnc({
+                                    ...props,
+                                    metadata: value,
+                                    value: baseProperty?.[key]?.value || props.value?.[key] || "",
+                                    handleChange: (newValue: any) => {
+                                        props.handleChange(
+                                            newValue,
+                                            undefined,
+                                            baseProperty?.[key]?.__id,
+                                        )
+                                    },
+                                })}
+                            </div>
+                        ) : null
+                    })}
+                </div>
+            </PlaygroundVariantPropertyControlWrapper>
+        )
+    },
     compound: ({withTooltip, metadata}) => {
         return <Typography.Text>Compound input not implemented</Typography.Text>
     },

@@ -98,8 +98,8 @@ const PlaygroundVariantPropertyControl = ({
                       },
                   )
               }
-            : (newValue: any) => {
-                  updateVariantProperty?.(newValue, baseProperty.__id, variantId)
+            : (newValue: any, _: any, propertyId?: string) => {
+                  updateVariantProperty?.(newValue, propertyId || baseProperty.__id, variantId)
               }
 
         return {
@@ -119,11 +119,13 @@ const PlaygroundVariantPropertyControl = ({
         return <Typography.Text>unable to find metadata for property</Typography.Text>
     }
 
-    const renderer = renderMap[metadata.type]
+    const renderer = renderMap[metadata.type as keyof typeof renderMap] as
+        | ((props: any) => React.ReactElement)
+        | undefined
     if (renderer) {
         return renderer({
             withTooltip,
-            metadata: metadata as any,
+            metadata: metadata,
             value,
             handleChange,
             as,
@@ -131,6 +133,9 @@ const PlaygroundVariantPropertyControl = ({
             view,
             placeholder,
             disabled,
+            propertyId: baseProperty?.__id,
+            variantId: variantId,
+            baseProperty: baseProperty,
         })
     }
 

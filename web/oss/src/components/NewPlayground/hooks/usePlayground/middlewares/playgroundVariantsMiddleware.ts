@@ -17,7 +17,6 @@ import {
     createVariantsCompare,
     transformVariant,
     setVariant,
-    findPropertyInObject,
     findParentOfPropertyInObject,
     findItemInHistoryValueById,
 } from "../assets/helpers"
@@ -27,12 +26,18 @@ import type {
     PlaygroundMiddleware,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
+    PlaygroundResponse,
 } from "../types"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
-const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
-    return <Data extends PlaygroundStateData = PlaygroundStateData>(
+const playgroundVariantsMiddleware: PlaygroundMiddleware = <
+    Data extends PlaygroundStateData = PlaygroundStateData,
+    Selected = unknown,
+>(
+    useSWRNext: SWRHook,
+) => {
+    return (
         key: Key,
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
         config: PlaygroundSWRConfig<Data>,
@@ -81,7 +86,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     },
                     [config, logger, valueReferences],
                 ),
-            } as PlaygroundSWRConfig<Data>)
+            } as PlaygroundSWRConfig<Data>) as PlaygroundResponse<Data, Selected>
 
             const addVariant = useCallback(
                 ({
@@ -127,6 +132,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                             const parameters = transformToRequestBody({
                                 variant: baseVariant,
                                 allMetadata: getAllMetadata(),
+                                spec,
                             })
 
                             const newVariantBody: Partial<Variant> &
@@ -187,27 +193,32 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
             }, [addToValueReferences, addVariant])
 
             const {postMessageToWorker, createWorkerMessage} = useWebWorker(
-                // @ts-ignore
-                swr.handleWebWorkerMessage,
+                swr.handleWebWorkerMessage!,
                 false,
             )
 
-            const handleInputRowTestStart = useCallback((inputRow, variantId) => {
-                if (!inputRow?.__runs) {
-                    inputRow.__runs = {}
-                }
-
-                if (!inputRow.__runs[variantId]) {
-                    inputRow.__runs[variantId] = {
-                        __isRunning: true,
-                        __result: undefined,
+            const handleInputRowTestStart = useCallback(
+                (
+                    inputRow: PlaygroundStateData["generationData"]["inputs"]["value"][number],
+                    variantId: string,
+                ) => {
+                    if (!inputRow?.__runs) {
+                        inputRow.__runs = {}
                     }
-                } else {
-                    inputRow.__runs[variantId].__isRunning = true
-                }
 
-                return inputRow
-            }, [])
+                    if (!inputRow.__runs[variantId]) {
+                        inputRow.__runs[variantId] = {
+                            __isRunning: true,
+                            __result: undefined,
+                        }
+                    } else {
+                        inputRow.__runs[variantId].__isRunning = true
+                    }
+
+                    return inputRow
+                },
+                [],
+            )
 
             Object.defineProperty(swr, "rerunChatOutput", {
                 get: () => {
@@ -219,16 +230,10 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 const jwt = await getJWT()
                                 if (!clonedState) return clonedState
 
-                                const outputMessage = findPropertyInObject(clonedState, messageId)
                                 const outputHistoryItem = findItemInHistoryValueById(
                                     clonedState.generationData.messages.value,
                                     messageId,
                                 )
-
-                                // const [variantId] =
-                                //     Object.entries(outputHistoryItem?.__runs || {}).find(
-                                //         ([key, value]) => value.message.__id === messageId,
-                                //     ) || []
 
                                 const messageRowHistory = findParentOfPropertyInObject(
                                     clonedState,
@@ -263,7 +268,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                             chatHistory,
                                             messageId: outputHistoryItem.__id,
                                             inputRow: variableRows[0],
-                                            rowId: messageRow.__id,
+                                            rowId: messageRow?.__id,
                                             appId: config.appId!,
                                             uri: variant?.uri,
                                             projectId: getCurrentProject().projectId,
@@ -275,6 +280,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                       }
                                                     : {}),
                                             },
+                                            spec: getSpecLazy(),
                                         }),
                                     )
                                 } else {
@@ -301,7 +307,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                 chatHistory,
                                                 messageId: outputHistoryItem.__id,
                                                 inputRow: variableRows[0],
-                                                rowId: messageRow.__id,
+                                                rowId: messageRow?.__id,
                                                 appId: config.appId!,
                                                 uri: variant?.uri,
                                                 projectId: getCurrentProject().projectId,
@@ -313,6 +319,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                           }
                                                         : {}),
                                                 },
+                                                spec: getSpecLazy(),
                                             }),
                                         )
                                     }
@@ -335,8 +342,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     addToValueReferences("runTests")
                     const runChatTests = (
                         clonedState: PlaygroundStateData,
-                        rowId: string,
-                        jwt,
+                        jwt: string | undefined,
                         visibleVariants: string[],
                     ) => {
                         const variableRows = clonedState.generationData.inputs.value
@@ -347,28 +353,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 const messagesInRow = messageRow.history.value
 
                                 const lastMessage = messagesInRow[messagesInRow.length - 1]
-                                // if (
-                                //     !!lastMessage &&
-                                //     !extractValueByMetadata(lastMessage, getAllMetadata())
-                                // ) {
-                                //     messageRow.history.value = [
-                                //         ...messageRow.history.value.filter(
-                                //             (m) => m.__id !== lastMessage.__id,
-                                //         ),
-                                //     ]
-                                //     lastMessage =
-                                //         messageRow.history.value[
-                                //             messageRow.history.value.length - 1
-                                //         ]
-                                // }
-
-                                // const emptyMessage = createMessageFromSchema(
-                                //     getMetadataLazy(
-                                //         clonedState.variants[0].prompts[0].messages.__metadata,
-                                //     ).itemMetadata,
-                                // )
-                                // messageRow.history.value.push(emptyMessage)
-
                                 for (const variantId of visibleVariants) {
                                     const variant = clonedState.variants.find(
                                         (v) => v.id === variantId,
@@ -396,6 +380,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                       }
                                                     : {}),
                                             },
+                                            spec: getSpecLazy(),
                                         }),
                                     )
                                 }
@@ -404,9 +389,9 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                     }
                     const generateGenerationTestParams = (
                         clonedState: PlaygroundStateData,
-                        rowId: string,
-                        jwt,
-                        visibleVariants: string[],
+                        rowId?: string,
+                        jwt?: string | undefined,
+                        visibleVariants: string[] = [],
                     ) => {
                         const testRows = rowId
                             ? [
@@ -439,6 +424,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                                   }
                                                 : {}),
                                         },
+                                        spec: getSpecLazy(),
                                     }),
                                 )
                             }
@@ -457,7 +443,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook)
                                 const isChat = clonedState.variants.some((v) => v.isChat)
 
                                 if (isChat) {
-                                    runChatTests(clonedState, rowId, jwt, visibleVariants)
+                                    runChatTests(clonedState, jwt, visibleVariants)
                                 } else {
                                     generateGenerationTestParams(
                                         clonedState,

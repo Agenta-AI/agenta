@@ -10,7 +10,7 @@ const useWebWorker = <T>(
     shouldListen = false,
 ): UseWebWorkerHookReturn<T> => {
     const [workerStatus, setWorkerStatus] = useState<WorkerStatus>("idle")
-    const [worker, setWorker] = useAtom(webworkerAtom)
+    const [worker] = useAtom(webworkerAtom)
     const createWorkerMessage = useCallback(
         (type: string, payload: T): WorkerMessage<T> => ({
             type,

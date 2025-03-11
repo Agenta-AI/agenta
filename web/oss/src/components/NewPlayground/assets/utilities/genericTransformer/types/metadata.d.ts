@@ -1,12 +1,14 @@
 /** Metadata interfaces */
 
-import type {Base, CompoundOption} from "./base"
+import type {Base} from "./base"
+import {CompoundOption} from "./options"
 import type {SchemaType} from "./schema"
 
 /** Base metadata interface */
 export interface BaseMetadata extends Base {
     type: SchemaType
     nullable?: boolean
+    key?: string
 }
 
 export interface StringMetadata extends BaseMetadata {

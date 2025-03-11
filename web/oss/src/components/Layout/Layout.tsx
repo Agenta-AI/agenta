@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef} from "react"
+import {memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {Button, ConfigProvider, Layout, Modal, Skeleton, Space, Typography, theme} from "antd"
@@ -15,12 +15,20 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {useAllVariantsData} from "@/oss/lib/hooks/useAllVariantsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
+
+import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
+import CustomWorkflowBanner from "../CustomWorkflowBanner"
 
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useStyles, type StyleProps} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
 import {useAppTheme} from "./ThemeContextProvider"
+
+const CustomWorkflowModal: any = dynamic(
+    () => import("@/oss/components/pages/app-management/modals/CustomWorkflowModal"),
+)
 
 const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
     ssr: false,
@@ -33,7 +41,17 @@ interface LayoutProps {
     children: React.ReactNode
 }
 
-const WithVariants = ({children, currentApp}) => {
+const WithVariants = ({
+    children,
+    currentApp,
+}: {
+    children: ReactNode
+    isNewPlayground?: boolean
+    currentApp: {
+        app_id: string
+        app_type?: string
+    } | null
+}) => {
     useVariants(currentApp)(
         {
             appId: currentApp?.app_id,
@@ -44,19 +62,21 @@ const WithVariants = ({children, currentApp}) => {
     return <>{children}</>
 }
 
-const AppWithVariants = memo(({children, isAppRoute}) => {
-    const {currentApp} = useAppsData()
+const AppWithVariants = memo(
+    ({children, isAppRoute}: {children: ReactNode; isAppRoute: boolean}) => {
+        const {currentApp} = useAppsData()
 
-    if (isAppRoute) {
-        if (!currentApp) {
-            return null
+        if (isAppRoute) {
+            if (!currentApp) {
+                return null
+            } else {
+                return <WithVariants currentApp={currentApp}>{children}</WithVariants>
+            }
         } else {
-            return <WithVariants currentApp={currentApp}>{children}</WithVariants>
+            return <>{children}</>
         }
-    } else {
-        return <>{children}</>
-    }
-})
+    },
+)
 
 const App: React.FC<LayoutProps> = ({children}) => {
     const {user} = useProfileData()
@@ -64,7 +84,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {currentApp, isLoading, error} = useAppsData()
     const ref = useRef<HTMLElement | null>(null)
     const {height: footerHeight} = useResizeObserver({
-        ref,
+        ref: ref as RefObject<HTMLElement>,
         box: "border-box",
     })
     const {project, projects} = useProjectData()
@@ -73,8 +93,29 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
-    const [modal, contextHolder] = Modal.useModal()
+    const [, contextHolder] = Modal.useModal()
     const {changeSelectedOrg} = useOrgData()
+
+    const [isCustomWorkflowModalOpen, setIsCustomWorkflowModalOpen] = useState(false)
+    const {mutate, data: variants} = useAllVariantsData({appId})
+
+    const variant = useMemo(() => variants?.[0], [variants])
+
+    const [customWorkflowAppValues, setCustomWorkflowAppValues] = useState(() => ({
+        appName: "",
+        appUrl: "",
+        appDesc: "",
+    }))
+
+    useEffect(() => {
+        if (variant) {
+            setCustomWorkflowAppValues({
+                appName: currentApp?.app_name ?? "",
+                appUrl: variant?.uri ?? "",
+                appDesc: "",
+            })
+        }
+    }, [variant, currentApp])
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -93,6 +134,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 } else {
                     const d = document
                     const i: any = function () {
+                        // @ts-ignore
                         i.c(arguments)
                     }
                     i.q = []
@@ -126,7 +168,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [user])
 
     useEffect(() => {
-        if (typeof window === "undefined") return () => {}
+        if (typeof window === "undefined") return
 
         const body = document.body
         body.classList.remove("dark-mode", "light-mode")
@@ -203,29 +245,45 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                         <div>
                                             <BreadcrumbContainer
                                                 appTheme={appTheme}
-                                                appName={currentApp?.app_name}
+                                                appName={currentApp?.app_name || ""}
                                                 isNewPlayground={isNewPlayground}
                                             />
-                                            <Content
-                                                className={clsx(classes.content, {
-                                                    "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                        isNewPlayground,
-                                                })}
+                                            <OldAppDeprecationBanner
+                                                isNewPlayground={isNewPlayground}
                                             >
-                                                <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                                    <ConfigProvider
-                                                        theme={{
-                                                            algorithm:
-                                                                appTheme === "dark"
-                                                                    ? theme.darkAlgorithm
-                                                                    : theme.defaultAlgorithm,
-                                                        }}
+                                                {variant && (
+                                                    <CustomWorkflowBanner
+                                                        setIsCustomWorkflowModalOpen={
+                                                            setIsCustomWorkflowModalOpen
+                                                        }
+                                                        isNewPlayground={isNewPlayground}
+                                                        variant={variant}
+                                                    />
+                                                )}
+
+                                                <Content
+                                                    className={clsx(classes.content, {
+                                                        "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                            isNewPlayground,
+                                                    })}
+                                                >
+                                                    <ErrorBoundary
+                                                        FallbackComponent={ErrorFallback}
                                                     >
-                                                        {children}
-                                                    </ConfigProvider>
-                                                    {contextHolder}
-                                                </ErrorBoundary>
-                                            </Content>
+                                                        <ConfigProvider
+                                                            theme={{
+                                                                algorithm:
+                                                                    appTheme === "dark"
+                                                                        ? theme.darkAlgorithm
+                                                                        : theme.defaultAlgorithm,
+                                                            }}
+                                                        >
+                                                            {children}
+                                                        </ConfigProvider>
+                                                        {contextHolder}
+                                                    </ErrorBoundary>
+                                                </Content>
+                                            </OldAppDeprecationBanner>
                                         </div>
                                         <Footer className={classes.footer}>
                                             <Space className={classes.footerLeft} size={10}>
@@ -265,6 +323,18 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </div>
                         </AppWithVariants>
                     )}
+
+                    <CustomWorkflowModal
+                        open={isCustomWorkflowModalOpen}
+                        onCancel={() => setIsCustomWorkflowModalOpen(false)}
+                        customWorkflowAppValues={customWorkflowAppValues}
+                        setCustomWorkflowAppValues={setCustomWorkflowAppValues}
+                        handleCreateApp={() => {}}
+                        configureWorkflow
+                        fetchVariantsMutate={() => {}}
+                        allVariantsDataMutate={mutate}
+                        variants={variants}
+                    />
                 </ThemeProvider>
             )}
         </>

@@ -1,11 +1,16 @@
-import type {ObjectSchema} from "../../genericTransformer/types"
+import type {Merge, ObjectSchema} from "../../genericTransformer/types"
 
 import type {AgentaConfig} from "./variant"
 
-export interface AgentaConfigSchema extends ObjectSchema {
+type X<T> = T extends "prompt" ? never : T
+
+export interface AgentaConfigSchema<T = string> extends ObjectSchema {
     type: "object"
-    properties: {
-        prompt: ObjectSchema
-    }
-    default: AgentaConfig
+    properties: Merge<
+        Record<X<T>, ObjectSchema>,
+        {
+            prompt: ObjectSchema
+        }
+    >
+    default: Merge<Record<X<T>, AgentaConfig>>
 }

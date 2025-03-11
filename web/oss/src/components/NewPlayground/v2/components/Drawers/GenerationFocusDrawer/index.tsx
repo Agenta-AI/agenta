@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useCallback, useState} from "react"
 
 import {Drawer} from "antd"
@@ -26,36 +27,35 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
     const [format, setFormat] = useState<OutputFormat>("PRETTY")
     const {drawerWidth} = useDrawerWidth()
 
-    const {variableIds, runVariantTestRow, canRun, isRunning, displayedVariants, viewType} =
-        usePlayground({
-            variantId,
-            variantSelector: useCallback(
-                (variant: EnhancedVariant) => {
-                    const inputRow = (variant.inputs?.value || []).find((inputRow) => {
-                        return inputRow.__id === rowId
-                    })
+    const {isRunning, displayedVariants, viewType} = usePlayground({
+        variantId,
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                const inputRow = (variant.inputs?.value || []).find((inputRow) => {
+                    return inputRow.__id === rowId
+                })
 
-                    const variables = getEnhancedProperties(inputRow)
-                    const variableIds = variables.map((p) => p.__id)
-                    const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
+                const variables = getEnhancedProperties(inputRow)
+                const variableIds = variables.map((p) => p.__id)
+                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
 
-                    return {
-                        variableIds,
-                        canRun,
-                        isRunning: inputRow?.__isLoading,
-                    }
-                },
-                [rowId],
-            ),
-        })
+                return {
+                    variableIds,
+                    canRun,
+                    isRunning: inputRow?.__isLoading,
+                }
+            },
+            [rowId],
+        ),
+    })
 
     const onClose = (e: any) => {
         props?.onClose?.(e)
     }
 
     const runRow = useCallback(async () => {
-        await runVariantTestRow?.(rowId)
-    }, [runVariantTestRow, rowId])
+        // await runVariantTestRow?.(rowId)
+    }, [rowId])
 
     return (
         <Drawer

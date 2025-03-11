@@ -6,8 +6,8 @@ import dynamic from "next/dynamic"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 import {getResponseLazy} from "@/oss/components/NewPlayground/state"
-import {findPropertyInObject} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 
+import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import SharedEditor from "../../SharedEditor"
@@ -18,13 +18,14 @@ const GenerationResultUtils = dynamic(
     {ssr: false},
 )
 
+const handleChange = () => undefined
+
 const GenerationComparisonCompletionOutput = ({
     rowId,
     focusDisable = false,
     variantId,
     variantIndex,
     isLastRow,
-    isLastVariant,
     registerToWebWorker,
 }: GenerationComparisonCompletionOutputProps) => {
     const {resultHash, isRunning} = usePlayground({
@@ -47,6 +48,8 @@ const GenerationComparisonCompletionOutput = ({
     const result = useMemo(() => {
         return getResponseLazy(resultHash)
     }, [resultHash])
+
+    const responseData = result?.response?.data
 
     return (
         <>
@@ -84,6 +87,7 @@ const GenerationComparisonCompletionOutput = ({
                                 <SharedEditor
                                     initialValue={result?.error}
                                     editorType="borderless"
+                                    handleChange={handleChange}
                                     state="filled"
                                     readOnly
                                     disabled
@@ -101,7 +105,15 @@ const GenerationComparisonCompletionOutput = ({
                                 />
                             ) : result.response ? (
                                 <SharedEditor
-                                    initialValue={result?.response?.data}
+                                    initialValue={
+                                        typeof responseData === "string"
+                                            ? responseData
+                                            : typeof responseData === "object" &&
+                                                responseData.hasOwnProperty("content")
+                                              ? responseData.content
+                                              : ""
+                                    }
+                                    handleChange={handleChange}
                                     editorType="borderless"
                                     state="filled"
                                     readOnly

@@ -6,6 +6,7 @@ import EditorWrapper from "@/oss/components/Editor/Editor"
 import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 
 import type {SharedEditorProps} from "./types"
+import {Input} from "antd"
 
 const SharedEditor = ({
     header,
@@ -20,6 +21,7 @@ const SharedEditor = ({
     editorProps,
     className,
     autoFocus,
+    useAntdInput = false,
     ...props
 }: SharedEditorProps) => {
     const [isEditorFocused, setIsEditorFocused] = useState(false)
@@ -69,26 +71,36 @@ const SharedEditor = ({
         >
             {header}
 
-            <EditorWrapper
-                placeholder={placeholder}
-                showToolbar={false}
-                enableTokens
-                initialValue={localValue}
-                className={editorClassName}
-                onChange={(value) => {
-                    handleLocalValueChange(value.textContent)
-                }}
-                autoFocus={autoFocus}
-                // className={clsx([
-                // "border-0",
-                // "focus:ring-0",
-                // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
-                // className,
-                // ])}
-                disabled={disabled}
-                showBorder={false}
-                {...editorProps}
-            />
+            {useAntdInput ? (
+                <Input
+                    placeholder={placeholder}
+                    value={localValue}
+                    onChange={(value) => handleLocalValueChange(value.target.value)}
+                    className={clsx("!bg-transparent", "!text-inherit", editorClassName)}
+                    disabled={disabled}
+                />
+            ) : (
+                <EditorWrapper
+                    placeholder={placeholder}
+                    showToolbar={false}
+                    enableTokens
+                    initialValue={localValue}
+                    className={editorClassName}
+                    onChange={(value) => {
+                        handleLocalValueChange(value.textContent)
+                    }}
+                    autoFocus={autoFocus}
+                    // className={clsx([
+                    // "border-0",
+                    // "focus:ring-0",
+                    // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
+                    // className,
+                    // ])}
+                    disabled={disabled}
+                    showBorder={false}
+                    {...editorProps}
+                />
+            )}
 
             {footer}
         </div>

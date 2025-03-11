@@ -21,9 +21,7 @@ const NoMobilePageWrapper = dynamic(
         ssr: false,
     },
 )
-const CustomPosthogProvider = dynamic(
-    () => import("@/oss/lib/helpers/analytics/AgPosthogProvider"),
-)
+const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
 const Layout = dynamic(() => import("@/oss/components/Layout/Layout"), {
     ssr: false,
 })

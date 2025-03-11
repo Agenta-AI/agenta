@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field
 from typing import Annotated
 import agenta as ag
+from agenta.sdk.types import MCField
 import litellm
 from agenta.sdk.assets import supported_llm_models
 
@@ -28,9 +29,7 @@ Please provide a critique of the changes made in this file.
 class Config(BaseModel):
     system_prompt: str = prompt_system
     user_prompt: str = prompt_user
-    model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo"
-    )
+    model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
 
 
 @ag.instrument()
@@ -88,4 +87,5 @@ def generate_critique(pr_url: str):
 
 
 if __name__ == "__main__":
-    print(generate_critique("https://github.com/Agenta-AI/agenta/pull/2289"))
+    import uvicorn
+    uvicorn.run("agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True)

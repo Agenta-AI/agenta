@@ -45,13 +45,15 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                 key: "1",
                 classNames: {
                     body: "!border-t-0 !pt-0",
-                    header: "[&.ant-collapse-header]:!px-2.5 !p-0 my-3",
+                    header: "z-10",
                 },
                 label: (
-                    <PlaygroundVariantConfigPromptCollapseHeader
-                        variantId={variantId}
-                        promptId={promptId}
-                    />
+                    <div className="px-2.5 !p-0 my-0">
+                        <PlaygroundVariantConfigPromptCollapseHeader
+                            variantId={variantId}
+                            promptId={promptId}
+                        />
+                    </div>
                 ),
                 children: (
                     <PlaygroundVariantConfigPromptCollapseContent
