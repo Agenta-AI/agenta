@@ -70,151 +70,6 @@ importers:
         specifier: ^8.24.1
         version: 8.24.1(eslint@9.20.1(jiti@1.21.7))(typescript@5.7.3)
 
-  ee:
-    dependencies:
-      '@ag-grid-community/client-side-row-model':
-        specifier: ^32.3.3
-        version: 32.3.3
-      '@ag-grid-community/core':
-        specifier: ^32.3.3
-        version: 32.3.3
-      '@ag-grid-community/csv-export':
-        specifier: ^31.3.4
-        version: 31.3.4
-      '@ag-grid-community/react':
-        specifier: ^32.3.3
-        version: 32.3.3(@ag-grid-community/core@32.3.3)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@ag-grid-community/styles':
-        specifier: ^33.0.3
-        version: 33.0.3
-      '@agenta/oss':
-        specifier: workspace:../oss
-        version: link:../oss
-      '@ant-design/colors':
-        specifier: ^7.2.0
-        version: 7.2.0
-      '@ant-design/cssinjs':
-        specifier: ^1.22.1
-        version: 1.23.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@ant-design/icons':
-        specifier: ^5.5.2
-        version: 5.6.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@ant-design/v5-patch-for-react-19':
-        specifier: ^1.0.3
-        version: 1.0.3(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@lobehub/icons':
-        specifier: ^1.62.0
-        version: 1.70.0(@babel/core@7.26.9)(@types/react@19.0.10)(acorn@8.14.0)(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@monaco-editor/react':
-        specifier: ^4.7.0-rc.0
-        version: 4.7.0(monaco-editor@0.52.2)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@phosphor-icons/react':
-        specifier: ^2.1.7
-        version: 2.1.7(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@tremor/react':
-        specifier: ^3.18.7
-        version: 3.18.7(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
-      '@types/lodash':
-        specifier: ^4.14.201
-        version: 4.17.15
-      '@types/react':
-        specifier: ^19.0.10
-        version: 19.0.10
-      '@types/react-dom':
-        specifier: ^19.0.4
-        version: 19.0.4(@types/react@19.0.10)
-      '@types/uuid':
-        specifier: ^9.0.7
-        version: 9.0.8
-      antd:
-        specifier: ^5.24.1
-        version: 5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      autoprefixer:
-        specifier: 10.4.20
-        version: 10.4.20(postcss@8.5.2)
-      axios:
-        specifier: ^1.7.7
-        version: 1.7.9(debug@4.4.0)
-      classnames:
-        specifier: ^2.3.2
-        version: 2.5.1
-      clsx:
-        specifier: ^2.1.1
-        version: 2.1.1
-      dayjs:
-        specifier: ^1.11.10
-        version: 1.11.13
-      dotenv:
-        specifier: ^16.3.1
-        version: 16.4.7
-      jotai:
-        specifier: ^2.12.1
-        version: 2.12.1(@types/react@19.0.10)(react@19.0.0)
-      js-yaml:
-        specifier: ^4.1.0
-        version: 4.1.0
-      lodash:
-        specifier: ^4.17.21
-        version: 4.17.21
-      postcss:
-        specifier: ^8.4.47
-        version: 8.5.2
-      postcss-antd-fixes:
-        specifier: ^0.2.0
-        version: 0.2.0(postcss@8.5.2)
-      posthog-js:
-        specifier: ^1.104.4
-        version: 1.217.6
-      react:
-        specifier: ^19.0.0
-        version: 19.0.0
-      react-dom:
-        specifier: ^19.0.0
-        version: 19.0.0(react@19.0.0)
-      react-jss:
-        specifier: ^10.10.0
-        version: 10.10.0(react@19.0.0)
-      supertokens-auth-react:
-        specifier: ^0.47.0
-        version: 0.47.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(supertokens-web-js@0.13.1)
-      supertokens-node:
-        specifier: ^21.0.0
-        version: 21.1.0
-      swc-loader:
-        specifier: ^0.2.6
-        version: 0.2.6(@swc/core@1.10.16(@swc/helpers@0.5.15))(webpack@5.98.0(@swc/core@1.10.16(@swc/helpers@0.5.15)))
-      swr:
-        specifier: ^2.3.0
-        version: 2.3.2(react@19.0.0)
-      tailwindcss:
-        specifier: ^3.4.4
-        version: 3.4.17(ts-node@10.9.2(@swc/core@1.10.16(@swc/helpers@0.5.15))(@types/node@20.17.19)(typescript@5.7.3))
-      typescript:
-        specifier: 5.7.3
-        version: 5.7.3
-      use-animation-frame:
-        specifier: ^0.2.1
-        version: 0.2.1(react@19.0.0)
-      usehooks-ts:
-        specifier: ^3.1.0
-        version: 3.1.1(react@19.0.0)
-      uuid:
-        specifier: ^9.0.1
-        version: 9.0.1
-    devDependencies:
-      '@agenta/web-tests':
-        specifier: workspace:../tests
-        version: link:../tests
-      '@types/node':
-        specifier: ^20.8.10
-        version: 20.17.19
-      node-mocks-http:
-        specifier: ^1.12.2
-        version: 1.16.2(@types/node@20.17.19)
-
   oss:
     dependencies:
       '@ag-grid-community/client-side-row-model':
@@ -371,8 +226,8 @@ importers:
         specifier: 10.4.20
         version: 10.4.20(postcss@8.5.2)
       axios:
-        specifier: ^1.7.7
-        version: 1.7.9(debug@4.4.0)
+        specifier: ^1.8.2
+        version: 1.8.2(debug@4.4.0)
       classnames:
         specifier: ^2.3.2
         version: 2.5.1
@@ -504,8 +359,8 @@ importers:
   tests:
     dependencies:
       axios:
-        specifier: ^1.7.9
-        version: 1.7.9(debug@4.4.0)
+        specifier: ^1.8.2
+        version: 1.8.2(debug@4.4.0)
       playwright:
         specifier: ^1.50.1
         version: 1.50.1
@@ -1213,13 +1068,6 @@ packages:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
 
-  '@lobehub/icons@1.70.0':
-    resolution: {integrity: sha512-N+M4JKEL1xUpk+csqQE4wB8JRsUTsCnxcchR7f59/TPkXrDWjbghp4Uzc8jyezdCkhbAb2yMJuEOmPm5w5vjzg==}
-    peerDependencies:
-      antd: ^5.23.0
-      react: ^18.0.0 || ^19.0.0
-      react-dom: ^18.0.0 || ^19.0.0
-
   '@lobehub/icons@1.75.0':
     resolution: {integrity: sha512-HMSdqOJteXpM1EPVXrmnCKDhKcafvaJTCSEqYlPmUQ8j4knjjhNaBTHnJPCALmoktiUBj1VYvxpc2XKceymbdQ==}
     peerDependencies:
@@ -1694,8 +1542,8 @@ packages:
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
-  '@swc/types@0.1.17':
-    resolution: {integrity: sha512-V5gRru+aD8YVyCOMAjMpWR1Ui577DD5KSJsHP8RAxopAH22jFz6GZd/qxqjO6MJHQhcsjvjOFXyDhyLQUnMveQ==}
+  '@swc/types@0.1.19':
+    resolution: {integrity: sha512-WkAZaAfj44kh/UFdAQcrMP1I0nwRqpt27u+08LMBYMqmQfwwMofYoMh/48NGkMMRfC4ynpfwRbJuu8ErfNloeA==}
 
   '@tailwindcss/container-queries@0.1.1':
     resolution: {integrity: sha512-p18dswChx6WnTSaJCSGx6lTmrGzNNvm2FtXmiO6AuA1V4U5REyoqwmT6kgAsIMdjo07QdAfYXHJ4hnMtfHzWgA==}
@@ -1886,6 +1734,9 @@ packages:
 
   '@types/node@20.17.19':
     resolution: {integrity: sha512-LEwC7o1ifqg/6r2gn9Dns0f1rhK+fPFDoMiceTJ6kWmVk6bgXBI/9IOWfVan4WiAavK9pIVWdX0/e3J+eEUh5A==}
+
+  '@types/node@20.17.24':
+    resolution: {integrity: sha512-d7fGCyB96w9BnWQrOsJtpyiSaBcAYYr75bnK6ZRjDbql2cGLj/3GsL5OYmLPNq76l7Gf2q4Rv9J2o6h5CrD9sA==}
 
   '@types/papaparse@5.3.15':
     resolution: {integrity: sha512-JHe6vF6x/8Z85nCX4yFdDslN11d+1pr12E526X8WAfhadOeaOTx5AuIkvDKIBopfvlzpzkdMx4YyvSKCM9oqtw==}
@@ -2278,8 +2129,8 @@ packages:
     resolution: {integrity: sha512-RE3mdQ7P3FRSe7eqCWoeQ/Z9QXrtniSjp1wUjt5nRC3WIpz5rSCve6o3fsZ2aCpJtrZjSZgjwXAoTO5k4tEI0w==}
     engines: {node: '>=4'}
 
-  axios@1.7.9:
-    resolution: {integrity: sha512-LhLcE7Hbiryz8oMDdDptSrWowmB4Bl6RCt6sIJKpRB4XtVf0iEgewX3au/pJqm+Py1kCASkb/FFKjxQaLtxJvw==}
+  axios@1.8.2:
+    resolution: {integrity: sha512-ls4GYBm5aig9vWx8AWDSGLpnpDQRtWAfrjU+EuytuODrFBkqesN2RkOQCBzrA1RQNHw1SmRMSDDDSwzNAYQ6Rg==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -3255,8 +3106,8 @@ packages:
     resolution: {integrity: sha512-Ld2g8rrAyMYFXBhEqMz8ZAHBi4J4uS1i/CxGMDnjyFWddMXLVcDp051DZfu+t7+ab7Wv6SMqpWmyFIj5UbfFvg==}
     engines: {node: '>=14'}
 
-  form-data@4.0.1:
-    resolution: {integrity: sha512-tzN8e4TX8+kkxGPK8D5u0FNmjPUjw3lwC9lSLxxoB/+GtsJG91CO8bSWy73APlgAZzZbXEYZJuxjkHH2w+Ezhw==}
+  form-data@4.0.2:
+    resolution: {integrity: sha512-hGfm/slu0ZabnNt4oaRZ6uREyfCj6P4fT/n6A1rGV+Z0VdGXjfOhVUpkn6qVQONHGIFwmveGXyDs75+nr6FM8w==}
     engines: {node: '>= 6'}
 
   format@0.2.2:
@@ -3299,6 +3150,10 @@ packages:
 
   get-intrinsic@1.2.7:
     resolution: {integrity: sha512-VW6Pxhsrk0KAOqs3WEd0klDiF/+V7gQOpAvY1jVU/LHmaD/kQO4523aiJuikX/QAKYiW6x8Jh+RJej1almdtCA==}
+    engines: {node: '>= 0.4'}
+
+  get-intrinsic@1.3.0:
+    resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
     engines: {node: '>= 0.4'}
 
   get-proto@1.0.1:
@@ -5522,8 +5377,8 @@ packages:
     resolution: {integrity: sha512-GNzQvQTOIP6RyTfE2Qxb8ZVlNmw0n88vp1szwWRimP02mnTsx3Wtn5qRdqY9w2XduFNUgvOwhNnQsjwCp+kqaQ==}
     engines: {node: '>=6'}
 
-  terser-webpack-plugin@5.3.11:
-    resolution: {integrity: sha512-RVCsMfuD0+cTt3EwX8hSl2Ks56EbFHWmhluwcqoPKtBnfjiT6olaq7PRIRfhyU8nnC2MrnDrBLfrD/RGE+cVXQ==}
+  terser-webpack-plugin@5.3.14:
+    resolution: {integrity: sha512-vkZjpUjb6OMS7dhV+tILUW6BhpDR7P2L/aQSAv+Uwk+m8KATX9EccViHTJR2qDtACKPIYndLGCyl3FMo+r2LMw==}
     engines: {node: '>= 10.13.0'}
     peerDependencies:
       '@swc/core': '*'
@@ -6893,22 +6748,6 @@ snapshots:
       - acorn
       - supports-color
 
-  '@lobehub/icons@1.70.0(@babel/core@7.26.9)(@types/react@19.0.10)(acorn@8.14.0)(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
-    dependencies:
-      '@lobehub/ui': 1.164.13(@babel/core@7.26.9)(@types/react@19.0.10)(acorn@8.14.0)(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      antd: 5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      antd-style: 3.7.1(@types/react@19.0.10)(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      lucide-react: 0.469.0(react@19.0.0)
-      polished: 4.3.1
-      react: 19.0.0
-      react-dom: 19.0.0(react@19.0.0)
-      react-layout-kit: 1.9.1(react@19.0.0)
-    transitivePeerDependencies:
-      - '@babel/core'
-      - '@types/react'
-      - acorn
-      - supports-color
-
   '@lobehub/icons@1.75.0(@babel/core@7.26.9)(@types/react@19.0.10)(acorn@8.14.0)(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
     dependencies:
       '@lobehub/ui': 1.164.13(@babel/core@7.26.9)(@types/react@19.0.10)(acorn@8.14.0)(antd@5.24.1(date-fns@3.6.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -7483,7 +7322,7 @@ snapshots:
   '@swc/core@1.10.16(@swc/helpers@0.5.15)':
     dependencies:
       '@swc/counter': 0.1.3
-      '@swc/types': 0.1.17
+      '@swc/types': 0.1.19
     optionalDependencies:
       '@swc/core-darwin-arm64': 1.10.16
       '@swc/core-darwin-x64': 1.10.16
@@ -7503,7 +7342,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  '@swc/types@0.1.17':
+  '@swc/types@0.1.19':
     dependencies:
       '@swc/counter': 0.1.3
 
@@ -7718,6 +7557,10 @@ snapshots:
   '@types/ms@2.1.0': {}
 
   '@types/node@20.17.19':
+    dependencies:
+      undici-types: 6.19.8
+
+  '@types/node@20.17.24':
     dependencies:
       undici-types: 6.19.8
 
@@ -8209,7 +8052,7 @@ snapshots:
       define-properties: 1.2.1
       es-abstract: 1.23.9
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       is-array-buffer: 3.0.5
 
   assign-symbols@1.0.0: {}
@@ -8240,10 +8083,10 @@ snapshots:
 
   axe-core@4.10.2: {}
 
-  axios@1.7.9(debug@4.4.0):
+  axios@1.8.2(debug@4.4.0):
     dependencies:
       follow-redirects: 1.15.9(debug@4.4.0)
-      form-data: 4.0.1
+      form-data: 4.0.2
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
       - debug
@@ -8965,7 +8808,7 @@ snapshots:
   es-set-tostringtag@2.1.0:
     dependencies:
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
       hasown: 2.0.2
 
@@ -9415,10 +9258,11 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  form-data@4.0.1:
+  form-data@4.0.2:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.8
+      es-set-tostringtag: 2.1.0
       mime-types: 2.1.35
 
   format@0.2.2: {}
@@ -9463,6 +9307,19 @@ snapshots:
       hasown: 2.0.2
       math-intrinsics: 1.1.0
 
+  get-intrinsic@1.3.0:
+    dependencies:
+      call-bind-apply-helpers: 1.0.2
+      es-define-property: 1.0.1
+      es-errors: 1.3.0
+      es-object-atoms: 1.1.1
+      function-bind: 1.1.2
+      get-proto: 1.0.1
+      gopd: 1.2.0
+      has-symbols: 1.1.0
+      hasown: 2.0.2
+      math-intrinsics: 1.1.0
+
   get-proto@1.0.1:
     dependencies:
       dunder-proto: 1.0.1
@@ -9472,7 +9329,7 @@ snapshots:
     dependencies:
       call-bound: 1.0.3
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
 
   get-tsconfig@4.10.0:
     dependencies:
@@ -9812,7 +9669,7 @@ snapshots:
     dependencies:
       call-bind: 1.0.8
       call-bound: 1.0.3
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
 
   is-arrayish@0.2.1: {}
 
@@ -9853,7 +9710,7 @@ snapshots:
   is-data-view@1.0.2:
     dependencies:
       call-bound: 1.0.3
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       is-typed-array: 1.1.15
 
   is-date-object@1.1.0:
@@ -9952,7 +9809,7 @@ snapshots:
   is-weakset@2.0.4:
     dependencies:
       call-bound: 1.0.3
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
 
   is-what@4.1.16: {}
 
@@ -9981,7 +9838,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 20.17.19
+      '@types/node': 20.17.24
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -11010,7 +10867,7 @@ snapshots:
 
   own-keys@1.0.1:
     dependencies:
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       object-keys: 1.1.1
       safe-push-apply: 1.0.0
 
@@ -11828,7 +11685,7 @@ snapshots:
       es-abstract: 1.23.9
       es-errors: 1.3.0
       es-object-atoms: 1.1.1
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       get-proto: 1.0.1
       which-builtin-type: 1.2.1
 
@@ -12044,7 +11901,7 @@ snapshots:
       define-data-property: 1.1.4
       es-errors: 1.3.0
       function-bind: 1.1.2
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       gopd: 1.2.0
       has-property-descriptors: 1.0.2
 
@@ -12123,14 +11980,14 @@ snapshots:
     dependencies:
       call-bound: 1.0.3
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       object-inspect: 1.13.4
 
   side-channel-weakmap@1.0.2:
     dependencies:
       call-bound: 1.0.3
       es-errors: 1.3.0
-      get-intrinsic: 1.2.7
+      get-intrinsic: 1.3.0
       object-inspect: 1.13.4
       side-channel-map: 1.0.1
 
@@ -12413,7 +12270,7 @@ snapshots:
 
   tapable@2.2.1: {}
 
-  terser-webpack-plugin@5.3.11(@swc/core@1.10.16(@swc/helpers@0.5.15))(webpack@5.98.0(@swc/core@1.10.16(@swc/helpers@0.5.15))):
+  terser-webpack-plugin@5.3.14(@swc/core@1.10.16(@swc/helpers@0.5.15))(webpack@5.98.0(@swc/core@1.10.16(@swc/helpers@0.5.15))):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.25
       jest-worker: 27.5.1
@@ -12556,7 +12413,7 @@ snapshots:
 
   twilio@4.23.0(debug@4.4.0):
     dependencies:
-      axios: 1.7.9(debug@4.4.0)
+      axios: 1.8.2(debug@4.4.0)
       dayjs: 1.11.13
       https-proxy-agent: 5.0.1
       jsonwebtoken: 9.0.2
@@ -12848,7 +12705,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.0
       tapable: 2.2.1
-      terser-webpack-plugin: 5.3.11(@swc/core@1.10.16(@swc/helpers@0.5.15))(webpack@5.98.0(@swc/core@1.10.16(@swc/helpers@0.5.15)))
+      terser-webpack-plugin: 5.3.14(@swc/core@1.10.16(@swc/helpers@0.5.15))(webpack@5.98.0(@swc/core@1.10.16(@swc/helpers@0.5.15)))
       watchpack: 2.4.2
       webpack-sources: 3.2.3
     transitivePeerDependencies:
