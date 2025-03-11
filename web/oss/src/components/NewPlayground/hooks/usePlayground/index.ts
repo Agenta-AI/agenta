@@ -3,6 +3,7 @@ import {useMemo, useRef} from "react"
 import Router, {useRouter} from "next/router"
 import useSWR, {type Middleware} from "swr"
 
+import {useAppsData} from "@/oss/contexts/app.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 
 import appSchemaMiddleware from "./middlewares/appSchemaMiddleware"
@@ -22,6 +23,7 @@ const usePlayground = <Selected = unknown>(
     {
         appId = (Router.query.app_id as string) || "",
         projectId = getCurrentProject().projectId,
+        pathReference,
         ...rest
     }: Omit<UsePlaygroundStateOptions, "stateSelector" | "variantSelector"> & {
         stateSelector?: (state: PlaygroundStateData) => Selected
@@ -35,7 +37,9 @@ const usePlayground = <Selected = unknown>(
      * Key for the SWR cache
      */
     const router = useRouter()
-    const pathRef = useRef(router.pathname.replaceAll("/", "_"))
+    const {apps} = useAppsData()
+    const currentApp = apps.find((app) => app.app_id === appId)
+    const pathRef = useRef(pathReference || router.pathname.replaceAll("/", "_"))
     const key = useMemo(
         () => `/api/apps/${appId}/variants?project_id=${projectId}&v=2&path=${pathRef.current}`,
         [appId, projectId],
@@ -60,6 +64,7 @@ const usePlayground = <Selected = unknown>(
         use: middlewares,
         projectId,
         appId,
+        appType: currentApp?.app_type,
         compare: undefined,
         ...rest,
     })

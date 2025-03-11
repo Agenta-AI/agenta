@@ -80,6 +80,9 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         mutateVariant?.((variant) => {
             const prompt = variant?.prompts.find((p) => p.__id === promptId)
             const llmConfig = prompt?.llmConfig
+
+            if (!llmConfig) return variant
+
             const {model, ...restOfConfig} = llmConfig
 
             const properties =

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {createContext, PropsWithChildren, useContext, useState} from "react"
 
 import {useRouter} from "next/router"

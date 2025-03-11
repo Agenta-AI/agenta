@@ -89,11 +89,6 @@ class AgentaSingleton:
 
         self.base_id = getenv("AGENTA_BASE_ID")
 
-        self.service_id = getenv("AGENTA_SERVICE_ID") or self.base_id or None
-
-        log.info("Agenta - Service ID: %s", self.service_id)
-        log.info("Agenta - Application ID: %s", self.app_id)
-
         self.tracing = Tracing(
             url=f"{self.host}/api/observability/v1/otlp/traces",  # type: ignore
             redact=redact,
@@ -102,9 +97,6 @@ class AgentaSingleton:
 
         self.tracing.configure(
             api_key=self.api_key,
-            service_id=self.service_id,
-            # DEPRECATING
-            app_id=self.app_id,
         )
 
         self.api = AgentaApi(

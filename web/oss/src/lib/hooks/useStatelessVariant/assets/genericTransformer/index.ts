@@ -111,9 +111,10 @@ function transformValue<T>(
     value: T,
     schema: SchemaProperty,
     parentPropertyMetadata?: ConfigMetadata, // Add this parameter
+    key?: string,
 ): Enhanced<T> {
     // Use parent property metadata if available, otherwise create new
-    const metadata = parentPropertyMetadata || createMetadata(schema)
+    const metadata = parentPropertyMetadata || createMetadata(schema, key)
 
     // Handle arrays
     if (metadata.type === "array" && Array.isArray(value)) {
@@ -149,8 +150,12 @@ export function transformPrimitive<T>(value: T, metadata: ConfigMetadata): Enhan
     } as Enhanced<T>
 }
 
-export const createEnhancedConfig = <T>(value: T, schema: SchemaProperty): Enhanced<T> => {
-    return transformValue(value, schema)
+export const createEnhancedConfig = <T>(
+    value: T,
+    schema: SchemaProperty,
+    key?: string,
+): Enhanced<T> => {
+    return transformValue(value, schema, undefined, key)
 }
 
 export function createNameProperty() {

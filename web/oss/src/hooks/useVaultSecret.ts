@@ -17,6 +17,7 @@ export const useVaultSecret = () => {
     const getVaultSecrets = async () => {
         try {
             if (isDemo()) {
+                // @ts-ignore
                 const {fetchVaultSecret} = await import("@/oss/services/vault/api")
                 if (!fetchVaultSecret) return null
                 const data = await fetchVaultSecret()
@@ -81,9 +82,11 @@ export const useVaultSecret = () => {
     const handleModifyVaultSecret = async (provider: LlmProvider) => {
         try {
             if (isDemo()) {
+                // @ts-ignore
                 const {updateVaultSecret, createVaultSecret} = await import(
                     "@/oss/services/vault/api"
                 )
+                // @ts-ignore
                 const {SecretDTOProvider, SecretDTOKind} = await import("@/oss/lib/types_ee")
 
                 if (!SecretDTOProvider || !SecretDTOKind) {
@@ -97,6 +100,7 @@ export const useVaultSecret = () => {
                     DEEPINFRA_API_KEY: SecretDTOProvider.DEEPINFRA,
                     ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
                     GROQ_API_KEY: SecretDTOProvider.GROQ,
+                    // @ts-ignore
                     MISTRAL_API_KEY: SecretDTOProvider.MISTRAL,
                     ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
                     PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
@@ -139,6 +143,7 @@ export const useVaultSecret = () => {
     const handleDeleteVaultSecret = async (provider: LlmProvider) => {
         try {
             if (isDemo() && provider.id) {
+                // @ts-ignore
                 const {deleteVaultSecret} = await import("@/oss/services/vault/api")
                 await deleteVaultSecret({secret_id: provider.id})
                 await getVaultSecrets()

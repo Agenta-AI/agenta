@@ -22,12 +22,20 @@ const axios = axiosApi.create({
 })
 
 axios.interceptors.request.use(async (config) => {
+    const fullUri = axios.getUri(config)
+    const agentaApiUrl = getAgentaApiUrl()
+
+    if (agentaApiUrl && !fullUri.includes(agentaApiUrl)) {
+        config.headers.set("ngrok-skip-browser-warning", true)
+    }
+
     if (!isDemo()) return config
     const jwt = await getJWT()
 
     const profile = getProfileValues()
 
     const {projectId} = getCurrentProject()
+
     if (
         !jwt ||
         !profile.user ||

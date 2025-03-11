@@ -6,6 +6,7 @@ import {componentLogger} from "../../assets/utilities/componentLogger"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
+import PlaygroundVariantCustomProperties from "../PlaygroundVariantCustomProperties"
 
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
@@ -65,6 +66,10 @@ const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
                     variantId={variantId}
                 />
             ))}
+            <PlaygroundVariantCustomProperties
+                variantId={variantId}
+                initialOpen={promptIds.length === 0}
+            />
         </div>
     )
 }

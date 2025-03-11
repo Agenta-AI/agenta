@@ -72,12 +72,14 @@ const LoadTestsetButton = ({
 
                             if (!messageMetadata) return
 
-                            const newMessages = chatMessages?.map((chat) => {
-                                return createMessageFromSchema(messageMetadata, {
-                                    role: chat?.role,
-                                    content: chat?.content,
-                                })
-                            })
+                            const newMessages = chatMessages?.map(
+                                (chat: {role: string; content: string}) => {
+                                    return createMessageFromSchema(messageMetadata, {
+                                        role: chat?.role,
+                                        content: chat?.content,
+                                    })
+                                },
+                            )
 
                             messageRow.history.value = [...newMessages]
 
@@ -116,7 +118,7 @@ const LoadTestsetButton = ({
                             const newRow = createInputRow(inputKeys, metadata)
 
                             // set the values of the new generation row inputs to the values of the testset row
-                            for (const key of inputKeys) {
+                            for (const key of inputKeys as (keyof typeof newRow)[]) {
                                 const newRowProperty = newRow[key] as Enhanced<string>
                                 newRowProperty.value = row[key]
                             }
@@ -136,7 +138,7 @@ const LoadTestsetButton = ({
 
             setTestsetData(d)
         },
-        [inputKeys],
+        [inputKeys, isChat, mutate],
     )
 
     return (

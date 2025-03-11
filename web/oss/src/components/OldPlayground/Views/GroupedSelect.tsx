@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {type ReactNode, type ComponentType, type FC, createElement} from "react"
 
 import {

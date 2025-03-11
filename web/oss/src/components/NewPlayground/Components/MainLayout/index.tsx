@@ -29,7 +29,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
         visibleVariants: displayedVariants,
     } = usePlayground({
         stateSelector: (state) => {
-            const isChat = state.variants[0].isChat
+            const isChat = state.variants?.[0]?.isChat
             const isComparisonView = state.selected.length > 1
             let rowIds = [] as string[]
 

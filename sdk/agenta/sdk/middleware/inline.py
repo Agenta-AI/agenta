@@ -3,9 +3,7 @@ from typing import Callable
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, FastAPI
 
-
 from agenta.sdk.utils.exceptions import suppress
-
 from agenta.sdk.utils.constants import TRUTHY
 
 

@@ -15,4 +15,5 @@ export interface SharedEditorProps extends BaseContainerProps {
     withTooltip?: boolean
     disabled?: boolean
     editorProps?: EditorProps
+    useAntdInput?: boolean
 }

@@ -1,6 +1,7 @@
 import {atom, createStore} from "jotai"
 
 import type {ConfigMetadata} from "../assets/utilities/genericTransformer/types"
+import {EnhancedVariant, TestResult} from "../assets/utilities/transformer/types"
 
 import {InitialStateType} from "./types"
 
@@ -8,13 +9,18 @@ import {InitialStateType} from "./types"
 export const atomStore = createStore()
 
 // Atom to store responses
-export const responseAtom = atom<Record<string, ConfigMetadata>>({})
-export const getResponseLazy = <T extends ConfigMetadata>(hash?: string): T | null => {
+export const responseAtom = atom<Record<string, TestResult>>({})
+export const getResponseLazy = <T extends TestResult>(
+    hash?: string | TestResult | null,
+): T | null => {
     if (!hash) return null
+    if (typeof hash !== "string") {
+        return hash as T
+    }
 
     return (atomStore.get(responseAtom)[hash] as T) || null
 }
-export const getAllResponses = (): Record<string, ConfigMetadata> => {
+export const getAllResponses = (): Record<string, TestResult> => {
     return atomStore.get(responseAtom) || {}
 }
 export const updateResponseAtom = async (metadata: Record<string, any>) => {
@@ -27,7 +33,9 @@ class TaskQueue {
     enqueue(task: () => Promise<void>): Promise<void> {
         // Chain the task to the existing queue
         const nextTask = this.queue.then(() => task())
-        this.queue = nextTask.catch(() => {}) // Catch errors to avoid breaking the chain
+        this.queue = nextTask.catch((error) => {
+            console.error("TaskQueue error:", error)
+        }) // Catch errors to avoid breaking the chain
         return nextTask
     }
 }
@@ -37,8 +45,11 @@ const metadataQueue = new TaskQueue()
 // Atom to store metadata
 export const metadataAtom = atom<Record<string, ConfigMetadata>>({})
 // Lazy reader for metadata
-export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string): T | null => {
+export const getMetadataLazy = <T extends ConfigMetadata>(hash?: string | T): T | null => {
     if (!hash) return null
+    if (typeof hash !== "string") {
+        return hash as T
+    }
 
     return (atomStore.get(metadataAtom)[hash] as T) || null
 }
@@ -58,14 +69,14 @@ export const updateMetadataAtom = async (metadata: Record<string, any>) => {
 }
 
 // Atom to store variantsRef
-export const variantsRefAtom = atom<Record<string, ConfigMetadata>>({})
+export const variantsRefAtom = atom<Record<string, EnhancedVariant>>({})
 // Lazy reader for variantsRef
-export const getVariantsLazy = <T extends ConfigMetadata>(hash?: string): T | null => {
+export const getVariantsLazy = <T extends EnhancedVariant>(hash?: string): T | null => {
     if (!hash) return null
 
     return (atomStore.get(variantsRefAtom)[hash] as T) || null
 }
-export const getAllVariants = (): Record<string, ConfigMetadata> => {
+export const getAllVariants = (): Record<string, EnhancedVariant> => {
     return atomStore.get(variantsRefAtom) || {}
 }
 
@@ -84,6 +95,7 @@ export const getSpecLazy = () => {
 export const initialState: InitialStateType = {
     variants: [],
     selected: [],
+    uri: undefined,
     dirtyStates: {},
     generationData: {
         messages: {} as InitialStateType["generationData"]["messages"],

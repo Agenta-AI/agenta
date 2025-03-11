@@ -15,7 +15,7 @@ import {BooleanControlProps} from "./types"
  * - Used for simple true/false configuration options
  */
 const BooleanControl = ({
-    withTooltip,
+    withTooltip = true,
     description,
     label,
     value,
@@ -23,13 +23,17 @@ const BooleanControl = ({
     onChange,
 }: BooleanControlProps) => {
     return (
-        <PlaygroundVariantPropertyControlWrapper className="!flex-row justify-between">
+        <PlaygroundVariantPropertyControlWrapper className="!flex-row items-center justify-between">
             {withTooltip ? (
                 <Tooltip title={description}>
-                    <Typography.Text>{label}</Typography.Text>
+                    <Typography.Text className="playground-property-control-label">
+                        {label}
+                    </Typography.Text>
                 </Tooltip>
             ) : (
-                <Typography.Text>{label}</Typography.Text>
+                <Typography.Text className="playground-property-control-label">
+                    {label}
+                </Typography.Text>
             )}
             <Switch disabled={disabled} checked={value} onChange={onChange} />
         </PlaygroundVariantPropertyControlWrapper>

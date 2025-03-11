@@ -3,15 +3,14 @@ import {useCallback} from "react"
 import type {Key, SWRHook} from "swr"
 
 import {hashVariant, hashResponse} from "@/oss/components/NewPlayground/assets/hash"
-import {ConfigMetadata} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {generateId} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
-import {getAllMetadata, getMetadataLazy} from "@/oss/components/NewPlayground/state"
+import {getAllMetadata, getMetadataLazy, getSpecLazy} from "@/oss/components/NewPlayground/state"
 import {type FetcherOptions} from "@/oss/lib/api/types"
 
 import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
-import type {ApiResponse, EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {message} from "../../../state/messageContext"
-import useWebWorker from "../../useWebWorker"
+import useWebWorker, {WorkerMessage} from "../../useWebWorker"
 import {
     compareVariant,
     createVariantCompare,
@@ -28,6 +27,7 @@ import type {
     VariantUpdateFunction,
     PlaygroundSWRConfig,
     PlaygroundMiddlewareParams,
+    PlaygroundResponse,
 } from "../types"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
@@ -47,12 +47,8 @@ export const findPropertyById = (variant: EnhancedVariant, propertyId?: string) 
         if (found) return found
     }
 
-    // Search in input rows
-    const inputRows = variant.inputs?.value || []
-    for (const row of inputRows) {
-        const found = findPropertyInObject(row, propertyId)
-        if (found) return found
-    }
+    const found = findPropertyInObject(variant.customProperties, propertyId)
+    if (found) return found
 
     return undefined
 }
@@ -145,10 +141,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     },
                     [config, logger, valueReferences],
                 ),
-            } as PlaygroundSWRConfig<Data>)
+            } as PlaygroundSWRConfig<Data>) as PlaygroundResponse<Data, Selected>
 
             const handleWebWorkerChatMessage = useCallback(
-                (message) => {
+                (message: WorkerMessage) => {
                     // if (!variantId) return
                     // if (message.payload.variant.id !== variantId) return
                     const variantId = message.payload.variant.id
@@ -184,6 +180,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             )
 
                             const responseHash = hashResponse(message.payload.result)
+                            if (!targetMessage.__runs) targetMessage.__runs = {}
+
                             targetMessage.__runs[variantId] = {
                                 __result: responseHash,
                                 message: incomingMessage,
@@ -195,7 +193,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 const emptyMessage = createMessageFromSchema(metadata, {
                                     role: "user",
                                 })
-                                targetRow.history.value.push(emptyMessage)
+                                if (emptyMessage) {
+                                    targetRow.history.value.push(emptyMessage)
+                                }
                             }
                         }
 
@@ -206,25 +206,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             )
 
             const handleWebWorkerMessage = useCallback(
-                (message: {
-                    type: string
-                    payload: {
-                        variant: EnhancedVariant
-                        allMetadata: Record<string, ConfigMetadata>
-                        rowId: string
-                        appId: string
-                        uri: string
-                        result?: {
-                            response?: ApiResponse
-                            error?: string
-                            metadata: {
-                                timestamp: string
-                                statusCode?: number
-                                rawError?: any
-                            }
-                        }
-                    }
-                }) => {
+                (message: WorkerMessage) => {
                     if (message.payload.variant.id !== config.variantId) return
                     if (message.payload.rowId !== config.rowId) return
 
@@ -259,10 +241,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                 [config.rowId, config.variantId, handleWebWorkerChatMessage, swr],
             )
 
-            const {postMessageToWorker, createWorkerMessage} = useWebWorker(
-                handleWebWorkerMessage,
-                config.registerToWebWorker && !!variantId,
-            )
+            useWebWorker(handleWebWorkerMessage, config.registerToWebWorker && !!variantId)
 
             /**
              * Deletes the current variant from the server and updates local state
@@ -350,11 +329,15 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     (v) => v.id === variantId,
                                 )
                                 if (!variant) return state
+                                const spec = getSpecLazy()
+
+                                if (!spec) return state
 
                                 try {
                                     const parameters = transformToRequestBody({
                                         variant,
                                         allMetadata: getAllMetadata(),
+                                        spec,
                                     })
                                     const saveResponse = await fetcher?.(
                                         `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
@@ -392,6 +375,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         message.success("Changes saved successfully!")
 
                                         clonedState.dataRef = structuredClone(clonedState.dataRef)
+                                        if (!clonedState.dataRef) clonedState.dataRef = {}
                                         clonedState.dataRef[updatedVariant.id] =
                                             hashVariant(updatedVariant)
 
@@ -442,7 +426,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             }
 
                             // Update prompt keys
-                            updateVariantPromptKeys(updatedVariant)
+                            if (!updatedVariant.isCustom) {
+                                updateVariantPromptKeys(updatedVariant)
+                            }
 
                             const index = clonedState?.variants?.findIndex(
                                 (v) => v.id === clonedVariant.id,
@@ -474,6 +460,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 ? e.target.value
                                 : e
                             : null
+
                         const updatedVariant = variant
                         const found = findPropertyById(
                             updatedVariant,
@@ -503,48 +490,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                       }
                     : undefined
             }, [swr, variantId, config.propertyId, handleParamUpdate])
-
-            /**
-             * Runs a specific test row with the current variant configuration
-             * @param rowId - ID of the input row to run
-             */
-            const runVariantTestRow = useCallback(
-                async (rowId: string, variantId?: string) => {
-                    swr.mutate(async (clonedState) => {
-                        const _variantId = variantId ?? config.variantId
-
-                        if (!_variantId || !clonedState) return clonedState
-
-                        const variant = findVariantById(clonedState, _variantId)
-                        if (!variant) return clonedState
-
-                        const variantIndex = clonedState.variants.findIndex(
-                            (v) => v.id === _variantId,
-                        )
-                        if (variantIndex === -1) return clonedState
-
-                        const inputRow = clonedState.variants[variantIndex].inputs.value.find(
-                            (row) => row.__id === rowId,
-                        )
-                        if (!inputRow) return clonedState
-
-                        inputRow.__isLoading = true
-
-                        postMessageToWorker(
-                            createWorkerMessage("runVariantInputRow", {
-                                variant,
-                                rowId,
-                                appId: config.appId!,
-                                uri: variant.uri,
-                                allMetadata: getAllMetadata(),
-                            }),
-                        )
-
-                        return clonedState
-                    })
-                },
-                [swr, config.variantId, config.appId, postMessageToWorker, createWorkerMessage],
-            )
 
             Object.defineProperty(swr, "variant", {
                 get() {
@@ -596,12 +541,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                     checkInvalidSelector()
                     addToValueReferences("saveVariant")
                     return saveVariant
-                },
-            })
-            Object.defineProperty(swr, "runVariantTestRow", {
-                get() {
-                    addToValueReferences("runVariantTestRow")
-                    return runVariantTestRow
                 },
             })
             Object.defineProperty(swr, "handleWebWorkerMessage", {

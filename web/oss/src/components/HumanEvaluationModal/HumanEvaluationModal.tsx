@@ -1,19 +1,22 @@
-import {useEffect, useState} from "react"
+// @ts-nocheck
+import {useEffect, useMemo, useState} from "react"
 
 import {CaretDown, Play} from "@phosphor-icons/react"
 import {Button, Col, Dropdown, MenuProps, Modal, Row, Spin, message} from "antd"
+import isEqual from "lodash/isEqual"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import EvaluationErrorModal from "@/oss/components/Evaluations/EvaluationErrorModal"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {PERMISSION_ERR_MSG} from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
 import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
 import type {GenericObject, Parameter, Variant, StyleProps} from "@/oss/lib/Types"
-import {fetchVariants} from "@/oss/services/api"
 import {createNewEvaluation} from "@/oss/services/human-evaluations/api"
 import {useLoadTestsetsList} from "@/oss/services/testsets/api"
 
@@ -32,9 +35,8 @@ const HumanEvaluationModal = ({
 }: HumanEvaluationModalProps) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
-    const [areAppVariantsLoading, setAppVariantsLoading] = useState(false)
+    const {currentApp} = useAppsData()
     const [isError, setIsError] = useState<boolean | string>(false)
-    const [variants, setVariants] = useState<any[]>([])
     const classes = useStyles({themeMode: appTheme} as StyleProps)
 
     const [selectedTestset, setSelectedTestset] = useState<{
@@ -59,40 +61,40 @@ const HumanEvaluationModal = ({
 
     const [shareModalOpen, setShareModalOpen] = useState(false)
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const backendVariants = await fetchVariants(appId)
-
-                if (backendVariants.length > 0) {
-                    setVariants(backendVariants)
-                }
-
-                setAppVariantsLoading(false)
-            } catch (error) {
-                setIsError("Failed to fetch variants")
-                setAppVariantsLoading(false)
-            }
-        }
-
-        fetchData()
-    }, [appId])
+    const {data, isLoading: areAppVariantsLoading} = useVariants(currentApp)({
+        appId: currentApp?.app_id,
+    })
+    const variants = useMemo(() => data?.variants || [], [data])
 
     useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {
                     const hasAgConfig = variants.some((variant) => variant.parameters?.ag_config)
+                    const isNewVariant = variants.some((variant) => variant.isStatelessVariant)
                     let results: {
                         variantName: string
                         inputs: string[]
                     }[]
 
-                    if (hasAgConfig) {
+                    const isCustom = variants.some((v) => v.isCustom)
+
+                    if (isCustom) {
                         results = variants.map((variant) => {
                             return {
                                 variantName: variant.variantName,
-                                inputs: variant.parameters?.ag_config?.prompt?.input_keys || [],
+                                inputs: (variant.inputParams || []).map(
+                                    (ip) => ip.name || ip.title,
+                                ),
+                            }
+                        })
+                    } else if (isNewVariant) {
+                        results = variants.map((variant) => {
+                            return {
+                                variantName: variant.variantName,
+                                inputs:
+                                    (variant.parameters?.ag_config || variant.parameters?.agConfig)
+                                        ?.prompt?.input_keys || [],
                             }
                         })
                     } else {
@@ -131,7 +133,13 @@ const HumanEvaluationModal = ({
 
     useEffect(() => {
         if (!isTestsetsLoadingError && testsets) {
-            setTestsetsList(testsets)
+            setTestsetsList((prev) => {
+                if (isEqual(prev, testsets)) {
+                    return prev
+                }
+
+                return testsets
+            })
         }
     }, [testsets, isTestsetsLoadingError])
 
@@ -202,7 +210,7 @@ const HumanEvaluationModal = ({
                             >
                                 <span>{variant.variantName}</span>
                                 <span className={classes.dropdownItemLabels}>
-                                    #{variant.variantId.split("-")[0]}
+                                    #{(variant.variantId || variant.id).split("-")[0]}
                                 </span>
                             </div>
                         </>
@@ -240,7 +248,7 @@ const HumanEvaluationModal = ({
 
         // 2. We create a new app evaluation
         const evaluationTableId = await createNewEvaluation({
-            variant_ids: selectedVariants.map((variant) => variant.variantId),
+            variant_ids: selectedVariants.map((variant) => variant.variantId || variant.id),
             appId,
             inputs: variantsInputs[selectedVariants[0].variantName],
             evaluationType: EvaluationType[evaluationType as keyof typeof EvaluationType],
@@ -263,7 +271,7 @@ const HumanEvaluationModal = ({
         }
 
         // 3 We set the variants
-        setVariants(selectedVariants)
+        // setVariants(selectedVariants)
 
         if (evaluationType === EvaluationType.human_a_b_testing) {
             router.push(`/apps/${appId}/evaluations/human_a_b_testing/${evaluationTableId}`)

@@ -20,27 +20,37 @@ export const BreadcrumbRoot = memo(() => {
     )
 })
 
-export const BreadcrumbContainer = memo(({appTheme, isNewPlayground, appName}) => {
-    const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const breadcrumbItems = useMemo(() => {
-        return [
-            {
-                title: <BreadcrumbRoot />,
-            },
-            {title: appName || ""},
-        ]
-    }, [appName])
+export const BreadcrumbContainer = memo(
+    ({
+        appTheme,
+        isNewPlayground,
+        appName,
+    }: {
+        appTheme: string
+        isNewPlayground: boolean
+        appName: string
+    }) => {
+        const classes = useStyles({themeMode: appTheme} as StyleProps)
+        const breadcrumbItems = useMemo(() => {
+            return [
+                {
+                    title: <BreadcrumbRoot />,
+                },
+                {title: appName || ""},
+            ]
+        }, [appName])
 
-    return (
-        <div
-            className={clsx(classes.breadcrumbContainer, {
-                "[&&]:!mb-0": isNewPlayground,
-            })}
-        >
-            <Breadcrumb items={breadcrumbItems} />
-            <div className={classes.topRightBar}>
-                <Text>agenta v{packageJsonData.version}</Text>
+        return (
+            <div
+                className={clsx(classes.breadcrumbContainer, {
+                    "[&&]:!mb-0": isNewPlayground,
+                })}
+            >
+                <Breadcrumb items={breadcrumbItems} />
+                <div className={classes.topRightBar}>
+                    <Text>agenta v{packageJsonData.version}</Text>
+                </div>
             </div>
-        </div>
-    )
-})
+        )
+    },
+)

@@ -80,6 +80,11 @@ const ChangeVariantModal = ({
                             bordered
                             pagination={false}
                             dataSource={filtered}
+                            rowKey={
+                                filtered.some((variant) => !!variant.variantId)
+                                    ? "variantId"
+                                    : "variant_id"
+                            }
                             columns={[
                                 {
                                     title: "Variants",

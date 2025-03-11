@@ -330,6 +330,8 @@ class entrypoint:
             raise HTTPException(status_code=500, detail="Missing 'request'.")
 
         state = request.state
+        traceparent = state.otel.get("traceparent")
+        baggage = state.otel.get("baggage")
         credentials = state.auth.get("credentials")
         parameters = state.config.get("parameters")
         references = state.config.get("references")
@@ -346,6 +348,8 @@ class entrypoint:
         ):
             with tracing_context_manager(
                 context=TracingContext(
+                    traceparent=traceparent,
+                    baggage=baggage,
                     credentials=credentials,
                     parameters=parameters,
                     references=references,
@@ -378,14 +382,13 @@ class entrypoint:
                 content_type = "application/json"
             data = self.patch_result(result)
 
-            if inline:
-                tree, tree_id = await self.fetch_inline_trace(inline)
+            tree, tree_id = await self.fetch_inline_trace(inline)
 
         try:
             return BaseResponse(
                 data=data, tree=tree, content_type=content_type, tree_id=tree_id
             )
-        except:
+        except:  # pylint: disable=bare-except
             return BaseResponse(data=data, content_type=content_type)
 
     def handle_failure(
@@ -397,6 +400,9 @@ class entrypoint:
         status_code = (
             getattr(error, "status_code") if hasattr(error, "status_code") else 500
         )
+        if status_code in [401, 403]:  # Reserved HTTP codes for auth middleware
+            status_code = 424  # Proxy Authentication Required
+
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
 
         raise HTTPException(
@@ -444,6 +450,18 @@ class entrypoint:
 
         return data
 
+    async def fetch_inline_trace_id(
+        self,
+    ):
+        context = tracing_context.get()
+
+        link = context.link
+
+        _tree_id = link.get("tree_id") if link else None  # in int format
+        tree_id = str(UUID(int=_tree_id)) if _tree_id else None  # in uuid_as_str format
+
+        return tree_id
+
     async def fetch_inline_trace(
         self,
         inline: bool,
@@ -472,6 +490,7 @@ class entrypoint:
                     remaining_steps -= 1
 
                 tree = ag.tracing.get_inline_trace(_tree_id)
+
         return tree, tree_id
 
     # --- OpenAPI --- #

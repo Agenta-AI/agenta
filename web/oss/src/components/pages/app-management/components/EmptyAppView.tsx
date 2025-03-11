@@ -41,7 +41,7 @@ const EmptyAppView = ({setIsAddAppFromTemplatedModal}: EmptyAppViewProps) => {
         <div className={classes.container}>
             <div>
                 <Image src="/assets/not-found.png" alt="not-found" width={240} height={210} />
-                <Typography.Text>Click here to create to your first prompt</Typography.Text>
+                <Typography.Text>Click here to create your first prompt</Typography.Text>
                 <Button
                     data-cy="create-new-app-button"
                     icon={<PlusOutlined />}
@@ -49,7 +49,7 @@ const EmptyAppView = ({setIsAddAppFromTemplatedModal}: EmptyAppViewProps) => {
                         setIsAddAppFromTemplatedModal(true)
                     }}
                 >
-                    Create new app
+                    Create New Prompt
                 </Button>
             </div>
         </div>

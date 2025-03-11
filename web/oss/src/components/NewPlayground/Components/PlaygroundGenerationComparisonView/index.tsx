@@ -5,6 +5,7 @@ import clsx from "clsx"
 import usePlayground from "../../hooks/usePlayground"
 import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 import type {PlaygroundStateData} from "../../hooks/usePlayground/types"
+import {GenerationChatRow} from "../../state/types"
 
 import GenerationComparisonChatOutput from "./GenerationComparisonChatOutput"
 import GenerationComparisonCompletionOutput from "./GenerationComparisonCompletionOutput"
@@ -13,7 +14,7 @@ const GenerationComparisonOutput = ({rowId, isLastRow}: {rowId: string; isLastRo
     const {isChat, displayedVariants, chatHistory} = usePlayground({
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
-                const chatRow = findPropertyInObject(state, rowId)
+                const chatRow = findPropertyInObject(state, rowId) as GenerationChatRow
                 const chatHistory = chatRow?.history?.value?.map((item) => item.__id)
                 return {isChat: state.variants[0].isChat, chatHistory}
             },

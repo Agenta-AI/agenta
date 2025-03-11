@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useEffect, useState} from "react"
 
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"

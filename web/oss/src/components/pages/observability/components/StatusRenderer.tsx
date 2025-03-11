@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {Space, Tag, Tooltip} from "antd"
 

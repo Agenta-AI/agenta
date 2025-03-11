@@ -14,17 +14,18 @@ import TraceDrawerButton from "../../../Drawers/TraceDrawer"
 import {GenerationResultUtilsProps} from "./types"
 
 const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className, result}) => {
-    const metric = result?.response?.tree?.nodes?.[0].metrics?.acc
+    const tree = result?.response?.tree
+    const metric = tree?.nodes?.[0]?.metrics?.acc
     const status = result?.error
         ? {
               code: NodeStatusCode.ERROR,
           }
-        : (result?.response?.tree.nodes[0].status as NodeStatusDTO)
+        : (tree?.nodes?.[0]?.status as NodeStatusDTO)
     const durations = metric?.duration?.total
     const tokens = metric?.tokens?.total
     const costs = metric?.costs?.total
-    const prompts = metric?.tokens.prompt
-    const completions = metric?.tokens.completion
+    const prompts = metric?.tokens?.prompt
+    const completions = metric?.tokens?.completion
 
     const formattedPrompts = useMemo(() => formatTokenUsage(prompts), [prompts])
     const formattedCompletions = useMemo(() => formatTokenUsage(completions), [completions])

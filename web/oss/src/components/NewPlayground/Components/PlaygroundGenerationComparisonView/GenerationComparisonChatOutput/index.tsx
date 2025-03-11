@@ -7,6 +7,7 @@ import {findPropertyInObject} from "@/oss/components/NewPlayground/hooks/usePlay
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 import {getMetadataLazy} from "@/oss/components/NewPlayground/state"
 
+import {ObjectMetadata} from "../../../assets/utilities/genericTransformer/types"
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
@@ -22,7 +23,6 @@ const GenerationComparisonChatOutputCell = ({
     variantIndex,
     isFirstRow,
     isLastRow,
-    isLastVariant,
 }: GenerationComparisonChatOutputCellProps) => {
     const {rerunChatOutput, message, messageRow, inputRowIds, mutate} = usePlayground({
         variantId,
@@ -47,7 +47,10 @@ const GenerationComparisonChatOutputCell = ({
                 const inputRowIds = (inputRows || [])
                     .filter((inputRow) => {
                         return (
-                            Object.keys(getMetadataLazy(inputRow.__metadata)?.properties).length > 0
+                            Object.keys(
+                                (getMetadataLazy(inputRow.__metadata) as ObjectMetadata)
+                                    ?.properties,
+                            ).length > 0
                         )
                     })
                     .map((inputRow) => inputRow.__id)
@@ -71,23 +74,26 @@ const GenerationComparisonChatOutputCell = ({
                     const row = clonedState.generationData.messages.value.find(
                         (v) => v.__id === rowId,
                     )
+                    if (!row) return clonedState
+
                     const isInput = row.history.value.findIndex((m) => m.__id === messageId)
                     if (isInput !== -1) {
                         row.history.value.splice(isInput, 1)
                     } else {
                         row.history.value.findIndex((m) => {
-                            return m.__runs[variantId]?.message?.__id === messageId
+                            return m.__runs?.[variantId]?.message?.__id === messageId
                         })
                     }
                 } else if (variantId) {
                     const row = clonedState.generationData.messages.value.find(
                         (v) => v.__id === rowId,
                     )
+                    if (!row) return clonedState
                     const isInput = row.history.value.findIndex((m) => {
                         return m.__runs?.[variantId]?.message?.__id === messageId
                     })
                     if (isInput !== -1) {
-                        delete row.history.value[isInput].__runs[variantId]
+                        delete row.history.value[isInput].__runs?.[variantId]
                     }
                 }
             })
@@ -101,7 +107,7 @@ const GenerationComparisonChatOutputCell = ({
 
     const rerunMessage = useCallback(
         (messageId: string) => {
-            rerunChatOutput(messageId, variantId)
+            rerunChatOutput?.(messageId, variantId)
         },
         [variantId],
     )
@@ -215,7 +221,6 @@ const GenerationComparisonChatOutput = ({
                     variantIndex={variantIndex}
                     isLastRow={isLastRow}
                     isFirstRow={isFirstRow}
-                    isLastVariant={variantIndex === (displayedVariants || []).length - 1}
                 />
             ))}
         </div>

@@ -3,6 +3,7 @@ import {useCallback} from "react"
 import {type Key, type SWRHook, useSWRConfig} from "swr"
 
 import {detectChatVariantFromOpenAISchema} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer"
+import {DEFAULT_UUID} from "@/oss/contexts/project.context"
 import {type FetcherOptions} from "@/oss/lib/api/types"
 import {type Variant} from "@/oss/lib/Types"
 
@@ -15,12 +16,13 @@ import type {
     PlaygroundMiddleware,
     PlaygroundMiddlewareParams,
     PlaygroundSWRConfig,
+    PlaygroundResponse,
 } from "../types"
 
 import usePlaygroundUtilities from "./hooks/usePlaygroundUtilities"
 
 const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
-    return <Data extends PlaygroundStateData = PlaygroundStateData>(
+    return <Data extends PlaygroundStateData = PlaygroundStateData, Selected = unknown>(
         key: Key,
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
         config: PlaygroundSWRConfig<Data>,
@@ -61,14 +63,14 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         const [variants] = await Promise.all([
                             globalFetcher(url, options) as Promise<Variant[]>,
                         ])
-                        const uri = variants[0].uri
+                        state.uri = variants[0].uri
 
-                        if (!uri) {
+                        if (!state.uri) {
                             throw new Error("No uri found for the new app type")
                         }
 
                         try {
-                            const specResponse = await fetchOpenApiSchemaJson(uri)
+                            const specResponse = await fetchOpenApiSchemaJson(state.uri)
                             const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                             if (!spec) {
@@ -78,6 +80,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             state.variants = transformVariants(
                                 setVariants(state.variants, variants),
                                 spec,
+                                config.appType,
                             )
 
                             atomStore.set(specAtom, () => spec)
@@ -86,9 +89,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                             state.generationData.inputs = initializeGenerationInputs(
                                 state.variants.filter((v) => state.selected.includes(v.id)),
+                                spec,
                             )
 
-                            // initializeVariantInputs(enhancedVariant)
                             if (detectChatVariantFromOpenAISchema(spec)) {
                                 state.generationData.messages = initializeGenerationMessages(
                                     state.variants,
@@ -98,32 +101,38 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             state.error = undefined
                             return state
                         } catch (err) {
-                            throw new Error("Error fetching spec")
+                            return state
                         }
                     } catch (err) {
                         console.error("Error in openApiSchemaFetcher:", err)
-                        state.error = err
+                        state.error = err as Error
                         return state
                     }
                 },
                 [config.cache, fetcher, logger],
             )
 
-            return useSWRNext(key, openApiSchemaFetcher, {
-                ...config,
-                revalidateOnFocus: false,
-                revalidateOnReconnect: false,
-                revalidateIfStale: false,
-                revalidateOnMount: config.revalidateOnMount ?? true,
-                compare: useCallback(
-                    (a?: Data, b?: Data) => {
-                        const wrappedComparison = config.compare?.(a, b)
-                        logger(`COMPARE - ENTER`, wrappedComparison, a, b)
-                        return wrappedComparison ?? true
-                    },
-                    [config, logger],
-                ),
-            })
+            return useSWRNext(
+                key,
+                !config.projectId || config.projectId === DEFAULT_UUID
+                    ? null
+                    : openApiSchemaFetcher,
+                {
+                    ...config,
+                    revalidateOnFocus: true,
+                    revalidateOnReconnect: true,
+                    revalidateIfStale: true,
+                    revalidateOnMount: true,
+                    compare: useCallback(
+                        (a?: Data, b?: Data) => {
+                            const wrappedComparison = config.compare?.(a, b)
+                            logger(`COMPARE - ENTER`, wrappedComparison, a, b)
+                            return wrappedComparison ?? true
+                        },
+                        [config, logger],
+                    ),
+                },
+            ) as PlaygroundResponse<Data, Selected>
         }
         return useImplementation({key, fetcher, config})
     }

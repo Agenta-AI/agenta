@@ -6,7 +6,7 @@ import litellm
 from litellm import embedding, completion, rerank
 import agenta as ag
 from pydantic import BaseModel, Field
-from typing import Annotated
+from agenta.sdk.types import MCField
 from agenta.sdk.assets import supported_llm_models
 
 system_prompt = """
@@ -30,12 +30,8 @@ qdrant_client = QdrantClient(
 class Config(BaseModel):
     system_prompt: str = Field(default=system_prompt)
     user_prompt: str = Field(default=user_prompt)
-    embedding_model: Annotated[str, ag.MultipleChoice(["openai", "cohere"])] = Field(
-        default="openai"
-    )
-    llm_model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo"
-    )
+    embedding_model: str = MCField(default="openai", choices=["openai", "cohere"])
+    llm_model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
     top_k: int = Field(default=10, ge=1, le=25)
     rerank_top_k: int = Field(default=3, ge=1, le=10)
     use_rerank: bool = Field(default=True)
@@ -163,3 +159,7 @@ def generate(query: str):
         return llm(query, reranked_results)
     else:
         return llm(query, results)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True)

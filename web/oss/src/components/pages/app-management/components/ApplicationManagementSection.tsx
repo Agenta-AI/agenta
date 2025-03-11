@@ -106,7 +106,7 @@ const ApplicationManagementSection = ({
                                 }
                             }}
                         >
-                            Create new app
+                            Create New Prompt
                         </Button>
                     </Space>
                     <Space>

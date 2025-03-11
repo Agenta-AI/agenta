@@ -28,6 +28,7 @@ export interface EditorPluginsProps {
     showToolbar: boolean
     singleLine: boolean
     codeOnly: boolean
+    autoFocus?: boolean
     enableTokens: boolean
     debug: boolean
     language?: string

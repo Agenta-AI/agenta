@@ -4,8 +4,9 @@ from functools import wraps
 from itertools import chain
 from inspect import iscoroutinefunction, getfullargspec
 
-from opentelemetry import baggage as baggage
-from opentelemetry.context import attach, detach
+from opentelemetry import baggage
+from opentelemetry.context import attach, detach, get_current
+from opentelemetry.baggage import set_baggage, get_all
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.context.tracing import tracing_context
@@ -49,7 +50,15 @@ class instrument:  # pylint: disable=invalid-name
 
                 token = self._attach_baggage()
 
-                with ag.tracer.start_as_current_span(func.__name__, kind=self.kind):
+                ctx = self._get_traceparent()
+
+                with ag.tracer.start_as_current_span(
+                    name=func.__name__,
+                    kind=self.kind,
+                    context=ctx,
+                ):
+                    self._set_link()
+
                     self._pre_instrument(func, *args, **kwargs)
 
                     result = await func(*args, **kwargs)
@@ -69,7 +78,15 @@ class instrument:  # pylint: disable=invalid-name
 
                 token = self._attach_baggage()
 
-                with ag.tracer.start_as_current_span(func.__name__, kind=self.kind):
+                ctx = self._get_traceparent()
+
+                with ag.tracer.start_as_current_span(
+                    name=func.__name__,
+                    kind=self.kind,
+                    context=ctx,
+                ):
+                    self._set_link()
+
                     self._pre_instrument(func, *args, **kwargs)
 
                     result = func(*args, **kwargs)
@@ -89,6 +106,30 @@ class instrument:  # pylint: disable=invalid-name
             self.type = "workflow"
 
         self.kind = parse_span_kind(self.type)
+
+    def _get_traceparent(self):
+        context = tracing_context.get()
+
+        traceparent = context.traceparent
+
+        if not context.link:
+            for key, value in get_all(get_current()).items():
+                traceparent = set_baggage(name=key, value=value, context=traceparent)
+
+            return traceparent
+
+    def _set_link(self):
+        span = ag.tracing.get_current_span()
+
+        context = tracing_context.get()
+
+        if not context.link:
+            context.link = {
+                "tree_id": span.get_span_context().trace_id,
+                "node_id": span.get_span_context().span_id,
+            }
+
+            tracing_context.set(context)
 
     def _attach_baggage(self):
         context = tracing_context.get()
@@ -122,7 +163,7 @@ class instrument:  # pylint: disable=invalid-name
         with suppress():
             trace_id = span.context.trace_id
 
-            ag.tracing.credentials[trace_id] = context.credentials
+            ag.tracing.credentials.put(trace_id, context.credentials)
 
             span.set_attributes(
                 attributes={"node": self.type},
@@ -153,6 +194,7 @@ class instrument:  # pylint: disable=invalid-name
         result,
     ):
         span = ag.tracing.get_current_span()
+
         with suppress():
             cost = None
             usage = {}
@@ -205,15 +247,6 @@ class instrument:  # pylint: disable=invalid-name
             )
 
             span.set_status("OK")
-
-        with suppress():
-            if hasattr(span, "parent") and span.parent is None:
-                context = tracing_context.get()
-                context.link = {
-                    "tree_id": span.get_span_context().trace_id,
-                    "node_id": span.get_span_context().span_id,
-                }
-                tracing_context.set(context)
 
     def _parse(
         self,

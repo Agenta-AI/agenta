@@ -24,12 +24,15 @@ const GenerationVariableOptions = dynamic(() => import("../GenerationVariableOpt
     ssr: false,
 })
 
+const handleChange = () => undefined
+
 const GenerationCompletionRow = ({
     variantId,
     rowId,
     className,
     inputOnly,
     view,
+    disabled,
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
@@ -70,6 +73,7 @@ const GenerationCompletionRow = ({
     }, [runTests, variantId, rowId, viewType])
 
     if (viewType === "single" && view !== "focus" && variantId) {
+        const responseData = result?.response?.data
         return (
             <div
                 className={clsx(["flex flex-col gap-4", "p-4", "group/item", classes.container])}
@@ -136,10 +140,18 @@ const GenerationCompletionRow = ({
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }
+                                    handleChange={handleChange}
                                 />
                             ) : result.response ? (
                                 <SharedEditor
-                                    initialValue={result?.response?.data}
+                                    initialValue={
+                                        typeof responseData === "string"
+                                            ? responseData
+                                            : typeof responseData === "object" &&
+                                                responseData.hasOwnProperty("content")
+                                              ? responseData.content
+                                              : ""
+                                    }
                                     editorType="borderless"
                                     state="filled"
                                     readOnly
@@ -149,6 +161,7 @@ const GenerationCompletionRow = ({
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }
+                                    handleChange={handleChange}
                                 />
                             ) : null}
                         </div>
@@ -173,6 +186,7 @@ const GenerationCompletionRow = ({
                                         view={view}
                                         rowId={rowId}
                                         className="*:!border-none"
+                                        disabled={disabled}
                                     />
 
                                     {!inputOnly && (

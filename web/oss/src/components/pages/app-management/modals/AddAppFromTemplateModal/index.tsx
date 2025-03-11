@@ -72,10 +72,8 @@ const AddAppFromTemplatedModal = ({
         >
             <section className={classes.modal}>
                 <Space className={classes.headerText}>
-                    <Typography.Text>Start with a template</Typography.Text>
+                    <Typography.Text>Create New Prompt</Typography.Text>
                 </Space>
-
-                <Text>Create a an application using our preset LLM configuration.</Text>
 
                 <div className="space-y-2">
                     <Text className={classes.label}>Provide the name of the application</Text>
@@ -106,7 +104,7 @@ const AddAppFromTemplatedModal = ({
                 </div>
 
                 <div className="space-y-2">
-                    <Text className={classes.label}>Choose your template</Text>
+                    <Text className={classes.label}>Choose the prompt type</Text>
                     <Flex gap={16}>
                         {noTemplateMessage ? (
                             <Card title="No Templates Available" className={classes.card}>
@@ -138,7 +136,7 @@ const AddAppFromTemplatedModal = ({
                         data-cy="create-app-from-template-button"
                         onClick={handleCreateApp}
                     >
-                        Create new app
+                        Create New Prompt
                     </Button>
                 </div>
             </section>

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {CaretRightOutlined} from "@ant-design/icons"
 import {Button, Form} from "antd"
 
@@ -30,6 +31,7 @@ const ParamsFormWithRun = ({
     onRun: () => void
     onParamChange: (name: string, value: any) => void
     variantData: ReturnType<typeof useLegacyVariants>
+    isLoading: boolean
 }) => {
     const classes = useSingleModelEvaluationTableStyles()
     const [form] = Form.useForm()

@@ -3,6 +3,7 @@ import {useCallback} from "react"
 import {Typography} from "antd"
 import clsx from "clsx"
 
+import {ObjectMetadata} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 
 import usePlayground from "../../../../hooks/usePlayground"
@@ -27,45 +28,45 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                     return variant.messages.value
                 })
 
-                const isRunning = messageRows.some((messageRow) => {
-                    return Object.values(messageRow?.__runs || {}).some((run) => run.__isRunning)
-                })
-
-                const isComparisonView = state.selected.length > 1
-                const historyIds = state.generationData.messages.value.reduce((acc, messageRow) => {
-                    return {
-                        ...acc,
-                        [messageRow.__id]: messageRow.history.value.reduce((acc, historyItem) => {
-                            const copyItem = structuredClone(historyItem)
-                            delete copyItem.__runs
-                            return [
-                                ...acc,
-                                copyItem?.__id,
-                                historyItem.__runs?.[variantId]?.__isRunning
-                                    ? `isRunning-${copyItem?.__id}`
-                                    : historyItem.__runs?.[variantId]?.__id,
-                            ].filter(Boolean)
-                        }, []),
-                    }
-                }, {})
+                const historyIds = state.generationData.messages.value.reduce(
+                    (acc, messageRow) => {
+                        return {
+                            ...acc,
+                            [messageRow.__id]: messageRow.history.value.reduce(
+                                (acc, historyItem) => {
+                                    const copyItem = structuredClone(historyItem)
+                                    delete copyItem.__runs
+                                    return [
+                                        ...acc,
+                                        copyItem?.__id,
+                                        variantId
+                                            ? historyItem.__runs?.[variantId]?.__isRunning
+                                                ? `isRunning-${copyItem?.__id}`
+                                                : historyItem.__runs?.[variantId]?.__id
+                                            : undefined,
+                                    ].filter(Boolean) as string[]
+                                },
+                                [] as string[],
+                            ),
+                        }
+                    },
+                    {} as Record<string, string[]>,
+                )
 
                 return {
-                    isRunning,
                     inputRowIds: (inputRows || [])
                         .filter((inputRow) => {
                             return (
-                                Object.keys(getMetadataLazy(inputRow.__metadata)?.properties)
-                                    .length > 0
+                                Object.keys(
+                                    (getMetadataLazy(inputRow.__metadata) as ObjectMetadata)
+                                        ?.properties,
+                                ).length > 0
                             )
                         })
                         .map((inputRow) => inputRow.__id),
                     messageRowIds: (messageRows || [])
                         .map((messageRow) => {
-                            return isComparisonView
-                                ? !Object.keys(messageRow.__runs || {}).length
-                                    ? messageRow.__id
-                                    : undefined
-                                : messageRow.__id
+                            return messageRow.__id
                         })
                         .filter(Boolean) as string[],
                     configMessageIds: configMessages.map((message) => message.__id),

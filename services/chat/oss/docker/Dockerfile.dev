@@ -13,6 +13,6 @@ RUN pip install -r requirements.txt
 
 COPY ./oss /app/oss/
     
-ENV PYTHONPATH=/agenta-cli:$PYTHONPATH
+ENV PYTHONPATH=/sdk:$PYTHONPATH
 
 EXPOSE 80

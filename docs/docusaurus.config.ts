@@ -301,10 +301,6 @@ const config: Config = {
         from: "/reference/sdk/quick_start",
         to: "/reference/sdk/configuration-management",
       },
-      {
-        from: "/reference/cli/quick-usage",
-        to: "/reference/cli/cli-reference",
-      },
       ],
         createRedirects(existingPath) {
           if (existingPath.includes('/reference/sdk/core_functions')) {

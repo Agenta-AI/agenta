@@ -430,7 +430,7 @@ const TestsetDrawer = ({
             onClose()
             setIsConfirmSave(false)
         } catch (error) {
-            console.log(error)
+            console.error(error)
             message.error("Something went wrong. Please try again later")
         } finally {
             setIsLoading(false)

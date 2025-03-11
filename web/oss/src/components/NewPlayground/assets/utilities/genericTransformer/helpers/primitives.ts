@@ -32,8 +32,16 @@ export function createPrimitiveMetadata(schema: PrimitiveSchema | SchemaProperty
         type,
         nullable: isNullable,
         ...(type === "number" && {
-            min: extractedSchema.minimum,
-            max: extractedSchema.maximum,
+            min:
+                extractedSchema.minimum ??
+                (extractedSchema.exclusiveMinimum
+                    ? extractedSchema.exclusiveMinimum + (isInteger ? 1 : 0.1)
+                    : undefined),
+            max:
+                extractedSchema.maximum ??
+                (extractedSchema.exclusiveMaximum
+                    ? extractedSchema.exclusiveMaximum - (isInteger ? 1 : 0.1)
+                    : undefined),
             isInteger, // Add isInteger flag for both integer and number types
         }),
     }

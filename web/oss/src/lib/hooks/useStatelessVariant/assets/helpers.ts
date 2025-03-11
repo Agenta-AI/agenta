@@ -37,7 +37,7 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
-const uriFixer = (uri: string) => {
+export const uriFixer = (uri: string) => {
     if (!uri.includes("http://") && !uri.includes("https://")) {
         // for oss.agenta.ai
         uri = `https://${uri}`
@@ -45,7 +45,9 @@ const uriFixer = (uri: string) => {
         uri = uri.replace("/chat", "/services/chat")
         uri = uri.replace("/completion", "/services/completion")
     }
-    return uri
+
+    // Remove trailing slash if it exists
+    return uri.replace(/\/$/, "")
 }
 
 /**
@@ -59,24 +61,33 @@ const uriFixer = (uri: string) => {
  */
 export const fetchOpenApiSchemaJson = async (uri: string) => {
     const jwt = await getJWT()
-    const openapiJsonResponse = await fetch(
-        `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
-        {
-            headers: {
-                ...(jwt
-                    ? {
-                          Authorization: `Bearer ${jwt}`,
-                      }
-                    : {}),
+    try {
+        const openapiJsonResponse = await fetch(
+            `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
+            {
+                headers: {
+                    "ngrok-skip-browser-warning": "1",
+                    ...(jwt
+                        ? {
+                              Authorization: `Bearer ${jwt}`,
+                          }
+                        : {}),
+                },
             },
-        },
-    )
-    const responseJson = await openapiJsonResponse.json()
-    const {schema, errors} = await dereference(responseJson)
+        )
+        const responseJson = await openapiJsonResponse.json()
+        const {schema, errors} = await dereference(responseJson)
 
-    return {
-        schema: schema,
-        errors,
+        return {
+            schema: schema,
+            errors,
+        }
+    } catch (err) {
+        console.error(err)
+        return {
+            schema: undefined,
+            errors: ["Failed to fetch OpenAPI schema"],
+        }
     }
 }
 
@@ -85,12 +96,16 @@ export const fetchOpenApiSchemaJson = async (uri: string) => {
  * @param variant - The variant to fetch and update schema for
  * @returns Promise containing the updated variant
  */
-export const transformVariant = (variant: EnhancedVariant, schema: OpenAPISpec) => {
-    const enhancedVariant = transformToEnhancedVariant(variant, schema)
+export const transformVariant = (
+    variant: EnhancedVariant,
+    schema: OpenAPISpec,
+    appType?: string,
+) => {
+    const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
 
     // Update prompt keys and initialize inputs
     updateVariantPromptKeys(enhancedVariant)
-    initializeVariantInputs(enhancedVariant)
+    initializeVariantInputs(enhancedVariant, schema)
 
     return enhancedVariant
 }
@@ -268,6 +283,16 @@ export const setVariant = (variant: any): EnhancedVariant => {
     if (variant.parameters.agenta_config) {
         variant.parameters.ag_config = variant.parameters.agenta_config
         delete variant.parameters.agenta_config
+    }
+
+    if (variant.variantId) {
+        variant.id = variant.variantId
+        variant.parameters = {
+            ...variant.parameters,
+            agConfig: variant.parameters.agConfig || variant.parameters.ag_config || {},
+        }
+
+        return variant
     }
 
     return {

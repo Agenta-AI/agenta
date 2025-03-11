@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.34.7",
+    "version": "0.35.0",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -100,6 +100,7 @@
         "react-jss": "^10.10.0",
         "react-resizable": "^3.0.5",
         "react-syntax-highlighter": "^15.5.0",
+        "semver": "^7.7.1",
         "stable-hash": "^0.0.4",
         "supertokens-auth-react": "^0.47.0",
         "supertokens-node": "^21.0.0",
@@ -114,6 +115,8 @@
     },
     "devDependencies": {
         "@types/node": "^20.8.10",
+        "@types/prismjs": "^1.26.5",
+        "@types/semver": "^7.5.8",
         "node-mocks-http": "^1.12.2"
     }
 }

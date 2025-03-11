@@ -31,3 +31,7 @@ def generate(blog_post: str):
         model="gpt-3.5-turbo", messages=[{"role": "user", "content": formatted_prompt2}]
     )
     return completion.choices[0].message.content
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True)

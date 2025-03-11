@@ -123,7 +123,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     },
                     [config, logger, valueReferences],
                 ),
-            } as PlaygroundSWRConfig<Data>)
+            } as PlaygroundSWRConfig<Data>) as PlaygroundResponse<Data, Selected>
 
             /**
              * Returns array of variant IDs that are currently being displayed

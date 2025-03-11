@@ -1,6 +1,6 @@
 from os import getenv
 from json import dumps
-from typing import Callable, Dict, Optional, List, Any, get_args
+from typing import Callable, Dict, Optional, List, Any
 
 import httpx
 from fastapi import FastAPI, Request
@@ -13,7 +13,7 @@ from agenta.client.backend.types.secret_dto import SecretDto as SecretDTO
 from agenta.client.backend.types.provider_key_dto import (
     ProviderKeyDto as ProviderKeyDTO,
 )
-from agenta.sdk.middleware.cache import TTLLRUCache, CACHE_CAPACITY, CACHE_TTL
+from agenta.sdk.utils.cache import TTLLRUCache
 
 import agenta as ag
 
@@ -26,7 +26,7 @@ for arg in ProviderKind.__args__:  # type: ignore
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
-_cache = TTLLRUCache(capacity=CACHE_CAPACITY, ttl=CACHE_TTL)
+_cache = TTLLRUCache()
 
 
 class VaultMiddleware(BaseHTTPMiddleware):

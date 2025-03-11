@@ -7,11 +7,6 @@ description: "Build a Q&A system for your documentation using RAG with Agenta, L
 The code for this tutorial is available [here](https://github.com/Agenta-AI/agenta/tree/main/examples/custom_workflows/rag-docs-qa).
 :::
 
-:::warning
-Please use the SDK version 0.32.0 to run custom workflows. Custom workflows are not compatible with SDK version 0.33.0.
-:::
-
-
 ```mdx-code-block
 import Image from "@theme/IdealImage";
 ```
@@ -238,8 +233,8 @@ Now that we have ingested the documentation into the Qdrant vector database, let
 #highlight-start
 import agenta as ag
 from pydantic import BaseModel, Field
-from typing import Annotated
 from agenta.sdk.assets import supported_llm_models
+from agenta.sdk.types import MCField
 #highlight-end
 
 system_prompt = """
@@ -268,12 +263,8 @@ qdrant_client = QdrantClient(
 class Config(BaseModel):
     system_prompt: str = Field(default=system_prompt)
     user_prompt: str = Field(default=user_prompt)
-    embedding_model: Annotated[str, ag.MultipleChoice(["openai", "cohere"])] = Field(
-        default="openai"
-    )
-    llm_model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo"
-    )
+    embedding_model: str = MCField(default="openai", choices=["openai", "cohere"])
+    llm_model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
     top_k: int = Field(default=10, ge=1, le=25)
     rerank_top_k: int = Field(default=3, ge=1, le=10)
     use_rerank: bool = Field(default=True)
@@ -468,25 +459,21 @@ Our configuration includes:
 
 ```python
 from pydantic import BaseModel, Field
-from typing import Annotated
 import agenta as ag
 from agenta.sdk.assets import supported_llm_models
+from agenta.sdk.types import MCField
 
 class Config(BaseModel):
     system_prompt: str = Field(default=system_prompt)
     user_prompt: str = Field(default=user_prompt)
-    embedding_model: Annotated[str, ag.MultipleChoice(["openai", "cohere"])] = Field(
-        default="openai"
-    )
-    llm_model: Annotated[str, ag.MultipleChoice(choices=supported_llm_models)] = Field(
-        default="gpt-3.5-turbo"
-    )
+    embedding_model: str = MCField(default="openai", choices=["openai", "cohere"])
+    llm_model: str = MCField(default="gpt-3.5-turbo", choices=supported_llm_models)
     top_k: int = Field(default=10, ge=1, le=25)
     rerank_top_k: int = Field(default=3, ge=1, le=10)
     use_rerank: bool = Field(default=True)
 ```
 
-We implement this using a standard `Config` Pydantic class that inherits from BaseModel. The fields use simple types (str or int). Agenta requires each field to have a default value. For multiple-choice fields, we use `Annotated[str, ag.MultipleChoice(choices=["choice1", "choice2"])]` to specify the available options.
+We implement this using a standard `Config` Pydantic class that inherits from BaseModel. The fields use simple types (str or int). Agenta requires each field to have a default value. For multiple-choice fields, we use `MCField` to specify the available options.
 
 :::info
 `supported_llm_models` is a helper variable provided by Agenta that contains the list available in LiteLLM.
@@ -511,21 +498,27 @@ We can use these configuration values throughout our workflow. For instance, we 
 
 Note that `ag.ConfigManager.get_from_route(Config)` is accessible in any function called within the generate function's execution path, as the configuration is preserved in the context.
 
-### Deploying the application to Agenta
+### Adding the application to Agenta
 
-Now that we have everything ready to deploy our application to Agenta, let's proceed. First, add the `requirements.txt` file to the same folder as your project files and populate the `.env` file with your environment variables. Then run these commands:
+To connect your application to Agenta, you first need to create a Uvicorn server using the FastAPI app object provided by Agenta.
 
-```bash
-agenta init
+Add the following snippet to your application:
 
-agenta variant serve query.py
+```python
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(ag.sdk.decorators.routing.app, host="0.0.0.0", port=8000)
 ```
 
-The first command creates a new application in Agenta, while the second command serves the application and creates a playground for testing.
+This starts a local server at `http://0.0.0.0:8000`. To make it accessible from the internet, use a tunneling service like ngrok.
 
-:::info
-Under the hood, `agenta variant serve` creates a docker image of your application and sets up a service for it in Agenta Cloud.
-:::
+Run the following command to start ngrok:
+
+```bash
+ngrok http 8000
+```
+
+ngrok will generate a public URL. Navigate to the overview page in Agenta, create a new custom workflow, and enter this URL. 
 
 Once complete, you can access the playground and begin testing your application.
 

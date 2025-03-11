@@ -1,4 +1,4 @@
-from typing import Sequence, Dict, List
+from typing import Sequence, Dict, List, Optional
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import (
@@ -14,10 +14,14 @@ from agenta.sdk.context.exporting import (
     exporting_context,
     ExportingContext,
 )
+from agenta.sdk.utils.cache import TTLLRUCache
 
 
 class InlineTraceExporter(SpanExporter):
-    def __init__(self, registry: Dict[str, List[ReadableSpan]]):
+    def __init__(
+        self,
+        registry: Dict[str, List[ReadableSpan]],
+    ):
         self._shutdown = False
         self._registry = registry
 
@@ -65,29 +69,45 @@ class InlineTraceExporter(SpanExporter):
 class OTLPExporter(OTLPSpanExporter):
     _MAX_RETRY_TIMEOUT = 2
 
-    def __init__(self, *args, credentials: Dict[int, str] = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        credentials: Optional[TTLLRUCache] = None,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
 
         self.credentials = credentials
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        credentials = None
+        grouped_spans: Dict[str, List[str]] = {}
 
-        if self.credentials:
-            trace_ids = set(span.get_span_context().trace_id for span in spans)
+        for span in spans:
+            trace_id = span.get_span_context().trace_id
 
-            if len(trace_ids) == 1:
-                trace_id = trace_ids.pop()
+            credentials = None
+            if self.credentials:
+                credentials = self.credentials.get(trace_id)
 
-                if trace_id in self.credentials:
-                    credentials = self.credentials.pop(trace_id)
+            if credentials not in grouped_spans:
+                grouped_spans[credentials] = []
 
-        with exporting_context_manager(
-            context=ExportingContext(
-                credentials=credentials,
-            )
-        ):
-            return super().export(spans)
+            grouped_spans[credentials].append(span)
+
+        serialized_spans = []
+
+        for credentials, _spans in grouped_spans.items():
+            with exporting_context_manager(
+                context=ExportingContext(
+                    credentials=credentials,
+                )
+            ):
+                serialized_spans.append(super().export(_spans))
+
+        if all(serialized_spans):
+            return SpanExportResult.SUCCESS
+        else:
+            return SpanExportResult.FAILURE
 
     def _export(self, serialized_data: bytes):
         credentials = exporting_context.get().credentials

@@ -6,6 +6,8 @@ import type {
     NumberMetadata,
     ObjectMetadata,
     StringMetadata,
+    ConfigMetadata,
+    EnhancedObjectConfig,
 } from "../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import type {BaseContainerProps} from "../types"
@@ -70,7 +72,7 @@ export interface PropertyTypeMap {
     boolean: {type: "boolean"; metadata: BooleanMetadata}
     array: {
         type: "array"
-        metadata: ArrayMetadata
+        metadata: ArrayMetadata<ConfigMetadata>
         value: EnhancedConfigValue<any>[]
     }
     object: {type: "object"; metadata: ObjectMetadata}
@@ -81,13 +83,14 @@ export type RenderFunctions = {
     [K in keyof PropertyTypeMap]: (props: {
         metadata: PropertyTypeMap[K]["metadata"]
         value: any
-        handleChange: (v: any) => void
+        handleChange: (v: any, event?: any, propertyId?: string) => void
         as?: string
         className?: string
         view?: string
         withTooltip?: boolean
         placeholder?: string
         disabled?: boolean
+        baseProperty?: EnhancedObjectConfig<any>
     }) => React.ReactElement | null
 }
 

@@ -50,12 +50,14 @@ AGENTA_API_KEY= Your Agenta API key
 python ingest.py
 ```
 
-4. Serve the application to Agenta:
+4. Create a server:
+Export the environment variables then run:
 
 ```bash
-agenta init
-agenta variant serve query.py
+python query.py
 ```
+
+5. Add the custom workflow to Agenta using the webUI
 
 ## Notes:
 

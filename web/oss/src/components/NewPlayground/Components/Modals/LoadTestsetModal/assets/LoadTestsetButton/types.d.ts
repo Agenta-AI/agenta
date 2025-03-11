@@ -1,8 +1,10 @@
+import type {ReactNode} from "react"
+
 import {ButtonProps} from "antd"
 
 export interface LoadTestsetButtonProps extends ButtonProps {
-    label?: React.ReactNode
+    label?: ReactNode
     icon?: boolean
-    children?: React.ReactNode
+    children?: ReactNode
     variantId?: string
 }

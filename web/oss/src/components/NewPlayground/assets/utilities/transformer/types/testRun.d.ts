@@ -53,7 +53,7 @@ interface ExecutionTree {
 
 interface ApiResponse {
     version: string
-    data: string
+    data: Record<string, unknown>
     content_type: string
     tree: ExecutionTree
 }

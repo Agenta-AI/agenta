@@ -2,15 +2,25 @@ import {useMemo} from "react"
 
 import useSWR from "swr"
 
-import {
-    buildNodeTree,
-    observabilityTransformer,
-} from "@/oss/lib/helpers/observability_helpers"
+import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
 
 import {fetchAllTraces} from "../core"
 import {_AgentaRootsResponse, AgentaNodeDTO, AgentaRootsDTO, AgentaTreeDTO} from "../types"
 
-export const useTraces = ({pagination, sort, filters, traceTabs}, appId: string) => {
+export const useTraces = (
+    {
+        pagination,
+        sort,
+        filters,
+        traceTabs,
+    }: {
+        pagination: {size: number; page: number}
+        sort: {type: string; sorted: string; customRange?: {startTime: string; endTime: string}}
+        filters: any[]
+        traceTabs: string
+    },
+    appId: string,
+) => {
     const queryParams = useMemo(() => {
         const params: Record<string, any> = {
             size: pagination.size,

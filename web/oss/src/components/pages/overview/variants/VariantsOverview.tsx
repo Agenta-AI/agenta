@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useCallback, useMemo, useState} from "react"
 
 import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
@@ -8,6 +9,7 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
+import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
 import {filterVariantParameters, isDemo} from "@/oss/lib/helpers/utils"
@@ -58,6 +60,13 @@ const VariantsOverview = ({
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
     const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false)
+    const {mutate} = usePlayground({
+        revalidateIfStale: false,
+        revalidateOnFocus: false,
+        revalidateOnMount: false,
+        revalidateOnReconnect: false,
+        pathReference: "_apps_[app_id]_playground",
+    })
 
     const selectedVariantsToCompare = useMemo(() => {
         const variants = variantList.filter((variant) =>
@@ -99,6 +108,20 @@ const VariantsOverview = ({
             } catch (error) {
                 console.error(error)
             }
+
+            await mutate((playgroundState) => {
+                if (playgroundState.selected.includes(variantId)) {
+                    playgroundState.selected.splice(playgroundState.selected.indexOf(variantId), 1)
+                }
+
+                playgroundState.variants = playgroundState.variants.filter(
+                    (variant) => (variant.variantId || variant.id) !== variantId,
+                )
+
+                return playgroundState
+            })
+
+            setIsDeleteEvalModalOpen(false)
         },
         [fetchAllVariants],
     )

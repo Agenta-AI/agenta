@@ -134,7 +134,7 @@ services:
 
         volumes:
             - ../../../services/completion:/app
-            - ../../../sdk:/agenta-cli
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -163,7 +163,7 @@ services:
 
         volumes:
             - ../../../services/chat:/app
-            - ../../../sdk:/agenta-cli
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}

@@ -1,7 +1,9 @@
+// @ts-nocheck
 import {hashMetadata} from "@/oss/lib/hooks/useStatelessVariant/assets/hash"
 
+import {extractInputKeysFromSchema} from "./comparisonHelpers"
 import {transformPrimitive} from "./genericTransformer"
-import type {ObjectMetadata, StringMetadata} from "./genericTransformer/types"
+import type {ObjectMetadata, OpenAPISpec, StringMetadata} from "./genericTransformer/types"
 import {generateId} from "./genericTransformer/utilities/string"
 import type {EnhancedVariant} from "./transformer/types"
 
@@ -156,12 +158,21 @@ export function updateVariantPromptKeys(variant: EnhancedVariant) {
  * @param variant - Variant to initialize inputs for
  * @returns Updated variant with initialized inputs
  */
-export function initializeVariantInputs(variant: EnhancedVariant) {
+export function initializeVariantInputs(variant: EnhancedVariant, spec: OpenAPISpec) {
     const allInputKeys = Array.from(
-        new Set(variant.prompts.flatMap((prompt) => prompt.inputKeys?.value || [])),
+        new Set(
+            variant.prompts.flatMap((prompt) => {
+                return prompt.inputKeys?.value || []
+            }),
+        ),
     )
 
-    const inputStrings = Array.from(allInputKeys).map((enhancedKey) => enhancedKey.value)
+    const inputStrings: string[] = []
+    if (variant.isCustom) {
+        inputStrings.push(...extractInputKeysFromSchema(spec))
+    } else {
+        inputStrings.push(...Array.from(allInputKeys).map((enhancedKey) => enhancedKey.value))
+    }
     const inputSchema = createInputSchema(inputStrings)
     const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
 

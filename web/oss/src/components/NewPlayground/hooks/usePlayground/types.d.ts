@@ -1,27 +1,28 @@
 import type {Map} from "immutable"
-import type {SWRConfiguration, SWRResponse, SWRHook} from "swr"
-
-import type {AgentaFetcher, FetcherOptions} from "@/oss/lib/api/types"
+import type {SWRConfiguration, SWRResponse, SWRHook, MutatorOptions} from "swr"
 
 import type {Enhanced} from "../../assets/utilities/genericTransformer/types"
 import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import {InitialStateType} from "../../state/types"
 
+import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
+
 /** Base hook configuration types */
 interface BaseHookConfig<T = unknown, Selected = unknown>
     extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
-    compare?: (a: T | undefined, b: T | undefined) => boolean
-    fetcher?: AgentaFetcher
     hookId?: string
     projectId?: string
     cache?: Map<string, {data: T}>
     registerToWebWorker?: boolean
+    compare?: (a: T | undefined, b: T | undefined) => boolean
+    fetcher?: AgentaFetcher
 }
 
 /** Base hook response extending SWR */
 interface BaseHookResponse<T = unknown, Selected = unknown> extends SWRResponse<T, Error> {
     isDirty?: boolean
     selectedData?: Selected
+    mutate: CustomKeyedMutator<T>
 }
 
 /** Generic selector types */
@@ -32,7 +33,7 @@ interface SelectorConfig<T = any, Selected = unknown> {
 
 // Base state shape
 export interface PlaygroundStateData extends InitialStateType {
-    dataRef?: Record<string, EnhancedVariant>
+    dataRef?: Record<string, string>
     [key: string]: any
 }
 
@@ -48,9 +49,10 @@ export interface PlaygroundSWRConfig<T = PlaygroundStateData, Selected = unknown
 export interface PlaygroundResponse<T = PlaygroundStateData, Selected = unknown>
     extends SWRResponse<T, Error> {
     isDirty?: boolean
+    mutate: CustomKeyedMutator<T>
     selectedData?: Selected
     propertyGetter?: (propertyId: string) => EnhancedProperty
-    handleWebWorkerMessage?: (message: MessageEvent) => void
+    handleWebWorkerMessage?: (message: WorkerMessage<T>) => void
 }
 
 // Variants middleware extensions
@@ -63,6 +65,7 @@ export interface PlaygroundVariantsResponse extends PlaygroundResponse {
         callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
     }) => void
     runTests?: (rowId?: string, variantId?: string) => void
+    rerunChatOutput?: (messageId: string, variantId?: string) => void
 }
 
 export type VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> = (
@@ -78,7 +81,6 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
     saveVariant?: () => Promise<void>
     setSelectedVariant?: (variantId: string) => void
-    runVariantTestRow?: (rowId: string) => Promise<void>
     handleParamUpdate?: (value: any, propertyId: string, variantId?: string) => void
     variantConfig?: Enhanced<any>
     variantConfigProperty?: EnhancedProperty
@@ -90,6 +92,7 @@ export interface UsePlaygroundStateOptions<
     Selected = unknown,
 > extends PlaygroundSWRConfig<T, Selected> {
     appId?: string
+    appType?: string
     hookId?: string
     debug?: boolean
     withVariants?: boolean
@@ -104,9 +107,12 @@ export interface PlaygroundSWRConfig<
 > extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
     compare?: (a: T | undefined, b: T | undefined) => boolean
     fetcher?: AgentaFetcher
+    appType?: string
     variantId?: string
+    rowId?: string
     hookId?: string
     projectId?: string
+    pathReference?: string
     appId?: string
     cache?: Map<string, {data: T}>
     variantSelector?: VariantSelector<Selected>
@@ -184,3 +190,17 @@ export interface UIState<Data extends PlaygroundStateData = PlaygroundStateData,
     toggleVariantDisplay?: (variantId: string, display?: boolean) => void
     setDisplayedVariants?: (variantIds: string[]) => void
 }
+
+export type MutateFunction<T extends PlaygroundStateData = PlaygroundStateData> = (
+    state: T,
+) => T | Promise<T | undefined> | undefined
+
+interface CustomMutateOptions extends MutatorOptions {
+    revalidate?: boolean
+    variantId?: string
+}
+
+type CustomKeyedMutator<Data extends PlaygroundStateData> = (
+    data: Data | MutateFunction<Data>,
+    options?: CustomMutateOptions,
+) => Promise<Data | undefined>

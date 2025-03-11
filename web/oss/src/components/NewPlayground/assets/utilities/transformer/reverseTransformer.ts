@@ -1,10 +1,11 @@
-import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
+import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
 
-import {ConfigMetadata} from "../genericTransformer/types"
+import {extractInputKeysFromSchema} from "../../../hooks/usePlayground/assets/generationHelpers"
+import {isObjectMetadata} from "../genericTransformer/helpers/metadata"
+import type {ConfigMetadata, EnhancedObjectConfig, OpenAPISpec} from "../genericTransformer/types"
 import {toSnakeCase} from "../genericTransformer/utilities/string"
 
-// import type {ConfigMetadata} from "../genericTransformer/types"
-import type {EnhancedVariant} from "./types"
+import type {EnhancedVariant, Message} from "./types"
 
 function shouldIncludeValue(value: unknown): boolean {
     if (!value) return false
@@ -12,8 +13,8 @@ function shouldIncludeValue(value: unknown): boolean {
     return true
 }
 
-export const checkValidity = (obj: Record<string, unknown>, metadata: ConfigMetadata) => {
-    if (!metadata?.properties) return true
+export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata) => {
+    if (!isObjectMetadata(metadata)) return true
 
     for (const [propName, propMetadata] of Object.entries(metadata.properties)) {
         const snakeCasePropName = toSnakeCase(propName)
@@ -38,7 +39,7 @@ export const checkValidity = (obj: Record<string, unknown>, metadata: ConfigMeta
                     return undefined
                 }
             })
-            .filter(Boolean)
+            .filter(Boolean) as string[]
 
         const allEmpty = nullableKeys.every((key) => {
             return !obj[key]
@@ -166,55 +167,79 @@ export function transformToRequestBody({
     messageRow,
     allMetadata = {},
     chatHistory,
+    spec,
 }: {
     variant: EnhancedVariant
     inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
     messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
     allMetadata: Record<string, ConfigMetadata>
+    chatHistory?: Message[]
+    spec: OpenAPISpec
 }): Record<string, any> {
     const data = {} as Record<string, any>
-    // Get the first prompt configuration
-    const promptConfig = variant.prompts[0]
-    const rawConfig = extractValueByMetadata(
-        promptConfig,
-        allMetadata,
-    ) as EnhancedVariant["prompts"][number]
+
+    const promptConfigs = variant.prompts.reduce(
+        (acc, prompt) => {
+            const extracted = extractValueByMetadata(prompt, allMetadata)
+            const name = prompt.__name
+            if (!name) return acc
+
+            acc[name] = extracted
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+
+    const customConfigs =
+        (extractValueByMetadata(variant.customProperties, allMetadata) as Record<string, any>) || {}
+
     data.ag_config = {
-        prompt: rawConfig,
+        ...promptConfigs,
+        ...customConfigs,
     }
 
     if (inputRow) {
-        data.inputs = extractInputValues(variant, inputRow)
+        if (!variant.isCustom) {
+            data.inputs = extractInputValues(variant, inputRow)
+        } else if (spec) {
+            const inputKeys = extractInputKeysFromSchema(spec)
+            for (const key of inputKeys) {
+                const value = (
+                    inputRow?.[key as keyof typeof inputRow] as EnhancedObjectConfig<any>
+                ).value
 
-        if (variant.isChat) {
-            data.messages = []
-            if (chatHistory) {
-                data.messages.push(...chatHistory)
-            } else {
-                const messageHistory = messageRow?.history.value || []
-
-                data.messages.push(
-                    ...messageHistory
-                        .flatMap((historyMessage) => {
-                            const messages = [extractValueByMetadata(historyMessage, allMetadata)]
-
-                            if (
-                                historyMessage.__runs &&
-                                historyMessage.__runs[variant.id]?.message
-                            ) {
-                                messages.push(
-                                    extractValueByMetadata(
-                                        historyMessage.__runs[variant.id]?.message,
-                                        allMetadata,
-                                    ),
-                                )
-                            }
-
-                            return messages
-                        })
-                        .filter(Boolean),
-                )
+                if (value) {
+                    data[key] = value
+                }
             }
+        }
+    }
+
+    if (variant.isChat) {
+        data.messages = []
+        if (chatHistory) {
+            data.messages.push(...chatHistory)
+        } else {
+            const messageHistory = messageRow?.history.value || []
+
+            data.messages.push(
+                ...messageHistory
+                    .flatMap((historyMessage) => {
+                        const messages = [extractValueByMetadata(historyMessage, allMetadata)]
+
+                        if (historyMessage.__runs && historyMessage.__runs[variant.id]?.message) {
+                            messages.push(
+                                extractValueByMetadata(
+                                    historyMessage.__runs[variant.id]?.message,
+                                    allMetadata,
+                                ),
+                            )
+                        }
+
+                        return messages
+                    })
+                    .filter(Boolean),
+            )
         }
     }
 

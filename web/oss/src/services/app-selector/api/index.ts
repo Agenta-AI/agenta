@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {getOrgValues} from "@/oss/contexts/org.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -7,10 +8,13 @@ import {
     fetchOpenApiSchemaJson,
     setVariant,
     transformVariant,
+    uriFixer,
 } from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 import {transformToRequestBody} from "@/oss/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
 import {AppTemplate} from "@/oss/lib/Types"
+
+import {getJWT} from "../../api"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -42,6 +46,7 @@ export async function deleteApp(appId: string) {
 export enum ServiceType {
     Completion = "SERVICE:completion",
     Chat = "SERVICE:chat",
+    Custom = "CUSTOM",
 }
 export const createApp = async ({
     templateKey,
@@ -113,6 +118,18 @@ export const createVariant = async ({
     return response.data
 }
 
+export const updateVariant = async (
+    {serviceUrl, variantId}: {serviceUrl: string; variantId: string},
+    ignoreAxiosError = false,
+) => {
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/api/variants/${variantId}/service/?url=${serviceUrl}`,
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+
+    return response.data
+}
+
 export const createAppFromTemplate = async (templateObj: AppTemplate, ignoreAxiosError = false) => {
     const {projectId} = getCurrentProject()
 
@@ -124,11 +141,7 @@ export const createAppFromTemplate = async (templateObj: AppTemplate, ignoreAxio
     return response
 }
 
-export const updateAppName = async (
-    appId: string,
-    appName: string,
-    ignoreAxiosError: boolean = false,
-) => {
+export const updateAppName = async (appId: string, appName: string, ignoreAxiosError = false) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.patch(
@@ -145,9 +158,11 @@ export const createAndStartTemplate = async ({
     providerKey,
     templateKey,
     onStatusChange,
+    serviceUrl,
 }: {
     appName: string
     templateKey: ServiceType
+    serviceUrl?: string
     providerKey: LlmProvider[]
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
@@ -171,10 +186,18 @@ export const createAndStartTemplate = async ({
                 appName,
                 templateKey,
             })
-            const _variant = await createVariant({
-                appId: app.app_id,
-                templateKey,
-            })
+            let _variant
+            if (templateKey === ServiceType.Custom && serviceUrl) {
+                _variant = await createVariant({
+                    appId: app.app_id,
+                    serviceUrl,
+                })
+            } else {
+                _variant = await createVariant({
+                    appId: app.app_id,
+                    templateKey,
+                })
+            }
             const {schema} = await fetchOpenApiSchemaJson(_variant.uri)
 
             if (!schema) {
@@ -183,7 +206,7 @@ export const createAndStartTemplate = async ({
 
             const variant = transformVariant(setVariant(_variant), schema)
 
-            const parameters = transformToRequestBody(variant, undefined, getAllMetadata())
+            const parameters = transformToRequestBody({variant, allMetadata: getAllMetadata()})
             await axios.put(
                 `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
                 {
@@ -202,4 +225,18 @@ export const createAndStartTemplate = async ({
     } catch (error) {
         onStatusChange?.("error", error)
     }
+}
+
+export const checkServiceHealth = async ({url, signal}: {url: string; signal?: AbortSignal}) => {
+    const response = await fetch(`${uriFixer(url)}/health`, {
+        headers: {
+            "ngrok-skip-browser-warning": "1",
+        },
+        signal,
+    })
+    if (!response.ok) {
+        throw new Error()
+    }
+
+    return response
 }

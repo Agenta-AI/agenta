@@ -227,12 +227,13 @@ async def invoke_app(
 
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
-    headers = None
+    headers = {}
 
     if isCloudEE():
         secret_token = await sign_secret_token(user_id, project_id, None)
 
         headers = {"Authorization": f"Secret {secret_token}"}
+    headers["ngrok-skip-browser-warning"] = "1"
 
     async with aiohttp.ClientSession() as client:
         app_response = {}
@@ -513,6 +514,10 @@ async def _get_openai_json_from_uri(
     uri: str,
     headers: Optional[Dict[str, str]],
 ):
+    if headers is None:
+        headers = {}
+    headers["ngrok-skip-browser-warning"] = "1"
+
     async with aiohttp.ClientSession() as client:
         resp = await client.get(uri, headers=headers, timeout=5)
         resp_text = await resp.text()

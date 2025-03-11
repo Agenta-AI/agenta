@@ -1,10 +1,8 @@
-import {useCallback, JSX} from "react"
+import {useCallback, type JSX, type FC} from "react"
 
 import {Typography} from "antd"
 import dynamic from "next/dynamic"
-import {SWRDevTools} from "swr-devtools"
 
-import {componentLogger} from "./assets/utilities/componentLogger"
 import usePlayground from "./hooks/usePlayground"
 import AppContext from "./state/messageContext"
 
@@ -12,17 +10,22 @@ const Spin = dynamic(() => import("antd/lib/spin"), {ssr: false})
 const Button = dynamic(() => import("antd/lib/button"), {ssr: false})
 const PlaygroundMainView = dynamic(() => import("./Components/MainLayout"), {ssr: false})
 const PlaygroundHeader = dynamic(() => import("./Components/PlaygroundHeader"), {ssr: false})
+const SWRDevTools = dynamic(() => import("swr-devtools").then((mod) => mod.SWRDevTools), {
+    ssr: false,
+})
 
 const {Title} = Typography
-const PlaygroundWrapper = ({children}) => {
+const PlaygroundWrapper = () => {
     const {
         err: error,
         isLoading,
+        uri,
         mutate,
     } = usePlayground({
         stateSelector: (state) => {
             return {
                 err: state.error,
+                uri: state.uri,
             }
         },
     })
@@ -56,8 +59,8 @@ const PlaygroundWrapper = ({children}) => {
     } else {
         return (
             <>
-                <PlaygroundHeader />
-                <PlaygroundMainView />
+                <PlaygroundHeader key={`${uri}-header`} />
+                <PlaygroundMainView key={`${uri}-main`} />
             </>
         )
     }
@@ -66,12 +69,10 @@ const DevToolsWrapper = ({children}: {children: JSX.Element}) => {
     return process.env.NODE_ENV === "development" ? <SWRDevTools>{children}</SWRDevTools> : children
 }
 
-const Playground: React.FC = () => {
+const Playground: FC = () => {
     usePlayground({
         hookId: "playground",
     })
-
-    componentLogger("Playground")
 
     return (
         <DevToolsWrapper>

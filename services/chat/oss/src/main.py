@@ -10,5 +10,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=80,
         reload=True,
-        reload_dirs=[".", "/agenta-cli"],
+        reload_dirs=[".", "/sdk"],
     )

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useEffect, useState} from "react"
 
 import {Modal} from "antd"

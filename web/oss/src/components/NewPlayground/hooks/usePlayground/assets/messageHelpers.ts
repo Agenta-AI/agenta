@@ -1,5 +1,3 @@
-import {Message} from "postcss"
-
 import {
     checkValidity,
     extractValueByMetadata,
@@ -7,40 +5,51 @@ import {
 import {getAllMetadata, getMetadataLazy} from "@/oss/components/NewPlayground/state"
 
 import {hashMetadata} from "../../../assets/hash"
-import type {Enhanced, ObjectMetadata} from "../../../assets/utilities/genericTransformer/types"
+import {isObjectMetadata} from "../../../assets/utilities/genericTransformer/helpers/metadata"
+import type {
+    ConfigMetadata,
+    Enhanced,
+    ObjectMetadata,
+} from "../../../assets/utilities/genericTransformer/types"
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
+import {Message} from "../../../assets/utilities/transformer/types"
+import {MessageWithRuns} from "../../../state/types"
+import {PlaygroundStateData} from "../types"
 
 export const createMessageFromSchema = (
-    metadata: ObjectMetadata,
+    metadata: ConfigMetadata,
     json?: Record<string, unknown>,
-): Enhanced<Message> => {
+): Enhanced<MessageWithRuns> | undefined => {
     const properties: Record<string, any> = {}
 
-    Object.entries(metadata.properties).forEach(([key, propMetadata]) => {
-        const metadataHash = hashMetadata(propMetadata)
+    if (isObjectMetadata(metadata)) {
+        Object.entries(metadata.properties).forEach(([key, propMetadata]) => {
+            const metadataHash = hashMetadata(propMetadata)
 
-        // Initialize with default values based on property type
-        let defaultValue: any = null
-        if (key === "role") {
-            defaultValue = ""
-            // "user" // Default role
-        } else if (key === "content") {
-            defaultValue = "" // Empty content
-        }
+            // Initialize with default values based on property type
+            let defaultValue: any = null
+            if (key === "role") {
+                defaultValue = ""
+                // "user" // Default role
+            } else if (key === "content") {
+                defaultValue = "" // Empty content
+            }
 
-        properties[key] = {
+            properties[key] = {
+                __id: generateId(),
+                __metadata: metadataHash,
+                value: json?.[key] || defaultValue,
+            }
+        })
+        const metadataHash = hashMetadata(metadata)
+
+        return {
             __id: generateId(),
             __metadata: metadataHash,
-            value: json?.[key] || defaultValue,
-        }
-    })
-
-    const metadataHash = hashMetadata(metadata)
-
-    return {
-        __id: generateId(),
-        __metadata: metadataHash,
-        ...properties,
+            ...properties,
+        } as Enhanced<MessageWithRuns>
+    } else {
+        return undefined
     }
 }
 
@@ -51,13 +60,7 @@ export const createMessageRow = (
 ) => {
     const metadataHash = hashMetadata(metadata)
     const arrayMetadata = getMetadataLazy(messagesMetadata)
-    const newMetadata = {
-        ...getMetadataLazy(metadataHash),
-        title: "Chat Generation Row",
-        properties: {
-            history: arrayMetadata,
-        },
-    }
+
     return {
         __id: generateId(),
         __metadata: metadataHash,
@@ -74,6 +77,11 @@ export const constructChatHistory = ({
     messageId,
     variantId,
     includeLastMessage = false,
+}: {
+    messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
+    messageId: string
+    variantId: string
+    includeLastMessage?: boolean
 }) => {
     let constructedHistory = []
     const allMetadata = getAllMetadata()
@@ -81,27 +89,36 @@ export const constructChatHistory = ({
     if (messageRow) {
         for (const historyItem of messageRow.history.value) {
             let userMessage = extractValueByMetadata(historyItem, allMetadata)
+            const messageMetadata = getMetadataLazy<ObjectMetadata>(
+                historyItem.__metadata as string,
+            )
 
-            userMessage = checkValidity(historyItem, allMetadata) ? userMessage : undefined
+            if (messageMetadata) {
+                userMessage = checkValidity(historyItem, messageMetadata) ? userMessage : undefined
 
-            if (historyItem.__id === messageId) {
-                if (includeLastMessage) {
-                    constructedHistory.push(userMessage)
+                if (historyItem.__id === messageId) {
+                    if (includeLastMessage) {
+                        constructedHistory.push(userMessage)
+                    }
+                    break
                 }
-                break
+
+                constructedHistory.push(userMessage)
+
+                const variantResponse = historyItem.__runs?.[variantId]?.message
+                if (variantResponse?.__id === messageId) {
+                    break
+                }
+                let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
+
+                if (variantResponse) {
+                    llmResponse = checkValidity(variantResponse, messageMetadata)
+                        ? llmResponse
+                        : undefined
+
+                    constructedHistory.push(llmResponse)
+                }
             }
-
-            constructedHistory.push(userMessage)
-
-            const variantResponse = historyItem.__runs[variantId]?.message
-            if (variantResponse?.__id === messageId) {
-                break
-            }
-            let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
-
-            llmResponse = checkValidity(variantResponse, allMetadata) ? llmResponse : undefined
-
-            constructedHistory.push(llmResponse)
         }
     }
 

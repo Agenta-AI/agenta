@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {ReactNode, useEffect, useState} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"

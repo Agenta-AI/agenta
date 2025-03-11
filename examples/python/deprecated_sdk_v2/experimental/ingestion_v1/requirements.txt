@@ -1,4 +1,0 @@
-langchain
-openai
-agenta
-llama_index

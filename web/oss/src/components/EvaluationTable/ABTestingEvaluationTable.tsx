@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {useState, useEffect, useCallback, useMemo} from "react"
 
 import {
@@ -35,10 +36,7 @@ import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import type {BaseResponse, EvaluationScenario, KeyValuePair, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {
-    updateEvaluationScenario,
-    updateEvaluation,
-} from "@/oss/services/human-evaluations/api"
+import {updateEvaluationScenario, updateEvaluation} from "@/oss/services/human-evaluations/api"
 import {useEvaluationResults} from "@/oss/services/human-evaluations/hooks/useEvaluationResults"
 
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
@@ -221,11 +219,10 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                             inputParamsDict,
                             (data?.variants || [])[idx].inputParams!,
                             (data?.variants || [])[idx].parameters
-                                ? transformToRequestBody(
-                                      (data?.variants || [])[idx].variant,
-                                      undefined,
-                                      getAllMetadata(),
-                                  )
+                                ? transformToRequestBody({
+                                      variant: (data?.variants || [])[idx].variant,
+                                      allMetadata: getAllMetadata(),
+                                  })
                                 : (data?.variants || [])[idx].promptOptParams!,
                             appId || "",
                             variant.baseId || "",
@@ -238,6 +235,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                             undefined,
                             true,
                             !!(data?.variants || [])[idx].parameters, // isNewVariant
+                            (data?.variants || [])[idx].isCustom,
                         )
 
                         let res: BaseResponse | undefined

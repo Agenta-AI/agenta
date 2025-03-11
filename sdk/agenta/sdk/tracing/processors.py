@@ -8,7 +8,9 @@ from opentelemetry.sdk.trace.export import (
     ReadableSpan,
     BatchSpanProcessor,
     _DEFAULT_MAX_QUEUE_SIZE,
+    _DEFAULT_SCHEDULE_DELAY_MILLIS,
     _DEFAULT_MAX_EXPORT_BATCH_SIZE,
+    _DEFAULT_EXPORT_TIMEOUT_MILLIS,
 )
 
 from agenta.sdk.utils.logging import log
@@ -20,6 +22,7 @@ class TraceProcessor(BatchSpanProcessor):
         self,
         span_exporter: SpanExporter,
         references: Dict[str, str] = None,
+        inline: bool = False,
         max_queue_size: int = None,
         schedule_delay_millis: float = None,
         max_export_batch_size: int = None,
@@ -28,25 +31,30 @@ class TraceProcessor(BatchSpanProcessor):
         super().__init__(
             span_exporter,
             _DEFAULT_MAX_QUEUE_SIZE,
-            12 * 60 * 60 * 1000,  # 12 hours
+            60 * 60 * 1000 if inline else _DEFAULT_SCHEDULE_DELAY_MILLIS,
             _DEFAULT_MAX_EXPORT_BATCH_SIZE,
-            500,  # < 1 second (0.5 seconds)
+            500 if inline else _DEFAULT_EXPORT_TIMEOUT_MILLIS,  # < 1 second
         )
 
-        self._registry = dict()
-        self._exporter = span_exporter
         self.references = references or dict()
-        self.spans: Dict[int, List[ReadableSpan]] = dict()
+        self.inline = inline is True
+
+        # --- INLINE
+        if self.inline:
+            self._registry = dict()
+            self._exporter = span_exporter
+            self._spans: Dict[int, List[ReadableSpan]] = dict()
+        # --- INLINE
 
     def on_start(
         self,
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
-        baggage = get_baggage(parent_context)
-
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
+
+        baggage = get_baggage(parent_context)
 
         for key in baggage.keys():
             if key.startswith("ag.refs."):
@@ -54,41 +62,55 @@ class TraceProcessor(BatchSpanProcessor):
                 if _key in [_.value for _ in Reference.__members__.values()]:
                     span.set_attribute(key, baggage[key])
 
-        if span.context.trace_id not in self._registry:
-            self._registry[span.context.trace_id] = dict()
+        # --- INLINE
+        if self.inline:
+            if span.context.trace_id not in self._registry:
+                self._registry[span.context.trace_id] = dict()
 
-        self._registry[span.context.trace_id][span.context.span_id] = True
+            self._registry[span.context.trace_id][span.context.span_id] = True
+        # --- INLINE
 
     def on_end(
         self,
         span: ReadableSpan,
     ):
-        if self.done:
-            return
+        # --- INLINE
+        if self.inline:
+            if self.done:
+                return
 
-        if span.context.trace_id not in self.spans:
-            self.spans[span.context.trace_id] = list()
+            if span.context.trace_id not in self._spans:
+                self._spans[span.context.trace_id] = list()
 
-        self.spans[span.context.trace_id].append(span)
+            self._spans[span.context.trace_id].append(span)
 
-        del self._registry[span.context.trace_id][span.context.span_id]
+            del self._registry[span.context.trace_id][span.context.span_id]
 
-        if len(self._registry[span.context.trace_id]) == 0:
-            self.export(span.context.trace_id)
+            if len(self._registry[span.context.trace_id]) == 0:
+                self.export(span.context.trace_id)
+        # --- INLINE
+
+        # --- DISTRIBUTED
+        else:
+            super().on_end(span)
+        # --- DISTRIBUTED
 
     def export(
         self,
         trace_id: int,
     ):
-        spans = self.spans[trace_id]
+        # --- INLINE
+        if self.inline:
+            spans = self._spans[trace_id]
 
-        for span in spans:
-            self.queue.appendleft(span)
+            for span in spans:
+                self.queue.appendleft(span)
 
-        with self.condition:
-            self.condition.notify()
+            with self.condition:
+                self.condition.notify()
 
-        del self.spans[trace_id]
+            del self._spans[trace_id]
+        # --- INLINE
 
     def force_flush(
         self,
@@ -105,10 +127,13 @@ class TraceProcessor(BatchSpanProcessor):
     ) -> bool:
         is_ready = True
 
-        try:
-            is_ready = self._exporter.is_ready(trace_id)
-        except:  # pylint: disable=bare-except
-            pass
+        # --- INLINE
+        if self.inline:
+            try:
+                is_ready = self._exporter.is_ready(trace_id)
+            except:  # pylint: disable=bare-except
+                pass
+        # --- INLINE
 
         return is_ready
 
@@ -116,6 +141,14 @@ class TraceProcessor(BatchSpanProcessor):
         self,
         trace_id: Optional[int] = None,
     ) -> Dict[str, ReadableSpan]:
-        trace = self._exporter.fetch(trace_id)  # type: ignore
+        trace = None
+
+        # --- INLINE
+        if self.inline:
+            try:
+                trace = self._exporter.fetch(trace_id)  # type: ignore
+            except:  # pylint: disable=bare-except
+                pass
+        # --- INLINE
 
         return trace

@@ -44,18 +44,22 @@ const SelectControl = ({
     }, [_options])
 
     return (
-        <PlaygroundVariantPropertyControlWrapper>
+        <PlaygroundVariantPropertyControlWrapper className="multi-select-control">
             {withTooltip ? (
                 <Tooltip title={description}>
-                    <Typography.Text className="w-fit">{label}</Typography.Text>
+                    <Typography.Text className="playground-property-control-label w-fit">
+                        {label}
+                    </Typography.Text>
                 </Tooltip>
             ) : (
-                <Typography.Text>{label}</Typography.Text>
+                <Typography.Text className="playground-property-control-label">
+                    {label}
+                </Typography.Text>
             )}
             <Select<string | string[]>
                 showSearch
                 mode={mode}
-                value={value}
+                value={value || null}
                 onChange={onChange}
                 options={options}
                 disabled={disabled}
@@ -64,6 +68,7 @@ const SelectControl = ({
                         .toLowerCase()
                         .includes(input.toLowerCase())
                 }
+                placeholder={mode === "multiple" ? "Select multiple" : "Select one"}
             />
         </PlaygroundVariantPropertyControlWrapper>
     )

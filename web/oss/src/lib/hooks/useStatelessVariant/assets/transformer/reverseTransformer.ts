@@ -1,12 +1,15 @@
-import {ConfigMetadata} from "../genericTransformer/types"
+import {getSpecLazy} from "../../state"
+import {extractInputKeysFromSchema} from "../comparisonHelpers"
+import {ConfigMetadata, EnhancedConfigValue, OpenAPISpec} from "../genericTransformer/types"
 import {toSnakeCase} from "../genericTransformer/utilities/string"
 
 // import type {ConfigMetadata} from "../genericTransformer/types"
 import type {EnhancedVariant} from "./types"
 
-function shouldIncludeValue(value: unknown): boolean {
+function shouldIncludeValue(value: unknown, metadata?: ConfigMetadata | null): boolean {
     if (value === null || value === undefined) return false
     if (Array.isArray(value) && value.length === 0) return false
+    if (metadata?.type === "boolean" && ![false, true].includes(value as boolean)) return false
     return true
 }
 
@@ -35,7 +38,7 @@ export function extractValueByMetadata(
             metadata.type === "number" ||
             metadata.type === "boolean")
     ) {
-        return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
+        return shouldIncludeValue(enhanced.value, metadata) ? enhanced.value : undefined
     }
 
     if (!metadata) {
@@ -61,7 +64,7 @@ export function extractValueByMetadata(
             if (!Array.isArray(enhanced.value)) return undefined
             const arr = enhanced.value
                 .map((item: Record<string, any>) => extractValueByMetadata(item, allMetadata))
-                .filter(shouldIncludeValue)
+                .filter((item) => shouldIncludeValue(item))
             return arr.length > 0 ? arr : undefined
         }
         case "object": {
@@ -114,21 +117,56 @@ function extractInputValues(
 /**
  * Transform EnhancedVariant back to API request shape
  */
-export function transformToRequestBody(
-    variant: EnhancedVariant,
-    inputRow?: EnhancedVariant["inputs"]["value"][number],
-    allMetadata: Record<string, ConfigMetadata> = {},
-): Record<string, any> {
+export function transformToRequestBody({
+    variant,
+    inputRow,
+    allMetadata = {},
+    spec = getSpecLazy(),
+}: {
+    variant: EnhancedVariant
+    inputRow?: EnhancedVariant["inputs"]["value"][number]
+    allMetadata: Record<string, ConfigMetadata>
+    spec?: OpenAPISpec
+}): Record<string, any> {
     const data = {} as Record<string, any>
+
     // Get the first prompt configuration
-    const promptConfig = variant.prompts[0]
-    const rawConfig = extractValueByMetadata(promptConfig, allMetadata)
+    // const promptConfig = variant.prompts[0]
+    const promptConfigs = variant.prompts.reduce(
+        (acc, prompt) => {
+            const extracted = extractValueByMetadata(prompt, allMetadata)
+            const name = prompt.__name
+            if (!name) return acc
+
+            acc[name] = extracted
+            return acc
+        },
+        {} as Record<string, any>,
+    )
+
+    const customConfigs =
+        (extractValueByMetadata(variant.customProperties, allMetadata) as Record<string, any>) || {}
+
+    // const rawConfig = extractValueByMetadata(promptConfig, allMetadata)
     data.ag_config = {
-        prompt: rawConfig as EnhancedVariant["prompts"][number],
+        ...promptConfigs,
+        ...customConfigs,
     }
 
     if (inputRow) {
-        data.inputs = extractInputValues(variant, inputRow)
+        if (!variant.isCustom) {
+            data.inputs = extractInputValues(variant, inputRow)
+        } else if (spec) {
+            const inputKeys = extractInputKeysFromSchema(spec)
+            for (const key of inputKeys) {
+                const value = (inputRow?.[key as keyof typeof inputRow] as EnhancedConfigValue<any>)
+                    .value
+
+                if (value) {
+                    data[key] = value
+                }
+            }
+        }
     }
 
     return data

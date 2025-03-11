@@ -21,7 +21,7 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
     const [nameExists, setNameExists] = useState(false)
 
     const setIsModalOpen = useCallback(
-        (value) => {
+        (value: boolean) => {
             if (!value) {
                 setNewVariantName("")
                 setTemplateVariantName("")

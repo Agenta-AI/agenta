@@ -50,7 +50,21 @@ class ObservabilityRouter:
 
         self.router = APIRouter()
 
-        ### OTLP
+        self.otlp = APIRouter()
+
+        ### OTLP (Collector)
+
+        self.otlp.add_api_route(
+            "/v1/traces",
+            self.otlp_receiver,
+            methods=["POST"],
+            operation_id="otlp_v1_traces",
+            summary="Receive /v1/traces via OTLP",
+            status_code=status.HTTP_202_ACCEPTED,
+            response_model=CollectStatusResponse,
+        )
+
+        ### OTLP (SDK)
 
         self.router.add_api_route(
             "/otlp/traces",

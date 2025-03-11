@@ -1061,7 +1061,7 @@ def _parse_readable_spans(
                     trace_id=_int_to_hex(span.parent.trace_id, 128),
                     span_id=_int_to_hex(span.parent.span_id, 64),
                 )
-                if span.parent
+                if span.parent and not span.parent.is_remote
                 else None
             ),
             links=otel_links if len(otel_links) > 0 else None,
