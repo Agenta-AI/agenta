@@ -76,8 +76,13 @@ def parse_filtering_value(
     to_type: Callable[[str], Any],
     key_type: str,
 ) -> None:
+    is_list = condition.operator in _L_OPS
+
     try:
-        condition.value = to_type(condition.value)
+        if is_list:
+            condition.value = [to_type(value) for value in condition.value]
+        else:
+            condition.value = to_type(condition.value)
     except ValueError as exc:
         raise FilteringException(
             f"Unexpected value '{condition.value}' "

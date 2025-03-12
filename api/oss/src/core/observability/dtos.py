@@ -283,7 +283,7 @@ class ConditionDTO(BaseModel):
     # b[.c] is the optional, and optionally nested, field name
     key: str
 
-    value: Optional[Union[str, int, float, bool]] = None
+    value: Optional[Union[str, int, float, bool, list]] = None
 
     operator: Optional[
         Union[
