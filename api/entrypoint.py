@@ -37,6 +37,7 @@ origins = [
     "http://localhost:3001",
     "http://0.0.0.0:3000",
     "http://0.0.0.0:3001",
+    "https://docs.agenta.ai",
 ]
 
 

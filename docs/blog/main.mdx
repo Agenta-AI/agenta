@@ -9,6 +9,31 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+### OpenTelemetry Compliance and Custom workflows from API
+
+_11 March 2025_
+
+**v0.35.0**
+
+We've introduced major improvements to Agenta, focusing on OpenTelemetry compliance and simplified custom workflow debugging.
+
+**OpenTelemetry (OTel) Support**:
+
+Agenta is now fully OpenTelemetry-compliant. This means you can seamlessly integrate Agenta with thousands of OTel-compatible services using existing SDKs. To integrate your application with Agenta, simply configure an OTel exporter pointing to your Agenta endpoint—no additional setup required.
+
+We've enhanced distributed tracing capabilities to better debug complex distributed agent systems. All HTTP interactions between agents—whether running within Agenta's SDK or externally—are automatically traced, making troubleshooting and monitoring easier.
+
+Detailed instructions and examples are available in our [distributed tracing documentation](/observability/opentelemetry).
+
+**Improved Custom Workflows**:
+
+Based on your feedback, we've streamlined debugging and running custom workflows:
+
+- **Run workflows from your environments**: You no longer need the Agenta CLI to manage custom workflows. Setting up custom workflows now involves simply adding the Agenta SDK to your code, creating an endpoint, and connecting it to Agenta via the web UI. You can check how it's done in the [quick start guide](/custom-workflows/overview).
+
+- **Custom Workflows in the new playground**: Custom workflows are now fully compatible with the new playground. You can now nest configurations, run side-by-side comparisons, and debug your agents and complex workflows very easily.
+
+---
 ### New Playground
 
 _4 February 2025_
