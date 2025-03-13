@@ -5,7 +5,7 @@ description: "Get an organization's details."
 sidebar_label: "Fetch Organization Details"
 hide_title: true
 hide_table_of_contents: true
-api: eJzNVMFu2zAM/RVBl21AkGTFTj6tXbq22IYWbbZLGgSszMRqHdmV5KKZ4X8fKSuJjSwFdlsukaVH6vHpkbVM0SmrS68LIxN5gV6AEYVdgdG/gXffOZGiB5274b25N7egHbrk3gj6XU6nN+evCkN4IhadZIsWcYN2rZ2jDTFBozENOdBX1myTXHcum5yJK+M8GIVyIIsSbdi+SonbEr3KFl1qi0iMoCVYWKNH62Qyq6WhDwoh8EKndKy5uBJ8RmuLz5W2SCm9rXAgncpwDTKppd+UHOW81WZFSK99zhvEUBCFpplztCsLQxJwwMl4zH99De8qpdC5ZZWL2wimXKowHo1nOJRlrlWoYPToOKbek2joN5CfTk4OE/+CXKchTJxbW9h/yCpLy2J63fJudeOV9rh2h4C8UL1TMJvrZVC2r1Ez2O1oYrJCK5s58Y97YC1sOkJ+L1qCFCfXbvWW5j9IQlih3CU7Dg1iiCmfNvu7i4dHVL733rNQV3t1xM33afbytuoeL2PSyve3y7YQ7oyDhO3bkk2zgg29Qh+cS65M5KhrbDeqW+s2BHBoX7a+riy9msy8L10yGqm8qNIhqWQ8DEGPoNSE75vmNJyKLwyVbGCHqrLab0K+05urb7i5REjp5ZLZvAu4Y/O0dujDdi9B99E2XRnb7bSiymysYdt1WRvFlWuzLEJ4FClyOwP1hIbblOtsaY+HH4fjY8XEAEG0Yg+ACj2w5RFgdNSXaycUnVBbcANIj7D+vD9glmXh/BpMJ99Xnjy9OSUmu8nTY1jvO/I/m6XxyTy++lGZgw49GPSpowVnsmdBikni/CRTZCQKQ+r6ARz+tHnT8PZzhZadRMsXsBoe+F3JV6l2vCaXLyF3+IZK729je34Qx1hu3WbYai+QV/xFyyfy3m7Gh7GTbY1cx8NTxYJ2wg6mJDt+15EX51OywB/SKW63
+api: eJzNVMFu2zAM/RWBl22AkGTFTj4tXbo26IYGXbZLGgSszdhqbcmV5KKZoX8fJNuJ3SwFdtspDvVIkU/vsYaETKxFaYWSEMElWYaSKZ2iFL/RR98ZlpBFkZvRnbyTtygMmehOMsbY1XK5uHiJKaRHbNMrtmkQC9KFMEYoyWYkBSWhBtlKy67ITe+y2TmbS2NRxgQcVEk6hOcJRLAlG2ebfmubtjHgUKLGgixpA9GqBokFQQRKpxuRAAfhhyvRZsBB01MlNCUQWV0RBxNnVCBENdhd6bOM1UKmwMEKm/vAjU7ZPAHn1j7blEoaMj7hbDLxP0MOf1RxTMZsq5zdtmDgECtpSVoPx7LMRRwmGD8Yn1MfmnDOOQ6fzs6OC//CXCQhjV1orfQ/VIVSezKtaPpuePNfwlJhjgG5igenKHc328DskCPH9xEhLaWkwa0d72KoNe56RH5TTYPgOBQmfYvz72QMpgT7YqehgQy29KfucLe6f6DYDt57FeZqrm5x60OZA70Nu6fHmDX0/e2yDuKdcVSweduCbKa8oFOyQbk2gwjGfWGbcd1I1wEHQ/q503Wlc4ggs7Y00Xgc56pKRpiStDhCMcZSAH8lmmk4ZV88FLyADcWVFnYX6k0X82vaXREmpCFarfuAH148jRyGsP1LYCmuyRPT2m1a2UzpdobOdVmT5ScXcqtCektS29s5xo8kvU39nE3bk9HH0eTUMG0Cmy7mrQcwDh7o+ggw4K/o2hMFHKgIBgBLWHw+HPguS2VsgbJX76vfPIM9xWb7zTPosD448j/bpe2TWXqx4zJHETwY+KlbCa5gIEHgELX7c80hU8Z6SF3fo6GfOnfOh58q0l5Jaw7PqAXe+3dd1ZAI478TiLaYG3qDpfe3rT0/sFNddmqTXmrPmFf+H3B4pN1hx4e1k3VCrtvDaewJ7aUdbUmv+L0jLy+W4Nwf0ilutw==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -25,9 +25,16 @@ import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 
-<Heading as={"h1"} className={"openapi__heading"} children={"Fetch Organization Details"}></Heading>
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Organization Details"}
+></Heading>
 
-<MethodEndpoint method={"get"} path={"/organizations/{org_id}"}></MethodEndpoint>
+<MethodEndpoint
+  method={"get"}
+  path={"/organizations/{org_id}"}
+></MethodEndpoint>
 
 Get an organization's details.
 
@@ -38,17 +45,34 @@ Permission Denied
 Returns:
 OrganizationDB Instance
 
-<Heading id={"request"} as={"h2"} className={"openapi-tabs__heading"} children={"Request"}></Heading>
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+></Heading>
 
-<details style={{ marginBottom: "1rem" }} className={"openapi-markdown__details"} data-collapsed={false} open={true}>
+<details
+  style={{ marginBottom: "1rem" }}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
+>
   <summary style={{}}>
-    <h3 className={"openapi-markdown__details-summary-header-params"}>Path Parameters</h3>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>
+      Path Parameters
+    </h3>
   </summary>
   <div>
     <ul>
       <ParamsItem
         className={"paramsItem"}
-        param={{ name: "org_id", in: "path", required: true, schema: { type: "string", title: "Org Id" } }}
+        param={{
+          name: "org_id",
+          in: "path",
+          required: true,
+          schema: { type: "string", title: "Org Id" },
+        }}
       ></ParamsItem>
     </ul>
   </div>
@@ -69,10 +93,15 @@ OrganizationDB Instance
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
                       <strong>Schema</strong>
                     </summary>
-                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
                     <ul style={{ marginLeft: "1rem" }}>any</ul>
                   </details>
                 </TabItem>
@@ -94,17 +123,29 @@ OrganizationDB Instance
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
                       <strong>Schema</strong>
                     </summary>
-                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details style={{}} className={"openapi-markdown__details"}>
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>detail</strong>
-                              <span className={"openapi-schema__name"}>object[]</span>
+                              <strong className={"openapi-schema__property"}>
+                                detail
+                              </strong>
+                              <span className={"openapi-schema__name"}>
+                                object[]
+                              </span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -120,14 +161,32 @@ OrganizationDB Instance
                                 Array [
                               </div>
                             </li>
-                            <SchemaItem collapsible={true} className={"schemaItem"}>
-                              <details style={{}} className={"openapi-markdown__details"}>
+                            <SchemaItem
+                              collapsible={true}
+                              className={"schemaItem"}
+                            >
+                              <details
+                                style={{}}
+                                className={"openapi-markdown__details"}
+                              >
                                 <summary style={{}}>
                                   <span className={"openapi-schema__container"}>
-                                    <strong className={"openapi-schema__property"}>loc</strong>
-                                    <span className={"openapi-schema__name"}>object[]</span>
-                                    <span className={"openapi-schema__divider"}></span>
-                                    <span className={"openapi-schema__required"}>required</span>
+                                    <strong
+                                      className={"openapi-schema__property"}
+                                    >
+                                      loc
+                                    </strong>
+                                    <span className={"openapi-schema__name"}>
+                                      object[]
+                                    </span>
+                                    <span
+                                      className={"openapi-schema__divider"}
+                                    ></span>
+                                    <span
+                                      className={"openapi-schema__required"}
+                                    >
+                                      required
+                                    </span>
                                   </span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}>
@@ -144,13 +203,35 @@ OrganizationDB Instance
                                     </div>
                                   </li>
                                   <div>
-                                    <span className={"badge badge--info"}>anyOf</span>
+                                    <span className={"badge badge--info"}>
+                                      anyOf
+                                    </span>
                                     <SchemaTabs>
-                                      <TabItem label={"MOD1"} value={"0-item-properties"}>
-                                        <div style={{ marginTop: ".5rem", marginBottom: ".5rem" }}>string</div>
+                                      <TabItem
+                                        label={"MOD1"}
+                                        value={"0-item-properties"}
+                                      >
+                                        <div
+                                          style={{
+                                            marginTop: ".5rem",
+                                            marginBottom: ".5rem",
+                                          }}
+                                        >
+                                          string
+                                        </div>
                                       </TabItem>
-                                      <TabItem label={"MOD2"} value={"1-item-properties"}>
-                                        <div style={{ marginTop: ".5rem", marginBottom: ".5rem" }}>integer</div>
+                                      <TabItem
+                                        label={"MOD2"}
+                                        value={"1-item-properties"}
+                                      >
+                                        <div
+                                          style={{
+                                            marginTop: ".5rem",
+                                            marginBottom: ".5rem",
+                                          }}
+                                        >
+                                          integer
+                                        </div>
                                       </TabItem>
                                     </SchemaTabs>
                                   </div>
@@ -186,7 +267,11 @@ OrganizationDB Instance
                             ></SchemaItem>
                             <li>
                               <div
-                                style={{ fontSize: "var(--ifm-code-font-size)", opacity: "0.6", marginLeft: "-.5rem" }}
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                }}
                               >
                                 ]
                               </div>
@@ -197,7 +282,10 @@ OrganizationDB Instance
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
                   <ResponseSamples
                     responseExample={
                       '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'

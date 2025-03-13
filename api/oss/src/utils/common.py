@@ -56,7 +56,7 @@ def isCloudEE():
 
 
 def isCloud():
-    return os.environ["FEATURE_FLAG"] in ["cloud", "cloud-dev"]
+    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
 
 
 def isEE():

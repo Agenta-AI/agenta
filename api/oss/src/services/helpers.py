@@ -2,6 +2,8 @@ import json
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Union, Tuple
 
+from fastapi import HTTPException
+
 from oss.src.services import db_manager
 from oss.src.models.api.evaluation_model import LMProvidersEnum
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
@@ -137,8 +139,9 @@ async def ensure_required_llm_keys_exist(
     )
 
     if evaluators_found and "OPENAI_API_KEY" not in llm_provider_keys:
-        raise ValueError(
-            "OpenAI API key is required to run one or more of the specified evaluators."
+        raise HTTPException(
+            status_code=400,
+            detail="OpenAI API key is required to run one or more of the specified evaluators.",
         )
 
     return True, None

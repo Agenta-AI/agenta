@@ -9,13 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from tests.conftest import (
-    AGENTA_HOST,
-    fetch_secret,
-    API_BASE_URL,
-    AGENTA_SECRET_ARN,
-    AGENTA_SECRET_KEY,
-)
+from tests.conftest import AGENTA_HOST, API_BASE_URL
 
 
 def agenta_executable():
@@ -74,9 +68,7 @@ def cleanup_created_test_files(assets_dir: Path):
 
 
 def http_client():
-    access_key = fetch_secret(
-        secret_arn=AGENTA_SECRET_ARN, secret_key=AGENTA_SECRET_KEY
-    )
+    access_key = os.getenv("AGENTA_AUTH_KEY")
     client = httpx.Client(
         base_url=API_BASE_URL,
         timeout=httpx.Timeout(timeout=6, read=None, write=5),

@@ -49,7 +49,7 @@ async def verify_permissions(
 ):
     try:
         if isOss():
-            return Allow(None)
+            return Allow(request.state.credentials)
 
         if not action or not resource_type:
             raise Deny()

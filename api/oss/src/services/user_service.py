@@ -1,18 +1,13 @@
-import uuid
+import os
 
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
+from supertokens_python.recipe.emailpassword.asyncio import create_reset_password_link
 
-from oss.src.utils.common import isCloud
-
-if isCloud():
-    from ee.src.models.db_models import UserDB_ as UserDB
-else:
-    from oss.src.models.db_models import UserDB
-
-from oss.src.models.api.user_models import UserUpdate
-
+from oss.src.models.db_models import UserDB
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.models.api.user_models import UserUpdate
+from oss.src.services import db_manager, email_service
 
 
 async def create_new_user(payload: dict) -> UserDB:
@@ -66,3 +61,46 @@ async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
         await session.refresh(user)
 
         return user
+
+
+async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
+    """
+    This function generates a password reset link for a user.
+
+    Args:
+        user_id (str): The id of the user for whom the password reset link needs to be generated.
+        admin_user_id (str): The id of the admin user who requested the password reset link.
+
+    Returns:
+        str: The password reset link if successful, otherwise None.
+    """
+
+    user = await db_manager.get_user_with_id(user_id=user_id)
+    admin_user = await db_manager.get_user_with_id(user_id=admin_user_id)
+
+    password_reset_link = await create_reset_password_link(
+        tenant_id="public",
+        user_id=str(user.uid),
+        email=user.email,
+    )
+
+    if not os.getenv("SENDGRID_API_KEY", None):
+        return password_reset_link
+
+    html_template = email_service.read_email_template("./templates/send_email.html")
+    html_content = html_template.format(
+        username_placeholder=admin_user.username,
+        action_placeholder="requested a password reset for you in their workspace",
+        workspace_placeholder="",
+        call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
+    )
+
+    if not os.getenv("SEND_EMAIL_FROM_ADDRESS", None):
+        raise ValueError("Sendgrid requires a sender email address to work.")
+
+    await email_service.send_email(
+        from_email=os.getenv("SEND_EMAIL_FROM_ADDRESS"),
+        to_email=user.email,
+        subject=f"{admin_user.username} requested a password reset for you in their workspace",
+        html_content=html_content,
+    )

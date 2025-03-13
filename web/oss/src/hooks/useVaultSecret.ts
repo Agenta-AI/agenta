@@ -1,14 +1,17 @@
 import {useEffect, useRef, useState} from "react"
 
 import {
-    getAllProviderLlmKeys,
     llmAvailableProviders,
     llmAvailableProvidersToken,
     LlmProvider,
-    removeSingleLlmProviderKey,
-    saveLlmProviderKey,
 } from "@/oss/lib/helpers/llmProviders"
-import {isDemo} from "@/oss/lib/helpers/utils"
+import {SecretDTOProvider, SecretDTOKind} from "@/oss/lib/Types"
+import {
+    fetchVaultSecret,
+    createVaultSecret,
+    updateVaultSecret,
+    deleteVaultSecret,
+} from "@/oss/services/vault/api"
 
 export const useVaultSecret = () => {
     const [secrets, setSecrets] = useState<LlmProvider[]>(llmAvailableProviders)
@@ -16,29 +19,22 @@ export const useVaultSecret = () => {
 
     const getVaultSecrets = async () => {
         try {
-            if (isDemo()) {
-                // @ts-ignore
-                const {fetchVaultSecret} = await import("@/oss/services/vault/api")
-                if (!fetchVaultSecret) return null
-                const data = await fetchVaultSecret()
+            const data = await fetchVaultSecret()
 
-                setSecrets((prevSecret) => {
-                    return prevSecret.map((secret) => {
-                        const match = data.find((item: LlmProvider) => item.name === secret.name)
-                        if (match) {
-                            return {
-                                ...secret,
-                                key: match.key,
-                                id: match.id,
-                            }
-                        } else {
-                            return secret
+            setSecrets((prevSecret) => {
+                return prevSecret.map((secret) => {
+                    const match = data.find((item: LlmProvider) => item.name === secret.name)
+                    if (match) {
+                        return {
+                            ...secret,
+                            key: match.key,
+                            id: match.id,
                         }
-                    })
+                    } else {
+                        return secret
+                    }
                 })
-            } else {
-                setSecrets(getAllProviderLlmKeys())
-            }
+            })
         } catch (error) {
             console.error(error)
         }
@@ -73,68 +69,50 @@ export const useVaultSecret = () => {
     useEffect(() => {
         if (shouldRunMigration.current) {
             shouldRunMigration.current = false
-            if (isDemo()) {
-                migrateProviderKeys()
-            }
+            migrateProviderKeys()
         }
     }, [])
 
     const handleModifyVaultSecret = async (provider: LlmProvider) => {
         try {
-            if (isDemo()) {
-                // @ts-ignore
-                const {updateVaultSecret, createVaultSecret} = await import(
-                    "@/oss/services/vault/api"
-                )
-                // @ts-ignore
-                const {SecretDTOProvider, SecretDTOKind} = await import("@/oss/lib/types_ee")
-
-                if (!SecretDTOProvider || !SecretDTOKind) {
-                    throw new Error("SecretDTOProvider or SecretDTOKind not found")
-                }
-
-                const envNameMap: Record<string, any> = {
-                    OPENAI_API_KEY: SecretDTOProvider.OPENAI,
-                    COHERE_API_KEY: SecretDTOProvider.COHERE,
-                    ANYSCALE_API_KEY: SecretDTOProvider.ANYSCALE,
-                    DEEPINFRA_API_KEY: SecretDTOProvider.DEEPINFRA,
-                    ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
-                    GROQ_API_KEY: SecretDTOProvider.GROQ,
-                    // @ts-ignore
-                    MISTRAL_API_KEY: SecretDTOProvider.MISTRAL,
-                    ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
-                    PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
-                    TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,
-                    OPENROUTER_API_KEY: SecretDTOProvider.OPENROUTER,
-                    GEMINI_API_KEY: SecretDTOProvider.GEMINI,
-                }
-
-                const payload = {
-                    header: {
-                        name: provider.title,
-                        description: "",
-                    },
-                    secret: {
-                        kind: SecretDTOKind.PROVIDER_KEY,
-                        data: {
-                            provider: envNameMap[provider.name],
-                            key: provider.key,
-                        },
-                    },
-                }
-
-                const findSecret = secrets.find((s) => s.name === provider.name)
-
-                if (findSecret && provider.id) {
-                    await updateVaultSecret({secret_id: provider.id, payload})
-                } else {
-                    await createVaultSecret({payload})
-                }
-
-                await getVaultSecrets()
-            } else {
-                saveLlmProviderKey(provider.title, provider.key)
+            const envNameMap: Record<string, any> = {
+                OPENAI_API_KEY: SecretDTOProvider.OPENAI,
+                COHERE_API_KEY: SecretDTOProvider.COHERE,
+                ANYSCALE_API_KEY: SecretDTOProvider.ANYSCALE,
+                DEEPINFRA_API_KEY: SecretDTOProvider.DEEPINFRA,
+                ALEPHALPHA_API_KEY: SecretDTOProvider.ALEPHALPHA,
+                GROQ_API_KEY: SecretDTOProvider.GROQ,
+                MISTRAL_API_KEY: SecretDTOProvider.MISTRALAI,
+                ANTHROPIC_API_KEY: SecretDTOProvider.ANTHROPIC,
+                PERPLEXITYAI_API_KEY: SecretDTOProvider.PERPLEXITYAI,
+                TOGETHERAI_API_KEY: SecretDTOProvider.TOGETHERAI,
+                OPENROUTER_API_KEY: SecretDTOProvider.OPENROUTER,
+                GEMINI_API_KEY: SecretDTOProvider.GEMINI,
             }
+
+            const payload = {
+                header: {
+                    name: provider.title,
+                    description: "",
+                },
+                secret: {
+                    kind: SecretDTOKind.PROVIDER_KEY,
+                    data: {
+                        provider: envNameMap[provider.name],
+                        key: provider.key,
+                    },
+                },
+            }
+
+            const findSecret = secrets.find((s) => s.name === provider.name)
+
+            if (findSecret && provider.id) {
+                await updateVaultSecret({secret_id: provider.id, payload})
+            } else {
+                await createVaultSecret({payload})
+            }
+
+            await getVaultSecrets()
         } catch (error) {
             console.error(error)
         }
@@ -142,13 +120,9 @@ export const useVaultSecret = () => {
 
     const handleDeleteVaultSecret = async (provider: LlmProvider) => {
         try {
-            if (isDemo() && provider.id) {
-                // @ts-ignore
-                const {deleteVaultSecret} = await import("@/oss/services/vault/api")
+            if (provider.id) {
                 await deleteVaultSecret({secret_id: provider.id})
                 await getVaultSecrets()
-            } else {
-                removeSingleLlmProviderKey(provider.title)
             }
         } catch (error) {
             console.error(error)

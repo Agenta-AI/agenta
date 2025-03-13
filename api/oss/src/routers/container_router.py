@@ -59,7 +59,6 @@ async def build_image(
         app_id (str): The ID of the application to build the image for.
         base_name (str): The base name of the image to build.
         tar_file (UploadFile): The tar file containing the application code.
-        stoken_session (SessionContainer): The session container for the user making the request.
 
     Returns:
         Image: The Docker image that was built.
@@ -118,12 +117,8 @@ async def container_templates(
     """
     Returns a list of templates available for creating new containers.
 
-    Parameters:
-    stoken_session (SessionContainer): The session container for the user.
-
     Returns:
-
-    Union[List[Template], str]: A list of templates or an error message.
+        Union[List[Template], str]: A list of templates or an error message.
     """
     # Frontend expects these exact names: web/oss/src/components/pages/app-management/assets/helpers.ts
     COMPLETION_SERVICE_TITLE = "Completion Prompt"

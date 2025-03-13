@@ -1,5 +1,6 @@
 import Router from "next/router"
 import {SuperTokensConfig} from "supertokens-auth-react/lib/build/types"
+import EmailPassword from "supertokens-auth-react/recipe/emailpassword"
 import PasswordlessReact from "supertokens-auth-react/recipe/passwordless"
 import SessionReact from "supertokens-auth-react/recipe/session"
 import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
@@ -18,9 +19,28 @@ export const frontendConfig = (): SuperTokensConfig => {
                     providers: [ThirdPartyReact.Github.init(), ThirdPartyReact.Google.init()],
                 },
             }),
+            EmailPassword.init({
+                signInAndUpFeature: {
+                    signUpForm: {
+                        formFields: [
+                            {
+                                id: "email",
+                                label: "Email",
+                                placeholder: "Custom value",
+                            },
+                            {
+                                id: "password",
+                                label: "Password",
+                                placeholder: "Custom value",
+                            },
+                        ],
+                    },
+                },
+            }),
             PasswordlessReact.init({
                 contactMethod: "EMAIL",
             }),
+
             SessionReact.init(),
         ],
 

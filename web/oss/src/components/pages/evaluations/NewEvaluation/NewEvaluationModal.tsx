@@ -132,7 +132,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     })
     const [correctAnswerColumn, setCorrectAnswerColumn] = useState<string>("correct_answer")
 
-    const validateSubmission = () => {
+    const validateSubmission = async () => {
         if (!selectedTestsetId) {
             message.error("Please select a test set")
             return false
@@ -151,7 +151,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     evaluatorConfigs.find((config) => config.id === id)?.evaluator_key ===
                     "auto_ai_critique",
             ) &&
-            redirectIfNoLLMKeys()
+            (await redirectIfNoLLMKeys({secrets}))
         ) {
             message.error("LLM keys are required for AI Critique configuration")
             return false

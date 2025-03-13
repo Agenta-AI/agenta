@@ -32,15 +32,10 @@ if isCloudEE():
     from ee.src.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
-    from ee.src.models.db_models import (
-        TestSetDB_ as TestSetDB,
-    )  # noqa pylint: disable-all
     from ee.src.models.shared_models import (
         Permission,
     )  # noqa pylint: disable-all
 
-else:
-    from oss.src.models.db_models import TestSetDB
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -17,22 +17,12 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {getColorPairFromStr, getRandomColors} from "@/oss/lib/helpers/colors"
-import {
-    getFilterParams,
-    getTypedValue,
-    removeCorrectAnswerPrefix,
-} from "@/oss/lib/helpers/evaluate"
+import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/oss/lib/helpers/evaluate"
 import {escapeNewlines} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {
-    ComparisonResultRow,
-    EvaluatorConfig,
-    JSSTheme,
-    TestSet,
-    _Evaluation,
-} from "@/oss/lib/Types"
+import {ComparisonResultRow, EvaluatorConfig, JSSTheme, TestSet, _Evaluation} from "@/oss/lib/Types"
 import {fetchAllComparisonResults} from "@/oss/services/evaluations/api"
 
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"

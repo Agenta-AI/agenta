@@ -1,10 +1,15 @@
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from oss.src.models.shared_models import ConfigDB
+
+
+class TimestampModel(BaseModel):
+    created_at: str = Field(str(datetime.now(timezone.utc)))
+    updated_at: str = Field(str(datetime.now(timezone.utc)))
 
 
 class PaginationParam(BaseModel):
@@ -294,3 +299,10 @@ class PostVariantConfigPayload(BaseModel):
 class BaseOutput(BaseModel):
     base_id: str
     base_name: str
+
+
+class ListAPIKeysResponse(BaseModel):
+    prefix: str
+    created_at: str
+    last_used_at: Optional[str] = None
+    expiration_date: Optional[str] = None

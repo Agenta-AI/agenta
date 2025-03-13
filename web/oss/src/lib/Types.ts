@@ -5,6 +5,35 @@ import {AgentaNodeDTO} from "@/oss/services/observability/types"
 
 import {EvaluationFlow, EvaluationType} from "./enums"
 
+export interface WorkspaceRole {
+    role_description: string
+    role_name: string
+}
+
+export interface WorkspaceUser {
+    id: string
+    email: string
+    username: string
+    status: "member" | "pending" | "expired"
+    created_at: string
+}
+
+export interface WorkspaceMember {
+    user: WorkspaceUser
+    roles: (WorkspaceRole & {permissions: string[]})[]
+}
+
+export interface Workspace {
+    id: string
+    name: string
+    description: string
+    created_at: string
+    updated_at: string
+    organization: string
+    type: "default"
+    members: WorkspaceMember[]
+}
+
 export type JSSTheme = GlobalToken & {isDark: boolean; fontWeightMedium: number}
 
 export interface testset {
@@ -283,6 +312,51 @@ export interface LlmProvidersKeys {
     MISTRAL_API_KEY: string
     GROQ_API_KEY: string
     GEMINI_API_KEY: string
+}
+
+export type HeaderDTO = {
+    name?: string | null
+    description?: string | null
+}
+
+export type SecretDTO = {
+    kind: SecretDTOKind
+    data: {
+        key: string
+        provider: SecretDTOProvider
+    }
+}
+
+type LifecycleDTO = {
+    created_at?: string | null
+    updated_at?: string | null
+    updated_by_id?: string | null
+}
+
+export enum SecretDTOKind {
+    PROVIDER_KEY = "provider_key",
+}
+
+export enum SecretDTOProvider {
+    OPENAI = "openai",
+    COHERE = "cohere",
+    ANYSCALE = "anyscale",
+    DEEPINFRA = "deepinfra",
+    ALEPHALPHA = "alephalpha",
+    GROQ = "groq",
+    MISTRALAI = "mistralai",
+    ANTHROPIC = "anthropic",
+    PERPLEXITYAI = "perplexityai",
+    TOGETHERAI = "togetherai",
+    OPENROUTER = "openrouter",
+    GEMINI = "gemini",
+}
+
+export type VaultSecretDTO = {
+    header?: HeaderDTO | null
+    secret: SecretDTO
+    id: string
+    lifecycle: LifecycleDTO
 }
 
 export interface AppTemplate {
@@ -755,4 +829,17 @@ export type OrgDetails = Org & {
     type: "default"
     default_workspace: Workspace
     workspaces: string[]
+}
+
+export interface AuthErrorMsgType {
+    message: string
+    sub?: string
+    type: "error" | "success" | "info" | "warning" | undefined
+}
+
+export interface APIKey {
+    prefix: string
+    created_at: string
+    last_used_at: string
+    expiration_date: string | null
 }

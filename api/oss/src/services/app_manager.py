@@ -48,7 +48,7 @@ else:
 
 if isCloudEE():
     from ee.src.services import db_manager_ee
-    from ee.src.services import (
+    from oss.src.services import (
         api_key_service,
     )  # noqa pylint: disable-all
 
@@ -112,7 +112,7 @@ async def start_variant(
             }
         )
         if isCloudEE():
-            user = await db_manager.get_user(user_uid=user_uid)
+            user = await db_manager.get_user_with_id(user_id=user_uid)
             api_key = await api_key_service.create_api_key(
                 str(user.id),
                 project_id=project_id,
@@ -171,7 +171,7 @@ async def update_last_modified_by(
                 )
             return str(deployment_db.app_id)
         elif object_type == "evaluation":
-            evaluation_db = await db_manager.fetch_evaluation_by_id(object_id)
+            evaluation_db = await db_manager_ee.fetch_evaluation_by_id(object_id)
             if evaluation_db is None:
                 raise db_manager.NoResultFound(
                     f"Evaluation with id {object_id} not found"
@@ -182,7 +182,7 @@ async def update_last_modified_by(
                 f"Could not update last_modified_by application information. Unsupported type: {object_type}"
             )
 
-    user = await db_manager.get_user(user_uid=user_uid)
+    user = await db_manager.get_user_with_id(user_id=user_uid)
     app_id = await get_appdb_str_by_id(object_id=object_id, object_type=object_type)
     assert app_id is not None, f"app_id in {object_type} cannot be None"
     await db_manager.update_app(
@@ -557,7 +557,7 @@ async def add_variant_from_image(
 
     # Retrieve user and image objects
     logger.debug("Retrieving user and image objects")
-    user_instance = await db_manager.get_user(user_uid)
+    user_instance = await db_manager.get_user_with_id(user_id=user_uid)
 
     if parsed_url.scheme and parsed_url.netloc:
         db_image = await db_manager.get_orga_image_instance_by_uri(
@@ -674,7 +674,7 @@ async def add_variant_from_url(
         raise ValueError("App variant with the same name already exists")
 
     logger.debug("Retrieving user and image objects")
-    user_instance = await db_manager.get_user(user_uid)
+    user_instance = await db_manager.get_user_with_id(user_id=user_uid)
 
     # Create config
     logger.debug("Creating config")

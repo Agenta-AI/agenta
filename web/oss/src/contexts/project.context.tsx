@@ -46,7 +46,7 @@ const ProjectContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     const {selectedOrg} = useOrgData()
 
-    const workspaceId: string = selectedOrg?.default_workspace.id || DEFAULT_UUID
+    const workspaceId: string = selectedOrg?.default_workspace?.id || DEFAULT_UUID
 
     const isProjectId = !isLoading && !!project?.project_id
     const projectId = (project?.project_id as string) || DEFAULT_UUID

@@ -5,7 +5,7 @@ description: "Health Check"
 sidebar_label: "Health Check"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1Uk1PwzAM/StVzlNbOO7EmBBMXBCD0zQhL/VoWJqEJJ0YVf87dtt9VWKXNbaf/fyeG2EdeojKmkUhpqJE0LH8kCXKnZgIj8FZEzCIaSNu85z/CgzSK8cQAixrKTGEba2T16GYcNKaiCZyOTinlewmZF+BMY0I1L8C+mr5Nxm1fOo4JPOBQ4WxtMztEyM9HcSSHlnPlAIB/R49MVw1ovaal4jRhWmWSW3rIoVPYgIpqAycEuNhsy6bzLlUtGtuJ2uv4qHrN3tZPOOBCBXoKbC+LFjyEr0y12WNiAeH1JvmUZhGGqj4PatpE69+OzEorEyvOKNYBmW2toOrqPHM7R7kDk1BAN6zp52nN2n+3zIDICFagxcgOy+OPLoySl3LdRKKMmSP4lxEqO7OCWbpbIgVmIt+I8OuOJ3EiPgTM6eBlm6Hyc1g5mo4O0HqltSdI02zgYDvXrcth79r9GwJfe7BK9iwQOTH5Kgfu7UjsWk7OkjHl7IHXfc2jC6QXTxd1ePDG631B188Byc=
+api: eJx1UsFu2zAM/ZXgnYU429GnZcWwBr0U63YKjIGV2VqLLWkSHcwz/O8DHTdtDUwXQeIj+fgeR4TIicQFf6hRomFqpflpG7YnGCTOMfjMGeWIj7udXjVnm1zUFJR46K3lnJ/6dvNtAcPABi/sReEUY+vs3KH4lTVnRLYNd4RynPSYVcnbmcPmZuHQsTRBuT2zwCCSNChRXJjCIHM6c8oojyP61OoQIjGXRWHb0NdbemYvtCVXUHRYN9vP0c2NQjFVWs72yckw19vfH+54uGWqOaE8Vm8BDzrERZn3sBEyREYJiu6OBxh46vS976UJyf2dxYCB8xfFNUtlcP4pzOlOWn7l9pnsiX0NA53zQnu3/bDd/W+YJWGzvz8sXpCdvXjhMcNgVnJdhYIBd+Q0Jkzdp9eAsowhS0f+Tb2VYe84XcUQ/iNFbMl5TEvncTHzuKwdKoMmZNGfcXykzD9SO036/bvnpJZUBmdKjh5VoGM1mRf91K0TDzqdtRx1U87U9hcbVhuoLl636uuX75imf188Byc=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -29,52 +29,22 @@ import TabItem from "@theme/TabItem";
   as={"h1"}
   className={"openapi__heading"}
   children={"Health Check"}
->
-</Heading>
+></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/health"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"get"} path={"/health"}></MethodEndpoint>
 
 Health Check
 
 <div>
   <div>
-    <ApiTabs
-      label={undefined}
-      id={undefined}
-    >
-      <TabItem
-        label={"200"}
-        value={"200"}
-      >
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
         <div>
-          
-          
-          Successful Response
-          
-          
-        </div><div>
-          <MimeTabs
-            className={"openapi-tabs__mime"}
-            schemaType={"response"}
-          >
-            <TabItem
-              label={"application/json"}
-              value={"application/json"}
-            >
-              <SchemaTabs
-                className={"openapi-tabs__schema"}
-              >
-                <TabItem
-                  label={"Schema"}
-                  value={"Schema"}
-                >
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
                   <details
                     style={{}}
                     className={"openapi-markdown__details response"}
@@ -85,18 +55,12 @@ Health Check
                       style={{}}
                       className={"openapi-markdown__details-summary-response"}
                     >
-                      <strong>
-                        Schema
-                      </strong>
-                    </summary><div
-                      style={{"textAlign":"left","marginLeft":"1rem"}}
-                    >
-                      
-                    </div><ul
-                      style={{"marginLeft":"1rem"}}
-                    >
-                      any
-                    </ul>
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>any</ul>
                   </details>
                 </TabItem>
               </SchemaTabs>
@@ -107,4 +71,3 @@ Health Check
     </ApiTabs>
   </div>
 </div>
-      

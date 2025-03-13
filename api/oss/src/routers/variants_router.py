@@ -53,7 +53,6 @@ async def add_variant_from_base_and_config(
 
     Args:
         payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.
-        stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().
 
     Raises:
         HTTPException: Raised if the variant could not be added or accessed.
@@ -171,7 +170,6 @@ async def update_variant_parameters(
     Args:
         variant_id (str): The ID of the app variant to update.
         payload (UpdateVariantParameterPayload): The payload containing the updated parameters.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
     Raises:
         HTTPException: If there is an error while trying to update the app variant.
@@ -376,19 +374,18 @@ async def start_variant(
     env_vars: Optional[DockerEnvVars] = None,
 ) -> URI:
     """
-    Start a variant of an app.
+        Start a variant of an app.
 
-    Args:
-        variant_id (str): The ID of the variant to start.
-        action (VariantAction): The action to perform on the variant (start).
-        env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
+        Args:
+            variant_id (str): The ID of the variant to start.
+            action (VariantAction): The action to perform on the variant (start).
+            env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.
+    =
+        Returns:
+            URI: The URL of the started variant.
 
-    Returns:
-        URI: The URL of the started variant.
-
-    Raises:
-        HTTPException: If the app container cannot be started.
+        Raises:
+            HTTPException: If the app container cannot be started.
     """
 
     app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
