@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
 import enum
+from pydantic import BaseModel, Field
+from typing import Any, Dict, Optional
 
 
 class ConfigDB(BaseModel):
@@ -83,4 +83,4 @@ class AppType(str, enum.Enum):
             cls.COMPLETION_SERVICE: "completion",
             cls.CUSTOM: "custom",
         }
-        return mappings.get(app_type, None)
+        return mappings.get(app_type, None)  # type: ignore

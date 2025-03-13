@@ -7,16 +7,17 @@ This guide provides step-by-step instructions for applying schema migration to u
 
 ## Applying the Migration
 
-To apply schema migrations using Alembic within your Docker environment, run the following command:
+To apply schema migrations, first determine the name of the API container (e.g. `agenta-oss-api-1`) then run the following command:
 
 ```bash
-docker exec -w /app/agenta_backend/migrations/postgres agenta-backend-1 alembic -c alembic.oss.ini upgrade head
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations <api-container-name> alembic -c alembic.oss.ini upgrade head
 ```
 
-**Explanation:**  
+**Explanation:**
 - `docker exec`: Runs the command in an existing container.
-- `-w /app/agenta_backend/migrations/postgres`: Sets the working directory inside the container to the migrations directory.
-- `agenta-backend-1`: The name of the Docker container running the backend.
+- `-e PYTHONPATH=/app`: Export the /app directory to the python path.
+- `-w /app/oss/databases/postgres/migrations`: Sets the working directory inside the container to the migrations directory.
+- `<api-container-name>`: The name of the Docker container running the backend.
 - `alembic -c alembic.oss.ini upgrade head`: Applies all new migrations up to the latest available version (`head`), using Alembic configuration file `alembic.oss.ini`.
 
 This ensures that Alembic correctly identifies the migration scripts and settings located in the migrations directory of your backend container.

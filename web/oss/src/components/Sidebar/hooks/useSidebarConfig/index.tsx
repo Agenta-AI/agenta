@@ -75,7 +75,7 @@ export const useSidebarConfig = () => {
             key: "app-evaluations-link",
             title: "Evaluations",
             link: `/apps/${appId || recentlyVisitedAppId}/evaluations`,
-            isHidden: !appId && !recentlyVisitedAppId,
+            isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
             icon: <ChartDonut size={16} />,
         },
         {

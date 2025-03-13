@@ -6,11 +6,12 @@ import Router from "next/router"
 import promiseRetry from "promise-retry"
 import {v4 as uuidv4} from "uuid"
 
+import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
+
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
 import {getErrorMessage} from "./errorHandler"
-import {getApikeys, LlmProvider} from "./llmProviders"
 
 if (typeof window !== "undefined") {
     //@ts-ignore
@@ -338,8 +339,7 @@ export const generateOrRetrieveDistinctId = (): string => {
     }
 }
 
-export const redirectIfNoLLMKeys = () => {
-    const providerKeys = getApikeys()
+export const redirectIfNoLLMKeys = async ({secrets: providerKeys}: {secrets: LlmProvider[]}) => {
     if (providerKeys?.length === 0 && !isDemo()) {
         notification.error({
             message: "LLM Key Missing",
@@ -435,3 +435,5 @@ export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
 
     return paths
 }
+
+export const getUsernameFromEmail = (email: string) => email.split("@")[0]

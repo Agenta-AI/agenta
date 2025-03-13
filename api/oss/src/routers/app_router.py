@@ -96,7 +96,6 @@ async def list_app_variants(
 
     Args:
         app_id (str): The ID of the app to retrieve variants for.
-        stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).
 
     Returns:
         List[AppVariantResponse]: A list of app variants for the given app ID.
@@ -140,7 +139,6 @@ async def get_variant_by_env(
     Args:
         app_id (str): The ID of the app to retrieve the variant for.
         environment (str): The environment of the app variant to retrieve.
-        stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).
 
     Raises:
         HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).
@@ -192,7 +190,6 @@ async def create_app(
 
     Args:
         payload (CreateApp): The payload containing the app name and organization ID (optional).
-        stoken_session (SessionContainer): The session container containing the user's session token.
 
     Returns:
         CreateAppOutput: The output containing the newly created app's ID and name.
@@ -263,7 +260,6 @@ async def update_app(
     Args:
         app_id (str): The ID of the app.
         payload (UpdateApp): The payload containing the app name.
-        stoken_session (SessionContainer): The session container containing the user's session token.
 
     Returns:
         UpdateAppOuput: The output containing the newly created app's ID and name.
@@ -306,7 +302,6 @@ async def list_apps(
 
     Args:
         app_name (Optional[str]): The name of the app to filter by.
-        stoken_session (SessionContainer): The session container.
 
     Returns:
         List[App]: A list of apps filtered by app_name.
@@ -555,7 +550,6 @@ async def list_environments(
 
     Args:
         app_id (str): The ID of the app to retrieve environments for.
-        stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).
 
     Returns:
         List[EnvironmentOutput]: A list of environment objects.

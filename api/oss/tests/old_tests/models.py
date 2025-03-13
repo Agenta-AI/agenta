@@ -14,16 +14,8 @@ if isCloudEE():
         WorkspaceMemberDB,
         ProjectMemberDB,
         AppDB_ as AppDB,
-        UserDB_ as UserDB,
-        ImageDB_ as ImageDB,
-        TestSetDB_ as TestSetDB,
-        AppVariantDB_ as AppVariantDB,
         EvaluationDB_ as EvaluationDB,
         DeploymentDB_ as DeploymentDB,
-        VariantBaseDB_ as VariantBaseDB,
-        AppEnvironmentDB_ as AppEnvironmentDB,
-        AppEnvironmentRevisionDB_ as AppEnvironmentRevisionDB,
-        EvaluatorConfigDB_ as EvaluatorConfigDB,
         HumanEvaluationDB_ as HumanEvaluationDB,
         EvaluationScenarioDB_ as EvaluationScenarioDB,
         HumanEvaluationScenarioDB_ as HumanEvaluationScenarioDB,
@@ -31,25 +23,25 @@ if isCloudEE():
 else:
     from oss.src.models.db_models import (
         AppDB,
-        UserDB,
         ProjectDB,
-        ImageDB,
-        TestSetDB,
         EvaluationDB,
         DeploymentDB,
-        AppVariantDB,
-        VariantBaseDB,
-        AppEnvironmentDB,
-        AppEnvironmentRevisionDB,
-        EvaluatorConfigDB,
         HumanEvaluationDB,
         EvaluationScenarioDB,
         HumanEvaluationScenarioDB,
     )
 
 from oss.src.models.db_models import (
+    UserDB,
+    ImageDB,
+    TestSetDB,
     TemplateDB,
+    AppVariantDB,
+    VariantBaseDB,
+    AppEnvironmentDB,
+    EvaluatorConfigDB,
     AppVariantRevisionsDB,
+    AppEnvironmentRevisionDB,
 )
 
 models: List[Base] = [

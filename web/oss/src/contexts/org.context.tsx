@@ -6,7 +6,6 @@ import {useProfileData} from "@/oss/contexts/profile.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useSession} from "@/oss/hooks/useSession"
 import useStateCallback from "@/oss/hooks/useStateCallback"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {Org, OrgDetails} from "@/oss/lib/Types"
 import {fetchAllOrgsList, fetchSingleOrg} from "@/oss/services/organization/api"
 
@@ -57,7 +56,7 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             })
             .catch((error) => {
                 console.error(error)
-                if (isDemo()) logout()
+                logout()
             })
             .finally(() => setLoadingOrgs(false))
     }, [])
@@ -87,14 +86,10 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     useEffect(() => {
         // fetch profile and orgs list only if user is logged in
-        if (doesSessionExist && isDemo()) {
+        if (doesSessionExist) {
             fetchAllOrgs()
         }
     }, [doesSessionExist])
-
-    if (!isDemo()) {
-        return <OrgContext.Provider value={initialValues}>{children}</OrgContext.Provider>
-    }
 
     const changeSelectedOrg: OrgContextType["changeSelectedOrg"] = (orgId, onSuccess) => {
         setLoadingOrgDetails(true)

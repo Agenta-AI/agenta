@@ -160,6 +160,10 @@ def generate(query: str):
     else:
         return llm(query, results)
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True)
+
+    uvicorn.run(
+        "agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True
+    )

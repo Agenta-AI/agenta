@@ -26,7 +26,7 @@ export const useDropdownItems = ({
         )
     }, [projects, orgs])
     const dropdownItems = useMemo(() => {
-        if (selectedOrg?.id && user?.id && isDemo()) {
+        if (selectedOrg?.id && user?.id) {
             return [
                 ...filteredOrgs.map((org: any) => ({
                     key: org.id,
@@ -37,8 +37,8 @@ export const useDropdownItems = ({
                         </Space>
                     ),
                 })),
-                {type: "divider"},
-                !project?.is_demo && {
+                isDemo() && {type: "divider"},
+                {
                     key: "settings",
                     label: (
                         <Link href={"/settings"} className="flex items-center gap-2">

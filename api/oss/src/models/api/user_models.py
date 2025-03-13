@@ -15,7 +15,6 @@ class User(TimestampModel):
     email: str
     username: str
     profile_picture: Optional[str] = None
-    organizations: Optional[List[str]] = None
 
 
 class UserUpdate(BaseModel):

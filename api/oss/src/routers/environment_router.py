@@ -28,7 +28,6 @@ async def deploy_to_environment(
     Args:
         environment_name: Name of the environment to deploy to.
         variant_id: variant id to deploy.
-        stoken_session: . Defaults to Depends(verify_session()).
 
     Raises:
         HTTPException: If the deployment fails.

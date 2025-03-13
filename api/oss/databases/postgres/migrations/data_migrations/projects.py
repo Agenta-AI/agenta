@@ -10,9 +10,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from oss.src.services import db_manager, evaluator_manager
-from oss.src.models.deprecated_models import ProjectScopedAppDB as AppDB
+from oss.src.models.deprecated_models import (
+    ProjectScopedAppDB as AppDB,
+    DeprecatedProjectDB as ProjectDB,
+    DeprecatedEvaluationScenarioDB as EvaluationScenarioDB,
+    DeprecatedHumanEvaluationScenarioDB as HumanEvaluationScenarioDB,
+    DeprecatedHumanEvaluationDB as HumanEvaluationDB,
+    DeprecatedEvaluationDB as EvaluationDB,
+)
 from oss.src.models.db_models import (
-    ProjectDB,
     AppVariantDB,
     AppVariantRevisionsDB,
     VariantBaseDB,
@@ -20,11 +26,7 @@ from oss.src.models.db_models import (
     ImageDB,
     AppEnvironmentDB,
     AppEnvironmentRevisionDB,
-    EvaluationScenarioDB,
-    EvaluationDB,
     EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
     TestSetDB,
 )
 

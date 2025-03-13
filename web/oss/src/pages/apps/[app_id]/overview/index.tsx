@@ -15,6 +15,7 @@ import DeploymentOverview from "@/oss/components/pages/overview/deployments/Depl
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAllVariantsData} from "@/oss/lib/hooks/useAllVariantsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {JSSTheme, Variant} from "@/oss/lib/Types"
@@ -182,11 +183,15 @@ const OverviewPage = () => {
                     />
                 )}
 
-                <AutomaticEvalOverview />
+                {isDemo() && (
+                    <>
+                        <AutomaticEvalOverview />
 
-                <AbTestingEvaluation viewType="overview" />
+                        <AbTestingEvaluation viewType="overview" />
 
-                <SingleModelEvaluation viewType="overview" />
+                        <SingleModelEvaluation viewType="overview" />
+                    </>
+                )}
             </div>
             {currentApp && (
                 <DeleteAppModal

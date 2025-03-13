@@ -52,6 +52,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/update-variant-url",
+          label: "Update Variant Url",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
           id: "reference/api/retrieve-variant-logs",
           label: "Retrieve Variant Logs",
           className: "api-method get",
@@ -292,8 +298,14 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/create-app-and-variant-from-template",
-          label: "Create App And Variant From Template",
+          id: "reference/api/add-variant-from-url",
+          label: "Add Variant From Url",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/add-variant-from-key",
+          label: "Add Variant From Key",
           className: "api-method post",
         },
         {
@@ -402,9 +414,21 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/get-testsets",
+          label: "Get Testsets",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/create-testset",
           label: "Create Testset",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-testsets",
+          label: "Delete Testsets",
+          className: "api-method delete",
         },
         {
           type: "doc",
@@ -417,18 +441,6 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/get-single-testset",
           label: "Get Single Testset",
           className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/get-testsets",
-          label: "Get Testsets",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/delete-testsets",
-          label: "Delete Testsets",
-          className: "api-method delete",
         },
       ],
     },
@@ -492,51 +504,41 @@ const sidebar: SidebarsConfig = {
       items: [
         {
           type: "doc",
-          id: "reference/api/observability-dashboard",
-          label: "Get Dashboard Data",
+          id: "reference/api/otlp-status",
+          label: "Status of OTLP endpoint",
           className: "api-method get",
         },
         {
           type: "doc",
-          id: "reference/api/create-traces",
-          label: "Create Traces",
+          id: "reference/api/otlp-receiver",
+          label: "Receive traces via OTLP",
           className: "api-method post",
         },
         {
           type: "doc",
-          id: "reference/api/get-traces",
-          label: "Get Traces",
+          id: "reference/api/query-traces",
+          label:
+            "Query traces, with optional grouping, windowing, filtering, and pagination.",
           className: "api-method get",
         },
         {
           type: "doc",
-          id: "reference/api/delete-traces-legacy",
-          label: "Delete Traces",
+          id: "reference/api/delete-traces",
+          label: "Delete traces",
           className: "api-method delete",
         },
         {
           type: "doc",
-          id: "reference/api/get-trace-detail",
-          label: "Get Trace Detail",
+          id: "reference/api/query-analytics",
+          label:
+            "Query analytics, with optional grouping, windowing, filtering.",
           className: "api-method get",
         },
         {
           type: "doc",
-          id: "reference/api/get-spans-of-generation",
-          label: "Get Spans Of Trace",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/delete-spans-of-trace",
-          label: "Delete Spans Of Trace",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
-          id: "reference/api/get-span-of-generation",
-          label: "Get Span Of Trace",
-          className: "api-method get",
+          id: "reference/api/otlp-v-1-traces",
+          label: "Receive /v1/traces via OTLP",
+          className: "api-method post",
         },
       ],
     },
@@ -592,31 +594,79 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Observability [v1]",
+      label: "Admin",
       items: [
         {
           type: "doc",
-          id: "reference/api/otlp-status",
-          label: "Status of OTLP endpoint",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/otlp-receiver",
-          label: "Receive traces via OTLP",
+          id: "reference/api/create-accounts",
+          label: "Create Accounts",
           className: "api-method post",
         },
         {
           type: "doc",
-          id: "reference/api/query-traces",
-          label: "Query traces, with optional grouping, windowing, filtering, and pagination.",
+          id: "reference/api/create-account",
+          label: "Create Account",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Vault",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/list-secrets",
+          label: "List Secrets",
           className: "api-method get",
         },
         {
           type: "doc",
-          id: "reference/api/delete-traces",
-          label: "Delete traces",
+          id: "reference/api/create-secret",
+          label: "Create Secret",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/read-secret",
+          label: "Read Secret",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/update-secret",
+          label: "Update Secret",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-secret",
+          label: "Delete Secret",
           className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Access Control",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/verify-permissions",
+          label: "Verify Permissions",
+          className: "api-method get",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Scopes",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/get-projects",
+          label: "Get Projects",
+          className: "api-method get",
         },
       ],
     },

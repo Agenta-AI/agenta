@@ -674,9 +674,6 @@ class entrypoint:
         """Override config in OpenAPI schema to add agenta-specific metadata."""
         endpoint = endpoint[1:].replace("/", "_")
 
-        schema_key = f"Body_{func_name}_{endpoint}_post"
-        schema_to_override = openapi_schema["components"]["schemas"][schema_key]
-
         # Get the config class name to find its schema
         config_class_name = type(config).__name__
         config_schema = openapi_schema["components"]["schemas"][config_class_name]

@@ -5,7 +5,7 @@ description: "Returns a list of templates available for creating new containers.
 sidebar_label: "Container Templates"
 hide_title: true
 hide_table_of_contents: true
-api: eJzlU01v00AQ/SurPYFkxYGjT4QKQQUSVZOe0qiaOpN4qb1edseBYPm/M7N27CQqv4Bcsp7PN2/etJpgH3S21je1JTAWfdCbRG8x5N44MrXVmb5HarwNClRpAql6pwgrVwIh2w5gSnguUe1qr3KPQMbulcVfKh9Lzh7to70DDxUSf2aPNlD9gvYpYAjcQ71Z9o8RxdtMrQpUJ/9YKnYh9jQBfSw7gMvk/WA5eP2NQa5XA8JNogL5TaYWr4DnWmAVes+PilvBHmc60bVDDzL77ZanH3s/jYkc4zG42jI+nbX6/Xwuf5esLZs855q7plT3QzDnSTW0JOHgXGny2Cj9ESSn1SEvsILotcfvO95Mq+nokOuB93DUXTIaeC6mWne8LzJUYtxU30iNRKrVCLqTX6J5B0Utg+2RGJADKvgjnbaVns/JNB9EFAKk8SVHFkQuZGmal3WznTFlnDcDk4Iz+lo5i+hVNxIagQbMG2/oGOst7m6/4vELwhY9GzbnAUshomf3Mmziwxk2c0vLspJeDc/lzZ9IKJuNACj6LJnb2F0d0weuBmwfIWclbjlB5uxhz2fvZvN/DTMkKIY17BPyuM8TjhjGrku6RqLYwys24iOE6sPkEJSuDlSBPav32iqvoLWTrP67Yx3UQPibUo7krXcD9e2g7fV0wsLcpG6WW8F0S0TbPkPAB192nZh/NuhFo/w8gDdCWRRochKUyPeF1cfr5it3ckgHKJtel1dnLbIej+7zpxXv+S8Qoe6W
+api: eJzlU01v2zAM/SsCTxsgxNmOOi0rhq3ogBVtekqNgXWYWKstaSKdzTP83wcprtMG3S+YL5bEr8fHxwEE9wxmAxfeCVpHkaHUsCWuog1ivQMDNyRddKxQNZZF+Z0SakODQqzwgLbBh4bUzkdVRUKxbq8c/VLVnHJx7+7dNUZsSSiyuXcs/pHcdyZm6516c3s8zCjeGrWuST3Z51S5itSkOqaY007gTDrfOevd5qtl2awnhKVWLLE0avUKeB8VOkUx+qhaYsY9LUCDDxQx9X65BQNz7e9zIGiIxME7JgYzwPvlMv1esnbbVRUx77pG3UzOoHM2cpLcMYTGVrlQ8YNTzABc1dRitrr+2w7MZgDpA4EBjBF7GPX8wBKt28NYahArDeVJHQupmUi1nkGP6dPQktQ+NbYnAQ0BpQYDxWlaxfM+meIhiSIB6WIDBmqRwKYoqsZ32wXuyQku0BYYLJwrZ5Wt6iK5ZqBMVRet9Dnf6vryivovhFuKYDblc4fbRMSR3ZduJz6CvaIeNDhs033VSe2j/ZMJBQ02AaiPUalv63Y+h09cTdg+YvVIbgsaUp9H2MvFu8XyX81MAWp1fTnNE6s8zycc2Q30GV0zUaCBWrTJJoTth5MhoQyepUX3LN9rozyDNpxk9d8t66QGod9ShAatg3Gifpi0vTmtcGLupO5SQ+1ZkscwPCDTXWzGMT3/7CgmjZYaDhhtoiwLVD8JKsn3kfo07qqikBbpgE131OXZWidZz0v3+dMaxvEvEKHulg==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -29,17 +29,9 @@ import TabItem from "@theme/TabItem";
   as={"h1"}
   className={"openapi__heading"}
   children={"Container Templates"}
->
-</Heading>
+></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/containers/templates"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"get"} path={"/containers/templates"}></MethodEndpoint>
 
 Returns a list of templates available for creating new containers.
 
@@ -52,36 +44,14 @@ Union[List[Template], str]: A list of templates or an error message.
 
 <div>
   <div>
-    <ApiTabs
-      label={undefined}
-      id={undefined}
-    >
-      <TabItem
-        label={"200"}
-        value={"200"}
-      >
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
         <div>
-          
-          
-          Successful Response
-          
-          
-        </div><div>
-          <MimeTabs
-            className={"openapi-tabs__mime"}
-            schemaType={"response"}
-          >
-            <TabItem
-              label={"application/json"}
-              value={"application/json"}
-            >
-              <SchemaTabs
-                className={"openapi-tabs__schema"}
-              >
-                <TabItem
-                  label={"Schema"}
-                  value={"Schema"}
-                >
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
                   <details
                     style={{}}
                     className={"openapi-markdown__details response"}
@@ -92,42 +62,37 @@ Union[List[Template], str]: A list of templates or an error message.
                       style={{}}
                       className={"openapi-markdown__details-summary-response"}
                     >
-                      <strong>
-                        Schema
-                      </strong>
-                    </summary><div
-                      style={{"textAlign":"left","marginLeft":"1rem"}}
-                    >
-                      
-                    </div><ul
-                      style={{"marginLeft":"1rem"}}
-                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>
                       <div>
-                        <span
-                          className={"badge badge--info"}
-                        >
-                          anyOf
-                        </span><SchemaTabs>
-                          <TabItem
-                            label={"MOD1"}
-                            value={"0-item-properties"}
-                          >
+                        <span className={"badge badge--info"}>anyOf</span>
+                        <SchemaTabs>
+                          <TabItem label={"MOD1"} value={"0-item-properties"}>
                             <li>
                               <div
-                                style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem","paddingBottom":".5rem"}}
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                  paddingBottom: ".5rem",
+                                }}
                               >
                                 Array [
                               </div>
-                            </li><SchemaItem
+                            </li>
+                            <SchemaItem
                               collapsible={false}
                               name={"id"}
                               required={true}
                               schemaName={"Id (string)"}
                               qualifierMessage={undefined}
-                              schema={{"type":"string","title":"Id"}}
-                            >
-                              
-                            </SchemaItem><SchemaItem
+                              schema={{ type: "string", title: "Id" }}
+                            ></SchemaItem>
+                            <SchemaItem
                               collapsible={true}
                               className={"schemaItem"}
                             >
@@ -135,43 +100,36 @@ Union[List[Template], str]: A list of templates or an error message.
                                 style={{}}
                                 className={"openapi-markdown__details"}
                               >
-                                <summary
-                                  style={{}}
-                                >
-                                  <span
-                                    className={"openapi-schema__container"}
-                                  >
+                                <summary style={{}}>
+                                  <span className={"openapi-schema__container"}>
                                     <strong
                                       className={"openapi-schema__property"}
                                     >
                                       image
-                                    </strong><span
-                                      className={"openapi-schema__name"}
-                                    >
-                                       object
-                                    </span><span
+                                    </strong>
+                                    <span className={"openapi-schema__name"}>
+                                      object
+                                    </span>
+                                    <span
                                       className={"openapi-schema__divider"}
-                                    >
-                                      
-                                    </span><span
+                                    ></span>
+                                    <span
                                       className={"openapi-schema__required"}
                                     >
                                       required
                                     </span>
                                   </span>
-                                </summary><div
-                                  style={{"marginLeft":"1rem"}}
-                                >
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}>
                                   <SchemaItem
                                     collapsible={false}
                                     name={"name"}
                                     required={true}
                                     schemaName={"Name (string)"}
                                     qualifierMessage={undefined}
-                                    schema={{"type":"string","title":"Name"}}
-                                  >
-                                    
-                                  </SchemaItem><SchemaItem
+                                    schema={{ type: "string", title: "Name" }}
+                                  ></SchemaItem>
+                                  <SchemaItem
                                     collapsible={true}
                                     className={"schemaItem"}
                                   >
@@ -179,44 +137,36 @@ Union[List[Template], str]: A list of templates or an error message.
                                       style={{}}
                                       className={"openapi-markdown__details"}
                                     >
-                                      <summary
-                                        style={{}}
-                                      >
-                                        <strong>
-                                          size
-                                        </strong><span
-                                          style={{"opacity":"0.6"}}
-                                        >
-                                           object
+                                      <summary style={{}}>
+                                        <strong>size</strong>
+                                        <span style={{ opacity: "0.6" }}>
+                                          object
                                         </span>
-                                      </summary><div
-                                        style={{"marginLeft":"1rem"}}
-                                      >
-                                        
-                                      </div><div>
-                                        <span
-                                          className={"badge badge--info"}
-                                        >
+                                      </summary>
+                                      <div style={{ marginLeft: "1rem" }}></div>
+                                      <div>
+                                        <span className={"badge badge--info"}>
                                           anyOf
-                                        </span><SchemaTabs>
+                                        </span>
+                                        <SchemaTabs>
                                           <TabItem
                                             label={"MOD1"}
                                             value={"0-item-properties"}
                                           >
                                             <div
-                                              style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                              style={{
+                                                marginTop: ".5rem",
+                                                marginBottom: ".5rem",
+                                              }}
                                             >
-                                              
-                                              
                                               integer
-                                              
-                                              
                                             </div>
                                           </TabItem>
                                         </SchemaTabs>
                                       </div>
                                     </details>
-                                  </SchemaItem><SchemaItem
+                                  </SchemaItem>
+                                  <SchemaItem
                                     collapsible={true}
                                     className={"schemaItem"}
                                   >
@@ -224,62 +174,55 @@ Union[List[Template], str]: A list of templates or an error message.
                                       style={{}}
                                       className={"openapi-markdown__details"}
                                     >
-                                      <summary
-                                        style={{}}
-                                      >
-                                        <strong>
-                                          digest
-                                        </strong><span
-                                          style={{"opacity":"0.6"}}
-                                        >
-                                           object
+                                      <summary style={{}}>
+                                        <strong>digest</strong>
+                                        <span style={{ opacity: "0.6" }}>
+                                          object
                                         </span>
-                                      </summary><div
-                                        style={{"marginLeft":"1rem"}}
-                                      >
-                                        
-                                      </div><div>
-                                        <span
-                                          className={"badge badge--info"}
-                                        >
+                                      </summary>
+                                      <div style={{ marginLeft: "1rem" }}></div>
+                                      <div>
+                                        <span className={"badge badge--info"}>
                                           anyOf
-                                        </span><SchemaTabs>
+                                        </span>
+                                        <SchemaTabs>
                                           <TabItem
                                             label={"MOD1"}
                                             value={"0-item-properties"}
                                           >
                                             <div
-                                              style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                              style={{
+                                                marginTop: ".5rem",
+                                                marginBottom: ".5rem",
+                                              }}
                                             >
-                                              
-                                              
                                               string
-                                              
-                                              
                                             </div>
                                           </TabItem>
                                         </SchemaTabs>
                                       </div>
                                     </details>
-                                  </SchemaItem><SchemaItem
+                                  </SchemaItem>
+                                  <SchemaItem
                                     collapsible={false}
                                     name={"title"}
                                     required={true}
                                     schemaName={"Title (string)"}
                                     qualifierMessage={undefined}
-                                    schema={{"type":"string","title":"Title"}}
-                                  >
-                                    
-                                  </SchemaItem><SchemaItem
+                                    schema={{ type: "string", title: "Title" }}
+                                  ></SchemaItem>
+                                  <SchemaItem
                                     collapsible={false}
                                     name={"description"}
                                     required={true}
                                     schemaName={"Description (string)"}
                                     qualifierMessage={undefined}
-                                    schema={{"type":"string","title":"Description"}}
-                                  >
-                                    
-                                  </SchemaItem><SchemaItem
+                                    schema={{
+                                      type: "string",
+                                      title: "Description",
+                                    }}
+                                  ></SchemaItem>
+                                  <SchemaItem
                                     collapsible={true}
                                     className={"schemaItem"}
                                   >
@@ -287,44 +230,36 @@ Union[List[Template], str]: A list of templates or an error message.
                                       style={{}}
                                       className={"openapi-markdown__details"}
                                     >
-                                      <summary
-                                        style={{}}
-                                      >
-                                        <strong>
-                                          last_pushed
-                                        </strong><span
-                                          style={{"opacity":"0.6"}}
-                                        >
-                                           object
+                                      <summary style={{}}>
+                                        <strong>last_pushed</strong>
+                                        <span style={{ opacity: "0.6" }}>
+                                          object
                                         </span>
-                                      </summary><div
-                                        style={{"marginLeft":"1rem"}}
-                                      >
-                                        
-                                      </div><div>
-                                        <span
-                                          className={"badge badge--info"}
-                                        >
+                                      </summary>
+                                      <div style={{ marginLeft: "1rem" }}></div>
+                                      <div>
+                                        <span className={"badge badge--info"}>
                                           anyOf
-                                        </span><SchemaTabs>
+                                        </span>
+                                        <SchemaTabs>
                                           <TabItem
                                             label={"MOD1"}
                                             value={"0-item-properties"}
                                           >
                                             <div
-                                              style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                              style={{
+                                                marginTop: ".5rem",
+                                                marginBottom: ".5rem",
+                                              }}
                                             >
-                                              
-                                              
                                               string
-                                              
-                                              
                                             </div>
                                           </TabItem>
                                         </SchemaTabs>
                                       </div>
                                     </details>
-                                  </SchemaItem><SchemaItem
+                                  </SchemaItem>
+                                  <SchemaItem
                                     collapsible={true}
                                     className={"schemaItem"}
                                   >
@@ -332,44 +267,36 @@ Union[List[Template], str]: A list of templates or an error message.
                                       style={{}}
                                       className={"openapi-markdown__details"}
                                     >
-                                      <summary
-                                        style={{}}
-                                      >
-                                        <strong>
-                                          repo_name
-                                        </strong><span
-                                          style={{"opacity":"0.6"}}
-                                        >
-                                           object
+                                      <summary style={{}}>
+                                        <strong>repo_name</strong>
+                                        <span style={{ opacity: "0.6" }}>
+                                          object
                                         </span>
-                                      </summary><div
-                                        style={{"marginLeft":"1rem"}}
-                                      >
-                                        
-                                      </div><div>
-                                        <span
-                                          className={"badge badge--info"}
-                                        >
+                                      </summary>
+                                      <div style={{ marginLeft: "1rem" }}></div>
+                                      <div>
+                                        <span className={"badge badge--info"}>
                                           anyOf
-                                        </span><SchemaTabs>
+                                        </span>
+                                        <SchemaTabs>
                                           <TabItem
                                             label={"MOD1"}
                                             value={"0-item-properties"}
                                           >
                                             <div
-                                              style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                              style={{
+                                                marginTop: ".5rem",
+                                                marginBottom: ".5rem",
+                                              }}
                                             >
-                                              
-                                              
                                               string
-                                              
-                                              
                                             </div>
                                           </TabItem>
                                         </SchemaTabs>
                                       </div>
                                     </details>
-                                  </SchemaItem><SchemaItem
+                                  </SchemaItem>
+                                  <SchemaItem
                                     collapsible={true}
                                     className={"schemaItem"}
                                   >
@@ -377,38 +304,29 @@ Union[List[Template], str]: A list of templates or an error message.
                                       style={{}}
                                       className={"openapi-markdown__details"}
                                     >
-                                      <summary
-                                        style={{}}
-                                      >
-                                        <strong>
-                                          template_uri
-                                        </strong><span
-                                          style={{"opacity":"0.6"}}
-                                        >
-                                           object
+                                      <summary style={{}}>
+                                        <strong>template_uri</strong>
+                                        <span style={{ opacity: "0.6" }}>
+                                          object
                                         </span>
-                                      </summary><div
-                                        style={{"marginLeft":"1rem"}}
-                                      >
-                                        
-                                      </div><div>
-                                        <span
-                                          className={"badge badge--info"}
-                                        >
+                                      </summary>
+                                      <div style={{ marginLeft: "1rem" }}></div>
+                                      <div>
+                                        <span className={"badge badge--info"}>
                                           anyOf
-                                        </span><SchemaTabs>
+                                        </span>
+                                        <SchemaTabs>
                                           <TabItem
                                             label={"MOD1"}
                                             value={"0-item-properties"}
                                           >
                                             <div
-                                              style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                                              style={{
+                                                marginTop: ".5rem",
+                                                marginBottom: ".5rem",
+                                              }}
                                             >
-                                              
-                                              
                                               string
-                                              
-                                              
                                             </div>
                                           </TabItem>
                                         </SchemaTabs>
@@ -417,41 +335,42 @@ Union[List[Template], str]: A list of templates or an error message.
                                   </SchemaItem>
                                 </div>
                               </details>
-                            </SchemaItem><li>
+                            </SchemaItem>
+                            <li>
                               <div
-                                style={{"fontSize":"var(--ifm-code-font-size)","opacity":"0.6","marginLeft":"-.5rem"}}
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                }}
                               >
                                 ]
                               </div>
                             </li>
-                          </TabItem><TabItem
-                            label={"MOD2"}
-                            value={"1-item-properties"}
-                          >
+                          </TabItem>
+                          <TabItem label={"MOD2"} value={"1-item-properties"}>
                             <div
-                              style={{"marginTop":".5rem","marginBottom":".5rem"}}
+                              style={{
+                                marginTop: ".5rem",
+                                marginBottom: ".5rem",
+                              }}
                             >
-                              
-                              
                               string
-                              
-                              
                             </div>
                           </TabItem>
                         </SchemaTabs>
                       </div>
                     </ul>
                   </details>
-                </TabItem><TabItem
+                </TabItem>
+                <TabItem
                   label={"Example (from schema)"}
                   value={"Example (from schema)"}
                 >
                   <ResponseSamples
                     responseExample={"[\n  null\n]"}
                     language={"json"}
-                  >
-                    
-                  </ResponseSamples>
+                  ></ResponseSamples>
                 </TabItem>
               </SchemaTabs>
             </TabItem>
@@ -461,4 +380,3 @@ Union[List[Template], str]: A list of templates or an error message.
     </ApiTabs>
   </div>
 </div>
-      

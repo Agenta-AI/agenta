@@ -3,7 +3,6 @@ import {memo, useEffect, useMemo, useState} from "react"
 import {CaretDown, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Divider, Dropdown, Layout, Typography} from "antd"
 import clsx from "clsx"
-import Link from "next/link"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 import {useLocalStorage} from "usehooks-ts"
@@ -13,10 +12,8 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {useSession} from "@/oss/hooks/useSession"
-import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import Logo from "../Logo/Logo"
 
 import {useStyles} from "./assets/styles"
 import SidebarMenu from "./components/SidebarMenu"
@@ -131,12 +128,7 @@ const Sidebar: React.FC = () => {
                             ])}
                         >
                             <div className="transition-width duration-[inherit] ease-in-out w-full">
-                                {!isDemo() && (
-                                    <Link data-cy="app-management-link" href="/apps">
-                                        <Logo isOnlyIconLogo={isSidebarExpanded} />
-                                    </Link>
-                                )}
-                                {selectedOrg?.id && user?.id && isDemo() && (
+                                {selectedOrg?.id && user?.id && (
                                     <Dropdown
                                         trigger={["hover"]}
                                         menu={{

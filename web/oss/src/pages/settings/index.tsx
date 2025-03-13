@@ -6,17 +6,20 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import Secrets from "@/oss/components/pages/settings/Secrets/Secrets"
 import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {isDemo} from "@/oss/lib/helpers/utils"
 
-//dynamic components for demo
+const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
+    ssr: false,
+})
 const WorkspaceManage = dynamic(
-    () => import(`@/oss/components/pages/settings/WorkspaceManage/WorkspaceManage`),
+    () => import("@/oss/components/pages/settings/WorkspaceManage/WorkspaceManage"),
+    {ssr: false},
 )
-const APIKeys = dynamic(() => import(`@/oss/components/pages/settings/APIKeys/APIKeys`))
+const APIKeys = dynamic(() => import("@/oss/components/pages/settings/APIKeys/APIKeys"), {
+    ssr: false,
+})
 
 const useStyles = createUseStyles({
     root: {
@@ -37,7 +40,7 @@ const useStyles = createUseStyles({
 })
 
 const Settings: React.FC = () => {
-    const [tab, setTab] = useQueryParam("tab", isDemo() ? "workspace" : "secrets")
+    const [tab, setTab] = useQueryParam("tab", "workspace")
     const classes = useStyles()
     const router = useRouter()
     const {project} = useProjectData()
@@ -58,7 +61,6 @@ const Settings: React.FC = () => {
             ),
             key: "workspace",
             children: <WorkspaceManage />,
-            hidden: !isDemo(),
         },
         {
             label: (
@@ -79,7 +81,6 @@ const Settings: React.FC = () => {
             ),
             key: "apiKeys",
             children: <APIKeys />,
-            hidden: !process.env["NEXT_PUBLIC_FEATURE_API_KEYS"],
         },
     ]
 
@@ -88,12 +89,7 @@ const Settings: React.FC = () => {
             <Typography.Title className={classes.heading} level={3}>
                 Settings
             </Typography.Title>
-            <Tabs
-                className={classes.tabs}
-                onChange={setTab}
-                activeKey={tab}
-                items={items.filter((item) => !item.hidden)}
-            />
+            <Tabs className={classes.tabs} onChange={setTab} activeKey={tab} items={items} />
         </div>
     )
 }

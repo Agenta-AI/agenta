@@ -1,20 +1,9 @@
-import os
-import json
-from typing import Any, Dict, Optional, List, Tuple
+from typing import Any, Dict, Optional, List
 
-from fastapi.responses import JSONResponse
 
 from oss.src.services import db_manager
-from oss.src.utils.common import isCloudEE
 
-if isCloudEE():
-    from ee.src.models.db_models import (
-        AppDB_ as AppDB,
-        EvaluatorConfigDB_ as EvaluatorConfigDB,
-    )
-else:
-    from oss.src.models.db_models import AppDB, EvaluatorConfigDB
-
+from oss.src.models.db_models import EvaluatorConfigDB
 from oss.src.models.converters import evaluator_config_db_to_pydantic
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
 from oss.src.models.api.evaluation_model import Evaluator, EvaluatorConfig

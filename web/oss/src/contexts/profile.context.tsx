@@ -3,7 +3,6 @@ import {PropsWithChildren, createContext, useState, useContext, useEffect, useCa
 import {useSession} from "@/oss/hooks/useSession"
 import useStateCallback from "@/oss/hooks/useStateCallback"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {User} from "@/oss/lib/Types"
 import {fetchProfile} from "@/oss/services/api"
 
@@ -44,7 +43,7 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             })
             .catch((error) => {
                 console.error(error)
-                if (isDemo()) logout()
+                logout()
             })
             .finally(() => setLoading(false))
     }, [])

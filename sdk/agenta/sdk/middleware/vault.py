@@ -102,7 +102,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     ),
                 )
 
-                local_secrets.append(secret.model_dump())
+                local_secrets.append(secret.model_dump())  # type: ignore
         except:  # pylint: disable=bare-except
             display_exception("Vault: Local Secrets Exception")
 
@@ -121,7 +121,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                 else:
                     secrets = response.json()
                     vault_secrets = self._transform_secrets_response_to_secret_dto(
-                        secrets
+                        secrets_list=secrets  # type: ignore
                     )
         except:  # pylint: disable=bare-except
             display_exception("Vault: Vault Secrets Exception")
@@ -130,12 +130,12 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
         if local_secrets:
             for secret in local_secrets:
-                provider = secret["data"]["provider"]
+                provider = secret["data"]["provider"]  # type: ignore
                 merged_secrets[provider] = secret
 
         if vault_secrets:
             for secret in vault_secrets:
-                provider = secret["data"]["provider"]
+                provider = secret["data"]["provider"]  # type: ignore
                 merged_secrets[provider] = secret
 
         secrets = list(merged_secrets.values())
