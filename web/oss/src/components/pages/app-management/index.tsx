@@ -14,6 +14,7 @@ import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {removeTrailingSlash} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
 import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
@@ -132,7 +133,7 @@ const AppManagement: React.FC = () => {
         await createAndStartTemplate({
             appName: customWorkflowAppValues.appName,
             templateKey: ServiceType.Custom,
-            serviceUrl: customWorkflowAppValues.appUrl,
+            serviceUrl: removeTrailingSlash(customWorkflowAppValues.appUrl),
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))

@@ -169,7 +169,7 @@ export function initializeVariantInputs(variant: EnhancedVariant, spec: OpenAPIS
 
     const inputStrings: string[] = []
     if (variant.isCustom) {
-        inputStrings.push(...extractInputKeysFromSchema(spec))
+        inputStrings.push(...extractInputKeysFromSchema(spec, variant.uriObject?.routePath))
     } else {
         inputStrings.push(...Array.from(allInputKeys).map((enhancedKey) => enhancedKey.value))
     }

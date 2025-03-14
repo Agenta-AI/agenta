@@ -338,6 +338,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         variant,
                                         allMetadata: getAllMetadata(),
                                         spec,
+                                        routePath: state.uri?.routePath,
                                     })
                                     const saveResponse = await fetcher?.(
                                         `/api/variants/${variant.id}/parameters?project_id=${projectId}`,

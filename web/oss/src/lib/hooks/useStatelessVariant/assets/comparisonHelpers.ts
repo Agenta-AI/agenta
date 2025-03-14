@@ -1,5 +1,6 @@
 import type {EnhancedConfigValue} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {generateId} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
+import {constructPlaygroundTestUrl} from "@/oss/components/NewPlayground/assets/utilities/transformer/reverseTransformer"
 import type {EnhancedVariant} from "@/oss/components/NewPlayground/assets/utilities/transformer/types"
 import {hashMetadata} from "@/oss/lib/hooks/useStatelessVariant/assets/hash"
 
@@ -25,9 +26,11 @@ export const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigV
     return Array.from(uniqueKeys)
 }
 
-export const extractInputKeysFromSchema = (spec: OpenAPISpec) => {
+export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath?: string) => {
     const requestSchema =
-        spec.paths["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema
+        spec.paths[`${constructPlaygroundTestUrl({routePath})}`]?.post?.requestBody?.content?.[
+            "application/json"
+        ]?.schema
     if (!requestSchema || !("properties" in requestSchema)) {
         throw new Error("Invalid OpenAPI schema")
     }

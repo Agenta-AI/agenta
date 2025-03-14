@@ -39,7 +39,7 @@ class TestObservabilityCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json=payload,
             headers=headers,
         )

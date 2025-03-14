@@ -1,4 +1,5 @@
 // @ts-nocheck
+import {findCustomWorkflowPath} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {getOrgValues} from "@/oss/contexts/org.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
@@ -8,13 +9,10 @@ import {
     fetchOpenApiSchemaJson,
     setVariant,
     transformVariant,
-    uriFixer,
 } from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 import {transformToRequestBody} from "@/oss/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
 import {AppTemplate} from "@/oss/lib/Types"
-
-import {getJWT} from "../../api"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -170,14 +168,6 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
-    const apiKeys = providerKey.reduce(
-        (acc, {key, name}) => {
-            if (key) acc[name] = key
-            return acc
-        },
-        {} as Record<string, string>,
-    )
-
     try {
         onStatusChange?.("creating_app")
         let app
@@ -198,15 +188,20 @@ export const createAndStartTemplate = async ({
                     templateKey,
                 })
             }
-            const {schema} = await fetchOpenApiSchemaJson(_variant.uri)
+            const uri = await findCustomWorkflowPath(_variant.uri)
+            const {schema} = await fetchOpenApiSchemaJson(uri?.runtimePrefix)
 
             if (!schema) {
                 throw new Error("No schema found")
             }
 
-            const variant = transformVariant(setVariant(_variant), schema)
+            const variant = transformVariant(setVariant(_variant, uri), schema, _variant.appType)
 
-            const parameters = transformToRequestBody({variant, allMetadata: getAllMetadata()})
+            const parameters = transformToRequestBody({
+                variant,
+                allMetadata: getAllMetadata(),
+                routePath: uri.routePath,
+            })
             await axios.put(
                 `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
                 {
@@ -225,18 +220,4 @@ export const createAndStartTemplate = async ({
     } catch (error) {
         onStatusChange?.("error", error)
     }
-}
-
-export const checkServiceHealth = async ({url, signal}: {url: string; signal?: AbortSignal}) => {
-    const response = await fetch(`${uriFixer(url)}/health`, {
-        headers: {
-            "ngrok-skip-browser-warning": "1",
-        },
-        signal,
-    })
-    if (!response.ok) {
-        throw new Error()
-    }
-
-    return response
 }

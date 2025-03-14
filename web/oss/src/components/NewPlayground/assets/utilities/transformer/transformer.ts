@@ -16,6 +16,7 @@ import type {
     EnhancedObjectConfig,
 } from "../genericTransformer/types"
 
+import {constructPlaygroundTestUrl} from "./reverseTransformer"
 import type {EnhancedVariant, BaseVariant, AgentaConfigSchema, AgentaConfigPrompt} from "./types"
 
 function mergeWithSavedConfig(
@@ -48,9 +49,15 @@ export function transformToEnhancedVariant(
     variant: BaseVariant,
     openApiSpec: OpenAPISpec,
     appType?: string,
+    routePath?: string,
 ): EnhancedVariant {
     const requestSchema =
-        openApiSpec.paths["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema
+        openApiSpec.paths[
+            `${constructPlaygroundTestUrl({
+                routePath,
+            })}`
+        ]?.post?.requestBody?.content?.["application/json"]?.schema
+
     if (!requestSchema || !("properties" in requestSchema)) {
         throw new Error("Invalid OpenAPI schema")
     }

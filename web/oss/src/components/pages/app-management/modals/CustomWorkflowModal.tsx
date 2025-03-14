@@ -7,9 +7,11 @@ import {createUseStyles} from "react-jss"
 import {KeyedMutator} from "swr"
 
 import SharedEditor from "@/oss/components/NewPlayground/Components/SharedEditor"
+import {findCustomWorkflowPath} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
+import {removeTrailingSlash} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
 import {JSSTheme, Variant} from "@/oss/lib/Types"
-import {checkServiceHealth, updateVariant} from "@/oss/services/app-selector/api"
+import {updateVariant} from "@/oss/services/app-selector/api"
 
 const {Text} = Typography
 
@@ -103,7 +105,7 @@ const CustomWorkflowModal = ({
             await Promise.all(
                 variants.map((variant) =>
                     updateVariant({
-                        serviceUrl: customWorkflowAppValues.appUrl,
+                        serviceUrl: removeTrailingSlash(customWorkflowAppValues.appUrl),
                         variantId: variant?.variantId ?? variant.id,
                     }),
                 ),
@@ -117,27 +119,30 @@ const CustomWorkflowModal = ({
         }
     }, [variants, customWorkflowAppValues.appUrl])
 
-    const runTestConnection = async (delay = 0) => {
-        if (!customWorkflowAppValues.appUrl) return
+    const runTestConnection = useCallback(async (delay = 0, url?: string) => {
+        if (!url) return
 
         setTestConnectionStatus({success: false, error: false, loading: true})
 
         try {
             if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-            await checkServiceHealth({url: customWorkflowAppValues.appUrl})
+            await findCustomWorkflowPath(url, "/health")
             setTestConnectionStatus({success: true, error: false, loading: false})
         } catch (error) {
             console.error(error)
             setTestConnectionStatus({success: false, error: true, loading: false})
         }
-    }
+    }, [])
 
     useEffect(() => {
         if (customWorkflowAppValues.appUrl) {
-            const timeout = setTimeout(() => runTestConnection(), 1000)
+            const timeout = setTimeout(
+                () => runTestConnection(undefined, customWorkflowAppValues.appUrl),
+                100,
+            )
             return () => clearTimeout(timeout)
         }
-    }, [customWorkflowAppValues.appUrl])
+    }, [customWorkflowAppValues.appUrl, runTestConnection])
 
     useEffect(() => {
         if (props.open) {
@@ -163,7 +168,9 @@ const CustomWorkflowModal = ({
                         <Button
                             loading={testConnectionStatus.loading}
                             type={testConnectionStatus.loading ? "dashed" : "default"}
-                            onClick={() => runTestConnection()}
+                            onClick={() =>
+                                runTestConnection(undefined, customWorkflowAppValues.appUrl)
+                            }
                             disabled={!customWorkflowAppValues.appUrl}
                         >
                             {testConnectionStatus.loading ? "Testing" : "Test connection"}

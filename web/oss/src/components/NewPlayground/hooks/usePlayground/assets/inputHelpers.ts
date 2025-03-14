@@ -7,12 +7,11 @@ import type {
     StringMetadata,
 } from "../../../assets/utilities/genericTransformer/types"
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
+import {extractInputKeysFromSchema} from "../../../assets/utilities/transformer/reverseTransformer"
 import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import {getSpecLazy} from "../../../state"
 import {GenerationInputRow} from "../../../state/types"
 import {PlaygroundStateData} from "../types"
-
-import {extractInputKeysFromSchema} from "./generationHelpers"
 
 /**
  * Variable Management
@@ -36,16 +35,6 @@ export function extractVariables(input: string): string[] {
     return variables
 }
 
-// /**
-//  * Schema Management
-//  * ----------------
-//  */
-
-// /**
-//  * Creates an input schema from a list of input keys
-//  * @param inputKeys - Array of input key names
-//  * @returns InputSchema with metadata for array of input rows
-//  */
 export function createInputSchema(inputKeys: string[]): ArrayMetadata<ObjectMetadata> {
     const properties: Record<string, StringMetadata> = Object.fromEntries(
         inputKeys.map((key) => [
@@ -158,11 +147,12 @@ export function syncVariantInputs(
     variants: EnhancedVariant[],
     generationInputData: PlaygroundStateData["generationData"]["inputs"],
     spec: OpenAPISpec | null = getSpecLazy(),
+    routePath?: string,
 ) {
     const isCustomWorkflow = variants.some((variant) => variant.isCustom)
     let inputStrings: string[] = []
     if (isCustomWorkflow && spec) {
-        inputStrings = extractInputKeysFromSchema(spec)
+        inputStrings = extractInputKeysFromSchema(spec, routePath)
     } else {
         const currentInputKeys = new Set(
             variants.flatMap((variant) =>

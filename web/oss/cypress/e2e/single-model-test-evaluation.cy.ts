@@ -36,7 +36,7 @@ describe("Single Model Test workflow", () => {
 
             cy.get('[data-cy="evaluation-vote-panel-numeric-vote-input"]').should("not.exist")
 
-            cy.intercept("POST", "**/app/generate", {
+            cy.intercept("POST", "**/app/test", {
                 statusCode: 200,
                 fixture: "single-prompt-openai/human-evaluation.json",
             }).as("generateRequest")

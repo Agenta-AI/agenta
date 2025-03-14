@@ -32,7 +32,7 @@ class TestMockChat:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?mock=hello",
+            f"{service_url}/test?mock=hello",
             json={
                 "messages": [
                     {"role": "user", "content": "What is the capital of {country}?"}
@@ -58,7 +58,7 @@ class TestMockChat:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?mock=hello",
+            f"{service_url}/test?mock=hello",
             json={
                 "messages": [
                     {"role": "assistant", "content": "You are an expert in Geography."},
@@ -86,7 +86,7 @@ class TestMockChat:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json={
                 "messages": [
                     {"role": "user", "content": "What is the capital of {country}?"}
@@ -118,7 +118,7 @@ class TestMockChat:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run",
+            f"{service_url}/test",
             json={"input": {"messages": "What is the capital of France?"}},
             headers=headers,
         )

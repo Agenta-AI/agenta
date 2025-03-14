@@ -1,12 +1,12 @@
 import {useCallback, useState} from "react"
 
+import {Input} from "antd"
 import clsx from "clsx"
 
 import EditorWrapper from "@/oss/components/Editor/Editor"
 import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 
 import type {SharedEditorProps} from "./types"
-import {Input} from "antd"
 
 const SharedEditor = ({
     header,

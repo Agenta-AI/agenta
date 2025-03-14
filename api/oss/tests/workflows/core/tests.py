@@ -28,7 +28,7 @@ class TestServiceCore:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
             headers=headers,
             json={"inputs": ""},
         )
@@ -60,7 +60,7 @@ class TestServiceCore:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
             headers=headers,
             json={"inputs": ""},
         )
@@ -88,7 +88,7 @@ class TestServiceCore:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}",
             headers=headers,
             json={},
         )
@@ -124,7 +124,7 @@ class TestServiceCore:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}",
             headers=headers,
             json=payload,
         )
@@ -150,7 +150,7 @@ class TestServiceCore:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json=payload,
             headers=headers,
         )

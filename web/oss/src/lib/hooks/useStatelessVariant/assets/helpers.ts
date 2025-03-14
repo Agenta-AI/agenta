@@ -37,6 +37,10 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
+export const removeTrailingSlash = (uri: string) => {
+    return uri.replace(/\/$/, "")
+}
+
 export const uriFixer = (uri: string) => {
     if (!uri.includes("http://") && !uri.includes("https://")) {
         // for oss.agenta.ai
@@ -47,7 +51,7 @@ export const uriFixer = (uri: string) => {
     }
 
     // Remove trailing slash if it exists
-    return uri.replace(/\/$/, "")
+    return removeTrailingSlash(uri)
 }
 
 /**
@@ -115,8 +119,12 @@ export const transformVariant = (
  * @param variants - Array of variants to fetch and update schemas for
  * @returns Promise containing updated variants with their schemas
  */
-export const transformVariants = (variants: EnhancedVariant[], spec: OpenAPISpec) => {
-    return variants.map((variant) => transformVariant(variant, spec))
+export const transformVariants = (
+    variants: EnhancedVariant[],
+    spec: OpenAPISpec,
+    appType?: string,
+) => {
+    return variants.map((variant) => transformVariant(variant, spec, appType))
 }
 
 /**
@@ -277,7 +285,13 @@ export const compareVariant = (
     return createBaseCompare(customCompare)(a, b)
 }
 
-export const setVariant = (variant: any): EnhancedVariant => {
+export const setVariant = (
+    variant: any,
+    uri: {
+        runtimePrefix: string
+        routePath?: string
+    },
+): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
     if (variant.parameters.agenta_config) {
@@ -314,6 +328,7 @@ export const setVariant = (variant: any): EnhancedVariant => {
         inputs: {} as EnhancedVariant["inputs"],
         messages: {} as EnhancedVariant["messages"],
         name: "",
+        uriObject: uri,
     } as EnhancedVariant
 }
 
@@ -324,10 +339,17 @@ export const setVariant = (variant: any): EnhancedVariant => {
  * @param newVariants - New array of raw variant data
  * @returns Array of transformed EnhancedVariant objects or current variants if unchanged
  */
-export const setVariants = (currentVariants: EnhancedVariant[], newVariants: any[]) => {
+export const setVariants = (
+    currentVariants: EnhancedVariant[],
+    newVariants: any[],
+    uri: {
+        runtimePrefix: string
+        routePath?: string
+    },
+) => {
     const areEqual = isPlaygroundEqual(currentVariants, newVariants)
     if (!areEqual) {
-        return newVariants.map(setVariant)
+        return newVariants.map((variant) => setVariant(variant, uri))
     }
     return currentVariants
 }

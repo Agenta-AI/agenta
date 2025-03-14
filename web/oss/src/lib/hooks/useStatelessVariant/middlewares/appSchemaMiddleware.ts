@@ -4,7 +4,7 @@ import {useCallback} from "react"
 import isEqual from "lodash/isEqual"
 import {type Key, type SWRHook, useSWRConfig} from "swr"
 
-import {DEFAULT_UUID} from "@/oss/contexts/project.context"
+import {findCustomWorkflowPath} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {type FetcherOptions} from "@/oss/lib/api/types"
 import {type Variant} from "@/oss/lib/Types"
 
@@ -46,21 +46,22 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             ? [config.initialVariants]
                             : await Promise.all([globalFetcher(url, options) as Promise<Variant[]>])
 
-                        const uri = variants[0]?.uri
+                        state.uri =
+                            variants[0]?.uriObject ||
+                            (await findCustomWorkflowPath(variants[0]?.uri))
 
-                        if (!uri) {
+                        if (!state.uri) {
                             throw new Error("No uri found for the new app type")
                         }
 
-                        const specResponse = await fetchOpenApiSchemaJson(uri)
-                        // write(specResponse.schema)
+                        const specResponse = await fetchOpenApiSchemaJson(state.uri.runtimePrefix)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                         if (!spec) {
                             return state
                         }
 
-                        state.variants = setVariants(state.variants, variants)
+                        state.variants = setVariants(state.variants, variants, state.uri)
 
                         state.variants = transformVariants(
                             state.variants,
@@ -75,7 +76,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                         if (["__id", "__metadata"].includes(key)) {
                                             return acc
                                         }
-                                        const originalParam = prompt.llmConfig[key]
+                                        // const originalParam = prompt.llmConfig[key]
 
                                         const param = {
                                             ...prompt.llmConfig[key],

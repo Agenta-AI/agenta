@@ -20,6 +20,7 @@ import {
 } from "../../hooks/usePlayground/assets/generationHelpers"
 import {
     fetchOpenApiSchemaJson,
+    findCustomWorkflowPath,
     setVariants,
     transformVariants,
 } from "../../hooks/usePlayground/assets/helpers"
@@ -47,12 +48,19 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
     const handleUpdate = useCallback(async () => {
         return await mutate(async (clonedState) => {
             const {data: variants} = await axios.get(`/api/apps/${currentApp?.app_id}/variants`)
-            clonedState.uri = variants[0].uri
-            if (!clonedState.uri) {
+
+            const specPath = await findCustomWorkflowPath(variants[0].uri)
+
+            clonedState.uri = specPath
+
+            if (
+                clonedState.uri?.routePath === undefined ||
+                clonedState.uri?.runtimePrefix === undefined
+            ) {
                 return clonedState
             }
 
-            const specResponse = await fetchOpenApiSchemaJson(clonedState.uri)
+            const specResponse = await fetchOpenApiSchemaJson(clonedState.uri.runtimePrefix)
             const spec = clonedState.spec || (specResponse.schema as OpenAPISpec)
 
             if (!spec) {
@@ -62,6 +70,8 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
             clonedState.variants = transformVariants(
                 setVariants(clonedState.variants, variants),
                 spec,
+                undefined,
+                clonedState.routePath,
             )
 
             atomStore.set(specAtom, () => spec)
@@ -70,9 +80,11 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
 
             clonedState.generationData.inputs = initializeGenerationInputs(
                 clonedState.variants.filter((v) => clonedState.selected.includes(v.id)),
+                spec,
+                clonedState.uri.routePath,
             )
 
-            if (detectChatVariantFromOpenAISchema(spec)) {
+            if (detectChatVariantFromOpenAISchema(spec, clonedState.uri)) {
                 clonedState.generationData.messages = initializeGenerationMessages(
                     clonedState.variants,
                 )

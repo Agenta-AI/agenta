@@ -38,6 +38,83 @@ export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
+export const findCustomWorkflowPath = async (
+    uri: string,
+    endpoint = "/openapi.json",
+    removedPaths?: string,
+    signal?: AbortSignal,
+): Promise<
+    | {
+          routePath: string
+          runtimePrefix: string
+          status?: boolean
+      }
+    | undefined
+> => {
+    const jwt = await getJWT()
+
+    const handleIncorrectUri = async (incorrectUri: string) => {
+        const paths = incorrectUri.split("/")
+        const removedPath = paths.pop()
+
+        const newPath = paths.join("/")
+        return newPath
+            ? await findCustomWorkflowPath(
+                  newPath,
+                  endpoint,
+                  `${removedPath}${removedPaths ? `/${removedPaths}` : ""}`,
+              )
+            : {
+                  routePath: removedPaths || "",
+                  runtimePrefix: uri,
+              }
+    }
+
+    try {
+        if (!uri || !uri.includes("//")) throw new Error("No uri found")
+
+        // uri = uri
+        // uriFixer(uri)
+        const openapiJsonResponse = await fetch(
+            `${uri}${endpoint}${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
+            {
+                headers: {
+                    "ngrok-skip-browser-warning": "1",
+                    ...(jwt
+                        ? {
+                              Authorization: `Bearer ${jwt}`,
+                          }
+                        : {}),
+                },
+                signal,
+            },
+        )
+
+        const data = await openapiJsonResponse.json()
+        if (!data || !openapiJsonResponse.ok) {
+            return await handleIncorrectUri(uri)
+        } else {
+            return {
+                routePath: removedPaths || "",
+                runtimePrefix: uri,
+                status: true,
+            }
+        }
+    } catch (err) {
+        return await handleIncorrectUri(uri)
+        // const paths = uri.split("/")
+        // const removedPath = paths.pop()
+
+        // const newPath = paths.join("/")
+        // return newPath
+        //     ? await findSpecPath(newPath, `${removedPath}${removedPaths ? `/${removedPaths}` : ""}`)
+        //     : {
+        //           routePath: removedPaths || "",
+        //           runtimePrefix: uri,
+        //       }
+    }
+}
+
 /**
  * FETCHERS
  */
@@ -80,8 +157,9 @@ export const transformVariant = (
     variant: EnhancedVariant,
     schema: OpenAPISpec,
     appType?: string,
+    routePath?: string,
 ) => {
-    const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
+    const enhancedVariant = transformToEnhancedVariant(variant, schema, appType, routePath)
 
     // Update prompt keys and initialize inputs
     updateVariantPromptKeys(enhancedVariant)
@@ -98,8 +176,9 @@ export const transformVariants = (
     variants: EnhancedVariant[],
     spec: OpenAPISpec,
     appType?: string,
+    routePath?: string,
 ) => {
-    return variants.map((variant) => transformVariant(variant, spec, appType))
+    return variants.map((variant) => transformVariant(variant, spec, appType, routePath))
 }
 
 /**

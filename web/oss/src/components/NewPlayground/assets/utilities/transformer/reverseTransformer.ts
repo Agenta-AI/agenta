@@ -1,6 +1,4 @@
-import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-
-import {extractInputKeysFromSchema} from "../../../hooks/usePlayground/assets/generationHelpers"
+import type {PlaygroundStateData} from "../../../hooks/usePlayground/types"
 import {isObjectMetadata} from "../genericTransformer/helpers/metadata"
 import type {ConfigMetadata, EnhancedObjectConfig, OpenAPISpec} from "../genericTransformer/types"
 import {toSnakeCase} from "../genericTransformer/utilities/string"
@@ -158,6 +156,31 @@ function extractInputValues(
     )
 }
 
+export const constructPlaygroundTestUrl = (
+    uri: {routePath?: string; runtimePrefix?: string},
+    endpoint = "/test",
+    withPrefix = true,
+) => {
+    return `${withPrefix ? uri.runtimePrefix || "" : ""}${uri.routePath ? `/${uri.routePath}` : ""}${endpoint}`
+}
+
+export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") => {
+    const requestSchema =
+        spec.paths[
+            `${constructPlaygroundTestUrl({
+                routePath,
+            })}`
+        ]?.post?.requestBody?.content?.["application/json"]?.schema
+    if (!requestSchema || !("properties" in requestSchema)) {
+        throw new Error("Invalid OpenAPI schema")
+    }
+    const expectedProperties = requestSchema.properties || {}
+    const expectedPropertyKeys = Object.keys(expectedProperties).filter(
+        (key) => !["ag_config", "messages"].includes(key),
+    )
+    return expectedPropertyKeys
+}
+
 /**
  * Transform EnhancedVariant back to API request shape
  */
@@ -168,6 +191,7 @@ export function transformToRequestBody({
     allMetadata = {},
     chatHistory,
     spec,
+    routePath = "",
 }: {
     variant: EnhancedVariant
     inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
@@ -175,6 +199,7 @@ export function transformToRequestBody({
     allMetadata: Record<string, ConfigMetadata>
     chatHistory?: Message[]
     spec: OpenAPISpec
+    routePath?: string
 }): Record<string, any> {
     const data = {} as Record<string, any>
 
@@ -202,12 +227,11 @@ export function transformToRequestBody({
         if (!variant.isCustom) {
             data.inputs = extractInputValues(variant, inputRow)
         } else if (spec) {
-            const inputKeys = extractInputKeysFromSchema(spec)
+            const inputKeys = extractInputKeysFromSchema(spec, routePath)
             for (const key of inputKeys) {
                 const value = (
                     inputRow?.[key as keyof typeof inputRow] as EnhancedObjectConfig<any>
                 ).value
-
                 if (value) {
                     data[key] = value
                 }
