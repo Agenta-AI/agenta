@@ -101,7 +101,7 @@ export default function VariantEndpoint() {
     const loadURL = async (environment: Environment) => {
         if (environment.deployed_app_variant_id) {
             const url = await fetchAppContainerURL(appId, environment.deployed_app_variant_id)
-            setURI(`${url}/generate_deployed`)
+            setURI(`${url}/run`)
         }
     }
 

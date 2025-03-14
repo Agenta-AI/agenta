@@ -225,6 +225,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         true,
                         !!variantData[idx].parameters, // isNewVariant
                         variantData[idx].isCustom,
+                        variantData[idx].uriObject,
                     )
 
                     let res: BaseResponse | undefined

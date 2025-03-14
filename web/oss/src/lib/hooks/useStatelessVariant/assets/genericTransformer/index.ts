@@ -166,13 +166,6 @@ export function createNameProperty() {
     })
 }
 
-export function detectChatVariantFromOpenAISchema(openApiSpec: OpenAPISpec): boolean {
-    const properties =
-        openApiSpec.paths["/playground/run"]?.post?.requestBody?.content["application/json"]?.schema
-            ?.properties
-    return properties?.messages !== undefined
-}
-
 // Export other utility functions
 export {createMetadata} from "./helpers/metadata"
 

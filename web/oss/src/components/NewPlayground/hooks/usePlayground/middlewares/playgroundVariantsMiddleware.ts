@@ -133,6 +133,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                 variant: baseVariant,
                                 allMetadata: getAllMetadata(),
                                 spec,
+                                routePath: state.uri?.routePath,
                             })
 
                             const newVariantBody: Partial<Variant> &
@@ -270,7 +271,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                             inputRow: variableRows[0],
                                             rowId: messageRow?.__id,
                                             appId: config.appId!,
-                                            uri: variant?.uri,
+                                            uri: clonedState.uri,
                                             projectId: getCurrentProject().projectId,
                                             allMetadata: getAllMetadata(),
                                             headers: {
@@ -309,7 +310,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                                 inputRow: variableRows[0],
                                                 rowId: messageRow?.__id,
                                                 appId: config.appId!,
-                                                uri: variant?.uri,
+                                                uri: clonedState.uri,
                                                 projectId: getCurrentProject().projectId,
                                                 allMetadata: getAllMetadata(),
                                                 headers: {
@@ -370,7 +371,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                             inputRow: variableRow,
                                             rowId: messageRow.__id,
                                             appId: config.appId!,
-                                            uri: variant.uri,
+                                            uri: clonedState.uri,
                                             projectId: getCurrentProject().projectId,
                                             allMetadata: getAllMetadata(),
                                             headers: {
@@ -414,7 +415,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                         inputRow: testRow,
                                         rowId: testRow.__id,
                                         appId: config.appId!,
-                                        uri: variant.uri,
+                                        uri: clonedState.uri,
                                         projectId: getCurrentProject().projectId,
                                         allMetadata: getAllMetadata(),
                                         headers: {

@@ -130,12 +130,12 @@ const VariantDrawer = ({
                             {
                                 key: "configuration",
                                 label: "Configuration",
-                                children:
-                                    variant?.isCustom || selectedVariant.parameters?.ag_config ? (
-                                        <NewVariantParametersView selectedVariant={variant} />
-                                    ) : (
-                                        <VariantParametersView selectedVariant={selectedVariant} />
-                                    ),
+                                children: !variant ? null : variant?.isCustom ||
+                                  selectedVariant.parameters?.ag_config ? (
+                                    <NewVariantParametersView selectedVariant={variant} />
+                                ) : (
+                                    <VariantParametersView selectedVariant={selectedVariant} />
+                                ),
                             },
                         ]}
                     />

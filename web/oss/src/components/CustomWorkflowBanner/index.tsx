@@ -1,10 +1,14 @@
+import {useCallback, useEffect, useRef, useState} from "react"
+
 import {ArrowClockwise, PencilSimple} from "@phosphor-icons/react"
 import {Alert, Button, Space} from "antd"
 import clsx from "clsx"
-import React, {useCallback, useEffect, useRef, useState} from "react"
-import {CustomWorkflowBannerProps} from "./types"
+
 import {useAppsData} from "@/oss/contexts/app.context"
-import {checkServiceHealth} from "@/oss/services/app-selector/api"
+
+import {findCustomWorkflowPath} from "../NewPlayground/hooks/usePlayground/assets/helpers"
+
+import {CustomWorkflowBannerProps} from "./types"
 
 const CustomWorkflowBanner = ({
     isNewPlayground,
@@ -25,7 +29,8 @@ const CustomWorkflowBanner = ({
         controllerRef.current = controller
 
         try {
-            await checkServiceHealth({url: variant?.uri || "", signal: controller.signal})
+            const {status} = (await findCustomWorkflowPath(variant?.uri || "", "/health")) || {}
+            if (!status) throw new Error("Unable to establish connection")
             setIsDown(false)
         } catch (error: any) {
             if (error.name !== "AbortError") {

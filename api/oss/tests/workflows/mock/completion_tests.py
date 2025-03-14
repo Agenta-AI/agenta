@@ -32,7 +32,7 @@ class TestMockCompletion:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?mock=hello",
+            f"{service_url}/test?mock=hello",
             json={
                 "ag_config": {
                     "prompt": {
@@ -76,7 +76,7 @@ class TestMockCompletion:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run",
+            f"{service_url}/test",
             json={
                 "input": {"country_name": "France"},
             },

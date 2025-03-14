@@ -145,7 +145,9 @@ async def make_payload(
         if param["type"] == "input":
             # ---
             item = datapoint.get(param["name"], parameters.get(param["name"], ""))
-            payload[param["name"]] = item
+
+            if item or param["name"] != "ag_config":
+                payload[param["name"]] = item
             # ---
 
         # in case of dynamic inputs (as in our templates)
@@ -221,7 +223,7 @@ async def invoke_app(
         aiohttp.ClientError: If the POST request fails.
     """
 
-    url = f"{uri}/generate"
+    url = f"{uri}/test"
     if "application_id" in kwargs:
         url = url + f"?application_id={kwargs.get('application_id')}"
 
@@ -416,9 +418,36 @@ async def batch_invoke(
         secret_token = await sign_secret_token(user_id, project_id, None)
 
         headers = {"Authorization": f"Secret {secret_token}"}
+    headers["ngrok-skip-browser-warning"] = "1"
+
+    openapi_parameters = None
+    max_recursive_depth = 5
+    runtime_prefix = uri
+    route_path = ""
+
+    while max_recursive_depth > 0 and not openapi_parameters:
+        try:
+            openapi_parameters = await get_parameters_from_openapi(
+                runtime_prefix + "/openapi.json",
+                route_path,
+                headers,
+            )
+        except Exception as e:
+            openapi_parameters = None
+
+        if not openapi_parameters:
+            max_recursive_depth -= 1
+            if not runtime_prefix.endswith("/"):
+                route_path = "/" + runtime_prefix.split("/")[-1] + route_path
+                runtime_prefix = "/".join(runtime_prefix.split("/")[:-1])
+
+            else:
+                route_path = ""
+                runtime_prefix = runtime_prefix[:-1]
 
     openapi_parameters = await get_parameters_from_openapi(
-        uri + "/openapi.json",
+        runtime_prefix + "/openapi.json",
+        route_path,
         headers,
     )
 
@@ -463,7 +492,8 @@ async def batch_invoke(
 
 
 async def get_parameters_from_openapi(
-    uri: str,
+    runtime_prefix: str,
+    route_path: str,
     headers: Optional[Dict[str, str]],
 ) -> List[Dict]:
     """
@@ -480,11 +510,11 @@ async def get_parameters_from_openapi(
 
     """
 
-    schema = await _get_openai_json_from_uri(uri, headers)
+    schema = await _get_openai_json_from_uri(runtime_prefix, headers)
 
     try:
         body_schema_name = (
-            schema["paths"]["/generate"]["post"]["requestBody"]["content"][
+            schema["paths"][route_path + "/test"]["post"]["requestBody"]["content"][
                 "application/json"
             ]["schema"]["$ref"]
             .split("/")

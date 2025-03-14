@@ -1,4 +1,5 @@
 import {hashMetadata} from "../../hash"
+import {constructPlaygroundTestUrl} from "../transformer/reverseTransformer"
 
 import {createMetadata} from "./helpers/metadata"
 import type {
@@ -166,17 +167,17 @@ export function createNameProperty() {
     })
 }
 
-export function detectCustomAppFromOpenAISchema(openApiSpec: OpenAPISpec): boolean {
-    const properties =
-        openApiSpec.paths["/playground/run"]?.post?.requestBody?.content["application/json"]?.schema
-            ?.properties
-    return !!properties?.messages && !properties?.inputs
-}
-
-export function detectChatVariantFromOpenAISchema(openApiSpec: OpenAPISpec): boolean {
-    const properties =
-        openApiSpec.paths["/playground/run"]?.post?.requestBody?.content["application/json"]?.schema
-            ?.properties
+export function detectChatVariantFromOpenAISchema(
+    openApiSpec: OpenAPISpec,
+    uri: {
+        routePath?: string
+        runtimePrefix: string
+    },
+): boolean {
+    const properties = (
+        openApiSpec.paths[constructPlaygroundTestUrl(uri, "/run", false)] ||
+        openApiSpec.paths[constructPlaygroundTestUrl(uri, "/test", false)]
+    )?.post?.requestBody?.content["application/json"]?.schema?.properties
     return properties?.messages !== undefined
 }
 

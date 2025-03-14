@@ -77,7 +77,7 @@ describe("A/B Testing Evaluation workflow", () => {
                 '[data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"]',
             ).should("not.exist")
 
-            cy.intercept("POST", "**/app/generate", {
+            cy.intercept("POST", "**/app/test", {
                 statusCode: 200,
                 fixture: "single-prompt-openai/human-evaluation.json",
             }).as("generateRequest")

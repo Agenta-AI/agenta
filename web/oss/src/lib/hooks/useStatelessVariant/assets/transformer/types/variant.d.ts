@@ -48,4 +48,8 @@ export interface BaseVariant {
     templateVariantName: string
     variantName: string
     parameters?: VariantParameters
+    uriObject?: {
+        routePath?: string
+        runtimePrefix: string
+    }
 }

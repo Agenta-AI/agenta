@@ -34,7 +34,10 @@ export interface InitialStateType {
     spec?: OpenAPISpec
     dirtyStates: Record<string, boolean>
     error?: Error
-    uri?: string
+    uri?: {
+        routePath: string
+        runtimePrefix: string
+    }
     generationData: {
         inputs: Enhanced<WithRuns[]>
         messages: Enhanced<

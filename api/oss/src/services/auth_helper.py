@@ -69,7 +69,10 @@ async def authentication_middleware(request: Request, call_next):
     except Exception as e:
         logger.error("Internal Server Error: %s", traceback.format_exc())
         status_code = e.status_code if hasattr(e, "status_code") else 500
-        return Response(status_code=status_code, content={"detail": "An internal error has occurred."})
+        return Response(
+            status_code=status_code,
+            content={"detail": "An internal error has occurred."},
+        )
 
     except RequestValidationError as exc:
         logger.error("Unprocessable Content: %s", exc)

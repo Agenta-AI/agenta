@@ -5,7 +5,7 @@ import {fetchAppContainerURL} from "@/oss/services/api"
 const useURI = (appId: string, variantId?: string) => {
     const fetcher = async () => {
         const url = await fetchAppContainerURL(appId, variantId)
-        return `${url}/generate_deployed`
+        return `${url}/run`
     }
 
     const swr = useSWR(variantId ? ["uri"] : null, fetcher, {

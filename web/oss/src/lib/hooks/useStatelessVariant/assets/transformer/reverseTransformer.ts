@@ -122,11 +122,13 @@ export function transformToRequestBody({
     inputRow,
     allMetadata = {},
     spec = getSpecLazy(),
+    routePath = "",
 }: {
     variant: EnhancedVariant
     inputRow?: EnhancedVariant["inputs"]["value"][number]
     allMetadata: Record<string, ConfigMetadata>
     spec?: OpenAPISpec
+    routePath?: string
 }): Record<string, any> {
     const data = {} as Record<string, any>
 
@@ -157,7 +159,7 @@ export function transformToRequestBody({
         if (!variant.isCustom) {
             data.inputs = extractInputValues(variant, inputRow)
         } else if (spec) {
-            const inputKeys = extractInputKeysFromSchema(spec)
+            const inputKeys = extractInputKeysFromSchema(spec, routePath)
             for (const key of inputKeys) {
                 const value = (inputRow?.[key as keyof typeof inputRow] as EnhancedConfigValue<any>)
                     .value

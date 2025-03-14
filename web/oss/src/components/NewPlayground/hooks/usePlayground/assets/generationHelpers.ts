@@ -7,6 +7,7 @@ import type {
     OpenAPISpec,
 } from "../../../assets/utilities/genericTransformer/types"
 import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
+import {extractInputKeysFromSchema} from "../../../assets/utilities/transformer/reverseTransformer"
 import type {AgentaConfigPrompt, EnhancedVariant} from "../../../assets/utilities/transformer/types"
 import type {MessageWithRuns} from "../../../state/types"
 import type {PlaygroundStateData} from "../types"
@@ -33,25 +34,16 @@ export const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigV
     return Array.from(uniqueKeys)
 }
 
-export const extractInputKeysFromSchema = (spec: OpenAPISpec) => {
-    const requestSchema =
-        spec.paths["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema
-    if (!requestSchema || !("properties" in requestSchema)) {
-        throw new Error("Invalid OpenAPI schema")
-    }
-    const expectedProperties = requestSchema.properties || {}
-    const expectedPropertyKeys = Object.keys(expectedProperties).filter(
-        (key) => !["ag_config", "messages"].includes(key),
-    )
-    return expectedPropertyKeys
-}
-
-export const initializeGenerationInputs = (variants: EnhancedVariant[], spec?: OpenAPISpec) => {
+export const initializeGenerationInputs = (
+    variants: EnhancedVariant[],
+    spec?: OpenAPISpec,
+    routePath?: string,
+) => {
     // Get all unique input keys across all variants
     const isCustomWorkflow = variants.some((variant) => variant.isCustom)
     let inputStrings: string[] = []
     if (isCustomWorkflow && spec) {
-        inputStrings = extractInputKeysFromSchema(spec)
+        inputStrings = extractInputKeysFromSchema(spec, routePath)
     } else {
         const uniqueInputKeys = getUniqueInputKeys(variants)
         inputStrings = Array.from(uniqueInputKeys).map((enhancedKey) => enhancedKey.value)

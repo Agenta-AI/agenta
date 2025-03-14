@@ -18,6 +18,7 @@ import {
     User,
 } from "@/oss/lib/Types"
 
+import {constructPlaygroundTestUrl} from "../components/NewPlayground/assets/utilities/transformer/reverseTransformer"
 import {uriFixer} from "../lib/hooks/useStatelessVariant/assets/helpers"
 
 //Prefix convention:
@@ -110,6 +111,10 @@ export async function callVariant(
     ignoreAxiosError?: boolean,
     isNewVariant?: boolean,
     isCustomVariant?: boolean,
+    uriObject?: {
+        runtimePrefix: string
+        routePath?: string
+    },
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -161,48 +166,81 @@ export async function callVariant(
         requestBody["inputs"] = secondaryInputParams
     }
 
-    const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
-    const {projectId} = getCurrentProject()
-    const jwt = await getJWT()
+    if (uriObject) {
+        const uri = constructPlaygroundTestUrl(uriObject, "/test", true)
+        const jwt = await getJWT()
+        const headers = {
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "1",
+            ...(jwt
+                ? {
+                      Authorization: `Bearer ${jwt}`,
+                  }
+                : {}),
+        }
 
-    const base_url = `${appContainerURI}/generate?application_id=${appId}`
-    const secure_url = `${base_url}&project_id=${projectId}`
-    const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
+        const response = await axios
+            .post(uri, requestBody, {
+                signal,
+                _ignoreError: ignoreAxiosError,
+                headers: headers,
+            } as any)
+            .then((response) => {
+                return response
+            })
+            .catch((error) => {
+                console.log("Secure call to LLM App failed:", error)
 
-    const response = await axios
-        .post(base_url, requestBody, {
-            signal,
-            _ignoreError: ignoreAxiosError,
-        } as any)
-        .then((response) => {
-            return response
-        })
-        .catch(async (error) => {
-            console.log("Unsecure call to LLM App failed:", error)
-
-            if (error?.response?.status !== 401) {
                 throw error
-            }
+            })
 
-            const response = await axios
-                .post(secure_url, requestBody, {
-                    signal,
-                    _ignoreError: ignoreAxiosError,
-                    headers: secure_headers,
-                } as any)
-                .then((response) => {
-                    return response
-                })
-                .catch((error) => {
-                    console.log("Secure call to LLM App failed:", error)
+        return response?.data
+    } else {
+        const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
+        const {projectId} = getCurrentProject()
+        const jwt = await getJWT()
 
+        const base_url = `${appContainerURI}/test?application_id=${appId}`
+        const secure_url = `${base_url}&project_id=${projectId}`
+        const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
+
+        console.log("base_url?", base_url)
+
+        const response = await axios
+            .post(base_url, requestBody, {
+                signal,
+                _ignoreError: ignoreAxiosError,
+            } as any)
+            .then((response) => {
+                return response
+            })
+            .catch(async (error) => {
+                console.log("Unsecure call to LLM App failed:", error)
+
+                if (error?.response?.status !== 401) {
                     throw error
-                })
+                }
 
-            return response
-        })
+                const response = await axios
+                    .post(secure_url, requestBody, {
+                        signal,
+                        _ignoreError: ignoreAxiosError,
+                        headers: secure_headers,
+                    } as any)
+                    .then((response) => {
+                        return response
+                    })
+                    .catch((error) => {
+                        console.log("Secure call to LLM App failed:", error)
 
-    return response?.data
+                        throw error
+                    })
+
+                return response
+            })
+
+        return response?.data
+    }
 }
 
 /**

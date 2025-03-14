@@ -8,6 +8,8 @@
  * - Creating properly structured prompt configurations
  */
 
+import {constructPlaygroundTestUrl} from "@/oss/components/NewPlayground/assets/utilities/transformer/reverseTransformer"
+
 import {createEnhancedConfig, mergeWithSchema} from "../genericTransformer"
 import type {
     OpenAPISpec,
@@ -49,7 +51,15 @@ export function transformToEnhancedVariant(
     appType?: string,
 ): EnhancedVariant {
     const requestSchema =
-        openApiSpec.paths["/generate"]?.post?.requestBody?.content?.["application/json"]?.schema
+        openApiSpec.paths[
+            `${constructPlaygroundTestUrl(
+                {
+                    routePath: variant.uriObject?.routePath,
+                },
+                "/test",
+                false,
+            )}`
+        ]?.post?.requestBody?.content?.["application/json"]?.schema
     if (!requestSchema || !("properties" in requestSchema)) {
         throw new Error("Invalid OpenAPI schema")
     }

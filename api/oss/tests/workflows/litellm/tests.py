@@ -33,7 +33,7 @@ class TestLitellmCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json={
                 "ag_config": {
                     "prompt": {
@@ -75,7 +75,7 @@ class TestLitellmCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json={
                 "messages": [
                     {"role": "user", "content": "What is the capital of {country}?"},
@@ -102,7 +102,7 @@ class TestLitellmCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json={
                 "messages": [
                     {"role": "assistant", "content": "You are an expert in Geography."},
@@ -146,7 +146,7 @@ class TestLitellmCoverage:
         for supported_model in supported_models:
             payload["ag_config"]["prompt"]["llm_config"]["model"] = supported_model
             response = await http_client.post(
-                f"{service_url}/generate",
+                f"{service_url}/test",
                 json=payload,
                 headers=headers,
             )

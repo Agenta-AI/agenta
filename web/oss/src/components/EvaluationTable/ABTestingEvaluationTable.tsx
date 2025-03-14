@@ -236,6 +236,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                             true,
                             !!(data?.variants || [])[idx].parameters, // isNewVariant
                             (data?.variants || [])[idx].isCustom,
+                            (data?.variants || [])[idx].uriObject,
                         )
 
                         let res: BaseResponse | undefined

@@ -35,7 +35,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id=&application_slug=&variant_id=&variant_slug=&environment_id=&environment_slug=&environment_version=",
+            f"{service_url}/test?application_id=&application_slug=&variant_id=&variant_slug=&environment_id=&environment_slug=&environment_version=",
             headers=headers,
             json={"inputs": ""},
         )
@@ -64,7 +64,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?mock=hello&variant_slug={variant_slug}&variant_version={variant_version}",
+            f"{service_url}/test?mock=hello&variant_slug={variant_slug}&variant_version={variant_version}",
             json=payload,
             headers=custom_headers,
         )
@@ -94,7 +94,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
             headers=headers,
             json={"inputs": ""},
         )
@@ -124,7 +124,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&variant_id={variant_id}&variant_slug={variant_slug}",
             headers=headers,
             json={"inputs": ""},
         )
@@ -154,7 +154,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/run?application_id={application_id}&application_slug={application_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
+            f"{service_url}/test?application_id={application_id}&application_slug={application_slug}&environment_id={environment_id}&environment_slug={environment_slug}",
             headers=headers,
             json={"inputs": ""},
         )
@@ -186,7 +186,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?variant_id={variant_revision_id}",
+            f"{service_url}/test?variant_id={variant_revision_id}",
             headers=headers,
             json=payload,
         )
@@ -213,7 +213,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?application_id=&application_slug=&variant_version={variant_version}&variant_slug={variant_slug}",
+            f"{service_url}/test?application_id=&application_slug=&variant_version={variant_version}&variant_slug={variant_slug}",
             headers=headers,
             json=payload,
         )
@@ -245,7 +245,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?environment_id={environment_revision_id}",
+            f"{service_url}/test?environment_id={environment_revision_id}",
             headers=headers,
             json=payload,
         )
@@ -274,7 +274,7 @@ class TestServiceConfig:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?environment_version={environment_version}&environment_slug={environment_slug}",
+            f"{service_url}/test?environment_version={environment_version}&environment_slug={environment_slug}",
             headers=headers,
             json=payload,
         )

@@ -39,7 +39,7 @@ class TestMockCompletion:
 
         # Act
         response = await http_client.post(
-            f"{service_url}/generate?project_id={user_scope_project_id}",
+            f"{service_url}/test?project_id={user_scope_project_id}",
             json={
                 "ag_config": {
                     "prompt": {

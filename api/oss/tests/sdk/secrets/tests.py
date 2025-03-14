@@ -38,7 +38,7 @@ class TestSecretsCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?project_id={scope_project_id}",
+            f"{service_url}/test?project_id={scope_project_id}",
             json=payload,
             headers=non_member_headers,
         )
@@ -63,7 +63,7 @@ class TestSecretsCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate",
+            f"{service_url}/test",
             json=payload,
             headers=headers,
         )
@@ -89,7 +89,7 @@ class TestSecretsCoverage:
 
         # ACT
         response = await http_client.post(
-            f"{service_url}/generate?middleware_cache_enabled=false",
+            f"{service_url}/test?middleware_cache_enabled=false",
             json=payload,
             headers=headers,
         )

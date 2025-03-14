@@ -44,11 +44,11 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                 } else {
                     const inputRows = state.generationData.inputs.value
 
-                    const resultHashes = inputRows.map((inputRow) =>
+                    const resultHashes = (inputRows || []).map((inputRow) =>
                         variantId ? inputRow?.__runs?.[variantId]?.__result : null,
                     )
 
-                    const isRunning = inputRows.some((inputRow) =>
+                    const isRunning = (inputRows || []).some((inputRow) =>
                         variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
                     )
 

@@ -5,7 +5,10 @@ import {
 import {GenerationChatRow, GenerationInputRow} from "@/oss/components/NewPlayground/state/types"
 
 import {parseValidationError} from "../../../assets/utilities/errors"
-import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
+import {
+    constructPlaygroundTestUrl,
+    transformToRequestBody,
+} from "../../../assets/utilities/transformer/reverseTransformer"
 import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 async function runVariantInputRow(payload: {
@@ -15,7 +18,11 @@ async function runVariantInputRow(payload: {
     messageRow?: GenerationChatRow
     rowId: string
     appId: string
-    uri: string
+    uri: {
+        runtimePrefix: string
+        routePath?: string
+        status?: boolean
+    }
     headers: Record<string, string>
     projectId: string
     messageId?: string
@@ -43,12 +50,13 @@ async function runVariantInputRow(payload: {
         allMetadata,
         chatHistory,
         spec,
+        routePath: uri?.routePath,
     })
     let result
 
     try {
         const response = await fetch(
-            `${uri}/generate${headers.Authorization ? `?project_id=${projectId}&application_id=${appId}` : `?application_id=${appId}`}`,
+            `${constructPlaygroundTestUrl(uri, "/test", true)}${headers.Authorization ? `?project_id=${projectId}&application_id=${appId}` : `?application_id=${appId}`}`,
             {
                 method: "POST",
                 headers: {

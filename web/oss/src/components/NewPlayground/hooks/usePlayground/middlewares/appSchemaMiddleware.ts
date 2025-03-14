@@ -10,7 +10,12 @@ import {type Variant} from "@/oss/lib/Types"
 import {type OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
 import {initialState, specAtom, atomStore} from "../../../state"
 import {initializeGenerationInputs, initializeGenerationMessages} from "../assets/generationHelpers"
-import {fetchOpenApiSchemaJson, setVariants, transformVariants} from "../assets/helpers"
+import {
+    fetchOpenApiSchemaJson,
+    findCustomWorkflowPath,
+    setVariants,
+    transformVariants,
+} from "../assets/helpers"
 import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
@@ -63,14 +68,23 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         const [variants] = await Promise.all([
                             globalFetcher(url, options) as Promise<Variant[]>,
                         ])
-                        state.uri = variants[0].uri
 
-                        if (!state.uri) {
+                        if (!variants[0].uri) {
+                            return state
+                        }
+
+                        const specPath = await findCustomWorkflowPath(variants[0].uri)
+
+                        state.uri = specPath
+
+                        if (state.uri?.routePath === undefined) {
                             throw new Error("No uri found for the new app type")
                         }
 
                         try {
-                            const specResponse = await fetchOpenApiSchemaJson(state.uri)
+                            const specResponse = await fetchOpenApiSchemaJson(
+                                state.uri.runtimePrefix,
+                            )
                             const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                             if (!spec) {
@@ -81,6 +95,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 setVariants(state.variants, variants),
                                 spec,
                                 config.appType,
+                                state.uri.routePath,
                             )
 
                             atomStore.set(specAtom, () => spec)
@@ -90,9 +105,10 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             state.generationData.inputs = initializeGenerationInputs(
                                 state.variants.filter((v) => state.selected.includes(v.id)),
                                 spec,
+                                state.uri.routePath,
                             )
 
-                            if (detectChatVariantFromOpenAISchema(spec)) {
+                            if (detectChatVariantFromOpenAISchema(spec, state.uri)) {
                                 state.generationData.messages = initializeGenerationMessages(
                                     state.variants,
                                 )
