@@ -54,6 +54,10 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             throw new Error("No uri found for the new app type")
                         }
 
+                        variants.forEach((variant) => {
+                            variant.uriObject = state.uri
+                        })
+
                         const specResponse = await fetchOpenApiSchemaJson(state.uri.runtimePrefix)
                         const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
