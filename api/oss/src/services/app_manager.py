@@ -1,5 +1,4 @@
-"""Main Business logic
-"""
+"""Main Business logic"""
 
 import os
 import uuid
@@ -274,10 +273,6 @@ async def update_variant_url(
             await deployment_manager.remove_image(base.image)
 
         await db_manager.remove_image(base.image, project_id)
-
-    await db_manager.update_variant_parameters(
-        str(app_variant_db.id), parameters={}, project_id=project_id, user_uid=user_uid
-    )
 
     app_variant_db = await db_manager.update_app_variant(
         app_variant_id=str(app_variant_db.id), url=parsed_url

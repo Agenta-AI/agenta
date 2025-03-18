@@ -10,9 +10,22 @@ import {Variant} from "@/oss/lib/Types"
 
 import {useStyles} from "./styles"
 
-export const NewVariantParametersView = ({selectedVariant}: {selectedVariant: EnhancedVariant}) => {
+export const NewVariantParametersView = ({
+    selectedVariant,
+    parameters,
+}: {
+    selectedVariant: EnhancedVariant
+    parameters?: Record<string, unknown>
+}) => {
+    const params = useMemo(() => {
+        const ag_config = (parameters?.ag_config ||
+            parameters?.agConfig ||
+            selectedVariant.parameters?.agConfig) as unknown as Record<string, unknown>
+
+        return ag_config
+    }, [parameters, selectedVariant.parameters])
     const {promptConfigs, customConfigs} = useMemo(() => {
-        const ag_config = selectedVariant.parameters?.agConfig as unknown as Record<string, unknown>
+        const ag_config = params
         const promptKeys = selectedVariant.prompts.map((prompt) => prompt.__name)
 
         const promptConfigs = promptKeys.reduce(
@@ -51,7 +64,7 @@ export const NewVariantParametersView = ({selectedVariant}: {selectedVariant: En
             promptConfigs,
             customConfigs,
         }
-    }, [selectedVariant])
+    }, [params, selectedVariant])
 
     const classes = useStyles()
     return (
