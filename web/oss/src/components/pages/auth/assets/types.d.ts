@@ -8,14 +8,10 @@ export interface EmailPasswordAuthProps {
 
 export interface SendOTPProps {
     message: AuthErrorMsgType
-    isLoading: boolean
     email: string
-    isResendDisabled: boolean
     setMessage: React.Dispatch<React.SetStateAction<AuthErrorMsgType>>
     authErrorMsg: (error: any) => void
     setIsLoginCodeVisible: React.Dispatch<React.SetStateAction<boolean>>
-    setIsResendDisabled: React.Dispatch<React.SetStateAction<boolean>>
-    setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
 }
 
 export interface PasswordlessAuthProps {
@@ -27,10 +23,12 @@ export interface PasswordlessAuthProps {
     authErrorMsg: (error: any) => void
     setIsLoginCodeVisible: React.Dispatch<React.SetStateAction<boolean>>
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
+    disabled: boolean
 }
 
 export interface SocialAuthProps {
     isLoading: boolean
     authErrorMsg: (error: any) => void
     setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
+    disabled: boolean
 }

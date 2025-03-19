@@ -6,7 +6,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
 
-from oss.src.utils.common import APIRouter, isCloudEE
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import (
     evaluator_manager,
     db_manager,
@@ -25,7 +25,7 @@ from oss.src.models.api.evaluation_model import (
     EvaluatorMappingOutputInterface,
 )
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
@@ -105,7 +105,7 @@ async def get_evaluator_configs(
     """
 
     app_db = await db_manager.fetch_app_by_id(app_id=app_id)
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app_db.project_id),
@@ -137,7 +137,7 @@ async def get_evaluator_config(
     """
 
     evaluator_config_db = await db_manager.fetch_evaluator_config(evaluator_config_id)
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(evaluator_config_db.project_id),
@@ -172,7 +172,7 @@ async def create_new_evaluator_config(
     """
 
     app_db = await db_manager.get_app_instance_by_id(app_id=payload.app_id)
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app_db.project_id),
@@ -211,7 +211,7 @@ async def update_evaluator_config(
     evaluator_config = await db_manager.fetch_evaluator_config(
         evaluator_config_id=evaluator_config_id
     )
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(evaluator_config.project_id),
@@ -248,7 +248,7 @@ async def delete_evaluator_config(
     evaluator_config = await db_manager.fetch_evaluator_config(
         evaluator_config_id=evaluator_config_id
     )
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(evaluator_config.project_id),

@@ -70,12 +70,14 @@ export const createVariant = async ({
     baseName = "app",
     templateKey,
     serviceUrl,
+    isCustomWorkflow = false,
 }: {
     appId: string
     variantName?: string
     baseName?: string
     templateKey?: ServiceType
     serviceUrl?: string
+    isCustomWorkflow?: boolean
 }) => {
     interface CreateVariantRequestBody {
         config_name: string
@@ -104,7 +106,10 @@ export const createVariant = async ({
         base_name: baseName,
     } as CreateVariantRequestBody
 
-    if (serviceUrl) {
+    if (isCustomWorkflow) {
+        body.config_name = variantName
+        body.url = serviceUrl
+    } else if (serviceUrl) {
         body.config_name = "url"
         body.url = serviceUrl
     } else if (templateKey) {
@@ -155,13 +160,15 @@ export const createAndStartTemplate = async ({
     appName,
     providerKey,
     templateKey,
-    onStatusChange,
     serviceUrl,
+    isCustomWorkflow = false,
+    onStatusChange,
 }: {
     appName: string
     templateKey: ServiceType
     serviceUrl?: string
     providerKey: LlmProvider[]
+    isCustomWorkflow?: boolean
     onStatusChange?: (
         status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
         details?: any,
@@ -181,6 +188,7 @@ export const createAndStartTemplate = async ({
                 _variant = await createVariant({
                     appId: app.app_id,
                     serviceUrl,
+                    isCustomWorkflow,
                 })
             } else {
                 _variant = await createVariant({

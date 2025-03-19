@@ -2,7 +2,7 @@ import os
 
 from cachetools import TTLCache, cached
 
-from agenta.client.backend.client import AgentaApi
+from agenta.client.client import AgentaApi
 
 
 class Agenta:

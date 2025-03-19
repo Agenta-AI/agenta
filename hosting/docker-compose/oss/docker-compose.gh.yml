@@ -43,16 +43,16 @@ services:
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
-            - "traefik.http.routers.backend.rule=PathPrefix(`/api/`)"
-            - "traefik.http.routers.backend.entrypoints=web"
-            - "traefik.http.middlewares.backend-strip.stripprefix.prefixes=/api"
-            - "traefik.http.middlewares.backend-strip.stripprefix.forceslash=true"
-            - "traefik.http.routers.backend.middlewares=backend-strip"
-            - "traefik.http.services.backend.loadbalancer.server.port=8000"
-            - "traefik.http.routers.backend.service=backend"
-            # - "traefik.http.routers.backend.tls=true"
-            # - "traefik.http.routers.backend.tls.certresolver=myResolver"
-            # - "traefik.http.routers.backend.entrypoints=web-secure"
+            - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
+            - "traefik.http.routers.api.entrypoints=web"
+            - "traefik.http.middlewares.api-strip.stripprefix.prefixes=/api"
+            - "traefik.http.middlewares.api-strip.stripprefix.forceslash=true"
+            - "traefik.http.routers.api.middlewares=api-strip"
+            - "traefik.http.services.api.loadbalancer.server.port=8000"
+            - "traefik.http.routers.api.service=api"
+            # - "traefik.http.routers.api.tls=true"
+            # - "traefik.http.routers.api.tls.certresolver=myResolver"
+            # - "traefik.http.routers.api.entrypoints=web-secure"
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}

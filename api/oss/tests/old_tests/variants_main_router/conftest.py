@@ -13,7 +13,6 @@ from oss.src.models.db_models import (
     UserDB,
     DeploymentDB,
     VariantBaseDB,
-    ImageDB,
     AppVariantDB,
 )
 from oss.src.tests.unit.test_traces import (
@@ -89,87 +88,12 @@ async def get_or_create_project_from_db():
         return project
 
 
-@pytest.fixture()
-async def get_first_user_app(get_first_user_object, get_or_create_project_from_db):
-    user = await get_first_user_object
-    project = await get_or_create_project_from_db
-
-    async with engine.session() as session:
-        app = AppDB(app_name="myapp", project_id=project.id)
-        session.add(app)
-        await session.commit()
-        await session.refresh(app)
-
-        db_image = ImageDB(
-            docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            tags="agentaai/templates_v2:local_test_prompt",
-            project_id=project.id,
-        )
-        session.add(db_image)
-        await session.commit()
-        await session.refresh(db_image)
-
-        db_config = ConfigDB(
-            config_name="default",
-            parameters={},
-        )
-
-        db_deployment = DeploymentDB(
-            app_id=app.id,
-            project_id=project.id,
-            container_name="container_a_test",
-            container_id="w243e34red",
-            uri="http://localhost/app/w243e34red",
-            status="stale",
-        )
-        session.add(db_deployment)
-
-        db_base = VariantBaseDB(
-            base_name="app",
-            image_id=db_image.id,
-            project_id=project.id,
-            app_id=app.id,
-            deployment_id=db_deployment.id,
-        )
-        session.add(db_base)
-        await session.commit()
-        await session.refresh(db_base)
-
-        appvariant = AppVariantDB(
-            app_id=app.id,
-            variant_name="app",
-            image_id=db_image.id,
-            project_id=project.id,
-            config_parameters={},
-            base_name="app",
-            config_name="default",
-            base_id=db_base.id,
-            revision=0,
-            modified_by_id=user.id,
-        )
-        session.add(appvariant)
-        await session.commit()
-        await session.refresh(appvariant)
-
-        return appvariant, user, app, db_image, db_config, db_base
-
-
 @pytest.fixture(scope="session")
 async def fetch_user():
     async with engine.session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         return user
-
-
-@pytest.fixture()
-def image_create_data():
-    return {
-        "docker_id": "sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-        "tags": "agentaai/templates_v2:local_test_prompt",
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc),
-    }
 
 
 @pytest.fixture()
@@ -183,32 +107,8 @@ def app_variant_create_data():
 
 
 @pytest.fixture(scope="session")
-def fetch_templates():
-    response = httpx.get(f"{BACKEND_API_HOST}/containers/templates/")
-    response_data = response.json()
-    return response_data
-
-
-@pytest.fixture(scope="session")
 def use_open_ai_key():
     return OPEN_AI_KEY
-
-
-@pytest.fixture(scope="session")
-def fetch_single_prompt_template(fetch_templates):
-    return next(
-        (temp for temp in fetch_templates if temp["image"]["name"] == "chat_openai"),
-        None,
-    )
-
-
-@pytest.fixture()
-def app_from_template():
-    return {
-        "app_name": "string",
-        "env_vars": {"OPENAI_API_KEY": OPEN_AI_KEY},
-        "template_id": "string",
-    }
 
 
 @pytest.fixture()

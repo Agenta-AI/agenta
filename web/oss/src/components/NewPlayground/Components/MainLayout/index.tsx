@@ -204,6 +204,7 @@ const PlaygroundMainView = ({className, ...divProps}: BaseContainerProps) => {
                         <section
                             ref={setGenerationPanelRef}
                             className={clsx([
+                                "playground-generation",
                                 {
                                     "grow w-full h-full overflow-y-auto": !isComparisonView,
                                     "grow w-full h-full overflow-auto [&::-webkit-scrollbar]:w-0":

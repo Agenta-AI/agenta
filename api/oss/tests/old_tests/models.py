@@ -1,10 +1,10 @@
 from typing import List
 
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 
 from oss.src.dbs.postgres.shared.base import Base
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
@@ -33,9 +33,7 @@ else:
 
 from oss.src.models.db_models import (
     UserDB,
-    ImageDB,
     TestSetDB,
-    TemplateDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -48,9 +46,7 @@ models: List[Base] = [
     AppDB,
     UserDB,
     ProjectDB,
-    ImageDB,
     TestSetDB,
-    TemplateDB,
     AppVariantDB,
     DeploymentDB,
     EvaluationDB,
@@ -64,5 +60,5 @@ models: List[Base] = [
     HumanEvaluationScenarioDB,
 ]
 
-if isCloudEE():
+if is_ee():
     models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, OrganizationMemberDB, ProjectMemberDB, WorkspaceMemberDB])  # type: ignore

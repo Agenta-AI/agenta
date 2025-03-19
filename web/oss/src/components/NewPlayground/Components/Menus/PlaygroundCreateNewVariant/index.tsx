@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {ArrowsLeftRight} from "@phosphor-icons/react"
 import {Popover} from "antd"
 
 import AddButton from "../../../assets/AddButton"
@@ -34,7 +35,7 @@ const PlaygroundCreateNewVariant: React.FC<PlaygroundCreateNewVariantProps> = ({
             }
             className={className}
         >
-            <AddButton {...buttonProps} />
+            <AddButton icon={<ArrowsLeftRight size={14} />} {...buttonProps} />
         </Popover>
     )
 }

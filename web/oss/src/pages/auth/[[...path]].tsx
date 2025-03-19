@@ -21,9 +21,9 @@ const {Text, Title} = Typography
 
 const Auth = () => {
     const [email, setEmail] = useState("")
-    const [isLoading, setIsLoading] = useState(false)
+    const [isAuthLoading, setIsAuthLoading] = useState(false)
+    const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
-    const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
 
     const authErrorMsg = (error: any) => {
@@ -106,31 +106,29 @@ const Auth = () => {
                         <>
                             <SocialAuth
                                 authErrorMsg={authErrorMsg}
-                                isLoading={isLoading}
-                                setIsLoading={setIsLoading}
+                                disabled={isAuthLoading}
+                                isLoading={isSocialAuthLoading}
+                                setIsLoading={setIsSocialAuthLoading}
                             />
                             <PasswordlessAuth
                                 email={email}
                                 setEmail={setEmail}
-                                isLoading={isLoading}
+                                isLoading={isAuthLoading}
                                 message={message}
-                                setIsLoading={setIsLoading}
+                                setIsLoading={setIsAuthLoading}
                                 setMessage={setMessage}
                                 authErrorMsg={authErrorMsg}
                                 setIsLoginCodeVisible={setIsLoginCodeVisible}
+                                disabled={isSocialAuthLoading}
                             />
                         </>
                     ) : (
                         <SendOTP
                             message={message}
-                            isLoading={isLoading}
                             email={email}
-                            isResendDisabled={isResendDisabled}
                             setMessage={setMessage}
                             authErrorMsg={authErrorMsg}
                             setIsLoginCodeVisible={setIsLoginCodeVisible}
-                            setIsResendDisabled={setIsResendDisabled}
-                            setIsLoading={setIsLoading}
                         />
                     )}
 

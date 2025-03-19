@@ -5,7 +5,7 @@ import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-re
 
 import {SocialAuthProps} from "../assets/types"
 
-const SocialAuth = ({authErrorMsg, isLoading, setIsLoading}: SocialAuthProps) => {
+const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAuthProps) => {
     const router = useRouter()
 
     const googleSignInClicked = async () => {
@@ -55,6 +55,7 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading}: SocialAuthProps) =>
                     className="w-full"
                     onClick={googleSignInClicked}
                     loading={isLoading}
+                    disabled={disabled}
                 >
                     Continue with Google
                 </Button>
@@ -65,6 +66,7 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading}: SocialAuthProps) =>
                     className="w-full"
                     onClick={githubSignInClicked}
                     loading={isLoading}
+                    disabled={disabled}
                 >
                     Continue with Github
                 </Button>

@@ -8,11 +8,10 @@ from typing import Any, Dict, List, Optional
 
 from oss.src.utils import common
 from oss.src.services import helpers
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.models.shared_models import InvokationResult, Result, Error
 
-if isCloudEE():
-    from ee.src.services.auth_helper import sign_secret_token
+from ee.src.services.auth_helper import sign_secret_token
 
 
 # Set logger
@@ -229,11 +228,10 @@ async def invoke_app(
 
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
+    secret_token = await sign_secret_token(user_id, project_id, None)
+
     headers = {}
-
-    if isCloudEE():
-        secret_token = await sign_secret_token(user_id, project_id, None)
-
+    if secret_token:
         headers = {"Authorization": f"Secret {secret_token}"}
     headers["ngrok-skip-browser-warning"] = "1"
 
@@ -413,10 +411,10 @@ async def batch_invoke(
         InvokationResult
     ] = []  # Outputs after running all batches
 
-    headers = None
-    if isCloudEE():
-        secret_token = await sign_secret_token(user_id, project_id, None)
+    secret_token = await sign_secret_token(user_id, project_id, None)
 
+    headers = {}
+    if secret_token:
         headers = {"Authorization": f"Secret {secret_token}"}
     headers["ngrok-skip-browser-warning"] = "1"
 

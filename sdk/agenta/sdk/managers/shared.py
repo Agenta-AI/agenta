@@ -7,9 +7,9 @@ from agenta.sdk.types import (
     ConfigurationResponse,
     DeploymentResponse,
 )
-from agenta.client.backend.types.config_dto import ConfigDto as ConfigRequest
-from agenta.client.backend.types.config_response_model import ConfigResponseModel
-from agenta.client.backend.types.reference_request_model import ReferenceRequestModel
+from agenta.client.types.config_dto import ConfigDto as ConfigRequest
+from agenta.client.types.config_response_model import ConfigResponseModel
+from agenta.client.types.reference_request_model import ReferenceRequestModel
 
 import agenta as ag
 

@@ -15,7 +15,7 @@ from sqlalchemy_json import mutable_json_type
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from oss.src.dbs.postgres.shared.base import Base
-from oss.src.models.shared_models import TemplateType, AppType
+from oss.src.models.shared_models import AppType
 
 
 CASCADE_ALL_DELETE = "all, delete-orphan"
@@ -139,39 +139,11 @@ class ProjectDB(Base):
     workspace = relationship(
         "oss.src.models.db_models.WorkspaceDB", back_populates="projects"
     )
-    image = relationship("ImageDB", cascade=CASCADE_ALL_DELETE, backref="project")
     app = relationship("AppDB", cascade=CASCADE_ALL_DELETE, backref="project")
     evaluator_config = relationship(
         "EvaluatorConfigDB", cascade=CASCADE_ALL_DELETE, backref="project"
     )
     testset = relationship("TestSetDB", cascade=CASCADE_ALL_DELETE, backref="project")
-
-
-# KEEP in oss/ or KILL
-class ImageDB(Base):
-    __tablename__ = "docker_images"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    type = Column(String, default="image")
-    template_uri = Column(String, nullable=True)
-    docker_id = Column(String, nullable=True, index=True)
-    tags = Column(String, nullable=True)
-    deletable = Column(Boolean, default=True)
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
 
 
 # KEEP in oss/
@@ -224,10 +196,7 @@ class DeploymentDB(Base):
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
-    container_name = Column(String)
-    container_id = Column(String)
     uri = Column(String)
-    status = Column(String)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -255,9 +224,6 @@ class VariantBaseDB(Base):
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
     base_name = Column(String)
-    image_id = Column(
-        UUID(as_uuid=True), ForeignKey("docker_images.id", ondelete="SET NULL")
-    )
     deployment_id = Column(
         UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
     )
@@ -269,7 +235,6 @@ class VariantBaseDB(Base):
     )
 
     app = relationship("AppDB")
-    image = relationship("ImageDB")
     deployment = relationship("oss.src.models.db_models.DeploymentDB")
     project = relationship("oss.src.models.db_models.ProjectDB")
 
@@ -288,11 +253,6 @@ class AppVariantDB(Base):
     app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
     variant_name = Column(String)
     revision = Column(Integer)
-    image_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("docker_images.id", ondelete="SET NULL"),
-        nullable=True,
-    )
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
@@ -310,7 +270,6 @@ class AppVariantDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    image = relationship("ImageDB")
     app = relationship("AppDB", back_populates="variant")
     project = relationship("oss.src.models.db_models.ProjectDB")
     modified_by = relationship("UserDB", foreign_keys=[modified_by_id])
@@ -430,31 +389,6 @@ class AppEnvironmentRevisionDB(Base):
 
     project = relationship("oss.src.models.db_models.ProjectDB")
     modified_by = relationship("UserDB")
-
-
-# KEEP in oss/ or KILL
-class TemplateDB(Base):
-    __tablename__ = "templates"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    type = Column(Enum(TemplateType), default=TemplateType.IMAGE, nullable=False)
-    template_uri = Column(String)
-    tag_id = Column(Integer)
-    name = Column(String, unique=True)
-    repo_name = Column(String)
-    title = Column(String)
-    description = Column(String)
-    size = Column(Integer)
-    digest = Column(String)  # sha256 hash of image digest
-    last_pushed = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
 
 
 # KEEP in oss/

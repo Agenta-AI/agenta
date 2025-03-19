@@ -55,6 +55,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
 
+        self.scope_type = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_type
+        self.scope_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.scope_id
+
     async def dispatch(self, request: Request, call_next: Callable):
         try:
             if request.url.path in _ALWAYS_ALLOW_LIST:
@@ -85,33 +88,39 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def _get_credentials(self, request: Request) -> Optional[str]:
         try:
+            # HEADERS
             authorization = request.headers.get("authorization", None)
-
             headers = {"Authorization": authorization} if authorization else None
 
+            # COOKIES
             access_token = request.cookies.get("sAccessToken", None)
-
             cookies = {"sAccessToken": access_token} if access_token else None
 
             if not headers and not cookies:
                 log.debug("No auth header nor auth cookie found in the request")
 
-            baggage = request.state.otel["baggage"]
-
+            # PARAMS
+            params = {}
+            ## PROJECT_ID
             project_id = (
                 # CLEANEST
-                baggage.get("project_id")
+                request.state.otel["baggage"].get("project_id")
                 # ALTERNATIVE
                 or request.query_params.get("project_id")
             )
-
             if not project_id:
                 log.debug("No project ID found in request")
-
-            params = {"action": "run_service", "resource_type": "service"}
-
             if project_id:
                 params["project_id"] = project_id
+            ## SCOPE
+            if self.scope_type and self.scope_id:
+                params["scope_type"] = self.scope_type
+                params["scope_id"] = self.scope_id
+            ## ACTION
+            params["action"] = "run_service"
+            ## RESOURCE
+            params["resource_type"] = "service"
+            # params["resource_id"] = None
 
             _hash = dumps(
                 {

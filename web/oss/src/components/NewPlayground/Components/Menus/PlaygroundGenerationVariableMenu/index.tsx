@@ -10,6 +10,7 @@ import {PlaygroundGenerationVariableMenuProps} from "./types"
 const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMenuProps> = ({
     duplicateInputRow,
     result,
+    resultHash,
     ...props
 }) => {
     const items: MenuProps["items"] = useMemo(
@@ -26,7 +27,9 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
             {
                 key: "test-set",
                 label: (
-                    <TestsetDrawerButton results={result}>
+                    <TestsetDrawerButton
+                        resultHashes={Array.isArray(resultHash) ? resultHash : [resultHash]}
+                    >
                         <div>Add to test set</div>
                     </TestsetDrawerButton>
                 ),
@@ -36,7 +39,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                 },
             },
         ],
-        [result],
+        [result, resultHash],
     )
     return (
         <Dropdown trigger={["click"]} menu={{items}} {...props}>

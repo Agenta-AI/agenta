@@ -85,10 +85,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {key, children, ...filteredTrace} = activeTrace
+    const {key, children, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
-    const {icon, bgColor, color} = statusMapper(activeTrace.node.type)
+    const {icon, bgColor, color} = statusMapper(activeTrace?.node?.type)
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
     const transformDataInputs = (data: any) => {
@@ -123,13 +123,13 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
             label: "Overview",
             children: (
                 <Space direction="vertical" size={24} className="w-full">
-                    {activeTrace.meta && activeTrace.meta.request && (
+                    {activeTrace?.meta && activeTrace?.meta.request && (
                         <Space direction="vertical">
                             <Typography.Text className={classes.subTitle}>
                                 Meta Data
                             </Typography.Text>
                             <Space style={{flexWrap: "wrap"}}>
-                                {Object.entries(activeTrace.meta.request).map(
+                                {Object.entries(activeTrace?.meta.request).map(
                                     ([key, value], index) => (
                                         <ResultTag
                                             key={index}
@@ -142,16 +142,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     )}
 
-                    {activeTrace.data && activeTrace.data?.inputs ? (
+                    {activeTrace?.data && activeTrace?.data?.inputs ? (
                         <Space direction="vertical" className="w-full" size={24}>
-                            {activeTrace.node.type !== "chat" ? (
+                            {activeTrace?.node?.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"inputs"}
-                                    value={activeTrace.data.inputs}
+                                    value={activeTrace?.data.inputs}
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.entries(transformDataInputs(activeTrace.data?.inputs)).map(
+                                Object.entries(transformDataInputs(activeTrace?.data?.inputs)).map(
                                     ([key, values]) => {
                                         if (key === "prompt") {
                                             return Array.isArray(values)
@@ -182,16 +182,16 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     ) : null}
 
-                    {activeTrace.data && activeTrace.data?.outputs ? (
+                    {activeTrace?.data && activeTrace?.data?.outputs ? (
                         <Space direction="vertical" className="w-full" size={24}>
-                            {activeTrace.node.type !== "chat" ? (
+                            {activeTrace?.node?.type !== "chat" ? (
                                 <AccordionTreePanel
                                     label={"outputs"}
-                                    value={activeTrace.data.outputs}
+                                    value={activeTrace?.data.outputs}
                                     enableFormatSwitcher
                                 />
                             ) : (
-                                Object.values(activeTrace.data.outputs).map((item) =>
+                                Object.values(activeTrace?.data.outputs).map((item) =>
                                     Array.isArray(item)
                                         ? item.map((param, index) =>
                                               !!param.content &&
@@ -217,23 +217,23 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         </Space>
                     ) : null}
 
-                    {activeTrace.data && activeTrace.data?.internals && (
+                    {activeTrace?.data && activeTrace?.data?.internals && (
                         <Space direction="vertical" className="w-full" size={24}>
-                            {activeTrace.node.type !== "chat" && (
+                            {activeTrace?.node?.type !== "chat" && (
                                 <AccordionTreePanel
                                     label={"internals"}
-                                    value={activeTrace.data.internals}
+                                    value={activeTrace?.data.internals}
                                     enableFormatSwitcher
                                 />
                             )}
                         </Space>
                     )}
 
-                    {activeTrace.exception && (
+                    {activeTrace?.exception && (
                         <Space direction="vertical" className="w-full" size={24}>
                             <AccordionTreePanel
                                 label={"Exception"}
-                                value={activeTrace.exception}
+                                value={activeTrace?.exception}
                                 enableFormatSwitcher
                                 bgColor="#FBE7E7"
                             />
@@ -262,14 +262,14 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                 <div>
                     <div className="p-4 flex items-center justify-between">
                         <Typography.Text className={classes.title}>
-                            {activeTrace.node.name}
+                            {activeTrace?.node?.name}
                         </Typography.Text>
 
                         <Space>
                             <Button
                                 className="flex items-center"
                                 onClick={() => setIsTestsetDrawerOpen(true)}
-                                disabled={!activeTrace.key}
+                                disabled={!activeTrace?.key}
                             >
                                 <Database size={14} />
                                 Add to testset
@@ -285,14 +285,15 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                             border: `1px solid ${color}`,
                             color: color,
                         }}
+                        className="font-mono"
                         bordered
                         value1={
                             <>
-                                {icon} {activeTrace.node.type}
+                                {icon} {activeTrace?.node?.type}
                             </>
                         }
                     />
-                    <StatusRenderer status={activeTrace.status} />
+                    <StatusRenderer status={activeTrace?.status} />
                     <ResultTag
                         value1={
                             <div className={classes.resultTag}>
@@ -309,22 +310,24 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         value1={
                             <div className={classes.resultTag}>
                                 <PlusCircle size={14} />
-                                {formatTokenUsage(activeTrace.metrics?.acc?.tokens?.total)} /{" "}
-                                {formatCurrency(activeTrace.metrics?.acc?.costs?.total)}
+                                {formatTokenUsage(activeTrace?.metrics?.acc?.tokens?.total)} /{" "}
+                                {formatCurrency(activeTrace?.metrics?.acc?.costs?.total)}
                             </div>
                         }
                         popoverContent={
                             <Space direction="vertical">
                                 <Space className={classes.tokenContainer}>
                                     <div>
-                                        {formatTokenUsage(activeTrace.metrics?.acc?.tokens?.prompt)}
+                                        {formatTokenUsage(
+                                            activeTrace?.metrics?.acc?.tokens?.prompt,
+                                        )}
                                     </div>
                                     <div>Prompt tokens</div>
                                 </Space>
                                 <Space className={classes.tokenContainer}>
                                     <div>
                                         {formatTokenUsage(
-                                            activeTrace.metrics?.acc?.tokens?.completion,
+                                            activeTrace?.metrics?.acc?.tokens?.completion,
                                         )}
                                     </div>
                                     <div>Completion tokens</div>
@@ -335,11 +338,11 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     <ResultTag
                         value1={
                             <div className={classes.resultTag}>
-                                {dayjs(activeTrace.time.start)
+                                {dayjs(activeTrace?.time?.start)
                                     .local()
                                     .format("DD/MM/YYYY, hh:mm:ss A")}
                                 <ArrowRight size={14} />{" "}
-                                {dayjs(activeTrace.time.end)
+                                {dayjs(activeTrace?.time?.end)
                                     .local()
                                     .format("DD/MM/YYYY, hh:mm:ss A")}
                             </div>
@@ -359,7 +362,7 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
             {isTestsetDrawerOpen && (
                 <TestsetDrawer
                     open={isTestsetDrawerOpen}
-                    data={[{data: activeTrace.data as KeyValuePair, key: activeTrace.key, id: 1}]}
+                    data={[{data: activeTrace?.data as KeyValuePair, key: activeTrace?.key, id: 1}]}
                     onClose={() => setIsTestsetDrawerOpen(false)}
                 />
             )}

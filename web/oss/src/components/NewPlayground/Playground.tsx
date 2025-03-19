@@ -14,7 +14,7 @@ const SWRDevTools = dynamic(() => import("swr-devtools").then((mod) => mod.SWRDe
     ssr: false,
 })
 
-const {Title} = Typography
+const {Title, Text} = Typography
 const PlaygroundWrapper = () => {
     const {
         err: error,
@@ -52,7 +52,8 @@ const PlaygroundWrapper = () => {
             <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
                 <div className="flex flex-col items-center justify-center gap-1">
                     <Title level={3}>Something went wrong</Title>
-                    <Button onClick={handleReload}>Try loading playground again</Button>
+                    <Text className="mb-3 text-[14px]">{error.message}</Text>
+                    <Button onClick={handleReload}>Try again</Button>
                 </div>
             </main>
         )

@@ -1,79 +1,46 @@
 import os
 import logging
-
 from typing import List, Optional
-from docker.errors import DockerException
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
 from oss.src.models import converters
-from oss.src.utils.common import (
-    isEE,
-    isCloudProd,
-    isCloudDev,
-    APIRouter,
-    isCloudEE,
-)
-
-from oss.src.services import (
-    db_manager,
-    app_manager,
-    evaluator_manager,
-)
+from oss.src.utils.common import APIRouter, is_ee
+from oss.src.services import db_manager, app_manager
 from oss.src.models.api.api_models import (
     App,
     UpdateApp,
     UpdateAppOutput,
     CreateAppOutput,
-    AddVariantFromImagePayload,
     AddVariantFromURLPayload,
     AddVariantFromKeyPayload,
 )
 
-if isCloudEE():
-    from ee.src.models.api.api_models import (
-        Image_ as Image,
-        CreateApp_ as CreateApp,
-        AppVariantResponse_ as AppVariantResponse,
-        CreateAppVariant_ as CreateAppVariant,
-        EnvironmentOutput_ as EnvironmentOutput,
-        EnvironmentOutputExtended_ as EnvironmentOutputExtended,
-    )
-else:
-    from oss.src.models.api.api_models import (
-        Image,
-        CreateApp,
-        AppVariantResponse,
-        CreateAppVariant,
-        EnvironmentOutput,
-        EnvironmentOutputExtended,
-    )
-if isCloudEE():
-    from ee.src.services import db_manager_ee
+if is_ee():
     from ee.src.services.selectors import (
         get_user_org_and_workspace_id,
-    )  # noqa pylint: disable-all
+    )
     from ee.src.utils.permissions import (
         check_action_access,
         check_rbac_permission,
         check_apikey_action_access,
     )
     from ee.src.models.shared_models import Permission
-
-
-if isCloudProd():
-    from ee.src.services import (
-        lambda_deployment_manager as deployment_manager,
-    )  # noqa pylint: disable-all
-elif isCloudDev():
-    from oss.src.services import deployment_manager
-elif isEE():
-    from ee.src.services import (
-        deployment_manager,
-    )  # noqa pylint: disable-all
+    from ee.src.models.api.api_models import (
+        CreateApp_ as CreateApp,
+        AppVariantResponse_ as AppVariantResponse,
+        EnvironmentOutput_ as EnvironmentOutput,
+        EnvironmentOutputExtended_ as EnvironmentOutputExtended,
+    )
 else:
-    from oss.src.services import deployment_manager
+    from oss.src.models.api.api_models import (
+        CreateApp,
+        AppVariantResponse,
+        EnvironmentOutput,
+        EnvironmentOutputExtended,
+    )
+
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -102,7 +69,7 @@ async def list_app_variants(
     """
 
     app = await db_manager.get_app_instance_by_id(app_id=app_id)
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
@@ -148,7 +115,7 @@ async def get_variant_by_env(
     """
     try:
         app = await db_manager.get_app_instance_by_id(app_id=app_id)
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
@@ -198,7 +165,7 @@ async def create_app(
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
     """
 
-    if isCloudEE():
+    if is_ee():
         api_key_from_headers = request.headers.get("Authorization", None)
         if api_key_from_headers is not None:
             api_key = api_key_from_headers.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
@@ -262,7 +229,7 @@ async def update_app(
         payload (UpdateApp): The payload containing the app name.
 
     Returns:
-        UpdateAppOuput: The output containing the newly created app's ID and name.
+        UpdateAppOutput: The output containing the newly created app's ID and name.
 
     Raises:
         HTTPException: If there is an error creating the app or the user does not have permission to access the app.
@@ -275,7 +242,7 @@ async def update_app(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
@@ -310,7 +277,7 @@ async def list_apps(
         HTTPException: If there was an error retrieving the list of apps.
     """
 
-    if isCloudEE():
+    if is_ee():
         user_org_workspace_data = await get_user_org_and_workspace_id(request.state.user_id)  # type: ignore
         has_permission = await check_rbac_permission(  # type: ignore
             user_org_workspace_data=user_org_workspace_data,
@@ -329,77 +296,6 @@ async def list_apps(
         app_name=app_name,
     )
     return apps
-
-
-@router.post("/{app_id}/variant/from-image/", operation_id="add_variant_from_image")
-async def add_variant_from_image(
-    app_id: str,
-    payload: AddVariantFromImagePayload,
-    request: Request,
-):
-    """
-    Add a new variant to an app based on a Docker image.
-
-    Args:
-        app_id (str): The ID of the app to add the variant to.
-        payload (AddVariantFromImagePayload): The payload containing information about the variant to add.
-
-    Raises:
-        HTTPException: If the feature flag is set to "demo" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.
-
-    Returns:
-        dict: The newly added variant.
-    """
-
-    if not isCloudEE():
-        image = Image(
-            type="image",
-            docker_id=payload.docker_id,
-            tags=payload.tags,
-        )
-        if not payload.tags.startswith(registry_repo_name):
-            raise HTTPException(
-                status_code=500,
-                detail="Image should have a tag starting with the registry name (agenta-server)",
-            )
-        elif await deployment_manager.validate_image(image) is False:
-            raise HTTPException(status_code=404, detail="Image not found")
-
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-    except db_manager.NoResultFound:
-        raise HTTPException(
-            status_code=404, detail=f"No application with ID '{app_id}' found"
-        )
-
-    if isCloudEE():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=str(app.project_id),
-            permission=Permission.CREATE_APPLICATION,
-        )
-        logger.debug(f"User has Permission to create app from image: {has_permission}")
-        if not has_permission:
-            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
-
-    variant_db = await app_manager.add_variant_from_image(
-        app=app,
-        project_id=str(app.project_id),
-        variant_name=payload.variant_name,
-        docker_id_or_template_uri=payload.docker_id,
-        tags=payload.tags,
-        base_name=payload.base_name,
-        config_name=payload.config_name,
-        is_template_image=False,
-        user_uid=request.state.user_id,
-    )
-    app_variant_db = await db_manager.fetch_app_variant_by_id(str(variant_db.id))
-
-    return await converters.app_variant_db_to_output(app_variant_db)
 
 
 @router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
@@ -430,7 +326,7 @@ async def add_variant_from_url(
         )
 
     try:
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
@@ -506,7 +402,7 @@ async def remove_app(
     app_id: str,
     request: Request,
 ):
-    """Remove app, all its variant, containers and images
+    """Remove app, all its variant.
 
     Arguments:
         app -- App to remove
@@ -519,7 +415,7 @@ async def remove_app(
             status_code=404, detail=f"No application with ID '{app_id}' found"
         )
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
@@ -556,7 +452,7 @@ async def list_environments(
     """
 
     logger.debug(f"Listing environments for app: {app_id}")
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -600,7 +496,7 @@ async def list_app_environment_revisions(
     user_org_workspace_data: dict = await get_user_org_and_workspace_id(
         request.state.user_id
     )
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,

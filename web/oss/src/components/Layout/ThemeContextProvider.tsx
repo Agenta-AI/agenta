@@ -1,11 +1,11 @@
 import {PropsWithChildren, createContext, useState, useContext, useEffect} from "react"
 
 import {ConfigProvider, theme} from "antd"
-import {Inter} from "next/font/google"
 import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import antdTokens from "@/oss/styles/tokens/antd-themeConfig.json"
+import {Inter} from "next/font/google"
 
 const inter = Inter({
     subsets: ["latin"],
@@ -32,7 +32,7 @@ export const ThemeContext = createContext<{
 
 export const useAppTheme = () => useContext(ThemeContext)
 
-const getDeviceTheme = () => {
+export const getDeviceTheme = () => {
     return window.matchMedia("(prefers-color-scheme: dark)").matches
         ? ThemeMode.Dark
         : ThemeMode.Light

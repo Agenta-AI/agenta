@@ -28,7 +28,7 @@ class AgentaNodeDTO(SpanDTO):
 
 
 class AgentaNodesDTO(BaseModel):
-    nodes: List[AgentaNodeDTO]
+    nodes: Optional[List[AgentaNodeDTO]] = []
 
 
 class AgentaTreeDTO(BaseModel):
@@ -38,7 +38,7 @@ class AgentaTreeDTO(BaseModel):
 
 
 class AgentaTreesDTO(BaseModel):
-    trees: List[AgentaTreeDTO]
+    trees: Optional[List[AgentaTreeDTO]] = []
 
 
 class AgentaRootDTO(BaseModel):
@@ -48,7 +48,7 @@ class AgentaRootDTO(BaseModel):
 
 
 class AgentaRootsDTO(BaseModel):
-    roots: List[AgentaRootDTO]
+    roots: Optional[List[AgentaRootDTO]] = []
 
 
 class AgentaNodesResponse(VersionedModel, AgentaNodesDTO):

@@ -19,4 +19,3 @@ check_and_request_var "AGENTA_HOST"
 
 # Run test commands
 pytest -n 2 -v ./management/* ./sdk_routing/* 
-pytest -v ./cli/*

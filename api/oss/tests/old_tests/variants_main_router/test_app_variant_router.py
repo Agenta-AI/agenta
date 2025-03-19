@@ -15,7 +15,6 @@ from oss.src.models.db_models import (
     AppDB,
     DeploymentDB,
     VariantBaseDB,
-    ImageDB,
     AppVariantDB,
 )
 
@@ -104,70 +103,6 @@ async def test_update_app():
 
 #     assert response.status_code == 200
 #     assert len(response.json()) == 3
-
-
-@pytest.mark.asyncio
-async def test_create_app_variant(get_first_user_object):
-    user = await get_first_user_object
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(AppDB).filter_by(app_name="app_variant_test")
-        )
-        app = result.scalars().first()
-
-        project_result = await session.execute(
-            select(ProjectDB).filter_by(is_default=True)
-        )
-        project = project_result.scalars().first()
-
-        db_image = ImageDB(
-            docker_id="sha256:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-            tags="agentaai/templates_v2:local_test_prompt",
-            project_id=project.id,
-        )
-        session.add(db_image)
-        await session.commit()
-
-        db_deployment = DeploymentDB(
-            app_id=app.id,
-            project_id=project.id,
-            container_name="container_a_test",
-            container_id="w243e34red",
-            uri="http://localhost/app/w243e34red",
-            status="stale",
-        )
-        session.add(db_deployment)
-        await session.commit()
-
-        db_base = VariantBaseDB(
-            base_name="app",
-            app_id=app.id,
-            project_id=project.id,
-            image_id=db_image.id,
-            deployment_id=db_deployment.id,
-        )
-        session.add(db_base)
-        await session.commit()
-
-        appvariant = AppVariantDB(
-            app_id=app.id,
-            variant_name="app",
-            image_id=db_image.id,
-            project_id=project.id,
-            config_parameters={},
-            base_name="app",
-            config_name="default",
-            revision=0,
-            modified_by_id=user.id,
-            base_id=db_base.id,
-        )
-        session.add(appvariant)
-        await session.commit()
-
-    response = await test_client.get(f"{BACKEND_API_HOST}/apps/{str(app.id)}/variants/")
-    assert response.status_code == 200
-    assert len(response.json()) == 1
 
 
 @pytest.mark.asyncio

@@ -4,5 +4,6 @@ import {TestResult} from "@/oss/components/NewPlayground/assets/utilities/transf
 
 export interface PlaygroundGenerationVariableMenuProps extends DropDownProps {
     duplicateInputRow: () => void
-    result: TestResult | null | undefined
+    result?: TestResult | null | undefined
+    resultHash?: string | null | undefined
 }

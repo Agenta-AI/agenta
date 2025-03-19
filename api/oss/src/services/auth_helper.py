@@ -131,19 +131,11 @@ async def _authenticate(request: Request):
                     apikey_token=auth_header[len(_APIKEY_TOKEN_PREFIX) :],
                 )
 
-        elif auth_header and not auth_header.startswith(_ALLOWED_TOKENS):
-            if auth_header and auth_header.startswith(_SECRET_TOKEN_PREFIX):
+            elif auth_header.startswith(_SECRET_TOKEN_PREFIX):
                 # NEW / SECRET TOKEN
                 await verify_secret_token(
                     request=request,
                     secret_token=auth_header[len(_SECRET_TOKEN_PREFIX) :],
-                )
-
-            elif auth_header and not auth_header.startswith(_APIKEY_TOKEN_PREFIX):
-                # LEGACY / APIKEY TOKEN
-                await verify_apikey_token(
-                    request=request,
-                    apikey_token=auth_header[len(_APIKEY_TOKEN_PREFIX) : 1],
                 )
 
         elif supertokens_access_token:

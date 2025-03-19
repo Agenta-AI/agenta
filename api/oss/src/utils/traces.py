@@ -419,7 +419,7 @@ def get_field_value_from_trace_tree_v3(trace_data: Dict[str, any], key: str):
     Retrieves a nested value from the trace data based on a hierarchical key.
 
     Args:
-        trace_data (dict): A dictionary container the trace_id and a list of node dictionaries in the trace data.
+        trace_data (dict): A dictionary containing the trace_id and a list of node dictionaries in the trace data.
         key (str): The hierarchical key (e.g., "rag.retriever.internals.prompt").
 
     Returns:

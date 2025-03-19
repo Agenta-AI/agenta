@@ -18,8 +18,8 @@ Thanks for your interest in contributing to Agenta! We appreciate your effort an
 To maintain code quality, we adhere to certain formatting and linting rules:
 
 - **Backend & CLI Formatting with Black:** Use `black` for formatting code in the following directories:
-    - `agenta-backend/**`
-    - `agenta-cli/**`
+    - `api/**`
+    - `sdk/**`
     - `examples/**`
 
   Install `black` with `pip install black`, navigate to the target directory, and run `black .`.

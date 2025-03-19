@@ -1,0 +1,58 @@
+
+
+@base_url = http://localhost
+@api_url = {{base_url}}/api
+@service = observability/v1
+@service_url = {{api_url}}/{{service}}
+@trace_id_uuid = xxx 
+# ^ 9e9b1199-1626-a3dc-3126-b38be531ebbd
+@trace_id_hex = xxx
+# ^ 0x9e9b11991626a3dc3126b38be531ebbd
+@trace_id_hexc = xxx
+# ^ 9e9b11991626a3dc3126b38be531ebbd
+@trace_id_int = xxx
+# ^ 210823186276817116166841668330075581373
+@query_otel = ?format=opentelemetry
+@query_ag = ?format=agenta
+@apikey = xxx
+# ^ DYnpFfl7.bd5f6bc4...
+
+### ALL + OTEL
+GET {{service_url}}/traces{{query_otel}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### UUID + OTEL
+GET {{service_url}}/traces/{{trace_id_uuid}}{{query_otel}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### HEX + OTEL
+GET {{service_url}}/traces/{{trace_id_hex}}{{query_otel}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### HEXC + OTEL
+GET {{service_url}}/traces/{{trace_id_hexc}}{{query_otel}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### INT + OTEL
+GET {{service_url}}/traces/{{trace_id_int}}{{query_otel}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### ALL + AGENTA
+GET {{service_url}}/traces{{query_ag}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### UUID + AGENTA
+GET {{service_url}}/traces/{{trace_id_uuid}}{{query_ag}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### HEX + AGENTA
+GET {{service_url}}/traces/{{trace_id_hex}}{{query_ag}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### HEXC + AGENTA
+GET {{service_url}}/traces/{{trace_id_hexc}}{{query_ag}} HTTP/1.1
+Authorization: ApiKey {{apikey}}
+
+### INT + AGENTA
+GET {{service_url}}/traces/{{trace_id_int}}{{query_ag}} HTTP/1.1
+Authorization: ApiKey {{apikey}}

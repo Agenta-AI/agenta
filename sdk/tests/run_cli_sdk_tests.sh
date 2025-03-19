@@ -24,4 +24,4 @@ read agenta_host
 agenta_host=${agenta_host:-http://localhost}
 
 # Set the environment variables for the target environment
-AGENTA_HOST="$agenta_host" AGENTA="$agenta_version" pytest --env-file=.env -vv cli/* sdk/*
+AGENTA_HOST="$agenta_host" AGENTA="$agenta_version" pytest --env-file=.env -vv sdk/*

@@ -4,7 +4,7 @@ import {Plus} from "@phosphor-icons/react"
 import {Button, type ButtonProps} from "antd"
 import clsx from "clsx"
 
-interface AddButtonProps extends ButtonProps {
+export interface AddButtonProps extends ButtonProps {
     label?: string
 }
 

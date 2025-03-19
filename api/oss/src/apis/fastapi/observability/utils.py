@@ -722,7 +722,7 @@ def parse_to_otel_span_dto(
         kind=span_dto.otel.kind,
         start_time=span_dto.time.start,
         end_time=span_dto.time.end,
-        status_code="STATUS_CODE_" + span_dto.status.code.value,
+        status_code="STATUS_CODE_" + span_dto.status.code,
         status_message=span_dto.status.message,
         attributes=attributes,
         events=events,

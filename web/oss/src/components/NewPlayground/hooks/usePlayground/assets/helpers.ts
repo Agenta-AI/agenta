@@ -126,25 +126,40 @@ export const findCustomWorkflowPath = async (
  */
 export const fetchOpenApiSchemaJson = async (uri: string) => {
     const jwt = await getJWT()
-    const openapiJsonResponse = await fetch(
-        `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
-        {
-            headers: {
-                "ngrok-skip-browser-warning": "1",
-                ...(jwt
-                    ? {
-                          Authorization: `Bearer ${jwt}`,
-                      }
-                    : {}),
-            },
-        },
-    )
-    const responseJson = await openapiJsonResponse.json()
-    const {schema, errors} = await dereference(responseJson)
 
-    return {
-        schema: schema,
-        errors,
+    try {
+        const openapiJsonResponse = await fetch(
+            `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
+            {
+                headers: {
+                    "ngrok-skip-browser-warning": "1",
+                    ...(jwt
+                        ? {
+                              Authorization: `Bearer ${jwt}`,
+                          }
+                        : {}),
+                },
+            },
+        )
+        if (openapiJsonResponse.ok) {
+            const responseJson = await openapiJsonResponse.json()
+            const {schema, errors} = await dereference(responseJson)
+
+            return {
+                schema: schema,
+                errors,
+            }
+        } else {
+            return {
+                schema: undefined,
+                errors: (await openapiJsonResponse.json()) || openapiJsonResponse.statusText,
+            }
+        }
+    } catch (error) {
+        return {
+            schema: undefined,
+            errors: error,
+        }
     }
 }
 

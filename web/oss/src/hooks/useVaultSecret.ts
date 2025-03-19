@@ -13,10 +13,12 @@ import {
     deleteVaultSecret,
 } from "@/oss/services/vault/api"
 
+import {useProfileData} from "../contexts/profile.context"
+
 export const useVaultSecret = () => {
     const [secrets, setSecrets] = useState<LlmProvider[]>(llmAvailableProviders)
     const shouldRunMigration = useRef(true)
-
+    const {user} = useProfileData()
     const getVaultSecrets = async () => {
         try {
             const data = await fetchVaultSecret()
@@ -41,8 +43,9 @@ export const useVaultSecret = () => {
     }
 
     useEffect(() => {
+        if (!user) return
         getVaultSecrets()
-    }, [])
+    }, [user])
 
     const migrateProviderKeys = async () => {
         try {

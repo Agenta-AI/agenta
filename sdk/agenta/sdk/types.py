@@ -4,8 +4,8 @@ from typing import Dict, List, Optional, Any, Union
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
 
-from agenta.client.backend.types.agenta_node_dto import AgentaNodeDto
-from agenta.client.backend.types.agenta_nodes_response import AgentaNodesResponse
+from agenta.client.types.agenta_node_dto import AgentaNodeDto
+from agenta.client.types.agenta_nodes_response import AgentaNodesResponse
 from typing import Annotated, List, Union, Optional, Dict, Literal, Any
 from pydantic import BaseModel, Field, model_validator
 from agenta.sdk.assets import supported_llm_models

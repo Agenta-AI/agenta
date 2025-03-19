@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.36.3",
+    "version": "0.36.4",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -22,11 +22,11 @@
         "types:watch": "tsc -w"
     },
     "dependencies": {
-        "@ag-grid-community/client-side-row-model": "^32.3.3",
-        "@ag-grid-community/core": "^32.3.3",
-        "@ag-grid-community/csv-export": "^31.3.4",
-        "@ag-grid-community/react": "^32.3.3",
-        "@ag-grid-community/styles": "^33.0.3",
+        "@ag-grid-community/client-side-row-model": "^32.3.4",
+        "@ag-grid-community/core": "^32.3.4",
+        "@ag-grid-community/csv-export": "^32.3.4",
+        "@ag-grid-community/react": "^32.3.4",
+        "@ag-grid-community/styles": "^32.3.4",
         "@agenta/web-tests": "workspace:../tests",
         "@ant-design/colors": "^7.2.0",
         "@ant-design/cssinjs": "^1.22.1",
@@ -90,7 +90,7 @@
         "papaparse": "^5.4.1",
         "postcss": "^8.4.47",
         "postcss-antd-fixes": "^0.2.0",
-        "posthog-js": "^1.104.4",
+        "posthog-js": "^1.223.3",
         "prismjs": "^1.29.0",
         "promise-retry": "^2.0.1",
         "react": "^19.0.0",

@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
 
 
-from oss.src.utils.common import APIRouter, isCloudEE
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.api_models import (
     SaveConfigPayload,
     GetConfigResponse,
@@ -15,7 +15,7 @@ from oss.src.services import (
     app_manager,
 )
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
@@ -33,7 +33,7 @@ async def save_config(
     try:
         base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(base_db.project_id),
@@ -103,7 +103,7 @@ async def get_config(
         base_db = await db_manager.fetch_base_by_id(base_id)
 
         # determine whether the user has access to the base
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(base_db.project_id),
@@ -228,7 +228,7 @@ async def revert_deployment_revision(
             f"No environment revision found for deployment revision {deployment_revision_id}",
         )
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(environment_revision.project_id),

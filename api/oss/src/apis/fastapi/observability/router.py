@@ -9,6 +9,10 @@ from oss.src.core.observability.dtos import (
     AnalyticsDTO,
     TreeDTO,
     RootDTO,
+    GroupingDTO,
+    FilteringDTO,
+    ConditionDTO,
+    Focus,
 )
 from oss.src.core.observability.utils import FilteringException
 
@@ -118,6 +122,22 @@ class ObservabilityRouter:
             response_model_exclude_none=True,
         )
 
+        self.router.add_api_route(
+            "/traces/{trace_id}",
+            self.fetch_trace_by_id,
+            methods=["GET"],
+            operation_id="fetch_trace_by_id",
+            summary="Fetch trace by ID.",
+            status_code=status.HTTP_200_OK,
+            response_model=Union[
+                OTelSpansResponse,
+                AgentaNodesResponse,
+                AgentaTreesResponse,
+                AgentaRootsResponse,
+            ],
+            response_model_exclude_none=True,
+        )
+
         ### MUTATIONS
 
         self.router.add_api_route(
@@ -180,15 +200,8 @@ class ObservabilityRouter:
         Query traces, with optional grouping, windowing, filtering, and pagination.
         """
 
-        if (
-            format == "opentelemetry"
-            and query_dto.grouping
-            and query_dto.grouping.focus.value != "node"
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Grouping is not supported in OpenTelemetry format.",
-            )
+        if format == "opentelemetry" and query_dto.grouping:
+            query_dto.grouping.focus = Focus.NODE
 
         try:
             span_dtos, count = await self.service.query(
@@ -332,6 +345,63 @@ class ObservabilityRouter:
                 status_code=400,
                 detail=str(e),
             ) from e
+
+    @handle_exceptions()
+    async def fetch_trace_by_id(
+        self,
+        request: Request,
+        trace_id: Union[str, int],
+        format: Literal[  # pylint: disable=W0622
+            "opentelemetry",
+            "agenta",
+        ] = Query("openetelemetry"),
+    ):
+        """
+        Fetch trace by ID.
+        """
+
+        tree_id = None
+
+        if not trace_id:
+            raise HTTPException(status_code=400, detail="trace_id is required.")
+
+        # INT  # 66247539550469235673292373222060196016
+        try:
+            trace_id = hex(int(trace_id))
+        except:  # pylint: disable=bare-except
+            pass
+
+        if not isinstance(trace_id, str):
+            raise HTTPException(status_code=400, detail="trace_id is invalid.")
+
+        # HEX   # 0x31d6cfe04b9011ec800142010a8000b0
+        if trace_id.startswith("0x") and len(trace_id) > 2:
+            trace_id = trace_id[2:]
+
+        # UUID # 31d6cfe0-4b90-11ec-8001-42010a8000b0
+        # HEX  # 31d6cfe04b9011ec800142010a8000b0
+        try:
+            tree_id = str(UUID(trace_id))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="trace_id is invalid.") from e
+
+        return await self.query_traces(
+            request=request,
+            format=format,
+            query_dto=QueryDTO(
+                grouping=GroupingDTO(
+                    focus="node" if format == "opentelemetry" else "tree",
+                ),
+                filtering=FilteringDTO(
+                    conditions=[
+                        ConditionDTO(
+                            key="tree.id",
+                            value=tree_id,
+                        )
+                    ]
+                ),
+            ),
+        )
 
     ### MUTATIONS
 

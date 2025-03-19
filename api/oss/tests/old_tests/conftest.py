@@ -1,9 +1,9 @@
 import pytest
 import asyncio
 
-from oss.src.utils.common import isOss
+from oss.src.utils.common import is_oss
 
-if isOss():
+if is_oss():
     from oss.src.tests.engine import test_db_engine as db_engine
 
 
@@ -20,7 +20,7 @@ def event_loop():
 
     yield res
 
-    if isOss():
+    if is_oss():
         res.run_until_complete(db_engine.remove_db())  # drop database
         res.run_until_complete(db_engine.close_db())  # close connections to database
 

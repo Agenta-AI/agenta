@@ -12,7 +12,7 @@ import {NewVariantButtonProps} from "./types"
 /**
  * Button to add a new variant
  */
-const NewVariantButton = ({children}: NewVariantButtonProps) => {
+const NewVariantButton = ({children, ...buttonProps}: NewVariantButtonProps) => {
     const [displayModal, _setDisplayModal] = useState(false)
     const [newVariantName, setNewVariantName] = useState("")
     const [baseVariantName, setBaseVariantName] = useState("")
@@ -80,6 +80,7 @@ const NewVariantButton = ({children}: NewVariantButtonProps) => {
                     onClick={() => {
                         setDisplayModal(true)
                     }}
+                    {...buttonProps}
                 />
             )}
             <CreateVariantModal

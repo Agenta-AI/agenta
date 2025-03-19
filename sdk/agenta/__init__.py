@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional
 
 from .sdk.utils.preinit import PreInitObject
 
-import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.types as client_types  # pylint: disable=wrong-import-order
 
 from .sdk.types import (
     MCField,
@@ -37,7 +37,6 @@ from .sdk.managers.variant import VariantManager
 from .sdk.managers.deployment import DeploymentManager
 from .sdk import assets as assets
 from .sdk import tracer
-from .client.exceptions import APIRequestError
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
@@ -57,8 +56,8 @@ def init(
     config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
     redact_on_error: Optional[bool] = True,
-    # DEPRECATING
-    app_id: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
 ):
     global api, async_api, tracing, tracer  # pylint: disable=global-statement
 
@@ -68,7 +67,8 @@ def init(
         config_fname=config_fname,
         redact=redact,
         redact_on_error=redact_on_error,
-        app_id=app_id,
+        scope_type=scope_type,
+        scope_id=scope_id,
     )
 
     api = DEFAULT_AGENTA_SINGLETON_INSTANCE.api  # type: ignore

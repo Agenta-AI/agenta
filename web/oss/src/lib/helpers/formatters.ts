@@ -36,7 +36,7 @@ export const formatLatency = (value: number | undefined | null) => {
         const DECIMAL_DIGITS = 100 // 2 decimal places
 
         let value = v * S_TO_US
-        let unit = "us"
+        let unit = "μs"
 
         if (MS_LIMIT < value && value < S_LIMIT) {
             value = Math.round(value / MS_LIMIT)
@@ -46,7 +46,7 @@ export const formatLatency = (value: number | undefined | null) => {
             unit = "s"
         } else {
             value = Math.round(value)
-            unit = "us"
+            unit = "μs"
         }
 
         return `${value}${unit}`

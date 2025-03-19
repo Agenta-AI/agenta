@@ -7,10 +7,10 @@ from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from agenta.sdk.utils.constants import TRUTHY
-from agenta.client.backend.types.provider_kind import ProviderKind
+from agenta.client.types.provider_kind import ProviderKind
 from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.client.backend.types.secret_dto import SecretDto as SecretDTO
-from agenta.client.backend.types.provider_key_dto import (
+from agenta.client.types.secret_dto import SecretDto as SecretDTO
+from agenta.client.types.provider_key_dto import (
     ProviderKeyDto as ProviderKeyDTO,
 )
 from agenta.sdk.utils.cache import TTLLRUCache

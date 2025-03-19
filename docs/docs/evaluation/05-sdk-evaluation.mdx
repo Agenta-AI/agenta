@@ -58,7 +58,7 @@ client = AgentaApi(base_url=host + "/api", api_key=api_key)
 ## 3. Create a test set
 
 ```python
-from agenta.client.backend.types.new_testset import NewTestset
+from agenta.client.types.new_testset import NewTestset
 
 csvdata = [
         {"country": "france", "capital": "Paris"},
@@ -107,7 +107,7 @@ myvariant_id = response[0].variant_id
 Then , let's start the evaluation jobs
 
 ```python
-from agenta.client.backend.types.llm_run_rate_limit import LlmRunRateLimit
+from agenta.client.types.llm_run_rate_limit import LlmRunRateLimit
 
 rate_limit_config = LlmRunRateLimit(
                         batch_size=10, # number of rows to call in parallel

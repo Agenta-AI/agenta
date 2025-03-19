@@ -22,13 +22,20 @@ const TestsetDrawerButton = ({
 }: TestsetDrawerButtonProps) => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
+    let traces: (Record<string, any> | null | undefined)[] = []
     const testsetTraceData = useMemo(() => {
-        const traceHashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
-        const traces = traceHashes
-            .map((hash) => {
-                return getResponseLazy(hash)
-            })
-            .filter((tr) => !!tr)
+        if (!isTestsetDrawerOpen) return []
+
+        if (results) {
+            traces = Array.isArray(results) ? results : [results]
+        } else if (resultHashes) {
+            const traceHashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
+            traces = traceHashes
+                .map((hash) => {
+                    return hash ? getResponseLazy(hash) : undefined
+                })
+                .filter((tr) => !!tr)
+        }
 
         if (traces.length === 0) return []
         const extractedData = traces
@@ -42,7 +49,7 @@ const TestsetDrawerButton = ({
             .filter((result) => result.data)
 
         return extractedData
-    }, [resultHashes])
+    }, [resultHashes, results, isTestsetDrawerOpen])
 
     return (
         <>

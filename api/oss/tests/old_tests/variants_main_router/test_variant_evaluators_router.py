@@ -34,20 +34,6 @@ elif ENVIRONMENT == "github":
 
 
 @pytest.mark.asyncio
-async def test_create_app_from_template(
-    app_from_template, fetch_single_prompt_template
-):
-    payload = app_from_template
-    payload["app_name"] = APP_NAME
-    payload["template_id"] = fetch_single_prompt_template["id"]
-
-    response = httpx.post(
-        f"{BACKEND_API_HOST}/apps/app_and_variant_from_template/", json=payload
-    )
-    assert response.status_code == 200
-
-
-@pytest.mark.asyncio
 async def test_get_evaluators_endpoint():
     response = await test_client.get(
         f"{BACKEND_API_HOST}/evaluators/",
@@ -247,7 +233,7 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
         # Update payload with list of configs ids
         payload["evaluators_configs"] = list_of_configs_ids
 
-        # Sleep for 10 seconds (to allow the llm app container start completely)
+        # Sleep for 10 seconds (to allow the llm app to start completely)
         await asyncio.sleep(10)
 
         # Make request to create evaluation
@@ -389,32 +375,6 @@ async def test_evaluation_scenario_match_evaluation_testset_length():
         evaluation_scenarios = evaluation_scenarios_result.scalars().all()
 
         assert len(evaluation_scenarios) == len(evaluation.testset.csvdata)
-
-
-@pytest.mark.asyncio
-async def test_remove_running_template_app_container():
-    import docker
-
-    # Connect to the Docker daemon
-    client = docker.from_env()
-    async with engine.session() as session:
-        app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
-        app = app_result.scalars().first()
-
-        deployment_result = await session.execute(
-            select(DeploymentDB).filter_by(app_id=app.id)
-        )
-        deployment = deployment_result.scalars().first()
-
-    try:
-        # Retrieve container
-        container = client.containers.get(deployment.container_name)
-        # Stop and remove container
-        container.stop()
-        container.remove()
-        assert True
-    except:
-        assert False
 
 
 @pytest.mark.asyncio

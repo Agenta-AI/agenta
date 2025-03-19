@@ -92,6 +92,7 @@ export const GenerationChatRowOutput = ({
                     },
                 ])}
                 isMessageDeletable={isMessageDeletable}
+                autoFocus={true}
                 debug
                 placeholder={placeholder}
                 deleteMessage={deleteMessage}

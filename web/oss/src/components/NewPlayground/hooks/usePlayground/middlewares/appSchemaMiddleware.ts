@@ -88,7 +88,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             const spec = state.spec || (specResponse.schema as OpenAPISpec)
 
                             if (!spec) {
-                                throw new Error("No spec found")
+                                throw new Error(
+                                    specResponse?.errors?.detail ||
+                                        specResponse?.errors?.message ||
+                                        "No spec found",
+                                )
                             }
 
                             state.variants = transformVariants(
@@ -117,6 +121,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             state.error = undefined
                             return state
                         } catch (err) {
+                            state.error = err as Error
                             return state
                         }
                     } catch (err) {

@@ -6,10 +6,10 @@ from fastapi import Request, HTTPException
 
 from oss.src.models import converters
 from oss.src.services import db_manager
-from oss.src.utils.common import APIRouter, isCloudEE
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.api_models import BaseOutput
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
@@ -41,7 +41,7 @@ async def list_bases(
     """
 
     app = await db_manager.fetch_app_by_id(app_id=app_id)
-    if isCloudEE() and app_id is not None:
+    if is_ee() and app_id is not None:
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_i),
