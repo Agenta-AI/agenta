@@ -4,7 +4,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.core.secrets.services import VaultService
 from oss.src.apis.fastapi.shared.utils import handle_exceptions
 from oss.src.core.secrets.dtos import (
@@ -13,7 +13,7 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
 )
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.db_models import Permission
     from ee.src.utils.permissions import check_action_access
 
@@ -62,7 +62,7 @@ class VaultRouter:
 
     @handle_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
@@ -84,7 +84,7 @@ class VaultRouter:
 
     @handle_exceptions()
     async def list_secrets(self, request: Request):
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
@@ -105,7 +105,7 @@ class VaultRouter:
 
     @handle_exceptions()
     async def read_secret(self, request: Request, secret_id: str):
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
@@ -133,7 +133,7 @@ class VaultRouter:
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),
@@ -160,7 +160,7 @@ class VaultRouter:
 
     @handle_exceptions()
     async def delete_secret(self, request: Request, secret_id: str):
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
                 project_id=str(request.state.project_id),

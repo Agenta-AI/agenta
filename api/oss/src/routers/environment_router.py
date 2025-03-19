@@ -6,10 +6,10 @@ from fastapi import Request, HTTPException
 
 
 from oss.src.services import db_manager, app_manager
-from oss.src.utils.common import APIRouter, isCloudEE
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.api_models import DeployToEnvironmentPayload
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
@@ -36,7 +36,7 @@ async def deploy_to_environment(
     variant = await db_manager.fetch_app_variant_by_id(
         app_variant_id=payload.variant_id
     )
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(variant.project_id),

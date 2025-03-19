@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple} from "@phosphor-icons/react"
@@ -6,13 +6,11 @@ import {Button, Dropdown, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import CustomWorkflowModal from "@/oss/components/pages/app-management/modals/CustomWorkflowModal"
 import {useAppsData} from "@/oss/contexts/app.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 
 import {detectChatVariantFromOpenAISchema} from "../../assets/utilities/genericTransformer"
 import {OpenAPISpec} from "../../assets/utilities/genericTransformer/types"
-import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 import {
     initializeGenerationInputs,
@@ -25,9 +23,11 @@ import {
     transformVariants,
 } from "../../hooks/usePlayground/assets/helpers"
 import {atomStore, specAtom} from "../../state"
+import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
 import type {BaseContainerProps} from "../types"
 
 import {useStyles} from "./styles"
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCreateNewVariant"), {
     ssr: false,
 })
@@ -36,14 +36,6 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
     const classes = useStyles()
     const {toggleVariantDisplay, displayedVariants, variants, mutate} = usePlayground()
     const {currentApp} = useAppsData()
-    const [isCustomWorkflowModalOpen, setIsCustomWorkflowModalOpen] = useState(false)
-    const singleVariant: EnhancedVariant | undefined = useMemo(() => variants?.[0], [variants])
-
-    const [customWorkflowAppValues, setCustomWorkflowAppValues] = useState(() => ({
-        appName: "",
-        appUrl: "",
-        appDesc: "",
-    }))
 
     const handleUpdate = useCallback(async () => {
         return await mutate(async (clonedState) => {
@@ -96,15 +88,10 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
         })
     }, [])
 
-    useEffect(() => {
-        if (singleVariant) {
-            setCustomWorkflowAppValues({
-                appName: currentApp?.app_name ?? "",
-                appUrl: singleVariant?.uri ?? "",
-                appDesc: "",
-            })
-        }
-    }, [singleVariant, currentApp])
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        afterConfigSave: handleUpdate,
+    })
+
     // Only render if variants are available
     return variants ? (
         <>
@@ -128,15 +115,8 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                                             key: "configure",
                                             label: "Configure workflow",
                                             icon: <PencilSimple size={16} />,
-                                            onClick: () => setIsCustomWorkflowModalOpen(true),
+                                            onClick: openModal,
                                         },
-                                        //   {
-                                        //       key: "history",
-                                        //       label: "History",
-                                        //       icon: <ClockCounterClockwise size={16} />,
-                                        //       onClick: () =>
-                                        //           setIsCustomWorkflowHistoryDrawerOpen(true),
-                                        //   },
                                     ],
                                 ],
                             }}
@@ -149,23 +129,17 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                     </Typography>
                 </div>
 
-                <PlaygroundCreateNewVariant
-                    displayedVariants={displayedVariants}
-                    onSelect={toggleVariantDisplay}
-                    buttonProps={{label: "Compare"}}
-                />
+                <div className="flex items-center gap-2">
+                    <PlaygroundCreateNewVariant
+                        displayedVariants={displayedVariants}
+                        onSelect={toggleVariantDisplay}
+                        buttonProps={{label: "Compare", size: "small"}}
+                    />
+                    <NewVariantButton label="Variant" size="small" />
+                </div>
             </div>
 
-            <CustomWorkflowModal
-                open={isCustomWorkflowModalOpen}
-                onCancel={() => setIsCustomWorkflowModalOpen(false)}
-                customWorkflowAppValues={customWorkflowAppValues}
-                setCustomWorkflowAppValues={setCustomWorkflowAppValues}
-                handleCreateApp={() => {}}
-                configureWorkflow
-                mutate={handleUpdate}
-                variants={variants}
-            />
+            {CustomWorkflowModal}
         </>
     ) : null
 }

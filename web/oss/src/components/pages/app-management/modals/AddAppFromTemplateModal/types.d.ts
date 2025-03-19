@@ -1,7 +1,7 @@
-import {Modal} from "antd"
+import { Modal } from "antd"
 
-import type {Template} from "@/oss/lib/Types"
-import {ServiceType} from "@/oss/services/app-selector/api"
+import type { Template } from "@/oss/lib/Types"
+import { ServiceType } from "@/oss/services/app-selector/api"
 
 export interface AddAppFromTemplatedModalProps extends React.ComponentProps<typeof Modal> {
     newApp: string

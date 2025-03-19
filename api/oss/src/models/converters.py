@@ -5,17 +5,16 @@ import logging
 from typing import List, Tuple, Any
 
 from oss.src.services import db_manager
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.models.api.user_models import User
 from oss.src.models.shared_models import ConfigDB, AppType
 from oss.src.models.api.evaluation_model import (
     EvaluatorConfig,
 )
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.api.api_models import (
         AppVariant_ as AppVariant,
-        ImageExtended_ as ImageExtended,
         AppVariantResponse_ as AppVariantResponse,
         EnvironmentRevision_ as EnvironmentRevision,
         EnvironmentOutput_ as EnvironmentOutput,
@@ -24,7 +23,6 @@ if isCloudEE():
 else:
     from oss.src.models.api.api_models import (
         AppVariant,
-        ImageExtended,
         AppVariantResponse,
         EnvironmentRevision,
         EnvironmentOutput,
@@ -34,9 +32,7 @@ else:
 from oss.src.models.db_models import (
     AppDB,
     UserDB,
-    ImageDB,
     TestSetDB,
-    TemplateDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -46,10 +42,8 @@ from oss.src.models.db_models import (
 )
 from oss.src.models.api.api_models import (
     App,
-    Template,
     BaseOutput,
     TestSetOutput,
-    TemplateImageInfo,
     AppVariantRevision,
     PaginationParam,
     WithPagination,
@@ -237,35 +231,6 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
         app_type=AppType.friendly_tag(app_db.app_type),
         updated_at=str(app_db.updated_at),
     )
-
-
-def image_db_to_pydantic(image_db: ImageDB) -> ImageExtended:
-    image = ImageExtended(
-        docker_id=image_db.docker_id,
-        project_id=str(image_db.project_id),
-        tags=image_db.tags,
-        id=str(image_db.id),
-    )
-    return image
-
-
-def templates_db_to_pydantic(templates_db: List[TemplateDB]) -> List[Template]:
-    return [
-        Template(
-            id=str(template.id),
-            image=TemplateImageInfo(
-                name=template.name,
-                size=template.size if template.size else None,
-                digest=template.digest if template.digest else None,
-                title=template.title,
-                description=template.description,
-                last_pushed=template.last_pushed if template.last_pushed else None,
-                repo_name=template.repo_name if template.repo_name else None,
-                template_uri=template.template_uri if template.template_uri else None,
-            ),
-        )
-        for template in templates_db
-    ]
 
 
 def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:

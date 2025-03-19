@@ -19,6 +19,7 @@ import {
 } from "@/oss/lib/Types"
 
 import {constructPlaygroundTestUrl} from "../components/NewPlayground/assets/utilities/transformer/reverseTransformer"
+import {findCustomWorkflowPath} from "../components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {uriFixer} from "../lib/hooks/useStatelessVariant/assets/helpers"
 
 //Prefix convention:
@@ -204,8 +205,6 @@ export async function callVariant(
         const secure_url = `${base_url}&project_id=${projectId}`
         const secure_headers = {Authorization: jwt && `Bearer ${jwt}`}
 
-        console.log("base_url?", base_url)
-
         const response = await axios
             .post(base_url, requestBody, {
                 signal,
@@ -342,12 +341,14 @@ export const fetchAppContainerURL = async (
         const {projectId} = getCurrentProject()
 
         // Retrieve container URL from backend
-        const url = `${getAgentaApiUrl()}/api/containers/container_url?project_id=${projectId}`
-        const response = await axios.get(url, {params: {variant_id: variantId, base_id: baseId}})
-        if (response.status === 200 && response.data && response.data.uri) {
-            return response.data.uri
+        const {data} = await axios.get(
+            `${getAgentaApiUrl()}/api/variants/${variantId}?project_id=${projectId}`,
+        )
+        const uriObject = await findCustomWorkflowPath(data.uri)
+        if (uriObject) {
+            return constructPlaygroundTestUrl(uriObject, "", true)
         } else {
-            return ""
+            throw new Error("Failed to find container url")
         }
     } catch (error) {
         // Forward the error so it can be handled by the calling function

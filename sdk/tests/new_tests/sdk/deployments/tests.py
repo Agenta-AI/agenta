@@ -1,7 +1,7 @@
 import pytest
 
 import agenta as ag
-from agenta.client.backend.core.api_error import ApiError
+from agenta.client.core.api_error import ApiError
 
 from tests.conftest import *
 

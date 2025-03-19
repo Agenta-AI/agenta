@@ -131,7 +131,12 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
             {!isCustom && !hasVariable && (
                 <Alert
                     closable
-                    message="Add a new variable by wrapping variable name with {{ and }}."
+                    message={
+                        <>
+                            Insert a <span className="font-semibold">{"{{ variable }}"}</span> in
+                            your template to create an input.
+                        </>
+                    }
                     type="info"
                     showIcon
                 />

@@ -1,6 +1,6 @@
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.db_models import (
         APIKeyDB,
         WorkspaceDB,
@@ -29,9 +29,7 @@ else:
 
 from oss.src.models.db_models import (
     UserDB,
-    ImageDB,
     TestSetDB,
-    TemplateDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -44,9 +42,7 @@ models = [
     AppDB,
     UserDB,
     ProjectDB,
-    ImageDB,
     TestSetDB,
-    TemplateDB,
     AppVariantDB,
     DeploymentDB,
     EvaluationDB,
@@ -60,5 +56,5 @@ models = [
     HumanEvaluationScenarioDB,
 ]
 
-if isCloudEE():
+if is_ee():
     models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, OrganizationMemberDB, ProjectMemberDB, WorkspaceMemberDB])  # type: ignore

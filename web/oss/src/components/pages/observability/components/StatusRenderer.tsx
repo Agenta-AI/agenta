@@ -8,7 +8,7 @@ export const statusMapper = (status: NodeStatusCode) => {
     switch (status) {
         case NodeStatusCode.ERROR:
             return {
-                label: "failed",
+                label: "failure",
                 color: "error",
                 icon: <CloseCircleOutlined />,
             }
@@ -33,7 +33,7 @@ const StatusRenderer = ({
 
     return (
         <Space align="center" size={0}>
-            <Tag color={color} icon={icon}>
+            <Tag color={color} icon={icon} className="font-mono">
                 {label}
             </Tag>
             {showMore && errorMsg && (

@@ -1,4 +1,4 @@
-import {Rocket} from "@phosphor-icons/react"
+import {CloudArrowUp} from "@phosphor-icons/react"
 import {Button, type ButtonProps} from "antd"
 
 interface DeployButtonProps extends ButtonProps {
@@ -7,7 +7,7 @@ interface DeployButtonProps extends ButtonProps {
 
 const DeployButton = ({label, type = "text", ...props}: DeployButtonProps) => {
     return (
-        <Button icon={<Rocket size={14} />} type={type} {...props}>
+        <Button icon={<CloudArrowUp size={14} />} type={type} {...props}>
             {label}
         </Button>
     )

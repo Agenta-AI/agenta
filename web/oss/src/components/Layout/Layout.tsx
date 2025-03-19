@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject} from "react"
+import {memo, useEffect, useMemo, useRef, type ReactNode, type RefObject} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
 import {Button, ConfigProvider, Layout, Modal, Skeleton, Space, Typography, theme} from "antd"
@@ -8,27 +8,25 @@ import Link from "next/link"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 import {ThemeProvider} from "react-jss"
-import {useResizeObserver} from "usehooks-ts"
+import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAllVariantsData} from "@/oss/lib/hooks/useAllVariantsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
+import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useStyles, type StyleProps} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
-import {useAppTheme} from "./ThemeContextProvider"
-
-const CustomWorkflowModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/CustomWorkflowModal"),
-)
+import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
 
 const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
     ssr: false,
@@ -95,27 +93,26 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {token} = theme.useToken()
     const [, contextHolder] = Modal.useModal()
     const {changeSelectedOrg} = useOrgData()
+    const posthog = usePostHogAg()
+    const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
 
-    const [isCustomWorkflowModalOpen, setIsCustomWorkflowModalOpen] = useState(false)
-    const {mutate, data: variants} = useAllVariantsData({appId})
+    useEffect(() => {
+        if (!hasCapturedTheme) {
+            const deviceTheme = getDeviceTheme()
+
+            posthog?.capture("user_device_theme", {
+                $set: {deviceTheme},
+            })
+
+            setHasCapturedTheme(true)
+        }
+    }, [hasCapturedTheme])
+
+    const {data: variants} = useAllVariantsData({appId})
 
     const variant = useMemo(() => variants?.[0], [variants])
 
-    const [customWorkflowAppValues, setCustomWorkflowAppValues] = useState(() => ({
-        appName: "",
-        appUrl: "",
-        appDesc: "",
-    }))
-
-    useEffect(() => {
-        if (variant) {
-            setCustomWorkflowAppValues({
-                appName: currentApp?.app_name ?? "",
-                appUrl: variant?.uri ?? "",
-                appDesc: "",
-            })
-        }
-    }, [variant, currentApp])
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({})
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -253,9 +250,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                             >
                                                 {variant && (
                                                     <CustomWorkflowBanner
-                                                        setIsCustomWorkflowModalOpen={
-                                                            setIsCustomWorkflowModalOpen
-                                                        }
+                                                        setIsCustomWorkflowModalOpen={openModal}
                                                         isNewPlayground={isNewPlayground}
                                                         variant={variant}
                                                     />
@@ -324,17 +319,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         </AppWithVariants>
                     )}
 
-                    <CustomWorkflowModal
-                        open={isCustomWorkflowModalOpen}
-                        onCancel={() => setIsCustomWorkflowModalOpen(false)}
-                        customWorkflowAppValues={customWorkflowAppValues}
-                        setCustomWorkflowAppValues={setCustomWorkflowAppValues}
-                        handleCreateApp={() => {}}
-                        configureWorkflow
-                        fetchVariantsMutate={() => {}}
-                        allVariantsDataMutate={mutate}
-                        variants={variants}
-                    />
+                    {CustomWorkflowModal}
                 </ThemeProvider>
             )}
         </>

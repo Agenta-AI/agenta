@@ -681,15 +681,6 @@ async def fetch_config_by_variant_ref(
             version=None,
             id=app.id,
         ),
-        service_ref=ReferenceDTO(
-            slug=deployment.id.hex,
-            version=None,
-            id=(
-                None
-                if not deployment.container_name or deployment.container_name == ""
-                else UUID(deployment.container_name[-(32 + 4) :])
-            ),
-        ),
         variant_ref=ReferenceDTO(
             slug=app_variant.config_name,
             version=app_variant_revision.revision,

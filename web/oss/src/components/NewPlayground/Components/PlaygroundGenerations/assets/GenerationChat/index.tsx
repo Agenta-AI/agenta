@@ -13,6 +13,8 @@ import GenerationChatRow from "../GenerationChatRow"
 import GenerationCompletionRow from "../GenerationCompletionRow"
 
 import type {GenerationChatProps} from "./types"
+import {autoScrollToBottom} from "@/oss/components/NewPlayground/assets/utilities/utilityFunctions"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({
@@ -77,6 +79,13 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
         ),
     })
     const isComparisonView = viewType === "comparison"
+
+    useLazyEffect(() => {
+        if (isComparisonView) return
+
+        const timer = autoScrollToBottom()
+        return timer
+    }, [messageRowIds])
 
     return (
         <section className="flex flex-col">

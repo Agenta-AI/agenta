@@ -37,7 +37,7 @@ This operation is managed through Celery tasks. The interactions with the LLM ap
 # In this example we will use the default template single_prompt which has the prompt "Determine the capital of {country}"
 
 # You can find the application ID in the URL. For example, in the URL https://cloud.agenta.ai/apps/666dde95962bbaffdb0072b5/playground?variant=app.default, the application ID is `666dde95962bbaffdb0072b5`.
-from agenta.client.backend.client import AgentaApi
+from agenta.client.client import AgentaApi
 # Let's list the applications
 client.apps.list_apps()
 ```
@@ -60,7 +60,7 @@ client = AgentaApi(base_url=host + "/api", api_key=api_key)
 ## Create a test set
 
 ```python
-from agenta.client.backend.types.new_testset import NewTestset
+from agenta.client.types.new_testset import NewTestset
 
 csvdata = [
         {"country": "france", "capital": "Paris"},
@@ -122,7 +122,7 @@ myvariant_id = response[0].variant_id
 
 ```python
 # Run an evaluation
-from agenta.client.backend.types.llm_run_rate_limit import LlmRunRateLimit
+from agenta.client.types.llm_run_rate_limit import LlmRunRateLimit
 response = client.evaluations.create_evaluation(app_id=app_id, variant_ids=[myvariant_id], testset_id=test_set_id, evaluators_configs=[exact_match_eval_id, letter_match_eval_id],
                                                 rate_limit=LlmRunRateLimit(
         batch_size=10, # number of rows to call in parallel

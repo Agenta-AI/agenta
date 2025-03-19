@@ -16,6 +16,8 @@ import GenerationOutputText from "../GenerationOutputText"
 
 import {useStyles} from "./styles"
 import type {GenerationCompletionRowProps} from "./types"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {autoScrollToBottom} from "@/oss/components/NewPlayground/assets/utilities/utilityFunctions"
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
@@ -64,6 +66,11 @@ const GenerationCompletionRow = ({
         ),
     })
 
+    useLazyEffect(() => {
+        const timer = autoScrollToBottom()
+        return timer
+    }, [resultHash])
+
     const result = useMemo(() => {
         return getResponseLazy(resultHash)
     }, [resultHash])
@@ -76,7 +83,13 @@ const GenerationCompletionRow = ({
         const responseData = result?.response?.data
         return (
             <div
-                className={clsx(["flex flex-col gap-4", "p-4", "group/item", classes.container])}
+                className={clsx([
+                    "flex flex-col",
+                    "p-4",
+                    "group/item",
+                    {"gap-4": variableIds.length > 0},
+                    classes.container,
+                ])}
                 {...props}
             >
                 <div
@@ -84,40 +97,45 @@ const GenerationCompletionRow = ({
                         "flex flex-col gap-4 w-full": isChat,
                     })}
                 >
-                    <div className="w-[100px] shrink-0">
-                        <Typography className="font-[500] text-[12px] leading-[20px]">
-                            Variables
-                        </Typography>
-                    </div>
-                    <div className="flex flex-col grow gap-2 w-full">
-                        {variableIds.map((variableId) => {
-                            return (
-                                <PlaygroundVariantPropertyControl
-                                    key={variableId}
-                                    variantId={variantId}
-                                    propertyId={variableId}
-                                    rowId={rowId}
-                                />
-                            )
-                        })}
-                    </div>
+                    {variableIds.length > 0 && (
+                        <>
+                            <div className="w-[100px] shrink-0">
+                                <Typography className="font-[500] text-[12px] leading-[20px]">
+                                    Variables
+                                </Typography>
+                            </div>
+                            <div className="flex flex-col grow gap-2 w-full">
+                                {variableIds.map((variableId) => {
+                                    return (
+                                        <PlaygroundVariantPropertyControl
+                                            key={variableId}
+                                            variantId={variantId}
+                                            propertyId={variableId}
+                                            rowId={rowId}
+                                            placeholder="Enter value"
+                                        />
+                                    )
+                                })}
+                            </div>
 
-                    {!inputOnly && variableIds.length > 0 ? (
-                        <GenerationVariableOptions
-                            variantId={variantId}
-                            rowId={rowId}
-                            className="invisible group-hover/item:visible"
-                            resultHash={resultHash}
-                        />
-                    ) : null}
+                            {!inputOnly && (
+                                <GenerationVariableOptions
+                                    variantId={variantId}
+                                    rowId={rowId}
+                                    className="invisible group-hover/item:visible"
+                                    resultHash={resultHash}
+                                />
+                            )}
+                        </>
+                    )}
                 </div>
 
-                {!inputOnly && variableIds.length > 0 ? (
+                {!inputOnly && (
                     <div className="w-full flex gap-1 items-start">
                         <div className="w-[100px] shrink-0">
                             <RunButton onClick={runRow} disabled={isRunning} />
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <div className="w-full flex flex-col gap-4">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
@@ -156,7 +174,7 @@ const GenerationCompletionRow = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className="!pt-0"
+                                    className="!p-0"
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
@@ -165,9 +183,20 @@ const GenerationCompletionRow = ({
                                 />
                             ) : null}
                         </div>
-                        <div className="flex items-center w-[50px] shrink-0" />
+
+                        {/**This is used in when we don't have variables to display */}
+                        {variableIds.length === 0 ? (
+                            <GenerationVariableOptions
+                                variantId={variantId}
+                                rowId={rowId}
+                                className="invisible group-hover/item:visible"
+                                resultHash={resultHash}
+                            />
+                        ) : (
+                            <div className="flex items-center w-[50px] shrink-0" />
+                        )}
                     </div>
-                ) : null}
+                )}
             </div>
         )
     }
@@ -187,6 +216,7 @@ const GenerationCompletionRow = ({
                                         rowId={rowId}
                                         className="*:!border-none"
                                         disabled={disabled}
+                                        placeholder="Enter value"
                                     />
 
                                     {!inputOnly && (
@@ -205,7 +235,7 @@ const GenerationCompletionRow = ({
                 </div>
             </div>
 
-            {!inputOnly && variableIds.length > 0 ? (
+            {!inputOnly ? (
                 <div className={clsx("h-[48px] flex items-center px-4")}>
                     <RunButton onClick={runRow} disabled={isRunning} className="flex" />
                 </div>

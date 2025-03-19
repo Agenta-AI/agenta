@@ -5,10 +5,10 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from oss.src.services import db_manager
-from oss.src.utils.common import APIRouter, isCloudEE
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace
 
-if isCloudEE():
+if is_ee():
     from ee.src.utils.permissions import check_rbac_permission
     from ee.src.models.api.workspace_models import WorkspaceRole
     from ee.src.services.selectors import get_user_org_and_workspace_id
@@ -64,7 +64,7 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
         HTTPException: If an error occurs while retrieving the workspace roles.
     """
 
-    if isCloudEE():
+    if is_ee():
         workspace_roles_with_description = []
         workspace_roles = await workspace_manager.get_all_workspace_roles()
         for role in workspace_roles:
@@ -104,7 +104,7 @@ async def remove_user_from_workspace(
         workspace_id (str): The ID of the workspace.
     """
 
-    if isCloudEE():
+    if is_ee():
         user_org_workspace_data = await get_user_org_and_workspace_id(
             request.state.user_id
         )

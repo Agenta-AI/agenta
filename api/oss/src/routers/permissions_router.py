@@ -1,15 +1,19 @@
-from typing import Optional
+import logging
 from uuid import UUID
+from typing import Optional
 
-from fastapi import Request, Query, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi import Request, Query, HTTPException
 
-from oss.src.utils.common import isCloudEE, isOss, APIRouter
-from oss.src.services import db_manager
+from oss.src.utils.common import is_ee, is_oss, APIRouter
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
+
+
+router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 class Allow(JSONResponse):
@@ -34,9 +38,6 @@ class Deny(HTTPException):
         )
 
 
-router = APIRouter()
-
-
 @router.get(
     "/verify",
     operation_id="verify_permissions",
@@ -44,67 +45,87 @@ router = APIRouter()
 async def verify_permissions(
     request: Request,
     action: Optional[str] = Query(None),
+    scope_type: Optional[str] = Query(None),
+    scope_id: Optional[UUID] = Query(None),
     resource_type: Optional[str] = Query(None),
     resource_id: Optional[UUID] = Query(None),
 ):
     try:
-        if isOss():
+        if is_oss():
             return Allow(request.state.credentials)
 
         if not action or not resource_type:
+            log.error("Missing required parameters: action, resource_type")
             raise Deny()
 
-        if isCloudEE():
-            permission = Permission(action)
+        # CHECK PERMISSION 1/3: SCOPE
+        allow_scope = await check_scope_access(
+            # organization_id=request.state.organization_id,
+            workspace_id=request.state.workspace_id,
+            project_id=request.state.project_id,
+            scope_type=scope_type,
+            scope_id=scope_id,
+        )
 
+        if not allow_scope:
+            log.error("Scope access denied")
+            raise Deny()
+
+        if is_ee():
             # CHECK PERMISSION 1/2: ACTION
             allow_action = await check_action_access(
-                user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=permission,
+                user_uid=request.state.user_id,
+                permission=Permission(action),
             )
 
             if not allow_action:
+                log.error("Action access denied")
                 raise Deny()
 
-            # CHECK PERMISSION 2/2: RESOURCE
-            allow_resource = await check_resource_access(
-                project_id=UUID(request.state.project_id),
-                resource_type=resource_type,
-                resource_id=resource_id,
-            )
+        # CHECK PERMISSION 3/3: RESOURCE
+        allow_resource = await check_resource_access(
+            resource_type=resource_type,
+        )
 
-            if not allow_resource:
-                raise Deny()
+        if not allow_resource:
+            log.error("Resource access denied")
+            raise Deny()
 
-            return Allow(request.state.credentials)
+        return Allow(request.state.credentials)
 
     except Exception as exc:  # pylint: disable=bare-except
-        print(exc)
+        log.error(exc)
         raise Deny() from exc
 
 
-async def check_resource_access(
+async def check_scope_access(
+    # organization_id: UUID,
+    workspace_id: UUID,
     project_id: UUID,
-    resource_type: str,
-    resource_id: Optional[UUID] = None,
+    scope_type: Optional[str] = None,
+    scope_id: Optional[UUID] = None,
 ) -> bool:
-    resource_project_id = None
+    allow_scope = False
 
-    if resource_type == "application":
-        app = await db_manager.get_app_instance_by_id(app_id=str(resource_id))
+    if scope_type == "project":
+        allow_scope = str(project_id) == str(scope_id)
+    elif scope_type == "workspace":
+        allow_scope = str(workspace_id) == str(scope_id)
+    # elif scope_type == "organization":
+    #     allow_scope = str(organization_id) == str(scope_id)
+    elif not scope_type and not scope_id:
+        allow_scope = True
 
-        resource_project_id = app.project_id
+    return allow_scope
+
+
+async def check_resource_access(
+    resource_type: Optional[str] = None,
+) -> bool:
+    allow_resource = False
 
     if resource_type == "service":
-        if resource_id is None:
-            resource_project_id = project_id
-
-        else:
-            base = await db_manager.fetch_base_by_id(base_id=str(resource_id))
-
-            resource_project_id = base.project_id
-
-    allow_resource = resource_project_id == project_id
+        allow_resource = True
 
     return allow_resource

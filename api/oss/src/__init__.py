@@ -2,6 +2,8 @@ import os
 from typing import Optional, Any, Dict, Union, List
 
 import sentry_sdk
+from supertokens_python.types import AccountInfo
+from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python import init, InputAppInfo, SupertokensConfig
 from supertokens_python.asyncio import get_user as get_user_from_supertokens
 from supertokens_python.recipe.thirdparty import (
@@ -41,7 +43,7 @@ from supertokens_python.recipe.emailpassword.interfaces import (
     SignUpPostOkResult as EmailPasswordSignUpPostOkResult,
 )
 
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.services.exceptions import SuperTokensNotAllowedException
 from oss.src.services.db_manager import (
     get_user_with_email,
@@ -54,7 +56,7 @@ from oss.src.utils.validators import (
     is_input_email,
 )
 
-if isCloudEE():
+if is_ee():
     from ee.src.services.commoners import create_accounts
 else:
     from oss.src.services.db_manager import create_accounts
@@ -201,7 +203,10 @@ def override_password_apis(original: EmailPasswordAPIInterface):
     ):
         # FLOW 1: Sign in
         email = form_fields[0].value
-        if await get_user_with_email(email=email):
+        user_info_from_st = await list_users_by_account_info(
+            tenant_id="public", account_info=AccountInfo(email=email)
+        )
+        if len(user_info_from_st) >= 1 or await get_user_with_email(email=email):
             return await sign_in_post(
                 form_fields,
                 tenant_id,

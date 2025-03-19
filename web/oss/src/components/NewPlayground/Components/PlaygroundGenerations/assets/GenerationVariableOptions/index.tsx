@@ -42,10 +42,6 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
         ),
     })
 
-    const result = useMemo(() => {
-        return getResponseLazy(resultHash)
-    }, [resultHash])
-
     const deleteInputRow = useCallback(() => {
         mutate(
             (clonedState) => {
@@ -111,7 +107,7 @@ const GenerationVariableOptions: React.FC<GenerationVariableOptionsProps> = ({
             {viewType === "single" && (
                 <PlaygroundGenerationVariableMenu
                     duplicateInputRow={duplicateInputRow}
-                    result={result}
+                    resultHash={resultHash}
                 />
             )}
             {viewType === "comparison" && (

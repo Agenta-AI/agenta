@@ -1,13 +1,13 @@
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
 from oss.src.models.api.user_models import User
 from oss.src.services import db_manager, user_service
 
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
@@ -33,7 +33,7 @@ async def user_profile(request: Request):
 
 @router.post("/reset-password", operation_id="reset_user_password")
 async def reset_user_password(request: Request, user_id: str):
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,

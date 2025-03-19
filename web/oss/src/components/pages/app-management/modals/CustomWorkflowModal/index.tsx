@@ -1,81 +1,20 @@
-import {Dispatch, SetStateAction, useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {CheckCircleOutlined, CloseOutlined, ExclamationCircleOutlined} from "@ant-design/icons"
+import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
-import {Typography, Space, Button, Modal, Tooltip, notification} from "antd"
-import {createUseStyles} from "react-jss"
-import {KeyedMutator} from "swr"
+import {Typography, Space, Button, Modal} from "antd"
 
 import SharedEditor from "@/oss/components/NewPlayground/Components/SharedEditor"
 import {findCustomWorkflowPath} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {removeTrailingSlash} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
-import {JSSTheme, Variant} from "@/oss/lib/Types"
 import {updateVariant} from "@/oss/services/app-selector/api"
 
+import {useStyles} from "./assets/styles"
+import CustomWorkflowModalFooter from "./components/CustomWorkflowModalFooter"
+import {CustomWorkflowModalProps} from "./types"
+
 const {Text} = Typography
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    modalContainer: {
-        transition: "width 0.3s ease",
-        "& .ant-modal-content": {
-            overflow: "hidden",
-            borderRadius: 16,
-            "& > .ant-modal-close": {
-                top: 16,
-            },
-        },
-        "& .ant-modal-footer": {
-            marginTop: 24,
-        },
-    },
-    modal: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 24,
-    },
-    headerText: {
-        "& .ant-typography": {
-            lineHeight: theme.lineHeightLG,
-            fontSize: theme.fontSizeHeading4,
-            fontWeight: theme.fontWeightStrong,
-        },
-    },
-    label: {
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeight,
-    },
-}))
-
-type Props = {
-    customWorkflowAppValues: {
-        appName: string
-        appUrl: string
-        appDesc: string
-    }
-    setCustomWorkflowAppValues: Dispatch<
-        SetStateAction<{
-            appName: string
-            appUrl: string
-            appDesc: string
-        }>
-    >
-    handleCreateApp: () => void
-    configureWorkflow?: boolean
-    variants?: any[]
-    allVariantsDataMutate?: KeyedMutator<Variant[]>
-    fetchVariantsMutate?: () => void
-    mutate: () => Promise<any>
-    appNameExist?: boolean
-} & React.ComponentProps<typeof Modal>
-
-/**
- *
- * TODO: @bekossy
- * - split styles / types / component into different files
- * - create a reuseable hook, so we won't have to duplicate code whenever we want to
- * use this modal
- */
 
 const CustomWorkflowModal = ({
     customWorkflowAppValues,
@@ -84,11 +23,10 @@ const CustomWorkflowModal = ({
     configureWorkflow = false,
     variants,
     allVariantsDataMutate,
-    fetchVariantsMutate,
     appNameExist,
     mutate,
     ...props
-}: Props) => {
+}: CustomWorkflowModalProps) => {
     const classes = useStyles()
     const [testConnectionStatus, setTestConnectionStatus] = useState({
         success: false,
@@ -110,7 +48,7 @@ const CustomWorkflowModal = ({
                     }),
                 ),
             )
-            await Promise.all([fetchVariantsMutate?.(), allVariantsDataMutate?.(), mutate?.()])
+            await Promise.all([allVariantsDataMutate?.(), mutate()])
         } catch (error) {
             console.error("Failed to update variants:", error)
         } finally {
@@ -154,6 +92,31 @@ const CustomWorkflowModal = ({
         }
     }, [props.open])
 
+    const ModalFooter = useMemo(() => {
+        return (
+            <CustomWorkflowModalFooter
+                handleCancelButton={() => props.onCancel?.({} as any)}
+                handleCreateApp={handleCreateApp}
+                handleEditCustomUrl={handleEditCustomUrl}
+                isConfiguringWorkflow={isConfiguringWorkflow}
+                configureWorkflow={configureWorkflow}
+                customWorkflowAppValues={customWorkflowAppValues}
+                testConnectionStatus={testConnectionStatus}
+                appNameExist={appNameExist}
+                runTestConnection={runTestConnection}
+            />
+        )
+    }, [
+        handleCreateApp,
+        handleEditCustomUrl,
+        isConfiguringWorkflow,
+        configureWorkflow,
+        customWorkflowAppValues,
+        testConnectionStatus,
+        appNameExist,
+        runTestConnection,
+    ])
+
     return (
         <Modal
             title={null}
@@ -162,101 +125,7 @@ const CustomWorkflowModal = ({
             closeIcon={null}
             centered
             destroyOnClose
-            footer={
-                <div className="flex items-center justify-between">
-                    <Space>
-                        <Button
-                            loading={testConnectionStatus.loading}
-                            type={testConnectionStatus.loading ? "dashed" : "default"}
-                            onClick={() =>
-                                runTestConnection(undefined, customWorkflowAppValues.appUrl)
-                            }
-                            disabled={!customWorkflowAppValues.appUrl}
-                        >
-                            {testConnectionStatus.loading ? "Testing" : "Test connection"}
-                        </Button>
-                        {testConnectionStatus.success && (
-                            <>
-                                <CheckCircleOutlined style={{color: "green"}} />
-                                <Typography.Text type="secondary">Successful</Typography.Text>
-                            </>
-                        )}
-                        {testConnectionStatus.error && (
-                            <>
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                                <Typography.Text type="secondary">Failed</Typography.Text>
-                            </>
-                        )}
-                    </Space>
-
-                    {configureWorkflow ? (
-                        <Space>
-                            <Button onClick={() => props.onCancel?.({} as any)}>Cancel</Button>
-                            <Tooltip
-                                title={
-                                    !testConnectionStatus.success
-                                        ? "Please test the connection and ensure a successful response before configuring the app."
-                                        : ""
-                                }
-                            >
-                                <Button
-                                    type="primary"
-                                    disabled={
-                                        !customWorkflowAppValues.appName ||
-                                        !customWorkflowAppValues.appUrl
-                                        // !testConnectionStatus.success
-                                    }
-                                    onClick={handleEditCustomUrl}
-                                    loading={isConfiguringWorkflow}
-                                >
-                                    Save
-                                </Button>
-                            </Tooltip>
-                        </Space>
-                    ) : (
-                        <Tooltip
-                            title={
-                                !testConnectionStatus.success
-                                    ? "Please test the connection and ensure a successful response before creating the app."
-                                    : ""
-                            }
-                        >
-                            <Button
-                                type="primary"
-                                disabled={
-                                    !customWorkflowAppValues.appName ||
-                                    !customWorkflowAppValues.appUrl ||
-                                    appNameExist ||
-                                    !isAppNameInputValid(customWorkflowAppValues.appName)
-                                    // !testConnectionStatus.success
-                                }
-                                onClick={() => {
-                                    if (appNameExist) {
-                                        notification.warning({
-                                            message: "Custom Workflow",
-                                            description:
-                                                "App name already exists. Please choose a different name.",
-                                            duration: 3,
-                                        })
-                                    } else if (
-                                        !isAppNameInputValid(customWorkflowAppValues.appName)
-                                    ) {
-                                        notification.warning({
-                                            message: "Custom Workflow",
-                                            description: "Please provide a valid app name.",
-                                            duration: 3,
-                                        })
-                                    } else {
-                                        handleCreateApp()
-                                    }
-                                }}
-                            >
-                                Create new app
-                            </Button>
-                        </Tooltip>
-                    )}
-                </div>
-            }
+            footer={ModalFooter}
             {...props}
         >
             <section className={classes.modal}>

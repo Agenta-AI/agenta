@@ -14,7 +14,7 @@ from fastapi import HTTPException, UploadFile, File, Form, Request
 
 
 from oss.src.services import db_manager
-from oss.src.utils.common import APIRouter, isCloudEE
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.converters import testset_db_to_pydantic
 
 
@@ -28,7 +28,7 @@ from oss.src.models.api.testset_model import (
 PARENT_DIRECTORY = Path(__file__).parent
 ASSETS_DIRECTORY = os.path.join(str(PARENT_DIRECTORY), "/resources/default_testsets")
 
-if isCloudEE():
+if is_ee():
     from ee.src.utils.permissions import (
         check_action_access,
     )  # noqa pylint: disable-all
@@ -65,7 +65,7 @@ async def upload_file(
         dict: The result of the upload process.
     """
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -143,7 +143,7 @@ async def import_testset(
         dict: The result of the import process.
     """
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -221,7 +221,7 @@ async def create_testset(
     str: The id of the test set created.
     """
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -273,7 +273,7 @@ async def update_testset(
     if testset is None:
         raise HTTPException(status_code=404, detail="testset not found")
 
-    if isCloudEE():
+    if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(testset.project_id),
@@ -318,7 +318,7 @@ async def get_testsets(
     """
 
     try:
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
@@ -382,7 +382,7 @@ async def get_single_testset(
 
     try:
         test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
-        if isCloudEE():
+        if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(test_set.project_id),
@@ -420,7 +420,7 @@ async def delete_testsets(
     A list of the deleted testsets' IDs.
     """
 
-    if isCloudEE():
+    if is_ee():
         for testset_id in payload.testset_ids:
             testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
             has_permission = await check_action_access(

@@ -19,6 +19,7 @@ const TextControl = ({
     as,
     view,
     disabled,
+    placeholder,
     ...props
 }: TextControlProps) => {
     const {viewType} = usePlayground()
@@ -35,7 +36,7 @@ const TextControl = ({
                 handleChange={handleChange || _handleChange}
                 initialValue={value}
                 editorClassName={className}
-                placeholder={metadata?.description}
+                placeholder={metadata?.description || placeholder}
                 disabled={disabled}
                 className={clsx(
                     "relative flex flex-col gap-1 rounded-[theme(spacing.2)]",
@@ -62,7 +63,7 @@ const TextControl = ({
             handleChange={handleChange || _handleChange}
             initialValue={value}
             editorClassName={className}
-            placeholder={metadata?.description}
+            placeholder={metadata?.description || placeholder}
             disabled={disabled}
             {...props}
         />

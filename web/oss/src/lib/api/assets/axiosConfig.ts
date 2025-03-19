@@ -1,4 +1,4 @@
-import axiosApi from "axios"
+import axiosApi, {CanceledError} from "axios"
 import isObject from "lodash/isObject"
 import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
@@ -14,6 +14,7 @@ import {getAgentaApiUrl, isDemo} from "../../helpers/utils"
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."
 
+const ENDPOINTS_PROJECT_ID_WHITELIST = ["/api/projects", "/api/profile", "/api/organizations"]
 const axios = axiosApi.create({
     baseURL: getAgentaApiUrl(),
     headers: {
@@ -36,10 +37,21 @@ axios.interceptors.request.use(async (config) => {
 
     const {projectId} = getCurrentProject()
 
+    if (!jwt || !profile.user || projectId === DEFAULT_UUID) {
+        const controller = new AbortController()
+        const configuredUri = axios.getUri(config)
+        if (!ENDPOINTS_PROJECT_ID_WHITELIST.some((endpoint) => configuredUri.includes(endpoint))) {
+            controller.abort()
+        }
+
+        return {
+            ...config,
+            signal: controller.signal,
+        }
+    }
+
     if (
-        !jwt ||
-        !profile.user ||
-        projectId === DEFAULT_UUID ||
+        config.params?.["project_id"] ||
         config.url?.includes("?project_id=") ||
         config.url?.includes("&project_id=")
     ) {
@@ -70,6 +82,10 @@ axios.interceptors.response.use(
         return response
     },
     (error) => {
+        if (error instanceof CanceledError) {
+            return Promise.reject(error)
+        }
+
         if (error.response?.status === 403 && error.config.method !== "get") {
             AlertPopup({
                 title: "Permission Denied",

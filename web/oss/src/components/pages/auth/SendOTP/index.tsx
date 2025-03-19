@@ -1,3 +1,4 @@
+import {useRef, useState} from "react"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Input, Button, Form, Typography, FormProps} from "antd"
 import {useRouter} from "next/router"
@@ -11,22 +12,37 @@ import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessag
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
+import {OTPRef} from "antd/es/input/OTP"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 const {Text, Title} = Typography
 
 const SendOTP = ({
     message,
-    isLoading,
     email,
-    isResendDisabled,
     setMessage,
     authErrorMsg,
     setIsLoginCodeVisible,
-    setIsResendDisabled,
-    setIsLoading,
 }: SendOTPProps) => {
     const classes = useStyles()
     const router = useRouter()
+
+    const [isResendDisabled, setIsResendDisabled] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
+
+    const inputRef = useRef<OTPRef>(null)
+
+    // Listens for the window gaining focus (e.g., user returns to tab) and focuses the OTP input
+    useLazyEffect(() => {
+        const handleFocus = () => {
+            inputRef.current?.focus()
+        }
+        window.addEventListener("focus", handleFocus)
+
+        return () => {
+            window.removeEventListener("focus", handleFocus)
+        }
+    }, [])
 
     const resendOTP = async () => {
         try {
@@ -136,7 +152,11 @@ const SendOTP = ({
                         },
                     ]}
                 >
-                    <Input.OTP formatter={(str) => str.toUpperCase()} />
+                    <Input.OTP
+                        formatter={(str) => str.toUpperCase()}
+                        autoFocus={true}
+                        ref={inputRef}
+                    />
                 </Form.Item>
 
                 <Button

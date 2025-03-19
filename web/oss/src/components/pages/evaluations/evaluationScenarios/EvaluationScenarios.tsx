@@ -12,7 +12,7 @@ import AgCustomHeader from "@/oss/components/AgCustomHeader/AgCustomHeader"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import CompareOutputDiff from "@/oss/components/CompareOutputDiff/CompareOutputDiff"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
-import {getAppValues} from "@/oss/contexts/app.context"
+import {getAppValues, useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
@@ -57,6 +57,7 @@ interface Props {}
 const EvaluationScenarios: React.FC<Props> = () => {
     const router = useRouter()
     const appId = useAppId()
+    const {currentApp} = useAppsData()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const evaluationId = router.query.evaluation_id as string
@@ -306,7 +307,6 @@ const EvaluationScenarios: React.FC<Props> = () => {
 
     const onExport = () => {
         if (!gridRef) return
-        const {currentApp} = getAppValues()
         gridRef.api.exportDataAsCsv({
             fileName: `${currentApp?.app_name}_${evalaution.variants[0].variantName}.csv`,
             processHeaderCallback: (params) => {

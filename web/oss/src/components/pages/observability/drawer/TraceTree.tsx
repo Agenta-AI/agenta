@@ -78,23 +78,23 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 }))
 
 const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
-    const {node, metrics, status} = value
+    const {node, metrics, status} = value || {}
     const classes = useStyles()
 
     return (
-        <div className="py-[14px] px-2 flex items-center gap-2" key={node.id}>
+        <div className="py-[14px] px-2 flex items-center gap-2" key={node?.id}>
             <div className="w-8">
                 <AvatarTreeContent value={value} />
             </div>
             <div className="flex flex-col flex-1">
                 <Typography.Text
                     className={
-                        status.code === NodeStatusCode.ERROR
+                        status?.code === NodeStatusCode.ERROR
                             ? `${classes.treeTitle} text-[#D61010] font-[500]`
                             : classes.treeTitle
                     }
                 >
-                    {node.name}
+                    {node?.name}
                 </Typography.Text>
                 <Space className={classes.treeContentContainer}>
                     <div className={classes.treeContent}>
@@ -128,7 +128,7 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
 const buildTreeData = (spans: _AgentaRootsResponse[]): NodeTreeChildren[] => {
     return spans.map((span) => ({
         title: <TreeContent value={span} />,
-        key: span.node.id,
+        key: span.node?.id,
         children: span.children ? buildTreeData(span.children) : undefined,
     }))
 }
@@ -143,8 +143,8 @@ const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
     }, [activeTrace])
 
     const getAllKeys = (node: _AgentaRootsResponse): string[] => {
-        const childrenKeys = node.children ? node.children.flatMap(getAllKeys) : []
-        return [node.node.id, ...childrenKeys]
+        const childrenKeys = node?.children ? node?.children.flatMap(getAllKeys) : []
+        return [node?.node?.id, ...childrenKeys]
     }
 
     const onExpand = (expanded: React.Key[]) => {
@@ -160,15 +160,15 @@ const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
             showIcon={true}
             onSelect={(keys) => {
                 if (keys.length > 0) {
-                    setSelected(keys[0].toString() || activeTrace.node.id)
+                    setSelected(keys[0].toString() || activeTrace?.node?.id)
                 }
             }}
             treeData={[
                 {
                     title: <TreeContent value={activeTrace} />,
-                    key: activeTrace.node.id,
-                    children: activeTrace.children
-                        ? buildTreeData(activeTrace.children)
+                    key: activeTrace?.node?.id,
+                    children: activeTrace?.children
+                        ? buildTreeData(activeTrace?.children)
                         : undefined,
                 },
             ]}

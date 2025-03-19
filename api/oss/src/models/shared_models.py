@@ -62,11 +62,6 @@ class HumanEvaluationScenarioOutput(BaseModel):
     variant_output: Any
 
 
-class TemplateType(enum.Enum):
-    IMAGE = "image"
-    ZIP = "zip"
-
-
 class AppType(str, enum.Enum):
     CHAT_TEMPLATE = "TEMPLATE:simple_chat"
     COMPLETION_TEMPLATE = "TEMPLATE:simple_completion"

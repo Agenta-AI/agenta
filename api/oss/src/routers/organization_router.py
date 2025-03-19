@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, BackgroundTasks
 
 from oss.src.services import db_manager
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
 from oss.src.models.api.organization_models import (
     Organization,
@@ -19,7 +19,7 @@ from oss.src.models.api.workspace_models import (
     InviteToken,
 )
 
-if isCloudEE():
+if is_ee():
     from ee.src.utils.permissions import check_rbac_permission
     from ee.src.models.api.workspace_models import WorkspaceRole
     from ee.src.services import db_manager_ee, workspace_manager
@@ -49,7 +49,7 @@ async def list_organizations(
         HTTPException: If there is an error retrieving the organizations from the database.
     """
 
-    if isCloudEE():
+    if is_ee():
         user_org_workspace_data: dict = await get_user_org_and_workspace_id(
             request.state.user_id
         )
@@ -71,8 +71,8 @@ async def list_organizations(
             owner=organization_db.owner,
             description=str(organization_db.description),
             type=organization_db.type,  # type: ignore
-            workspaces=[str(active_workspace.id)] if not isCloudEE() else [],
-            is_paying=organization_db.is_paying if isCloudEE() else None,
+            workspaces=[str(active_workspace.id)] if not is_ee() else [],
+            is_paying=organization_db.is_paying if is_ee() else None,
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
     ]
@@ -184,7 +184,7 @@ async def invite_user_to_organization(
         HTTPException: If there is an error assigning the role to the user.
     """
 
-    if isCloudEE():
+    if is_ee():
         user_org_workspace_data = await get_user_org_and_workspace_id(
             request.state.user_id
         )
@@ -240,7 +240,7 @@ async def resend_user_invitation_to_organization(
         JSONResponse: Resent invitation to user; status_code: 200
     """
 
-    if isCloudEE():
+    if is_ee():
         user_org_workspace_data = await get_user_org_and_workspace_id(
             request.state.user_id
         )
@@ -299,7 +299,7 @@ async def accept_organization_invitation(
         JSONResponse: Accepted invitation to workspace; status_code: 200
     """
 
-    if isCloudEE():
+    if is_ee():
         workspace = await workspace_manager.get_workspace(workspace_id)
         organization = await db_manager_ee.get_organization(org_id)
         user = await db_manager.get_user(request.state.user_id)

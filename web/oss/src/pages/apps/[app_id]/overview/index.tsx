@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useCallback, useState, useMemo, useEffect} from "react"
+import {useCallback, useState} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilLine, PencilSimple, Trash} from "@phosphor-icons/react"
@@ -21,10 +21,8 @@ import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {JSSTheme, Variant} from "@/oss/lib/Types"
 import {deleteApp} from "@/oss/services/app-selector/api"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
-const CustomWorkflowModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/CustomWorkflowModal"),
-)
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
 )
@@ -62,10 +60,7 @@ const OverviewPage = () => {
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
     const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
-    const [isCustomWorkflowModalOpen, setIsCustomWorkflowModalOpen] = useState(false)
-    const {data, mutate: fetchVariants} = useVariants(currentApp)({
-        appId: currentApp?.app_id,
-    })
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({})
 
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
@@ -76,24 +71,6 @@ const OverviewPage = () => {
         isEnvironmentsLoading: isDeploymentLoading,
         mutate: loadEnvironments,
     } = useEnvironments({appId})
-
-    const singleVariant: Variant = useMemo(() => data?.variants?.[0], [data?.variants])
-
-    const [customWorkflowAppValues, setCustomWorkflowAppValues] = useState(() => ({
-        appName: "",
-        appUrl: "",
-        appDesc: "",
-    }))
-
-    useEffect(() => {
-        if (singleVariant) {
-            setCustomWorkflowAppValues({
-                appName: currentApp?.app_name ?? "",
-                appUrl: singleVariant?.uri ?? "",
-                appDesc: "",
-            })
-        }
-    }, [singleVariant, currentApp])
 
     const handleDeleteOk = useCallback(async () => {
         if (!currentApp) return
@@ -129,7 +106,7 @@ const OverviewPage = () => {
                                               key: "configure",
                                               label: "Configure",
                                               icon: <PencilSimple size={16} />,
-                                              onClick: () => setIsCustomWorkflowModalOpen(true),
+                                              onClick: openModal,
                                           },
                                           //   {
                                           //       key: "history",
@@ -211,17 +188,7 @@ const OverviewPage = () => {
                 />
             )}
 
-            <CustomWorkflowModal
-                open={isCustomWorkflowModalOpen}
-                onCancel={() => setIsCustomWorkflowModalOpen(false)}
-                customWorkflowAppValues={customWorkflowAppValues}
-                setCustomWorkflowAppValues={setCustomWorkflowAppValues}
-                handleCreateApp={() => {}}
-                configureWorkflow
-                fetchVariantsMutate={fetchVariants}
-                allVariantsDataMutate={mutate}
-                variants={data?.variants}
-            />
+            {CustomWorkflowModal}
 
             <CustomWorkflowHistory
                 open={isCustomWorkflowHistoryDrawerOpen}

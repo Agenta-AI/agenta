@@ -7,20 +7,22 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
-
 from sqlalchemy.future import select
 from sqlalchemy import func, or_, asc
 from sqlalchemy.ext.asyncio import AsyncSession
+from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
+from supertokens_python.asyncio import list_users_by_account_info
+from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
 from oss.src.models import converters
 from oss.src.services import user_service
-from oss.src.utils.common import isCloudEE
+from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 
-if isCloudEE():
+if is_ee():
     from ee.src.models.db_models import ProjectDB
 else:
     from oss.src.models.db_models import ProjectDB
@@ -28,10 +30,8 @@ else:
 from oss.src.models.db_models import (
     AppDB,
     UserDB,
-    ImageDB,
     APIKeyDB,
     TestSetDB,
-    TemplateDB,
     WorkspaceDB,
     IDsMappingDB,
     DeploymentDB,
@@ -47,7 +47,6 @@ from oss.src.models.db_models import (
 from oss.src.models.shared_models import (
     AppType,
     ConfigDB,
-    TemplateType,
 )
 
 
@@ -84,7 +83,7 @@ async def add_testset_to_app_variant(
     """Add testset to app variant.
 
     Args:
-        template_name (str): The name of the app template image
+        template_name (str): The name of the app template name
         app_name (str): The name of the app
         project_id (str): The ID of the project
     """
@@ -115,24 +114,6 @@ async def add_testset_to_app_variant(
 
         except Exception as e:
             print(f"An error occurred in adding the default testset: {e}")
-
-
-async def get_image_by_id(image_id: str) -> ImageDB:
-    """Get the image object from the database with the provided id.
-
-    Arguments:
-        image_id (str): The image unique identifier
-
-    Returns:
-        ImageDB: instance of image object
-    """
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ImageDB).filter_by(id=uuid.UUID(image_id))
-        )
-        image = result.scalars().first()
-        return image
 
 
 async def fetch_app_by_id(app_id: str) -> AppDB:
@@ -166,18 +147,10 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
 
     assert app_variant_id is not None, "app_variant_id cannot be None"
     async with engine.session() as session:
-        base_query = select(AppVariantDB).options(
+        query = select(AppVariantDB).options(
             joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
             joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
-        if isCloudEE():
-            query = base_query.options(
-                joinedload(AppVariantDB.image.of_type(ImageDB)).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
-            )
-        else:
-            query = base_query.options(
-                joinedload(AppVariantDB.image).load_only(ImageDB.docker_id, ImageDB.tags),  # type: ignore
-            )
 
         result = await session.execute(query.filter_by(id=uuid.UUID(app_variant_id)))
         app_variant = result.scalars().first()
@@ -385,9 +358,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
     async with engine.session() as session:
         result = await session.execute(
             select(VariantBaseDB)
-            .options(
-                joinedload(VariantBaseDB.image), joinedload(VariantBaseDB.deployment)
-            )
+            .options(joinedload(VariantBaseDB.deployment))
             .filter_by(id=uuid.UUID(base_uuid))
         )
         base = result.scalars().first()
@@ -446,25 +417,22 @@ async def create_new_variant_base(
     app: AppDB,
     project_id: str,
     base_name: str,
-    image: Optional[ImageDB] = None,
 ) -> VariantBaseDB:
     """Create a new base.
     Args:
         base_name (str): The name of the base.
-        image (ImageDB): The image of the base.
         project_id (str): The ID of the project
         app (AppDB): The associated App Object.
     Returns:
         VariantBaseDB: The created base.
     """
 
-    logger.debug(f"Creating new base: {base_name} with image: {image} for app: {app}")
+    logger.debug(f"Creating new base: {base_name} for app: {app}")
     async with engine.session() as session:
         base = VariantBaseDB(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
             base_name=base_name,
-            image_id=image.id if image is not None else None,
         )
 
         session.add(base)
@@ -502,14 +470,12 @@ async def create_new_app_variant(
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
-    image: Optional[ImageDB] = None,
 ) -> AppVariantDB:
     """Create a new variant.
 
     Args:
         variant_name (str): The name of the variant.
         project_id (str): The ID of the project.
-        image (ImageDB): The image of the variant.
         base (VariantBaseDB): The base of the variant.
         config (ConfigDB): The config of the variant.
         base_name (str): The name of the variant base.
@@ -529,7 +495,6 @@ async def create_new_app_variant(
             modified_by_id=user.id,
             revision=0,
             variant_name=variant_name,
-            image_id=image.id if image is not None else None,
             base_id=base.id,
             base_name=base_name,
             config_name=config.config_name,
@@ -543,10 +508,9 @@ async def create_new_app_variant(
             variant,
             attribute_names=[
                 "app",
-                "image",
                 "base",
             ],
-        )  # Ensures the app, image, user and base relationship are loaded
+        )  # Ensures the app, user and base relationship are loaded
 
         variant_revision = AppVariantRevisionsDB(
             variant_id=variant.id,
@@ -565,84 +529,17 @@ async def create_new_app_variant(
         return variant
 
 
-async def create_image(
-    image_type: str,
-    project_id: str,
-    deletable: bool,
-    template_uri: Optional[str] = None,
-    docker_id: Optional[str] = None,
-    tags: Optional[str] = None,
-) -> ImageDB:
-    """Create a new image.
-    Args:
-        image_type (str): The type of image to create.
-        project_id (str): The ID of the project.
-        docker_id (str): The ID of the image.
-        deletable (bool): Whether the image can be deleted.
-        tags (str): The tags of the image.
-
-    Returns:
-        ImageDB: The created image.
-    """
-
-    # Validate image type
-    valid_image_types = ["image", "zip"]
-    if image_type not in valid_image_types:
-        raise Exception("Invalid image type")
-
-    # Validate either docker_id or template_uri, but not both
-    if (docker_id is None) == (template_uri is None):
-        raise Exception("Provide either docker_id or template_uri, but not both")
-
-    # Validate docker_id or template_uri based on image_type
-    if image_type == "image" and docker_id is None:
-        raise Exception("Docker id must be provided for type image")
-    elif image_type == "zip" and template_uri is None:
-        raise Exception("template_uri must be provided for type zip")
-
-    async with engine.session() as session:
-        image = ImageDB(
-            deletable=deletable,
-            project_id=uuid.UUID(project_id),
-        )
-
-        image_types = {"zip": TemplateType.ZIP.value, "image": TemplateType.IMAGE.value}
-
-        image_type_value = image_types.get(image_type)
-        if image_type_value is None:
-            raise ValueError(f"Invalid image_type: {image_type}")
-
-        image.type = image_type_value  # type: ignore
-        if image_type_value == "zip":
-            image.template_uri = template_uri  # type: ignore
-        else:
-            image.tags = tags  # type: ignore
-            image.docker_id = docker_id  # type: ignore
-
-        session.add(image)
-        await session.commit()
-        await session.refresh(image)
-
-        return image
-
-
 async def create_deployment(
     app_id: str,
     project_id: str,
     uri: str,
-    status: str,
-    container_name: Optional[str] = "",
-    container_id: Optional[str] = "",
 ) -> DeploymentDB:
     """Create a new deployment.
 
     Args:
         app (str): The app to create the deployment for.
         project_id (str): The ID of the project to create the deployment for.
-        container_name (str): The name of the container.
-        container_id (str): The ID of the container.
-        uri (str): The URI of the container.
-        status (str): The status of the container.
+        uri (str): The URI of the service.
 
     Returns:
         DeploymentDB: The created deployment.
@@ -653,10 +550,7 @@ async def create_deployment(
             deployment = DeploymentDB(
                 app_id=uuid.UUID(app_id),
                 project_id=uuid.UUID(project_id),
-                container_name=container_name,
-                container_id=container_id,
                 uri=uri,
-                status=status,
             )
 
             session.add(deployment)
@@ -667,28 +561,6 @@ async def create_deployment(
 
         except Exception as e:
             raise Exception(f"Error while creating deployment: {e}")
-
-
-async def get_app_type_from_template_id(template_id: Optional[str]) -> Optional[str]:
-    """Get the application type from the specified template.
-
-    Args:
-        template_id (Optional[str]): The ID of the template
-
-    Returns:
-        AppType (Optional[str]): The determined application type. Defaults to None.
-    """
-
-    if template_id is None:
-        return None
-
-    template_db = await get_template(template_id=template_id)
-    if "Completion Prompt" in template_db.title:
-        return AppType.COMPLETION_TEMPLATE
-    elif "Chat Prompt" in template_db.title:
-        return AppType.CHAT_TEMPLATE
-
-    return None
 
 
 async def get_app_type_from_template_key(template_key: Optional[str]) -> Optional[str]:
@@ -712,12 +584,8 @@ async def get_app_type_from_template_key(template_key: Optional[str]) -> Optiona
 
 
 async def get_app_type(
-    template_id: Optional[str] = None,
     template_key: Optional[str] = None,
 ) -> str:
-    if template_id:
-        return await get_app_type_from_template_id(template_id=template_id)
-
     if template_key:
         return await get_app_type_from_template_key(template_key=template_key)
 
@@ -726,7 +594,6 @@ async def get_app_type(
 
 async def create_app_and_envs(
     app_name: str,
-    template_id: Optional[str] = None,
     template_key: Optional[str] = None,
     project_id: Optional[str] = None,
 ) -> AppDB:
@@ -735,7 +602,6 @@ async def create_app_and_envs(
 
     Args:
         app_name (str): The name of the app to create.
-        template_id (str): The ID of the template.
         project_id (str): The ID of the project.
 
     Returns:
@@ -752,7 +618,6 @@ async def create_app_and_envs(
         raise ValueError("App with the same name already exists")
 
     app_type = await get_app_type(
-        template_id=template_id,
         template_key=template_key,
     )
 
@@ -992,7 +857,7 @@ async def get_user(user_uid: str) -> UserDB:
         # 1. Check if user_uid is found in the UserDB.uid column.
         # 2. If not found, check if user_uid is found in the UserDB.id column.
         conditions = [UserDB.uid == user_uid]
-        if isCloudEE():
+        if is_ee():
             conditions.append(UserDB.id == uuid.UUID(user_uid))
 
         result = await session.execute(select(UserDB).where(or_(*conditions)))
@@ -1278,6 +1143,14 @@ async def remove_user_from_workspace(project_id: str, email: str):
             await session.delete(user)
 
         if user_invitation:
+            user_info_from_supertokens = await list_users_by_account_info(
+                tenant_id="public", account_info=AccountInfo(email=email)
+            )
+            if len(user_info_from_supertokens) >= 1:
+                await delete_user_from_supertokens(
+                    user_id=user_info_from_supertokens[0].id
+                )
+
             await session.delete(user_invitation)
 
         await session.commit()
@@ -1591,49 +1464,6 @@ async def get_project_invitation_by_token_and_email(
         return invitation
 
 
-async def get_orga_image_instance_by_docker_id(
-    docker_id: str, project_id: str
-) -> ImageDB:
-    """Get the image object from the database with the provided id.
-
-    Arguments:
-        docker_id (str): The image id
-        project_id (str): The ID of project.
-
-    Returns:
-        ImageDB: instance of image object
-    """
-
-    async with engine.session() as session:
-        query = select(ImageDB).filter_by(
-            docker_id=docker_id, project_id=uuid.UUID(project_id)
-        )
-        result = await session.execute(query)
-        image = result.scalars().first()
-        return image
-
-
-async def get_orga_image_instance_by_uri(template_uri: str) -> ImageDB:
-    """Get the image object from the database with the provided id.
-
-    Arguments:
-        template_uri (url): The image template url
-
-    Returns:
-        ImageDB: instance of image object
-    """
-
-    parsed_url = urlparse(template_uri)
-    if not parsed_url.scheme and not parsed_url.netloc:
-        raise ValueError(f"Invalid URL: {template_uri}")
-
-    async with engine.session() as session:
-        query = select(ImageDB).filter_by(template_uri=template_uri)
-        result = await session.execute(query)
-        image = result.scalars().first()
-        return image
-
-
 async def get_app_instance_by_id(app_id: str) -> AppDB:
     """Get the app object from the database with the provided id.
 
@@ -1693,7 +1523,6 @@ async def add_variant_from_base_and_config(
         db_app_variant = AppVariantDB(
             app_id=previous_app_variant_db.app_id,
             variant_name=new_variant_name,
-            image_id=base_db.image_id,
             modified_by_id=user_db.id,
             revision=1,
             base_name=base_db.base_name,
@@ -1779,31 +1608,6 @@ async def list_app_variants(app_id: str):
         return app_variants
 
 
-async def check_is_last_variant_for_image(
-    variant_base_id: str, project_id: str
-) -> bool:
-    """Checks whether the input variant is the sole variant that uses its linked image.
-
-    NOTE: This is a helpful function to determine whether to delete the image when removing a variant. Usually many variants will use the same image (these variants would have been created using the UI). We only delete the image and shutdown the container if the variant is the last one using the image
-
-    Arguments:
-        app_variant -- AppVariant to check
-
-    Returns:
-        true if it's the last variant, false otherwise
-    """
-
-    async with engine.session() as session:
-        query = select(AppVariantDB).filter_by(
-            base_id=uuid.UUID(variant_base_id), project_id=uuid.UUID(project_id)
-        )
-        count_result = await session.execute(
-            query.with_only_columns(func.count())  # type: ignore
-        )
-        count_variants = count_result.scalar()
-        return count_variants == 1
-
-
 async def remove_deployment(deployment_id: str):
     """Remove a deployment from the db
 
@@ -1846,7 +1650,6 @@ async def list_deployments(app_id: str):
 
 async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: str):
     """Remove an app variant from the db
-    the logic for removing the image is in app_manager.py
 
     Args:
         app_variant (AppVariantDB): the application variant to remove
@@ -1953,7 +1756,7 @@ async def fetch_app_environment_by_name_and_appid(
         query = select(AppEnvironmentDB).filter_by(
             app_id=uuid.UUID(app_id), name=environment_name
         )
-        if isCloudEE():
+        if is_ee():
             query = query.options(
                 joinedload(AppEnvironmentDB.deployed_app_variant.of_type(AppVariantDB)),  # type: ignore
             )
@@ -1998,7 +1801,7 @@ async def fetch_app_environment_revision_by_app_variant_revision_id(
         query = select(AppEnvironmentRevisionDB).filter_by(
             deployed_app_variant_revision_id=uuid.UUID(app_variant_revision_id),
         )
-        if isCloudEE():
+        if is_ee():
             query = query.options(
                 joinedload(AppEnvironmentRevisionDB.deployed_app_variant.of_type(AppVariantDB)),  # type: ignore
             )
@@ -2044,7 +1847,7 @@ async def fetch_environment_revisions_for_environment(
         query = select(AppEnvironmentRevisionDB).filter_by(
             environment_id=environment.id
         )
-        if isCloudEE():
+        if is_ee():
             query = query.options(
                 joinedload(AppEnvironmentRevisionDB.modified_by.of_type(UserDB)).load_only(UserDB.username)  # type: ignore
             )
@@ -2298,7 +2101,7 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         base_query = select(AppVariantRevisionsDB).filter_by(
             variant_id=uuid.UUID(app_variant), revision=revision_number
         )
-        if isCloudEE():
+        if is_ee():
             query = base_query.options(
                 joinedload(AppVariantRevisionsDB.modified_by.of_type(UserDB)).load_only(
                     UserDB.username
@@ -2313,34 +2116,6 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         result = await session.execute(query)
         app_variant_revisions = result.scalars().first()
         return app_variant_revisions
-
-
-async def remove_image(image: ImageDB, project_id: str):
-    """
-    Removes an image from the database.
-
-    Args:
-        image (ImageDB): The image to remove from the database.
-        project_id (str): The ID of the project the image belongs to.
-
-    Raises:
-        ValueError: If the image is None.
-
-    Returns:
-        None
-    """
-
-    if image is None:
-        raise ValueError("Image is None")
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ImageDB).filter_by(id=image.id, project_id=uuid.UUID(project_id))
-        )
-        image = result.scalars().first()
-
-        await session.delete(image)
-        await session.commit()
 
 
 async def remove_environment(environment_db: AppEnvironmentDB):
@@ -2634,40 +2409,6 @@ async def find_previous_variant_from_base_id(
         return last_variant
 
 
-async def get_template(template_id: str) -> TemplateDB:
-    """
-    Fetches a template by its ID.
-
-    Args:
-        template_id (str): The ID of the template to fetch.
-
-    Returns:
-        TemplateDB: The fetched template.
-    """
-
-    assert template_id is not None, "template_id cannot be None"
-    async with engine.session() as session:
-        result = await session.execute(
-            select(TemplateDB).filter_by(id=uuid.UUID(template_id))
-        )
-        template_db = result.scalars().first()
-        return template_db
-
-
-async def get_templates():
-    """
-    Gets the templates.
-
-    Returns:
-        The docker templates to create an LLM app from the UI.
-    """
-
-    async with engine.session() as session:
-        result = await session.execute(select(TemplateDB))
-        templates = result.scalars().all()
-        return converters.templates_db_to_pydantic(templates)  # type: ignore
-
-
 async def update_base(
     base_id: str,
     **kwargs: dict,
@@ -2732,7 +2473,6 @@ async def update_app_variant(
             app_variant,
             attribute_names=[
                 "app",
-                "image",
                 "base",
             ],
         )

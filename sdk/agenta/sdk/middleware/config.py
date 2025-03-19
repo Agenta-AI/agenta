@@ -33,7 +33,6 @@ class ConfigMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
         self.host = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.host
-        self.application_id = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.app_id
 
     async def dispatch(
         self,
@@ -153,7 +152,6 @@ class ConfigMiddleware(BaseHTTPMiddleware):
             # LEGACY
             or baggage.get("application_id")
             or request.query_params.get("app_id")
-            or self.application_id
         )
         application_slug = (
             # CLEANEST

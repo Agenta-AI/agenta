@@ -8,7 +8,7 @@ To generate the client code using Fern, follow the steps below.
 
 1. Open a Terminal and navigate to the folder where this Readme.md file is. For example;
 ```bash
-cd agenta/agenta-cli/agenta/client
+cd agenta/sdk/agenta/client
 ```
 
 2. Next ensure you have installed Fern by executing the command;
@@ -68,7 +68,7 @@ groups:
         version: 3.10.6
         output:
           location: local-file-system
-          path: ../backend
+          path: ./
 ```
 <img width="1001" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/f537691d-8dbb-4363-b7c0-ecef9f464053">
 
@@ -82,7 +82,7 @@ groups:
     fern generate
 ```
 
-10. Go to `./backend/containers/client.py`, search for the `build_image` function in the AgentaApi class and update `timeout_in_seconds` to `600` in `request_options'. It should now look like this;
+10. Go to `./containers/client.py`, search for the `build_image` function in the AgentaApi class and update `timeout_in_seconds` to `600` in `request_options'. It should now look like this;
 ```python
 _response = self._client_wrapper.httpx_client.request(
     "containers/build_image",

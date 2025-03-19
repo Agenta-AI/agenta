@@ -51,30 +51,14 @@ class APIRouter(FastAPIRouter):
         return decorator
 
 
-def isCloudEE():
-    return os.environ["FEATURE_FLAG"] in ["cloud", "ee", "cloud-dev"]
+def is_ee():
+    return os.environ["FEATURE_FLAG"] in ["ee", "cloud", "cloud-dev"]
 
 
-def isCloud():
-    return os.environ["FEATURE_FLAG"] in ["cloud", "ee"]
-
-
-def isEE():
-    return os.environ["FEATURE_FLAG"] == "ee"
-
-
-def isCloudProd():
-    return os.environ["FEATURE_FLAG"] == "cloud"
-
-
-def isCloudDev():
-    return os.environ["FEATURE_FLAG"] == "cloud-dev"
-
-
-def isOss():
+def is_oss():
     return os.environ["FEATURE_FLAG"] == "oss"
 
 
 def capture_exception_in_sentry(e: Exception):
-    if isCloudProd():
+    if is_ee():
         capture_exception(e)

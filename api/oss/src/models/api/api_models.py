@@ -100,10 +100,6 @@ class AppVariant(BaseModel):
     config_name: Optional[str]
 
 
-class AppVariantFromImagePayload(BaseModel):
-    variant_name: str
-
-
 class AppVariantResponse(BaseModel):
     app_id: str
     app_name: str
@@ -180,29 +176,8 @@ class AddVariantFromBasePayload(BaseModel):
     parameters: Dict[str, Any]
 
 
-class AppVariantFromImage(BaseModel):
-    app_id: str
-    variant_name: str
-    parameters: Optional[Dict[str, Any]]
-    previous_variant_name: Optional[str]
-
-
 class RestartAppContainer(BaseModel):
     variant_id: str
-
-
-class Image(BaseModel):
-    type: Optional[str]
-    docker_id: str
-    tags: str
-
-
-class AddVariantFromImagePayload(BaseModel):
-    variant_name: str
-    docker_id: str
-    tags: str
-    base_name: Optional[str]
-    config_name: Optional[str]
 
 
 class AddVariantFromURLPayload(BaseModel):
@@ -219,32 +194,6 @@ class AddVariantFromKeyPayload(BaseModel):
     config_name: Optional[str]
 
 
-class ImageExtended(Image):
-    # includes the mongodb image id
-    id: str
-    project_id: Optional[str] = None
-
-
-class TemplateImageInfo(BaseModel):
-    name: str
-    size: Optional[int] = None
-    digest: Optional[str] = None
-    title: str
-    description: str
-    last_pushed: Optional[datetime] = None
-    repo_name: Optional[str] = None
-    template_uri: Optional[str] = None
-
-
-class Template(BaseModel):
-    id: str
-    image: TemplateImageInfo
-
-
-class URI(BaseModel):
-    uri: str
-
-
 class App(BaseModel):
     app_id: str
     app_name: str
@@ -254,18 +203,6 @@ class App(BaseModel):
 
 class RemoveApp(BaseModel):
     app_id: str
-
-
-class DockerEnvVars(BaseModel):
-    env_vars: Dict[str, str]
-
-
-class CreateAppVariant(BaseModel):
-    app_name: str
-    template_id: str
-    project_id: Optional[str] = None
-    workspace_id: Optional[str] = None
-    env_vars: Dict[str, str]
 
 
 class Environment(BaseModel):

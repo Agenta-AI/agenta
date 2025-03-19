@@ -107,33 +107,15 @@ Table app_db {
   organization_id UUID [ref: > organizations.id]
 }
 
-// Docker Images
-Table docker_images {
-  id UUID [pk, unique, not null]
-  type VARCHAR [default: "image"]
-  template_uri VARCHAR
-  docker_id VARCHAR
-  tags VARCHAR
-  deletable BOOLEAN [default: true]
-  project_id UUID [ref: > projects.id]
-  created_at TIMESTAMP
-  updated_at TIMESTAMP
-  workspace_id UUID [ref: > workspaces.id]
-  organization_id UUID [ref: > organizations.id]
-}
-
 // Deployments
 Table deployments {
   id UUID [pk, unique, not null]
   app_id UUID [ref: > app_db.id]
   project_id UUID [ref: > projects.id]
-  container_name VARCHAR
-  container_id VARCHAR
   uri VARCHAR
   status VARCHAR
   created_at TIMESTAMP
   updated_at TIMESTAMP
-  cloud_map_service_id VARCHAR
   workspace_id UUID [ref: > workspaces.id]
   organization_id UUID [ref: > organizations.id]
 }
@@ -144,7 +126,6 @@ Table bases {
   app_id UUID [ref: > app_db.id]
   project_id UUID [ref: > projects.id]
   base_name VARCHAR
-  image_id UUID [ref: > docker_images.id]
   deployment_id UUID [ref: > deployments.id]
   created_at TIMESTAMP
   updated_at TIMESTAMP
@@ -158,7 +139,6 @@ Table app_variants {
   app_id UUID [ref: > app_db.id]
   variant_name VARCHAR
   revision INTEGER
-  image_id UUID [ref: > docker_images.id]
   project_id UUID [ref: > projects.id]
   modified_by_id UUID [ref: > users.id]
   base_name VARCHAR
@@ -306,20 +286,6 @@ Table evaluation_scenarios [headercolor: #79AD51] {
   updated_at TIMESTAMP
   workspace_id UUID [ref: > workspaces.id]
   organization_id UUID [ref: > organizations.id]
-}
-
-Table templates {
-  id UUID [pk, unique, not null]
-  type ENUM
-  template_uri VARCHAR
-  tag_id INTEGER
-  name VARCHAR [unique]
-  repo_name VARCHAR
-  title VARCHAR
-  description VARCHAR
-  size INTEGER
-  digest VARCHAR
-  last_pushed TIMESTAMP
 }
 
 Table ids_mapping {

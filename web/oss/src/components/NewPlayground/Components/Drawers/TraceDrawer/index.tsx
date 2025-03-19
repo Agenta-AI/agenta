@@ -40,7 +40,19 @@ const TraceDrawerButton = ({
         }
     }, [traceSpans])
 
-    const activeTrace = useMemo(() => (traces ? traces[0] ?? null : null), [traces])
+    const activeTrace = useMemo(
+        () =>
+            traces
+                ? traces[0] ?? null
+                : result?.error
+                  ? ({
+                        exception: result?.metadata?.rawError,
+                        node: {name: "Exception"},
+                        status: {code: "ERROR"},
+                    } as _AgentaRootsResponse)
+                  : null,
+        [traces],
+    )
 
     useEffect(() => {
         if (!selected) {
@@ -71,7 +83,7 @@ const TraceDrawerButton = ({
                     icon={icon && <TreeView size={14} />}
                     onClick={() => setIsTraceDrawerOpen(true)}
                     {...props}
-                    disabled={!traces}
+                    disabled={!activeTrace}
                     className={clsx([props.className])}
                 >
                     {label}
@@ -93,13 +105,21 @@ const TraceDrawerButton = ({
                             />
                         ) : null
                     }
-                    mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
+                    mainContent={
+                        !!activeTrace ? (
+                            <TraceContent
+                                activeTrace={selectedItem || (activeTrace as _AgentaRootsResponse)}
+                            />
+                        ) : null
+                    }
                     sideContent={
-                        <TraceTree
-                            activeTrace={activeTrace as _AgentaRootsResponse}
-                            selected={selected}
-                            setSelected={setSelected}
-                        />
+                        !!activeTrace ? (
+                            <TraceTree
+                                activeTrace={activeTrace as _AgentaRootsResponse}
+                                selected={selected}
+                                setSelected={setSelected}
+                            />
+                        ) : null
                     }
                 />
             )}

@@ -6,10 +6,10 @@ from pydantic import BaseModel
 from fastapi import Request, Query, HTTPException
 from fastapi.responses import JSONResponse
 
-from oss.src.utils.common import isCloudEE, isOss, APIRouter
+from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
 
-if isCloudEE():
+if is_ee():
     from ee.src.services import db_manager_ee
 
 
@@ -39,7 +39,7 @@ async def get_projects(
     request: Request,
 ):
     try:
-        if isOss():
+        if is_oss():
             _project = await db_manager.fetch_project_by_id(
                 project_id=request.state.project_id
             )
@@ -53,7 +53,7 @@ async def get_projects(
 
             return projects
 
-        elif isCloudEE():
+        elif is_ee():
             _project_memberships = (
                 await db_manager_ee.fetch_project_memberships_by_user_id(
                     user_id=request.state.user_id

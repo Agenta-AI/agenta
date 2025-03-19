@@ -75,8 +75,8 @@ export const statusMapper = (node: NodeType | null | undefined) => {
 }
 
 const AvatarTreeContent = ({value, ...props}: AvatarTreeContentProps) => {
-    const {node} = value
-    const {icon, bgColor, color} = statusMapper(node.type)
+    const {node} = value || {}
+    const {icon, bgColor, color} = statusMapper(node?.type)
 
     return (
         <Avatar

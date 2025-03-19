@@ -85,15 +85,3 @@ async def delete_api_key(
         raise HTTPException(
             status_code=404, detail="API key not found or does not belong to the user."
         )
-
-
-@router.get(
-    "/{key_prefix}/validate/", response_model=bool, operation_id="validate_api_key"
-)
-async def validate_api_key(key_prefix: str):
-    """
-    This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.
-    Returns:
-        bool: True. If the request reaches this point, the API key is valid.
-    """
-    return True

@@ -14,6 +14,7 @@ const PasswordlessAuth = ({
     setMessage,
     authErrorMsg,
     setIsLoginCodeVisible,
+    disabled,
 }: PasswordlessAuthProps) => {
     const sendOTP: FormProps<{email: string}>["onFinish"] = async (values) => {
         try {
@@ -60,6 +61,7 @@ const PasswordlessAuth = ({
                 htmlType="submit"
                 className="w-full"
                 loading={isLoading}
+                disabled={disabled}
             >
                 Continue with email
             </Button>

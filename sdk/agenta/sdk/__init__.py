@@ -2,7 +2,7 @@ from typing import Optional, Callable, Any
 
 from .utils.preinit import PreInitObject  # always the first import!
 
-import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.types as client_types  # pylint: disable=wrong-import-order
 
 from .types import (
     DictInput,
@@ -32,7 +32,6 @@ from .managers.secrets import SecretsManager
 from .managers.config import ConfigManager
 from .managers.variant import VariantManager
 from .managers.deployment import DeploymentManager
-from ..client.exceptions import APIRequestError
 
 
 config = PreInitObject("agenta.config", Config)
@@ -53,8 +52,8 @@ def init(
     config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
     redact_on_error: Optional[bool] = True,
-    # DEPRECATING
-    app_id: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
 ):
     global api, async_api, tracing, tracer  # pylint: disable=global-statement
 
@@ -64,7 +63,8 @@ def init(
         config_fname=config_fname,
         redact=redact,
         redact_on_error=redact_on_error,
-        app_id=app_id,
+        scope_type=scope_type,
+        scope_id=scope_id,
     )
 
     api = DEFAULT_AGENTA_SINGLETON_INSTANCE.api  # type: ignore

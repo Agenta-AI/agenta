@@ -118,6 +118,7 @@ export const renderMap: RenderFunctions = {
                 className={className}
                 view={view}
                 description={metadata.description}
+                placeholder={placeholder}
                 withTooltip={withTooltip}
                 disabled={disabled}
                 {...(disabled

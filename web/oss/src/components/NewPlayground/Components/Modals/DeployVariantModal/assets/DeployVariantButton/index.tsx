@@ -1,6 +1,6 @@
 import {cloneElement, isValidElement, useState} from "react"
 
-import {Rocket} from "@phosphor-icons/react"
+import {CloudArrowUp} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/NewPlayground/assets/EnhancedButton"
@@ -34,7 +34,7 @@ const DeployVariantButton = ({
             ) : (
                 <EnhancedButton
                     type="text"
-                    icon={icon && <Rocket size={14} />}
+                    icon={icon && <CloudArrowUp size={14} />}
                     onClick={() => setIsDeployModalOpen(true)}
                     tooltipProps={icon ? {title: "Deploy"} : {}}
                     {...props}
