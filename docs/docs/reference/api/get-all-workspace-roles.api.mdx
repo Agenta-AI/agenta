@@ -5,7 +5,7 @@ description: "Get all workspace roles."
 sidebar_label: "Get All Workspace Roles"
 hide_title: true
 hide_table_of_contents: true
-api: eJztlMtu2zAQRX+FmDVhu11qVbcNEiMFGjgpunAMYyKNLSYUyZAjO66gfy9ISX4BaX6g3pg2L+dxeYYNFBRyrxwrayCDa2KBWoud9S/BYU7CW01h9GgezZy49iYIFFoFFnadlLhFpfFJ07/OZI9GCCF+qMCL34NsbjXNKThrAi0zMT2EPVMI+/RMOQfhyXkKZFiZjeCSPsqMKtCQ+Obh4e7qLafUZiZma4FGkPfWC5vntQ9iVypNwhN7Rdshw2VckGAdeYxRZgVksCFeodarg3CVhCDB940FyBr4PJnEr3Or7+s8pxDWtRaDCyAht4bJcJSjc1rlKdn4OcQzDYS8pArjSjFVKbjzsSZWXaqYf2WwoviD944gg8BemQ1IIFNXkC3A7gx5kLBVtEsLKhTbtNiirrFbH5vColIGJBTktN1XZHhVocENeVhKYMU6pjm7NmhlV8tZ0w2g2f9cQ7a4LK6Vh39MrTW0J4ETBt9P4rStHMQdHcnw11p5KmJ/RxPeK+/g+DESeo97OMnaS0ScianWRyzFPF1yGz8SKuLS9jCABIdcQgbjg3thPDARyG/Jh9R97TVkUDK7kI3HubZ1McINGcYRqjE6lew+5WWadsW3KE32BMprr3if4k3vZre0vyEsyEO2WJ4K7iM0HR7nsoPl6NQtxeY7cmBac2m9+pPgAwkqFlB2p2LPyqxtOt571df2FfMXMkUki3zoyp6MPo0m7zXTHxDTu1nPPuaJ/aGOJAN5YdfBqEhshSruMWH15bgRq3Q2cIXmJN57V3lRXnMcw/8v4kcvYo8Q0xuPnUZl4kyl+2r6YVgcn5L0NCbLlxJKGzjuNs0TBvrlddvGv19r8hHqpYQtehX7SUTLgcDI+wvtIx957CDyhrruQL54M+McHCb0+uoB2vYv5oZydA==
+api: eJztVE1v2zAM/SsCz0Kc7ejTsqFog+4QpB12SIOCVZhYrSx5Ep02M/LfByp20gZo+wfmi23p8evxkR0wbhKUC/gd4lNq0BAsNawomWgbtsFDCZfECp1TzwNExeAoje78nZ8Tt9EnhcrZxCqsMxK3aB0+OPrIprzzSin10yZeHKPPg6M5pSb4RMtSTY5u3yBUeHgkw0lFaiIl8mz9RnFFn0VGm2gIfHV7O7t4MZTLLNV0rdArijFEFYxpY1LPlXWkInG0tB0inPsFDaGhiOJluoISNsT36Nz9EXifgaAh9oUlKDv4Oh7L6y3VN60xlNK6dWpgATSY4Jk8CxybxlmTgxWPSWw6SKaiGuXLMtXZOa5WVjDoZlGyY3sIyruGoITE0foN7PVwcODz1QHGiDvQwJad/A/ZKBHDxLlTP9Q8V7eXR0NNXIWeBdDQIFdQQnHkIhUDGYnilqJor4M2OiihYm5SWRTGhXY1wg15xhHaAhsL55qc5Fv1Q6CwX4o700bLu+xvMpte0+6KcEURysXyNeBG2Dqw8RZ2ZAcbe01SvMda/ictVyHav5l10GAlgepgJTVbvw7ZvOeqz+07mifyK9AgdR7SHo++jMbvFdMbqMls2jcdTW76kEeGgT6j60gUaKAardwxYf3tdCFZNiFxjf6Vv/daeZZed9Lf/1Xw2SroJcT0wkXj0HqZqdyvrh+GBZyGQXZCpnypoQqJ5bbrHjDRr+j2ezn+01IUUS81bDFaqScrWg8KFL0/0U70YaQC0Ru69iDks2Uhc3Cc0MuLW9jv/wFK9h0F
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -82,56 +82,14 @@ HTTPException: If an error occurs while retrieving the workspace roles.
                         </div>
                       </li>
                       <SchemaItem
+                        name={"property name*"}
+                        required={false}
+                        schemaName={"string"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string" }}
                         collapsible={false}
-                        name={"role_name"}
-                        required={true}
-                        schemaName={"WorkspaceRole (string)"}
-                        qualifierMessage={
-                          "**Possible values:** [`owner`, `viewer`, `editor`, `evaluator`, `workspace_admin`, `deployment_manager`]"
-                        }
-                        schema={{
-                          type: "string",
-                          enum: [
-                            "owner",
-                            "viewer",
-                            "editor",
-                            "evaluator",
-                            "workspace_admin",
-                            "deployment_manager",
-                          ],
-                          title: "WorkspaceRole",
-                        }}
+                        discriminator={false}
                       ></SchemaItem>
-                      <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
-                          <summary style={{}}>
-                            <strong>role_description</strong>
-                            <span style={{ opacity: "0.6" }}>object</span>
-                          </summary>
-                          <div style={{ marginLeft: "1rem" }}></div>
-                          <div>
-                            <span className={"badge badge--info"}>anyOf</span>
-                            <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
-                                <div
-                                  style={{
-                                    marginTop: ".5rem",
-                                    marginBottom: ".5rem",
-                                  }}
-                                >
-                                  string
-                                </div>
-                              </TabItem>
-                            </SchemaTabs>
-                          </div>
-                        </details>
-                      </SchemaItem>
                       <li>
                         <div
                           style={{
@@ -151,9 +109,7 @@ HTTPException: If an error occurs while retrieving the workspace roles.
                   value={"Example (from schema)"}
                 >
                   <ResponseSamples
-                    responseExample={
-                      '[\n  {\n    "role_name": "owner",\n    "role_description": "string"\n  }\n]'
-                    }
+                    responseExample={"[\n  {}\n]"}
                     language={"json"}
                   ></ResponseSamples>
                 </TabItem>

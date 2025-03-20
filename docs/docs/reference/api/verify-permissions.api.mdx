@@ -5,7 +5,7 @@ description: "Verify Permissions"
 sidebar_label: "Verify Permissions"
 hide_title: true
 hide_table_of_contents: true
-api: eJy1VU1vGjEQ/StozhbQqKc9laZRg9KqKKG9IBQ5uwM48dqOPRuVIv/3arwfLBCkRGpPIfabmed5M293QHIdIFvAJM8xhMGlNeSthqUA69BLUtZMC8jgBb1abe8d+lKFoKwJIMBJL0sk9JxiB0aWCBnInKNAgDKQwXOFfgsCPD5XymMB2UrqgAJCvsFSQrYDabY/VikDbR1nCOSVWUMU3YmptIa4FECKNB9M6iKRMU1dj8FWPsf7FPN/y982tQZzBrzKQhX/gIOAlfWlJMigqlTxNk7TAiJfeAzOmoCBK1yMx/ynwJB75VLzMrirkuyrSg9uGzAIyK0hNJR4OadVnsZg9Bg4ZrdnHWOMAj5eXJwm/iW1KlLY4Mp769+RFZzn0SNV8y6QpNL8SxGW4RSgbX5w+wY5lSFco4e4jKI9k95LFqnt5jdbE4QooAxrznwsTQv9jiHINUKX7Dw0NaMbmhZmHx4xp4MJWaR31aUbXE/qfXvr7p5/xpe6fa8VayHX8/nsJGGt7ZGoyQMGswMPKJE2lh1ijZQsgTaQwahnFKPaO0BAQP/SmkXlNWSwIXIhG41ybatiKNdoSA6lGkmn4Lj8JN0OLhmaBj9gXnlF25RvMpve4PYaZYEessWyD7jj2aqn5RDWCSWdukGm2GzxpKKN9eqP7FvZpo7ixiizsim8taOa22eZP6Hhxed31rTHww/D8bnHNAGDyWzarIjM04q0PBIMxFG7ukaBACzTfgChLD/tL5ils4FKaXr5XpXwgFnXEsLfNHJaqrQCqf6ukXcBh9+BRuClgI0NxPe73YMM+NPrGPm4dkCWqVBBPuieBz7htv/NeJG64uppXc+Aj43+XTHJlvcRS/7HKw5JUyNalZlsHcqfRke9qBP74izdHny9mkOMfwGtrYKJ
+api: eJy9Vk1vGjEQ/StozhbQqKc9laZRg9KqKKG9IBRNdgdw4rUd2xuVov3v1Xg/2IUgEanNCbDfzHt+4xmzg4BrD8kCJmlK3g8ujQ7OKFgKMJYcBmn0NIMEXsjJ1fbeksul99JoDwIsOswpkOMUO9CYEySAKUeBAKkhgeeC3BYEOHoupKMMkhUqTwJ8uqEcIdkB6u2PVcwQtpYz+OCkXkMp2hVdKAXlUkCQQfHCpCIpGVPz+tRYuo8B/5f7jokGc9495pfZP2AXsDIuxwAJFIXMzlAzzXpaHHlTuPRd7LituY4daVW8uymtpujLkvm8NdqTZ4aL8Zg/MvKpkzZepATuitgCq0INbmswCEiNDqRD1GWtkmlsidGj55jdXnVZlqWAjxcXx4l/oZJZDBtcOWfcG7KCddyGQVa6MwooFX+TgXJ/DFAm7e2eUU6pA63JQbksRbOGziEXqXHzm6kEQikg92vOfFiaBvqdvMc1QZvsNDSa0V6aBmYeHikNvRuyiOeqqGtcp9R7eyt3Tx/jS2Xfa2QN5Ho+nx0lrGp7UNQ4Dwez3jzMKWwMT8s1hTgewwYSGHWG5qiaoyDAk3tpBmfhFCSwCcH6ZDRKlSmyIa5JBxyiHKGVcEg/ibuDS4bGi+8pLZwM25hvMpve0PaaMCMHyWLZBdzx3apuSx/WFgqtvCGWWHfxpAgb4+Qf7I71TRXFxki9MjG8Gc2Vts+YPpHmxudzVrLHww/D8anD1AGDyWxatwimsUUaHREG4sCu1igQQHnsDwiE+af9Bqu0xoccdSffqyXsKWstCfQ7jKxCGVsg8u/q8i6g/ybWBV4K2BgfeH+3e0BPP50qS16uJiCXKZMeH1RnBj7Rtvt+vqAqmD226wlw79E7PyAO5HPghw/Jm2IOWJb8w0kOibdSNLeIzahC+W+IDZ2oo/HIWdo++3o1h7L8Cydh/FI=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -64,6 +64,30 @@ Verify Permissions
           schema: {
             anyOf: [{ type: "string" }, { type: "null" }],
             title: "Action",
+          },
+        }}
+      ></ParamsItem>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "scope_type",
+          in: "query",
+          required: false,
+          schema: {
+            anyOf: [{ type: "string" }, { type: "null" }],
+            title: "Scope Type",
+          },
+        }}
+      ></ParamsItem>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "scope_id",
+          in: "query",
+          required: false,
+          schema: {
+            anyOf: [{ type: "string", format: "uuid" }, { type: "null" }],
+            title: "Scope Id",
           },
         }}
       ></ParamsItem>

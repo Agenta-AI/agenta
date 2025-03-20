@@ -25,16 +25,9 @@ import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 
-<Heading
-  as={"h1"}
-  className={"openapi__heading"}
-  children={"Fetch Evaluation Scenarios"}
-></Heading>
+<Heading as={"h1"} className={"openapi__heading"} children={"Fetch Evaluation Scenarios"}></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/evaluations/{evaluation_id}/evaluation_scenarios"}
-></MethodEndpoint>
+<MethodEndpoint method={"get"} path={"/evaluations/{evaluation_id}/evaluation_scenarios"}></MethodEndpoint>
 
 Fetches evaluation scenarios for a given evaluation ID.
 
@@ -47,23 +40,11 @@ HTTPException: If the evaluation is not found or access is denied.
 Returns:
 List[EvaluationScenario]: A list of evaluation scenarios.
 
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
-  children={"Request"}
-></Heading>
+<Heading id={"request"} as={"h2"} className={"openapi-tabs__heading"} children={"Request"}></Heading>
 
-<details
-  style={{ marginBottom: "1rem" }}
-  className={"openapi-markdown__details"}
-  data-collapsed={false}
-  open={true}
->
+<details style={{ marginBottom: "1rem" }} className={"openapi-markdown__details"} data-collapsed={false} open={true}>
   <summary style={{}}>
-    <h3 className={"openapi-markdown__details-summary-header-params"}>
-      Path Parameters
-    </h3>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>Path Parameters</h3>
   </summary>
   <div>
     <ul>
@@ -95,15 +76,10 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
                       <strong>Schema</strong>
                     </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <li>
                         <div
@@ -118,10 +94,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         </div>
                       </li>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <strong>id</strong>
                             <span style={{ opacity: "0.6" }}>object</span>
@@ -130,10 +103,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                           <div>
                             <span className={"badge badge--info"}>anyOf</span>
                             <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
+                              <TabItem label={"MOD1"} value={"0-item-properties"}>
                                 <div
                                   style={{
                                     marginTop: ".5rem",
@@ -156,24 +126,13 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         schema={{ type: "string", title: "Evaluation Id" }}
                       ></SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                inputs
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
-                              <span
-                                className={"openapi-schema__divider"}
-                              ></span>
-                              <span className={"openapi-schema__required"}>
-                                required
-                              </span>
+                              <strong className={"openapi-schema__property"}>inputs</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
+                              <span className={"openapi-schema__divider"}></span>
+                              <span className={"openapi-schema__required"}>required</span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -228,24 +187,13 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         </details>
                       </SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                outputs
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
-                              <span
-                                className={"openapi-schema__divider"}
-                              ></span>
-                              <span className={"openapi-schema__required"}>
-                                required
-                              </span>
+                              <strong className={"openapi-schema__property"}>outputs</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
+                              <span className={"openapi-schema__divider"}></span>
+                              <span className={"openapi-schema__required"}>required</span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -261,32 +209,14 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                 Array [
                               </div>
                             </li>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      result
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
+                                    <strong className={"openapi-schema__property"}>result</strong>
+                                    <span className={"openapi-schema__name"}>object</span>
+                                    <span className={"openapi-schema__divider"}></span>
+                                    <span className={"openapi-schema__required"}>required</span>
                                   </span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}>
@@ -298,52 +228,29 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                     qualifierMessage={undefined}
                                     schema={{ type: "string", title: "Type" }}
                                   ></SchemaItem>
-                                  <SchemaItem
-                                    collapsible={true}
-                                    className={"schemaItem"}
-                                  >
-                                    <details
-                                      style={{}}
-                                      className={"openapi-markdown__details"}
-                                    >
+                                  <SchemaItem collapsible={true} className={"schemaItem"}>
+                                    <details style={{}} className={"openapi-markdown__details"}>
                                       <summary style={{}}>
                                         <strong>value</strong>
-                                        <span style={{ opacity: "0.6" }}>
-                                          object
-                                        </span>
+                                        <span style={{ opacity: "0.6" }}>object</span>
                                       </summary>
                                       <div style={{ marginLeft: "1rem" }}></div>
                                       <div>
-                                        <span className={"badge badge--info"}>
-                                          anyOf
-                                        </span>
+                                        <span className={"badge badge--info"}>anyOf</span>
                                       </div>
                                     </details>
                                   </SchemaItem>
-                                  <SchemaItem
-                                    collapsible={true}
-                                    className={"schemaItem"}
-                                  >
-                                    <details
-                                      style={{}}
-                                      className={"openapi-markdown__details"}
-                                    >
+                                  <SchemaItem collapsible={true} className={"schemaItem"}>
+                                    <details style={{}} className={"openapi-markdown__details"}>
                                       <summary style={{}}>
                                         <strong>error</strong>
-                                        <span style={{ opacity: "0.6" }}>
-                                          object
-                                        </span>
+                                        <span style={{ opacity: "0.6" }}>object</span>
                                       </summary>
                                       <div style={{ marginLeft: "1rem" }}></div>
                                       <div>
-                                        <span className={"badge badge--info"}>
-                                          anyOf
-                                        </span>
+                                        <span className={"badge badge--info"}>anyOf</span>
                                         <SchemaTabs>
-                                          <TabItem
-                                            label={"Error"}
-                                            value={"0-item-properties"}
-                                          >
+                                          <TabItem label={"Error"} value={"0-item-properties"}>
                                             <SchemaItem
                                               collapsible={false}
                                               name={"message"}
@@ -355,42 +262,17 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                                 title: "Message",
                                               }}
                                             ></SchemaItem>
-                                            <SchemaItem
-                                              collapsible={true}
-                                              className={"schemaItem"}
-                                            >
-                                              <details
-                                                style={{}}
-                                                className={
-                                                  "openapi-markdown__details"
-                                                }
-                                              >
+                                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                                              <details style={{}} className={"openapi-markdown__details"}>
                                                 <summary style={{}}>
                                                   <strong>stacktrace</strong>
-                                                  <span
-                                                    style={{ opacity: "0.6" }}
-                                                  >
-                                                    object
-                                                  </span>
+                                                  <span style={{ opacity: "0.6" }}>object</span>
                                                 </summary>
-                                                <div
-                                                  style={{ marginLeft: "1rem" }}
-                                                ></div>
+                                                <div style={{ marginLeft: "1rem" }}></div>
                                                 <div>
-                                                  <span
-                                                    className={
-                                                      "badge badge--info"
-                                                    }
-                                                  >
-                                                    anyOf
-                                                  </span>
+                                                  <span className={"badge badge--info"}>anyOf</span>
                                                   <SchemaTabs>
-                                                    <TabItem
-                                                      label={"MOD1"}
-                                                      value={
-                                                        "0-item-properties"
-                                                      }
-                                                    >
+                                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
                                                       <div
                                                         style={{
                                                           marginTop: ".5rem",
@@ -412,28 +294,17 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                 </div>
                               </details>
                             </SchemaItem>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <strong>cost</strong>
                                   <span style={{ opacity: "0.6" }}>object</span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}></div>
                                 <div>
-                                  <span className={"badge badge--info"}>
-                                    anyOf
-                                  </span>
+                                  <span className={"badge badge--info"}>anyOf</span>
                                   <SchemaTabs>
-                                    <TabItem
-                                      label={"MOD1"}
-                                      value={"0-item-properties"}
-                                    >
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
                                       <div
                                         style={{
                                           marginTop: ".5rem",
@@ -447,28 +318,17 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                 </div>
                               </details>
                             </SchemaItem>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <strong>latency</strong>
                                   <span style={{ opacity: "0.6" }}>object</span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}></div>
                                 <div>
-                                  <span className={"badge badge--info"}>
-                                    anyOf
-                                  </span>
+                                  <span className={"badge badge--info"}>anyOf</span>
                                   <SchemaTabs>
-                                    <TabItem
-                                      label={"MOD1"}
-                                      value={"0-item-properties"}
-                                    >
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
                                       <div
                                         style={{
                                           marginTop: ".5rem",
@@ -497,10 +357,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         </details>
                       </SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <strong>correct_answers</strong>
                             <span style={{ opacity: "0.6" }}>object</span>
@@ -509,10 +366,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                           <div>
                             <span className={"badge badge--info"}>anyOf</span>
                             <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
+                              <TabItem label={"MOD1"} value={"0-item-properties"}>
                                 <li>
                                   <div
                                     style={{
@@ -558,10 +412,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         </details>
                       </SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <strong>is_pinned</strong>
                             <span style={{ opacity: "0.6" }}>object</span>
@@ -570,10 +421,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                           <div>
                             <span className={"badge badge--info"}>anyOf</span>
                             <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
+                              <TabItem label={"MOD1"} value={"0-item-properties"}>
                                 <div
                                   style={{
                                     marginTop: ".5rem",
@@ -588,10 +436,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         </details>
                       </SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <strong>note</strong>
                             <span style={{ opacity: "0.6" }}>object</span>
@@ -600,10 +445,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                           <div>
                             <span className={"badge badge--info"}>anyOf</span>
                             <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
+                              <TabItem label={"MOD1"} value={"0-item-properties"}>
                                 <div
                                   style={{
                                     marginTop: ".5rem",
@@ -618,24 +460,13 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                         </details>
                       </SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                results
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
-                              <span
-                                className={"openapi-schema__divider"}
-                              ></span>
-                              <span className={"openapi-schema__required"}>
-                                required
-                              </span>
+                              <strong className={"openapi-schema__property"}>results</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
+                              <span className={"openapi-schema__divider"}></span>
+                              <span className={"openapi-schema__required"}>required</span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -662,32 +493,14 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                 title: "Evaluator Config",
                               }}
                             ></SchemaItem>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      result
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
+                                    <strong className={"openapi-schema__property"}>result</strong>
+                                    <span className={"openapi-schema__name"}>object</span>
+                                    <span className={"openapi-schema__divider"}></span>
+                                    <span className={"openapi-schema__required"}>required</span>
                                   </span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}>
@@ -699,52 +512,29 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                     qualifierMessage={undefined}
                                     schema={{ type: "string", title: "Type" }}
                                   ></SchemaItem>
-                                  <SchemaItem
-                                    collapsible={true}
-                                    className={"schemaItem"}
-                                  >
-                                    <details
-                                      style={{}}
-                                      className={"openapi-markdown__details"}
-                                    >
+                                  <SchemaItem collapsible={true} className={"schemaItem"}>
+                                    <details style={{}} className={"openapi-markdown__details"}>
                                       <summary style={{}}>
                                         <strong>value</strong>
-                                        <span style={{ opacity: "0.6" }}>
-                                          object
-                                        </span>
+                                        <span style={{ opacity: "0.6" }}>object</span>
                                       </summary>
                                       <div style={{ marginLeft: "1rem" }}></div>
                                       <div>
-                                        <span className={"badge badge--info"}>
-                                          anyOf
-                                        </span>
+                                        <span className={"badge badge--info"}>anyOf</span>
                                       </div>
                                     </details>
                                   </SchemaItem>
-                                  <SchemaItem
-                                    collapsible={true}
-                                    className={"schemaItem"}
-                                  >
-                                    <details
-                                      style={{}}
-                                      className={"openapi-markdown__details"}
-                                    >
+                                  <SchemaItem collapsible={true} className={"schemaItem"}>
+                                    <details style={{}} className={"openapi-markdown__details"}>
                                       <summary style={{}}>
                                         <strong>error</strong>
-                                        <span style={{ opacity: "0.6" }}>
-                                          object
-                                        </span>
+                                        <span style={{ opacity: "0.6" }}>object</span>
                                       </summary>
                                       <div style={{ marginLeft: "1rem" }}></div>
                                       <div>
-                                        <span className={"badge badge--info"}>
-                                          anyOf
-                                        </span>
+                                        <span className={"badge badge--info"}>anyOf</span>
                                         <SchemaTabs>
-                                          <TabItem
-                                            label={"Error"}
-                                            value={"0-item-properties"}
-                                          >
+                                          <TabItem label={"Error"} value={"0-item-properties"}>
                                             <SchemaItem
                                               collapsible={false}
                                               name={"message"}
@@ -756,42 +546,17 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                                 title: "Message",
                                               }}
                                             ></SchemaItem>
-                                            <SchemaItem
-                                              collapsible={true}
-                                              className={"schemaItem"}
-                                            >
-                                              <details
-                                                style={{}}
-                                                className={
-                                                  "openapi-markdown__details"
-                                                }
-                                              >
+                                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                                              <details style={{}} className={"openapi-markdown__details"}>
                                                 <summary style={{}}>
                                                   <strong>stacktrace</strong>
-                                                  <span
-                                                    style={{ opacity: "0.6" }}
-                                                  >
-                                                    object
-                                                  </span>
+                                                  <span style={{ opacity: "0.6" }}>object</span>
                                                 </summary>
-                                                <div
-                                                  style={{ marginLeft: "1rem" }}
-                                                ></div>
+                                                <div style={{ marginLeft: "1rem" }}></div>
                                                 <div>
-                                                  <span
-                                                    className={
-                                                      "badge badge--info"
-                                                    }
-                                                  >
-                                                    anyOf
-                                                  </span>
+                                                  <span className={"badge badge--info"}>anyOf</span>
                                                   <SchemaTabs>
-                                                    <TabItem
-                                                      label={"MOD1"}
-                                                      value={
-                                                        "0-item-properties"
-                                                      }
-                                                    >
+                                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
                                                       <div
                                                         style={{
                                                           marginTop: ".5rem",
@@ -841,10 +606,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
                   <ResponseSamples
                     responseExample={
                       '[\n  {\n    "id": "string",\n    "evaluation_id": "string",\n    "inputs": [\n      {\n        "name": "string",\n        "type": "string"\n      }\n    ],\n    "outputs": [\n      {\n        "result": {\n          "type": "string",\n          "error": {}\n        },\n        "cost": 0,\n        "latency": 0\n      }\n    ],\n    "correct_answers": [\n      null\n    ],\n    "is_pinned": true,\n    "note": "string",\n    "results": [\n      {\n        "evaluator_config": "string",\n        "result": {\n          "type": "string",\n          "error": {}\n        }\n      }\n    ]\n  }\n]'
@@ -870,29 +632,17 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
                       <strong>Schema</strong>
                     </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                detail
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
+                              <strong className={"openapi-schema__property"}>detail</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -908,32 +658,14 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                 Array [
                               </div>
                             </li>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      loc
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object[]
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
+                                    <strong className={"openapi-schema__property"}>loc</strong>
+                                    <span className={"openapi-schema__name"}>object[]</span>
+                                    <span className={"openapi-schema__divider"}></span>
+                                    <span className={"openapi-schema__required"}>required</span>
                                   </span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}>
@@ -950,14 +682,9 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                     </div>
                                   </li>
                                   <div>
-                                    <span className={"badge badge--info"}>
-                                      anyOf
-                                    </span>
+                                    <span className={"badge badge--info"}>anyOf</span>
                                     <SchemaTabs>
-                                      <TabItem
-                                        label={"MOD1"}
-                                        value={"0-item-properties"}
-                                      >
+                                      <TabItem label={"MOD1"} value={"0-item-properties"}>
                                         <div
                                           style={{
                                             marginTop: ".5rem",
@@ -967,10 +694,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                                           string
                                         </div>
                                       </TabItem>
-                                      <TabItem
-                                        label={"MOD2"}
-                                        value={"1-item-properties"}
-                                      >
+                                      <TabItem label={"MOD2"} value={"1-item-properties"}>
                                         <div
                                           style={{
                                             marginTop: ".5rem",
@@ -1029,10 +753,7 @@ List[EvaluationScenario]: A list of evaluation scenarios.
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
                   <ResponseSamples
                     responseExample={
                       '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'
