@@ -5,7 +5,7 @@ description: "Returns a list of organizations associated with the user's session
 sidebar_label: "List Organizations"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVcFuGjEQ/RVrLm0lC2iPeypNowalLSih6oGgaNgdwGHX3tjeJBT536sxu7CQhEOr3sphWXlmnp/fvPFuICOXWlV6ZTQkcEW+stoJFLlyXpi5MHaBWv1CTnACnTOpQk+ZeFR+KfySROXIvnHCkXPK6M6NvtF9u3DJjRZCCOfNivRtHRVvr7cvZ0Z7VJrsu0SMn4GIWBShakY1GrOaDFuUpono/x3XK1SOGvyL8Xh0/pRS1CMRgzlXWRLKCdSCrDVWWPJW0YPSiwh5uOncmiIuZ+hxho46IMGUZGN8kEECzPb2oAokWHKl0Y4cJBv40Ovx32Frrqs0JefmVS6u6mSQkBrtSXtOx7LMVRoRu3eOazbg0iUVyG/KUxHBS8t0vNpupTJ++nVJkIDzVukFSPDK57wwyCBI0FjQqazvHA/ykO/r6Z9baUHWaRtAvR7OIZkcFwa5W9FVnkOY7qHGvB4kmEdN9tSew5gQJDwau3IlpvXpG1GOt2wW0Fpct3B+7suDhIKKGdk/Q/pW1wYJSj8oXzuhBfV67aBVwPXutsQ1b/eSjDNjckJ9UseBE6MtQtjvamZ3lProzftKWcogmbBfakMc9rvpQQu0PaYnhGjMLL7yFA8P5iLwj3X2S8OjsyDmU6JfQgLd4xlyZB9iOyYbqGwOCSy9L13S7aa5qbIOLkh77KDqYqmO+CfQj1FxxqlRHEdpZZVfR7z+aHBJ6wvCjI02mbYTrnnItoY6TNsJjqW6pHWjXAL9yi+NbbRhBzDZbVWIjpibWF5rVHP7hOmKNHeAz7ml3eu87/ReO0xdIPqjQX1XYBrvioZHTAN5JNdOKJBABSqOecLi4z7ALEvjfIG6hfdCC59dC7sb6//H5p98bGrLeXry3TJHFWcv9ndTT84EDidnKmFpnOfAZsMwP2weAi/fV2TZ/1MJD2gVztiNk2mQjVl5NFa0ZiulfBC2JubV1vNHnyMemd0kfzkfQwi/ATcE9rs=
+api: eJztVMFu2zAM/RWBl12EpNvRp2VbsQYdlqLNsEMaDKzMxGptyZXodlngfx+o2Emcrb3sOh9ih3ykyMdHbYFxHSFbwCys0dlfyNY7WGrIKZpg6/Q3g2viJrioUJU2svIr5Y/wUWGM3lhkytWz5UJxQaqJFN5EFSlG693o1t26Lk1265RSKdXi+Nxlpib/eADaSH3+i/n86vynodREpqYriQqkbFToFIXggwrEwdKTdeuUcnjoKvgqmXNkvMNII9DgawrJP80hA6n2xyAKNASKtXeRImRbeHd2Jq8hnzeNMRTjqinVdQcGDcY7JscCx7ourUkZx/dRYrYQTUEVypdlqlLyOkg5bHdH2Vx+eVMTZBA5WLcGDWy5FMM0h1aDw4peQ30Vf6vBPzsKrwFnCdCeKOVl/KcjWKs72BbQbWYryBanga3eW1xTltAuD6nmYm81PPvwEGs0Xfc9KaeJegOGgJujir4fwtsDyt/dk+E0xcfGBsplO2wOHXU9M8O+j4obLNLLh/djV19E77OBglp5NFTEhReRrUnqqZELyGB8qrZI4YlCTBw2oYQMCuY6ZuOxKX2Tj3BNjnGEdoy1hdPNniSv+ijQRHIk0wTLm5RvcjW9pM0FYS5iWCyPATcixx31Q9h+AljbS9r0zGUwabjwoedGg5UCil2UNGzdyqfwjqOutg9oHsjJBKTPXdlno7ejs5ea6QLU5GrabRWatFV9HQkG+oSuPVGggSq04mPC6v3BIVXWPnKF7ijfX0b4x1rsd/v/XXq4SzudMP3kcV2iTQuThrLt5L6AodyXGgofWRzbraT5Fsq2FfNjQ0FEu9TwhMHinUhosWx1rzDR8wNtZP5GGhE9YdnshHpy24rO9+v3+XwObfsb30Z/0Q==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -34,9 +34,6 @@ import TabItem from "@theme/TabItem";
 <MethodEndpoint method={"get"} path={"/organizations"}></MethodEndpoint>
 
 Returns a list of organizations associated with the user's session.
-
-Args:
-stoken_session (SessionContainer): The user's session token.
 
 Returns:
 list[Organization]: A list of organizations associated with the user's session.
@@ -100,6 +97,14 @@ HTTPException: If there is an error retrieving the organizations from the databa
                       ></SchemaItem>
                       <SchemaItem
                         collapsible={false}
+                        name={"owner"}
+                        required={true}
+                        schemaName={"Owner (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Owner" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
                         name={"description"}
                         required={true}
                         schemaName={"Description (string)"}
@@ -138,14 +143,6 @@ HTTPException: If there is an error retrieving the organizations from the databa
                       </SchemaItem>
                       <SchemaItem
                         collapsible={false}
-                        name={"owner"}
-                        required={true}
-                        schemaName={"Owner (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Owner" }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
                         name={"workspaces"}
                         required={false}
                         schemaName={"string[]"}
@@ -156,60 +153,6 @@ HTTPException: If there is an error retrieving the organizations from the databa
                           title: "Workspaces",
                         }}
                       ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"members"}
-                        required={false}
-                        schemaName={"string[]"}
-                        qualifierMessage={undefined}
-                        schema={{
-                          items: { type: "string" },
-                          type: "array",
-                          title: "Members",
-                        }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"invitations"}
-                        required={false}
-                        schemaName={"undefined[]"}
-                        qualifierMessage={undefined}
-                        schema={{
-                          items: {},
-                          type: "array",
-                          title: "Invitations",
-                        }}
-                      ></SchemaItem>
-                      <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
-                          <summary style={{}}>
-                            <strong>is_paying</strong>
-                            <span style={{ opacity: "0.6" }}>object</span>
-                          </summary>
-                          <div style={{ marginLeft: "1rem" }}></div>
-                          <div>
-                            <span className={"badge badge--info"}>anyOf</span>
-                            <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
-                                <div
-                                  style={{
-                                    marginTop: ".5rem",
-                                    marginBottom: ".5rem",
-                                  }}
-                                >
-                                  boolean
-                                </div>
-                              </TabItem>
-                            </SchemaTabs>
-                          </div>
-                        </details>
-                      </SchemaItem>
                       <li>
                         <div
                           style={{
@@ -230,7 +173,7 @@ HTTPException: If there is an error retrieving the organizations from the databa
                 >
                   <ResponseSamples
                     responseExample={
-                      '[\n  {\n    "id": "string",\n    "name": "string",\n    "description": "string",\n    "type": "string",\n    "owner": "string",\n    "workspaces": [\n      "string"\n    ],\n    "members": [\n      "string"\n    ],\n    "invitations": [\n      null\n    ],\n    "is_paying": true\n  }\n]'
+                      '[\n  {\n    "id": "string",\n    "name": "string",\n    "owner": "string",\n    "description": "string",\n    "type": "string",\n    "workspaces": [\n      "string"\n    ]\n  }\n]'
                     }
                     language={"json"}
                   ></ResponseSamples>
