@@ -28,12 +28,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/start-variant",
-          label: "Start Variant",
-          className: "api-method put",
-        },
-        {
-          type: "doc",
           id: "reference/api/get-variant",
           label: "Get Variant",
           className: "api-method get",
@@ -46,21 +40,9 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/update-variant-image",
-          label: "Update Variant Image",
-          className: "api-method put",
-        },
-        {
-          type: "doc",
           id: "reference/api/update-variant-url",
           label: "Update Variant Url",
           className: "api-method put",
-        },
-        {
-          type: "doc",
-          id: "reference/api/retrieve-variant-logs",
-          label: "Retrieve Variant Logs",
-          className: "api-method get",
         },
         {
           type: "doc",
@@ -292,12 +274,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/add-variant-from-image",
-          label: "Add Variant From Image",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
           id: "reference/api/add-variant-from-url",
           label: "Add Variant From Url",
           className: "api-method post",
@@ -454,26 +430,8 @@ const sidebar: SidebarsConfig = {
       items: [
         {
           type: "doc",
-          id: "reference/api/build-image",
-          label: "Build Image",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "reference/api/restart-container",
-          label: "Restart Docker Container",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
           id: "reference/api/container-templates",
           label: "Container Templates",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/construct-app-container-url",
-          label: "Construct App Container Url",
           className: "api-method get",
         },
       ],
@@ -502,6 +460,12 @@ const sidebar: SidebarsConfig = {
         id: "reference/api/observability",
       },
       items: [
+        {
+          type: "doc",
+          id: "reference/api/otlp-v-1-traces",
+          label: "Receive /v1/traces via OTLP",
+          className: "api-method post",
+        },
         {
           type: "doc",
           id: "reference/api/otlp-status",
@@ -536,9 +500,9 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/otlp-v-1-traces",
-          label: "Receive /v1/traces via OTLP",
-          className: "api-method post",
+          id: "reference/api/fetch-trace-by-id",
+          label: "Fetch trace by ID.",
+          className: "api-method get",
         },
       ],
     },
@@ -612,6 +576,114 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
+      label: "Organization",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/list-organizations",
+          label: "List Organizations",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-organization-details",
+          label: "Fetch Organization Details",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/invite-user-to-workspace",
+          label: "Invite User To Organization",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/resend-invitation",
+          label: "Resend User Invitation To Organization",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/accept-invitation",
+          label: "Accept Organization Invitation",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Access Control",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/verify-permissions",
+          label: "Verify Permissions",
+          className: "api-method get",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Scopes",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/get-projects",
+          label: "Get Projects",
+          className: "api-method get",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Api Keys",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/list-api-keys",
+          label: "List Api Keys",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/create-api-key",
+          label: "Create Api Key",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-api-key",
+          label: "Delete Api Key",
+          className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Workspace",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/get-workspace",
+          label: "Get Workspace",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/get-all-workspace-roles",
+          label: "Get All Workspace Roles",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/remove-user-from-workspace",
+          label: "Remove User From Workspace",
+          className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
       label: "Vault",
       items: [
         {
@@ -648,62 +720,8 @@ const sidebar: SidebarsConfig = {
     },
     {
       type: "category",
-      label: "Access Control",
-      items: [
-        {
-          type: "doc",
-          id: "reference/api/verify-permissions",
-          label: "Verify Permissions",
-          className: "api-method get",
-        },
-      ],
-    },
-    {
-      type: "category",
-      label: "Scopes",
-      items: [
-        {
-          type: "doc",
-          id: "reference/api/get-projects",
-          label: "Get Projects",
-          className: "api-method get",
-        },
-      ],
-    },
-    {
-      type: "category",
       label: "UNTAGGED",
       items: [
-        {
-          type: "doc",
-          id: "reference/api/list-api-keys",
-          label: "List Api Keys",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/create-api-key",
-          label: "Create Api Key",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "reference/api/delete-api-key",
-          label: "Delete Api Key",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
-          id: "reference/api/validate-api-key",
-          label: "Validate Api Key",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
-          id: "reference/api/list-organizations",
-          label: "List Organizations",
-          className: "api-method get",
-        },
         {
           type: "doc",
           id: "reference/api/create-organization",
@@ -718,33 +736,9 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/fetch-organization-details",
-          label: "Fetch Organization Details",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/update-organization",
           label: "Update Organization",
           className: "api-method put",
-        },
-        {
-          type: "doc",
-          id: "reference/api/invite-user-to-workspace",
-          label: "Invite User To Workspace",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "reference/api/resend-invitation",
-          label: "Resend Workspace Invitation",
-          className: "api-method post",
-        },
-        {
-          type: "doc",
-          id: "reference/api/accept-invitation",
-          label: "Accept Workspace Invitation",
-          className: "api-method post",
         },
         {
           type: "doc",
@@ -757,12 +751,6 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/update-workspace",
           label: "Update Workspace",
           className: "api-method put",
-        },
-        {
-          type: "doc",
-          id: "reference/api/get-all-workspace-roles",
-          label: "Get All Workspace Roles",
-          className: "api-method get",
         },
         {
           type: "doc",
@@ -784,12 +772,6 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
-          id: "reference/api/remove-user-from-workspace",
-          label: "Remove User From Workspace",
-          className: "api-method delete",
-        },
-        {
-          type: "doc",
           id: "reference/api/health-check",
           label: "Health Check",
           className: "api-method get",
@@ -799,6 +781,12 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/fetch-user-profile",
           label: "User Profile",
           className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/reset-user-password",
+          label: "Reset User Password",
+          className: "api-method post",
         },
       ],
     },

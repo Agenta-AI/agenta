@@ -95,133 +95,11 @@
         }
       }
     },
-    "/keys": {
-      "get": {
-        "summary": "List Api Keys",
-        "description": "List all API keys associated with the authenticated user.\n\nArgs:\n    request (Request): The incoming request object.\n\nReturns:\n    List[ListAPIKeysResponse]: A list of API Keys associated with the user.",
-        "operationId": "list_api_keys",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ListAPIKeysResponse"
-                  },
-                  "type": "array",
-                  "title": "Response List Api Keys"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Create Api Key",
-        "description": "Creates an API key for a user.\n\nArgs:\n    request (Request): The request object containing the user ID in the request state.\n\nReturns:\n    str: The created API key.",
-        "operationId": "create_api_key",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "string",
-                  "title": "Response Create Api Key"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/keys/{key_prefix}": {
-      "delete": {
-        "summary": "Delete Api Key",
-        "description": "Delete an API key with the given key prefix for the authenticated user.\n\nArgs:\n    key_prefix (str): The prefix of the API key to be deleted.\n    request (Request): The incoming request object.\n\nReturns:\n    dict: A dictionary containing a success message upon successful deletion.\n\nRaises:\n    HTTPException: If the API key is not found or does not belong to the user.",
-        "operationId": "delete_api_key",
-        "parameters": [
-          {
-            "name": "key_prefix",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Key Prefix"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Delete Api Key"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/keys/{key_prefix}/validate": {
-      "get": {
-        "summary": "Validate Api Key",
-        "description": "This Function is called by the CLI and is used to validate an API key provided by a user in agenta init setup.\nReturns:\n    bool: True. If the request reaches this point, the API key is valid.",
-        "operationId": "validate_api_key",
-        "parameters": [
-          {
-            "name": "key_prefix",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Key Prefix"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "boolean",
-                  "title": "Response Validate Api Key"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/organizations": {
       "get": {
+        "tags": ["Organization"],
         "summary": "List Organizations",
-        "description": "Returns a list of organizations associated with the user's session.\n\nArgs:\n    stoken_session (SessionContainer): The user's session token.\n\nReturns:\n    list[Organization]: A list of organizations associated with the user's session.\n\nRaises:\n    HTTPException: If there is an error retrieving the organizations from the database.",
+        "description": "Returns a list of organizations associated with the user's session.\n\nReturns:\n    list[Organization]: A list of organizations associated with the user's session.\n\nRaises:\n    HTTPException: If there is an error retrieving the organizations from the database.",
         "operationId": "list_organizations",
         "responses": {
           "200": {
@@ -295,8 +173,9 @@
     },
     "/organizations/{org_id}": {
       "get": {
+        "tags": ["Organization"],
         "summary": "Fetch Organization Details",
-        "description": "Get an organization's details.\n\nRaises:\n    HTTPException: _description_\n    Permission Denied\n\nReturns:\n    OrganizationDB Instance",
+        "description": "Return the details of the organization.",
         "operationId": "fetch_organization_details",
         "parameters": [
           {
@@ -314,7 +193,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationDetails"
+                }
               }
             }
           },
@@ -350,189 +231,6 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrganizationUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/organizations/{org_id}/workspaces/{workspace_id}/invite": {
-      "post": {
-        "summary": "Invite User To Workspace",
-        "operationId": "invite_user_to_workspace",
-        "parameters": [
-          {
-            "name": "org_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Org Id"
-            }
-          },
-          {
-            "name": "workspace_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Workspace Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/InviteRequest"
-                },
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/organizations/{org_id}/workspaces/{workspace_id}/invite/resend": {
-      "post": {
-        "summary": "Resend Workspace Invitation",
-        "description": "Resend an invitation to a user to an Organization.\n\nRaises:\n    HTTPException: _description_; status_code: 500\n    HTTPException: Invitation not found or has expired; status_code: 400\n    HTTPException: You already belong to this organization; status_code: 400\n\nReturns:\n    JSONResponse: Resent invitation to user; status_code: 200",
-        "operationId": "resend_invitation",
-        "parameters": [
-          {
-            "name": "org_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Org Id"
-            }
-          },
-          {
-            "name": "workspace_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Workspace Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReseendInviteRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/organizations/{org_id}/workspaces/{workspace_id}/invite/accept": {
-      "post": {
-        "summary": "Accept Workspace Invitation",
-        "description": "Accept an invitation to a workspace.\n\nRaises:\n    HTTPException: _description_; status_code: 500\n    HTTPException: Invitation not found or has expired; status_code: 400\n    HTTPException: You already belong to this organization; status_code: 400\n\nReturns:\n    JSONResponse: Accepted invitation to workspace; status_code: 200",
-        "operationId": "accept_invitation",
-        "parameters": [
-          {
-            "name": "org_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Org Id"
-            }
-          },
-          {
-            "name": "workspace_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Workspace Id"
-            }
-          },
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InviteToken"
               }
             }
           }
@@ -666,29 +364,6 @@
         }
       }
     },
-    "/workspaces/roles": {
-      "get": {
-        "summary": "Get All Workspace Roles",
-        "description": "Get all workspace roles.\n\nReturns a list of all available workspace roles.\n\nReturns:\n    List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.\n\nRaises:\n    HTTPException: If an error occurs while retrieving the workspace roles.",
-        "operationId": "get_all_workspace_roles",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/WorkspaceRoleResponse"
-                  },
-                  "type": "array",
-                  "title": "Response Get All Workspace Roles"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/workspaces/permissions": {
       "get": {
         "summary": "Get All Workspace Permissions",
@@ -743,10 +418,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "boolean",
-                  "title": "Response Assign Role To User"
-                }
+                "schema": {}
               }
             }
           },
@@ -810,1684 +482,6 @@
             "content": {
               "application/json": {
                 "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/workspaces/{workspace_id}/users": {
-      "delete": {
-        "summary": "Remove User From Workspace",
-        "description": "Remove a user from a workspace.\n\nParameters:\n- payload (UserRole): The payload containing the user email and organization ID.\n- workspace_id (str): The ID of the workspace.\n- request (Request): The FastAPI request object.\n\nReturns:\n- WorkspaceResponse: The updated workspace.\n\nRaises:\n- HTTPException: If the user does not have permission to perform this action.\n- HTTPException: If there is an error during the removal process.",
-        "operationId": "remove_user_from_workspace",
-        "parameters": [
-          {
-            "name": "workspace_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Workspace Id"
-            }
-          },
-          {
-            "name": "org_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Org Id"
-            }
-          },
-          {
-            "name": "email",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Email"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorkspaceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vault/v1/secrets": {
-      "get": {
-        "tags": ["Vault"],
-        "summary": "List Secrets",
-        "operationId": "list_secrets",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SecretResponseDTO"
-                  },
-                  "type": "array",
-                  "title": "Response List Secrets"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": ["Vault"],
-        "summary": "Create Secret",
-        "operationId": "create_secret",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateSecretDTO"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecretResponseDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/vault/v1/secrets/{secret_id}": {
-      "get": {
-        "tags": ["Vault"],
-        "summary": "Read Secret",
-        "operationId": "read_secret",
-        "parameters": [
-          {
-            "name": "secret_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Secret Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecretResponseDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": ["Vault"],
-        "summary": "Update Secret",
-        "operationId": "update_secret",
-        "parameters": [
-          {
-            "name": "secret_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Secret Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateSecretDTO"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecretResponseDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Vault"],
-        "summary": "Delete Secret",
-        "operationId": "delete_secret",
-        "parameters": [
-          {
-            "name": "secret_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Secret Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/health": {
-      "get": {
-        "summary": "Health Check",
-        "operationId": "health_check",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          }
-        }
-      }
-    },
-    "/permissions/verify": {
-      "get": {
-        "tags": ["Access Control"],
-        "summary": "Verify Permissions",
-        "operationId": "verify_permissions",
-        "parameters": [
-          {
-            "name": "action",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Action"
-            }
-          },
-          {
-            "name": "resource_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Resource Type"
-            }
-          },
-          {
-            "name": "resource_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Resource Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/projects": {
-      "get": {
-        "tags": ["Scopes"],
-        "summary": "Get Projects",
-        "operationId": "get_projects",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectsResponse"
-                  },
-                  "type": "array",
-                  "title": "Response Get Projects"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/profile": {
-      "get": {
-        "summary": "User Profile",
-        "operationId": "fetch_user_profile",
-        "parameters": [
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "User Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}/variants": {
-      "get": {
-        "tags": ["Apps"],
-        "summary": "List App Variants",
-        "description": "Retrieve a list of app variants for a given app ID.\n\nArgs:\n    app_id (str): The ID of the app to retrieve variants for.\n    stoken_session (SessionContainer, optional): The session container to verify the user's session. Defaults to Depends(verify_session()).\n\nReturns:\n    List[AppVariantResponse]: A list of app variants for the given app ID.",
-        "operationId": "list_app_variants",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AppVariantResponse_"
-                  },
-                  "title": "Response List App Variants"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/get_variant_by_env": {
-      "get": {
-        "tags": ["Apps"],
-        "summary": "Get Variant By Env",
-        "description": "Retrieve the app variant based on the provided app_id and environment.\n\nArgs:\n    app_id (str): The ID of the app to retrieve the variant for.\n    environment (str): The environment of the app variant to retrieve.\n    stoken_session (SessionContainer, optional): The session token container. Defaults to Depends(verify_session()).\n\nRaises:\n    HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).\n\nReturns:\n    AppVariantResponse: The retrieved app variant.",
-        "operationId": "get_variant_by_env",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          },
-          {
-            "name": "environment",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Environment"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppVariantResponse_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps": {
-      "post": {
-        "tags": ["Apps"],
-        "summary": "Create App",
-        "description": "Create a new app for a user or organization.\n\nArgs:\n    payload (CreateApp): The payload containing the app name and organization ID (optional).\n    stoken_session (SessionContainer): The session container containing the user's session token.\n\nReturns:\n    CreateAppOutput: The output containing the newly created app's ID and name.\n\nRaises:\n    HTTPException: If there is an error creating the app or the user does not have permission to access the app.",
-        "operationId": "create_app",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateApp_"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateAppOutput"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Apps"],
-        "summary": "List Apps",
-        "description": "Retrieve a list of apps filtered by app_name.\n\nArgs:\n    app_name (Optional[str]): The name of the app to filter by.\n    stoken_session (SessionContainer): The session container.\n\nReturns:\n    List[App]: A list of apps filtered by app_name.\n\nRaises:\n    HTTPException: If there was an error retrieving the list of apps.",
-        "operationId": "list_apps",
-        "parameters": [
-          {
-            "name": "app_name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "App Name"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/App"
-                  },
-                  "title": "Response List Apps"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}": {
-      "patch": {
-        "tags": ["Apps"],
-        "summary": "Update App",
-        "description": "Update an app for a user or organization.\n\nArgs:\n    app_id (str): The ID of the app.\n    payload (UpdateApp): The payload containing the app name.\n    stoken_session (SessionContainer): The session container containing the user's session token.\n\nReturns:\n    UpdateAppOuput: The output containing the newly created app's ID and name.\n\nRaises:\n    HTTPException: If there is an error creating the app or the user does not have permission to access the app.",
-        "operationId": "update_app",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateApp"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UpdateAppOutput"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Apps"],
-        "summary": "Remove App",
-        "description": "Remove app, all its variant, containers and images\n\nArguments:\n    app -- App to remove",
-        "operationId": "remove_app",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}/variant/from-image": {
-      "post": {
-        "tags": ["Apps"],
-        "summary": "Add Variant From Image",
-        "description": "Add a new variant to an app based on a Docker image.\n\nArgs:\n    app_id (str): The ID of the app to add the variant to.\n    payload (AddVariantFromImagePayload): The payload containing information about the variant to add.\n\nRaises:\n    HTTPException: If the feature flag is set to \"demo\" or if the image does not have a tag starting with the registry name (agenta-server) or if the image is not found or if the user does not have access to the app.\n\nReturns:\n    dict: The newly added variant.",
-        "operationId": "add_variant_from_image",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddVariantFromImagePayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}/variant/from-service": {
-      "post": {
-        "tags": ["Apps"],
-        "summary": "Add Variant From Url",
-        "description": "Add a new variant to an app based on a URL.\n\nArgs:\n    app_id (str): The ID of the app to add the variant to.\n    payload (AddVariantFromURLPayload): The payload containing information about the variant to add.\n\nRaises:\n    HTTPException: If the user does not have access to the app or if there is an error adding the variant.\n\nReturns:\n    dict: The newly added variant.",
-        "operationId": "add_variant_from_url",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddVariantFromURLPayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}/variant/from-template": {
-      "post": {
-        "tags": ["Apps"],
-        "summary": "Add Variant From Key",
-        "operationId": "add_variant_from_key",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddVariantFromKeyPayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}/environments": {
-      "get": {
-        "tags": ["Apps"],
-        "summary": "List Environments",
-        "description": "Retrieve a list of environments for a given app ID.\n\nArgs:\n    app_id (str): The ID of the app to retrieve environments for.\n    stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).\n\nReturns:\n    List[EnvironmentOutput]: A list of environment objects.",
-        "operationId": "list_environments",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EnvironmentOutput_"
-                  },
-                  "title": "Response List Environments"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/apps/{app_id}/revisions/{environment_name}": {
-      "get": {
-        "tags": ["Apps"],
-        "summary": "List App Environment Revisions",
-        "operationId": "environment_revisions",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          },
-          {
-            "name": "environment_name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "title": "Environment Name"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EnvironmentOutputExtended_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/from-base": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Add Variant From Base And Config",
-        "description": "Add a new variant based on an existing one.\nSame as POST /config\n\nArgs:\n    payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.\n    stoken_session (SessionContainer, optional): Session container. Defaults to result of verify_session().\n\nRaises:\n    HTTPException: Raised if the variant could not be added or accessed.\n\nReturns:\n    Union[AppVariantResponse, Any]: New variant details or exception.",
-        "operationId": "add_variant_from_base_and_config",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddVariantFromBasePayload"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/AppVariantResponse_"
-                    },
-                    {}
-                  ],
-                  "title": "Response Add Variant From Base And Config"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}": {
-      "delete": {
-        "tags": ["Variants"],
-        "summary": "Remove Variant",
-        "description": "Remove a variant from the server.\nIn the case it's the last variant using the image, stop the container and remove the image.\n\nArguments:\n    app_variant -- AppVariant to remove\n\nRaises:\n    HTTPException: If there is a problem removing the app variant",
-        "operationId": "remove_variant",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": ["Variants"],
-        "summary": "Start Variant",
-        "description": "Start a variant of an app.\n\nArgs:\n    variant_id (str): The ID of the variant to start.\n    action (VariantAction): The action to perform on the variant (start).\n    env_vars (Optional[DockerEnvVars], optional): The environment variables to inject to the Docker container. Defaults to None.\n    stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).\n\nReturns:\n    URI: The URL of the started variant.\n\nRaises:\n    HTTPException: If the app container cannot be started.",
-        "operationId": "start_variant",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_start_variant"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/URI"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": ["Variants"],
-        "summary": "Get Variant",
-        "operationId": "get_variant",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppVariantResponse_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}/parameters": {
-      "put": {
-        "tags": ["Variants"],
-        "summary": "Update Variant Parameters",
-        "description": "Updates the parameters for an app variant.\n\nArgs:\n    variant_id (str): The ID of the app variant to update.\n    payload (UpdateVariantParameterPayload): The payload containing the updated parameters.\n    stoken_session (SessionContainer, optional): The session container. Defaults to Depends(verify_session()).\n\nRaises:\n    HTTPException: If there is an error while trying to update the app variant.\n\nReturns:\n    JSONResponse: A JSON response containing the updated app variant parameters.",
-        "operationId": "update_variant_parameters",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateVariantParameterPayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}/image": {
-      "put": {
-        "tags": ["Variants"],
-        "summary": "Update Variant Image",
-        "description": "Updates the image used in an app variant.\n\nArgs:\n    variant_id (str): The ID of the app variant to update.\n    image (Image): The image information to update.\n\nRaises:\n    HTTPException: If an error occurs while trying to update the app variant.\n\nReturns:\n    JSONResponse: A JSON response indicating whether the update was successful or not.",
-        "operationId": "update_variant_image",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Image_"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}/service": {
-      "put": {
-        "tags": ["Variants"],
-        "summary": "Update Variant Url",
-        "description": "Updates the URL used in an app variant.\n\nArgs:\n    variant_id (str): The ID of the app variant to update.\n    url (str): The URL to update.\n\nRaises:\n    HTTPException: If an error occurs while trying to update the app variant.\n\nReturns:\n    JSONResponse: A JSON response indicating whether the update was successful or not.",
-        "operationId": "update_variant_url",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          },
-          {
-            "name": "url",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Url"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}/logs": {
-      "get": {
-        "tags": ["Variants"],
-        "summary": "Retrieve Variant Logs",
-        "operationId": "retrieve_variant_logs",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}/revisions": {
-      "get": {
-        "tags": ["Variants"],
-        "summary": "Get Variant Revisions",
-        "operationId": "get_variant_revisions",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AppVariantRevision"
-                  },
-                  "title": "Response Get Variant Revisions"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/{variant_id}/revisions/{revision_number}": {
-      "get": {
-        "tags": ["Variants"],
-        "summary": "Get Variant Revision",
-        "operationId": "get_variant_revision",
-        "parameters": [
-          {
-            "name": "variant_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Variant Id"
-            }
-          },
-          {
-            "name": "revision_number",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Revision Number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppVariantRevision"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/add": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs Add",
-        "operationId": "configs_add",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_configs_add"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigResponseModel"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/fetch": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs Fetch",
-        "operationId": "configs_fetch",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_configs_fetch"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigResponseModel"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/fork": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs Fork",
-        "operationId": "configs_fork",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_configs_fork"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigResponseModel"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/commit": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs Commit",
-        "operationId": "configs_commit",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfigRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigResponseModel"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/deploy": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs Deploy",
-        "operationId": "configs_deploy",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_configs_deploy"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigResponseModel"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/delete": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs Delete",
-        "operationId": "configs_delete",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_configs_delete"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "integer",
-                  "title": "Response Configs Delete"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/list": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs List",
-        "operationId": "configs_list",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReferenceRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ConfigResponseModel"
-                  },
-                  "type": "array",
-                  "title": "Response Configs List"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/variants/configs/history": {
-      "post": {
-        "tags": ["Variants"],
-        "summary": "Configs History",
-        "operationId": "configs_history",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_configs_history"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ConfigResponseModel"
-                  },
-                  "type": "array",
-                  "title": "Response Configs History"
-                }
               }
             }
           },
@@ -3223,7 +1217,7 @@
       "get": {
         "tags": ["Human-Evaluations"],
         "summary": "Get Evaluation Scenario Score Router",
-        "description": "Fetch the score of a specific evaluation scenario.\n\nArgs:\n    evaluation_scenario_id: The ID of the evaluation scenario to fetch.\n    stoken_session: Session data, verified by `verify_session`.\n\nReturns:\n    Dictionary containing the scenario ID and its score.",
+        "description": "Fetch the score of a specific evaluation scenario.\n\nArgs:\n    evaluation_scenario_id: The ID of the evaluation scenario to fetch.\n\nReturns:\n    Dictionary containing the scenario ID and its score.",
         "operationId": "get_evaluation_scenario_score_router_human_evaluations_evaluation_scenario__evaluation_scenario_id__score_get",
         "parameters": [
           {
@@ -3344,6 +1338,1322 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/permissions/verify": {
+      "get": {
+        "tags": ["Access Control"],
+        "summary": "Verify Permissions",
+        "operationId": "verify_permissions",
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "name": "scope_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope Type"
+            }
+          },
+          {
+            "name": "scope_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope Id"
+            }
+          },
+          {
+            "name": "resource_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Type"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": ["Scopes"],
+        "summary": "Get Projects",
+        "operationId": "get_projects",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectsResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Projects"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile": {
+      "get": {
+        "summary": "User Profile",
+        "operationId": "fetch_user_profile",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile/reset-password": {
+      "post": {
+        "summary": "Reset User Password",
+        "operationId": "reset_user_password",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{app_id}/variants": {
+      "get": {
+        "tags": ["Apps"],
+        "summary": "List App Variants",
+        "description": "Retrieve a list of app variants for a given app ID.\n\nArgs:\n    app_id (str): The ID of the app to retrieve variants for.\n\nReturns:\n    List[AppVariantResponse]: A list of app variants for the given app ID.",
+        "operationId": "list_app_variants",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppVariantResponse_"
+                  },
+                  "title": "Response List App Variants"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/get_variant_by_env": {
+      "get": {
+        "tags": ["Apps"],
+        "summary": "Get Variant By Env",
+        "description": "Retrieve the app variant based on the provided app_id and environment.\n\nArgs:\n    app_id (str): The ID of the app to retrieve the variant for.\n    environment (str): The environment of the app variant to retrieve.\n\nRaises:\n    HTTPException: If the app variant is not found (status_code=500), or if a ValueError is raised (status_code=400), or if any other exception is raised (status_code=500).\n\nReturns:\n    AppVariantResponse: The retrieved app variant.",
+        "operationId": "get_variant_by_env",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Environment"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVariantResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps": {
+      "post": {
+        "tags": ["Apps"],
+        "summary": "Create App",
+        "description": "Create a new app for a user or organization.\n\nArgs:\n    payload (CreateApp): The payload containing the app name and organization ID (optional).\n\nReturns:\n    CreateAppOutput: The output containing the newly created app's ID and name.\n\nRaises:\n    HTTPException: If there is an error creating the app or the user does not have permission to access the app.",
+        "operationId": "create_app",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApp_"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAppOutput"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Apps"],
+        "summary": "List Apps",
+        "description": "Retrieve a list of apps filtered by app_name.\n\nArgs:\n    app_name (Optional[str]): The name of the app to filter by.\n\nReturns:\n    List[App]: A list of apps filtered by app_name.\n\nRaises:\n    HTTPException: If there was an error retrieving the list of apps.",
+        "operationId": "list_apps",
+        "parameters": [
+          {
+            "name": "app_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "App Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/App"
+                  },
+                  "title": "Response List Apps"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{app_id}": {
+      "patch": {
+        "tags": ["Apps"],
+        "summary": "Update App",
+        "description": "Update an app for a user or organization.\n\nArgs:\n    app_id (str): The ID of the app.\n    payload (UpdateApp): The payload containing the app name.\n\nReturns:\n    UpdateAppOutput: The output containing the newly created app's ID and name.\n\nRaises:\n    HTTPException: If there is an error creating the app or the user does not have permission to access the app.",
+        "operationId": "update_app",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApp"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateAppOutput"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Apps"],
+        "summary": "Remove App",
+        "description": "Remove app, all its variant.\n\nArguments:\n    app -- App to remove",
+        "operationId": "remove_app",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{app_id}/variant/from-service": {
+      "post": {
+        "tags": ["Apps"],
+        "summary": "Add Variant From Url",
+        "description": "Add a new variant to an app based on a URL.\n\nArgs:\n    app_id (str): The ID of the app to add the variant to.\n    payload (AddVariantFromURLPayload): The payload containing information about the variant to add.\n\nRaises:\n    HTTPException: If the user does not have access to the app or if there is an error adding the variant.\n\nReturns:\n    dict: The newly added variant.",
+        "operationId": "add_variant_from_url",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddVariantFromURLPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{app_id}/variant/from-template": {
+      "post": {
+        "tags": ["Apps"],
+        "summary": "Add Variant From Key",
+        "operationId": "add_variant_from_key",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddVariantFromKeyPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{app_id}/environments": {
+      "get": {
+        "tags": ["Apps"],
+        "summary": "List Environments",
+        "description": "Retrieve a list of environments for a given app ID.\n\nArgs:\n    app_id (str): The ID of the app to retrieve environments for.\n\nReturns:\n    List[EnvironmentOutput]: A list of environment objects.",
+        "operationId": "list_environments",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnvironmentOutput_"
+                  },
+                  "title": "Response List Environments"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apps/{app_id}/revisions/{environment_name}": {
+      "get": {
+        "tags": ["Apps"],
+        "summary": "List App Environment Revisions",
+        "operationId": "environment_revisions",
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "App Id"
+            }
+          },
+          {
+            "name": "environment_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "title": "Environment Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentOutputExtended_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/from-base": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Add Variant From Base And Config",
+        "description": "Add a new variant based on an existing one.\nSame as POST /config\n\nArgs:\n    payload (AddVariantFromBasePayload): Payload containing base variant ID, new variant name, and parameters.\n\nRaises:\n    HTTPException: Raised if the variant could not be added or accessed.\n\nReturns:\n    Union[AppVariantResponse, Any]: New variant details or exception.",
+        "operationId": "add_variant_from_base_and_config",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddVariantFromBasePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AppVariantResponse_"
+                    },
+                    {}
+                  ],
+                  "title": "Response Add Variant From Base And Config"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/{variant_id}": {
+      "delete": {
+        "tags": ["Variants"],
+        "summary": "Remove Variant",
+        "description": "Remove a variant from the registry.\n\nArguments:\n    app_variant -- AppVariant to remove\n\nRaises:\n    HTTPException: If there is a problem removing the app variant",
+        "operationId": "remove_variant",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Variants"],
+        "summary": "Get Variant",
+        "operationId": "get_variant",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVariantResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/{variant_id}/parameters": {
+      "put": {
+        "tags": ["Variants"],
+        "summary": "Update Variant Parameters",
+        "description": "Updates the parameters for an app variant.\n\nArgs:\n    variant_id (str): The ID of the app variant to update.\n    payload (UpdateVariantParameterPayload): The payload containing the updated parameters.\n\nRaises:\n    HTTPException: If there is an error while trying to update the app variant.\n\nReturns:\n    JSONResponse: A JSON response containing the updated app variant parameters.",
+        "operationId": "update_variant_parameters",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVariantParameterPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/{variant_id}/service": {
+      "put": {
+        "tags": ["Variants"],
+        "summary": "Update Variant Url",
+        "description": "Updates the URL used in an app variant.\n\nArgs:\n    variant_id (str): The ID of the app variant to update.\n    url (str): The URL to update.\n\nRaises:\n    HTTPException: If an error occurs while trying to update the app variant.\n\nReturns:\n    JSONResponse: A JSON response indicating whether the update was successful or not.",
+        "operationId": "update_variant_url",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Url"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/{variant_id}/revisions": {
+      "get": {
+        "tags": ["Variants"],
+        "summary": "Get Variant Revisions",
+        "operationId": "get_variant_revisions",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AppVariantRevision"
+                  },
+                  "title": "Response Get Variant Revisions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/{variant_id}/revisions/{revision_number}": {
+      "get": {
+        "tags": ["Variants"],
+        "summary": "Get Variant Revision",
+        "operationId": "get_variant_revision",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant Id"
+            }
+          },
+          {
+            "name": "revision_number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Revision Number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppVariantRevision"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/add": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs Add",
+        "operationId": "configs_add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_configs_add"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponseModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/fetch": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs Fetch",
+        "operationId": "configs_fetch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_configs_fetch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponseModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/fork": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs Fork",
+        "operationId": "configs_fork",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_configs_fork"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponseModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/commit": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs Commit",
+        "operationId": "configs_commit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponseModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/deploy": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs Deploy",
+        "operationId": "configs_deploy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_configs_deploy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponseModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/delete": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs Delete",
+        "operationId": "configs_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_configs_delete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "integer",
+                  "title": "Response Configs Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/list": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs List",
+        "operationId": "configs_list",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConfigResponseModel"
+                  },
+                  "type": "array",
+                  "title": "Response Configs List"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/variants/configs/history": {
+      "post": {
+        "tags": ["Variants"],
+        "summary": "Configs History",
+        "operationId": "configs_history",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_configs_history"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConfigResponseModel"
+                  },
+                  "type": "array",
+                  "title": "Response Configs History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/containers/templates": {
+      "get": {
+        "tags": ["Containers"],
+        "summary": "Container Templates",
+        "description": "Returns a list of templates available for creating new containers.",
+        "operationId": "container_templates",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -3965,207 +3275,11 @@
         }
       }
     },
-    "/containers/build_image": {
-      "post": {
-        "tags": ["Containers"],
-        "summary": "Build Image",
-        "description": "Builds a Docker image from a tar file containing the application code.\n\nArgs:\n    app_id (str): The ID of the application to build the image for.\n    base_name (str): The base name of the image to build.\n    tar_file (UploadFile): The tar file containing the application code.\n    stoken_session (SessionContainer): The session container for the user making the request.\n\nReturns:\n    Image: The Docker image that was built.",
-        "operationId": "build_image",
-        "parameters": [
-          {
-            "name": "app_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "App Id"
-            }
-          },
-          {
-            "name": "base_name",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Base Name"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_build_image"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Image_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/containers/restart_container": {
-      "post": {
-        "tags": ["Containers"],
-        "summary": "Restart Docker Container",
-        "description": "Restart docker container.\n\nArgs:\n    payload (RestartAppContainer) -- the required data (app_name and variant_name)",
-        "operationId": "restart_container",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RestartAppContainer"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "title": "Response Restart Container"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/containers/templates": {
-      "get": {
-        "tags": ["Containers"],
-        "summary": "Container Templates",
-        "description": "Returns a list of templates available for creating new containers.\n\nParameters:\nstoken_session (SessionContainer): The session container for the user.\n\nReturns:\n\nUnion[List[Template], str]: A list of templates or an error message.",
-        "operationId": "container_templates",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "items": {
-                        "$ref": "#/components/schemas/Template"
-                      },
-                      "type": "array"
-                    },
-                    {
-                      "type": "string"
-                    }
-                  ],
-                  "title": "Response Container Templates"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/containers/container_url": {
-      "get": {
-        "tags": ["Containers"],
-        "summary": "Construct App Container Url",
-        "description": "Constructs the URL for an app container based on the provided base_id or variant_id.\n\nArgs:\n    base_id (Optional[str]): The ID of the base to use for the app container.\n    variant_id (Optional[str]): The ID of the variant to use for the app container.\n    request (Request): The request object.\n\nReturns:\n    URI: The URI for the app container.\n\nRaises:\n    HTTPException: If the base or variant cannot be found or the user does not have access.",
-        "operationId": "construct_app_container_url",
-        "parameters": [
-          {
-            "name": "base_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Base Id"
-            }
-          },
-          {
-            "name": "variant_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Variant Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/URI"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/environments/deploy": {
       "post": {
         "tags": ["Environments"],
         "summary": "Deploy To Environment",
-        "description": "Deploys a given variant to an environment\n\nArgs:\n    environment_name: Name of the environment to deploy to.\n    variant_id: variant id to deploy.\n    stoken_session: . Defaults to Depends(verify_session()).\n\nRaises:\n    HTTPException: If the deployment fails.",
+        "description": "Deploys a given variant to an environment\n\nArgs:\n    environment_name: Name of the environment to deploy to.\n    variant_id: variant id to deploy.\n\nRaises:\n    HTTPException: If the deployment fails.",
         "operationId": "deploy_to_environment",
         "requestBody": {
           "content": {
@@ -4436,6 +3550,397 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/keys": {
+      "get": {
+        "tags": ["Api Keys"],
+        "summary": "List Api Keys",
+        "description": "List all API keys associated with the authenticated user.\n\nArgs:\n    request (Request): The incoming request object.\n\nReturns:\n    List[ListAPIKeysResponse]: A list of API Keys associated with the user.",
+        "operationId": "list_api_keys",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ListAPIKeysResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Api Keys"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Api Keys"],
+        "summary": "Create Api Key",
+        "description": "Creates an API key for a user.\n\nArgs:\n    request (Request): The request object containing the user ID in the request state.\n\nReturns:\n    str: The created API key.",
+        "operationId": "create_api_key",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "title": "Response Create Api Key"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/keys/{key_prefix}": {
+      "delete": {
+        "tags": ["Api Keys"],
+        "summary": "Delete Api Key",
+        "description": "Delete an API key with the given key prefix for the authenticated user.\n\nArgs:\n    key_prefix (str): The prefix of the API key to be deleted.\n    request (Request): The incoming request object.\n\nReturns:\n    dict: A dictionary containing a success message upon successful deletion.\n\nRaises:\n    HTTPException: If the API key is not found or does not belong to the user.",
+        "operationId": "delete_api_key",
+        "parameters": [
+          {
+            "name": "key_prefix",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key Prefix"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Response Delete Api Key"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/organizations/{org_id}/workspaces/{workspace_id}/invite": {
+      "post": {
+        "tags": ["Organization"],
+        "summary": "Invite User To Organization",
+        "description": "Assigns a role to a user in an organization.\n\nArgs:\n    org_id (str): The ID of the organization.\n    payload (InviteRequest): The payload containing the organization id, user email, and role to assign.\n    workspace_id (str): The ID of the workspace.\n\nReturns:\n    bool: True if the role was successfully assigned, False otherwise.\n\nRaises:\n    HTTPException: If the user does not have permission to perform this action.\n    HTTPException: If there is an error assigning the role to the user.",
+        "operationId": "invite_user_to_workspace",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/InviteRequest"
+                },
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/organizations/{org_id}/workspaces/{workspace_id}/invite/resend": {
+      "post": {
+        "tags": ["Organization"],
+        "summary": "Resend User Invitation To Organization",
+        "description": "Resend an invitation to a user to an Organization.\n\nRaises:\n    HTTPException: _description_; status_code: 500\n    HTTPException: Invitation not found or has expired; status_code: 400\n    HTTPException: You already belong to this organization; status_code: 400\n\nReturns:\n    JSONResponse: Resent invitation to user; status_code: 200",
+        "operationId": "resend_invitation",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendInviteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/organizations/{org_id}/workspaces/{workspace_id}/invite/accept": {
+      "post": {
+        "tags": ["Organization"],
+        "summary": "Accept Organization Invitation",
+        "description": "Accept an invitation to an organization.\n\nRaises:\n    HTTPException: _description_; status_code: 500\n    HTTPException: Invitation not found or has expired; status_code: 400\n    HTTPException: You already belong to this organization; status_code: 400\n\nReturns:\n    JSONResponse: Accepted invitation to workspace; status_code: 200",
+        "operationId": "accept_invitation",
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Get Workspace",
+        "description": "Get workspace details.\n\nReturns details about the workspace associated with the user's session.\n\nReturns:\n    Workspace: The details of the workspace.\n\nRaises:\n    HTTPException: If the user does not have permission to perform this action.",
+        "operationId": "get_workspace",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Workspace"
+                  },
+                  "type": "array",
+                  "title": "Response Get Workspace"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/roles": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Get All Workspace Roles",
+        "description": "Get all workspace roles.\n\nReturns a list of all available workspace roles.\n\nReturns:\n    List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.\n\nRaises:\n    HTTPException: If an error occurs while retrieving the workspace roles.",
+        "operationId": "get_all_workspace_roles",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Get All Workspace Roles"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/workspaces/{workspace_id}/users": {
+      "delete": {
+        "tags": ["Workspace"],
+        "summary": "Remove User From Workspace",
+        "description": "Remove a user from a workspace.\n\nArgs:\n    email (str): The email address of the user to be removed\n    workspace_id (str): The ID of the workspace.",
+        "operationId": "remove_user_from_workspace",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/otlp/v1/traces": {
+      "post": {
+        "tags": ["Observability"],
+        "summary": "Receive /v1/traces via OTLP",
+        "description": "Receive traces via OTLP.",
+        "operationId": "otlp_v1_traces",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectStatusResponse"
                 }
               }
             }
@@ -4913,19 +4418,251 @@
         }
       }
     },
-    "/otlp/v1/traces": {
-      "post": {
+    "/observability/v1/traces/{trace_id}": {
+      "get": {
         "tags": ["Observability"],
-        "summary": "Receive /v1/traces via OTLP",
-        "description": "Receive traces via OTLP.",
-        "operationId": "otlp_v1_traces",
+        "summary": "Fetch trace by ID.",
+        "description": "Fetch trace by ID.",
+        "operationId": "fetch_trace_by_id",
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "title": "Trace Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": ["opentelemetry", "agenta"],
+              "type": "string",
+              "default": "openetelemetry",
+              "title": "Format"
+            }
+          }
+        ],
         "responses": {
-          "202": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CollectStatusResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OTelSpansResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentaNodesResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentaTreesResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AgentaRootsResponse"
+                    }
+                  ],
+                  "title": "Response Fetch Trace By Id"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vault/v1/secrets": {
+      "get": {
+        "tags": ["Vault"],
+        "summary": "List Secrets",
+        "operationId": "list_secrets",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SecretResponseDTO"
+                  },
+                  "type": "array",
+                  "title": "Response List Secrets"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Vault"],
+        "summary": "Create Secret",
+        "operationId": "create_secret",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSecretDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponseDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vault/v1/secrets/{secret_id}": {
+      "get": {
+        "tags": ["Vault"],
+        "summary": "Read Secret",
+        "operationId": "read_secret",
+        "parameters": [
+          {
+            "name": "secret_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Secret Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponseDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Vault"],
+        "summary": "Update Secret",
+        "operationId": "update_secret",
+        "parameters": [
+          {
+            "name": "secret_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Secret Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSecretDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretResponseDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Vault"],
+        "summary": "Delete Secret",
+        "operationId": "delete_secret",
+        "parameters": [
+          {
+            "name": "secret_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Secret Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5001,47 +4738,6 @@
         "type": "object",
         "required": ["base_id", "new_variant_name", "new_config_name", "parameters"],
         "title": "AddVariantFromBasePayload"
-      },
-      "AddVariantFromImagePayload": {
-        "properties": {
-          "variant_name": {
-            "type": "string",
-            "title": "Variant Name"
-          },
-          "docker_id": {
-            "type": "string",
-            "title": "Docker Id"
-          },
-          "tags": {
-            "type": "string",
-            "title": "Tags"
-          },
-          "base_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Name"
-          },
-          "config_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Config Name"
-          }
-        },
-        "type": "object",
-        "required": ["variant_name", "docker_id", "tags", "base_name", "config_name"],
-        "title": "AddVariantFromImagePayload"
       },
       "AddVariantFromKeyPayload": {
         "properties": {
@@ -5264,11 +4960,19 @@
       "AgentaNodesResponse": {
         "properties": {
           "nodes": {
-            "items": {
-              "$ref": "#/components/schemas/AgentaNodeDTO"
-            },
-            "type": "array",
-            "title": "Nodes"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentaNodeDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nodes",
+            "default": []
           },
           "version": {
             "type": "string",
@@ -5287,7 +4991,7 @@
           }
         },
         "type": "object",
-        "required": ["nodes", "version"],
+        "required": ["version"],
         "title": "AgentaNodesResponse"
       },
       "AgentaRootDTO": {
@@ -5310,11 +5014,19 @@
       "AgentaRootsResponse": {
         "properties": {
           "roots": {
-            "items": {
-              "$ref": "#/components/schemas/AgentaRootDTO"
-            },
-            "type": "array",
-            "title": "Roots"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentaRootDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roots",
+            "default": []
           },
           "version": {
             "type": "string",
@@ -5333,7 +5045,7 @@
           }
         },
         "type": "object",
-        "required": ["roots", "version"],
+        "required": ["version"],
         "title": "AgentaRootsResponse"
       },
       "AgentaTreeDTO": {
@@ -5356,11 +5068,19 @@
       "AgentaTreesResponse": {
         "properties": {
           "trees": {
-            "items": {
-              "$ref": "#/components/schemas/AgentaTreeDTO"
-            },
-            "type": "array",
-            "title": "Trees"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentaTreeDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trees",
+            "default": []
           },
           "version": {
             "type": "string",
@@ -5379,7 +5099,7 @@
           }
         },
         "type": "object",
-        "required": ["trees", "version"],
+        "required": ["version"],
         "title": "AgentaTreesResponse"
       },
       "AggregatedResult": {
@@ -5642,18 +5362,6 @@
         "required": ["base_id", "base_name"],
         "title": "BaseOutput"
       },
-      "Body_build_image": {
-        "properties": {
-          "tar_file": {
-            "type": "string",
-            "format": "binary",
-            "title": "Tar File"
-          }
-        },
-        "type": "object",
-        "required": ["tar_file"],
-        "title": "Body_build_image"
-      },
       "Body_configs_add": {
         "properties": {
           "variant_ref": {
@@ -5815,26 +5523,6 @@
         },
         "type": "object",
         "title": "Body_import_testset"
-      },
-      "Body_start_variant": {
-        "properties": {
-          "action": {
-            "$ref": "#/components/schemas/VariantAction"
-          },
-          "env_vars": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DockerEnvVars"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": ["action"],
-        "title": "Body_start_variant"
       },
       "Body_upload_file": {
         "properties": {
@@ -6339,20 +6027,6 @@
         "type": "object",
         "required": ["environment_name", "variant_id"],
         "title": "DeployToEnvironmentPayload"
-      },
-      "DockerEnvVars": {
-        "properties": {
-          "env_vars": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Env Vars"
-          }
-        },
-        "type": "object",
-        "required": ["env_vars"],
-        "title": "DockerEnvVars"
       },
       "EntitiesRequestModel": {
         "properties": {
@@ -7583,54 +7257,6 @@
         "type": "object",
         "title": "HumanEvaluationUpdate"
       },
-      "Image_": {
-        "properties": {
-          "type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Type"
-          },
-          "docker_id": {
-            "type": "string",
-            "title": "Docker Id"
-          },
-          "tags": {
-            "type": "string",
-            "title": "Tags"
-          },
-          "organization_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Organization Id"
-          },
-          "workspace_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Workspace Id"
-          }
-        },
-        "type": "object",
-        "required": ["type", "docker_id", "tags"],
-        "title": "Image_"
-      },
       "InviteRequest": {
         "properties": {
           "email": {
@@ -7654,10 +7280,14 @@
           "token": {
             "type": "string",
             "title": "Token"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
           }
         },
         "type": "object",
-        "required": ["token"],
+        "required": ["token", "email"],
         "title": "InviteToken"
       },
       "LLMRunRateLimit": {
@@ -8517,6 +8147,10 @@
             "type": "string",
             "title": "Name"
           },
+          "owner": {
+            "type": "string",
+            "title": "Owner"
+          },
           "description": {
             "type": "string",
             "title": "Description"
@@ -8532,9 +8166,46 @@
             ],
             "title": "Type"
           },
+          "workspaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Workspaces"
+          }
+        },
+        "type": "object",
+        "required": ["id", "name", "owner", "description"],
+        "title": "Organization"
+      },
+      "OrganizationDetails": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
           "owner": {
             "type": "string",
             "title": "Owner"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
           },
           "workspaces": {
             "items": {
@@ -8543,33 +8214,21 @@
             "type": "array",
             "title": "Workspaces"
           },
-          "members": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Members"
-          },
-          "invitations": {
-            "items": {},
-            "type": "array",
-            "title": "Invitations"
-          },
-          "is_paying": {
+          "default_workspace": {
             "anyOf": [
               {
-                "type": "boolean"
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Is Paying"
+            "title": "Default Workspace"
           }
         },
         "type": "object",
-        "required": ["id", "name", "description", "owner"],
-        "title": "Organization"
+        "required": ["id", "name", "owner", "description"],
+        "title": "OrganizationDetails"
       },
       "OrganizationMembershipRequest": {
         "properties": {
@@ -8716,7 +8375,8 @@
           "add_new_user_to_workspace",
           "edit_organization",
           "delete_organization",
-          "add_new_user_to_organization"
+          "add_new_user_to_organization",
+          "reset_password"
         ],
         "title": "Permission"
       },
@@ -9036,7 +8696,7 @@
         "required": ["slug", "version", "id"],
         "title": "ReferenceRequestModel"
       },
-      "ReseendInviteRequest": {
+      "ResendInviteRequest": {
         "properties": {
           "email": {
             "type": "string",
@@ -9045,18 +8705,7 @@
         },
         "type": "object",
         "required": ["email"],
-        "title": "ReseendInviteRequest"
-      },
-      "RestartAppContainer": {
-        "properties": {
-          "variant_id": {
-            "type": "string",
-            "title": "Variant Id"
-          }
-        },
-        "type": "object",
-        "required": ["variant_id"],
-        "title": "RestartAppContainer"
+        "title": "ResendInviteRequest"
       },
       "Result": {
         "properties": {
@@ -9398,95 +9047,6 @@
         "required": ["code"],
         "title": "StatusDTO"
       },
-      "Template": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "image": {
-            "$ref": "#/components/schemas/TemplateImageInfo"
-          }
-        },
-        "type": "object",
-        "required": ["id", "image"],
-        "title": "Template"
-      },
-      "TemplateImageInfo": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "size": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Size"
-          },
-          "digest": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Digest"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title"
-          },
-          "description": {
-            "type": "string",
-            "title": "Description"
-          },
-          "last_pushed": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Pushed"
-          },
-          "repo_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Repo Name"
-          },
-          "template_uri": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Template Uri"
-          }
-        },
-        "type": "object",
-        "required": ["name", "title", "description"],
-        "title": "TemplateImageInfo"
-      },
       "TestSetOutputResponse": {
         "properties": {
           "_id": {
@@ -9572,17 +9132,6 @@
         "type": "string",
         "enum": ["invocation"],
         "title": "TreeType"
-      },
-      "URI": {
-        "properties": {
-          "uri": {
-            "type": "string",
-            "title": "Uri"
-          }
-        },
-        "type": "object",
-        "required": ["uri"],
-        "title": "URI"
       },
       "UpdateApp": {
         "properties": {
@@ -9797,20 +9346,49 @@
         "required": ["loc", "msg", "type"],
         "title": "ValidationError"
       },
-      "VariantAction": {
+      "Workspace": {
         "properties": {
-          "action": {
-            "$ref": "#/components/schemas/VariantActionEnum"
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
           }
         },
         "type": "object",
-        "required": ["action"],
-        "title": "VariantAction"
-      },
-      "VariantActionEnum": {
-        "type": "string",
-        "enum": ["START", "STOP"],
-        "title": "VariantActionEnum"
+        "required": ["name", "type"],
+        "title": "Workspace"
       },
       "WorkspaceMemberResponse": {
         "properties": {
@@ -9914,12 +9492,12 @@
           "created_at": {
             "type": "string",
             "title": "Created At",
-            "default": "2025-03-13 09:54:36.110993+00:00"
+            "default": "2025-03-19 13:34:42.569150+00:00"
           },
           "updated_at": {
             "type": "string",
             "title": "Updated At",
-            "default": "2025-03-13 09:54:36.111070+00:00"
+            "default": "2025-03-19 13:34:42.569218+00:00"
           },
           "id": {
             "type": "string",
@@ -9978,27 +9556,6 @@
         "type": "string",
         "enum": ["owner", "viewer", "editor", "evaluator", "workspace_admin", "deployment_manager"],
         "title": "WorkspaceRole"
-      },
-      "WorkspaceRoleResponse": {
-        "properties": {
-          "role_name": {
-            "$ref": "#/components/schemas/WorkspaceRole"
-          },
-          "role_description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Role Description"
-          }
-        },
-        "type": "object",
-        "required": ["role_name"],
-        "title": "WorkspaceRoleResponse"
       },
       "oss__src__core__shared__dtos__LifecycleDTO": {
         "properties": {

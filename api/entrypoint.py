@@ -25,7 +25,7 @@ from oss.src.routers import (
     workspace_router,
     container_router,
 )
-from oss.src.utils.common import is_ee
+from oss.src.utils.common import is_oss, is_ee
 from oss.src.open_api import open_api_tags_metadata
 from oss.databases.postgres.migrations.utils import (
     check_for_new_migrations,
@@ -68,7 +68,9 @@ async def lifespan(application: FastAPI, cache=True):
 
 
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
-app.middleware("http")(authentication_middleware)
+
+if is_oss():
+    app.middleware("http")(authentication_middleware)
 
 
 if is_ee():

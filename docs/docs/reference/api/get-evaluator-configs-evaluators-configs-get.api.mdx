@@ -25,11 +25,7 @@ import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 
-<Heading
-  as={"h1"}
-  className={"openapi__heading"}
-  children={"Get Evaluator Configs"}
-></Heading>
+<Heading as={"h1"} className={"openapi__heading"} children={"Get Evaluator Configs"}></Heading>
 
 <MethodEndpoint method={"get"} path={"/evaluators/configs"}></MethodEndpoint>
 
@@ -41,23 +37,11 @@ app_id (str): The ID of the app.
 Returns:
 List[EvaluatorConfigDB]: A list of evaluator configuration objects.
 
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
-  children={"Request"}
-></Heading>
+<Heading id={"request"} as={"h2"} className={"openapi-tabs__heading"} children={"Request"}></Heading>
 
-<details
-  style={{ marginBottom: "1rem" }}
-  className={"openapi-markdown__details"}
-  data-collapsed={false}
-  open={true}
->
+<details style={{ marginBottom: "1rem" }} className={"openapi-markdown__details"} data-collapsed={false} open={true}>
   <summary style={{}}>
-    <h3 className={"openapi-markdown__details-summary-header-params"}>
-      Query Parameters
-    </h3>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>Query Parameters</h3>
   </summary>
   <div>
     <ul>
@@ -89,15 +73,10 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
                       <strong>Schema</strong>
                     </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <li>
                         <div
@@ -144,10 +123,7 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                         schema={{ type: "string", title: "Evaluator Key" }}
                       ></SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <strong>settings_values</strong>
                             <span style={{ opacity: "0.6" }}>object</span>
@@ -188,10 +164,7 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
                   <ResponseSamples
                     responseExample={
                       '[\n  {\n    "id": "string",\n    "name": "string",\n    "project_id": "string",\n    "evaluator_key": "string",\n    "settings_values": {},\n    "created_at": "string",\n    "updated_at": "string"\n  }\n]'
@@ -217,29 +190,17 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
                       <strong>Schema</strong>
                     </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                detail
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
+                              <strong className={"openapi-schema__property"}>detail</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -255,32 +216,14 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                                 Array [
                               </div>
                             </li>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      loc
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object[]
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
+                                    <strong className={"openapi-schema__property"}>loc</strong>
+                                    <span className={"openapi-schema__name"}>object[]</span>
+                                    <span className={"openapi-schema__divider"}></span>
+                                    <span className={"openapi-schema__required"}>required</span>
                                   </span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}>
@@ -297,14 +240,9 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                                     </div>
                                   </li>
                                   <div>
-                                    <span className={"badge badge--info"}>
-                                      anyOf
-                                    </span>
+                                    <span className={"badge badge--info"}>anyOf</span>
                                     <SchemaTabs>
-                                      <TabItem
-                                        label={"MOD1"}
-                                        value={"0-item-properties"}
-                                      >
+                                      <TabItem label={"MOD1"} value={"0-item-properties"}>
                                         <div
                                           style={{
                                             marginTop: ".5rem",
@@ -314,10 +252,7 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                                           string
                                         </div>
                                       </TabItem>
-                                      <TabItem
-                                        label={"MOD2"}
-                                        value={"1-item-properties"}
-                                      >
+                                      <TabItem label={"MOD2"} value={"1-item-properties"}>
                                         <div
                                           style={{
                                             marginTop: ".5rem",
@@ -376,10 +311,7 @@ List[EvaluatorConfigDB]: A list of evaluator configuration objects.
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
                   <ResponseSamples
                     responseExample={
                       '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'

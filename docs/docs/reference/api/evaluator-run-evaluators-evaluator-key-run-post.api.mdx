@@ -25,16 +25,9 @@ import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
 
-<Heading
-  as={"h1"}
-  className={"openapi__heading"}
-  children={"Evaluator Run"}
-></Heading>
+<Heading as={"h1"} className={"openapi__heading"} children={"Evaluator Run"}></Heading>
 
-<MethodEndpoint
-  method={"post"}
-  path={"/evaluators/{evaluator_key}/run"}
-></MethodEndpoint>
+<MethodEndpoint method={"post"} path={"/evaluators/{evaluator_key}/run"}></MethodEndpoint>
 
 Endpoint to evaluate LLM app run
 
@@ -46,23 +39,11 @@ payload (EvaluatorInputInterface): The payload containing the request data.
 Returns:
 result: EvaluatorOutputInterface object containing the outputs.
 
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
-  children={"Request"}
-></Heading>
+<Heading id={"request"} as={"h2"} className={"openapi-tabs__heading"} children={"Request"}></Heading>
 
-<details
-  style={{ marginBottom: "1rem" }}
-  className={"openapi-markdown__details"}
-  data-collapsed={false}
-  open={true}
->
+<details style={{ marginBottom: "1rem" }} className={"openapi-markdown__details"} data-collapsed={false} open={true}>
   <summary style={{}}>
-    <h3 className={"openapi-markdown__details-summary-header-params"}>
-      Path Parameters
-    </h3>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>Path Parameters</h3>
   </summary>
   <div>
     <ul>
@@ -80,16 +61,9 @@ result: EvaluatorOutputInterface object containing the outputs.
 </details>
 <MimeTabs className={"openapi-tabs__mime"}>
   <TabItem label={"application/json"} value={"application/json-schema"}>
-    <details
-      style={{}}
-      className={"openapi-markdown__details mime"}
-      data-collapsed={false}
-      open={true}
-    >
+    <details style={{}} className={"openapi-markdown__details mime"} data-collapsed={false} open={true}>
       <summary style={{}} className={"openapi-markdown__details-summary-mime"}>
-        <h3 className={"openapi-markdown__details-summary-header-body"}>
-          Body
-        </h3>
+        <h3 className={"openapi-markdown__details-summary-header-body"}>Body</h3>
         <strong className={"openapi-schema__required"}>required</strong>
       </summary>
       <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
@@ -146,15 +120,10 @@ result: EvaluatorOutputInterface object containing the outputs.
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
                       <strong>Schema</strong>
                     </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <SchemaItem
                         collapsible={false}
@@ -167,14 +136,8 @@ result: EvaluatorOutputInterface object containing the outputs.
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={'{\n  "outputs": {}\n}'}
-                    language={"json"}
-                  ></ResponseSamples>
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
+                  <ResponseSamples responseExample={'{\n  "outputs": {}\n}'} language={"json"}></ResponseSamples>
                 </TabItem>
               </SchemaTabs>
             </TabItem>
@@ -194,29 +157,17 @@ result: EvaluatorOutputInterface object containing the outputs.
                     data-collapsed={false}
                     open={true}
                   >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
                       <strong>Schema</strong>
                     </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
                     <ul style={{ marginLeft: "1rem" }}>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
+                        <details style={{}} className={"openapi-markdown__details"}>
                           <summary style={{}}>
                             <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                detail
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
+                              <strong className={"openapi-schema__property"}>detail</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
                             </span>
                           </summary>
                           <div style={{ marginLeft: "1rem" }}>
@@ -232,32 +183,14 @@ result: EvaluatorOutputInterface object containing the outputs.
                                 Array [
                               </div>
                             </li>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
                                 <summary style={{}}>
                                   <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      loc
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object[]
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
+                                    <strong className={"openapi-schema__property"}>loc</strong>
+                                    <span className={"openapi-schema__name"}>object[]</span>
+                                    <span className={"openapi-schema__divider"}></span>
+                                    <span className={"openapi-schema__required"}>required</span>
                                   </span>
                                 </summary>
                                 <div style={{ marginLeft: "1rem" }}>
@@ -274,14 +207,9 @@ result: EvaluatorOutputInterface object containing the outputs.
                                     </div>
                                   </li>
                                   <div>
-                                    <span className={"badge badge--info"}>
-                                      anyOf
-                                    </span>
+                                    <span className={"badge badge--info"}>anyOf</span>
                                     <SchemaTabs>
-                                      <TabItem
-                                        label={"MOD1"}
-                                        value={"0-item-properties"}
-                                      >
+                                      <TabItem label={"MOD1"} value={"0-item-properties"}>
                                         <div
                                           style={{
                                             marginTop: ".5rem",
@@ -291,10 +219,7 @@ result: EvaluatorOutputInterface object containing the outputs.
                                           string
                                         </div>
                                       </TabItem>
-                                      <TabItem
-                                        label={"MOD2"}
-                                        value={"1-item-properties"}
-                                      >
+                                      <TabItem label={"MOD2"} value={"1-item-properties"}>
                                         <div
                                           style={{
                                             marginTop: ".5rem",
@@ -353,10 +278,7 @@ result: EvaluatorOutputInterface object containing the outputs.
                     </ul>
                   </details>
                 </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
                   <ResponseSamples
                     responseExample={
                       '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'
