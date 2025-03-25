@@ -1,19 +1,10 @@
 // @ts-nocheck
-import {type ReactNode, type ComponentType, type FC, createElement} from "react"
+import {type ReactNode, type FC} from "react"
 
-import {
-    OpenAI,
-    Mistral,
-    Cohere,
-    Anthropic,
-    Perplexity,
-    Together,
-    OpenRouter,
-    Groq,
-    Gemini,
-} from "@lobehub/icons"
 import {Select} from "antd"
 import {createUseStyles} from "react-jss"
+
+import LLMIcons from "@/oss/components/LLMIcons"
 
 const useStyles = createUseStyles({
     select: {
@@ -32,27 +23,16 @@ interface GroupedSelectProps {
     handleChange: (value: string) => void
 }
 
-const iconMap: Record<string, ComponentType<any>> = {
-    "Open AI": OpenAI,
-    "Mistral AI": Mistral.Color,
-    Cohere: Cohere.Color,
-    Anthropic: Anthropic,
-    "Perplexity AI": Perplexity.Color,
-    "Together AI": Together.Color,
-    OpenRouter: OpenRouter,
-    Groq: Groq,
-    Gemini: Gemini.Color,
-}
-
 const filterOption = (input: string, option?: {label: ReactNode; value: string}) =>
     (option?.value ?? "").toLowerCase().includes(input.toLowerCase())
 
 export const ModelName: FC<{label: string; value: string}> = ({label, value}) => {
     const classes = useStyles()
 
+    const Icon = LLMIcons[value.toLowerCase()]
     return (
         <div className={classes.option}>
-            {iconMap[value] ? createElement(iconMap[value]) : null}
+            {Icon ? <Icon className="w-4 h-4" /> : null}
             {label}
         </div>
     )

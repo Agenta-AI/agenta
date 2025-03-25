@@ -16,7 +16,7 @@ class SecretsDAOInterface:
         self,
         *,
         project_id: UUID,
-        create_secret_do: CreateSecretDTO,
+        create_secret_dto: CreateSecretDTO,
     ) -> SecretResponseDTO:
         raise NotImplementedError
 

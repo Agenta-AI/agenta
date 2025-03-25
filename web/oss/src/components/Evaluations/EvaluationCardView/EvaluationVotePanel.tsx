@@ -1,9 +1,10 @@
-import {Button, ConfigProvider, InputNumber, Spin, Typography, theme} from "antd"
+import {Button, ConfigProvider, InputNumber, Rate, Spin, Typography, theme} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {Variant} from "@/oss/lib/Types"
 
 import {VARIANT_COLORS} from "./assets/styles"
+import {StarFilled} from "@ant-design/icons"
 
 const useStyles = createUseStyles({
     root: {
@@ -287,6 +288,86 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
     )
 }
 
+type RatingVoteProps = NumericScoreVoteProps
+
+const RatingVote: React.FC<RatingVoteProps> = ({
+    variants,
+    onChange,
+    value = [],
+    vertical,
+    showVariantName = true,
+    outputs,
+}) => {
+    const classes = useStyles()
+
+    const _onChange = (variantId: string, score: number | null) => {
+        onChange(
+            variants.map((variant) => ({
+                variantId: variant.variantId,
+                score: variant.variantId === variantId ? score : null,
+            })),
+        )
+    }
+
+    return (
+        <div className={classes.gradeRoot}>
+            {variants.map((variant) => {
+                const score = value.find((item) => item.variantId === variant.variantId)?.score
+                const finalValue = typeof score !== "number" ? null : score / 25 + 1
+
+                return (
+                    <div key={variant.variantId}>
+                        {showVariantName && (
+                            <Typography.Text className={classes.variantName} strong>
+                                {variant.variantName}
+                            </Typography.Text>
+                        )}
+                        <div
+                            className={classes.btnRow}
+                            style={{
+                                flexDirection: vertical ? "column" : undefined,
+                                alignItems: "center",
+                            }}
+                        >
+                            <Rate
+                                defaultValue={finalValue || undefined}
+                                tooltips={["0%", "25%", "50%", "75%", "100%"]}
+                                allowClear={false}
+                                data-cy="evaluation-vote-panel-rating-vote-input"
+                                character={({index = 0, value = 0}) => {
+                                    const rateColors: Record<number, string> = {
+                                        1: "#D61010",
+                                        2: "#FFA940",
+                                        3: "#FADB14",
+                                        4: "#BAE637",
+                                        5: "#73D13D",
+                                    }
+
+                                    return (
+                                        <StarFilled
+                                            style={{
+                                                color:
+                                                    value > index
+                                                        ? rateColors[value] || "#d9d9d9"
+                                                        : "#d9d9d9",
+                                            }}
+                                        />
+                                    )
+                                }}
+                                onChange={(score) => {
+                                    const finalScore = (score - 1) * 25
+                                    _onChange(variant.variantId, finalScore)
+                                }}
+                                disabled={!outputs?.length}
+                            />
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    )
+}
+
 type Props =
     | ({
           type: "binary"
@@ -300,6 +381,9 @@ type Props =
     | ({
           type: "numeric"
       } & NumericScoreVoteProps)
+    | ({
+          type: "rating"
+      } & RatingVoteProps)
 
 const EvaluationVotePanel: React.FC<Props & {loading?: boolean}> = ({type, loading, ...props}) => {
     const classes = useStyles()
@@ -313,6 +397,8 @@ const EvaluationVotePanel: React.FC<Props & {loading?: boolean}> = ({type, loadi
                     <ComparisonVote {...(props as ComparisonVoteProps)} />
                 ) : type === "grading" ? (
                     <GradingVote {...(props as GradingVoteProps)} />
+                ) : type === "rating" ? (
+                    <RatingVote {...(props as RatingVoteProps)} />
                 ) : (
                     <NumericScoreVote {...(props as NumericScoreVoteProps)} />
                 )}

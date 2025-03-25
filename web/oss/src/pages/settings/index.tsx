@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
-import {ApartmentOutlined, KeyOutlined, LockOutlined} from "@ant-design/icons"
+import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
+import {Sparkle} from "@phosphor-icons/react"
 import {Space, Tabs, Typography} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -65,7 +66,7 @@ const Settings: React.FC = () => {
         {
             label: (
                 <Space>
-                    <LockOutlined />
+                    <Sparkle size={14} />
                     LLM Keys
                 </Space>
             ),

@@ -3,9 +3,30 @@ from enum import Enum
 
 class SecretKind(str, Enum):
     PROVIDER_KEY = "provider_key"
+    CUSTOM_PROVIDER = "custom_provider"
 
 
-class ProviderKind(str, Enum):
+class StandardProviderKind(str, Enum):
+    OPENAI = "openai"
+    COHERE = "cohere"
+    ANYSCALE = "anyscale"
+    DEEPINFRA = "deepinfra"
+    ALEPHALPHA = "alephalpha"
+    GROQ = "groq"
+    MISTRALAI = "mistralai"
+    ANTHROPIC = "anthropic"
+    PERPLEXITYAI = "perplexityai"
+    TOGETHERAI = "togetherai"
+    OPENROUTER = "openrouter"
+    GEMINI = "gemini"
+
+
+class CustomProviderKind(str, Enum):
+    CUSTOM = "custom"
+    AZURE = "azure"
+    BEDROCK = "bedrock"
+    SAGEMAKER = "sagemaker"
+    VERTEX = "vertex"
     OPENAI = "openai"
     COHERE = "cohere"
     ANYSCALE = "anyscale"

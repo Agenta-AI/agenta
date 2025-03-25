@@ -437,3 +437,24 @@ export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
 }
 
 export const getUsernameFromEmail = (email: string) => email.split("@")[0]
+
+export const removeEmptyFromObjects = (obj: any): any => {
+    if (Array.isArray(obj)) {
+        return obj
+            .map(removeEmptyFromObjects)
+            .filter((item) => item && (typeof item !== "object" || Object.keys(item).length))
+    }
+    if (obj && typeof obj === "object") {
+        return Object.entries(obj).reduce(
+            (acc, [key, value]) => {
+                const cleaned = removeEmptyFromObjects(value)
+                if (cleaned !== null && cleaned !== undefined && cleaned !== "") {
+                    acc[key] = cleaned
+                }
+                return acc
+            },
+            {} as Record<string, any>,
+        )
+    }
+    return obj
+}

@@ -319,22 +319,27 @@ export type HeaderDTO = {
     description?: string | null
 }
 
-export type SecretDTO = {
-    kind: SecretDTOKind
-    data: {
+export type StandardSecret = {
+    kind: SecretDTOProvider
+    provider: {
         key: string
-        provider: SecretDTOProvider
     }
 }
 
-type LifecycleDTO = {
-    created_at?: string | null
-    updated_at?: string | null
-    updated_by_id?: string | null
-}
+export type StandardSecretDTO<T extends "payload" | "response" = "response"> = {
+    header: HeaderDTO
+} & (T extends "payload"
+    ? {secret: {data: StandardSecret; kind: SecretDTOKind.PROVIDER_KEY}}
+    : {
+          kind: SecretDTOKind.PROVIDER_KEY
+          data: StandardSecret
+          id: string
+          lifecycle: {created_at: string}
+      })
 
 export enum SecretDTOKind {
     PROVIDER_KEY = "provider_key",
+    CUSTOM_PROVIDER_KEY = "custom_provider",
 }
 
 export enum SecretDTOProvider {
@@ -352,12 +357,39 @@ export enum SecretDTOProvider {
     GEMINI = "gemini",
 }
 
-export type VaultSecretDTO = {
-    header?: HeaderDTO | null
-    secret: SecretDTO
-    id: string
-    lifecycle: LifecycleDTO
+interface VaultModels {
+    slug: string
 }
+interface VaultProvider {
+    url: string
+    version: string
+    extras: {
+        aws_access_key_id?: string
+        aws_secret_access_key?: string
+        aws_session_token?: string
+        aws_region_name?: string
+        api_key?: string
+    }
+}
+
+type VaultData = {
+    kind: string
+    provider: VaultProvider
+    models: VaultModels[]
+    model_keys: string[]
+    provider_slug: string
+}
+
+export type CustomSecretDTO<T extends "payload" | "response" = "response"> = {
+    header: HeaderDTO
+} & (T extends "payload"
+    ? {secret: {kind: SecretDTOKind.CUSTOM_PROVIDER_KEY; data: VaultData}}
+    : {
+          kind: SecretDTOKind.CUSTOM_PROVIDER_KEY
+          data: VaultData
+          id: string
+          lifecycle: {created_at: string}
+      })
 
 export interface AppTemplate {
     app_name: string
