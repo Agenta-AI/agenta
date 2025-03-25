@@ -7,7 +7,7 @@
         "tests"
     ],
     "dependencies": {
-        "next": "^15.2.1"
+        "next": "^15.2.3"
     },
     "devDependencies": {
         "@agenta/ee": "workspace:./ee",
