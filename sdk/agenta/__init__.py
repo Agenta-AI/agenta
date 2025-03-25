@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional
 
 from .sdk.utils.preinit import PreInitObject
 
-import agenta.client.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
 
 from .sdk.types import (
     MCField,
@@ -27,7 +27,6 @@ from .sdk.tracing.conventions import Reference
 from .sdk.decorators.routing import entrypoint, app, route
 from .sdk.agenta_init import Config, AgentaSingleton, init as _init
 from .sdk.utils.costs import calculate_token_usage
-from .sdk.client import Agenta
 from .sdk.litellm import litellm as callbacks
 from .sdk.managers.apps import AppManager
 from .sdk.managers.vault import VaultManager

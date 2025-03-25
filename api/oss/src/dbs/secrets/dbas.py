@@ -20,5 +20,5 @@ class SecretsDBA(ProjectScopeDBA, LifecycleDBA, HeaderDBA):
         unique=True,
         nullable=False,
     )
-    kind = Column(SQLEnum(SecretKind))  # type: ignore
+    kind = Column(SQLEnum(SecretKind, name="secretkind_enum"))  # type: ignore
     data = Column(PGPString())  # type: ignore

@@ -89,8 +89,8 @@ class SecretsDAO(SecretsDAOInterface):
             await session.commit()
             await session.refresh(secrets_dbe)
 
-        updated_secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
-        return updated_secrets_dto
+            updated_secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+            return updated_secrets_dto
 
     async def delete(
         self,

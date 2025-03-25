@@ -1,4 +1,4 @@
-openai
 agenta
 uvicorn
-google-generativeai
+boto3
+litellm==1.63.12

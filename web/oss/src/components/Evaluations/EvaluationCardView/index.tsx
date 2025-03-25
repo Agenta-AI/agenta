@@ -356,7 +356,7 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
                                         />
                                     ) : (
                                         <EvaluationVotePanel
-                                            type="numeric"
+                                            type="rating"
                                             value={[
                                                 {
                                                     variantId: variants[0].variantId,

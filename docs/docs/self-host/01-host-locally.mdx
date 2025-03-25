@@ -58,17 +58,19 @@ You need at least to rebuild the web image because the port is hardcoded at buil
 
 ## Upgrading to the Latest Version of Agenta
 
-To update your local Agenta installation to the most recent version, use the following command:
+Updating your local Agenta installation to the latest version, requires pulling the latest version with `--pull always` and running migrations if any.
 
+1. Pull the latest version:
 ```bash
-docker compose -f docker-compose.gh.yml --env-file .env.oss.gh up -d  --profile with-web --pull always
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web up -d --pull always
 ```
 
-`--pull always` instructs Docker to fetch the latest images before starting the containers, ensuring you're running the most up-to-date version of Agenta.
+2. Run migrations if needed:
+```bash
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations agenta-oss-gh-api-1 alembic -c alembic.oss.ini upgrade head
+```
 
-## Migrations 
-
-The system will automatically handle database migrations. If you encounter migration issues, consult the [migration guide](/self-host/applying-schema-migration).
+Consult the [migration guide](/self-host/applying-schema-migration) for more details.
 
 ## Troubleshooting
 

@@ -1,7 +1,7 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {transformSecret} from "@/oss/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
-import {HeaderDTO, SecretDTO, VaultSecretDTO} from "@/oss/lib/Types"
+import {StandardSecretDTO, CustomSecretDTO} from "@/oss/lib/Types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -10,33 +10,28 @@ import {HeaderDTO, SecretDTO, VaultSecretDTO} from "@/oss/lib/Types"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-type VaultPayload = {
-    header: HeaderDTO
-    secret: SecretDTO
-}
-
 export const fetchVaultSecret = async () => {
     const response = await axios.get(`${getAgentaApiUrl()}/api/vault/v1/secrets`)
-    return transformSecret(response.data as VaultSecretDTO[])
+    return transformSecret(response.data as StandardSecretDTO[] | CustomSecretDTO[])
 }
 
-export const createVaultSecret = async ({payload}: {payload: VaultPayload}) => {
+export const createVaultSecret = async <T>({payload}: {payload: T}) => {
     const response = await axios.post(`${getAgentaApiUrl()}/api/vault/v1/secrets`, payload)
-    return response.data as VaultSecretDTO
+    return response.data as T
 }
 
-export const updateVaultSecret = async ({
+export const updateVaultSecret = async <T>({
     secret_id,
     payload,
 }: {
     secret_id: string
-    payload: VaultPayload
+    payload: T
 }) => {
     const response = await axios.put(
         `${getAgentaApiUrl()}/api/vault/v1/secrets/${secret_id}`,
         payload,
     )
-    return response.data as VaultSecretDTO
+    return response.data as T
 }
 
 export const deleteVaultSecret = async ({secret_id}: {secret_id: string}) => {

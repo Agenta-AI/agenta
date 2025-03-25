@@ -7,7 +7,7 @@ This guide provides step-by-step instructions for applying schema migration to u
 
 ## Applying the Migration
 
-To apply schema migrations, first determine the name of the API container (e.g. `agenta-oss-api-1`) then run the following command:
+To apply schema migrations, first determine the name of the API container (e.g. `agenta-oss-gh-api-1`) then run the following command:
 
 ```bash
 docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations <api-container-name> alembic -c alembic.oss.ini upgrade head
