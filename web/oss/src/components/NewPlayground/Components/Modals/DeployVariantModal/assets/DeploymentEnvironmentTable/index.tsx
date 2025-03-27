@@ -37,19 +37,21 @@ const DeploymentEnvironmentTable = ({
                 }),
                 render: (_, record) => {
                     return (
-                        <>
-                            {record.deployed_app_variant_id ? (
+                        <div className="flex items-center justify-start">
+                            {record.deployed_app_variant_revision_id ? (
                                 <DeploymentTag
                                     deploymentName="Variant"
-                                    deployedVariantId={variantId}
-                                    className="w-[140px] flex items-center justify-center"
+                                    deployedVariantId={
+                                        record.deployed_app_variant_revision_id as string
+                                    }
+                                    className="flex items-center justify-center"
                                 />
                             ) : (
                                 <Tag color="default" bordered={false}>
                                     No deployment
                                 </Tag>
                             )}
-                        </>
+                        </div>
                     )
                 },
             },

@@ -54,8 +54,10 @@ const useMigrateVaultKeys = ({
         if (user && !migrationStatus.migrating && !migrationStatus.migrated) {
             setMigrationStatus({migrating: true, migrated: false})
             migrateProviderKeys()
+        } else if (!user && (migrationStatus.migrated || migrationStatus.migrating)) {
+            setMigrationStatus({migrating: false, migrated: false})
         }
-    }, [migrationStatus.migrating])
+    }, [migrationStatus.migrating, user, migrationStatus.migrated])
 
     const migrateProviderKeys = async () => {
         try {
