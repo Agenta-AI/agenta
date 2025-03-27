@@ -1,3 +1,4 @@
+import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {Tag, type TagProps} from "antd"
 import clsx from "clsx"
 
@@ -25,7 +26,7 @@ const DeploymentTag: React.FC<Props> = ({
             <div className="w-1.5 h-1.5 bg-[#070f03] rounded-full" />
             {deploymentName} {" - "}
             {revision && `v${revision}`}
-            {deployedVariantId && `#${deployedVariantId.slice(0, 7)}`}
+            {deployedVariantId && formatVariantIdWithHash(deployedVariantId)}
         </Tag>
     )
 }

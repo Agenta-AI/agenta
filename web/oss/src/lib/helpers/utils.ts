@@ -411,7 +411,8 @@ export const filterVariantParameters = ({
 }
 
 export const formatVariantIdWithHash = (variantId: string) => {
-    return `# ${variantId.split("-")[0]}`
+    const parts = variantId.split("-")
+    return `# ${parts[parts.length - 1]}`
 }
 
 export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {

@@ -66,7 +66,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
             >
                 <Badge
                     color={token.colorPrimary}
-                    text={formatVariantIdWithHash(env.deployed_app_variant_id as string)}
+                    text={formatVariantIdWithHash(env.deployed_app_variant_revision_id as string)}
                 />
             </Tag>
         </Popover>
