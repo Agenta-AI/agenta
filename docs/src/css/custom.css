@@ -7,7 +7,7 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: hsl(210, 11%, 46%);
+  --ifm-color-primary: #6b7280;
   --ifm-color-primary-dark: hsl(209, 13%, 40%);
   --ifm-color-primary-darker: hsl(210, 21%, 28%);
   --ifm-color-primary-darkest: hsl(211, 37%, 17%);
@@ -284,6 +284,7 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   line-height: 22px;
   font-weight: 400;
   color: var(--ifm-color-primary);
+  padding: 4px;
 }
 .menu__link--active {
   font-weight: 500;
@@ -534,6 +535,61 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 }
 [data-theme="dark"] .medium-zoom-image--opened {
   border: 1px solid rgba(255, 255, 255, 0.096);
+}
+
+/* Scrollbar improvements - completely hide the track */
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+  background-color: transparent !important;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.4) !important;
+  border-radius: 3px !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(128, 128, 128, 0.6) !important;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background-color: rgba(170, 170, 170, 0.4) !important;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(170, 170, 170, 0.6) !important;
+}
+
+/* Ensure the scrollbar container is also transparent */
+.thin-scrollbar,
+.menu__list,
+.theme-doc-sidebar-menu,
+div[class*='docSidebarContainer'],
+div[class*='sidebar'],
+div[class*='scrollbar'] {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(128, 128, 128, 0.4) transparent !important;
+}
+
+[data-theme='dark'] .thin-scrollbar,
+[data-theme='dark'] .menu__list,
+[data-theme='dark'] .theme-doc-sidebar-menu,
+[data-theme='dark'] div[class*='docSidebarContainer'],
+[data-theme='dark'] div[class*='sidebar'],
+[data-theme='dark'] div[class*='scrollbar'] {
+  scrollbar-color: rgba(170, 170, 170, 0.4) transparent !important;
 }
 
 [class*="cardTitle"] {
