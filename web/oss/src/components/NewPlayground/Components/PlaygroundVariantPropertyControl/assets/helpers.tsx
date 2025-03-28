@@ -1,4 +1,5 @@
 import {Tooltip, Typography} from "antd"
+import dynamic from "next/dynamic"
 
 import {EnhancedConfigValue} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 
@@ -12,6 +13,8 @@ import PlaygroundVariantPropertyControlWrapper from "./PlaygroundVariantProperty
 import PromptMessageContent from "./PromptMessageContent"
 import SimpleDropdownSelect from "./SimpleDropdownSelect"
 import TextControl from "./TextControl"
+
+const SelectLLMProvider = dynamic(() => import("@/oss/components/SelectLLMProvider"), {ssr: false})
 
 const updateArrayItem = (
     array: EnhancedConfigValue<ArrayItemValue>[],
@@ -78,6 +81,21 @@ export const renderMap: RenderFunctions = {
                         description={metadata.description}
                         withTooltip={withTooltip}
                         disabled={disabled}
+                    />
+                )
+            }
+
+            if (metadata.title === "Model") {
+                return (
+                    <SelectLLMProvider
+                        showGroup
+                        showAddProvider
+                        showCustomSecretsOnOptions
+                        options={metadata.options}
+                        value={value}
+                        onChange={handleChange}
+                        disabled={disabled}
+                        className="my-4"
                     />
                 )
             }

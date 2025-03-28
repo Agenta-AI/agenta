@@ -29,6 +29,7 @@ class VaultRouter:
             self.create_secret,
             methods=["POST"],
             operation_id="create_secret",
+            response_model_exclude_none=True,
             response_model=SecretResponseDTO,
         )
         self.router.add_api_route(
@@ -36,6 +37,7 @@ class VaultRouter:
             self.list_secrets,
             methods=["GET"],
             operation_id="list_secrets",
+            response_model_exclude_none=True,
             response_model=List[SecretResponseDTO],
         )
         self.router.add_api_route(
@@ -43,6 +45,7 @@ class VaultRouter:
             self.read_secret,
             methods=["GET"],
             operation_id="read_secret",
+            response_model_exclude_none=True,
             response_model=SecretResponseDTO,
         )
         self.router.add_api_route(
@@ -50,6 +53,7 @@ class VaultRouter:
             self.update_secret,
             methods=["PUT"],
             operation_id="update_secret",
+            response_model_exclude_none=True,
             response_model=SecretResponseDTO,
         )
         self.router.add_api_route(

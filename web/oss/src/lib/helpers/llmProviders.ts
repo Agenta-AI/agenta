@@ -1,12 +1,78 @@
-import {SecretDTOProvider, VaultSecretDTO} from "../Types"
+import {StandardSecretDTO, CustomSecretDTO, SecretDTOKind} from "../Types"
 
 export const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
 export type LlmProvider = {
-    title: string
-    key: string
-    name: string
+    title?: string
+    key?: string
+    provider?: string
+    name?: string
+    apiKey?: string
+    apiBaseUrl?: string
+    version?: string
+    accessKeyId?: string
+    accessKey?: string
+    region?: string
+    sessionToken?: string
+    models?: string[]
+    modelKeys?: string[]
     id?: string
+    type?: `${SecretDTOKind}`
+    created_at?: string
+}
+
+export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]) => {
+    return secrets.reduce((acc, curr) => {
+        if (curr.kind == SecretDTOKind.PROVIDER_KEY) {
+            const secret = curr as StandardSecretDTO
+
+            const name = secret.data.kind
+            const key = secret.data.provider.key
+            const provider = secret.data.kind
+
+            const envNameMap: Record<string, string> = {
+                openai: "OPENAI_API_KEY",
+                cohere: "COHERE_API_KEY",
+                anyscale: "ANYSCALE_API_KEY",
+                deepinfra: "DEEPINFRA_API_KEY",
+                alephalpha: "ALEPHALPHA_API_KEY",
+                groq: "GROQ_API_KEY",
+                mistralai: "MISTRAL_API_KEY",
+                anthropic: "ANTHROPIC_API_KEY",
+                perplexityai: "PERPLEXITYAI_API_KEY",
+                togetherai: "TOGETHERAI_API_KEY",
+                openrouter: "OPENROUTER_API_KEY",
+                gemini: "GEMINI_API_KEY",
+            }
+
+            acc.push({
+                title: name || "",
+                key: key,
+                name: envNameMap[provider] || "",
+                id: secret.id,
+                type: secret.kind,
+            })
+        } else if (curr.kind === SecretDTOKind.CUSTOM_PROVIDER_KEY) {
+            const secret = curr as CustomSecretDTO
+            acc.push({
+                name: secret.header.name || "",
+                id: secret.id,
+                type: secret.kind,
+                provider: secret.data?.kind,
+                apiKey: secret.data.provider.extras?.api_key || "",
+                apiBaseUrl: secret.data.provider.url || "",
+                accessKeyId: secret.data.provider.extras?.aws_access_key_id || "",
+                accessKey: secret.data.provider.extras?.aws_secret_access_key || "",
+                sessionToken: secret.data.provider.extras?.aws_session_token || "",
+                region: secret.data.provider.extras?.aws_region_name || "",
+                models: secret?.data.models.map((model) => model.slug),
+                modelKeys: secret?.data.model_keys,
+                version: secret.data.provider?.version || "",
+                created_at: secret.lifecycle?.created_at || "",
+            })
+        }
+        return acc
+    }, [] as LlmProvider[])
 }
 
 export const llmAvailableProviders: LlmProvider[] = [
@@ -24,33 +90,29 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Gemini", key: "", name: "GEMINI_API_KEY"},
 ]
 
-export const transformSecret = (secrets: VaultSecretDTO[]) => {
-    return secrets.reduce((acc, curr) => {
-        const name = curr.header?.name
-        const {key, provider} = curr.secret.data
-
-        const envNameMap: Record<string, string> = {
-            [SecretDTOProvider.OPENAI]: "OPENAI_API_KEY",
-            [SecretDTOProvider.COHERE]: "COHERE_API_KEY",
-            [SecretDTOProvider.ANYSCALE]: "ANYSCALE_API_KEY",
-            [SecretDTOProvider.DEEPINFRA]: "DEEPINFRA_API_KEY",
-            [SecretDTOProvider.ALEPHALPHA]: "ALEPHALPHA_API_KEY",
-            [SecretDTOProvider.GROQ]: "GROQ_API_KEY",
-            [SecretDTOProvider.MISTRALAI]: "MISTRAL_API_KEY",
-            [SecretDTOProvider.ANTHROPIC]: "ANTHROPIC_API_KEY",
-            [SecretDTOProvider.PERPLEXITYAI]: "PERPLEXITYAI_API_KEY",
-            [SecretDTOProvider.TOGETHERAI]: "TOGETHERAI_API_KEY",
-            [SecretDTOProvider.OPENROUTER]: "OPENROUTER_API_KEY",
-            [SecretDTOProvider.GEMINI]: "GEMINI_API_KEY",
-        }
-
-        acc.push({
-            title: name || "",
-            key: key,
-            name: envNameMap[provider] || "",
-            id: curr.id,
-        })
-
-        return acc
-    }, [] as LlmProvider[])
+export const transformCustomProviderPayloadData = (values: LlmProvider) => {
+    return {
+        header: {
+            name: values.name,
+            description: values.name,
+        },
+        secret: {
+            kind: SecretDTOKind.CUSTOM_PROVIDER_KEY,
+            data: {
+                kind: values.provider?.toLowerCase(),
+                provider: {
+                    url: values.apiBaseUrl,
+                    version: values.version,
+                    extras: {
+                        aws_access_key_id: values.accessKeyId,
+                        aws_secret_access_key: values.accessKey,
+                        aws_session_token: values.sessionToken,
+                        api_key: values.apiKey,
+                        aws_region_name: values.region,
+                    },
+                },
+                models: values.models?.map((slug) => ({slug})),
+            },
+        },
+    } as CustomSecretDTO<"payload">
 }

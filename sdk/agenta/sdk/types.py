@@ -1,14 +1,12 @@
 import json
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Union
+from typing import List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-
-from agenta.client.types.agenta_node_dto import AgentaNodeDto
-from agenta.client.types.agenta_nodes_response import AgentaNodesResponse
-from typing import Annotated, List, Union, Optional, Dict, Literal, Any
 from pydantic import BaseModel, Field, model_validator
+
 from agenta.sdk.assets import supported_llm_models
+from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
 
 
 @dataclass
@@ -543,8 +541,7 @@ class PromptTemplate(BaseModel):
     def to_openai_kwargs(self) -> dict:
         """Convert the prompt template to kwargs compatible with litellm/openai"""
         kwargs = {
-            "model": self.llm_config.model,
-            "messages": [msg.dict(exclude_none=True) for msg in self.messages],
+            "messages": [msg.model_dump(exclude_none=True) for msg in self.messages],
         }
 
         # Add optional parameters only if they are set

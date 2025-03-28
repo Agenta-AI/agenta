@@ -27,9 +27,6 @@ const COMMON_CONFIG: NextConfig = {
     ...(!isDevelopment
         ? {
               transpilePackages: [
-                  "@lobehub/ui",
-                  "@lobehub/icons",
-                  "@lobehub/fluent-emoji",
                   "rc-util",
                   "antd",
                   "rc-pagination",
@@ -67,7 +64,6 @@ const COMMON_CONFIG: NextConfig = {
               },
           }
         : {
-              transpilePackages: ["@lobehub/ui", "@lobehub/icons", "@lobehub/fluent-emoji"],
               experimental: {
                   turbo: {
                       root: path.resolve(__dirname, ".."),

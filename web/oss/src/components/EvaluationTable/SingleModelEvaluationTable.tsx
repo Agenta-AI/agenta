@@ -100,10 +100,14 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
     }, [evaluationScenarios])
 
     useEffect(() => {
-        const filtered = rows.filter((row) => row.score !== null)
-        const avg =
-            filtered.reduce((acc, val) => acc + (val.score as number), 0) / (filtered.length || 1)
-        setAccuracy(avg)
+        const filtered = rows.filter((row) => typeof row.score === "number" && !isNaN(row.score))
+
+        if (filtered.length > 0) {
+            const avg = filtered.reduce((acc, val) => acc + Number(val.score), 0) / filtered.length
+            setAccuracy(avg)
+        } else {
+            setAccuracy(0)
+        }
     }, [rows])
 
     useEffect(() => {
@@ -390,7 +394,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                     <>
                         {
                             <EvaluationVotePanel
-                                type="numeric"
+                                type="rating"
                                 value={[
                                     {
                                         variantId: variants[0].variantId,

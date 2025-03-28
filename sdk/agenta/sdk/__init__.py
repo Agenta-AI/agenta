@@ -2,7 +2,7 @@ from typing import Optional, Callable, Any
 
 from .utils.preinit import PreInitObject  # always the first import!
 
-import agenta.client.types as client_types  # pylint: disable=wrong-import-order
+import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
 
 from .types import (
     DictInput,

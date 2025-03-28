@@ -4,7 +4,7 @@ import json
 from oss.src.dbs.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
     HeaderDTO,
-    SecretDTO,
+    SecretKind,
     LifecycleDTO,
     CreateSecretDTO,
     UpdateSecretDTO,
@@ -19,8 +19,8 @@ def map_secrets_dto_to_dbe(
         name=secret_dto.header.name if secret_dto.header else None,
         description=(secret_dto.header.description if secret_dto.header else None),
         project_id=project_id,
-        kind=secret_dto.secret.kind,
-        data=json.dumps(secret_dto.secret.data.model_dump()),
+        kind=secret_dto.secret.kind.value,
+        data=json.dumps(secret_dto.secret.data.model_dump(exclude_none=True)),
     )
     return vault_secret_dbe
 
@@ -40,9 +40,7 @@ def map_secrets_dto_to_dbe_update(
             exclude_none=True
         ).items():
             if key == "data" and hasattr(secrets_dbe, key):
-                secrets_dbe.data = json.dumps(
-                    update_secret_dto.secret.data.model_dump()
-                )
+                secrets_dbe.data = update_secret_dto.secret.data.model_dump_json()
             elif hasattr(secrets_dbe, key):
                 setattr(secrets_dbe, key, value)
 
@@ -50,16 +48,13 @@ def map_secrets_dto_to_dbe_update(
 def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
     vault_secret_dto = SecretResponseDTO(
         id=secrets_dbe.id,  # type: ignore
-        header=HeaderDTO(
-            name=secrets_dbe.name, description=secrets_dbe.description  # type: ignore
-        ),
-        secret=SecretDTO(
-            kind=secrets_dbe.kind,
-            data=json.loads(secrets_dbe.data),  # type: ignore
-        ),
+        kind=SecretKind(secrets_dbe.kind).value,
+        data=json.loads(secrets_dbe.data),  # type: ignore
+        header=HeaderDTO(name=secrets_dbe.name, description=secrets_dbe.description),
         lifecycle=LifecycleDTO(
             created_at=secrets_dbe.created_at,
             updated_at=secrets_dbe.updated_at,  # type: ignore
         ),
     )
+
     return vault_secret_dto
