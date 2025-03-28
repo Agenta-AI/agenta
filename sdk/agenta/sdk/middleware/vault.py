@@ -22,8 +22,7 @@ import agenta as ag
 _PROVIDER_KINDS = []
 
 for provider_kind in StandardProviderKind.__args__[0].__args__:  # type: ignore
-    if hasattr(provider_kind, "__args__"):
-        _PROVIDER_KINDS.extend(provider_kind.__args__)
+    _PROVIDER_KINDS.append(provider_kind)
 
 _CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
