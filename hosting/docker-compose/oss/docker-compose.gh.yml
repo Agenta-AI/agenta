@@ -54,9 +54,9 @@ x-shared-environment: &shared-environment
     BARE_DOMAIN_NAME: ${BARE_DOMAIN_NAME:-localhost}
     DOMAIN_NAME: ${DOMAIN_NAME:-http://localhost}
     WEBSITE_DOMAIN_NAME: ${WEBSITE_DOMAIN_NAME:-http://localhost}
-    AGENTA_HOST: ${AGENTA_HOST:-http://host.docker.internal:${AGENTA_PORT:-81}}
+    AGENTA_HOST: ${AGENTA_HOST:-http://host.docker.internal:81}
     AGENTA_TEMPLATE_REPO: ${AGENTA_TEMPLATE_REPO:-agentaai/templates_v2}
-    SERVICE_URL_TEMPLATE: ${SERVICE_URL_TEMPLATE:-http://localhost:${AGENTA_PORT:-81}/services/{path}}
+    SERVICE_URL_TEMPLATE: ${SERVICE_URL_TEMPLATE:-http://localhost:81/services/{path}}
     ALEMBIC_CFG_PATH: ${ALEMBIC_CFG_PATH:-/app/oss/databases/postgres/migrations/alembic.oss.ini}
     POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
 
