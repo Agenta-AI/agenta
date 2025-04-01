@@ -1,15 +1,72 @@
 name: agenta-oss-gh
 
+x-shared-environment: &shared-environment
+    # External
+    REGISTRY_REPO_NAME: ${REGISTRY_REPO_NAME:-agentaai}
+    TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
+    DOCKER_HUB_URL: ${DOCKER_HUB_URL:-https://hub.docker.com/v2/repositories}
+
+    # Supertokens
+    SUPERTOKENS_CONNECTION_URI: ${SUPERTOKENS_CONNECTION_URI:-http://host.docker.internal:3567}
+    SUPERTOKENS_API_KEY: ${SUPERTOKENS_API_KEY:-}
+    GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+    GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+    GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:-}
+    GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:-}
+
+    # LLM Provider Keys
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+    COHERE_API_KEY: ${COHERE_API_KEY:-}
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ANYSCALE_API_KEY: ${ANYSCALE_API_KEY:-}
+    PERPLEXITYAI_API_KEY: ${PERPLEXITYAI_API_KEY:-}
+    DEEPINFRA_API_KEY: ${DEEPINFRA_API_KEY:-}
+    TOGETHERAI_API_KEY: ${TOGETHERAI_API_KEY:-}
+    ALEPHALPHA_API_KEY: ${ALEPHALPHA_API_KEY:-}
+    OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    GROQ_API_KEY: ${GROQ_API_KEY:-}
+    GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+
+    # Mail Specific
+    SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+    SEND_EMAIL_FROM_ADDRESS: ${SEND_EMAIL_FROM_ADDRESS:-}
+
+    # Database & Message Queue
+    POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    POSTGRES_DB: ${POSTGRES_DB:-agenta_oss}
+    POSTGRES_URI: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/agenta_oss
+    POSTGRESQL_CONNECTION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/supertokens_oss
+    RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+    RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}@rabbitmq//
+    REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+    CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+
+    # Agenta Specific
+    AGENTA_AUTH_KEY: ${AGENTA_AUTH_KEY:-}
+    AGENTA_CRYPT_KEY: ${AGENTA_CRYPT_KEY:-}
+    AGENTA_RUNTIME_PREFIX: ${AGENTA_RUNTIME_PREFIX:-}
+    AGENTA_PORT: ${AGENTA_PORT:-81}
+    FEATURE_FLAG: ${FEATURE_FLAG:-oss}
+    ENVIRONMENT: ${ENVIRONMENT:-production}
+    BARE_DOMAIN_NAME: ${BARE_DOMAIN_NAME:-localhost}
+    DOMAIN_NAME: ${DOMAIN_NAME:-http://localhost}
+    WEBSITE_DOMAIN_NAME: ${WEBSITE_DOMAIN_NAME:-http://localhost}
+    AGENTA_HOST: ${AGENTA_HOST:-http://host.docker.internal:${AGENTA_PORT:-81}}
+    AGENTA_TEMPLATE_REPO: ${AGENTA_TEMPLATE_REPO:-agentaai/templates_v2}
+    SERVICE_URL_TEMPLATE: ${SERVICE_URL_TEMPLATE:-http://localhost:${AGENTA_PORT:-81}/services/{path}}
+    ALEMBIC_CFG_PATH: ${ALEMBIC_CFG_PATH:-/app/oss/databases/postgres/migrations/alembic.oss.ini}
+    POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
+
 services:
     web:
-        profiles:
-            - with-web
-
         build:
             context: ../../../web
             dockerfile: oss/docker/Dockerfile.gh
             args:
-                - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}
+                - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-81}
                 - NEXT_PUBLIC_FF="testing this value"
                 - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=${TELEMETRY_ENABLED:-true}
                 - NEXT_PUBLIC_POSTHOG_API_KEY=${POSTHOG_API_KEY}
@@ -18,8 +75,6 @@ services:
 
         ports:
             - "3000:3000"
-        networks:
-            - agenta-network
         labels:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
@@ -38,8 +93,6 @@ services:
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
 
-        networks:
-            - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
@@ -50,12 +103,9 @@ services:
             - "traefik.http.routers.api.middlewares=api-strip"
             - "traefik.http.services.api.loadbalancer.server.port=8000"
             - "traefik.http.routers.api.service=api"
-            # - "traefik.http.routers.api.tls=true"
-            # - "traefik.http.routers.api.tls.certresolver=myResolver"
-            # - "traefik.http.routers.api.entrypoints=web-secure"
 
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            << : *shared-environment
 
         command:
             [
@@ -89,14 +139,12 @@ services:
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
 
-        networks:
-            - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
 
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-        
+        environment:
+            << : *shared-environment
+
         command: >
             celery -A entrypoint.celery_app worker --concurrency=1 --loglevel=INFO
 
@@ -116,11 +164,9 @@ services:
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
 
-        networks:
-            - agenta-network
 
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            << : *shared-environment
 
         command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import run_alembic_migration; run_alembic_migration()'"
         
@@ -135,8 +181,6 @@ services:
 
         image: ghcr.io/agenta-ai/agenta-completion
 
-        networks:
-            - agenta-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
@@ -148,8 +192,8 @@ services:
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
         
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            << : *shared-environment
 
         command: ["python", "oss/src/main.py"]
 
@@ -162,8 +206,6 @@ services:
 
         image: ghcr.io/agenta-ai/agenta-chat
 
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
@@ -174,8 +216,9 @@ services:
             - "traefik.http.routers.chat.middlewares=chat-strip"
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
-        networks:
-            - agenta-network
+
+        environment:
+            << : *shared-environment
 
         command: ["python", "oss/src/main.py"]
 
@@ -189,17 +232,15 @@ services:
             - ../../../api/oss/databases/postgres/init-db-oss.sql:/docker-entrypoint-initdb.d/init-db.sql
 
         restart: always
-        networks:
-            - agenta-network
         
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            << : *shared-environment
 
         ports:
             - "5432:5432"
 
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
+            test: ["CMD-SHELL", "pg_isready -U postgres -d agenta_oss"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -210,11 +251,9 @@ services:
         volumes:
             - rabbitmq-data:/var/lib/rabbitmq
 
-        networks:
-            - agenta-network
 
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            << : *shared-environment
         
         ports:
             - "5672:5672"
@@ -227,8 +266,6 @@ services:
         volumes:
             - redis-data:/data
 
-        networks:
-            - agenta-network
 
         restart: always
 
@@ -237,15 +274,12 @@ services:
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-
-        networks:
-            - agenta-network
         
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-81}
         
         ports:
-            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
-            - "8080:8080"
+            - "${AGENTA_PORT:-81}:${AGENTA_PORT:-81}"
+            - "8081:8080"
         
         restart: always
 
@@ -257,11 +291,9 @@ services:
                 condition: service_healthy
         ports:
             - 3567:3567
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            << : *shared-environment
 
-        networks:
-            - agenta-network
         healthcheck:
             test: >
                 bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
@@ -269,9 +301,6 @@ services:
             timeout: 5s
             retries: 5
         restart: always
-
-networks:
-    agenta-network:
     
 volumes:
     postgres-data:

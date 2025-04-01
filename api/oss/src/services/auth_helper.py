@@ -142,6 +142,9 @@ async def _authenticate(request: Request):
             # NEW / BEARER TOKEN
             await verify_bearer_token(request=request, project_id=project_id)
 
+        else:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
 
 async def verify_bearer_token(request: Request, project_id: str):
     try:
