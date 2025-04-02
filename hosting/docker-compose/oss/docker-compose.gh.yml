@@ -126,7 +126,7 @@ services:
             postgres:
                 condition: service_healthy
             alembic:
-                condition: service_completed_successfully
+                condition: service_healthy
         restart: always
 
     worker:
@@ -168,11 +168,17 @@ services:
         environment:
             << : *shared-environment
 
-        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import run_alembic_migration; run_alembic_migration()'"
+        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import run_alembic_migration; run_alembic_migration()' && touch /tmp/migrations_complete && tail -f /dev/null"
         
         depends_on:
             postgres:
                 condition: service_healthy
+
+        healthcheck:
+            test: ["CMD-SHELL", "test -f /tmp/migrations_complete"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
     completion:
         build: 
