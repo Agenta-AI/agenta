@@ -7,7 +7,7 @@ x-shared-environment: &shared-environment
     DOCKER_HUB_URL: ${DOCKER_HUB_URL:-https://hub.docker.com/v2/repositories}
 
     # Supertokens
-    SUPERTOKENS_CONNECTION_URI: ${SUPERTOKENS_CONNECTION_URI:-http://host.docker.internal:3567}
+    SUPERTOKENS_CONNECTION_URI: ${SUPERTOKENS_CONNECTION_URI:-http://supertokens:3567}
     SUPERTOKENS_API_KEY: ${SUPERTOKENS_API_KEY:-}
     GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
     GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
