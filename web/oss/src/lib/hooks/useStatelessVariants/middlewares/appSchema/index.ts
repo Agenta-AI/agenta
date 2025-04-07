@@ -249,9 +249,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                                         variant.uri || defaultUri,
                                                                 },
                                                                 userProfile: variantUserProfile,
-                                                                isChat: false,
-                                                                isCustom: false,
-                                                                isChatVariant: false,
                                                                 isStatelessVariant: true,
                                                             },
                                                         )
