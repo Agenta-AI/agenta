@@ -350,7 +350,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                     )
 
                                                 clonedState.generationData.messages =
-                                                    initializeGenerationMessages(state.variants)
+                                                    initializeGenerationMessages(
+                                                        allRevisions.filter((rev) =>
+                                                            clonedState.selected.includes(rev.id),
+                                                        ),
+                                                    )
 
                                                 return clonedState
                                             },
