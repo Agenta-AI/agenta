@@ -14,11 +14,13 @@ import {PERMISSION_ERR_MSG} from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
 import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
+import {getAllVariantParameters, groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import type {GenericObject, Parameter, Variant, StyleProps} from "@/oss/lib/Types"
 import {createNewEvaluation} from "@/oss/services/human-evaluations/api"
 import {useLoadTestsetsList} from "@/oss/services/testsets/api"
+
+import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
 
 import {useStyles} from "./assets/styles"
 import type {HumanEvaluationModalProps} from "./types"
@@ -64,14 +66,14 @@ const HumanEvaluationModal = ({
     const {data, isLoading: areAppVariantsLoading} = useVariants(currentApp)({
         appId: currentApp?.app_id,
     })
-    const variants = useMemo(() => data?.variants || [], [data])
+
+    const variants = useMemo(() => groupVariantsByParent(data?.variants || [], true), [data])
 
     useEffect(() => {
         if (variants.length > 0) {
             const fetchAndSetSchema = async () => {
                 try {
-                    const hasAgConfig = variants.some((variant) => variant.parameters?.ag_config)
-                    const isNewVariant = variants.some((variant) => variant.isStatelessVariant)
+                    const isNewVariant = true
                     let results: {
                         variantName: string
                         inputs: string[]
@@ -92,9 +94,7 @@ const HumanEvaluationModal = ({
                         results = variants.map((variant) => {
                             return {
                                 variantName: variant.variantName,
-                                inputs:
-                                    (variant.parameters?.ag_config || variant.parameters?.agConfig)
-                                        ?.prompt?.input_keys || [],
+                                inputs: (variant.inputParams || []).map((input) => input.name),
                             }
                         })
                     } else {
@@ -201,6 +201,8 @@ const HumanEvaluationModal = ({
             const label = variant.variantName
 
             if (!selectedVariantsNames.includes(label)) {
+                const isLatest = variant.revisions.some((revision) => revision.isLatestRevision)
+                variant.isLatestRevision = isLatest
                 filteredVariants.push({
                     label: (
                         <>
@@ -208,9 +210,20 @@ const HumanEvaluationModal = ({
                                 data-cy={`variant-${idx}`}
                                 className="flex items-center justify-between"
                             >
-                                <span>{variant.variantName}</span>
+                                <VariantDetailsWithStatus
+                                    variantName={variant.variantName || variant.name}
+                                    revision={variant.revision}
+                                    variant={variant}
+                                />
                                 <span className={classes.dropdownItemLabels}>
-                                    #{(variant.variantId || variant.id).split("-")[0]}
+                                    #
+                                    {
+                                        (
+                                            variant.variantId ||
+                                            variant.id ||
+                                            variant.variant_id
+                                        ).split("-")[0]
+                                    }
                                 </span>
                             </div>
                         </>

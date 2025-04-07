@@ -261,8 +261,11 @@ class AppVariantDB(Base):
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     config_name = Column(String, nullable=False)
     config_parameters = Column(
-        mutable_json_type(dbtype=JSONB, nested=True), nullable=False, default=dict
+        mutable_json_type(dbtype=JSONB, nested=True),  # type: ignore
+        nullable=False,
+        default=dict,
     )
+    hidden = Column(Boolean, nullable=True)
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -296,14 +299,18 @@ class AppVariantRevisionsDB(Base):
         UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="CASCADE")
     )
     revision = Column(Integer)
+    commit_message = Column(String(length=255), nullable=True)
     project_id = Column(
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    hidden = Column(Boolean, nullable=True)
     config_name = Column(String, nullable=False)
     config_parameters = Column(
-        mutable_json_type(dbtype=JSONB, nested=True), nullable=False, default=dict
+        mutable_json_type(dbtype=JSONB, nested=True),  # type: ignore
+        nullable=False,
+        default=dict,
     )
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -376,6 +383,7 @@ class AppEnvironmentRevisionDB(Base):
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
     revision = Column(Integer)
+    commit_message = Column(String(length=255), nullable=True)
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     deployed_app_variant_revision_id = Column(
         UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")

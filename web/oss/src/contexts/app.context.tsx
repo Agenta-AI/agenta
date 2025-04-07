@@ -129,6 +129,14 @@ const AppContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     const [modalInstance, setModalInstance] = useState()
 
+    appContextValues.modalInstance = modalInstance
+    appContextValues.setModalInstance = setModalInstance
+    appContextValues.currentApp = currentApp
+    appContextValues.apps = apps
+    appContextValues.error = error
+    appContextValues.isLoading = isLoading || isProjectLoading
+    appContextValues.recentlyVisitedAppId = recentlyVisitedAppId
+
     return (
         <AppContext.Provider
             value={{

@@ -22,6 +22,7 @@ import {
     fetchAllLoadEvaluations,
     fetchEvaluationResults,
 } from "@/oss/services/human-evaluations/api"
+import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
 
 const {Title} = Typography
 
@@ -179,12 +180,10 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
             }),
             render: (value, record) => {
                 return (
-                    <div>
-                        {variantNameWithRev({
-                            variant_name: value[0],
-                            revision: record.revisions[0],
-                        })}
-                    </div>
+                    <VariantDetailsWithStatus
+                        variantName={value[0]}
+                        revision={record.revisions[0]}
+                    />
                 )
             },
         },
@@ -197,12 +196,10 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
             }),
             render: (value, record) => {
                 return (
-                    <div>
-                        {variantNameWithRev({
-                            variant_name: value[1],
-                            revision: record.revisions[1],
-                        })}
-                    </div>
+                    <VariantDetailsWithStatus
+                        variantName={value[1]}
+                        revision={record.revisions[1]}
+                    />
                 )
             },
         },

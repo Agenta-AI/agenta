@@ -194,6 +194,7 @@ const ViewNavigation: React.FC<Props> = ({
         }
 
         const variantContainerPath = async () => {
+            console.log("variantContainerPath !!")
             const url = await fetchAppContainerURL(appId, variant.variantId, variant.baseId)
             setContainerURI(url)
         }

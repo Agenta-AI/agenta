@@ -8,7 +8,8 @@ import {createUseStyles} from "react-jss"
 
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {Environment, JSSTheme} from "@/oss/lib/Types"
 
 import ChangeVariantModal from "./ChangeVariantModal"
 import DeploymentDrawer from "./DeploymentDrawer"
@@ -16,7 +17,7 @@ import DeploymentDrawer from "./DeploymentDrawer"
 const {Title, Text} = Typography
 
 interface DeploymentOverviewProps {
-    variants: Variant[]
+    variants: EnhancedVariant[]
     isDeploymentLoading: boolean
     environments: Environment[]
     loadEnvironments: () => Promise<void>
@@ -133,9 +134,14 @@ const DeploymentOverview = ({
                                                 onClick: (e) => {
                                                     e.domEvent.stopPropagation()
                                                     if (env.deployed_variant_name) {
-                                                        router.push(
-                                                            `/apps/${appId}/playground?variant=${env.deployed_variant_name}`,
-                                                        )
+                                                        router.push({
+                                                            pathname: `/apps/${appId}/playground`,
+                                                            query: {
+                                                                revisions: JSON.stringify([
+                                                                    env.deployed_app_variant_revision_id,
+                                                                ]),
+                                                            },
+                                                        })
                                                     } else {
                                                         router.push(`/apps/${appId}/playground`)
                                                     }
@@ -176,6 +182,7 @@ const DeploymentOverview = ({
                     selectedEnvironment={selectedEnvironment}
                     open={!!queryEnv}
                     onClose={() => setQueryEnv("")}
+                    // @ts-ignore
                     variants={variants}
                     loadEnvironments={loadEnvironments}
                     setQueryEnv={setQueryEnv}

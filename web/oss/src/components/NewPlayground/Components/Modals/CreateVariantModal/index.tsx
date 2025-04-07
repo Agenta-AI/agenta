@@ -1,80 +1,103 @@
-import {type FC, type ChangeEvent, useState, useCallback} from "react"
+import {type FC, useState, useCallback} from "react"
 
-import {Modal, Input, Select, Typography, Form} from "antd"
-import clsx from "clsx"
+import groupBy from "lodash/groupBy"
+import dynamic from "next/dynamic"
+
+import {message} from "@/oss/components/AppMessageContext"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+
+import usePlayground from "../../../hooks/usePlayground"
+import {PlaygroundStateData} from "../../../hooks/usePlayground/types"
 
 import {CreateVariantModalProps} from "./types"
 
-const {Text} = Typography
+const CreateVariantModalContent = dynamic(() => import("./assets/CreateVariantModalContent"), {
+    ssr: false,
+})
 
 const CreateVariantModal: FC<CreateVariantModalProps> = ({
     isModalOpen,
     setIsModalOpen: propsSetIsModalOpen,
-    addTab,
-    variants,
-    setNewVariantName,
-    newVariantName,
-    setTemplateVariantName,
 }) => {
-    const [variantPlaceHolder, setVariantPlaceHolder] = useState("Variant source")
     const [isInputValid, setIsInputValid] = useState(false)
     const [nameExists, setNameExists] = useState(false)
+    const [isCompareMode, setIsCompareMode] = useState(false)
+    const [newVariantName, setNewVariantName] = useState("")
+    const [baseVariantName, setBaseVariantName] = useState("")
+    const [note, setNote] = useState("")
+
+    const {addVariant, baseVariant, variantOptions} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const parents = groupBy(state.availableRevisions, "variantId")
+                const baseVariant = (state.availableRevisions || []).find(
+                    (variant) => variant.variantName === baseVariantName,
+                )
+
+                return {
+                    baseVariant: {
+                        id: baseVariant?.variantId,
+                        variantName: baseVariant?.variantName,
+                    },
+                    variantOptions: Object.values(parents).map((variantRevisions) => {
+                        const rev = variantRevisions[0]
+                        return {
+                            id: rev.id,
+                            variantName: rev.variantName,
+                        }
+                    }),
+                }
+            },
+            [baseVariantName],
+        ),
+    })
+    // Validate and create new variants based on selected template
+    const addNewVariant = useCallback(() => {
+        if (!baseVariant || !baseVariant.variantName) {
+            message.error("Template variant not found. Please choose a valid variant.")
+            return
+        }
+
+        addVariant?.({
+            baseVariantName: baseVariant.variantName,
+            newVariantName: newVariantName,
+            callback: (variant, state) => {
+                if (isCompareMode) {
+                    state.selected = [...state.selected, variant.id]
+                    state.variants = [...state.variants, variant]
+                } else {
+                    // remove existing variant
+
+                    state.selected = [variant.id]
+                    state.variants = [variant]
+                }
+            },
+        })
+    }, [isCompareMode, baseVariant, addVariant, newVariantName])
 
     const setIsModalOpen = useCallback(
         (value: boolean) => {
             if (!value) {
                 setNewVariantName("")
-                setTemplateVariantName("")
+                setBaseVariantName("")
                 setNameExists((oldValue) => false)
+                setIsCompareMode(false)
+                setNote("")
             }
 
             propsSetIsModalOpen(value)
         },
-        [propsSetIsModalOpen, setNewVariantName, setTemplateVariantName],
+        [propsSetIsModalOpen, setNewVariantName, setBaseVariantName],
     )
-
-    const handleTemplateVariantChange = useCallback(
-        (value: string) => {
-            const newValue = value.includes(".") ? value.split(".")[0] : value
-            setTemplateVariantName(value)
-            setVariantPlaceHolder(`${newValue}`)
-            setIsInputValid(newVariantName.trim().length > 0 && value !== "Variant source")
-        },
-        [newVariantName, setTemplateVariantName],
-    )
-
-    const handleVariantNameChange = useCallback(
-        (e: ChangeEvent<HTMLInputElement>) => {
-            const variantName = e.target.value
-            setNewVariantName(variantName)
-            const nameExists = variants.some((variant) => {
-                const split = variant.variantName.split(".").slice(1).join(".")
-                return split === variantName
-            })
-
-            setNameExists((oldValue) => nameExists)
-            setIsInputValid(
-                variantName.trim().length > 0 &&
-                    variantPlaceHolder !== "Variant source" &&
-                    !nameExists,
-            )
-        },
-        [setNewVariantName, variantPlaceHolder, variants],
-    )
-
-    const onFinish = useCallback((values: any) => {
-        return
-    }, [])
 
     return (
-        <Modal
-            data-cy="new-variant-modal"
+        <EnhancedModal
             title="Create a new variant"
             open={isModalOpen}
             onOk={() => {
                 if (isInputValid) {
                     setIsModalOpen(false)
-                    addTab()
+                    addNewVariant()
                 }
             }}
             okText="Confirm"
@@ -83,54 +106,20 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
             destroyOnClose
             centered
         >
-            <Form onFinish={onFinish}>
-                <section
-                    className={clsx(["w-full flex flex-col gap-4", "[&_.ant-form-item]:mb-0"])}
-                >
-                    <div className="flex flex-col gap-2">
-                        <Text>Base variant</Text>
-                        <Form.Item>
-                            <Select
-                                showSearch
-                                className="w-full"
-                                data-cy="new-variant-modal-select"
-                                placeholder="Select a variant"
-                                onChange={handleTemplateVariantChange}
-                                options={variants?.map((variant) => ({
-                                    value: variant.variantName,
-                                    label: (
-                                        <div data-cy="new-variant-modal-label">
-                                            {variant.variantName}
-                                        </div>
-                                    ),
-                                }))}
-                            />
-                        </Form.Item>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                        <Text>Variant name</Text>
-                        <Form.Item
-                            validateStatus={
-                                nameExists
-                                    ? "error"
-                                    : newVariantName.length === 0 ||
-                                        variantPlaceHolder === "Variant source"
-                                      ? "success"
-                                      : "success"
-                            }
-                            help={nameExists ? "Variant name already exists" : ""}
-                        >
-                            <Input
-                                addonBefore={variantPlaceHolder}
-                                onChange={handleVariantNameChange}
-                                data-cy="new-variant-modal-input"
-                            />
-                        </Form.Item>
-                    </div>
-                </section>
-            </Form>
-        </Modal>
+            <CreateVariantModalContent
+                setTemplateVariantName={setBaseVariantName}
+                setIsInputValid={setIsInputValid}
+                newVariantName={newVariantName}
+                setNewVariantName={setNewVariantName}
+                setNameExists={setNameExists}
+                variants={variantOptions}
+                nameExists={nameExists}
+                note={note}
+                setNote={setNote}
+                setIsCompareMode={setIsCompareMode}
+                isCompareMode={isCompareMode}
+            />
+        </EnhancedModal>
     )
 }
 

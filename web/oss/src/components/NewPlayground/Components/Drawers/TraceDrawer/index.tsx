@@ -106,14 +106,14 @@ const TraceDrawerButton = ({
                         ) : null
                     }
                     mainContent={
-                        !!activeTrace ? (
+                        activeTrace ? (
                             <TraceContent
                                 activeTrace={selectedItem || (activeTrace as _AgentaRootsResponse)}
                             />
                         ) : null
                     }
                     sideContent={
-                        !!activeTrace ? (
+                        activeTrace ? (
                             <TraceTree
                                 activeTrace={activeTrace as _AgentaRootsResponse}
                                 selected={selected}

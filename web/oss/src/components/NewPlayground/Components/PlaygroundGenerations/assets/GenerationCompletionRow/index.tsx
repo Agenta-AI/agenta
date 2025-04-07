@@ -5,10 +5,12 @@ import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import RunButton from "@/oss/components/NewPlayground/assets/RunButton"
+import {autoScrollToBottom} from "@/oss/components/NewPlayground/assets/utilities/utilityFunctions"
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getResponseLazy} from "@/oss/components/NewPlayground/state"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getEnhancedProperties} from "@/oss/lib/shared/variant"
 
-import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
 import usePlayground from "../../../../hooks/usePlayground"
 import PlaygroundVariantPropertyControl from "../../../PlaygroundVariantPropertyControl"
 import SharedEditor from "../../../SharedEditor"
@@ -16,8 +18,6 @@ import GenerationOutputText from "../GenerationOutputText"
 
 import {useStyles} from "./styles"
 import type {GenerationCompletionRowProps} from "./types"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {autoScrollToBottom} from "@/oss/components/NewPlayground/assets/utilities/utilityFunctions"
 
 const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), {
     ssr: false,
@@ -38,33 +38,34 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {resultHash, variableIds, runTests, isRunning, viewType, isChat} = usePlayground({
-        variantId,
-        rowId,
-        registerToWebWorker: true,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const inputRow = state.generationData.inputs.value.find((inputRow) => {
-                    return inputRow.__id === rowId
-                })
+    const {resultHash, variableIds, runTests, isRunning, viewType, isChat, cancelRunTests} =
+        usePlayground({
+            variantId,
+            rowId,
+            registerToWebWorker: true,
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const inputRow = state.generationData.inputs.value.find((inputRow) => {
+                        return inputRow.__id === rowId
+                    })
 
-                const variables = getEnhancedProperties(inputRow)
-                const variableIds = variables.map((p) => p.__id)
+                    const variables = getEnhancedProperties(inputRow)
+                    const variableIds = variables.map((p) => p.__id)
 
-                const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
-                const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
+                    const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
+                    const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
 
-                return {
-                    isChat: state.variants[0]?.isChat,
-                    variableIds,
-                    resultHash,
-                    isRunning,
-                    inputText: variables?.[0]?.value, // Temporary implementation
-                }
-            },
-            [rowId, variantId],
-        ),
-    })
+                    return {
+                        isChat: state.variants[0]?.isChat,
+                        variableIds,
+                        resultHash,
+                        isRunning,
+                        inputText: variables?.[0]?.value, // Temporary implementation
+                    }
+                },
+                [rowId, variantId],
+            ),
+        })
 
     useLazyEffect(() => {
         const timer = autoScrollToBottom()
@@ -78,6 +79,10 @@ const GenerationCompletionRow = ({
     const runRow = useCallback(async () => {
         runTests?.(rowId, viewType === "single" ? variantId : undefined)
     }, [runTests, variantId, rowId, viewType])
+
+    const cancelRow = useCallback(async () => {
+        cancelRunTests?.(rowId, viewType === "single" ? variantId : undefined)
+    }, [cancelRunTests, variantId, rowId, viewType])
 
     if (viewType === "single" && view !== "focus" && variantId) {
         const responseData = result?.response?.data
@@ -133,13 +138,20 @@ const GenerationCompletionRow = ({
                 {!inputOnly && (
                     <div className="w-full flex gap-1 items-start">
                         <div className="w-[100px] shrink-0">
-                            <RunButton onClick={runRow} disabled={isRunning} />
+                            {!isRunning ? (
+                                <RunButton onClick={runRow} disabled={!!isRunning} />
+                            ) : (
+                                <RunButton isCancel onClick={cancelRow} />
+                            )}
                         </div>
                         <div className="w-full flex flex-col gap-4">
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
-                                <GenerationOutputText text="Click run to generate output" />
+                                <GenerationOutputText
+                                    text="Click run to generate output"
+                                    isPlaceholder
+                                />
                             ) : result.error ? (
                                 <SharedEditor
                                     initialValue={result?.error}
@@ -148,7 +160,6 @@ const GenerationCompletionRow = ({
                                     readOnly
                                     disabled
                                     className={clsx([
-                                        "!pt-0",
                                         {
                                             "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
                                                 result?.error,
@@ -174,7 +185,6 @@ const GenerationCompletionRow = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className="!p-0"
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
@@ -208,13 +218,29 @@ const GenerationCompletionRow = ({
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
                             return (
-                                <div key={variableId} className="relative group/item px-3 py-2">
+                                <div
+                                    key={variableId}
+                                    className={clsx([
+                                        "relative group/item px-3 py-2",
+                                        {
+                                            "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
+                                                isChat && viewType == "comparison",
+                                            "!px-0 !py-0": viewType == "comparison",
+                                        },
+                                    ])}
+                                >
                                     <PlaygroundVariantPropertyControl
                                         variantId={variantId}
                                         propertyId={variableId}
                                         view={view}
                                         rowId={rowId}
-                                        className="*:!border-none"
+                                        className={clsx([
+                                            "*:!border-none",
+                                            {
+                                                "rounded-none [&_article]:px-3 [&_article]:py-1 px-3":
+                                                    viewType === "comparison",
+                                            },
+                                        ])}
                                         disabled={disabled}
                                         placeholder="Enter value"
                                     />
@@ -237,7 +263,11 @@ const GenerationCompletionRow = ({
 
             {!inputOnly ? (
                 <div className={clsx("h-[48px] flex items-center px-4")}>
-                    <RunButton onClick={runRow} disabled={isRunning} className="flex" />
+                    {!isRunning ? (
+                        <RunButton onClick={runRow} disabled={!!isRunning} className="flex" />
+                    ) : (
+                        <RunButton isCancel onClick={cancelRow} className="flex" />
+                    )}
                 </div>
             ) : null}
         </>

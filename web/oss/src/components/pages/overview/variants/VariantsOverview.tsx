@@ -1,26 +1,30 @@
 // @ts-nocheck
 import {useCallback, useMemo, useState} from "react"
 
-import {MoreOutlined, SwapOutlined} from "@ant-design/icons"
-import {CloudArrowUp, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, message, Space, Spin, Table, Tag, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {SwapOutlined} from "@ant-design/icons"
+import {Rocket} from "@phosphor-icons/react"
+import {Button, message, Space, Typography} from "antd"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
+import {useSWRConfig} from "swr"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import {getPlaygroundKey} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
+import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
-import {filterVariantParameters, isDemo} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
-import {deleteSingleVariant} from "@/oss/services/playground/api"
+import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
-import DeployVariantModal from "./DeployVariantModal"
 import VariantComparisonModal from "./VariantComparisonModal"
 import VariantDrawer from "./VariantDrawer"
 
+const DeployVariantModal = dynamic(
+    () => import("@/oss/components/NewPlayground/Components/Modals/DeployVariantModal"),
+    {ssr: false},
+)
 const {Title} = Typography
 
 interface VariantsOverviewProps {
@@ -29,7 +33,6 @@ interface VariantsOverviewProps {
     environments: Environment[]
     fetchAllVariants: () => void
     loadEnvironments: () => Promise<void>
-    usernames: Record<string, string>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -46,10 +49,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const VariantsOverview = ({
     variantList = [],
     isVariantLoading,
-    environments,
+    environments: propsEnvironments,
     fetchAllVariants,
     loadEnvironments,
-    usernames,
 }: VariantsOverviewProps) => {
     const classes = useStyles()
     const router = useRouter()
@@ -60,62 +62,109 @@ const VariantsOverview = ({
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
     const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false)
-    const {mutate} = usePlayground({
-        revalidateIfStale: false,
-        revalidateOnFocus: false,
-        revalidateOnMount: false,
-        revalidateOnReconnect: false,
-        pathReference: "_apps_[app_id]_playground",
-    })
+    const {mutate} = useSWRConfig()
+
+    const slicedVariantList = useMemo(() => {
+        const sorted = variantList
+            .sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
+            .slice(0, 5)
+        return sorted
+    }, [variantList])
 
     const selectedVariantsToCompare = useMemo(() => {
-        const variants = variantList.filter((variant) =>
-            selectedRowKeys.includes(variant.variantId),
-        )
+        const variants = slicedVariantList.filter((variant) => selectedRowKeys.includes(variant.id))
         return {
             isCompareDisabled: variants.length !== 2,
             compareVariantList: variants,
         }
     }, [selectedRowKeys])
 
-    const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[]) => {
-            setSelectedRowKeys(selectedRowKeys)
-        },
-    }
+    const environments = useMemo(() => {
+        return propsEnvironments.map((env) => {
+            const deployedAppRevisionId = env.deployed_app_variant_revision_id
+            const revision = variantList?.find((variant) => variant.id === deployedAppRevisionId)
+            return {
+                ...env,
+                revision: {
+                    ...revision,
+                    revisionNumber: revision?.revision || revision?.revisionNumber || 0,
+                },
+            }
+        })
+    }, [propsEnvironments])
 
     const handleNavigation = useCallback(
-        (variantName: string, revisionNum: number) => {
-            router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+        (record: EnhancedVariant) => {
+            if (selectedRowKeys.length) {
+                router.push({
+                    pathname: `/apps/${appId}/playground`,
+                    query: {revisions: JSON.stringify(selectedRowKeys)},
+                })
+            } else {
+                router.push({
+                    pathname: `/apps/${appId}/playground`,
+                    query: record ? {revisions: JSON.stringify([record.id])} : {},
+                })
+            }
         },
-        [appId, router],
+        [appId, router, selectedRowKeys],
     )
 
     const handleDeleteVariant = useCallback(
-        async (variantId: string) => {
+        async (selectedVariant: Variant) => {
             try {
                 if (
                     !(await checkIfResourceValidForDeletion({
                         resourceType: "variant",
-                        resourceIds: [variantId],
+                        resourceIds: [selectedVariant.variantId],
                     }))
                 )
                     return
 
-                await deleteSingleVariant(variantId)
+                await deleteSingleVariantRevision(selectedVariant.variantId, selectedVariant.id)
                 message.success("Variant removed successfully!")
-                fetchAllVariants()
+                fetchAllVariants(
+                    (state) => {
+                        if (!state) return state
+
+                        const clonedState = structuredClone(state)
+
+                        if (selectedVariant._parentVariant) {
+                            console.log("DELETE REVISION")
+                            // Handle revision deletion
+                            clonedState.variants = clonedState.variants.filter(
+                                (variant) => variant.id !== selectedVariant.id,
+                            )
+                        } else if (!selectedVariant._parentVariant && electedVariant.children) {
+                            console.log("DELETE VARIANT")
+                            // Handle variant deletion
+                            clonedState.variants = clonedState.variants.filter(
+                                (variant) =>
+                                    variant._parentVariant.id !== selectedVariant.variantId,
+                            )
+                        }
+
+                        return clonedState
+                    },
+                    {
+                        revalidate: false,
+                    },
+                )
             } catch (error) {
                 console.error(error)
             }
 
-            await mutate((playgroundState) => {
-                if (playgroundState.selected.includes(variantId)) {
-                    playgroundState.selected.splice(playgroundState.selected.indexOf(variantId), 1)
+            await mutate(getPlaygroundKey(), (playgroundState) => {
+                if (!playgroundState) return playgroundState
+                if (playgroundState.selected.includes(selectedVariant.variantId)) {
+                    playgroundState.selected.splice(
+                        playgroundState.selected.indexOf(selectedVariant.variantId),
+                        1,
+                    )
                 }
 
                 playgroundState.variants = playgroundState.variants.filter(
-                    (variant) => (variant.variantId || variant.id) !== variantId,
+                    (variant) => (variant.variantId || variant.id) !== selectedVariant.variantId,
                 )
 
                 return playgroundState
@@ -126,178 +175,20 @@ const VariantsOverview = ({
         [fetchAllVariants],
     )
 
-    const columns = useMemo(() => {
-        const columns: ColumnsType<Variant> = [
-            {
-                title: "Name",
-                dataIndex: "variant_name",
-                key: "variant_name",
-                fixed: "left",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
-                    return <span>{record.variantName}</span>
-                },
-            },
-            {
-                title: "Last modified",
-                dataIndex: "updatedAt",
-                key: "updatedAt",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
-                    return <div>{record.updatedAt}</div>
-                },
-            },
-        ]
-
-        if (isDemo()) {
-            columns.push({
-                title: "Modified by",
-                dataIndex: "modifiedById",
-                key: "modifiedById",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
-                    return <div>{usernames[record.modifiedById]}</div>
-                },
-            })
-        }
-
-        columns.push(
-            // {
-            //     title: "Tags",
-            //     onHeaderCell: () => ({
-            //         style: {minWidth: 160},
-            //     }),
-            // },
-            {
-                title: "Model",
-                dataIndex: "parameters",
-                key: "model",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
-                    const parameters =
-                        (
-                            (record.parameters?.ag_config as unknown as Record<string, unknown>)
-                                ?.prompt as Record<string, unknown>
-                        )?.llm_config || record.parameters
-                    return parameters && Object.keys(parameters).length
-                        ? Object.values(
-                              filterVariantParameters({record: parameters, key: "model"}),
-                          ).map((value, index) => (value ? <Tag key={index}>{value}</Tag> : "-"))
-                        : "-"
-                },
-            },
-            {
-                title: "Created on",
-                dataIndex: "createdAt",
-                key: "createdAt",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (_, record) => {
-                    return <div>{record.createdAt}</div>
-                },
-            },
-            {
-                title: <GearSix size={16} />,
-                key: "key",
-                width: 56,
-                fixed: "right",
-                align: "center",
-                render: (_, record) => {
-                    return (
-                        <Dropdown
-                            trigger={["click"]}
-                            overlayStyle={{width: 180}}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "details",
-                                        label: "Open details",
-                                        icon: <Note size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            setQueryVariant(record.variantId)
-                                            setSelectedVariant(record)
-                                        },
-                                    },
-                                    {
-                                        key: "open_variant",
-                                        label: "Open in playground",
-                                        icon: <Rocket size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            handleNavigation(record.variantName, record.revision)
-                                        },
-                                    },
-                                    {
-                                        key: "deploy",
-                                        label: "Deploy",
-                                        icon: <CloudArrowUp size={16} />,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            setIsDeployVariantModalOpen(true)
-                                            setSelectedVariant(record)
-                                        },
-                                    },
-                                    // {
-                                    //     key: "clone",
-                                    //     label: "Clone",
-                                    //     icon: <Copy size={16} />,
-                                    //     onClick: (e) => {
-                                    //         e.domEvent.stopPropagation()
-                                    //     },
-                                    // },
-                                    {type: "divider"},
-                                    // {
-                                    //     key: "rename",
-                                    //     label: "Rename",
-                                    //     icon: <PencilLine size={16} />,
-                                    //     onClick: (e) => {
-                                    //         e.domEvent.stopPropagation()
-
-                                    //     },
-                                    // },
-                                    {
-                                        key: "delete_eval",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
-                                        danger: true,
-                                        onClick: (e) => {
-                                            e.domEvent.stopPropagation()
-                                            setSelectedVariant(record)
-                                            setIsDeleteEvalModalOpen(true)
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
-                                onClick={(e) => e.stopPropagation()}
-                                type="text"
-                                icon={<MoreOutlined />}
-                            />
-                        </Dropdown>
-                    )
-                },
-            },
-        )
-
-        return columns
-    }, [handleNavigation, setQueryVariant, usernames])
+    const handleDeployment = useCallback(() => {
+        mutate(getPlaygroundKey())
+        loadEnvironments()
+        fetchAllVariants()
+    }, [mutate, loadEnvironments])
 
     return (
         <>
             <div className={classes.container}>
                 <div className="flex items-center justify-between">
-                    <Title>Variants</Title>
+                    <Space>
+                        <Title>Recent Prompts</Title>
+                        <Button href={`/apps/${appId}/variants`}>View all</Button>
+                    </Space>
 
                     <Space>
                         <Button
@@ -306,41 +197,43 @@ const VariantsOverview = ({
                             icon={<SwapOutlined />}
                             onClick={() => setIsComparisonModalOpen(true)}
                         >
-                            Compare variants
+                            Compare
                         </Button>
 
                         <Button
                             icon={<Rocket size={14} className="mt-[3px]" />}
-                            href={`/apps/${appId}/playground`}
+                            onClick={() => handleNavigation()}
                         >
                             Playground
                         </Button>
                     </Space>
                 </div>
 
-                <Spin spinning={isVariantLoading}>
-                    <Table
-                        rowSelection={{
-                            type: "checkbox",
-                            columnWidth: 48,
-                            ...rowSelection,
-                        }}
-                        className="ph-no-capture"
-                        rowKey={"variantId"}
-                        columns={columns}
-                        dataSource={variantList}
-                        scroll={{x: true}}
-                        bordered
-                        pagination={false}
-                        onRow={(record) => ({
-                            style: {cursor: "pointer"},
-                            onClick: () => {
-                                setQueryVariant(record.variantId)
-                                setSelectedVariant(record)
-                            },
-                        })}
-                    />
-                </Spin>
+                <VariantsTable
+                    showEnvBadges
+                    variants={slicedVariantList}
+                    onRowClick={(variant) => {
+                        setQueryVariant(variant.variantId)
+                        setSelectedVariant(variant)
+                    }}
+                    rowSelection={{onChange: (value) => setSelectedRowKeys(value)}}
+                    isLoading={isVariantLoading}
+                    handleOpenDetails={(record) => {
+                        setQueryVariant(record.variantId)
+                        setSelectedVariant(record)
+                    }}
+                    handleDeleteVariant={(record) => {
+                        setSelectedVariant(record)
+                        setIsDeleteEvalModalOpen(true)
+                    }}
+                    handleDeploy={(record) => {
+                        setIsDeployVariantModalOpen(true)
+                        setSelectedVariant(record)
+                    }}
+                    handleOpenInPlayground={(record) => {
+                        handleNavigation(record)
+                    }}
+                />
             </div>
 
             {selectedVariant && (
@@ -358,7 +251,7 @@ const VariantsOverview = ({
                 <DeleteEvaluationModal
                     open={isDeleteEvalModalOpen}
                     onCancel={() => setIsDeleteEvalModalOpen(false)}
-                    onOk={() => handleDeleteVariant(selectedVariant.variantId)}
+                    onOk={() => handleDeleteVariant(selectedVariant)}
                     evaluationType={variantNameWithRev({
                         variant_name: selectedVariant.variantName,
                         revision: selectedVariant.revision,
@@ -370,9 +263,12 @@ const VariantsOverview = ({
                 <DeployVariantModal
                     open={isDeployVariantModalOpen}
                     onCancel={() => setIsDeployVariantModalOpen(false)}
+                    variantId={!selectedVariant._parentVariant ? selectedVariant.variantId : null}
+                    revisionId={selectedVariant._parentVariant ? selectedVariant.id : null}
                     environments={environments}
-                    selectedVariant={selectedVariant}
-                    loadEnvironments={loadEnvironments}
+                    variantName={selectedVariant.variantName}
+                    revision={selectedVariant.revision}
+                    mutate={handleDeployment}
                 />
             )}
 

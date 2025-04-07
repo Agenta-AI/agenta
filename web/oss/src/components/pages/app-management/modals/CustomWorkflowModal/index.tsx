@@ -5,9 +5,8 @@ import {Scroll} from "@phosphor-icons/react"
 import {Typography, Space, Button, Modal} from "antd"
 
 import SharedEditor from "@/oss/components/NewPlayground/Components/SharedEditor"
-import {findCustomWorkflowPath} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {removeTrailingSlash} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
+import {findCustomWorkflowPath, removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {updateVariant} from "@/oss/services/app-selector/api"
 
 import {useStyles} from "./assets/styles"
@@ -38,15 +37,28 @@ const CustomWorkflowModal = ({
     const handleEditCustomUrl = useCallback(async () => {
         if (!variants?.length) return
 
+        // Create a map of unique parent variants using their IDs
+        const parentVariantsMap = variants.reduce((acc, variant) => {
+            const parentVariant = variant._parentVariant
+            if (parentVariant && parentVariant.id) {
+                // Use the ID as the key to ensure uniqueness
+                acc.set(parentVariant.id, parentVariant)
+            }
+            return acc
+        }, new Map())
+
+        // Convert the map values to an array if needed
+        const uniqueParentVariants = Array.from(parentVariantsMap.values())
+
         setIsConfiguringWorkflow(true)
         try {
             await Promise.all(
-                variants.map((variant) =>
-                    updateVariant({
+                uniqueParentVariants.map((variant) => {
+                    return updateVariant({
                         serviceUrl: removeTrailingSlash(customWorkflowAppValues.appUrl),
-                        variantId: variant?.variantId ?? variant.id,
-                    }),
-                ),
+                        variantId: variant?.id,
+                    })
+                }),
             )
             await Promise.all([allVariantsDataMutate?.(), mutate()])
         } catch (error) {

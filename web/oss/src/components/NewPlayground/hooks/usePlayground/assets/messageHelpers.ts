@@ -1,19 +1,16 @@
-import {
-    checkValidity,
-    extractValueByMetadata,
-} from "@/oss/components/NewPlayground/assets/utilities/transformer/reverseTransformer"
-import {getAllMetadata, getMetadataLazy} from "@/oss/components/NewPlayground/state"
+import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
+import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {checkValidity, extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 
-import {hashMetadata} from "../../../assets/hash"
-import {isObjectMetadata} from "../../../assets/utilities/genericTransformer/helpers/metadata"
+import {isObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/metadata"
 import type {
     ConfigMetadata,
     Enhanced,
     ObjectMetadata,
-} from "../../../assets/utilities/genericTransformer/types"
-import {generateId} from "../../../assets/utilities/genericTransformer/utilities/string"
-import {Message} from "../../../assets/utilities/transformer/types"
-import {MessageWithRuns} from "../../../state/types"
+} from "../../../../../lib/shared/variant/genericTransformer/types"
+import {Message} from "../../../../../lib/shared/variant/transformer/types"
+import {hashMetadata} from "../../../assets/hash"
 import {PlaygroundStateData} from "../types"
 
 export const createMessageFromSchema = (

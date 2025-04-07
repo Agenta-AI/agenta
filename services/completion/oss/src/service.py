@@ -50,7 +50,7 @@ async def generate(
     if not provider_settings:
         raise HTTPException(
             status_code=424,
-            detail=f"Provider settings not found for model {config.prompt.llm_config.model}",
+            detail=f"Credentials not found for model {config.prompt.llm_config.model}. Please configure them under settings.",
         )
 
     response = await mockllm.acompletion(

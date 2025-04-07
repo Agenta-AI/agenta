@@ -1,11 +1,12 @@
 import {useMemo} from "react"
 
+import Editor from "@monaco-editor/react"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {EnhancedVariant} from "@/oss/components/NewPlayground/assets/utilities/transformer/types"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {filterVariantParameters, getStringOrJson} from "@/oss/lib/helpers/utils"
+import {filterVariantParameters, getStringOrJson, getYamlOrJson} from "@/oss/lib/helpers/utils"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Variant} from "@/oss/lib/Types"
 
 import {useStyles} from "./styles"
@@ -20,13 +21,14 @@ export const NewVariantParametersView = ({
     const params = useMemo(() => {
         const ag_config = (parameters?.ag_config ||
             parameters?.agConfig ||
-            selectedVariant.parameters?.agConfig) as unknown as Record<string, unknown>
+            selectedVariant.parameters?.agConfig ||
+            selectedVariant.parameters?.ag_config) as unknown as Record<string, unknown>
 
-        return ag_config
+        return ag_config || {}
     }, [parameters, selectedVariant.parameters])
     const {promptConfigs, customConfigs} = useMemo(() => {
         const ag_config = params
-        const promptKeys = selectedVariant.prompts.map((prompt) => prompt.__name)
+        const promptKeys = (selectedVariant.prompts || []).map((prompt) => prompt.__name)
 
         const promptConfigs = promptKeys.reduce(
             (acc, cur) => {
@@ -67,71 +69,109 @@ export const NewVariantParametersView = ({
     }, [params, selectedVariant])
 
     const classes = useStyles()
+
+    const configJsonString = useMemo(() => {
+        return getYamlOrJson("JSON", selectedVariant.parameters)
+    }, [selectedVariant.parameters])
+
     return (
-        <div className="flex flex-col gap-4">
-            {Object.keys(promptConfigs).map((key, index) => {
-                return (
-                    <div key={`${index}-${key}`}>
-                        <Typography.Text className={clsx(classes.title)}>{key}</Typography.Text>
-                        <div className="flex flex-col gap-2 mt-2">
-                            {promptConfigs[key].llmConfig && (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    {selectedVariant.parameters &&
-                                        Object.entries(promptConfigs[key].llmConfig).map(
-                                            ([key, value], index) => (
-                                                <ResultTag
-                                                    key={index}
-                                                    value1={key}
-                                                    value2={getStringOrJson(value)}
-                                                />
-                                            ),
-                                        )}
-                                </div>
-                            )}
-                            {promptConfigs[key].messages && (
-                                <div className="flex flex-col gap-6">
-                                    <div className="flex flex-col gap-2">
-                                        <Typography.Text className={classes.subTitle}>
-                                            Messages
-                                        </Typography.Text>
-                                        <div className="flex flex-col items-start gap-2">
-                                            {promptConfigs[key].messages.map((message, index) => {
-                                                return (
+        <div className="w-full h-full self-stretch grow">
+            <Editor
+                onMount={(editor, monaco) => {
+                    editor.updateOptions({readOnly: true})
+                }}
+                height="100%"
+                language="json"
+                value={configJsonString}
+            />
+        </div>
+    )
+    return !selectedVariant?.appStatus ? (
+        <div className="w-full h-full self-stretch grow">
+            <Editor
+                onMount={(editor, monaco) => {
+                    editor.updateOptions({readOnly: true})
+                }}
+                height="100%"
+                language="json"
+                value={configJsonString}
+            />
+        </div>
+    ) : (
+        <div className="w-full h-full flex flex-col gap-4">
+            {Object.keys(promptConfigs).length > 0 ? (
+                Object.keys(promptConfigs).map((key, index) => {
+                    return (
+                        <div key={`${index}-${key}`}>
+                            <Typography.Text className={clsx(classes.title)}>{key}</Typography.Text>
+                            <div className="flex flex-col gap-2 mt-2">
+                                {promptConfigs[key].llmConfig && (
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        {selectedVariant.parameters &&
+                                            Object.entries(promptConfigs[key].llmConfig).map(
+                                                ([key, value], index) => (
                                                     <ResultTag
-                                                        key={`${message.role}-${index}`}
-                                                        value1={message.role}
-                                                        value2={message.content}
-                                                        className="[&_.value1]:whitespace-pre [&_.value1]:text-wrap"
+                                                        key={index}
+                                                        value1={key}
+                                                        value2={getStringOrJson(value)}
                                                     />
-                                                )
-                                            })}
+                                                ),
+                                            )}
+                                    </div>
+                                )}
+                                {promptConfigs[key].messages && (
+                                    <div className="flex flex-col gap-6">
+                                        <div className="flex flex-col gap-2">
+                                            <Typography.Text className={classes.subTitle}>
+                                                Messages
+                                            </Typography.Text>
+                                            <div className="flex flex-col items-start gap-2">
+                                                {promptConfigs[key].messages.map(
+                                                    (message, index) => {
+                                                        return (
+                                                            <ResultTag
+                                                                key={`${message.role}-${index}`}
+                                                                value1={message.role}
+                                                                value2={message.content}
+                                                                className="[&_.value1]:whitespace-pre [&_.value1]:text-wrap"
+                                                            />
+                                                        )
+                                                    },
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-                            {promptConfigs[key].variables && (
-                                <div className="flex flex-col gap-6">
-                                    <div className="flex flex-col gap-2">
-                                        <Typography.Text className={classes.subTitle}>
-                                            Variables
-                                        </Typography.Text>
-                                        <div className="flex flex-col items-start gap-2">
-                                            {promptConfigs[key].variables.map((variable, index) => {
-                                                return (
-                                                    <ResultTag
-                                                        key={`${variable}-${index}`}
-                                                        value1={variable}
-                                                    />
-                                                )
-                                            })}
+                                )}
+                                {promptConfigs[key].variables && (
+                                    <div className="flex flex-col gap-6">
+                                        <div className="flex flex-col gap-2">
+                                            <Typography.Text className={classes.subTitle}>
+                                                Variables
+                                            </Typography.Text>
+                                            <div className="flex flex-col items-start gap-2">
+                                                {promptConfigs[key].variables.map(
+                                                    (variable, index) => {
+                                                        return (
+                                                            <ResultTag
+                                                                key={`${variable}-${index}`}
+                                                                value1={variable}
+                                                            />
+                                                        )
+                                                    },
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
-                )
-            })}
+                    )
+                })
+            ) : (
+                <Typography.Text className={classes.noParams}>
+                    No Prompt Configurations
+                </Typography.Text>
+            )}
             {Object.keys(customConfigs).length ? (
                 <div>
                     <Typography.Text className={classes.title}>

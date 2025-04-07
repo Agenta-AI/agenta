@@ -1,4 +1,4 @@
-import {AppstoreOutlined, DatabaseOutlined, RocketOutlined, GithubFilled} from "@ant-design/icons"
+import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icons"
 import {
     ChartDonut,
     ChartLineUp,
@@ -11,6 +11,8 @@ import {
     SlackLogo,
     Gear,
     TreeView,
+    Lightning,
+    Rocket,
 } from "@phosphor-icons/react"
 
 import {useAppsData} from "@/oss/contexts/app.context"
@@ -33,20 +35,20 @@ export const useSidebarConfig = () => {
             title: "App Management",
             tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
-            icon: <AppstoreOutlined />,
+            icon: <AppstoreOutlined size={16} />,
         },
         {
             key: "app-testsets-link",
             title: "Test Sets",
             tooltip: "Create and manage testsets for evaluation purposes.",
             link: `/testsets`,
-            icon: <DatabaseOutlined />,
+            icon: <DatabaseOutlined size={16} />,
         },
         {
             key: "app-observability-link",
             title: "Observability",
             link: `/observability`,
-            icon: <ChartLineUp />,
+            icon: <ChartLineUp size={16} />,
             divider: true,
         },
         {
@@ -68,8 +70,15 @@ export const useSidebarConfig = () => {
             tooltip:
                 "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.",
             link: `/apps/${appId || recentlyVisitedAppId}/playground`,
-            icon: <RocketOutlined />,
+            icon: <Rocket size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
+        },
+        {
+            key: "app-variants-link",
+            title: "Configuration Registry",
+            link: `/apps/${appId || recentlyVisitedAppId}/variants`,
+            isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
+            icon: <Lightning size={16} />,
         },
         {
             key: "app-evaluations-link",
@@ -114,20 +123,14 @@ export const useSidebarConfig = () => {
                     icon: <Scroll size={16} />,
                 },
                 {
-                    key: "github-issues",
-                    title: "GitHub Issues",
-                    link: "https://github.com/Agenta-AI/agenta/issues",
-                    icon: <GithubLogo size={16} />,
-                },
-                {
                     key: "github-support",
                     title: "GitHub Support",
-                    link: "https://github.com/Agenta-AI/agenta",
+                    link: "https://github.com/Agenta-AI/agenta/issues",
                     icon: <GithubFilled size={16} />,
                 },
                 {
                     key: "slack-connect",
-                    title: "Slack connect",
+                    title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
                     icon: <SlackLogo size={16} />,
                 },

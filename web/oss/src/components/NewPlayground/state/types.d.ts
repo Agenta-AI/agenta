@@ -1,43 +1,28 @@
-import type {
-    Common,
-    Enhanced,
-    Merge,
-    OpenAPISpec,
-} from "../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant, Message, TestResult} from "../assets/utilities/transformer/types"
+import {
+    LightweightRevision,
+    MessageWithRuns,
+    WithRuns,
+} from "@/oss/lib/hooks/useStatelessVariants/state/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
-export type MessageWithId = Merge<Common, Message>
+import type {Enhanced, OpenAPISpec} from "../../../lib/shared/variant/genericTransformer/types"
 
-interface WithRuns {
-    __runs?: Record<
-        string,
-        | {
-              __isRunning?: boolean
-              __result?: TestResult | string | null
-              __id?: string
-              message?: Enhanced<MessageWithId>
-          }
-        | undefined
-    >
-    message?: MessageWithId
-    __result?: TestResult | string | null
-    __isRunning?: boolean
-}
-
-export type MessageWithRuns = Merge<WithRuns, MessageWithId>
 export type EnhancedMessageWithRuns = Enhanced<MessageWithRuns>
 
 // State Types
 export interface InitialStateType {
     variants: EnhancedVariant[]
+    appStatus: boolean
     selected: string[]
     spec?: OpenAPISpec
+    fetching: boolean
     dirtyStates: Record<string, boolean>
     error?: Error
     uri?: {
         routePath: string
         runtimePrefix: string
     }
+    availableRevisions?: LightweightRevision[]
     generationData: {
         inputs: Enhanced<WithRuns[]>
         messages: Enhanced<

@@ -2,8 +2,8 @@ import {useCallback, memo} from "react"
 
 import clsx from "clsx"
 
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {componentLogger} from "../../assets/utilities/componentLogger"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "../PlaygroundVariantCustomProperties"

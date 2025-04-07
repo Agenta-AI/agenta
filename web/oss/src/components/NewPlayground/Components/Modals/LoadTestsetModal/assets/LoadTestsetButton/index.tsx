@@ -4,20 +4,18 @@ import {Database} from "@phosphor-icons/react"
 import {Button} from "antd"
 import dynamic from "next/dynamic"
 
-import {
-    ArrayMetadata,
-    Enhanced,
-    EnhancedObjectConfig,
-    ObjectMetadata,
-} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
-import {InputType} from "@/oss/components/NewPlayground/assets/utilities/transformer/types/input"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {findVariantById} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
-import {createInputRow} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import {createMessageFromSchema} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/oss/components/NewPlayground/state"
 import {safeParse} from "@/oss/lib/helpers/utils"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import type {
+    ArrayMetadata,
+    Enhanced,
+    ObjectMetadata,
+} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {createInputRow} from "@/oss/lib/shared/variant/inputHelpers"
 
 import {LoadTestsetButtonProps} from "./types"
 
@@ -35,12 +33,12 @@ const LoadTestsetButton = ({
             (state: PlaygroundStateData) => {
                 const _variantId = variantId || state.selected[0]
                 const variant = findVariantById(state, _variantId)
-                const inputKeys = variant?.prompts.flatMap((prompt) => {
+                const inputKeys = (variant?.prompts || []).flatMap((prompt) => {
                     const keys = prompt.inputKeys.value.map((key) => key.value)
                     return keys
                 })
 
-                return {isChat: state.variants[0].isChat, inputKeys: inputKeys}
+                return {isChat: state.variants[0]?.isChat, inputKeys: inputKeys}
             },
             [variantId],
         ),
@@ -128,7 +126,7 @@ const LoadTestsetButton = ({
 
                         clonedState.generationData.inputs.value = newGenerationRows.filter(
                             (row) => !!row,
-                        ) as EnhancedObjectConfig<InputType<string[]>>[]
+                        )
 
                         return clonedState
                     }

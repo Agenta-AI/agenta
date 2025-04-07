@@ -2,13 +2,17 @@ import {memo, useMemo} from "react"
 
 import {Typography} from "antd"
 
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+
+import type {
+    Enhanced,
+    EnhancedObjectConfig,
+} from "../../../../lib/shared/variant/genericTransformer/types"
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {componentLogger} from "../../assets/utilities/componentLogger"
-import type {Enhanced, EnhancedObjectConfig} from "../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
-import {getMetadataLazy} from "../../state"
 
 import {renderMap} from "./assets/helpers"
 import type {PlaygroundVariantPropertyControlProps} from "./types"

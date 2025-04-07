@@ -2,7 +2,7 @@ import {useCallback} from "react"
 
 import {Drawer} from "antd"
 
-import {EnhancedVariant} from "@/oss/components/NewPlayground/assets/utilities/transformer/types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import PlaygroundVariantConfigPrompt from "@/oss/components/NewPlayground/Components/PlaygroundVariantConfigPrompt"
 import useDrawerWidth from "@/oss/components/NewPlayground/hooks/useDrawerWidth"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"

@@ -3,14 +3,18 @@ import {useCallback, useMemo} from "react"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+
+import {
+    Enhanced,
+    EnhancedObjectConfig,
+} from "../../../../lib/shared/variant/genericTransformer/types"
+import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {componentLogger} from "../../assets/utilities/componentLogger"
-import {Enhanced, EnhancedObjectConfig} from "../../assets/utilities/genericTransformer/types"
-import {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
-import {getMetadataLazy} from "../../state"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import SharedEditor from "../SharedEditor"
 

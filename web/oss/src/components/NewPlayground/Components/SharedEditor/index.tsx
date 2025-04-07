@@ -48,21 +48,21 @@ const SharedEditor = ({
                 "p-[11px]",
                 {
                     "border-[#BDC7D1]": editorType === "border",
-                    "hover:border-[#394857] focus:border-[#1C2C3D]": editorType === "border",
+                    "hover:border-[#394857] focus:border-[#BDC7D1]": editorType === "border",
                     "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "border",
                     "hover:border-[394857] focus:border-[394857]":
                         state === "filled" && editorType === "border",
                 },
                 {
-                    "border-[transparent] hover:border-[#BDC7D1] focus:border-[#1C2C3D]":
+                    "border-[transparent] hover:!border-[#BDC7D1] focus:border-[#BDC7D1]":
                         editorType === "borderless",
                     "cursor-not-allowed bg-[rgba(5,23,41,0.04)] border-none":
                         ["readOnly", "disabled"].includes(state) && editorType === "borderless",
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
                 },
-                isEditorFocused && "!border-[#1C2C3D]",
+                isEditorFocused && "!border-[#BDC7D1]",
                 className,
             )}
             onFocus={() => setIsEditorFocused(true)}
@@ -90,12 +90,6 @@ const SharedEditor = ({
                         handleLocalValueChange(value.textContent)
                     }}
                     autoFocus={autoFocus}
-                    // className={clsx([
-                    // "border-0",
-                    // "focus:ring-0",
-                    // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
-                    // className,
-                    // ])}
                     disabled={disabled}
                     showBorder={false}
                     {...editorProps}

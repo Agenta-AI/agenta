@@ -85,6 +85,7 @@ const MinMaxControl = ({
                     value={localValue ?? min}
                     disabled={disabled}
                     onChange={handleValueChange}
+                    classNames={{track: "!bg-[#1C2C3D]"}}
                 />
             </Tooltip>
         </PlaygroundVariantPropertyControlWrapper>

@@ -3,7 +3,6 @@ import {useCallback} from "react"
 import {Menu} from "antd"
 import clsx from "clsx"
 
-import {EnhancedVariant} from "@/oss/components/NewPlayground/assets/utilities/transformer/types"
 import PlaygroundVariantConfigPrompt from "@/oss/components/NewPlayground/Components/PlaygroundVariantConfigPrompt"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 
@@ -12,6 +11,7 @@ import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
 import PlaygroundVariantHistoryHeader from "./assets/PlaygroundVariantHistoryHeader"
 import {useStyles} from "./styles"
 import {PlaygroundVariantHistoryProps} from "./types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({variantId}) => {
     const {promptIds = []} = usePlayground({

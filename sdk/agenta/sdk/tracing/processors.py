@@ -31,7 +31,7 @@ class TraceProcessor(BatchSpanProcessor):
         super().__init__(
             span_exporter,
             _DEFAULT_MAX_QUEUE_SIZE,
-            60 * 60 * 1000 if inline else _DEFAULT_SCHEDULE_DELAY_MILLIS,
+            5 * 1000 if inline else _DEFAULT_SCHEDULE_DELAY_MILLIS,  # < 5 seconds
             _DEFAULT_MAX_EXPORT_BATCH_SIZE,
             500 if inline else _DEFAULT_EXPORT_TIMEOUT_MILLIS,  # < 1 second
         )

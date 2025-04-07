@@ -22,6 +22,11 @@ const COMMON_CONFIG: NextConfig = {
                 destination: "/apps",
                 permanent: true,
             },
+            {
+                source: "/apps/:app_id",
+                destination: "/apps/:app_id/overview/",
+                permanent: true,
+            },
         ]
     },
     ...(!isDevelopment

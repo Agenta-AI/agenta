@@ -1,12 +1,7 @@
 import {useCallback, useMemo} from "react"
 
-import {
-    ArrowCounterClockwise,
-    Copy,
-    DotsThreeVertical,
-    PencilSimple,
-    Trash,
-} from "@phosphor-icons/react"
+import {MoreOutlined} from "@ant-design/icons"
+import {ArrowCounterClockwise, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, MenuProps} from "antd"
 
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
@@ -110,7 +105,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
 
     return (
         <Dropdown trigger={["click"]} overlayStyle={{width: 170}} menu={{items}} {...props}>
-            <Button icon={<DotsThreeVertical size={14} />} type="text" />
+            <Button icon={<MoreOutlined size={14} />} type="text" />
         </Dropdown>
     )
 }

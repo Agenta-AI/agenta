@@ -598,6 +598,10 @@ const App: FC<TestViewProps> = ({
                 isChatVariant ? testItem.chat || [{}] : [],
                 controller.signal,
                 true,
+                false,
+                false,
+                undefined,
+                variant.variantId,
             )
 
             let res: BaseResponse | undefined

@@ -17,6 +17,7 @@ import {GenericObject, KeyValuePair} from "@/oss/lib/Types"
 import {fetchTestset, updateTestset} from "@/oss/services/testsets/api"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
+import {useProjectData} from "@/oss/contexts/project.context"
 
 import EditRowModal from "./EditRowModal"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
@@ -98,6 +99,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const classes = useStylesTestset()
     const router = useRouter()
     const {appTheme} = useAppTheme()
+    const {isProjectId} = useProjectData()
 
     const {testset_id} = router.query
 
@@ -126,7 +128,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
-        if (writeMode === "edit" && testset_id) {
+        if (writeMode === "edit" && testset_id && isProjectId) {
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 if (data.csvdata.length > 0) {
@@ -139,7 +141,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                 }
             })
         }
-    }, [writeMode, testset_id])
+    }, [writeMode, testset_id, isProjectId])
 
     const handleExportClick = () => {
         const csvData = convertToCsv(

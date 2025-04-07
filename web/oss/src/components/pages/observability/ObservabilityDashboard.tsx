@@ -11,7 +11,6 @@ import {
     Space,
     Table,
     TableColumnType,
-    Tag,
     Tooltip,
     Typography,
 } from "antd"
@@ -49,6 +48,7 @@ import {TestsetTraceData} from "./drawer/TestsetDrawer/assets/types"
 import TraceContent from "./drawer/TraceContent"
 import TraceHeader from "./drawer/TraceHeader"
 import TraceTree from "./drawer/TraceTree"
+import TruncatedTooltipTag from "../../TruncatedTooltipTag"
 
 const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
 
@@ -154,14 +154,10 @@ const ObservabilityDashboard = () => {
             width: 400,
             render: (_, record) => {
                 return (
-                    <Tooltip
-                        title={getStringOrJson(record?.data?.inputs)}
-                        overlayInnerStyle={{width: 400}}
-                        className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                    <TruncatedTooltipTag
+                        children={getStringOrJson(record?.data?.inputs)}
                         placement="bottom"
-                    >
-                        <Tag>{getStringOrJson(record?.data?.inputs)}</Tag>
-                    </Tooltip>
+                    />
                 )
             },
         },
@@ -171,14 +167,10 @@ const ObservabilityDashboard = () => {
             width: 400,
             render: (_, record) => {
                 return (
-                    <Tooltip
-                        title={getStringOrJson(record?.data?.outputs)}
-                        overlayInnerStyle={{width: 400}}
-                        className="overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]"
+                    <TruncatedTooltipTag
+                        children={getStringOrJson(record?.data?.outputs)}
                         placement="bottom"
-                    >
-                        <Tag>{getStringOrJson(record?.data?.outputs)}</Tag>
-                    </Tooltip>
+                    />
                 )
             },
         },

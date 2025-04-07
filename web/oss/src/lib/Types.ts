@@ -1,9 +1,23 @@
-import {GlobalToken} from "antd"
-import {StaticImageData} from "next/image"
+import type {GlobalToken} from "antd"
+import type {StaticImageData} from "next/image"
 
-import {AgentaNodeDTO} from "@/oss/services/observability/types"
+import type {AgentaNodeDTO} from "@/oss/services/observability/types"
 
-import {EvaluationFlow, EvaluationType} from "./enums"
+import type {EvaluationFlow, EvaluationType} from "./enums"
+import {VariantParameters} from "./shared/variant/transformer/types"
+
+// Type utility to convert snake_case object properties to camelCase
+type SnakeToCamelCaseKeys<T> = T extends object
+    ? {
+          [K in keyof T as SnakeToCamelCase<K & string>]: T[K] extends object
+              ? SnakeToCamelCaseKeys<T[K]>
+              : T[K]
+      }
+    : T
+
+type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
+    ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
+    : S
 
 export interface WorkspaceRole {
     role_description: string
@@ -66,22 +80,65 @@ export interface AppVariant {
     endpoint: string
 }
 
-export interface Variant {
-    variantName: string
+export interface ApiVariant {
+    app_id: string
+    app_name: string
+    variant_id: string
+    variant_name: string
+    project_id: string
+    parameters: Record<string, unknown>
+    base_name: string
+    base_id: string
+    config_name: string
+    uri: string
+    revision: number
+    created_at: string
+    updated_at: string
+    modified_by_id: string
+}
+
+export interface ApiRevision {
+    id: string
+    revision: number
+    modified_by: string
+    config: {
+        config_name: string
+        parameters: Record<string, unknown>
+    }
+    created_at: string
+    commit_message: string | null
+}
+
+export interface VariantRevision extends SnakeToCamelCaseKeys<ApiRevision> {
+    variantId: string
+    deployedIn?: CamelCaseEnvironment[]
+    createdAtTimestamp: number
+    updatedAtTimestamp: number
+    isLatestRevision: boolean
+}
+
+export type CamelCaseEnvironment = SnakeToCamelCaseKeys<Environment>
+
+export interface Variant extends Omit<SnakeToCamelCaseKeys<ApiVariant>, "parameters"> {
+    appId: string
+    name: string
     templateVariantName: string | null // template name of the variant in case it has a precursor. Needed to compute the URI path
     persistent: boolean // whether the variant is persistent in the backend or not
-    parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
     previousVariantName?: null | string // name of the variant that was forked from. Only set in the case of forked variants
     variantId: string
-    id?: string
-    uri?: string
-    baseId: string
-    baseName: string
-    configName: string
-    revision: number
-    updatedAt: string
-    createdAt: string
-    modifiedById: string
+    id: string
+    // updatedAt: string
+    // createdAt: string
+    modifiedBy: string
+    revisions?: VariantRevision[]
+    deployedIn?: CamelCaseEnvironment[] // environments where this variant is deployed
+    parameters: VariantParameters
+    createdAtTimestamp: number
+    updatedAtTimestamp: number
+    isLatestRevision: boolean
+    commitMessage: string | null
+    // parameters: Record<string, string> | null // parameters of the variant. Only set in the case of forked variants
+    // uri?: string
 }
 
 // Define the interface for the tabs item in playground page
@@ -314,12 +371,12 @@ export interface LlmProvidersKeys {
     GEMINI_API_KEY: string
 }
 
-export type HeaderDTO = {
+export interface HeaderDTO {
     name?: string | null
     description?: string | null
 }
 
-export type StandardSecret = {
+export interface StandardSecret {
     kind: SecretDTOProvider
     provider: {
         key: string
@@ -372,7 +429,7 @@ interface VaultProvider {
     }
 }
 
-type VaultData = {
+interface VaultData {
     kind: string
     provider: VaultProvider
     models: VaultModels[]
@@ -411,223 +468,120 @@ export interface Environment {
     revision: string | null
 }
 
-export interface CustomEvaluation {
-    id: string
-    app_name: string
-    evaluation_name: string
-    python_code: string
-    created_at: string
-    updated_at: string
+export interface VariantVotesData {
+    number_of_votes: number
+    percentage: number
 }
-
-export interface User {
-    id: string
-    uid: string
-    username: string
-    email: string
-}
-
-export enum ChatRole {
-    System = "system",
-    User = "user",
-    Assistant = "assistant",
-    Function = "function",
-}
-
-export interface ChatMessage {
-    role: ChatRole
-    content: string
-    id?: string
-}
-
-type ValueType = number | string | boolean | GenericObject | null
-type ValueTypeOptions =
-    | "text"
-    | "number"
-    | "boolean"
-    | "bool"
-    | "string"
-    | "code"
-    | "regex"
-    | "object"
-    | "error"
-    | "cost"
-    | "latency"
-    | "hidden"
-    | "messages"
-    | "multiple_choice"
-
-//evaluation revamp types
-export interface EvaluationSettingsTemplate {
-    type: ValueTypeOptions
-    label: string
-    default?: ValueType
-    description: string
-    min?: number
-    max?: number
-    required?: boolean
-    advanced?: boolean
-    options?: string[]
-}
-
-export interface Evaluator {
-    name: string
+export interface HumanEvaluationListTableDataType {
     key: string
-    settings_template: Record<string, EvaluationSettingsTemplate>
-    icon_url?: string | StaticImageData
-    color?: string
-    direct_use?: boolean
-    description: string
-    oss?: boolean
-    requires_llm_api_keys?: boolean
-    tags: string[]
-}
-
-export interface EvaluatorConfig {
-    id: string
-    evaluator_key: string
-    name: string
-    settings_values: Record<string, any>
-    created_at: string
-    color?: string
-    updated_at: string
-    tags?: string[]
-}
-
-export interface EvaluationError {
-    message: string
-    stacktrace: string
-}
-
-export interface TypedValue {
-    type: ValueTypeOptions
-    value: ValueType
-    error: null | EvaluationError
-}
-
-export enum EvaluationStatus {
-    INITIALIZED = "EVALUATION_INITIALIZED",
-    STARTED = "EVALUATION_STARTED",
-    FINISHED = "EVALUATION_FINISHED",
-    FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
-    ERROR = "EVALUATION_FAILED",
-    AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
-}
-
-export enum EvaluationStatusType {
-    STATUS = "status",
-    ERROR = "error",
-}
-
-export interface CorrectAnswer {
-    key: string
-    value: string
-}
-
-export interface _Evaluation {
-    id: string
-    appId: string
-    user: {
-        id: string
-        username: string
-    }
+    variants: string[]
     testset: {
-        id: string
+        _id: string
         name: string
     }
-    status: {
-        type: EvaluationStatusType
-        value: EvaluationStatus
-        error: null | EvaluationError
+    evaluationType: string
+    status: EvaluationFlow
+    votesData: {
+        nb_of_rows: number
+        variants: string[]
+        flag_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        positive_votes: {
+            number_of_votes: number
+            percentage: number
+        }
+        variants_votes_data: Record<string, VariantVotesData>
     }
-    variants: {variantId: string; variantName: string}[]
-    aggregated_results: {
-        evaluator_config: EvaluatorConfig
-        result: TypedValue & {error: null | EvaluationError}
-    }[]
-    created_at?: string
-    updated_at?: string
-    duration?: number
+    createdAt: string
     revisions: string[]
-    average_latency?: TypedValue & {error: null | EvaluationError}
-    average_cost?: TypedValue & {error: null | EvaluationError}
-    total_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
+    variantNames: string[]
 }
 
-export interface _EvaluationScenario {
+export interface Filter {
+    key: string
+    operator: FilterConditions
+    value: string
+    isPermanent?: boolean
+}
+
+export type FilterConditions =
+    | "contains"
+    | "matches"
+    | "like"
+    | "startswith"
+    | "endswith"
+    | "exists"
+    | "not_exists"
+    | "eq"
+    | "neq"
+    | "gt"
+    | "lt"
+    | "gte"
+    | "lte"
+    | "between"
+    | "in"
+    | "is"
+    | "is_not"
+    | "btwn"
+    | ""
+
+export interface WorkspaceRole {
+    role_description: string
+    role_name: string
+}
+
+export interface WorkspaceUser {
     id: string
-    evaluation_id: string
-    evaluation: _Evaluation
-    evaluators_configs: EvaluatorConfig[]
-    inputs: (TypedValue & {name: string})[]
-    outputs: {result: TypedValue; cost?: number; latency?: number}[]
-    correct_answers?: CorrectAnswer[]
-    is_pinned?: boolean
-    note?: string
-    results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
+    email: string
+    username: string
+    status: "member" | "pending" | "expired"
+    created_at: string
 }
 
-export interface Annotation {
+export interface WorkspaceMember {
+    user: WorkspaceUser
+    roles: (WorkspaceRole & {permissions: string[]})[]
+}
+
+export interface Workspace {
     id: string
-    app_id: string
-    variants: {variantId: string; variantName: string}[]
-    annotation_name: "flag" | "score"
-    testset: {
-        id: string
-        name: string
-    }
-    aggregated_results: string[]
+    name: string
+    description: string
+    created_at: string
+    updated_at: string
+    organization: string
+    type: "default"
+    members: WorkspaceMember[]
 }
 
-export interface AnnotationScenario {
+export interface Org {
     id: string
-    annotation_id: string
-    annotation: Annotation
-    inputs: (TypedValue & {name: string})[]
-    outputs: TypedValue[]
-    is_pinned?: boolean
-    note?: string
-    result: TypedValue
+    name: string
+    description: string
+    owner: string
+    is_paying: boolean
 }
 
-export type ComparisonResultRow = {
-    inputs: {name: string; value: string}[]
-    variants: {
-        variantId: string
-        variantName: string
-        output: {result: TypedValue; cost?: number; latency?: number}
-        evaluationId: string
-        evaluatorConfigs: {
-            evaluatorConfig: EvaluatorConfig
-            result: TypedValue & {error: null | EvaluationError}
-        }[]
-    }[]
-    id: string
-} & Record<string, any>
-
-export interface RequestMetadata {
-    cost: number
-    latency: number
-    usage:
-        | {completion?: number; prompt?: number; total: number}
-        | {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
+export type OrgDetails = Org & {
+    type: "default"
+    default_workspace: Workspace
+    workspaces: string[]
 }
 
-export interface WithPagination<T> {
-    data: T[]
-    total: number
-    page: number
-    pageSize: number
+export interface AuthErrorMsgType {
+    message: string
+    sub?: string
+    type: "error" | "success" | "info" | "warning" | undefined
 }
 
-export interface PaginationQuery {
-    page: number
-    pageSize: number
-}
-
-export interface StyleProps {
-    themeMode: "dark" | "light"
+export interface APIKey {
+    prefix: string
+    created_at: string
+    last_used_at: string
+    expiration_date: string | null
 }
 
 export interface SingleModelEvaluationListTableDataType {
@@ -760,118 +714,220 @@ export interface TraceSpanTreeNode {
     children?: TraceSpanTreeNode[]
 }
 
-interface VariantVotesData {
-    number_of_votes: number
-    percentage: number
+export type ComparisonResultRow = {
+    inputs: {name: string; value: string}[]
+    variants: {
+        variantId: string
+        variantName: string
+        output: {result: TypedValue; cost?: number; latency?: number}
+        evaluationId: string
+        evaluatorConfigs: {
+            evaluatorConfig: EvaluatorConfig
+            result: TypedValue & {error: null | EvaluationError}
+        }[]
+    }[]
+    id: string
+} & Record<string, any>
+
+export interface RequestMetadata {
+    cost: number
+    latency: number
+    usage:
+        | {completion?: number; prompt?: number; total: number}
+        | {completion_tokens?: number; prompt_tokens?: number; total_tokens: number}
 }
-export interface HumanEvaluationListTableDataType {
+
+export interface WithPagination<T> {
+    data: T[]
+    total: number
+    page: number
+    pageSize: number
+}
+
+export interface PaginationQuery {
+    page: number
+    pageSize: number
+}
+
+export interface StyleProps {
+    themeMode: "dark" | "light"
+}
+
+export interface Evaluator {
+    name: string
     key: string
-    variants: string[]
+    settings_template: Record<string, EvaluationSettingsTemplate>
+    icon_url?: string | StaticImageData
+    color?: string
+    direct_use?: boolean
+    description: string
+    oss?: boolean
+    requires_llm_api_keys?: boolean
+    tags: string[]
+}
+
+export interface EvaluatorConfig {
+    id: string
+    evaluator_key: string
+    name: string
+    settings_values: Record<string, any>
+    created_at: string
+    color?: string
+    updated_at: string
+    tags?: string[]
+}
+
+export interface EvaluationError {
+    message: string
+    stacktrace: string
+}
+
+export interface TypedValue {
+    type: ValueTypeOptions
+    value: ValueType
+    error: null | EvaluationError
+}
+
+export enum EvaluationStatus {
+    INITIALIZED = "EVALUATION_INITIALIZED",
+    STARTED = "EVALUATION_STARTED",
+    FINISHED = "EVALUATION_FINISHED",
+    FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
+    ERROR = "EVALUATION_FAILED",
+    AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
+}
+
+export enum EvaluationStatusType {
+    STATUS = "status",
+    ERROR = "error",
+}
+
+export interface CorrectAnswer {
+    key: string
+    value: string
+}
+
+export interface _Evaluation {
+    id: string
+    appId: string
+    user: {
+        id: string
+        username: string
+    }
     testset: {
-        _id: string
+        id: string
         name: string
     }
-    evaluationType: string
-    status: EvaluationFlow
-    votesData: {
-        nb_of_rows: number
-        variants: string[]
-        flag_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        positive_votes: {
-            number_of_votes: number
-            percentage: number
-        }
-        variants_votes_data: Record<string, VariantVotesData>
+    status: {
+        type: EvaluationStatusType
+        value: EvaluationStatus
+        error: null | EvaluationError
     }
-    createdAt: string
+    variants: {variantId: string; variantName: string}[]
+    aggregated_results: {
+        evaluator_config: EvaluatorConfig
+        result: TypedValue & {error: null | EvaluationError}
+    }[]
+    created_at?: string
+    updated_at?: string
+    duration?: number
     revisions: string[]
+    average_latency?: TypedValue & {error: null | EvaluationError}
+    average_cost?: TypedValue & {error: null | EvaluationError}
+    total_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
-    variantNames: string[]
 }
 
-export interface Filter {
-    key: string
-    operator: FilterConditions
-    value: string
-    isPermanent?: boolean
-}
-
-export type FilterConditions =
-    | "contains"
-    | "matches"
-    | "like"
-    | "startswith"
-    | "endswith"
-    | "exists"
-    | "not_exists"
-    | "eq"
-    | "neq"
-    | "gt"
-    | "lt"
-    | "gte"
-    | "lte"
-    | "between"
-    | "in"
-    | "is"
-    | "is_not"
-    | "btwn"
-    | ""
-
-export interface WorkspaceRole {
-    role_description: string
-    role_name: string
-}
-
-export interface WorkspaceUser {
+export interface _EvaluationScenario {
     id: string
-    email: string
-    username: string
-    status: "member" | "pending" | "expired"
-    created_at: string
+    evaluation_id: string
+    evaluation: _Evaluation
+    evaluators_configs: EvaluatorConfig[]
+    inputs: (TypedValue & {name: string})[]
+    outputs: {result: TypedValue; cost?: number; latency?: number}[]
+    correct_answers?: CorrectAnswer[]
+    is_pinned?: boolean
+    note?: string
+    results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
 }
 
-export interface WorkspaceMember {
-    user: WorkspaceUser
-    roles: (WorkspaceRole & {permissions: string[]})[]
-}
-
-export interface Workspace {
+export interface Annotation {
     id: string
-    name: string
+    app_id: string
+    variants: {variantId: string; variantName: string}[]
+    annotation_name: "flag" | "score"
+    testset: {
+        id: string
+        name: string
+    }
+    aggregated_results: string[]
+}
+
+export interface AnnotationScenario {
+    id: string
+    annotation_id: string
+    annotation: Annotation
+    inputs: (TypedValue & {name: string})[]
+    outputs: TypedValue[]
+    is_pinned?: boolean
+    note?: string
+    result: TypedValue
+}
+
+type ValueType = number | string | boolean | GenericObject | null
+type ValueTypeOptions =
+    | "text"
+    | "number"
+    | "boolean"
+    | "bool"
+    | "string"
+    | "code"
+    | "regex"
+    | "object"
+    | "error"
+    | "cost"
+    | "latency"
+    | "hidden"
+    | "messages"
+    | "multiple_choice"
+
+export interface EvaluationSettingsTemplate {
+    type: ValueTypeOptions
+    label: string
+    default?: ValueType
     description: string
+    min?: number
+    max?: number
+    required?: boolean
+    advanced?: boolean
+    options?: string[]
+}
+
+export interface CustomEvaluation {
+    id: string
+    app_name: string
+    evaluation_name: string
+    python_code: string
     created_at: string
     updated_at: string
-    organization: string
-    type: "default"
-    members: WorkspaceMember[]
 }
 
-export interface Org {
+export interface User {
     id: string
-    name: string
-    description: string
-    owner: string
-    is_paying: boolean
+    uid: string
+    username: string
+    email: string
 }
 
-export type OrgDetails = Org & {
-    type: "default"
-    default_workspace: Workspace
-    workspaces: string[]
+export enum ChatRole {
+    System = "system",
+    User = "user",
+    Assistant = "assistant",
+    Function = "function",
 }
 
-export interface AuthErrorMsgType {
-    message: string
-    sub?: string
-    type: "error" | "success" | "info" | "warning" | undefined
-}
-
-export interface APIKey {
-    prefix: string
-    created_at: string
-    last_used_at: string
-    expiration_date: string | null
+export interface ChatMessage {
+    role: ChatRole
+    content: string
+    id?: string
 }

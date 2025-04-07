@@ -17,7 +17,7 @@ import type {GenerationHeaderProps} from "./types"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
-    const {resultHashes, isRunning, mutate, runTests} = usePlayground({
+    const {resultHashes, isRunning, mutate, runTests, cancelRunTests} = usePlayground({
         variantId,
         stateSelector: useCallback(
             (state: PlaygroundStateData) => {
@@ -98,12 +98,16 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     resultHashes={resultHashes}
                 />
 
-                <RunButton
-                    isRunAll
-                    type="primary"
-                    onClick={() => runTests?.()}
-                    disabled={isRunning}
-                />
+                {!isRunning ? (
+                    <RunButton
+                        isRunAll
+                        type="primary"
+                        onClick={() => runTests?.()}
+                        disabled={isRunning}
+                    />
+                ) : (
+                    <RunButton isCancel onClick={() => cancelRunTests?.()} className="flex" />
+                )}
             </div>
         </section>
     )

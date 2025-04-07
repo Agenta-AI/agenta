@@ -18,7 +18,7 @@ const PromptFocusDrawerHeader: React.FC<PromptFocusDrawerHeaderProps> = ({
                 <Version revision={revision} />
             </Space>
             <Space className="flex items-center gap-2">
-                <DeployVariantButton variantId={variantId} />
+                <DeployVariantButton revisionId={variantId} />
 
                 <CommitVariantChangesButton
                     variantId={variantId}

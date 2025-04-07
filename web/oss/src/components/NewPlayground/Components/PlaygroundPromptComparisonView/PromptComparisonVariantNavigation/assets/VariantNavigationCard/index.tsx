@@ -7,8 +7,8 @@ import {Button, Tag, Typography} from "antd"
 import clsx from "clsx"
 
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getResponseLazy} from "@/oss/components/NewPlayground/state"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import Version from "../../../../../assets/Version"
 import usePlayground from "../../../../../hooks/usePlayground"

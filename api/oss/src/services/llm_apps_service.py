@@ -8,10 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from oss.src.utils import common
 from oss.src.services import helpers
-from oss.src.utils.common import is_ee
+from oss.src.services.auth_helper import sign_secret_token
 from oss.src.models.shared_models import InvokationResult, Result, Error
-
-from ee.src.services.auth_helper import sign_secret_token
 
 
 # Set logger

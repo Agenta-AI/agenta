@@ -5,7 +5,7 @@ import dynamic from "next/dynamic"
 
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getResponseLazy} from "@/oss/components/NewPlayground/state"
+import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
@@ -28,7 +28,7 @@ const GenerationComparisonCompletionOutput = ({
     isLastRow,
     registerToWebWorker,
 }: GenerationComparisonCompletionOutputProps) => {
-    const {resultHash, isRunning} = usePlayground({
+    const {resultHash, isRunning, viewType} = usePlayground({
         registerToWebWorker: registerToWebWorker ?? true,
         variantId,
         rowId,
@@ -56,9 +56,8 @@ const GenerationComparisonCompletionOutput = ({
             {variantIndex === 0 ? (
                 <div
                     className={clsx([
-                        "border-0 border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3] !w-[400px]",
+                        "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3] !w-[400px]",
                         {"border-r": variantIndex === 0},
-                        {"border-b": !isLastRow},
                     ])}
                 >
                     {variantIndex === 0 && (
@@ -72,17 +71,21 @@ const GenerationComparisonCompletionOutput = ({
             <div
                 className={clsx([
                     "!min-w-[400px] flex-1",
-                    "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
-                    {"border-b": !isLastRow},
+                    "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                 ])}
             >
                 <div className="flex h-full">
                     <div className="w-full flex-1 h-full">
-                        <div className="w-full py-2 px-4 sticky top-9 z-[2]">
+                        <div
+                            className={clsx([
+                                "w-full sticky top-9 z-[2]",
+                                {"py-3 px-4": isRunning || !result},
+                            ])}
+                        >
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
-                                <GenerationOutputText text="Click Run to generate" />
+                                <GenerationOutputText text="Click run to generate" isPlaceholder />
                             ) : result.error ? (
                                 <SharedEditor
                                     initialValue={result?.error}
@@ -93,12 +96,13 @@ const GenerationComparisonCompletionOutput = ({
                                     disabled
                                     className={clsx([
                                         "!pt-0",
+                                        "!rounded-none",
                                         {
                                             "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
                                                 result?.error,
                                         },
                                     ])}
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0 py-3"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
                                     }
@@ -118,7 +122,7 @@ const GenerationComparisonCompletionOutput = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className="!p-0"
+                                    className="!rounded-none !px-4"
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
