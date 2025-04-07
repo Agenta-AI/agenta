@@ -29,6 +29,7 @@ import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import StatusRenderer from "../../evaluations/cellRenderers/StatusRenderer"
 import EvaluationErrorPopover from "../../evaluations/EvaluationErrorProps/EvaluationErrorPopover"
 import NewEvaluationModal from "../../evaluations/NewEvaluation/NewEvaluationModal"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 const {Title} = Typography
 
@@ -200,12 +201,10 @@ const AutomaticEvalOverview = () => {
             }),
             render: (value, record) => {
                 return (
-                    <span>
-                        {variantNameWithRev({
-                            variant_name: value[0].variantName,
-                            revision: record.revisions[0],
-                        })}
-                    </span>
+                    <VariantDetailsWithStatus
+                        variantName={value[0].variantName}
+                        revision={record.revisions[0]}
+                    />
                 )
             },
         },

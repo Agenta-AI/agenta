@@ -4,7 +4,7 @@ import {Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import usePlayground from "../../../hooks/usePlayground"
 import type {PromptCollapseHeaderProps} from "../types"
 

@@ -5,8 +5,7 @@ import {Alert, Button, message, Space} from "antd"
 import clsx from "clsx"
 
 import {useAppsData} from "@/oss/contexts/app.context"
-
-import {findCustomWorkflowPath} from "../NewPlayground/hooks/usePlayground/assets/helpers"
+import {findCustomWorkflowPath} from "@/oss/lib/shared/variant"
 
 import {CustomWorkflowBannerProps} from "./types"
 

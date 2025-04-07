@@ -5,6 +5,7 @@ import Link from "next/link"
 
 import {useStyles} from "../assets/styles"
 import {SidebarConfig, SidebarMenuProps} from "../types"
+import clsx from "clsx"
 
 const SidebarMenu: React.FC<SidebarMenuProps> = ({
     items,
@@ -27,6 +28,8 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             </>
                         ),
                         children: transformItems(item.submenu),
+                        popupClassName:
+                            "[&_.ant-menu-sub_>_.ant-menu-item]:flex [&_.ant-menu-sub_>_.ant-menu-item]:items-center",
                         disabled: item.isCloudFeature,
                         onTitleClick: item.onClick,
                         title: (
@@ -48,7 +51,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     const node = (
                         <Link
                             data-cy={item.key}
-                            className={classes.menuLinks}
+                            className="w-full"
                             href={item.link || "#"}
                             onClick={item.onClick}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
@@ -81,7 +84,19 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
         [items, collapsed],
     )
 
-    return <Menu mode={mode} items={transformItems(items)} {...menuProps} />
+    return (
+        <Menu
+            mode={mode}
+            items={transformItems(items)}
+            inlineCollapsed={collapsed}
+            {...menuProps}
+            className={clsx(
+                "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",
+                "[&_.ant-menu-submenu-title]:flex [&_.ant-menu-submenu-title]:items-center",
+                menuProps?.className,
+            )}
+        />
+    )
 }
 
 export default SidebarMenu

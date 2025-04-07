@@ -4,6 +4,7 @@ import useSWR from "swr"
 
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {Environment} from "@/oss/lib/Types"
 
 interface UseEnvironmentOptions extends SWRConfiguration {
     appId?: string
@@ -25,7 +26,7 @@ export const useEnvironments = ({appId: propsAppId, ...rest}: UseEnvironmentOpti
     )
 
     return {
-        environments: data || [],
+        environments: (data || []) as Environment[],
         isEnvironmentsLoading: isLoading,
         isEnvironmentsLoadingError: error,
         mutate,

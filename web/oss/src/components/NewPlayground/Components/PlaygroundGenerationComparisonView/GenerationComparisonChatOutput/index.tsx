@@ -5,9 +5,9 @@ import clsx from "clsx"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {findPropertyInObject} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/oss/components/NewPlayground/state"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
-import {ObjectMetadata} from "../../../assets/utilities/genericTransformer/types"
+import {ObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/types"
 import GenerationChatRow, {
     GenerationChatRowOutput,
 } from "../../PlaygroundGenerations/assets/GenerationChatRow"
@@ -116,21 +116,13 @@ const GenerationComparisonChatOutputCell = ({
         <>
             <div
                 className={clsx([
-                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-solid border-[rgba(5,23,41,0.06)]",
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-r": variantIndex === 0},
-                    {"border-b": !isLastRow},
                 ])}
             >
                 {variantIndex === 0 && (
                     <div className="!w-[399.2px] shrink-0 sticky top-9 z-[2]">
-                        <div
-                            className={clsx([
-                                {
-                                    "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
-                                        isFirstRow,
-                                },
-                            ])}
-                        >
+                        <div>
                             {isFirstRow &&
                                 inputRowIds.map((inputRowId) => {
                                     return (
@@ -168,8 +160,7 @@ const GenerationComparisonChatOutputCell = ({
                     "!min-w-[400px] flex-1",
                     "shrink-0",
                     "flex flex-col self-stretch",
-                    "border-0 border-r border-solid border-[rgba(5,23,41,0.06)]",
-                    {"border-b": !isLastRow},
+                    "border-0 border-r border-b border-solid border-[rgba(5,23,41,0.06)]",
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
@@ -193,7 +184,7 @@ const GenerationComparisonChatOutputCell = ({
                         />
                     ) : (
                         <div className="p-3">
-                            <GenerationOutputText text="Click Run to generate" />
+                            <GenerationOutputText text="Click run to generate" isPlaceholder />
                         </div>
                     )}
                 </div>

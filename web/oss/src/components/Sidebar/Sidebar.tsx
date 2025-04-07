@@ -142,7 +142,7 @@ const Sidebar: React.FC = () => {
                                         }}
                                     >
                                         <Button
-                                            className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-none" : ""}`}
+                                            className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-transparent" : ""}`}
                                         >
                                             <div className={classes.avatarContainer}>
                                                 <Avatar
@@ -196,7 +196,7 @@ const Sidebar: React.FC = () => {
                                 }}
                                 items={bottomItems}
                                 collapsed={isSidebarExpanded}
-                                mode={isSidebarExpanded ? "inline" : "vertical"}
+                                mode={"vertical"}
                             />
                         </div>
                     </ErrorBoundary>

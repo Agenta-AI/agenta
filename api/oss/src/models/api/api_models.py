@@ -45,13 +45,6 @@ class GetConfigResponse(BaseModel):
     parameters: Dict[str, Any]
 
 
-class SaveConfigPayload(BaseModel):
-    base_id: str
-    config_name: str
-    parameters: Dict[str, Any]
-    overwrite: bool
-
-
 class VariantActionEnum(str, Enum):
     START = "START"
     STOP = "STOP"
@@ -87,6 +80,13 @@ class AppOutput(CreateAppOutput):
 
 class UpdateVariantParameterPayload(BaseModel):
     parameters: Dict[str, Any]
+    commit_message: Optional[str] = None
+
+
+class UpdateVariantURLPayload(BaseModel):
+    url: str
+    variant_id: str
+    commit_message: Optional[str] = None
 
 
 class AppVariant(BaseModel):
@@ -106,11 +106,11 @@ class AppVariantResponse(BaseModel):
     variant_id: str
     variant_name: str
     project_id: str
-    parameters: Optional[Dict[str, Any]]
+    parameters: Optional[Dict[str, Any]] = None
     base_name: str
     base_id: str
     config_name: str
-    uri: Optional[str]
+    uri: Optional[str] = None
     revision: int
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -123,6 +123,7 @@ class AppVariantRevision(BaseModel):
     modified_by: str
     config: ConfigDB
     created_at: str
+    commit_message: Optional[str] = None
 
 
 class AppVariantOutputExtended(BaseModel):
@@ -155,8 +156,9 @@ class EnvironmentRevision(BaseModel):
     id: str
     revision: int
     modified_by: str
-    deployed_app_variant_revision: Optional[str]
-    deployment: Optional[str]
+    deployed_app_variant_revision: Optional[str] = None
+    deployment: Optional[str] = None
+    commit_message: Optional[str] = None
     created_at: str
 
 
@@ -174,6 +176,7 @@ class AddVariantFromBasePayload(BaseModel):
     new_variant_name: str
     new_config_name: str
     parameters: Dict[str, Any]
+    commit_message: Optional[str] = None
 
 
 class RestartAppContainer(BaseModel):
@@ -183,15 +186,17 @@ class RestartAppContainer(BaseModel):
 class AddVariantFromURLPayload(BaseModel):
     variant_name: str
     url: str
-    base_name: Optional[str]
-    config_name: Optional[str]
+    commit_message: Optional[str] = None
+    base_name: Optional[str] = None
+    config_name: Optional[str] = None
 
 
 class AddVariantFromKeyPayload(BaseModel):
     variant_name: str
     key: str
-    base_name: Optional[str]
-    config_name: Optional[str]
+    commit_message: Optional[str] = None
+    base_name: Optional[str] = None
+    config_name: Optional[str] = None
 
 
 class App(BaseModel):
@@ -215,6 +220,7 @@ class Environment(BaseModel):
 class DeployToEnvironmentPayload(BaseModel):
     environment_name: str
     variant_id: str
+    commit_message: Optional[str] = None
 
 
 class TestSetOutput(BaseModel):

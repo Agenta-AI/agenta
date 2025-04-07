@@ -34,6 +34,9 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
             flex: 1,
             overflowY: "auto",
         },
+        "& .ant-menu-item": {
+            textOverflow: "initial",
+        },
         "& .ant-menu-item,.ant-menu-submenu-title": {
             padding: "0 16px !important",
         },

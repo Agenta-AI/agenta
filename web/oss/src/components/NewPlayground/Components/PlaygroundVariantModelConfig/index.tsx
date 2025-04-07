@@ -3,9 +3,10 @@ import {memo, useState, useCallback} from "react"
 import {CaretDown} from "@phosphor-icons/react"
 import {Button, Popover} from "antd"
 
+import {getEnhancedProperties} from "@/oss/lib/shared/variant"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+
 import {componentLogger} from "../../assets/utilities/componentLogger"
-import {getEnhancedProperties} from "../../assets/utilities/genericTransformer/utilities/enhanced"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 
 import ModelConfigModal from "./assets/ModelConfigModal"
@@ -80,6 +81,8 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         mutateVariant?.((variant) => {
             const prompt = variant?.prompts.find((p) => p.__id === promptId)
             const llmConfig = prompt?.llmConfig
+            // @ts-ignore
+            const resetModelName = variant.parameters?.agConfig?.prompt.llm_config?.model //TODO: Check this @ardaerzin
 
             if (!llmConfig) return variant
 
@@ -96,6 +99,10 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             properties.forEach((property) => {
                 property.value = null
             })
+
+            if (model.value !== resetModelName) {
+                llmConfig.model.value = resetModelName
+            }
 
             return variant
         })

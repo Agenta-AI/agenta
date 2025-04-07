@@ -1,15 +1,13 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {useRouter} from "next/router"
-
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useAllVariantsData} from "@/oss/lib/hooks/useAllVariantsData"
-import {removeTrailingSlash} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
+import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
+import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
 
 import CustomWorkflowModal from ".."
@@ -23,9 +21,7 @@ const useCustomWorkflowConfig = ({
     configureWorkflow = true,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
-    const router = useRouter()
     const {currentApp, apps} = useAppsData()
-    const appId = router.query.app_id as string
     const {secrets} = useVaultSecret()
     const [isCustomWorkflowModalOpen, setIsCustomWorkflowModalOpen] = useState(false)
     const [customWorkflowAppValues, setCustomWorkflowAppValues] = useState(() => ({
@@ -35,10 +31,16 @@ const useCustomWorkflowConfig = ({
     }))
 
     const {mutate} = useAppsData()
-    const {mutate: allVariantsDataMutate, data: variants} = useAllVariantsData({appId})
+    const {data, mutate: variantsMutate} = useStatelessVariants(
+        {
+            appId: currentApp?.app_id,
+        },
+        [],
+    )
+
     const posthog = usePostHogAg()
 
-    const variant = useMemo(() => variants?.[0], [variants])
+    const variant = useMemo(() => data?.variants?.[0], [data?.variants])
     const {user} = useProfileData()
 
     useEffect(() => {
@@ -116,8 +118,9 @@ const useCustomWorkflowConfig = ({
                 setCustomWorkflowAppValues={setCustomWorkflowAppValues}
                 handleCreateApp={configureWorkflow ? () => {} : handleCustomWorkflowClick}
                 configureWorkflow={configureWorkflow}
-                allVariantsDataMutate={allVariantsDataMutate}
-                variants={variants}
+                // @ts-ignore
+                allVariantsDataMutate={variantsMutate}
+                variants={data?.variants}
                 mutate={async () => afterConfigSave}
                 {...(!configureWorkflow && {appNameExist})}
             />
@@ -125,11 +128,11 @@ const useCustomWorkflowConfig = ({
         [
             isCustomWorkflowModalOpen,
             customWorkflowAppValues,
-            variants,
+            data?.variants,
             configureWorkflow,
             setCustomWorkflowAppValues,
             handleCustomWorkflowClick,
-            allVariantsDataMutate,
+            variantsMutate,
         ],
     )
 

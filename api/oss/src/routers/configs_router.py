@@ -4,16 +4,9 @@ from typing import Optional
 from fastapi.responses import JSONResponse
 from fastapi import Request, HTTPException
 
-
+from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
-from oss.src.models.api.api_models import (
-    SaveConfigPayload,
-    GetConfigResponse,
-)
-from oss.src.services import (
-    db_manager,
-    app_manager,
-)
+from oss.src.models.api.api_models import GetConfigResponse
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -23,73 +16,6 @@ if is_ee():
 router = APIRouter()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-
-
-@router.post("/", operation_id="save_config")
-async def save_config(
-    payload: SaveConfigPayload,
-    request: Request,
-):
-    try:
-        base_db = await db_manager.fetch_base_by_id(payload.base_id)
-
-        if is_ee():
-            has_permission = await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=str(base_db.project_id),
-                permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
-            )
-            if not has_permission:
-                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
-                return JSONResponse(
-                    {"detail": error_msg},
-                    status_code=403,
-                )
-
-        variants_db = await db_manager.list_variants_for_base(base_db)
-        variant_to_overwrite = None
-        for variant_db in variants_db:
-            if variant_db.config_name == payload.config_name:
-                variant_to_overwrite = variant_db
-                break
-
-        if variant_to_overwrite is not None:
-            if payload.overwrite or variant_to_overwrite.config_parameters == {}:
-                print(f"update_variant_parameters  ===> {payload.overwrite}")
-                await app_manager.update_variant_parameters(
-                    app_variant_id=str(variant_to_overwrite.id),
-                    parameters=payload.parameters,
-                    user_uid=request.state.user_id,
-                    project_id=str(base_db.project_id),
-                )
-
-                logger.debug("Deploying to production environment")
-                await db_manager.deploy_to_environment(
-                    environment_name="production",
-                    variant_id=str(variant_to_overwrite.id),
-                    user_uid=request.state.user_id,
-                )
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Config name already exists. Please use a different name or set overwrite to True.",
-                )
-        else:
-            print(
-                f"add_variant_from_base_and_config overwrite ===> {payload.overwrite}"
-            )
-            await db_manager.add_variant_from_base_and_config(
-                base_db=base_db,
-                new_config_name=payload.config_name,
-                parameters=payload.parameters,
-                user_uid=request.state.user_id,
-                project_id=str(base_db.project_id),
-            )
-
-    except HTTPException as e:
-        logger.error(f"save_config http exception ===> {e.detail}")
-        raise e
 
 
 @router.get("/", response_model=GetConfigResponse, operation_id="get_config")

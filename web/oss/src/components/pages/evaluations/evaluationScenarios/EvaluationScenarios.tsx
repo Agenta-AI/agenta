@@ -33,6 +33,7 @@ import {LongTextCellRenderer, ResultRenderer} from "../cellRenderers/cellRendere
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -353,10 +354,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         <Typography.Link
                             href={`/apps/${appId}/playground?variant=${evalaution?.variants[0].variantName}`}
                         >
-                            {variantNameWithRev({
-                                variant_name: evalaution?.variants[0].variantName ?? "",
-                                revision: evalaution?.revisions[0],
-                            })}
+                            <VariantDetailsWithStatus
+                                variantName={evalaution?.variants[0].variantName ?? ""}
+                                revision={evalaution?.revisions[0]}
+                            />
                         </Typography.Link>
                     </Space>
                 </Space>

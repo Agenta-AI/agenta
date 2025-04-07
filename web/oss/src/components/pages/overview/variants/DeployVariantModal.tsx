@@ -48,7 +48,11 @@ const DeployVariantModal = ({
         try {
             for (const envName of selectedRowKeys) {
                 try {
-                    await createPublishVariant(selectedVariant.variantId, envName as string)
+                    await createPublishVariant({
+                        variant_id: selectedVariant.variantId,
+                        environment_name: envName as string,
+                        note: "",
+                    })
                     props.onCancel?.({} as any)
                     message.success(`Published ${selectedVariant.variantName} to ${envName}`)
                 } catch (error) {

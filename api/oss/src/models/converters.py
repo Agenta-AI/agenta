@@ -106,7 +106,7 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
 
 
 async def app_variant_db_revisions_to_output(
-    app_variant_revisions_db: AppVariantRevisionsDB,
+    app_variant_revisions_db: List[AppVariantRevisionsDB],
 ) -> AppVariantRevision:
     app_variant_revisions = []
     for app_variant_revision_db in app_variant_revisions_db:
@@ -119,6 +119,7 @@ async def app_variant_db_revisions_to_output(
                     "config_name": app_variant_revision_db.config_name,  # type: ignore
                     "parameters": app_variant_revision_db.config_parameters,  # type: ignore
                 },
+                commit_message=app_variant_revision_db.commit_message,
                 created_at=str(app_variant_revision_db.created_at),
             )
         )
@@ -202,6 +203,7 @@ async def environment_db_and_revision_to_extended_output(
                     app_environment_revision.deployed_app_variant_revision_id
                 ),
                 deployment=str(app_environment_revision.deployment_id),
+                commit_message=app_environment_revision.commit_message,
                 created_at=str(app_environment_revision.created_at),
             )
         )

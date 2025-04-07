@@ -8,8 +8,8 @@ import type {
     StringMetadata,
     ConfigMetadata,
     EnhancedObjectConfig,
-} from "../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+} from "../../../../lib/shared/variant/genericTransformer/types"
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import type {BaseContainerProps} from "../types"
 
 import type {PlaygroundVariantPropertyControlProps} from "./types"

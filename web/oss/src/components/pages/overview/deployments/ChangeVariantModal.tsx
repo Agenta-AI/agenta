@@ -1,18 +1,21 @@
 import {SetStateAction, useMemo, useState} from "react"
 
 import {CaretRight} from "@phosphor-icons/react"
-import {Badge, Input, Modal, Table, Tag, theme, Typography} from "antd"
+import {Input, Modal, Table, Tag, theme, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {Environment, JSSTheme} from "@/oss/lib/Types"
 
 import DeploymentModal from "./DeploymentModal"
+import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 
 const {Search} = Input
 
 type ChangeVariantModalProps = {
-    variants: Variant[]
+    variants: EnhancedVariant[]
     selectedEnvironment: Environment
     setOpenChangeVariantModal: (value: SetStateAction<boolean>) => void
     loadEnvironments: () => Promise<void>
@@ -49,7 +52,7 @@ const ChangeVariantModal = ({
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState<string>("")
     const [isDeploymentModalOpen, setIsDeploymentModalOpen] = useState(false)
-    const [selectedVariant, setSelectedVariant] = useState<Variant>()
+    const [selectedVariant, setSelectedVariant] = useState<EnhancedVariant>()
 
     const filtered = useMemo(() => {
         if (!searchTerm) return variants
@@ -80,11 +83,7 @@ const ChangeVariantModal = ({
                             bordered
                             pagination={false}
                             dataSource={filtered}
-                            rowKey={
-                                filtered.some((variant) => !!variant.variantId)
-                                    ? "variantId"
-                                    : "variant_id"
-                            }
+                            rowKey={"id"}
                             columns={[
                                 {
                                     title: "Variants",
@@ -93,16 +92,18 @@ const ChangeVariantModal = ({
                                     render: (_, record) => {
                                         return (
                                             <div className="flex items-center justify-between">
-                                                <div>{record.variantName}</div>
+                                                <VariantDetailsWithStatus
+                                                    variantName={record.variantName}
+                                                    revision={record.revision}
+                                                    variant={record}
+                                                />
 
-                                                <div className="flex items-center">
-                                                    <Tag>
-                                                        <Badge
-                                                            color={token.colorPrimary}
-                                                            text={formatVariantIdWithHash(
-                                                                record.variantId,
-                                                            )}
-                                                        />
+                                                <div className="flex items-center gap-2">
+                                                    <Tag className="flex items-center gap-2">
+                                                        <EnvironmentStatus variant={record} />
+                                                        <Typography>
+                                                            {formatVariantIdWithHash(record.id)}
+                                                        </Typography>
                                                     </Tag>
                                                     <CaretRight />
                                                 </div>

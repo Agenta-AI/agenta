@@ -4,8 +4,8 @@ import {Database} from "@phosphor-icons/react"
 import {Button} from "antd"
 import dynamic from "next/dynamic"
 
-import {getResponseLazy} from "@/oss/components/NewPlayground/state"
 import {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
+import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {TestsetDrawerButtonProps} from "./types"
 const TestsetDrawer = dynamic(

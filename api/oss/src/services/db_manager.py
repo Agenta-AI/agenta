@@ -23,16 +23,15 @@ from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 
 if is_ee():
-    from ee.src.models.db_models import ProjectDB
+    from ee.src.models.db_models import ProjectDB, WorkspaceDB
 else:
-    from oss.src.models.db_models import ProjectDB
+    from oss.src.models.db_models import ProjectDB, WorkspaceDB
 
 from oss.src.models.db_models import (
     AppDB,
     UserDB,
     APIKeyDB,
     TestSetDB,
-    WorkspaceDB,
     IDsMappingDB,
     DeploymentDB,
     InvitationDB,
@@ -152,7 +151,11 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
             joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
 
-        result = await session.execute(query.filter_by(id=uuid.UUID(app_variant_id)))
+        result = await session.execute(
+            query.where(AppVariantDB.hidden.is_not(True)).filter_by(
+                id=uuid.UUID(app_variant_id)
+            )
+        )
         app_variant = result.scalars().first()
         return app_variant
 
@@ -470,6 +473,7 @@ async def create_new_app_variant(
     base: VariantBaseDB,
     config: ConfigDB,
     base_name: str,
+    commit_message: Optional[str] = None,
 ) -> AppVariantDB:
     """Create a new variant.
 
@@ -479,6 +483,7 @@ async def create_new_app_variant(
         base (VariantBaseDB): The base of the variant.
         config (ConfigDB): The config of the variant.
         base_name (str): The name of the variant base.
+        commit_message (Optional[str]): The commit message for the new variant.
 
     Returns:
         AppVariantDB: The created variant.
@@ -515,6 +520,7 @@ async def create_new_app_variant(
         variant_revision = AppVariantRevisionsDB(
             variant_id=variant.id,
             revision=0,
+            commit_message=commit_message,
             project_id=uuid.UUID(project_id),
             modified_by_id=user.id,
             base_id=base.id,
@@ -729,6 +735,7 @@ async def list_app_variants_for_app_id(
     async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
+            .where(AppVariantDB.hidden.is_not(True))
             .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
             .options(joinedload(AppVariantDB.app))
         )
@@ -759,6 +766,7 @@ async def list_app_variants_by_app_slug(
     async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
+            .where(AppVariantDB.hidden.is_not(True))
             .filter_by(app_id=app_db.id)
             .options(
                 joinedload(AppVariantDB.app),
@@ -786,9 +794,9 @@ async def fetch_app_variant_by_slug(variant_slug: str, app_id: str) -> AppVarian
 
     async with engine.session() as session:
         result = await session.execute(
-            select(AppVariantDB).filter_by(
-                config_name=variant_slug, app_id=uuid.UUID(app_id)
-            )
+            select(AppVariantDB)
+            .where(AppVariantDB.hidden.is_not(True))
+            .filter_by(config_name=variant_slug, app_id=uuid.UUID(app_id))
         )
         app_variant = result.scalars().first()
         return app_variant
@@ -831,6 +839,7 @@ async def list_variants_for_base(base: VariantBaseDB):
     async with engine.session() as session:
         result = await session.execute(
             select(AppVariantDB)
+            .where(AppVariantDB.hidden.is_not(True))
             .filter_by(base_id=base.id)
             .order_by(AppVariantDB.variant_name.asc())
         )
@@ -1111,6 +1120,27 @@ async def get_organization_owner(organization_id: str):
         return await get_user_with_id(user_id=str(organization.owner))
 
 
+async def get_workspace(workspace_id: str) -> WorkspaceDB:
+    """
+    Retrieve a workspace.
+
+    Args:
+        workspace_id (str): The workspace id.
+
+    Returns:
+        Workspace: The retrieved workspace.
+    """
+
+    async with engine.session() as session:
+        query = select(WorkspaceDB).filter_by(id=uuid.UUID(workspace_id))
+        if is_ee():
+            query = query.options(joinedload(WorkspaceDB.members))
+
+        result = await session.execute(query)
+        workspace = result.scalars().first()
+        return workspace
+
+
 async def get_workspaces() -> List[WorkspaceDB]:
     """
     Retrieve workspaces from the database by their IDs.
@@ -1309,6 +1339,36 @@ async def get_project_by_id(project_id: str):
         return project
 
 
+async def get_default_project_id_from_workspace(
+    workspace_id: str,
+):
+    """
+    Get the default project ID belonging to a user from a workspace.
+
+    Args:
+        workspace_id (str): The ID of the workspace.
+
+    Returns:
+        Union[str, Exception]: The default project ID or an exception error message.
+    """
+
+    async with engine.session() as session:
+        project_query = await session.execute(
+            select(ProjectDB)
+            .where(
+                ProjectDB.workspace_id == uuid.UUID(workspace_id),
+                ProjectDB.is_default == True,
+            )
+            .options(load_only(ProjectDB.id))
+        )
+        project = project_query.scalars().first()
+        if project is None:
+            raise NoResultFound(
+                f"No default project for the provided workspace_id {workspace_id} found"
+            )
+        return str(project.id)
+
+
 async def get_project_invitation_by_email(project_id: str, email: str) -> InvitationDB:
     """Get project invitation by project ID and email.
 
@@ -1486,6 +1546,7 @@ async def add_variant_from_base_and_config(
     parameters: Dict[str, Any],
     user_uid: str,
     project_id: str,
+    commit_message: Optional[str] = None,
 ) -> AppVariantDB:
     """
     Add a new variant to the database based on an existing base and a new configuration.
@@ -1496,12 +1557,12 @@ async def add_variant_from_base_and_config(
         parameters (Dict[str, Any]): The parameters to use for the new configuration.
         user_uid (str): The UID of the user
         project_id (str): The ID of the project
+        commit_message (Optional[str]): The commit message to use when creating a new variant.
 
     Returns:
         AppVariantDB: The newly created app variant.
     """
 
-    new_variant_name = f"{base_db.base_name}.{new_config_name}"
     previous_app_variant_db = await find_previous_variant_from_base_id(
         str(base_db.id), project_id
     )
@@ -1522,7 +1583,7 @@ async def add_variant_from_base_and_config(
     async with engine.session() as session:
         db_app_variant = AppVariantDB(
             app_id=previous_app_variant_db.app_id,
-            variant_name=new_variant_name,
+            variant_name=new_config_name,
             modified_by_id=user_db.id,
             revision=1,
             base_name=base_db.base_name,
@@ -1539,6 +1600,7 @@ async def add_variant_from_base_and_config(
         variant_revision = AppVariantRevisionsDB(
             variant_id=db_app_variant.id,
             revision=1,
+            commit_message=commit_message,
             modified_by_id=user_db.id,
             project_id=uuid.UUID(project_id),
             base_id=base_db.id,
@@ -1602,6 +1664,7 @@ async def list_app_variants(app_id: str):
                 joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
                 joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
             )
+            .where(AppVariantDB.hidden.is_not(True))
             .filter_by(app_id=uuid.UUID(app_uuid))
         )
         app_variants = result.scalars().all()
@@ -1674,8 +1737,98 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
         await session.commit()
 
 
+async def mark_app_variant_as_hidden(app_variant_id: str):
+    """
+    Marks an app variant as hidden from the user interface.
+
+    Args:
+        app_variant_id (str): The ID of the app variant to hide.
+    """
+
+    app_variant_db = await fetch_app_variant_by_id(app_variant_id=app_variant_id)
+    if app_variant_db is None:
+        raise NoResultFound("App variant not found")
+
+    print(app_variant_db.hidden)
+    async with engine.session() as session:
+        app_variant_db = await session.merge(
+            app_variant_db
+        )  # Attach the object to the session
+        app_variant_db.hidden = True
+        await session.commit()
+    print(app_variant_db.hidden)
+
+
+async def mark_app_variant_as_visible(app_variant_id: str):
+    """
+    Marks an app variant as visible in the user interface.
+
+    Args:
+        app_variant_id (str): The ID of the app variant to hide.
+    """
+
+    app_variant_db = await fetch_app_variant_by_id(app_variant_id=app_variant_id)
+    if app_variant_db is None:
+        raise NoResultFound("App variant not found")
+
+    async with engine.session() as session:
+        app_variant_db = await session.merge(
+            app_variant_db
+        )  # Attach the object to the session
+        app_variant_db.hidden = None
+        await session.commit()
+
+
+async def mark_app_variant_revision_as_hidden(variant_revision_id: str):
+    """
+    Marks an app variant revision as hidden from the user interface.
+
+    Args:
+        variant_revision_id (str): The ID of the app variant revision to hide.
+    """
+
+    variant_revision_db = await fetch_app_variant_revision_by_id(
+        variant_revision_id=variant_revision_id
+    )
+    if variant_revision_db is None:
+        raise NoResultFound("App variant not found")
+
+    async with engine.session() as session:
+        variant_revision_db = await session.merge(
+            variant_revision_db
+        )  # Attach the object to the session
+        variant_revision_db.hidden = True
+        await session.commit()
+
+
+async def mark_app_variant_revision_as_visible(variant_revision_id: str):
+    """
+    Marks an app variant revision as visible from the user interface.
+
+    Args:
+        variant_revision_id (str): The ID of the app variant revision to be visible.
+    """
+
+    variant_revision_db = await fetch_app_variant_revision_by_id(
+        variant_revision_id=variant_revision_id
+    )
+    if variant_revision_db is None:
+        raise NoResultFound("App variant not found")
+
+    async with engine.session() as session:
+        variant_revision_db = await session.merge(
+            variant_revision_db
+        )  # Attach the object to the session
+        variant_revision_db.hidden = None
+        await session.commit()
+
+
 async def deploy_to_environment(
-    environment_name: str, variant_id: str, **user_org_data
+    environment_name: str,
+    variant_id: str,
+    variant_revision_id: Optional[str] = None,
+    commit_message: Optional[str] = None,
+    **user_org_data,
 ) -> Tuple[Optional[str], Optional[int]]:
     """
     Deploys an app variant to a specified environment.
@@ -1683,6 +1836,7 @@ async def deploy_to_environment(
     Args:
         environment_name (str): The name of the environment to deploy the app variant to.
         variant_id (str): The ID of the app variant to deploy.
+        commit_message (str, optional): The commit message associated with the deployment. Defaults to None.
 
     Raises:
         ValueError: If the app variant is not found or if the environment is not found or if the app variant is already
@@ -1692,9 +1846,16 @@ async def deploy_to_environment(
     """
 
     app_variant_db = await fetch_app_variant_by_id(variant_id)
-    app_variant_revision_db = await fetch_app_variant_revision_by_variant(
-        app_variant_id=variant_id, project_id=str(app_variant_db.project_id), revision=app_variant_db.revision  # type: ignore
-    )
+    if variant_revision_id:
+        app_variant_revision_db = await fetch_app_variant_revision_by_id(
+            variant_revision_id
+        )
+    else:
+        app_variant_revision_db = await fetch_app_variant_revision_by_variant(
+            app_variant_id=variant_id,
+            project_id=str(app_variant_db.project_id),
+            revision=app_variant_db.revision,
+        )
     if app_variant_db is None:
         raise ValueError("App variant not found")
 
@@ -1726,10 +1887,11 @@ async def deploy_to_environment(
 
         # Create revision for app environment
         await create_environment_revision(
-            session,
-            environment_db,
-            user,
-            str(app_variant_db.project_id),
+            session=session,
+            environment=environment_db,
+            user=user,
+            project_id=str(app_variant_db.project_id),
+            commit_message=commit_message,
             deployed_app_variant_revision=app_variant_revision_db,
             deployment=deployment,
         )
@@ -2009,6 +2171,7 @@ async def create_environment_revision(
     environment: AppEnvironmentDB,
     user: UserDB,
     project_id: str,
+    commit_message: Optional[str] = None,
     **kwargs: dict,
 ):
     """Creates a new environment revision.
@@ -2016,6 +2179,7 @@ async def create_environment_revision(
     Args:
         environment (AppEnvironmentDB): The environment to create a revision for.
         user (UserDB): The user that made the deployment.
+        commit_message (str, optional): The commit message associated with the deployment. Defaults to None.
         project_id (str): The ID of the project.
     """
 
@@ -2027,6 +2191,7 @@ async def create_environment_revision(
         revision=environment.revision,
         modified_by_id=user.id,
         project_id=uuid.UUID(project_id),
+        commit_message=commit_message,
     )
 
     if kwargs:
@@ -2071,6 +2236,7 @@ async def list_app_variant_revisions_by_variant(
     async with engine.session() as session:
         base_query = (
             select(AppVariantRevisionsDB)
+            .where(AppVariantRevisionsDB.hidden.is_not(True))
             .filter_by(variant_id=app_variant.id, project_id=uuid.UUID(project_id))
             .options(
                 joinedload(AppVariantRevisionsDB.variant_revision.of_type(AppVariantDB))
@@ -2098,8 +2264,10 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
     """
 
     async with engine.session() as session:
-        base_query = select(AppVariantRevisionsDB).filter_by(
-            variant_id=uuid.UUID(app_variant), revision=revision_number
+        base_query = (
+            select(AppVariantRevisionsDB)
+            .where(AppVariantRevisionsDB.hidden.is_not(True))
+            .filter_by(variant_id=uuid.UUID(app_variant), revision=revision_number)
         )
         if is_ee():
             query = base_query.options(
@@ -2213,7 +2381,11 @@ async def remove_app_by_id(app_id: str, project_id: str):
 
 
 async def update_variant_parameters(
-    app_variant_id: str, parameters: Dict[str, Any], project_id: str, user_uid: str
+    app_variant_id: str,
+    parameters: Dict[str, Any],
+    project_id: str,
+    user_uid: str,
+    commit_message: Optional[str] = None,
 ) -> AppVariantDB:
     """
     Update the parameters of an app variant in the database.
@@ -2223,6 +2395,7 @@ async def update_variant_parameters(
         parameters (Dict[str, Any]): The new parameters to set for the app variant.
         project_id (str): The ID of the project.
         user_uid (str): The UID of the user that is updating the app variant.
+        commit_message (str, optional): The commit message associated with the update. Defaults to None.
 
     Raises:
         NoResultFound: If there is an issue updating the variant parameters.
@@ -2256,6 +2429,7 @@ async def update_variant_parameters(
         variant_revision = AppVariantRevisionsDB(
             variant_id=app_variant_db.id,
             revision=app_variant_db.revision,
+            commit_message=commit_message,
             modified_by_id=user.id,
             project_id=uuid.UUID(project_id),
             base_id=app_variant_db.base_id,

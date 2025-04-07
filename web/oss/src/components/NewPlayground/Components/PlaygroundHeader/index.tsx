@@ -6,29 +6,24 @@ import {Button, Dropdown, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {useAppsData} from "@/oss/contexts/app.context"
-import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getCurrentProject} from "@/oss/contexts/project.context"
+import {fetchAndProcessRevisions} from "@/oss/lib/shared/variant"
 
-import {detectChatVariantFromOpenAISchema} from "../../assets/utilities/genericTransformer"
-import {OpenAPISpec} from "../../assets/utilities/genericTransformer/types"
+import {detectChatVariantFromOpenAISchema} from "../../../../lib/shared/variant/genericTransformer"
 import usePlayground from "../../hooks/usePlayground"
 import {
     initializeGenerationInputs,
     initializeGenerationMessages,
 } from "../../hooks/usePlayground/assets/generationHelpers"
-import {
-    fetchOpenApiSchemaJson,
-    findCustomWorkflowPath,
-    setVariants,
-    transformVariants,
-} from "../../hooks/usePlayground/assets/helpers"
-import {atomStore, specAtom} from "../../state"
+import {updateStateWithProcessedRevisions} from "../../hooks/usePlayground/assets/stateHelpers"
 import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
 import type {BaseContainerProps} from "../types"
 
 import {useStyles} from "./styles"
-import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-const PlaygroundCreateNewVariant = dynamic(() => import("../Menus/PlaygroundCreateNewVariant"), {
+
+const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
 })
 
@@ -39,51 +34,84 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
 
     const handleUpdate = useCallback(async () => {
         return await mutate(async (clonedState) => {
-            const {data: variants} = await axios.get(`/api/apps/${currentApp?.app_id}/variants`)
-
-            const specPath = await findCustomWorkflowPath(variants[0].uri)
-
-            clonedState.uri = specPath
-
-            if (
-                clonedState.uri?.routePath === undefined ||
-                clonedState.uri?.runtimePrefix === undefined
-            ) {
+            if (!currentApp?.app_id) {
                 return clonedState
             }
 
-            const specResponse = await fetchOpenApiSchemaJson(clonedState.uri.runtimePrefix)
-            const spec = clonedState.spec || (specResponse.schema as OpenAPISpec)
+            try {
+                // Use the fetchAndProcessRevisions utility with forceRefresh parameter
+                // This ensures we get fresh data instead of relying on cached values
+                const {
+                    revisions: processedRevisions,
+                    spec,
+                    uri,
+                } = await fetchAndProcessRevisions({
+                    appId: currentApp.app_id,
+                    projectId: getCurrentProject().projectId,
+                    forceRefresh: true, // Force refresh the schema and variants
+                    logger: console.log,
+                    keyParts: "playground",
+                })
 
-            if (!spec) {
-                throw new Error("No spec found")
-            }
-
-            clonedState.variants = transformVariants(
-                setVariants(clonedState.variants, variants),
-                spec,
-                undefined,
-                clonedState.routePath,
-            )
-
-            atomStore.set(specAtom, () => spec)
-
-            clonedState.selected = [clonedState.variants[0].id]
-
-            clonedState.generationData.inputs = initializeGenerationInputs(
-                clonedState.variants.filter((v) => clonedState.selected.includes(v.id)),
-                spec,
-                clonedState.uri.routePath,
-            )
-
-            if (detectChatVariantFromOpenAISchema(spec, clonedState.uri)) {
-                clonedState.generationData.messages = initializeGenerationMessages(
-                    clonedState.variants,
+                // Update state with processed revisions using our shared utility
+                clonedState = updateStateWithProcessedRevisions(
+                    clonedState,
+                    processedRevisions,
+                    spec,
+                    uri,
                 )
-            }
 
-            clonedState.error = undefined
-            clonedState.forceRevalidate = false
+                // After updating the state with all revisions, select the first one for display
+                if (processedRevisions.length > 0) {
+                    clonedState.selected = [processedRevisions[0].id]
+                }
+
+                // Initialize generation data for the selected variants
+                clonedState.generationData.inputs = initializeGenerationInputs(
+                    clonedState.variants.filter((v) => clonedState.selected.includes(v.id)),
+                    spec,
+                    uri.routePath,
+                )
+
+                // Initialize chat messages if needed
+                if (detectChatVariantFromOpenAISchema(spec, uri)) {
+                    clonedState.generationData.messages = initializeGenerationMessages(
+                        clonedState.variants,
+                    )
+                }
+
+                // Clear any previous errors
+                clonedState.error = undefined
+
+                return clonedState
+            } catch (error) {
+                console.error("Error updating app schema:", error)
+                clonedState.error = error instanceof Error ? error : new Error(String(error))
+                return clonedState
+            }
+            //     spec,
+            //     undefined,
+            //     clonedState.routePath,
+            // )
+
+            // atomStore.set(specAtom, () => spec)
+
+            // clonedState.selected = [clonedState.variants[0].id]
+
+            // clonedState.generationData.inputs = initializeGenerationInputs(
+            //     clonedState.variants.filter((v) => clonedState.selected.includes(v.id)),
+            //     spec,
+            //     clonedState.uri.routePath,
+            // )
+
+            // if (detectChatVariantFromOpenAISchema(spec, clonedState.uri)) {
+            //     clonedState.generationData.messages = initializeGenerationMessages(
+            //         clonedState.variants,
+            //     )
+            // }
+
+            // clonedState.error = undefined
+            // clonedState.forceRevalidate = false
             return clonedState
         })
     }, [])
@@ -91,6 +119,24 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
     const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
         afterConfigSave: handleUpdate,
     })
+
+    const onAddVariant = useCallback(
+        (value: any) => {
+            const variantIds = value.map((item: any) =>
+                typeof item === "string" ? item : item.value,
+            )
+
+            const newSelection = variantIds.find((id: string) => !displayedVariants?.includes(id))
+            const removedSelection = displayedVariants?.find((id) => !variantIds.includes(id))
+
+            if (newSelection) {
+                toggleVariantDisplay?.(newSelection, true)
+            } else if (removedSelection && displayedVariants && displayedVariants.length > 1) {
+                toggleVariantDisplay?.(removedSelection, false)
+            }
+        },
+        [toggleVariantDisplay, displayedVariants],
+    )
 
     // Only render if variants are available
     return variants ? (
@@ -130,10 +176,11 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <PlaygroundCreateNewVariant
-                        displayedVariants={displayedVariants}
-                        onSelect={toggleVariantDisplay}
-                        buttonProps={{label: "Compare", size: "small"}}
+                    <SelectVariant
+                        showAsCompare
+                        multiple
+                        onChange={(value) => onAddVariant(value)}
+                        value={displayedVariants}
                     />
                     <NewVariantButton label="Variant" size="small" />
                 </div>

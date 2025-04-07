@@ -1,199 +1,24 @@
-import {dereference} from "@scalar/openapi-parser"
 import isEqual from "fast-deep-equal"
+import Router from "next/router"
 
+import {getAppValues} from "@/oss/contexts/app.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
-import {uriFixer} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
-import {getJWT} from "@/oss/services/api"
+import {uriFixer} from "@/oss/lib/shared/variant"
 
-import type {OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
-import {transformToEnhancedVariant} from "../../../assets/utilities/transformer/transformer"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
+import type {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import type {InitialStateType} from "../../../state/types"
-
-import {updateVariantPromptKeys} from "./inputHelpers"
-
-/**
- * Recursively omit specified keys from an object
- */
-export const omitDeep = (obj: any, keys: string[]): any => {
-    if (!obj || typeof obj !== "object") return obj
-
-    if (Array.isArray(obj)) {
-        return obj.map((item) => omitDeep(item, keys))
-    }
-
-    return Object.entries(obj).reduce(
-        (acc, [key, value]) => {
-            if (keys.includes(key)) return acc
-
-            acc[key] = typeof value === "object" ? omitDeep(value, keys) : value
-
-            return acc
-        },
-        {} as Record<string, any>,
-    )
-}
 
 export const isPlaygroundEqual = (a?: any, b?: any): boolean => {
     return isEqual(a, b)
 }
 
-export const findCustomWorkflowPath = async (
-    uri: string,
-    endpoint = "/openapi.json",
-    removedPaths?: string,
-    signal?: AbortSignal,
-): Promise<
-    | {
-          routePath: string
-          runtimePrefix: string
-          status?: boolean
-      }
-    | undefined
-> => {
-    const jwt = await getJWT()
-
-    const handleIncorrectUri = async (incorrectUri: string) => {
-        const paths = incorrectUri.split("/")
-        const removedPath = paths.pop()
-
-        const newPath = paths.join("/")
-        return newPath
-            ? await findCustomWorkflowPath(
-                  newPath,
-                  endpoint,
-                  `${removedPath}${removedPaths ? `/${removedPaths}` : ""}`,
-              )
-            : {
-                  routePath: removedPaths || "",
-                  runtimePrefix: uri,
-              }
-    }
-
-    try {
-        if (!uri || !uri.includes("//")) throw new Error("No uri found")
-
-        // uri = uri
-        // uriFixer(uri)
-        const openapiJsonResponse = await fetch(
-            `${uri}${endpoint}${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
-            {
-                headers: {
-                    "ngrok-skip-browser-warning": "1",
-                    ...(jwt
-                        ? {
-                              Authorization: `Bearer ${jwt}`,
-                          }
-                        : {}),
-                },
-                signal,
-            },
-        )
-
-        const data = await openapiJsonResponse.json()
-        if (!data || !openapiJsonResponse.ok) {
-            return await handleIncorrectUri(uri)
-        } else {
-            return {
-                routePath: removedPaths || "",
-                runtimePrefix: uri,
-                status: true,
-            }
-        }
-    } catch (err) {
-        return await handleIncorrectUri(uri)
-        // const paths = uri.split("/")
-        // const removedPath = paths.pop()
-
-        // const newPath = paths.join("/")
-        // return newPath
-        //     ? await findSpecPath(newPath, `${removedPath}${removedPaths ? `/${removedPaths}` : ""}`)
-        //     : {
-        //           routePath: removedPaths || "",
-        //           runtimePrefix: uri,
-        //       }
-    }
-}
-
-/**
- * FETCHERS
- */
-
-/**
- * Fetches OpenAPI specification for a given variant from a service
- * @param variant - Variant object containing at least the variantId
- * @returns Promise containing variantId, parsed schema and any errors
- */
-export const fetchOpenApiSchemaJson = async (uri: string) => {
-    const jwt = await getJWT()
-
-    try {
-        const openapiJsonResponse = await fetch(
-            `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
-            {
-                headers: {
-                    "ngrok-skip-browser-warning": "1",
-                    ...(jwt
-                        ? {
-                              Authorization: `Bearer ${jwt}`,
-                          }
-                        : {}),
-                },
-            },
-        )
-        if (openapiJsonResponse.ok) {
-            const responseJson = await openapiJsonResponse.json()
-            const {schema, errors} = await dereference(responseJson)
-
-            return {
-                schema: schema,
-                errors,
-            }
-        } else {
-            return {
-                schema: undefined,
-                errors: (await openapiJsonResponse.json()) || openapiJsonResponse.statusText,
-            }
-        }
-    } catch (error) {
-        return {
-            schema: undefined,
-            errors: error,
-        }
-    }
-}
-
-/**
- * Fetches and updates OpenAPI schema for a single variant
- * @param variant - The variant to fetch and update schema for
- * @returns Promise containing the updated variant
- */
-export const transformVariant = (
-    variant: EnhancedVariant,
-    schema: OpenAPISpec,
-    appType?: string,
-    routePath?: string,
+export const getPlaygroundKey = (
+    appId: string | undefined = getAppValues().currentApp?.app_id,
+    projectId: string = getCurrentProject().projectId,
+    path: string = Router.pathname.replaceAll("/", "_"),
 ) => {
-    const enhancedVariant = transformToEnhancedVariant(variant, schema, appType, routePath)
-
-    // Update prompt keys and initialize inputs
-    updateVariantPromptKeys(enhancedVariant)
-
-    return enhancedVariant
-}
-
-/**
- * Fetches and updates OpenAPI schemas for multiple variants in parallel
- * @param variants - Array of variants to fetch and update schemas for
- * @returns Promise containing updated variants with their schemas
- */
-export const transformVariants = (
-    variants: EnhancedVariant[],
-    spec: OpenAPISpec,
-    appType?: string,
-    routePath?: string,
-) => {
-    return variants.map((variant) => transformVariant(variant, spec, appType, routePath))
+    if (!appId) throw new Error("App ID is required for a valid playground key")
+    return `/api/apps/${appId}/variants?project_id=${projectId}&v=2&path=${path}`
 }
 
 /**
@@ -464,6 +289,7 @@ export const compareVariant = (
     return createBaseCompare(customCompare)(a, b)
 }
 
+// TODO: DEPRECATE @ardaerzin
 export const setVariant = (variant: any): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
@@ -471,6 +297,8 @@ export const setVariant = (variant: any): EnhancedVariant => {
         variant.parameters.ag_config = variant.parameters.agenta_config
         delete variant.parameters.agenta_config
     }
+
+    console.log("setVariant 1")
 
     return {
         id: variant.variant_id,
@@ -500,8 +328,10 @@ export const setVariant = (variant: any): EnhancedVariant => {
  * @param newVariants - New array of raw variant data
  * @returns Array of transformed EnhancedVariant objects or current variants if unchanged
  */
+// TODO: DEPRECATE @ardaerzin
 export const setVariants = (currentVariants: EnhancedVariant[], newVariants: any[]) => {
     const areEqual = isPlaygroundEqual(currentVariants, newVariants)
+    console.log("setVariants 1")
     if (!areEqual) {
         return newVariants.map(setVariant)
     }

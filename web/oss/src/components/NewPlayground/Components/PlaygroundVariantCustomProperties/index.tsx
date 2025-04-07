@@ -3,7 +3,7 @@ import {useCallback, memo, useMemo} from "react"
 import {Collapse, Typography} from "antd"
 import clsx from "clsx"
 
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 import {useStyles} from "../PlaygroundVariantConfigPrompt/styles"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"

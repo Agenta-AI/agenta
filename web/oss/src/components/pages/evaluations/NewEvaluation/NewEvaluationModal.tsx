@@ -1,4 +1,5 @@
-import {useEffect, useState} from "react"
+// @ts-nocheck
+import {useEffect, useMemo, useState} from "react"
 
 import {CloseOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, message, Modal, Space, Spin} from "antd"
@@ -6,18 +7,20 @@ import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
+import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {apiKeyObject, redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
-import {JSSTheme, LLMRunRateLimit, testset, Variant} from "@/oss/lib/Types"
-import {fetchSingleProfile, fetchVariants} from "@/oss/services/api"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
+import {JSSTheme, LLMRunRateLimit, testset} from "@/oss/lib/Types"
 import {createEvaluation} from "@/oss/services/evaluations/api"
 import {fetchTestsets} from "@/oss/services/testsets/api"
 
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
 import SelectTestsetSection from "./SelectTestsetSection"
 import SelectVariantSection from "./SelectVariantSection"
+import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 
 const AdvancedSettingsPopover: any = dynamic(
     () => import("@/oss/components/pages/evaluations/NewEvaluation/AdvancedSettingsPopover"),
@@ -66,17 +69,19 @@ type Props = {
 
 const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const classes = useStyles()
+    const {currentApp} = useAppsData()
     const appId = useAppId()
     const [fetching, setFetching] = useState(false)
     const [testSets, setTestSets] = useState<testset[]>([])
-    const [variants, setVariants] = useState<Variant[]>([])
-    const [usernames, setUsernames] = useState<Record<string, string>>({})
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
     const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
+
+    const {data, isLoading: isVariantLoading} = useVariants(currentApp)({appId})
+    const variants = useMemo(() => groupVariantsByParent(data?.variants, true), [data?.variants])
     const {secrets} = useVaultSecret()
 
     const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
@@ -92,28 +97,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             setSelectedVariantIds([])
 
             try {
-                const [testSets, variants] = await Promise.all([
-                    fetchTestsets(),
-                    fetchVariants(appId),
-                ])
-
-                const usernameMap: Record<string, string> = {}
-                const uniqueModifiedByIds = Array.from(
-                    new Set(variants.map((variant) => variant.modifiedById)),
-                )
-
-                const profiles = await Promise.all(
-                    uniqueModifiedByIds.map((id) => fetchSingleProfile(id)),
-                )
-
-                profiles.forEach((profile, index) => {
-                    const id = uniqueModifiedByIds[index]
-                    usernameMap[id] = profile?.username || "-"
-                })
+                const testSets = await fetchTestsets()
 
                 setTestSets(testSets)
-                setVariants(variants)
-                setUsernames(usernameMap)
             } catch (error) {
                 console.error(error)
             } finally {
@@ -220,11 +206,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                     <SelectVariantSection
                         activePanel={activePanel}
                         handlePanelChange={handlePanelChange}
-                        variants={variants}
-                        usernames={usernames}
+                        variants={variants || []}
                         selectedVariantIds={selectedVariantIds}
                         setSelectedVariantIds={setSelectedVariantIds}
                         className={classes.collapseContainer}
+                        isVariantLoading={isVariantLoading}
                     />
                     <SelectEvaluatorSection
                         activePanel={activePanel}

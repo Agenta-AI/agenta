@@ -14,7 +14,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => {
                 flexDirection: "column",
             },
             "& .ant-collapse-content": {
-                borderBottom: `0.1px solid ${theme.colorBorder} !important`,
+                borderBottom: `0.1px solid ${theme.colorSplit} !important`,
                 borderRadius: "0px !important",
             },
         },

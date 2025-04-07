@@ -40,29 +40,9 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
         const itemIndex = _variantIds?.findIndex((id) => id === variantId) as number
         if (itemIndex === -1) return
 
-        deleteVariant?.()
-            .then(() => {
-                // Update the variants by excluding the deleted one directly in the state
-                const updatedVariants = _variantIds
-                    ?.slice(0, itemIndex)
-                    .concat(_variantIds?.slice(itemIndex + 1))
-
-                if (viewType === "single") {
-                    let nextId: string | undefined
-
-                    // If there's a variant after the deleted one, select it. If there's no variant after, select the previous one
-                    if (itemIndex < (updatedVariants?.length as number)) {
-                        nextId = updatedVariants?.[itemIndex]
-                    } else if (itemIndex - 1 >= 0) {
-                        nextId = updatedVariants?.[itemIndex - 1]
-                    }
-
-                    setSelectedVariant?.(nextId as string)
-                }
-            })
-            .then(() => {
-                onClose()
-            })
+        deleteVariant?.().then(() => {
+            onClose()
+        })
     }, [deleteVariant, _variantIds, viewType, setSelectedVariant])
 
     return (

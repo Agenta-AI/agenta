@@ -1,66 +1,108 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
-import {ArrowRight, FloppyDiskBack} from "@phosphor-icons/react"
-import {Modal, Typography} from "antd"
+import {FloppyDiskBack} from "@phosphor-icons/react"
+import dynamic from "next/dynamic"
 
-import Version from "@/oss/components/NewPlayground/assets/Version"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import {getAllRevisionsLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
-import {useStyles} from "./styles"
-import {CommitVariantChangesModalProps} from "./types"
-
-const {Text} = Typography
+import {CommitVariantChangesModalProps, SelectedCommitType} from "./types"
+const CommitVariantChangesModalContent = dynamic(
+    () => import("./assets/CommitVariantChangesModalContent"),
+    {ssr: false},
+)
 
 const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
     ...props
 }) => {
-    const classes = useStyles()
-    const {variant, saveVariant} = usePlayground({
+    const {saveVariant, addVariant, baseRevisionId, isMutating, variantName} = usePlayground({
         variantId,
         hookId: "CommitVariantChangesModal",
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            return {
+                isMutating: variant.__isMutating,
+                variantName: variant.variantName,
+                baseRevisionId: variant.id,
+            }
+        }, []),
     })
+
+    const [selectedCommitType, setSelectedCommitType] = useState<SelectedCommitType>({
+        type: "version",
+    })
+    const [note, setNote] = useState("")
 
     const onClose = useCallback(() => {
         props.onCancel?.({} as any)
+        setSelectedCommitType({
+            type: "version",
+        })
+        setNote("")
     }, [])
 
     const onSaveVariantChanges = useCallback(async () => {
-        await saveVariant?.()
+        if (selectedCommitType?.type === "version") {
+            await saveVariant?.(note)
+        } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
+            addVariant?.({
+                note,
+                baseVariantName: variantName,
+                newVariantName: selectedCommitType?.name as string,
+                callback: (variant, state) => {
+                    state.selected = [
+                        ...state.selected.filter((id) => id !== baseRevisionId),
+                        variant.id,
+                    ]
+
+                    const originalBaseVariant = getAllRevisionsLazy().find(
+                        (v) => v.id === baseRevisionId,
+                    ) as EnhancedVariant
+
+                    const newVariants = [...state.variants]
+                    newVariants.splice(
+                        newVariants.findIndex((v) => v.id === baseRevisionId),
+                        1,
+                        originalBaseVariant,
+                    )
+
+                    state.variants = newVariants
+
+                    return state
+                },
+            })
+        }
+
         onClose()
-    }, [])
+    }, [selectedCommitType, baseRevisionId, saveVariant, addVariant, note])
 
     return (
-        <Modal
-            centered
-            destroyOnClose
+        <EnhancedModal
             title="Commit changes"
             onCancel={onClose}
             okText="Commit"
-            confirmLoading={variant?.__isMutating}
+            confirmLoading={isMutating}
             onOk={onSaveVariantChanges}
-            okButtonProps={{icon: <FloppyDiskBack size={14} />}}
+            okButtonProps={{
+                icon: <FloppyDiskBack size={14} />,
+                disabled:
+                    !selectedCommitType?.type ||
+                    (selectedCommitType?.type == "variant" && !selectedCommitType?.name),
+            }}
             classNames={{footer: "flex items-center justify-end"}}
+            afterClose={() => onClose()}
             {...props}
         >
-            <section className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                    <Text>You are about to create a new version:</Text>
-
-                    <div className="flex items-center gap-2">
-                        <Text className={classes.heading}>{variant?.variantName}</Text>
-                        <div className="flex items-center gap-[6px]">
-                            <Version className="!m-0" revision={variant?.revision as number} />
-                            <ArrowRight size={14} />
-                            <Version
-                                className="!m-0"
-                                revision={(variant?.revision as number) + 1}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </Modal>
+            <CommitVariantChangesModalContent
+                variantId={variantId}
+                note={note}
+                setNote={setNote}
+                setSelectedCommitType={setSelectedCommitType}
+                selectedCommitType={selectedCommitType}
+            />
+        </EnhancedModal>
     )
 }
 

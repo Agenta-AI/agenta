@@ -4,7 +4,7 @@ import {FloppyDiskBack} from "@phosphor-icons/react"
 import {Button} from "antd"
 import dynamic from "next/dynamic"
 
-import {CommitVariantChangesButtonProps} from "./types"
+import {CommitVariantChangesButtonProps} from "../types"
 const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
 
 const CommitVariantChangesButton = ({
@@ -40,13 +40,13 @@ const CommitVariantChangesButton = ({
                 </Button>
             )}
 
-            {isDeployModalOpen && (
+            {variantId ? (
                 <CommitVariantChangesModal
                     open={isDeployModalOpen}
                     onCancel={() => setIsDeployModalOpen(false)}
                     variantId={variantId}
                 />
-            )}
+            ) : null}
         </>
     )
 }

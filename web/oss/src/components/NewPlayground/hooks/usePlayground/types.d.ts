@@ -1,8 +1,8 @@
 import type {Map} from "immutable"
 import type {SWRConfiguration, SWRResponse, SWRHook, MutatorOptions} from "swr"
 
-import type {Enhanced} from "../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {Enhanced} from "../../../../lib/shared/variant/genericTransformer/types"
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {InitialStateType} from "../../state/types"
 
 import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
@@ -43,6 +43,7 @@ export interface PlaygroundSWRConfig<T = PlaygroundStateData, Selected = unknown
         SelectorConfig<T, Selected> {
     variantId?: string
     propertyId?: string
+    skipBackgroundLoading?: boolean
 }
 
 // Each middleware extends this to add its own properties
@@ -62,9 +63,11 @@ export interface PlaygroundVariantsResponse extends PlaygroundResponse {
     addVariant?: (options: {
         baseVariantName: string
         newVariantName: string
+        note?: string
         callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
     }) => void
     runTests?: (rowId?: string, variantId?: string) => void
+    cancelRunTests?: (rowId?: string, variantId?: string) => void
     rerunChatOutput?: (messageId: string, variantId?: string) => void
 }
 
@@ -79,7 +82,7 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
     displayedVariants?: string[]
     deleteVariant?: () => Promise<void>
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
-    saveVariant?: () => Promise<void>
+    saveVariant?: (note?: string) => Promise<void>
     setSelectedVariant?: (variantId: string) => void
     handleParamUpdate?: (value: any, propertyId: string, variantId?: string) => void
     variantConfig?: Enhanced<any>

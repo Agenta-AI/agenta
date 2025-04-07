@@ -1,9 +1,9 @@
 import {Tooltip, Typography} from "antd"
 import dynamic from "next/dynamic"
 
-import {EnhancedConfigValue} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
 
-import {getMetadataLazy} from "../../../state"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
 import BooleanControl from "./BooleanControl"

@@ -31,9 +31,9 @@ import {
     getStringOrJson,
 } from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {transformToRequestBody} from "@/oss/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
+import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
+import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import type {BaseResponse, EvaluationScenario, KeyValuePair, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {updateEvaluationScenario, updateEvaluation} from "@/oss/services/human-evaluations/api"
@@ -220,7 +220,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                             (data?.variants || [])[idx].inputParams!,
                             (data?.variants || [])[idx].parameters
                                 ? transformToRequestBody({
-                                      variant: (data?.variants || [])[idx].variant,
+                                      variant: (data?.variants || [])[idx],
                                       allMetadata: getAllMetadata(),
                                   })
                                 : (data?.variants || [])[idx].promptOptParams!,

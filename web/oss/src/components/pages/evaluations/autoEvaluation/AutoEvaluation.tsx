@@ -49,6 +49,7 @@ import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopov
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import EditColumns, {generateEditItems} from "./Filters/EditColumns"
 import {getFilterParams} from "./Filters/SearchFilter"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 const useStyles = createUseStyles(() => ({
     button: {
@@ -252,12 +253,10 @@ const AutoEvaluation = () => {
             }),
             render: (value, record) => {
                 return (
-                    <span>
-                        {variantNameWithRev({
-                            variant_name: value[0].variantName,
-                            revision: record.revisions[0],
-                        })}
-                    </span>
+                    <VariantDetailsWithStatus
+                        variantName={value[0].variantName}
+                        revision={record.revisions[0]}
+                    />
                 )
             },
             ...getFilterParams("variants", "text"),

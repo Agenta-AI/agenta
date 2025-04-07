@@ -1,21 +1,19 @@
 import {useCallback} from "react"
 
+import {useRouter} from "next/router"
 import {type Key, type SWRHook, useSWRConfig} from "swr"
 
-import {detectChatVariantFromOpenAISchema} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer"
 import {DEFAULT_UUID} from "@/oss/contexts/project.context"
 import {type FetcherOptions} from "@/oss/lib/api/types"
-import {type Variant} from "@/oss/lib/Types"
+import {atomStore, allRevisionsAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {initialState} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {fetchAndProcessRevisions, fetchPriorityRevisions} from "@/oss/lib/shared/variant/utils"
+import {User} from "@/oss/lib/Types"
 
-import {type OpenAPISpec} from "../../../assets/utilities/genericTransformer/types"
-import {initialState, specAtom, atomStore} from "../../../state"
 import {initializeGenerationInputs, initializeGenerationMessages} from "../assets/generationHelpers"
-import {
-    fetchOpenApiSchemaJson,
-    findCustomWorkflowPath,
-    setVariants,
-    transformVariants,
-} from "../assets/helpers"
+import {updateStateWithProcessedRevisions} from "../assets/stateHelpers"
+import {getRevisionIdsFromUrl} from "../assets/urlHelpers"
 import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
@@ -32,7 +30,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
         fetcher: ((url: string, options?: FetcherOptions) => Promise<Data>) | null,
         config: PlaygroundSWRConfig<Data>,
     ) => {
-        const {fetcher: globalFetcher} = useSWRConfig()
+        const {fetcher: globalFetcher, mutate} = useSWRConfig()
+        const router = useRouter()
+
         const useImplementation = ({key, fetcher, config}: PlaygroundMiddlewareParams<Data>) => {
             const {logger} = usePlaygroundUtilities({
                 config: {
@@ -64,66 +64,314 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                     logger(`FETCH - FETCH`)
 
+                    state.fetching = true
+
                     try {
-                        const [variants] = await Promise.all([
-                            globalFetcher(url, options) as Promise<Variant[]>,
-                        ])
+                        /**
+                         * IMPORTANT ARCHITECTURAL SHIFT (March 2025):
+                         * We now process all revisions individually rather than just the latest revision.
+                         * The data model shifts from variant-centric to revision-centric while maintaining
+                         * backward compatibility with existing components.
+                         *
+                         * What appears as "variants" to components are actually individual revisions
+                         * that have been adapted to maintain the expected variant-like interface.
+                         */
 
-                        if (!variants[0].uri) {
-                            return state
-                        }
+                        // 1. Extract needed revision IDs from URL
+                        const neededRevisionIds = getRevisionIdsFromUrl(router)
 
-                        const specPath = await findCustomWorkflowPath(variants[0].uri)
+                        // 2. Fast path: Get only what's needed for immediate display
+                        logger("Fetching priority revisions for immediate display")
+                        const {
+                            revisions: priorityRevisions,
+                            spec,
+                            uri,
+                        } = await fetchPriorityRevisions({
+                            appId: config.appId || "",
+                            projectId: config.projectId || "",
+                            revisionIds: neededRevisionIds,
+                            fallbackToLatest: true,
+                            logger: logger,
+                        })
 
-                        state.uri = specPath
+                        logger(`Loaded ${priorityRevisions.length} priority revisions`)
 
-                        if (state.uri?.routePath === undefined) {
-                            throw new Error("No uri found for the new app type")
-                        }
+                        // 3. Update state with priority revisions
+                        const updatedState = updateStateWithProcessedRevisions(
+                            {...state},
+                            priorityRevisions.filter((rev) => rev.revision > 0),
+                            spec,
+                            uri,
+                        )
 
-                        try {
-                            const specResponse = await fetchOpenApiSchemaJson(
-                                state.uri.runtimePrefix,
-                            )
-                            const spec = state.spec || (specResponse.schema as OpenAPISpec)
+                        // Copy updated properties to state (since we can't reassign 'state')
+                        state.uri = updatedState.uri
+                        state.spec = updatedState.spec
+                        state.availableRevisions = (updatedState.availableRevisions || []).filter(
+                            (rev) => rev.revisionNumber > 0,
+                        )
 
-                            if (!spec) {
-                                throw new Error(
-                                    specResponse?.errors?.detail ||
-                                        specResponse?.errors?.message ||
-                                        "No spec found",
+                        // 4. Set the selected revisions in state
+                        const selectedIds =
+                            neededRevisionIds.length > 0
+                                ? neededRevisionIds
+                                : [priorityRevisions[0]?.id]
+
+                        state.variants = priorityRevisions
+                        state.selected = (
+                            typeof selectedIds === "string" ? [selectedIds] : selectedIds
+                        ).filter(Boolean)
+
+                        // 5. Initialize generation data
+                        state.generationData.inputs = initializeGenerationInputs(
+                            state.variants.filter((v) => state.selected.includes(v.id)),
+                            spec,
+                            state.uri?.routePath,
+                        )
+
+                        state.generationData.messages = initializeGenerationMessages(state.variants)
+
+                        // 6. Trigger background loading without blocking UI
+                        if (!config?.skipBackgroundLoading) {
+                            // Use a microtask to not block rendering
+                            queueMicrotask(() => {
+                                logger(
+                                    `[BACKGROUND] Starting loading of remaining revisions (excluding ${priorityRevisions.length} priority revisions)`,
                                 )
-                            }
 
-                            state.variants = transformVariants(
-                                setVariants(state.variants, variants),
-                                spec,
-                                config.appType,
-                                state.uri.routePath,
-                            )
+                                // Create an abort controller for potential cancellation
+                                const controller = new AbortController()
 
-                            atomStore.set(specAtom, () => spec)
+                                // Use the existing fetchAndProcessRevisions but exclude already loaded revisions
+                                // We need to force a full refresh to ensure we process ALL variants, even those skipped in priority loading
+                                fetchAndProcessRevisions({
+                                    appId: config.appId || "",
+                                    projectId: config.projectId || "",
+                                    // Exclude revisions we already have
+                                    excludeRevisionIds: priorityRevisions.map((r) => r.id),
+                                    forceRefresh: true, // Force refresh to ensure we get fresh data
+                                    logger: (msg) => logger(`[BACKGROUND] ${msg}`),
+                                    signal: controller.signal,
+                                    // Don't pass any initialVariants to ensure we process all variants
+                                    initialVariants: [],
+                                    keyParts: "playground",
+                                })
+                                    .then(({revisions: _remainingRevisions}) => {
+                                        if (controller.signal.aborted) return
 
-                            state.selected = [state.variants[0].id]
+                                        const remainingRevisions = _remainingRevisions.filter(
+                                            (r) => r.revision > 0,
+                                        )
 
-                            state.generationData.inputs = initializeGenerationInputs(
-                                state.variants.filter((v) => state.selected.includes(v.id)),
-                                spec,
-                                state.uri.routePath,
-                            )
+                                        console.log("_remainingRevisions", _remainingRevisions)
 
-                            if (detectChatVariantFromOpenAISchema(spec, state.uri)) {
-                                state.generationData.messages = initializeGenerationMessages(
-                                    state.variants,
-                                )
-                            }
+                                        // Log the IDs of the loaded revisions for debugging
+                                        logger(
+                                            `[BACKGROUND] Loaded revision IDs: ${JSON.stringify(remainingRevisions.map((r) => r.id))}`,
+                                        )
 
-                            state.error = undefined
-                            return state
-                        } catch (err) {
-                            state.error = err as Error
-                            return state
+                                        if (remainingRevisions.length === 0) {
+                                            logger(
+                                                `[BACKGROUND] No additional revisions found, skipping update`,
+                                            )
+                                            return
+                                        }
+
+                                        // Merge with existing revisions in the atom
+                                        const allRevisions = [
+                                            ...priorityRevisions,
+                                            ...remainingRevisions,
+                                        ]
+
+                                        // Recalculate isLatestRevision flag across all variants
+                                        if (allRevisions.length > 0) {
+                                            // Find the latest revision timestamp across all variants
+                                            const latestTimestamp = Math.max(
+                                                ...allRevisions.map(
+                                                    (r) => r.createdAtTimestamp || 0,
+                                                ),
+                                            )
+
+                                            // Set isLatestRevision flag only for the latest revision(s)
+                                            allRevisions.forEach((revision) => {
+                                                revision.isLatestRevision =
+                                                    revision.createdAtTimestamp === latestTimestamp
+                                            })
+
+                                            logger(
+                                                `[BACKGROUND] Set isLatestRevision flag for revisions with timestamp ${latestTimestamp}`,
+                                            )
+                                        }
+
+                                        logger(
+                                            `[BACKGROUND] Total revisions after merge: ${allRevisions.length}`,
+                                        )
+
+                                        // Update the atom with all revisions
+                                        atomStore.set(allRevisionsAtom, () => allRevisions)
+
+                                        // Trigger a SWR mutation to refresh the UI with the new data
+                                        logger(
+                                            `[BACKGROUND] Triggering UI refresh with all ${allRevisions.length} revisions`,
+                                        )
+                                        mutate<PlaygroundStateData, PlaygroundStateData>(
+                                            key,
+                                            (state) => {
+                                                if (!state) return state
+
+                                                // Create a deep clone of the current state
+                                                const clonedState = structuredClone(state)
+
+                                                // Update currently mounted variants with the latest data
+                                                if (
+                                                    clonedState.variants &&
+                                                    clonedState.variants.length > 0
+                                                ) {
+                                                    logger(
+                                                        `[BACKGROUND] Updating ${clonedState.variants.length} mounted variants with latest data`,
+                                                    )
+
+                                                    // Create a map of all revisions by ID for quick lookup
+                                                    const revisionsMap = new Map()
+                                                    allRevisions.forEach((revision) => {
+                                                        revisionsMap.set(revision.id, revision)
+                                                    })
+
+                                                    // Update each mounted variant with the latest data if available
+                                                    clonedState.variants = clonedState.variants.map(
+                                                        (variant) => {
+                                                            const updatedVariant = revisionsMap.get(
+                                                                variant.id,
+                                                            )
+                                                            if (updatedVariant) {
+                                                                logger(
+                                                                    `[BACKGROUND] Updated mounted variant ${variant.id} with latest data`,
+                                                                )
+                                                                return updatedVariant
+                                                            }
+                                                            return variant
+                                                        },
+                                                    )
+                                                }
+
+                                                // Transform EnhancedVariants to LightweightRevisions for availableRevisions
+                                                const lightweightRevisions = allRevisions.map(
+                                                    (revision) => {
+                                                        // Use type assertion for the extended properties that aren't in the base type
+                                                        const enhancedRevision =
+                                                            revision as EnhancedVariant & {
+                                                                variantId: string
+                                                                isLatestRevision: boolean
+                                                                isLatestVariantRevision: boolean
+                                                                userProfile?: User
+                                                                deployedIn?: string[]
+                                                                commitMessage: string | null
+                                                                createdAtTimestamp: number
+                                                            }
+
+                                                        return {
+                                                            id: revision.id,
+                                                            name:
+                                                                revision.name ||
+                                                                revision.variantName,
+                                                            revisionNumber: revision.revision,
+                                                            variantId: enhancedRevision.variantId,
+                                                            variantName: revision.variantName,
+                                                            createdAt: revision.createdAt,
+                                                            isLatestRevision:
+                                                                enhancedRevision.isLatestRevision,
+                                                            isLatestVariantRevision:
+                                                                enhancedRevision.isLatestVariantRevision,
+                                                            userProfile:
+                                                                enhancedRevision.userProfile,
+                                                            deployedIn:
+                                                                enhancedRevision.deployedIn || [],
+                                                            commitMessage:
+                                                                enhancedRevision.commitMessage,
+                                                            createdAtTimestamp:
+                                                                enhancedRevision.createdAtTimestamp,
+                                                        }
+                                                    },
+                                                )
+
+                                                console.log(
+                                                    "Transformed to lightweight revisions",
+                                                    lightweightRevisions.length,
+                                                )
+
+                                                // Update availableRevisions with our properly transformed lightweight revisions
+                                                clonedState.availableRevisions =
+                                                    lightweightRevisions
+
+                                                // Update dataRef to ensure SWR recognizes the change
+                                                if (clonedState.dataRef) {
+                                                    // clonedState.dataRef.current = {
+                                                    // ...(clonedState.dataRef.current || {}),
+                                                    // availableRevisions: lightweightRevisions,
+                                                    // }
+                                                }
+
+                                                logger(
+                                                    `[BACKGROUND] Updated state with ${allRevisions.length} revisions`,
+                                                )
+
+                                                if (
+                                                    !clonedState.selected ||
+                                                    clonedState.selected.length === 0
+                                                ) {
+                                                    const latestRevision =
+                                                        clonedState.availableRevisions.find(
+                                                            (rev) => rev.isLatestRevision,
+                                                        )
+
+                                                    const variant = atomStore
+                                                        .get(allRevisionsAtom)
+                                                        .find(
+                                                            (rev) => rev.id === latestRevision?.id,
+                                                        )
+
+                                                    if (variant) {
+                                                        clonedState.selected = [
+                                                            latestRevision?.id || "",
+                                                        ]
+                                                        clonedState.variants = [variant]
+                                                    }
+                                                }
+
+                                                clonedState.fetching = false
+
+                                                clonedState.generationData.inputs =
+                                                    initializeGenerationInputs(
+                                                        clonedState.variants.filter((v) =>
+                                                            clonedState.selected.includes(v.id),
+                                                        ),
+                                                        spec,
+                                                        clonedState.uri?.routePath,
+                                                    )
+
+                                                clonedState.generationData.messages =
+                                                    initializeGenerationMessages(state.variants)
+
+                                                return clonedState
+                                            },
+                                        )
+                                    })
+                                    .catch((err) => {
+                                        if (err.name !== "AbortError") {
+                                            logger(
+                                                `[BACKGROUND] Error loading additional revisions: ${err.message}`,
+                                            )
+                                            console.error("[BACKGROUND] Loading error:", err)
+                                        } else {
+                                            logger(`[BACKGROUND] Loading was aborted`)
+                                        }
+                                    })
+                            })
                         }
+
+                        // Clear any previous errors
+                        state.error = undefined
+                        return state
                     } catch (err) {
                         console.error("Error in openApiSchemaFetcher:", err)
                         state.error = err as Error

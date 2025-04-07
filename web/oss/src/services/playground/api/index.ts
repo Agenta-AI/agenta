@@ -27,6 +27,14 @@ export async function deleteSingleVariant(variantId: string) {
     await axios.delete(`${getAgentaApiUrl()}/api/variants/${variantId}?project_id=${projectId}`)
 }
 
+export async function deleteSingleVariantRevision(variantId: string, revisionId: string) {
+    const {projectId} = getCurrentProject()
+
+    await axios.delete(
+        `${getAgentaApiUrl()}/api/variants/${variantId}/revisions/${revisionId}/?project_id=${projectId}`,
+    )
+}
+
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
     const {projectId} = getCurrentProject()
 

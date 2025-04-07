@@ -28,7 +28,6 @@ const VariantRenameModal: React.FC<VariantRenameModalProps> = ({variantId, ...pr
         >
             <div className="mt-4 mb-6">
                 <Input
-                    addonBefore="app."
                     placeholder="Type variant name..."
                     value={rename}
                     onChange={(e) => setRename(e.target.value)}

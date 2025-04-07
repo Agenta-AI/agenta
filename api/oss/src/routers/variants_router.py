@@ -25,6 +25,7 @@ else:
 
 from oss.src.models.api.api_models import (
     AppVariantRevision,
+    UpdateVariantURLPayload,
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
 )
@@ -76,12 +77,20 @@ async def add_variant_from_base_and_config(
             )
 
     # Find the previous variant in the database
+    new_variant_name = (
+        payload.new_variant_name
+        if payload.new_variant_name
+        else payload.new_config_name
+        if payload.new_config_name
+        else base_db.base_name
+    )
     db_app_variant = await db_manager.add_variant_from_base_and_config(
         base_db=base_db,
-        new_config_name=payload.new_config_name,
+        new_config_name=new_variant_name,
         parameters=payload.parameters,
         user_uid=request.state.user_id,
         project_id=str(base_db.project_id),
+        commit_message=payload.commit_message,
     )
     logger.debug(f"Successfully added new variant: {db_app_variant}")
 
@@ -100,12 +109,12 @@ async def add_variant_from_base_and_config(
     return await converters.app_variant_db_to_output(app_variant_db)
 
 
-@router.delete("/{variant_id}/", operation_id="remove_variant")
+@router.delete("/{variant_id}/", operation_id="mark_variant_as_hidden")
 async def remove_variant(
     variant_id: str,
     request: Request,
 ):
-    """Remove a variant from the registry.
+    """Mark a variant as hidden from the UI.
 
     Arguments:
         app_variant -- AppVariant to remove
@@ -140,10 +149,8 @@ async def remove_variant(
         )
         logger.debug("Successfully updated last_modified_by app information")
 
-        await app_manager.terminate_and_remove_app_variant(
-            project_id=str(variant.project_id), app_variant_id=variant_id
-        )
-    except:
+        await db_manager.mark_app_variant_as_hidden(app_variant_id=variant_id)
+    except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
@@ -152,7 +159,7 @@ async def remove_variant(
 async def update_variant_parameters(
     request: Request,
     variant_id: str,
-    payload: UpdateVariantParameterPayload = Body(...),
+    payload: UpdateVariantParameterPayload,
 ):
     """
     Updates the parameters for an app variant.
@@ -192,6 +199,7 @@ async def update_variant_parameters(
             parameters=payload.parameters,
             user_uid=request.state.user_id,
             project_id=str(variant_db.project_id),
+            commit_message=payload.commit_message,
         )
 
         # Update last_modified_by app information
@@ -208,11 +216,7 @@ async def update_variant_parameters(
 
 
 @router.put("/{variant_id}/service/", operation_id="update_variant_url")
-async def update_variant_url(
-    variant_id: str,
-    url: str,
-    request: Request,
-):
+async def update_variant_url(request: Request, payload: UpdateVariantURLPayload):
     """
     Updates the URL used in an app variant.
 
@@ -229,7 +233,7 @@ async def update_variant_url(
 
     try:
         db_app_variant = await db_manager.fetch_app_variant_by_id(
-            app_variant_id=variant_id
+            app_variant_id=payload.variant_id
         )
 
         if is_ee():
@@ -248,10 +252,11 @@ async def update_variant_url(
                 )
 
         await app_manager.update_variant_url(
-            db_app_variant,
-            str(db_app_variant.project_id),
-            url,
-            request.state.user_id,
+            app_variant_db=db_app_variant,
+            project_id=str(db_app_variant.project_id),
+            url=payload.url,
+            user_uid=request.state.user_id,
+            commit_message=payload.commit_message,
         )
 
         # Update last_modified_by app information
@@ -316,7 +321,6 @@ async def get_variant_revisions(
     variant_id: str,
     request: Request,
 ):
-    logger.debug("getting variant revisions: ", variant_id)
     app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
     if is_ee():
@@ -381,6 +385,59 @@ async def get_variant_revision(
         )
 
     return await converters.app_variant_db_revision_to_output(app_variant_revision)
+
+
+@router.delete(
+    "/{variant_id}/revisions/{revision_id}/",
+    operation_id="mark_variant_revision_as_hidden",
+)
+async def remove_variant_revision(
+    variant_id: str,
+    revision_id: str,
+    request: Request,
+):
+    """Mark a variant revision as hidden from the UI.
+
+    Arguments:
+        app_variant -- AppVariant to remove
+        revision_id -- Revision ID to remove
+
+    Raises:
+        HTTPException: If there is a problem removing the app variant
+    """
+
+    try:
+        variant = await db_manager.fetch_app_variant_by_id(variant_id)
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=str(variant.project_id),
+                permission=Permission.DELETE_APPLICATION_VARIANT,
+            )
+            logger.debug(f"User has Permission to delete app variant: {has_permission}")
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                logger.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=variant_id,
+            object_type="variant",
+            project_id=str(variant.project_id),
+        )
+        logger.debug("Successfully updated last_modified_by app information")
+
+        await db_manager.mark_app_variant_revision_as_hidden(
+            variant_revision_id=revision_id
+        )
+    except Exception as e:
+        detail = f"Error while trying to remove the app variant: {str(e)}"
+        raise HTTPException(status_code=500, detail=detail)
 
 
 ### --- CONFIGS --- ###

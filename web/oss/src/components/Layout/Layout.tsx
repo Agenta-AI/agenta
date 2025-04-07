@@ -50,12 +50,14 @@ const WithVariants = ({
         app_type?: string
     } | null
 }) => {
-    useVariants(currentApp)(
-        {
-            appId: currentApp?.app_id,
-        },
-        [],
-    )
+    // const {data, isLoading} = useVariants(currentApp)(
+    //     {
+    //         appId: currentApp?.app_id,
+    //     },
+    //     [],
+    // )
+
+    // console.log("data", data, isLoading)
 
     return <>{children}</>
 }

@@ -1,4 +1,5 @@
 import type {Environment, Variant} from "@/oss/lib/Types"
+import {Drawer} from "antd"
 
 export interface VariantDrawerProps extends React.ComponentProps<typeof Drawer> {
     selectedVariant: Variant

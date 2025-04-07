@@ -22,6 +22,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
             persistent: true,
             parameters: null,
         }
+        // @ts-ignore
         return variant as Variant
     })
 

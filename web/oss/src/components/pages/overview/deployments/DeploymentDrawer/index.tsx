@@ -156,9 +156,14 @@ const DeploymentDrawer = ({
                                                 label: "Open in playground",
                                                 icon: <Rocket size={16} />,
                                                 onClick: () =>
-                                                    router.push(
-                                                        `/apps/${appId}/playground?variant=${selectedEnvironment.deployed_variant_name}`,
-                                                    ),
+                                                    router.push({
+                                                        pathname: `/apps/${appId}/playground`,
+                                                        query: {
+                                                            revisions: JSON.stringify([
+                                                                selectedEnvironment.deployed_app_variant_revision_id,
+                                                            ]),
+                                                        },
+                                                    }),
                                             },
                                         ],
                                     }}

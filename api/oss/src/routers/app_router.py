@@ -319,7 +319,7 @@ async def add_variant_from_url(
     """
 
     try:
-        app = await db_manager.fetch_app_by_id(app_id)
+        app = await db_manager.fetch_app_by_id(app_id=app_id)
     except db_manager.NoResultFound:
         raise HTTPException(
             status_code=404, detail=f"No application with ID '{app_id}' found"
@@ -350,6 +350,7 @@ async def add_variant_from_url(
             base_name=payload.base_name,
             config_name=payload.config_name,
             user_uid=request.state.user_id,
+            commit_message=payload.commit_message,
         )
 
         app_variant_db = await db_manager.fetch_app_variant_by_id(
@@ -390,6 +391,7 @@ async def add_variant_from_key(
     payload = AddVariantFromURLPayload(
         variant_name=payload.variant_name,
         url=url,
+        commit_message=payload.commit_message,
         base_name=payload.base_name,
         config_name=payload.config_name,
     )

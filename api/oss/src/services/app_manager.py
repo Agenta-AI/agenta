@@ -67,7 +67,11 @@ async def update_last_modified_by(
 
 
 async def update_variant_url(
-    app_variant_db: AppVariantDB, project_id: str, url: str, user_uid: str
+    app_variant_db: AppVariantDB,
+    project_id: str,
+    url: str,
+    user_uid: str,
+    commit_message: Optional[str] = None,
 ):
     """Updates the URL for app variant in the database.
 
@@ -76,6 +80,7 @@ async def update_variant_url(
         project_id (str): The ID of the project
         url (str): the URL to update
         user_uid (str): The ID of the user updating the URL
+        commit_message (str, optional): The commit message for the update. Defaults to None.
     """
 
     parsed_url = urlparse(url).geturl()
@@ -86,7 +91,11 @@ async def update_variant_url(
     await db_manager.remove_deployment(str(deployment.id))
 
     await db_manager.update_variant_parameters(
-        str(app_variant_db.id), parameters={}, project_id=project_id, user_uid=user_uid
+        str(app_variant_db.id),
+        parameters={},
+        project_id=project_id,
+        user_uid=user_uid,
+        commit_message=commit_message,
     )
 
     app_variant_db = await db_manager.update_app_variant(
@@ -216,7 +225,11 @@ async def remove_app(app: AppDB):
 
 
 async def update_variant_parameters(
-    app_variant_id: str, parameters: Dict[str, Any], user_uid: str, project_id: str
+    app_variant_id: str,
+    parameters: Dict[str, Any],
+    user_uid: str,
+    project_id: str,
+    commit_message: Optional[str] = None,
 ):
     """Updates the parameters for app variant in the database.
 
@@ -225,6 +238,7 @@ async def update_variant_parameters(
         parameters (dict): The parameters to update
         user_uid (str): The UID of the user
         project_id (str): The ID of the project
+        commit_message (str, optional): The commit message for the update. Defaults to None.
     """
 
     assert app_variant_id is not None, "app_variant_id must be provided"
@@ -236,6 +250,7 @@ async def update_variant_parameters(
             parameters=parameters,
             project_id=project_id,
             user_uid=user_uid,
+            commit_message=commit_message,
         )
     except Exception as e:
         logger.error(f"Error updating app variant {app_variant_id}")
@@ -248,8 +263,9 @@ async def add_variant_from_url(
     variant_name: str,
     url: str,
     user_uid: str,
-    base_name: Optional[str] = None,
     config_name: str = "default",
+    base_name: Optional[str] = None,
+    commit_message: Optional[str] = None,
 ) -> AppVariantDB:
     """
     Adds a new variant to the app based on the specified URL.
@@ -262,6 +278,7 @@ async def add_variant_from_url(
         base_name (str, optional): The name of the base to use for the new variant. Defaults to None.
         config_name (str, optional): The name of the configuration to use for the new variant. Defaults to "default".
         user_uid (str): The UID of the user.
+        commit_message (str, optional): The commit message for the operation. Defaults to None.
 
     Returns:
         AppVariantDB: The newly created app variant.
@@ -322,6 +339,7 @@ async def add_variant_from_url(
         base=db_base,
         config=config_db,
         base_name=base_name,
+        commit_message=commit_message,
     )
 
     deployment = await db_manager.create_deployment(
