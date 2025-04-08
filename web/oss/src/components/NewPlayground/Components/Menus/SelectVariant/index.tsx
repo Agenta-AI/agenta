@@ -1,7 +1,7 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {ArrowsLeftRight} from "@phosphor-icons/react"
-import {TreeSelect} from "antd"
+import {TreeSelect, Typography} from "antd"
 import clsx from "clsx"
 import groupBy from "lodash/groupBy"
 import uniqBy from "lodash/uniqBy"
@@ -18,59 +18,68 @@ import TreeSelectItemRenderer from "./assets/TreeSelectItemRenderer"
 import {SelectVariantProps} from "./types"
 
 const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) => {
-    const {variantOptions} = usePlayground({
+    const {revisionParents} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
-            const parents = groupBy(state.availableRevisions, "variantId")
+            const parents = groupBy(state.availableRevisions || [], "variantId")
 
             return {
-                variantOptions: Object.values(parents).map((variantRevisions) => {
-                    const deployedIn = uniqBy(
-                        variantRevisions.reduce((acc, rev) => {
-                            return [...acc, ...(rev.deployedIn || [])]
-                        }, [] as CamelCaseEnvironment[]) as CamelCaseEnvironment[],
-                        (env) => env.name,
-                    )
-
-                    return {
-                        title: (
-                            <div className="flex items-center justify-between">
-                                <span> {variantRevisions[0].variantName}</span>
-                                <EnvironmentStatus
-                                    className="mr-2"
-                                    variant={{
-                                        deployedIn: deployedIn,
-                                    }}
-                                />
-                            </div>
-                        ),
-                        selectable: false,
-                        label: variantRevisions[0].variantName,
-                        value: variantRevisions[0].variantId,
-                        children: variantRevisions
-                            .sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
-                            .map((revision, idx) => {
-                                return {
-                                    title: (
-                                        <div className="flex items-center justify-between">
-                                            <VariantDetailsWithStatus
-                                                className="w-full [&_.environment-badges]:mr-2"
-                                                variantName={revision.variantName}
-                                                revision={revision.revisionNumber}
-                                                variant={revision}
-                                                hideName
-                                                showBadges
-                                            />
-                                        </div>
-                                    ),
-                                    label: revision.variantName,
-                                    value: revision.id,
-                                }
-                            }),
-                    }
-                }),
+                revisionParents: parents,
             }
         }, []),
     })
+
+    console.log("revisionParents", revisionParents)
+
+    const variantOptions = useMemo(() => {
+        return Object.values(revisionParents).map((variantRevisions) => {
+            const deployedIn = uniqBy(
+                variantRevisions.reduce((acc, rev) => {
+                    return [...acc, ...(rev.deployedIn || [])]
+                }, [] as CamelCaseEnvironment[]) as CamelCaseEnvironment[],
+                (env) => env.name,
+            )
+
+            return {
+                title: (
+                    <div className="flex items-center justify-between pr-0 grow">
+                        <Typography.Text ellipsis={{tooltip: variantRevisions[0].variantName}}>
+                            {" "}
+                            {variantRevisions[0].variantName}
+                        </Typography.Text>
+                        <EnvironmentStatus
+                            className="mr-2"
+                            variant={{
+                                deployedIn: deployedIn,
+                            }}
+                        />
+                    </div>
+                ),
+                selectable: false,
+                label: variantRevisions[0].variantName,
+                value: variantRevisions[0].variantId,
+                children: variantRevisions
+                    .sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
+                    .map((revision, idx) => {
+                        return {
+                            title: (
+                                <div className="flex items-center justify-between">
+                                    <VariantDetailsWithStatus
+                                        className="w-full [&_.environment-badges]:mr-2"
+                                        variantName={revision.variantName}
+                                        revision={revision.revisionNumber}
+                                        variant={revision}
+                                        hideName
+                                        showBadges
+                                    />
+                                </div>
+                            ),
+                            label: revision.variantName,
+                            value: revision.id,
+                        }
+                    }),
+            }
+        })
+    }, [revisionParents])
 
     const [isOpenCompareSelect, setIsOpenCompareSelect] = useState(false)
     const [isOpenSelect, setIsOpenSelect] = useState(false)
@@ -89,16 +98,15 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                         open={isOpenCompareSelect}
                         onDropdownVisibleChange={(isOpen) => setIsOpenCompareSelect(isOpen)}
                         popupClassName={clsx([
-                            "!w-[200px] pt-0",
+                            "!w-[280px] pt-0",
                             "[&_.ant-select-tree-checkbox]:hidden",
                             "[&_.ant-select-tree-treenode-checkbox-checked>.ant-select-tree-node-content-wrapper]:bg-[#F5F7FA]",
-                            "[&_.ant-select-tree-switcher]:!mx-0",
+                            "[&_.ant-select-tree-node-content-wrapper]:!pl-1",
+                            "[&_.ant-select-tree-switcher]:!mx-0 [&_.ant-select-tree-switcher]:!me-0",
                             "[&_.ant-select-tree-treenode-active]:!bg-transparent",
                             "[&_.ant-select-tree-switcher-noop]:!hidden",
-                            "[&_.ant-select-tree-node-content-wrapper]:!pl-0",
-                            // "[&_.ant-select-tree-treenode-leaf_.ant-select-tree-node-content-wrapper]:!pl-2",
                             "[&_.ant-select-tree-treenode-leaf_.ant-select-tree-node-content-wrapper]:!pl-0",
-                            // "[&_.ant-select-tree-node-content-wrapper]:!pr-4",
+                            "[&_span.ant-select-tree-node-content-wrapper]:w-[calc(100%-24px)]",
                         ])}
                         className="w-full opacity-0 relative z-[2]"
                         dropdownStyle={{maxHeight: 400, overflow: "auto"}}
@@ -154,10 +162,12 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                     treeDefaultExpandAll
                     treeExpandAction="click"
                     popupClassName={clsx([
-                        "!w-[200px] pt-0",
+                        "!w-[280px] pt-0",
                         "[&_.ant-select-tree-switcher-noop]:!hidden",
-                        "[&_.ant-select-tree-node-content-wrapper]:!pl-0",
+                        "[&_.ant-select-tree-node-content-wrapper]:!pl-1",
                         "[&_.ant-select-tree-treenode-leaf_.ant-select-tree-node-content-wrapper]:!pl-0",
+                        "[&_span.ant-select-tree-node-content-wrapper]:w-[calc(100%-24px)]",
+                        "[&_.ant-select-tree-switcher]:!me-0",
                     ])}
                 />
             )}

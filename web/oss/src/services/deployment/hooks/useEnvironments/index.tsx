@@ -1,3 +1,5 @@
+import {useMemo} from "react"
+
 import Router from "next/router"
 import type {SWRConfiguration} from "swr"
 import useSWR from "swr"
@@ -9,6 +11,8 @@ import {Environment} from "@/oss/lib/Types"
 interface UseEnvironmentOptions extends SWRConfiguration {
     appId?: string
 }
+
+const DEFAULT_ENVIRONMENTS: Environment[] = []
 
 export const useEnvironments = ({appId: propsAppId, ...rest}: UseEnvironmentOptions = {}) => {
     const {projectId} = getCurrentProject()
@@ -25,8 +29,12 @@ export const useEnvironments = ({appId: propsAppId, ...rest}: UseEnvironmentOpti
         },
     )
 
+    const environments = useMemo(() => {
+        return (data || DEFAULT_ENVIRONMENTS) as Environment[]
+    }, [data])
+
     return {
-        environments: (data || []) as Environment[],
+        environments,
         isEnvironmentsLoading: isLoading,
         isEnvironmentsLoadingError: error,
         mutate,

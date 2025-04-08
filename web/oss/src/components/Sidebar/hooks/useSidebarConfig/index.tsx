@@ -75,7 +75,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: "app-variants-link",
-            title: "Configuration Registry",
+            title: "Registry",
             link: `/apps/${appId || recentlyVisitedAppId}/variants`,
             isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
             icon: <Lightning size={16} />,

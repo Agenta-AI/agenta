@@ -225,7 +225,10 @@ export function syncVariantInputs(
     const isCustomWorkflow = variants.some((variant) => variant.isCustom)
     let inputStrings: string[] = []
     if (isCustomWorkflow && spec) {
-        inputStrings = extractInputKeysFromSchema(spec, routePath)
+        inputStrings = extractInputKeysFromSchema(
+            spec,
+            variants[0]?.uriObject?.routePath || routePath,
+        )
     } else {
         const currentInputKeys = new Set(
             variants.flatMap((variant) =>

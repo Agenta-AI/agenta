@@ -184,7 +184,7 @@ async function processVariantsWithMetadata({
                 console.warn(`No revisions found for variant ${variant.variantId}`, variant)
                 return []
             }
-            return variant.revisions
+            return variant.revisions.map((rev) => ({...rev, uriObject: uri}))
         })
 
         // Process revisions in batches
@@ -567,6 +567,7 @@ export const processVariantsCore = async ({
         const processedRevisions = await processBatchesSequentially(
             batches,
             async (batch) => {
+                batch = batch.map((rev) => ({...rev, uriObject: uri}))
                 // Transform the batch of revisions
                 const transformedBatch = await transformVariants(batch, spec)
 

@@ -153,6 +153,10 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             )
 
                             try {
+                                batchResults = batchResults.map((variant) => ({
+                                    ...variant,
+                                    uriObject: uri,
+                                }))
                                 // Apply transformVariants to the batch results if we have a schema
                                 let transformedBatchResults = batchResults
                                 if (spec) {
@@ -167,6 +171,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                             error,
                                         )
                                         // Continue with untransformed batch if transformation fails
+                                        transformedBatchResults = batchResults
                                     }
                                 }
 

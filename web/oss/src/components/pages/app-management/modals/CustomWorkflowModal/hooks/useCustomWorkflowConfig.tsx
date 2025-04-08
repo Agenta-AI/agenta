@@ -6,7 +6,7 @@ import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
 
@@ -31,7 +31,8 @@ const useCustomWorkflowConfig = ({
     }))
 
     const {mutate} = useAppsData()
-    const {data, mutate: variantsMutate} = useStatelessVariants(
+    // @ts-ignore
+    const {data, mutate: variantsMutate} = useVariants(currentApp)(
         {
             appId: currentApp?.app_id,
         },
@@ -100,8 +101,8 @@ const useCustomWorkflowConfig = ({
         [apps, customWorkflowAppValues.appName],
     )
 
-    const Modal = useMemo(
-        () => (
+    const Modal = useMemo(() => {
+        return (
             <CustomWorkflowModal
                 open={isCustomWorkflowModalOpen}
                 onCancel={() => {
@@ -124,17 +125,17 @@ const useCustomWorkflowConfig = ({
                 mutate={async () => afterConfigSave}
                 {...(!configureWorkflow && {appNameExist})}
             />
-        ),
-        [
-            isCustomWorkflowModalOpen,
-            customWorkflowAppValues,
-            data?.variants,
-            configureWorkflow,
-            setCustomWorkflowAppValues,
-            handleCustomWorkflowClick,
-            variantsMutate,
-        ],
-    )
+        )
+    }, [
+        isCustomWorkflowModalOpen,
+        customWorkflowAppValues,
+        data?.variants,
+        configureWorkflow,
+        setCustomWorkflowAppValues,
+        handleCustomWorkflowClick,
+        variantsMutate,
+        afterConfigSave,
+    ])
 
     return {
         CustomWorkflowModal: Modal,

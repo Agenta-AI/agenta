@@ -156,14 +156,12 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     initialVariants: [],
                                     keyParts: "playground",
                                 })
-                                    .then(({revisions: _remainingRevisions}) => {
+                                    .then(({revisions: _remainingRevisions, spec}) => {
                                         if (controller.signal.aborted) return
 
                                         const remainingRevisions = _remainingRevisions.filter(
                                             (r) => r.revision > 0,
                                         )
-
-                                        console.log("_remainingRevisions", _remainingRevisions)
 
                                         // Log the IDs of the loaded revisions for debugging
                                         logger(

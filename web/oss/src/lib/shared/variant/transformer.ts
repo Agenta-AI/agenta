@@ -86,7 +86,9 @@ export const findCustomWorkflowPath = async (
     }
 
     try {
-        if (!uri || !uri.includes("//")) throw new Error("No uri found")
+        if (!uri || !uri.includes("//")) {
+            throw new Error("No uri found")
+        }
 
         const openapiJsonResponse = await fetch(
             `${uri}${endpoint}${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
@@ -110,11 +112,15 @@ export const findCustomWorkflowPath = async (
             return {
                 routePath: removedPaths || "",
                 runtimePrefix: uri,
-                status: true,
+                status: openapiJsonResponse.ok,
             }
         }
     } catch (err) {
-        return await handleIncorrectUri(uri)
+        if (!uri.includes("//")) {
+            return undefined
+        } else {
+            return await handleIncorrectUri(uri)
+        }
     }
 }
 
@@ -127,14 +133,21 @@ export const transformVariant = (
     appType?: string,
 ) => {
     // @ts-ignore
-    const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
-
-    // Update prompt keys and initialize inputs
-    // @ts-ignore
-    updateVariantPromptKeys(enhancedVariant)
-    // @ts-ignore
-    initializeVariantInputs(enhancedVariant, schema)
-    return enhancedVariant
+    if (!schema) {
+        return variant
+    }
+    try {
+        const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
+        // Update prompt keys and initialize inputs
+        // @ts-ignore
+        updateVariantPromptKeys(enhancedVariant)
+        // @ts-ignore
+        initializeVariantInputs(enhancedVariant, schema)
+        return enhancedVariant
+    } catch (err) {
+        console.error("Error transforming variant:", err)
+        throw err
+    }
 }
 
 /**
@@ -150,6 +163,6 @@ export const transformVariants = async (
         return variants.map((variant) => transformVariant(variant, schema, appType))
     } catch (error) {
         console.error("Error transforming variants:", error)
-        return variants
+        throw error
     }
 }
