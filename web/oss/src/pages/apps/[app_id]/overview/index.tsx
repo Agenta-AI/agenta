@@ -58,12 +58,14 @@ const OverviewPage = () => {
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
     const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({})
 
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 
     const {data, mutate, isLoading: isVariantLoading} = useVariants(currentApp)({appId})
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        afterConfigSave: mutate,
+    })
     const sortedVariants = useMemo(() => {
         if (!data) return []
 

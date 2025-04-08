@@ -13,10 +13,9 @@ import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
+import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useAllVariantsData} from "@/oss/lib/hooks/useAllVariantsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
@@ -33,6 +32,8 @@ const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
     loading: () => <Skeleton className="w-[236px]" />,
 })
 
+type StyleClasses = ReturnType<typeof useStyles>
+
 const {Content, Footer} = Layout
 
 interface LayoutProps {
@@ -41,40 +42,166 @@ interface LayoutProps {
 
 const WithVariants = ({
     children,
-    currentApp,
+    isNewPlayground,
+    handleBackToWorkspaceSwitch,
 }: {
     children: ReactNode
     isNewPlayground?: boolean
-    currentApp: {
-        app_id: string
-        app_type?: string
-    } | null
+    handleBackToWorkspaceSwitch: () => void
 }) => {
-    // const {data, isLoading} = useVariants(currentApp)(
-    //     {
-    //         appId: currentApp?.app_id,
-    //     },
-    //     [],
-    // )
+    const {currentApp} = useAppsData()
 
-    // console.log("data", data, isLoading)
+    // @ts-ignoree
+    const {mutate, data} = useVariants(currentApp)(
+        {
+            appId: currentApp?.app_id,
+        },
+        [],
+    )
 
-    return <>{children}</>
+    const variant = useMemo(() => data?.variants?.[0], [data?.variants])
+
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        afterConfigSave: async () => {
+            await mutate()
+        },
+    })
+
+    return (
+        <>
+            <OldAppDeprecationBanner isNewPlayground={isNewPlayground}>
+                {variant && (
+                    <CustomWorkflowBanner
+                        setIsCustomWorkflowModalOpen={openModal}
+                        isNewPlayground={isNewPlayground ?? false}
+                        variant={variant}
+                    />
+                )}
+                {children}
+            </OldAppDeprecationBanner>
+            {CustomWorkflowModal}
+        </>
+    )
 }
 
 const AppWithVariants = memo(
-    ({children, isAppRoute}: {children: ReactNode; isAppRoute: boolean}) => {
+    ({
+        children,
+        isAppRoute,
+        classes,
+        isNewPlayground,
+        appTheme,
+        ...props
+    }: {
+        children: ReactNode
+        isAppRoute: boolean
+        classes: StyleClasses
+        appTheme: string
+        isNewPlayground: boolean
+    }) => {
         const {currentApp} = useAppsData()
+        const {project, projects} = useProjectData()
+        const {changeSelectedOrg} = useOrgData()
 
-        if (isAppRoute) {
-            if (!currentApp) {
-                return null
-            } else {
-                return <WithVariants currentApp={currentApp}>{children}</WithVariants>
+        const handleBackToWorkspaceSwitch = () => {
+            const project = projects.find((p) => p.user_role === "owner")
+            if (project && !project.is_demo && project.organization_id) {
+                changeSelectedOrg(project.organization_id)
             }
-        } else {
-            return <>{children}</>
         }
+
+        return (
+            <div>
+                {project?.is_demo && (
+                    <div className={classes.banner}>
+                        You are in <span>a view-only</span> demo workspace. To go back to your
+                        workspace{" "}
+                        <span className="cursor-pointer" onClick={handleBackToWorkspaceSwitch}>
+                            click here
+                        </span>
+                    </div>
+                )}
+                <Layout hasSider className={classes.layout}>
+                    <Sidebar />
+                    <Layout className={classes.layout}>
+                        <div>
+                            <BreadcrumbContainer
+                                appTheme={appTheme}
+                                appName={currentApp?.app_name || ""}
+                                isNewPlayground={isNewPlayground ?? false}
+                            />
+                            {isAppRoute &&
+                            (!currentApp ||
+                                getCurrentProject().projectId ===
+                                    DEFAULT_UUID) ? null : isAppRoute ? (
+                                <WithVariants
+                                    isNewPlayground={isNewPlayground}
+                                    handleBackToWorkspaceSwitch={handleBackToWorkspaceSwitch}
+                                    {...props}
+                                >
+                                    <Content
+                                        className={clsx(classes.content, {
+                                            "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                                isNewPlayground,
+                                        })}
+                                    >
+                                        <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                            <ConfigProvider
+                                                theme={{
+                                                    algorithm:
+                                                        appTheme === "dark"
+                                                            ? theme.darkAlgorithm
+                                                            : theme.defaultAlgorithm,
+                                                }}
+                                            >
+                                                {children}
+                                            </ConfigProvider>
+                                        </ErrorBoundary>
+                                    </Content>
+                                </WithVariants>
+                            ) : (
+                                <Content
+                                    className={clsx(classes.content, {
+                                        "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
+                                            isNewPlayground,
+                                    })}
+                                >
+                                    <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                        <ConfigProvider
+                                            theme={{
+                                                algorithm:
+                                                    appTheme === "dark"
+                                                        ? theme.darkAlgorithm
+                                                        : theme.defaultAlgorithm,
+                                            }}
+                                        >
+                                            {children}
+                                        </ConfigProvider>
+                                    </ErrorBoundary>
+                                </Content>
+                            )}
+                        </div>
+                        <Footer className={classes.footer}>
+                            <Space className={classes.footerLeft} size={10}>
+                                <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
+                                    <GithubFilled className={classes.footerLinkIcon} />
+                                </Link>
+                                <Link
+                                    href={"https://www.linkedin.com/company/agenta-ai/"}
+                                    target="_blank"
+                                >
+                                    <LinkedinFilled className={classes.footerLinkIcon} />
+                                </Link>
+                                <Link href={"https://twitter.com/agenta_ai"} target="_blank">
+                                    <TwitterOutlined className={classes.footerLinkIcon} />
+                                </Link>
+                            </Space>
+                            <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
+                        </Footer>
+                    </Layout>
+                </Layout>
+            </div>
+        )
     },
 )
 
@@ -87,14 +214,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
         ref: ref as RefObject<HTMLElement>,
         box: "border-box",
     })
-    const {project, projects} = useProjectData()
+    const {project} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
     const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
     const [, contextHolder] = Modal.useModal()
-    const {changeSelectedOrg} = useOrgData()
+
     const posthog = usePostHogAg()
     const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
 
@@ -109,12 +236,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
             setHasCapturedTheme(true)
         }
     }, [hasCapturedTheme])
-
-    const {data: variants} = useAllVariantsData({appId})
-
-    const variant = useMemo(() => variants?.[0], [variants])
-
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({})
 
     useEffect(() => {
         if (user && isDemo()) {
@@ -205,13 +326,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
         )
     }
 
-    const handleBackToWorkspaceSwitch = () => {
-        const project = projects.find((p) => p.user_role === "owner")
-        if (project && !project.is_demo && project.organization_id) {
-            changeSelectedOrg(project.organization_id)
-        }
-    }
-
     return (
         <>
             {typeof window === "undefined" ? null : (
@@ -224,104 +338,18 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </ErrorBoundary>
                         </Layout>
                     ) : (
-                        <AppWithVariants isAppRoute={isAppRoute}>
+                        <AppWithVariants
+                            isAppRoute={isAppRoute}
+                            classes={classes}
+                            isNewPlayground={isNewPlayground}
+                            appTheme={appTheme}
+                        >
                             <div>
-                                {project?.is_demo && (
-                                    <div className={classes.banner}>
-                                        You are in <span>a view-only</span> demo workspace. To go
-                                        back to your workspace{" "}
-                                        <span
-                                            className="cursor-pointer"
-                                            onClick={handleBackToWorkspaceSwitch}
-                                        >
-                                            click here
-                                        </span>
-                                    </div>
-                                )}
-                                <Layout hasSider className={classes.layout}>
-                                    <Sidebar />
-                                    <Layout className={classes.layout}>
-                                        <div>
-                                            <BreadcrumbContainer
-                                                appTheme={appTheme}
-                                                appName={currentApp?.app_name || ""}
-                                                isNewPlayground={isNewPlayground}
-                                            />
-                                            <OldAppDeprecationBanner
-                                                isNewPlayground={isNewPlayground}
-                                            >
-                                                {variant && (
-                                                    <CustomWorkflowBanner
-                                                        setIsCustomWorkflowModalOpen={openModal}
-                                                        isNewPlayground={isNewPlayground}
-                                                        variant={variant}
-                                                    />
-                                                )}
-
-                                                <Content
-                                                    className={clsx(classes.content, {
-                                                        "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                            isNewPlayground,
-                                                    })}
-                                                >
-                                                    <ErrorBoundary
-                                                        FallbackComponent={ErrorFallback}
-                                                    >
-                                                        <ConfigProvider
-                                                            theme={{
-                                                                algorithm:
-                                                                    appTheme === "dark"
-                                                                        ? theme.darkAlgorithm
-                                                                        : theme.defaultAlgorithm,
-                                                            }}
-                                                        >
-                                                            {children}
-                                                        </ConfigProvider>
-                                                        {contextHolder}
-                                                    </ErrorBoundary>
-                                                </Content>
-                                            </OldAppDeprecationBanner>
-                                        </div>
-                                        <Footer className={classes.footer}>
-                                            <Space className={classes.footerLeft} size={10}>
-                                                <Link
-                                                    href={"https://github.com/Agenta-AI/agenta"}
-                                                    target="_blank"
-                                                >
-                                                    <GithubFilled
-                                                        className={classes.footerLinkIcon}
-                                                    />
-                                                </Link>
-                                                <Link
-                                                    href={
-                                                        "https://www.linkedin.com/company/agenta-ai/"
-                                                    }
-                                                    target="_blank"
-                                                >
-                                                    <LinkedinFilled
-                                                        className={classes.footerLinkIcon}
-                                                    />
-                                                </Link>
-                                                <Link
-                                                    href={"https://twitter.com/agenta_ai"}
-                                                    target="_blank"
-                                                >
-                                                    <TwitterOutlined
-                                                        className={classes.footerLinkIcon}
-                                                    />
-                                                </Link>
-                                            </Space>
-                                            <div>
-                                                Copyright © {new Date().getFullYear()} | Agenta.
-                                            </div>
-                                        </Footer>
-                                    </Layout>
-                                </Layout>
+                                {children}
+                                {contextHolder}
                             </div>
                         </AppWithVariants>
                     )}
-
-                    {CustomWorkflowModal}
                 </ThemeProvider>
             )}
         </>

@@ -48,99 +48,108 @@ function mergeWithSavedConfig(
  * Transform OpenAPI schema into an enhanced variant
  */
 export function transformToEnhancedVariant(
-    variant: BaseVariant,
+    variant: EnhancedVariant,
     openApiSpec: OpenAPISpec,
     appType?: string,
     routePath?: string,
 ): EnhancedVariant {
-    const path = constructPlaygroundTestUrl({
-        routePath,
-    })
-    const requestSchema =
-        openApiSpec.paths[`${path}`]?.post?.requestBody?.content?.["application/json"]?.schema
+    try {
+        const path = constructPlaygroundTestUrl(
+            variant.uriObject || {
+                routePath,
+            },
+            undefined,
+            false,
+        )
+        const requestSchema =
+            openApiSpec.paths[`${path}`]?.post?.requestBody?.content?.["application/json"]?.schema
 
-    if (!requestSchema || !("properties" in requestSchema)) {
-        throw new Error("Invalid OpenAPI schema")
-    }
+        if (!requestSchema || !("properties" in requestSchema)) {
+            throw new Error("Invalid OpenAPI schema 2")
+        }
 
-    const agConfig = requestSchema.properties?.ag_config as AgentaConfigSchema
+        const agConfig = requestSchema.properties?.ag_config as AgentaConfigSchema
 
-    const properties = agConfig?.properties || {}
+        const properties = agConfig?.properties || {}
 
-    const prompts = Object.keys(properties)
-        .map((key) => {
-            const property = properties[key]
-            return property.hasOwnProperty("x-parameters") &&
-                typeof property["x-parameters"] === "object" &&
-                property["x-parameters"]?.prompt
-                ? {...property, key}
-                : null
+        const prompts = Object.keys(properties)
+            .map((key) => {
+                const property = properties[key]
+                return property.hasOwnProperty("x-parameters") &&
+                    typeof property["x-parameters"] === "object" &&
+                    property["x-parameters"]?.prompt
+                    ? {...property, key}
+                    : null
+            })
+            .filter(Boolean) as ObjectSchema[]
+
+        // Merge schema defaults with saved configuration
+        const mergedPromptData = prompts.reduce(
+            (acc, cur) => {
+                if (!cur || !cur?.key) return acc
+
+                const key = cur.key
+                acc[key] = mergeWithSavedConfig(cur, variant)
+                return acc
+            },
+            {} as Record<string, AgentaConfigPrompt>,
+        )
+
+        const isChat =
+            !!requestSchema && !!requestSchema.properties && !!requestSchema.properties.messages
+
+        const transformedPrompts = prompts
+            .map((prompt) => {
+                if (!prompt || !prompt.key) return null
+                const transformed = createEnhancedConfig(mergedPromptData[prompt.key], prompt)
+                return {
+                    ...transformed,
+                    __name: prompt?.key,
+                }
+            })
+            .filter(Boolean) as EnhancedObjectConfig<AgentaConfigPrompt>[]
+
+        const promptKeys = prompts.map((prompt) => prompt?.key)
+        const customPropertyKeys = Object.keys(properties).filter((property) => {
+            return !!property && !promptKeys.includes(property)
         })
-        .filter(Boolean) as ObjectSchema[]
 
-    // Merge schema defaults with saved configuration
-    const mergedPromptData = prompts.reduce(
-        (acc, cur) => {
-            if (!cur || !cur?.key) return acc
+        const customProperties = customPropertyKeys.reduce(
+            (acc, key) => {
+                const savedValue = variant.parameters?.agConfig?.[key] as any
 
-            const key = cur.key
-            acc[key] = mergeWithSavedConfig(cur, variant)
-            return acc
-        },
-        {} as Record<string, AgentaConfigPrompt>,
-    )
+                acc[key] = createEnhancedConfig(
+                    savedValue || agConfig.default[key] || "",
+                    properties[key],
+                    key,
+                )
+                return acc
+            },
+            {} as Record<string, Enhanced<any>>,
+        )
 
-    const isChat =
-        !!requestSchema && !!requestSchema.properties && !!requestSchema.properties.messages
+        const isCustom =
+            appType === "custom" || (customProperties && Object.keys(customProperties).length > 0)
 
-    const transformedPrompts = prompts
-        .map((prompt) => {
-            if (!prompt || !prompt.key) return null
-            const transformed = createEnhancedConfig(mergedPromptData[prompt.key], prompt)
-            return {
-                ...transformed,
-                __name: prompt?.key,
-            }
-        })
-        .filter(Boolean) as EnhancedObjectConfig<AgentaConfigPrompt>[]
-
-    const promptKeys = prompts.map((prompt) => prompt?.key)
-    const customPropertyKeys = Object.keys(properties).filter((property) => {
-        return !!property && !promptKeys.includes(property)
-    })
-
-    const customProperties = customPropertyKeys.reduce(
-        (acc, key) => {
-            const savedValue = variant.parameters?.agConfig?.[key] as any
-
-            acc[key] = createEnhancedConfig(
-                savedValue || agConfig.default[key] || "",
-                properties[key],
-                key,
-            )
-            return acc
-        },
-        {} as Record<string, Enhanced<any>>,
-    )
-
-    const isCustom =
-        appType === "custom" || (customProperties && Object.keys(customProperties).length > 0)
-
-    return {
-        ...variant,
-        isChat,
-        isCustom,
-        prompts: transformedPrompts,
-        customProperties,
-        // @ts-ignore
-        isStatelessVariant: true,
-        // @ts-ignore
-        isChatVariant: isChat,
-        // @ts-ignore
-        isCustom,
-        // @ts-ignore
-        inputs: {} as EnhancedVariant["inputs"],
-        // @ts-ignore
-        messages: {} as EnhancedVariant["messages"],
+        return {
+            ...variant,
+            isChat,
+            isCustom,
+            prompts: transformedPrompts,
+            customProperties,
+            // @ts-ignore
+            isStatelessVariant: true,
+            // @ts-ignore
+            isChatVariant: isChat,
+            // @ts-ignore
+            isCustom,
+            // @ts-ignore
+            inputs: {} as EnhancedVariant["inputs"],
+            // @ts-ignore
+            messages: {} as EnhancedVariant["messages"],
+        }
+    } catch (err) {
+        console.error("Error transforming variant:", err)
+        throw err
     }
 }

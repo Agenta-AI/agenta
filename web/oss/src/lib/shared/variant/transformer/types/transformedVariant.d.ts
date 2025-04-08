@@ -21,6 +21,10 @@ export interface EnhancedVariant<
     modifiedBy: string
     __isMutating?: boolean
     revisions?: VariantRevision[]
+    uriObject?: {
+        routePath?: string
+        runtimePrefix: string
+    }
     _parentVariant: {
         name: string
         id: string

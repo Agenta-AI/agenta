@@ -10,6 +10,7 @@ import {NewVariantButtonProps} from "../types"
 const NewVariantButton = ({
     children,
     onClick: propsHandleClick,
+    label = "Variant",
     ...buttonProps
 }: NewVariantButtonProps) => {
     const [displayModal, _setDisplayModal] = useState(false)
@@ -39,7 +40,7 @@ const NewVariantButton = ({
                 )
             ) : (
                 <AddButton
-                    label={"Variant"}
+                    label={label}
                     onClick={() => {
                         propsHandleClick?.()
                         setDisplayModal(true)
