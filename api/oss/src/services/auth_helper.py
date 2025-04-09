@@ -14,7 +14,6 @@ from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
-from ee.src.services import db_manager_ee
 from oss.src.services import api_key_service
 from oss.src.services.exceptions import (
     UnauthorizedException,
