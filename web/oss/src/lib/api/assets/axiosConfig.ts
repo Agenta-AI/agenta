@@ -89,11 +89,11 @@ axios.interceptors.response.use(
         if (error.response?.status === 403 && error.config.method !== "get") {
             AlertPopup({
                 title: "Permission Denied",
-                message: PERMISSION_ERR_MSG,
+                message: error.response?.data?.detail || PERMISSION_ERR_MSG,
                 cancelText: null,
                 okText: "Ok",
             })
-            error.message = PERMISSION_ERR_MSG
+            error.message = error.response?.data?.detail || PERMISSION_ERR_MSG
             throw error
         }
 

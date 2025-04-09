@@ -3,12 +3,15 @@ from os import getenv
 from typing import Optional, Callable, Any
 from importlib.metadata import version
 
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.globals import set_global
 from agenta.client.client import AgentaApi, AsyncAgentaApi
 
 from agenta.sdk.tracing import Tracing
 from agenta.sdk.context.routing import routing_context
+
+
+log = get_module_logger(__file__)
 
 
 class AgentaSingleton:

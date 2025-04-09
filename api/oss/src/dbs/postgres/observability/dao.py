@@ -173,14 +173,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 # DEBUGGING
                 # TODO: HIDE THIS BEFORE RELEASING
-                print(
-                    str(
-                        query.compile(
-                            dialect=postgresql.dialect(),
-                            compile_kwargs={"literal_binds": True},
-                        )
-                    )
-                )
+                # print(
+                #     str(
+                #         query.compile(
+                #             dialect=postgresql.dialect(),
+                #             compile_kwargs={"literal_binds": True},
+                #         )
+                #     )
+                # )
                 # ---------
 
                 # QUERY EXECUTION
@@ -412,23 +412,23 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 # DEBUGGING
                 # TODO: HIDE THIS BEFORE RELEASING
-                print(
-                    str(
-                        total_query.compile(
-                            dialect=postgresql.dialect(),
-                            compile_kwargs={"literal_binds": True},
-                        )
-                    )
-                )
-                print("...")
-                print(
-                    str(
-                        error_query.compile(
-                            dialect=postgresql.dialect(),
-                            compile_kwargs={"literal_binds": True},
-                        )
-                    )
-                )
+                # print(
+                #     str(
+                #         total_query.compile(
+                #             dialect=postgresql.dialect(),
+                #             compile_kwargs={"literal_binds": True},
+                #         )
+                #     )
+                # )
+                # print("...")
+                # print(
+                #     str(
+                #         error_query.compile(
+                #             dialect=postgresql.dialect(),
+                #             compile_kwargs={"literal_binds": True},
+                #         )
+                #     )
+                # )
                 # ---------
 
                 # QUERY EXECUTION

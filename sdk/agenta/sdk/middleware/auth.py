@@ -11,9 +11,11 @@ from fastapi.responses import JSONResponse
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.exceptions import display_exception
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
 
 import agenta as ag
+
+log = get_module_logger(__file__)
 
 AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
 

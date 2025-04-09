@@ -1,9 +1,9 @@
-import logging
 from typing import List
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, BackgroundTasks
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
 from oss.src.utils.common import APIRouter
@@ -28,11 +28,16 @@ if is_ee():
     )
     from ee.src.services.organization_service import notify_org_admin_invitation
 
+    from ee.src.utils.entitlements import (
+        check_entitlements,
+        Tracker,
+        Gauge,
+        NOT_ENTITLED_RESPONSE,
+    )
 
-# initialize api router and logger
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 
 @router.get("/", response_model=list[Organization], operation_id="list_organizations")
@@ -184,6 +189,12 @@ async def invite_user_to_organization(
         HTTPException: If there is an error assigning the role to the user.
     """
 
+    if len(payload) != 1:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Only one user can be invited at a time."},
+        )
+
     if is_ee():
         user_org_workspace_data = await get_user_org_and_workspace_id(
             request.state.user_id
@@ -201,6 +212,15 @@ async def invite_user_to_organization(
                     "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
                 },
             )
+
+        check, _, _ = await check_entitlements(
+            organization_id=request.state.organization_id,
+            key=Gauge.USERS,
+            delta=1,
+        )
+
+        if not check:
+            return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
 
         invite_user = await workspace_manager.invite_user_to_workspace(
             payload=payload,

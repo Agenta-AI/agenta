@@ -8,6 +8,8 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+
+from oss.src.utils.logging import get_module_logger
 from oss.src.routers import (
     app_router,
     environment_router,
@@ -51,6 +53,8 @@ origins = [
 celery_app = Celery("agenta_app")
 celery_app.config_from_object("oss.src.celery_config")
 
+log = get_module_logger(__file__)
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI, cache=True):
@@ -61,7 +65,6 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-
     await check_for_new_migrations()
 
     yield

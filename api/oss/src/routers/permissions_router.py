@@ -1,10 +1,10 @@
-import logging
 from uuid import UUID
 from typing import Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, Query, HTTPException
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 
 if is_ee():
@@ -13,7 +13,8 @@ if is_ee():
 
 
 router = APIRouter()
-log = logging.getLogger(__name__)
+
+log = get_module_logger(__file__)
 
 
 class Allow(JSONResponse):

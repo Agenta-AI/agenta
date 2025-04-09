@@ -855,11 +855,6 @@ def parse_legacy_analytics_dto(
     if not timeRange and not environment and not variant:
         return None
 
-    print("timeRange: ", timeRange)
-    print("app_id: ", app_id)
-    print("environment: ", environment)
-    print("variant: ", variant)
-
     application_condition = None
     environment_condition = None
     variant_condition = None
@@ -903,11 +898,6 @@ def parse_legacy_analytics_dto(
 
     if timeRange:
         newest, oldest, window = _parse_time_range(timeRange)
-
-        print("newest: ", newest)
-        print("oldest: ", oldest)
-        print("window: ", window)
-
         windowing = WindowingDTO(newest=newest, oldest=oldest, window=window)
 
     grouping = GroupingDTO(focus="tree")

@@ -1,20 +1,18 @@
 import json
-import logging
 import asyncio
 import traceback
 import aiohttp
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils import common
 from oss.src.services import helpers
 from oss.src.services.auth_helper import sign_secret_token
 from oss.src.models.shared_models import InvokationResult, Result, Error
+from oss.src.services.db_manager import get_project_by_id
 
-
-# Set logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 def get_nested_value(d: dict, keys: list, default=None):
@@ -226,18 +224,29 @@ async def invoke_app(
 
     payload = await make_payload(datapoint, parameters, openapi_parameters)
 
-    secret_token = await sign_secret_token(user_id, project_id, None)
+    project = await get_project_by_id(
+        project_id=project_id,
+    )
+
+    secret_token = await sign_secret_token(
+        user_id=str(user_id),
+        project_id=str(project_id),
+        workspace_id=str(project.workspace_id),
+        organization_id=str(project.organization_id),
+    )
 
     headers = {}
     if secret_token:
         headers = {"Authorization": f"Secret {secret_token}"}
     headers["ngrok-skip-browser-warning"] = "1"
 
+    log.info(f"Invoking app {uri} with headers {headers}")
+
     async with aiohttp.ClientSession() as client:
         app_response = {}
 
         try:
-            logger.debug(f"Invoking app {uri} with payload {payload}")
+            log.info(f"Invoking app {uri} with payload {payload}")
             response = await client.post(
                 url,
                 json=payload,
@@ -266,28 +275,23 @@ async def invoke_app(
             stacktrace = app_response.get("detail", {}).get(
                 "traceback", "".join(traceback.format_exception_only(type(e), e))
             )
-            logger.error(f"HTTP error occurred during request: {error_message}")
-            common.capture_exception_in_sentry(e)
+            log.error(f"HTTP error occurred during request: {error_message}")
         except aiohttp.ServerTimeoutError as e:
             error_message = "Request timed out"
             stacktrace = "".join(traceback.format_exception_only(type(e), e))
-            logger.error(error_message)
-            common.capture_exception_in_sentry(e)
+            log.error(error_message)
         except aiohttp.ClientConnectionError as e:
             error_message = f"Connection error: {str(e)}"
             stacktrace = "".join(traceback.format_exception_only(type(e), e))
-            logger.error(error_message)
-            common.capture_exception_in_sentry(e)
+            log.error(error_message)
         except json.JSONDecodeError as e:
             error_message = "Failed to decode JSON from response"
             stacktrace = "".join(traceback.format_exception_only(type(e), e))
-            logger.error(error_message)
-            common.capture_exception_in_sentry(e)
+            log.error(error_message)
         except Exception as e:
             error_message = f"Unexpected error: {str(e)}"
             stacktrace = "".join(traceback.format_exception_only(type(e), e))
-            logger.error(error_message)
-            common.capture_exception_in_sentry(e)
+            log.error(error_message)
 
         return InvokationResult(
             result=Result(
@@ -348,14 +352,13 @@ async def run_with_retry(
             retries += 1
         except Exception as e:
             last_exception = e
-            logger.info(f"Error processing datapoint: {input_data}. {str(e)}")
-            logger.info("".join(traceback.format_exception_only(type(e), e)))
+            log.warning(f"Error processing datapoint: {input_data}. {str(e)}")
+            log.warning("".join(traceback.format_exception_only(type(e), e)))
             retries += 1
-            common.capture_exception_in_sentry(e)
 
     # If max retries is reached or an exception that isn't in the second block,
     # update & return the last exception
-    logging.info("Max retries reached")
+    log.warning("Max retries reached")
     exception_message = (
         "Max retries reached"
         if retries == max_retry_count
@@ -405,11 +408,20 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[
-        InvokationResult
-    ] = []  # Outputs after running all batches
+    list_of_app_outputs: List[InvokationResult] = (
+        []
+    )  # Outputs after running all batches
 
-    secret_token = await sign_secret_token(user_id, project_id, None)
+    project = await get_project_by_id(
+        project_id=project_id,
+    )
+
+    secret_token = await sign_secret_token(
+        user_id=str(user_id),
+        project_id=str(project_id),
+        workspace_id=str(project.workspace_id),
+        organization_id=str(project.organization_id),
+    )
 
     headers = {}
     if secret_token:

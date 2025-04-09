@@ -1,16 +1,15 @@
 from typing import List
 from datetime import datetime
-
-import logging
 import gzip
 import zlib
-
-# from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto
-import oss.src.apis.fastapi.observability.opentelemetry.traces_proto as Trace_Proto
 
 
 from google.protobuf.json_format import MessageToDict
 
+# from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto
+import oss.src.apis.fastapi.observability.opentelemetry.traces_proto as Trace_Proto
+
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.dtos import (
     OTelSpanDTO,
     OTelContextDTO,
@@ -18,7 +17,7 @@ from oss.src.core.observability.dtos import (
     OTelLinkDTO,
 )
 
-log = logging.getLogger(__name__)
+log = get_module_logger(__file__)
 
 SPAN_KINDS = [
     "SPAN_KIND_UNSPECIFIED",

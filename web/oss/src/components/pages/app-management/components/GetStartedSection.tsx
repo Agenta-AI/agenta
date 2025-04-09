@@ -75,11 +75,7 @@ const GetStartedSection = ({
                     title={<Rocket size={24} />}
                     className={classes.getStartedCard}
                     onClick={() => {
-                        if (isDemo() && selectedOrg?.is_paying == false && apps.length > 2) {
-                            setIsMaxAppModalOpen(true)
-                        } else {
-                            setIsAddAppFromTemplatedModal(true)
-                        }
+                        setIsAddAppFromTemplatedModal(true)
                     }}
                     data-cy="create-from-template"
                 >

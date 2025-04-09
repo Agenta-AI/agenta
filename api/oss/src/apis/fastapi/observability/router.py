@@ -1,9 +1,10 @@
-from typing import Dict, List, Union, Optional, Callable, Literal
+from typing import Dict, List, Union, Literal
 from uuid import UUID
-from logging import getLogger
 
-from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
+from fastapi import Request, Depends, Query, status, HTTPException
+from fastapi.responses import JSONResponse
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.service import ObservabilityService
 from oss.src.core.observability.dtos import (
     QueryDTO,
@@ -43,7 +44,17 @@ from oss.src.apis.fastapi.observability.models import (
     AnalyticsResponse,
 )
 
-logger = getLogger(__name__)
+from oss.src.utils.common import APIRouter, is_ee
+
+if is_ee():
+    from ee.src.utils.entitlements import (
+        check_entitlements,
+        Tracker,
+        Counter,
+        NOT_ENTITLED_RESPONSE,
+    )
+
+log = get_module_logger(__file__)
 
 
 class ObservabilityRouter:
@@ -178,7 +189,7 @@ class ObservabilityRouter:
             otlp_stream = await request.body()
             # ---------------------------------------------------------------- #
         except Exception as e:
-            logger.error(
+            log.error(
                 "Failed to process OTLP stream from project %s with error %s",
                 request.state.project_id,
                 str(e),
@@ -194,12 +205,15 @@ class ObservabilityRouter:
             otel_spans = parse_otlp_stream(otlp_stream)
             # ---------------------------------------------------------------- #
         except Exception as e:
-            logger.error(
+            log.error(
                 "Failed to parse OTLP stream from project %s with error %s",
                 request.state.project_id,
                 str(e),
             )
-            logger.error("OTLP stream: %s", otlp_stream)
+            log.error(
+                "OTLP stream: %s",
+                otlp_stream,
+            )
             raise HTTPException(
                 status_code=500,
                 detail="Failed to parse OTLP stream.",
@@ -213,13 +227,13 @@ class ObservabilityRouter:
             ]
             # ---------------------------------------------------------------- #
         except Exception as e:
-            logger.error(
+            log.error(
                 "Failed to parse spans from project %s with error %s",
                 request.state.project_id,
                 str(e),
             )
             for otel_span in otel_spans:
-                logger.error(
+                log.error(
                     "Span: [%s] %s",
                     UUID(otel_span.context.trace_id[2:]),
                     otel_span,
@@ -229,6 +243,20 @@ class ObservabilityRouter:
                 detail="Failed to parse OTEL span.",
             ) from e
 
+        # -------------------------------------------------------------------- #
+        delta = sum([1 for span_dto in span_dtos if span_dto.parent is None])
+
+        if is_ee():
+            check, _, _ = await check_entitlements(
+                organization_id=request.state.organization_id,
+                key=Counter.TRACES,
+                delta=delta,
+            )
+
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.COUNTERS)
+        # -------------------------------------------------------------------- #
+
         try:
             # ---------------------------------------------------------------- #
             await self.service.ingest(
@@ -237,13 +265,13 @@ class ObservabilityRouter:
             )
             # ---------------------------------------------------------------- #
         except Exception as e:
-            logger.error(
+            log.error(
                 "Failed to ingest spans from project %s with error %s",
                 request.state.project_id,
                 str(e),
             )
             for span_dto in span_dtos:
-                logger.error(
+                log.error(
                     "Span: [%s] %s",
                     span_dto.tree.id,
                     span_dto,

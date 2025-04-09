@@ -1,5 +1,4 @@
 import os
-import logging
 import traceback
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -12,8 +11,10 @@ from jwt import encode, decode, DecodeError, ExpiredSignatureError
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
+from ee.src.services import db_manager_ee
 from oss.src.services import api_key_service
 from oss.src.services.exceptions import (
     UnauthorizedException,
@@ -25,9 +26,7 @@ from oss.src.services.exceptions import (
 if is_ee():
     from ee.src.services import db_manager_ee
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 _BEARER_TOKEN_PREFIX = "Bearer "
@@ -52,11 +51,13 @@ _PUBLIC_ENDPOINTS = (
     "/api/openapi.json",
     # SUPERTOKENS
     "/auth",
+    # STRIPE
+    "/billing/stripe/events/",
 )
 
 _ADMIN_ENDPOINT_PREFIX = "/admin/"
 
-_SECRET_KEY = "AGENTA_AUTH_KEY"
+_SECRET_KEY = os.getenv("AGENTA_AUTH_KEY")
 _SECRET_EXP = 15 * 60  # 15 minutes
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
@@ -91,33 +92,40 @@ async def authentication_middleware(request: Request, call_next):
         return response
 
     except TryRefreshTokenError:
-        logger.warning("Unauthorized: Refresh Token")
+        log.warning("Unauthorized: Refresh Token")
 
         return Response(status_code=401, content="Unauthorized")
 
     except RequestValidationError as exc:
-        logger.error("Unprocessable Content: %s", exc)
+        log.error("Unprocessable Content: %s", exc)
 
         return Response(status_code=422, content=exc.errors())
 
     except ValidationError as exc:
-        logger.error("Bad Request: %s", exc)
+        log.error("Bad Request: %s", exc)
 
         return Response(status_code=400, content=exc.errors())
 
     except HTTPException as exc:
-        logger.error("%s: %s", code_to_phrase(exc.status_code), exc.detail)
+        log.error("%s: %s", exc.status_code, exc.detail)
 
         return Response(status_code=exc.status_code, content=exc.detail)
 
-    except Exception as exc:  # pylint: disable=bare-except
-        logger.error("Internal Server Error: %s", traceback.format_exc())
+    except Exception as e:  # pylint: disable=bare-except
+        log.error("Internal Server Error: %s", traceback.format_exc())
+        status_code = e.status_code if hasattr(e, "status_code") else 500
 
-        raise InternalServerErrorException() from exc
+        return Response(
+            status_code=status_code,
+            content={"detail": "An internal error has occurred."},
+        )
 
 
 async def _authenticate(request: Request):
     try:
+        if request.url.path.startswith(_PUBLIC_ENDPOINTS):
+            return
+
         if is_ee():
             if request.url.path.startswith(_ADMIN_ENDPOINT_PREFIX):
                 auth_header = (
@@ -134,86 +142,81 @@ async def _authenticate(request: Request):
 
                 access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
 
-                await verify_access_token(
+                return await verify_access_token(
                     access_token=access_token,
                 )
 
-        if not request.url.path.startswith(_PUBLIC_ENDPOINTS):
-            auth_header = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
-            supertokens_access_token = request.cookies.get("sAccessToken")
+        auth_header = (
+            request.headers.get("Authorization")
+            or request.headers.get("authorization")
+            or None
+        )
+        supertokens_access_token = request.cookies.get("sAccessToken")
 
-            query_project_id = request.query_params.get("project_id")
-            if query_project_id in [_ZERO_UUID, _NULL_UUID]:
-                raise UnauthorizedException()
+        query_project_id = request.query_params.get("project_id")
+        if query_project_id in [_ZERO_UUID, _NULL_UUID]:
+            raise UnauthorizedException()
 
-            query_workspace_id = request.query_params.get("workspace_id")
-            if query_workspace_id in [_ZERO_UUID, _NULL_UUID]:
-                raise UnauthorizedException()
+        query_workspace_id = request.query_params.get("workspace_id")
+        if query_workspace_id in [_ZERO_UUID, _NULL_UUID]:
+            raise UnauthorizedException()
 
-            if not auth_header and not supertokens_access_token:
-                raise UnauthorizedException()
+        if not auth_header and not supertokens_access_token:
+            raise UnauthorizedException()
 
-            if auth_header:
-                if not auth_header.startswith(_ALLOWED_TOKENS):
-                    # LEGACY / APIKEY TOKEN
-                    await verify_apikey_token(
+        if auth_header:
+            if not auth_header.startswith(_ALLOWED_TOKENS):
+                # LEGACY / APIKEY TOKEN
+                return await verify_apikey_token(
+                    request=request,
+                    apikey_token=auth_header,
+                )
+
+            elif auth_header.startswith(_ALLOWED_TOKENS):
+                if auth_header.startswith(_BEARER_TOKEN_PREFIX):
+                    # NEW / BEARER TOKEN
+                    return await verify_bearer_token(
                         request=request,
-                        apikey_token=auth_header,
+                        bearer_token=auth_header[len(_BEARER_TOKEN_PREFIX) :],
+                        query_project_id=query_project_id,
+                        query_workspace_id=query_workspace_id,
                     )
 
-                elif auth_header.startswith(_ALLOWED_TOKENS):
-                    if auth_header.startswith(_BEARER_TOKEN_PREFIX):
-                        # NEW / BEARER TOKEN
-                        await verify_bearer_token(
-                            request=request,
-                            bearer_token=auth_header[len(_BEARER_TOKEN_PREFIX) :],
-                            query_project_id=query_project_id,
-                            query_workspace_id=query_workspace_id,
-                        )
+                elif auth_header.startswith(_APIKEY_TOKEN_PREFIX):
+                    # NEW / APIKEY TOKEN
+                    return await verify_apikey_token(
+                        request=request,
+                        apikey_token=auth_header[len(_APIKEY_TOKEN_PREFIX) :],
+                    )
 
-                    elif auth_header.startswith(_APIKEY_TOKEN_PREFIX):
-                        # NEW / APIKEY TOKEN
-                        await verify_apikey_token(
-                            request=request,
-                            apikey_token=auth_header[len(_APIKEY_TOKEN_PREFIX) :],
-                        )
-
-                    elif auth_header.startswith(_SECRET_TOKEN_PREFIX):
-                        # NEW / SECRET TOKEN
-                        await verify_secret_token(
-                            request=request,
-                            secret_token=auth_header[len(_SECRET_TOKEN_PREFIX) :],
-                        )
-
-                else:
-                    # NEITHER LEGACY NOR NEW TOKEN
-                    raise UnauthorizedException()
-
-            elif supertokens_access_token:
-                # LEGACY / BEARER TOKEN
-                await verify_bearer_token(
-                    request=request,
-                    bearer_token=supertokens_access_token,
-                    query_project_id=query_project_id,
-                    query_workspace_id=query_workspace_id,
-                )
+                elif auth_header.startswith(_SECRET_TOKEN_PREFIX):
+                    # NEW / SECRET TOKEN
+                    return await verify_secret_token(
+                        request=request,
+                        secret_token=auth_header[len(_SECRET_TOKEN_PREFIX) :],
+                    )
 
             else:
                 # NEITHER LEGACY NOR NEW TOKEN
                 raise UnauthorizedException()
 
-    except HTTPException as exc:
-        logger.error("HTTP Exception: %s", exc)
+        elif supertokens_access_token:
+            # LEGACY / BEARER TOKEN
+            await verify_bearer_token(
+                request=request,
+                bearer_token=supertokens_access_token,
+                query_project_id=query_project_id,
+                query_workspace_id=query_workspace_id,
+            )
 
+        else:
+            # NEITHER LEGACY NOR NEW TOKEN
+            raise UnauthorizedException()
+
+    except HTTPException as exc:
         raise exc
 
     except Exception as exc:  # pylint: disable=bare-except
-        logger.error("Internal Server Error: %s", traceback.format_exc())
-
         raise UnauthorizedException() from exc
 
 
@@ -221,12 +224,10 @@ async def verify_access_token(
     access_token: str,
 ):
     try:
-        secret_key = os.getenv(_SECRET_KEY)
-
-        if not secret_key:
+        if not _SECRET_KEY:
             raise InternalServerErrorException()
 
-        if access_token != secret_key:
+        if access_token != _SECRET_KEY:
             raise UnauthorizedException()
 
         return
@@ -235,8 +236,6 @@ async def verify_access_token(
         raise exc
 
     except Exception as exc:  # pylint: disable=bare-except
-        logger.error("Internal Server Error: %s", traceback.format_exc())
-
         raise UnauthorizedException() from exc
 
 
@@ -292,6 +291,7 @@ async def verify_bearer_token(
 
             project_id = query_project_id
             workspace_id = query_workspace_id
+            organization_id = project.organization_id
 
         elif query_project_id and not query_workspace_id:
             project = await db_manager.get_project_by_id(
@@ -303,6 +303,7 @@ async def verify_bearer_token(
 
             project_id = query_project_id
             workspace_id = project.workspace_id
+            organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
             workspace = await db_manager.get_workspace(
@@ -313,10 +314,10 @@ async def verify_bearer_token(
                 raise UnauthorizedException()
 
             workspace_id = query_workspace_id
-
             project_id = await db_manager.get_default_project_id_from_workspace(
                 workspace_id=workspace_id
             )
+            organization_id = workspace.organization_id
 
         else:
             if is_ee():
@@ -335,8 +336,15 @@ async def verify_bearer_token(
                 workspace_id=workspace_id
             )
 
+            workspace = await db_manager.get_workspace(
+                workspace_id=workspace_id,
+            )
+
+            organization_id = workspace.organization_id
+
         project_id = str(project_id)
         workspace_id = str(workspace_id)
+        organization_id = str(organization_id)
 
         if not (project_id and workspace_id):
             raise UnauthorizedException()
@@ -345,19 +353,19 @@ async def verify_bearer_token(
             user_id=user_id,
             project_id=project_id,
             workspace_id=workspace_id,
+            organization_id=organization_id,
         )
 
         request.state.user_id = user_id
         request.state.project_id = project_id
         request.state.workspace_id = workspace_id
+        request.state.organization_id = organization_id
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
 
     except UnauthorizedException as exc:
         raise exc
 
     except Exception as exc:  # pylint: disable=bare-except
-        logger.error("Internal Server Error: %s", traceback.format_exc())
-
         raise UnauthorizedException() from exc
 
 
@@ -393,6 +401,7 @@ async def verify_apikey_token(
     request.state.user_id = str(api_key_obj.created_by_id)
     request.state.project_id = str(api_key_obj.project_id)
     request.state.workspace_id = str(apikey_project_db.workspace_id)
+    request.state.organization_id = str(apikey_project_db.organization_id)
     request.state.credentials = f"{_APIKEY_TOKEN_PREFIX}{apikey_token}"
 
 
@@ -401,19 +410,19 @@ async def verify_secret_token(
     secret_token: str,
 ):
     try:
-        secret_key = os.getenv(_SECRET_KEY)
-        if not secret_key:
+        if not _SECRET_KEY:
             raise InternalServerErrorException()
 
         auth_context = decode(
             jwt=secret_token,
-            key=secret_key,
+            key=_SECRET_KEY,
             algorithms=["HS256"],
         )
 
         request.state.user_id = auth_context.get("user_id")
         request.state.project_id = auth_context.get("project_id")
         request.state.workspace_id = auth_context.get("workspace_id")
+        request.state.organization_id = auth_context.get("organization_id")
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
 
     except DecodeError as exc:
@@ -423,8 +432,6 @@ async def verify_secret_token(
         raise UnauthorizedException() from exc
 
     except Exception as exc:  # pylint: disable=bare-except
-        logger.error("Internal Server Error: %s", traceback.format_exc())
-
         raise InternalServerErrorException() from exc
 
 
@@ -432,11 +439,10 @@ async def sign_secret_token(
     user_id: Optional[str] = None,
     project_id: Optional[str] = None,
     workspace_id: Optional[str] = None,
+    organization_id: Optional[str] = None,
 ):
     try:
-        secret_key = os.getenv(_SECRET_KEY)
-
-        if not secret_key:
+        if not _SECRET_KEY:
             raise InternalServerErrorException()
 
         _exp = int(
@@ -447,18 +453,17 @@ async def sign_secret_token(
             "user_id": user_id,
             "project_id": project_id,
             "workspace_id": workspace_id,
+            "organization_id": organization_id,
             "exp": _exp,
         }
 
         secret_token = encode(
             payload=auth_context,
-            key=secret_key,
+            key=_SECRET_KEY,
             algorithm="HS256",
         )
 
         return secret_token
 
     except Exception as exc:  # pylint: disable=bare-except
-        logger.error("Internal Server Error: %s", traceback.format_exc())
-
         raise InternalServerErrorException() from exc

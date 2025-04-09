@@ -95,15 +95,7 @@ const ApplicationManagementSection = ({
                             data-cy="create-new-app-button"
                             icon={<PlusOutlined />}
                             onClick={() => {
-                                if (
-                                    isDemo() &&
-                                    selectedOrg?.is_paying == false &&
-                                    apps.length > 2
-                                ) {
-                                    setIsMaxAppModalOpen(true)
-                                } else {
-                                    setIsAddAppFromTemplatedModal(true)
-                                }
+                                setIsAddAppFromTemplatedModal(true)
                             }}
                         >
                             Create New Prompt

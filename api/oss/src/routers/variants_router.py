@@ -1,9 +1,9 @@
-import logging
 from typing import Any, Optional, Union, List
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, Body, status
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import app_manager, db_manager
@@ -31,8 +31,8 @@ from oss.src.models.api.api_models import (
 )
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 
 @router.post("/from-base/", operation_id="add_variant_from_base_and_config")
@@ -53,24 +53,17 @@ async def add_variant_from_base_and_config(
         Union[AppVariantResponse, Any]: New variant details or exception.
     """
 
-    logger.debug("Initiating process to add a variant based on a previous one.")
-    logger.debug(f"Received payload: {payload}")
-
     base_db = await db_manager.fetch_base_by_id(payload.base_id)
 
-    # Check user has permission to add variant
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(base_db.project_id),
             permission=Permission.CREATE_APPLICATION,
         )
-        logger.debug(
-            f"User has Permission to create variant from base and config: {has_permission}"
-        )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -80,9 +73,7 @@ async def add_variant_from_base_and_config(
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
-        else payload.new_config_name
-        if payload.new_config_name
-        else base_db.base_name
+        else payload.new_config_name if payload.new_config_name else base_db.base_name
     )
     db_app_variant = await db_manager.add_variant_from_base_and_config(
         base_db=base_db,
@@ -92,7 +83,6 @@ async def add_variant_from_base_and_config(
         project_id=str(base_db.project_id),
         commit_message=payload.commit_message,
     )
-    logger.debug(f"Successfully added new variant: {db_app_variant}")
 
     # Update last_modified_by app information
     await app_manager.update_last_modified_by(
@@ -101,7 +91,6 @@ async def add_variant_from_base_and_config(
         object_type="app",
         project_id=str(base_db.project_id),
     )
-    logger.debug("Successfully updated last_modified_by app information")
 
     app_variant_db = await db_manager.get_app_variant_instance_by_id(
         str(db_app_variant.id), str(db_app_variant.project_id)
@@ -131,10 +120,9 @@ async def remove_variant(
                 project_id=str(variant.project_id),
                 permission=Permission.DELETE_APPLICATION_VARIANT,
             )
-            logger.debug(f"User has Permission to delete app variant: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
+                log.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -147,7 +135,6 @@ async def remove_variant(
             object_type="variant",
             project_id=str(variant.project_id),
         )
-        logger.debug("Successfully updated last_modified_by app information")
 
         await db_manager.mark_app_variant_as_hidden(app_variant_id=variant_id)
     except Exception as e:
@@ -183,12 +170,9 @@ async def update_variant_parameters(
                 project_id=str(variant_db.project_id),
                 permission=Permission.MODIFY_VARIANT_CONFIGURATIONS,
             )
-            logger.debug(
-                f"User has Permission to update variant parameters: {has_permission}"
-            )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
+                log.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -209,7 +193,6 @@ async def update_variant_parameters(
             object_type="variant",
             project_id=str(variant_db.project_id),
         )
-        logger.debug("Successfully updated last_modified_by app information")
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -242,10 +225,9 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
                 project_id=str(db_app_variant.project_id),
                 permission=Permission.CREATE_APPLICATION,
             )
-            logger.debug(f"User has Permission to update variant: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
+                log.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -266,7 +248,6 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
             object_type="app",
             project_id=str(db_app_variant.project_id),
         )
-        logger.debug("Successfully updated last_modified_by app information")
 
     except ValueError as e:
         import traceback
@@ -291,7 +272,6 @@ async def get_variant(
     variant_id: str,
     request: Request,
 ):
-    logger.debug("getting variant " + variant_id)
     app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
     if is_ee():
@@ -300,10 +280,9 @@ async def get_variant(
             project_id=str(app_variant.project_id),
             permission=Permission.VIEW_APPLICATION,
         )
-        logger.debug(f"User has Permission to get variant: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -329,10 +308,9 @@ async def get_variant_revisions(
             project_id=str(app_variant.project_id),
             permission=Permission.VIEW_APPLICATION,
         )
-        logger.debug(f"User has Permission to get variant: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -354,7 +332,6 @@ async def get_variant_revision(
     revision_number: int,
     request: Request,
 ):
-    logger.debug("getting variant revision: ", variant_id, revision_number)
     assert (
         variant_id != "undefined"
     ), "Variant id is required to retrieve variant revision"
@@ -366,10 +343,9 @@ async def get_variant_revision(
             project_id=str(app_variant.project_id),
             permission=Permission.VIEW_APPLICATION,
         )
-        logger.debug(f"User has Permission to get variant: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -414,10 +390,9 @@ async def remove_variant_revision(
                 project_id=str(variant.project_id),
                 permission=Permission.DELETE_APPLICATION_VARIANT,
             )
-            logger.debug(f"User has Permission to delete app variant: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
+                log.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -430,7 +405,6 @@ async def remove_variant_revision(
             object_type="variant",
             project_id=str(variant.project_id),
         )
-        logger.debug("Successfully updated last_modified_by app information")
 
         await db_manager.mark_app_variant_revision_as_hidden(
             variant_revision_id=revision_id

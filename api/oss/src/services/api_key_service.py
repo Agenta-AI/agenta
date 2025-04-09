@@ -4,7 +4,6 @@ import os
 import uuid
 import string
 import secrets
-import logging
 import hashlib
 from typing import List, Union
 from datetime import datetime, timezone
@@ -12,13 +11,12 @@ from datetime import datetime, timezone
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import APIKeyDB
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.utils.redis_utils import redis_connection
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+log = get_module_logger(__file__)
 
 
 async def _generate_unique_prefix():

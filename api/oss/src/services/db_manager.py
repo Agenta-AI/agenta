@@ -1,6 +1,5 @@
 import os
 import uuid
-import logging
 from pathlib import Path
 from urllib.parse import urlparse
 from datetime import datetime, timezone
@@ -16,6 +15,7 @@ from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.services import user_service
 from oss.src.utils.common import is_ee
@@ -49,9 +49,7 @@ from oss.src.models.shared_models import (
 )
 
 
-# Define logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 # Define parent directory
 PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
@@ -430,7 +428,6 @@ async def create_new_variant_base(
         VariantBaseDB: The created base.
     """
 
-    logger.debug(f"Creating new base: {base_name} for app: {app}")
     async with engine.session() as session:
         base = VariantBaseDB(
             app_id=app.id,
@@ -713,7 +710,6 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
             select(DeploymentDB).filter_by(app_id=uuid.UUID(app_id))
         )
         deployment = result.scalars().first()
-        logger.debug(f"deployment: {deployment}")
         return deployment
 
 
@@ -1201,7 +1197,7 @@ async def get_user_with_uid(user_uid: str):
     return user_db
 
 
-async def get_user_with_id(user_id: str):
+async def get_user_with_id(user_id: str) -> UserDB:
     """
     Retrieves a user from a database based on their ID.
 
@@ -1219,7 +1215,7 @@ async def get_user_with_id(user_id: str):
         result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
         user = result.scalars().first()
         if user is None:
-            logger.error("Failed to get user with id")
+            log.error("Failed to get user with id")
             raise NoResultFound(f"User with id {user_id} not found")
         return user
 
@@ -1318,7 +1314,7 @@ async def create_user_invitation_to_organization(
         return invitation
 
 
-async def get_project_by_id(project_id: str):
+async def get_project_by_id(project_id: str) -> ProjectDB:
     """
     Get the project from database using provided id.
 
@@ -1432,7 +1428,7 @@ async def update_invitation(invitation_id: str, values_to_update: dict) -> bool:
                     setattr(invitation, key, value)
 
         except MultipleResultsFound as e:
-            logger.error(
+            log.error(
                 f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
             )
             raise HTTPException(
@@ -1466,7 +1462,7 @@ async def delete_invitation(invitation_id: str) -> bool:
         try:
             invitation = result.scalars().one_or_none()
         except MultipleResultsFound as e:
-            logger.error(
+            log.error(
                 f"Critical error: Database returned two rows when retrieving invitation with ID {invitation_id} to delete from Invitations table. Error details: {str(e)}"
             )
             raise HTTPException(
@@ -1567,10 +1563,9 @@ async def add_variant_from_base_and_config(
         str(base_db.id), project_id
     )
     if previous_app_variant_db is None:
-        logger.error("Failed to find the previous app variant in the database.")
+        log.error("Failed to find the previous app variant in the database.")
         raise HTTPException(status_code=404, detail="Previous app variant not found")
 
-    logger.debug(f"Located previous variant: {previous_app_variant_db}")
     app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
@@ -1678,7 +1673,6 @@ async def remove_deployment(deployment_id: str):
         deployment -- Deployment to remove
     """
 
-    logger.debug("Removing deployment")
     assert deployment_id is not None, "deployment_id is missing"
 
     async with engine.session() as session:
@@ -1719,10 +1713,8 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
         project_id (str): The ID of the project
     """
 
-    logger.debug("Removing app variant")
     assert app_variant_db is not None, "app_variant_db is missing"
 
-    logger.debug("list_app_variants_revisions_by_variant")
     app_variant_revisions = await list_app_variant_revisions_by_variant(
         app_variant_db, project_id
     )
@@ -2098,10 +2090,9 @@ async def list_environments(app_id: str, **kwargs: dict):
         List[AppEnvironmentDB]: A list of AppEnvironmentDB objects representing the environments for the given app ID.
     """
 
-    logging.debug("Listing environments for app %s", app_id)
     app_instance = await fetch_app_by_id(app_id=app_id)
     if app_instance is None:
-        logging.error(f"App with id {app_id} not found")
+        log.error(f"App with id {app_id} not found")
         raise ValueError("App not found")
 
     async with engine.session() as session:
