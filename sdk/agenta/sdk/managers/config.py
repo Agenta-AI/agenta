@@ -1,17 +1,17 @@
 import json
-import logging
 from pathlib import Path
 from typing import Optional, Type, TypeVar, Dict, Any, Union
 
 import yaml
 from pydantic import BaseModel
 
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.managers.shared import SharedManager
 from agenta.sdk.context.routing import routing_context
 
 T = TypeVar("T", bound=BaseModel)
 
-logger = logging.getLogger(__name__)
+log = get_module_logger(__file__)
 
 AVAILABLE_ENVIRONMENTS = ["development", "production", "staging"]
 

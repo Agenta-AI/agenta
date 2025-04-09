@@ -66,8 +66,6 @@ services:
                 "--port",
                 "8000",
                 "--reload",
-                "--log-level",
-                "info",
                 "--root-path",
                 "/api",
             ]
@@ -98,7 +96,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         
         command: >
-            celery -A entrypoint.celery_app worker --concurrency=1 --loglevel=INFO
+            celery -A entrypoint.celery_app worker --concurrency=1
 
         depends_on:
             - postgres

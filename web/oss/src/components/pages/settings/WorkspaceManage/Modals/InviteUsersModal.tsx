@@ -1,7 +1,7 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
-import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
+import {MinusCircleOutlined} from "@ant-design/icons"
+import {Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
 import {useAtom} from "jotai"
 
 import {useOrgData} from "@/oss/contexts/org.context"
@@ -86,7 +86,10 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                                 )}
                             </Space>
                         ))}
-                        <Form.Item>
+
+                        {/* NOTE: The code disables the ability to invite multiple users at once due to the complexity of handling partial failures, entitlement limits, and lifecycle management. The marginal benefit of saving a few clicks does not justify the added complexity.
+                         */}
+                        {/* <Form.Item>
                             <Button
                                 type="dashed"
                                 onClick={() => add()}
@@ -96,7 +99,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             >
                                 Add another
                             </Button>
-                        </Form.Item>
+                        </Form.Item> */}
                     </>
                 )}
             </Form.List>

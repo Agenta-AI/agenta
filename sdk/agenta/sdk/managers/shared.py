@@ -1,6 +1,6 @@
-import logging
 from typing import Optional, Dict, Any
 
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import handle_exceptions
 
 from agenta.sdk.types import (
@@ -13,8 +13,7 @@ from agenta.client.backend.types.reference_request_model import ReferenceRequest
 
 import agenta as ag
 
-
-logger = logging.getLogger(__name__)
+log = get_module_logger(__file__)
 
 
 class SharedManager:

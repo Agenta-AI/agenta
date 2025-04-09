@@ -1,12 +1,12 @@
 """Main Business logic"""
 
 import os
-import logging
 
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
 from oss.src.models.shared_models import AppType
@@ -15,9 +15,7 @@ from oss.src.models.db_models import AppVariantDB, AppDB
 if is_ee():
     from ee.src.services import db_manager_ee
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 SERVICE_URL_TEMPLATE = os.environ.get("SERVICE_URL_TEMPLATE")
 
@@ -142,20 +140,18 @@ async def terminate_and_remove_app_variant(
 
     if app_variant_id:
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
-        logger.debug(f"Fetched app variant {app_variant_db}")
 
     app_id = str(app_variant_db.app_id)  # type: ignore
     if app_variant_db is None:
         error_msg = f"Failed to delete app variant {app_variant_id}: Not found in DB."
-        logger.error(error_msg)
+        log.error(error_msg)
         raise ValueError(error_msg)
 
     try:
-        logger.debug("remove_app_variant_from_db")
         await db_manager.remove_app_variant_from_db(app_variant_db, project_id)
 
     except Exception as e:
-        logger.error(
+        log.error(
             f"An error occurred while deleting app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}: {str(e)}"
         )
         raise e from None
@@ -174,9 +170,8 @@ async def remove_app_related_resources(app_id: str, project_id: str):
 
     try:
         await db_manager.remove_app_by_id(app_id, project_id)
-        logger.info(f"Successfully remove app object {app_id}.")
     except Exception as e:
-        logger.error(
+        log.error(
             f"An error occurred while cleaning up resources for app {app_id}: {str(e)}"
         )
         raise e from None
@@ -191,7 +186,7 @@ async def remove_app(app: AppDB):
 
     if app is None:
         error_msg = f"Failed to delete app {app.id}: Not found in DB."
-        logger.error(error_msg)
+        log.error(error_msg)
         raise ValueError(error_msg)
 
     app_variants = await db_manager.list_app_variants(str(app.id))
@@ -201,24 +196,19 @@ async def remove_app(app: AppDB):
             await terminate_and_remove_app_variant(
                 project_id=str(app_variant_db.project_id), app_variant_db=app_variant_db
             )
-            logger.info(
-                f"Successfully deleted app variant {app_variant_db.app.app_name}/{app_variant_db.variant_name}."
-            )
 
         app_variants = await db_manager.list_app_variants(str(app.id))
 
         if len(app_variants) == 0:
-            logger.debug("remove_app_related_resources")
             await remove_app_related_resources(str(app.id), str(app.project_id))
 
     except Exception as e:
         # Failsafe: in case something went wrong,
         # delete app and its related resources
         try:
-            logger.debug("remove_app_related_resources (exc)")
             await remove_app_related_resources(str(app.id), str(app.project_id))
         except Exception as e:
-            logger.error(
+            log.error(
                 f"An error occurred while deleting app {app.id} and its associated resources: {str(e)}"
             )
             raise e
@@ -253,7 +243,7 @@ async def update_variant_parameters(
             commit_message=commit_message,
         )
     except Exception as e:
-        logger.error(f"Error updating app variant {app_variant_id}")
+        log.error(f"Error updating app variant {app_variant_id}")
         raise e from None
 
 
@@ -287,17 +277,11 @@ async def add_variant_from_url(
         ValueError: If the app variant or URL is None, or if an app variant with the same name already exists.
         HTTPException: If an error occurs while creating the app variant.
     """
-
-    logger.debug("Start: Creating app variant based on url")
-
-    logger.debug("Validating input parameters")
     if app in [None, ""] or variant_name in [None, ""] or url in [None, ""]:
         raise ValueError("App variant, variant name, or URL is None")
 
-    logger.debug("Parsing URL")
     parsed_url = urlparse(url).geturl()
 
-    logger.debug("Checking if app variant already exists")
     variants = await db_manager.list_app_variants_for_app_id(
         app_id=str(app.id),
         project_id=project_id,
@@ -305,20 +289,17 @@ async def add_variant_from_url(
 
     already_exists = any(av for av in variants if av.variant_name == variant_name)  # type: ignore
     if already_exists:
-        logger.error("App variant with the same name already exists")
+        log.error("App variant with the same name already exists")
         raise ValueError("App variant with the same name already exists")
 
-    logger.debug("Retrieving user object")
     user_instance = await db_manager.get_user_with_id(user_id=user_uid)
 
     # Create config
-    logger.debug("Creating config")
     config_db = await db_manager.create_new_config(
         config_name=config_name, parameters={}
     )
 
     # Create base
-    logger.debug("Creating base")
     if not base_name:
         base_name = variant_name.split(".")[
             0
@@ -330,7 +311,6 @@ async def add_variant_from_url(
     )
 
     # Create app variant
-    logger.debug("Creating app variant")
     db_app_variant = await db_manager.create_new_app_variant(
         app=app,
         user=user_instance,
@@ -352,8 +332,6 @@ async def add_variant_from_url(
         str(db_app_variant.base_id),
         deployment_id=deployment.id,
     )
-
-    logger.debug("End: Successfully created variant: %s", db_app_variant)
 
     return db_app_variant
 

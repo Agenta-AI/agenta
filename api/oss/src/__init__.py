@@ -1,7 +1,6 @@
 import os
 from typing import Optional, Any, Dict, Union, List
 
-import sentry_sdk
 from supertokens_python.types import AccountInfo
 from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python import init, InputAppInfo, SupertokensConfig
@@ -60,19 +59,6 @@ if is_ee():
     from ee.src.services.commoners import create_accounts
 else:
     from oss.src.services.db_manager import create_accounts
-
-
-# MODE DSN to env vars
-sentry_sdk.init(
-    dsn=os.getenv("SENTRY_SDK", None),
-    # Set traces_sample_rate to 1.0 to capture 100%
-    # of transactions for performance monitoring.
-    traces_sample_rate=1.0,
-    # Set profiles_sample_rate to 1.0 to profile 100%
-    # of sampled transactions.
-    # We recommend adjusting this value in production.
-    profiles_sample_rate=1.0,
-)
 
 
 def override_passwordless_apis(

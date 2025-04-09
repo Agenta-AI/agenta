@@ -9,6 +9,10 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.tracing.propagation import extract
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 
 class OTelMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: FastAPI):
@@ -17,8 +21,13 @@ class OTelMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable):
         request.state.otel = {"baggage": {}, "traceparent": None}
 
+        headers = dict(request.headers)
+
+        if "newrelic" in headers:
+            headers["traceparent"] = None
+
         with suppress():
-            _, traceparent, baggage = extract(request.headers)
+            _, traceparent, baggage = extract(headers)
 
             request.state.otel = {"baggage": baggage, "traceparent": traceparent}
 

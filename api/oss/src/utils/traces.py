@@ -1,12 +1,11 @@
-import logging
 import traceback
 from copy import deepcopy
 from collections import OrderedDict
 from typing import Any, Dict, Union, Optional
 
+from oss.src.utils.logging import get_module_logger
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 def remove_trace_prefix(
@@ -82,7 +81,7 @@ def _make_spans_id_tree(trace):
             index[span["parent_span_id"]][span["id"]] = OrderedDict()
             index[span["id"]] = index[span["parent_span_id"]][span["id"]]
         else:
-            logging.error("The parent span id should have been in the tracing tree.")
+            log.error("The parent span id should have been in the tracing tree.")
 
     for span in sorted(trace["spans"], key=lambda span: span["start_time"]):
         push(span)
@@ -287,8 +286,8 @@ def _make_spans_tree(spans_id_tree, spans_index):
                 spans_tree[key] = span
 
     except Exception as e:
-        logging.error(e)
-        logging.error(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
 
     return spans_tree
 
@@ -410,7 +409,7 @@ def get_field_value_from_trace_tree_v2(
 
     # Suppress all Exception and leave Exception management to the caller.
     except Exception as e:
-        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
+        log.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
 
 
@@ -482,7 +481,7 @@ def get_field_value_from_trace_tree_v3(trace_data: Dict[str, any], key: str):
         return current_node
 
     except Exception as e:
-        logger.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
+        log.error(f"Error retrieving trace value from key: {traceback.format_exc()}")
         return None
 
 

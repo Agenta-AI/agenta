@@ -1,13 +1,8 @@
 import os
-import logging
 from typing import Any, Callable
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
-from sentry_sdk import capture_exception
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class APIRouter(FastAPIRouter):
@@ -57,8 +52,3 @@ def is_ee():
 
 def is_oss():
     return os.environ["FEATURE_FLAG"] == "oss"
-
-
-def capture_exception_in_sentry(e: Exception):
-    if is_ee():
-        capture_exception(e)

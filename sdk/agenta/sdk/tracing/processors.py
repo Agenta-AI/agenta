@@ -13,8 +13,10 @@ from opentelemetry.sdk.trace.export import (
     _DEFAULT_EXPORT_TIMEOUT_MILLIS,
 )
 
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.tracing.conventions import Reference
+
+log = get_module_logger(__file__)
 
 
 class TraceProcessor(BatchSpanProcessor):

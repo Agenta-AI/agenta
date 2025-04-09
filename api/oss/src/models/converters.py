@@ -1,9 +1,11 @@
 """Converts db models to pydantic models"""
 
 import uuid
-import logging
 from typing import List, Tuple, Any
 
+from fastapi import Depends
+
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import is_ee
 from oss.src.models.api.user_models import User
@@ -54,11 +56,7 @@ from oss.src.models.shared_models import (
     EvaluationScenarioResult,
 )
 
-from fastapi import Depends
-
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 def app_variant_db_to_pydantic(
@@ -85,7 +83,6 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
     else:
         uri = None
 
-    logger.info(f"uri: {uri} deployment: {str(app_variant_db.base.deployment_id)}")
     variant_response = AppVariantResponse(
         app_id=str(app_variant_db.app_id),
         app_name=str(app_variant_db.app.app_name),

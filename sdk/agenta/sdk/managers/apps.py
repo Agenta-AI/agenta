@@ -1,11 +1,9 @@
-import logging
-
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import handle_exceptions
 
 import agenta as ag
 
-
-logger = logging.getLogger(__name__)
+log = get_module_logger(__file__)
 
 
 class AppManager:

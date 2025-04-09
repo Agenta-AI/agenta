@@ -16,6 +16,10 @@ from agenta.sdk.context.exporting import (
 )
 from agenta.sdk.utils.cache import TTLLRUCache
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__file__)
+
 
 class InlineTraceExporter(SpanExporter):
     def __init__(

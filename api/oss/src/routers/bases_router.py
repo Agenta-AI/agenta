@@ -1,9 +1,10 @@
-import logging
-
 from typing import List, Optional
-from fastapi.responses import JSONResponse
-from fastapi import Request, HTTPException
 
+from fastapi.responses import JSONResponse
+from fastapi import Request
+
+
+from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
@@ -15,8 +16,8 @@ if is_ee():
 
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 
 @router.get("/", response_model=List[BaseOutput], operation_id="list_bases")
@@ -49,7 +50,7 @@ async def list_bases(
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,

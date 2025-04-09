@@ -1,17 +1,17 @@
+from uuid import uuid4
 from contextlib import AbstractContextManager
 from traceback import format_exc
-from logging import getLogger, INFO
 from functools import wraps
 from fastapi import HTTPException
-from uuid import uuid4
 
-logger = getLogger(__name__)
-logger.setLevel(INFO)
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__file__)
 
 
 class suppress(AbstractContextManager):
-    def __init__(self):
-        pass
+    def __init__(self, verbose: bool = True):
+        self.verbose = verbose
 
     def __enter__(self):
         pass
@@ -20,9 +20,10 @@ class suppress(AbstractContextManager):
         if exc_type is None:
             return True
         else:
-            logger.error("--- SUPPRESSING EXCEPTION ---")
-            logger.error(format_exc())
-            logger.error("-----------------------------")
+            if self.verbose:
+                log.warn("--- SUPPRESSING EXCEPTION ---")
+                log.warn(format_exc())
+                log.warn("-----------------------------")
             return True
 
 
@@ -37,10 +38,10 @@ def handle_exceptions():
             except Exception:
                 support_id = str(uuid4())
 
-                logger.error("--- HANDLING EXCEPTION ---")
-                logger.error(f"support_id={support_id} & operation_id={func.__name__}")
-                logger.error(f"{format_exc()}")
-                logger.error("--------------------------")
+                log.error("--- HANDLING EXCEPTION ---")
+                log.error(f"support_id={support_id} & operation_id={func.__name__}")
+                log.error(f"{format_exc()}")
+                log.error("--------------------------")
 
                 raise HTTPException(
                     status_code=500,

@@ -1,11 +1,9 @@
 import os
-import logging
 import configparser
 
+from oss.src.utils.logging import get_module_logger
 
-# Initialize logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 def setup_pytest_variables():
@@ -14,6 +12,6 @@ def setup_pytest_variables():
 
     for section in config.sections():
         for key, value in config[section].items():
-            logger.info("Setting Pytest environment variables:")
-            logger.info(f"KEY: {key.upper()}, VALUE: {value}")
+            log.info("Setting Pytest environment variables:")
+            log.info(f"KEY: {key.upper()}, VALUE: {value}")
             os.environ[key.upper()] = value
