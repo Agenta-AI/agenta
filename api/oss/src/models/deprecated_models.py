@@ -48,6 +48,101 @@ class DeprecatedAppDB(DeprecatedBase):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+class DeprecatedAppVariantDB(DeprecatedBase):
+    __tablename__ = "app_variants"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
+    variant_name = Column(String)
+    revision = Column(Integer)
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_name = Column(String)
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    config_name = Column(String, nullable=False)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSONB, nested=True),  # type: ignore
+        nullable=False,
+        default=dict,
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+class DeprecatedAppVariantRevisionsDB(DeprecatedBase):
+    __tablename__ = "app_variant_revisions"
+    __table_args__ = {"extend_existing": True}
+    
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    variant_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="CASCADE")
+    )
+    revision = Column(Integer)
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
+    config_name = Column(String, nullable=False)
+    config_parameters = Column(
+        mutable_json_type(dbtype=JSONB, nested=True),  # type: ignore
+        nullable=False,
+        default=dict,
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+class DeprecatedAppEnvironmentRevisionDB(DeprecatedBase):
+    __tablename__ = "environments_revisions"
+    __table_args__ = {"extend_existing": True}
+    
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    environment_id = Column(
+        UUID(as_uuid=True), ForeignKey("environments.id", ondelete="CASCADE")
+    )
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    revision = Column(Integer)
+    modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
+    deployed_app_variant_revision_id = Column(
+        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
+    )
+    deployment_id = Column(
+        UUID(as_uuid=True), ForeignKey("deployments.id", ondelete="SET NULL")
+    )
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    
 
 class DeprecatedEvaluatorConfigDB(DeprecatedBase):
     __tablename__ = "evaluators_configs"

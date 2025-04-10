@@ -55,99 +55,103 @@ const WorkspaceManage: FC = () => {
 
     const columns = useMemo(
         () =>
-            [
-                {
-                    dataIndex: ["user", "username"],
-                    key: "username",
-                    title: "Name",
-                    onHeaderCell: () => ({
-                        style: {minWidth: 180},
-                    }),
-                    render: (_, member) => {
-                        const {user} = member
-                        const name = user.username || getUsernameFromEmail(user.email)
-                        return (
-                            <Space>
-                                <AvatarWithLabel name={name} />
-                                {user.email === signedInUser?.email && (
-                                    <Tag color="processing">you</Tag>
-                                )}
-                            </Space>
-                        )
+            (
+                [
+                    {
+                        dataIndex: ["user", "username"],
+                        key: "username",
+                        title: "Name",
+                        onHeaderCell: () => ({
+                            style: {minWidth: 180},
+                        }),
+                        render: (_, member) => {
+                            const {user} = member
+                            const name = user.username || getUsernameFromEmail(user.email)
+                            return (
+                                <Space>
+                                    <AvatarWithLabel name={name} />
+                                    {user.email === signedInUser?.email && (
+                                        <Tag color="processing">you</Tag>
+                                    )}
+                                </Space>
+                            )
+                        },
                     },
-                },
-                {
-                    dataIndex: ["user", "email"],
-                    key: "email",
-                    title: "Email",
-                },
-                {
-                    dataIndex: "roles",
-                    key: "role",
-                    title: "Roles",
-                    render: (_, member) => (
-                        <Roles
-                            member={member}
-                            signedInUser={signedInUser!}
-                            orgId={orgId!}
-                            workspaceId={workspaceId!}
-                        />
-                    ),
-                },
-                {
-                    dataIndex: ["user", "created_at"],
-                    key: "created_at",
-                    title: "Creation Date",
-                    onHeaderCell: () => ({
-                        style: {minWidth: 160},
-                    }),
-                    render: (_, member) => {
-                        const {user} = member
+                    {
+                        dataIndex: ["user", "email"],
+                        key: "email",
+                        title: "Email",
+                    },
+                    isDemo()
+                        ? {
+                              dataIndex: "roles",
+                              key: "role",
+                              title: "Roles",
+                              render: (_, member) => (
+                                  <Roles
+                                      member={member}
+                                      signedInUser={signedInUser!}
+                                      orgId={orgId!}
+                                      workspaceId={workspaceId!}
+                                  />
+                              ),
+                          }
+                        : null,
+                    {
+                        dataIndex: ["user", "created_at"],
+                        key: "created_at",
+                        title: "Creation Date",
+                        onHeaderCell: () => ({
+                            style: {minWidth: 160},
+                        }),
+                        render: (_, member) => {
+                            const {user} = member
 
-                        const isMember = !("status" in user) || user.status === "member"
-                        let color = "warning"
-                        let text = "Invitation Pending"
-                        if (user.status === "expired") {
-                            color = "error"
-                            text = "Invitation Expired"
-                        }
-                        return (
-                            <Space direction="vertical">
-                                <Typography.Text>
-                                    {dayjs(user.created_at).format("DD MMM YYYY")}
-                                </Typography.Text>
-                                {!isMember && <Tag color={color}>{text}</Tag>}
-                            </Space>
-                        )
+                            const isMember = !("status" in user) || user.status === "member"
+                            let color = "warning"
+                            let text = "Invitation Pending"
+                            if (user.status === "expired") {
+                                color = "error"
+                                text = "Invitation Expired"
+                            }
+                            return (
+                                <Space direction="vertical">
+                                    <Typography.Text>
+                                        {dayjs(user.created_at).format("DD MMM YYYY")}
+                                    </Typography.Text>
+                                    {!isMember && <Tag color={color}>{text}</Tag>}
+                                </Space>
+                            )
+                        },
                     },
-                },
-                {
-                    title: <GearSix size={16} />,
-                    key: "key",
-                    width: 56,
-                    fixed: "right",
-                    align: "center",
-                    render: (_, member) => {
-                        return (
-                            <Actions
-                                member={member}
-                                hidden={
-                                    member.user.email === signedInUser?.email ||
-                                    member.user.id === selectedOrg?.owner
-                                }
-                                orgId={orgId!}
-                                workspaceId={workspaceId!}
-                                onResendInvite={(data: any) => {
-                                    if (!isDemo() && data.uri) {
-                                        setInvitedUserData(data)
-                                        setIsInvitedUserLinkModalOpen(true)
+                    {
+                        title: <GearSix size={16} />,
+                        key: "key",
+                        width: 56,
+                        fixed: "right",
+                        align: "center",
+                        render: (_, member) => {
+                            return (
+                                <Actions
+                                    member={member}
+                                    hidden={
+                                        member.user.email === signedInUser?.email ||
+                                        member.user.id === selectedOrg?.owner
                                     }
-                                }}
-                            />
-                        )
+                                    orgId={orgId!}
+                                    workspaceId={workspaceId!}
+                                    onResendInvite={(data: any) => {
+                                        if (!isDemo() && data.uri) {
+                                            setInvitedUserData(data)
+                                            setIsInvitedUserLinkModalOpen(true)
+                                        }
+                                    }}
+                                />
+                            )
+                        },
                     },
-                },
-            ] as ColumnsType<WorkspaceMember>,
+                ] as ColumnsType<WorkspaceMember>
+            ).filter(Boolean),
         [selectedOrg?.id],
     )
 
