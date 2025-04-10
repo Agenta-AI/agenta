@@ -13,18 +13,18 @@ from oss.src.services import db_manager, evaluator_manager
 from oss.src.models.deprecated_models import (
     ProjectScopedAppDB as AppDB,
     DeprecatedProjectDB as ProjectDB,
+    DeprecatedAppVariantDB as AppVariantDB,
     DeprecatedEvaluationScenarioDB as EvaluationScenarioDB,
     DeprecatedHumanEvaluationScenarioDB as HumanEvaluationScenarioDB,
     DeprecatedHumanEvaluationDB as HumanEvaluationDB,
     DeprecatedEvaluationDB as EvaluationDB,
+    DeprecatedAppVariantRevisionsDB as AppVariantRevisionsDB,
+    DeprecatedAppEnvironmentRevisionDB as AppEnvironmentRevisionDB,
 )
 from oss.src.models.db_models import (
-    AppVariantDB,
-    AppVariantRevisionsDB,
     VariantBaseDB,
     DeploymentDB,
     AppEnvironmentDB,
-    AppEnvironmentRevisionDB,
     EvaluatorConfigDB,
     TestSetDB,
 )

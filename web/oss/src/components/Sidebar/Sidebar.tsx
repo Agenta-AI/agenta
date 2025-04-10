@@ -8,6 +8,7 @@ import {ErrorBoundary} from "react-error-boundary"
 import {useLocalStorage} from "usehooks-ts"
 
 import Avatar from "@/oss/components/Avatar/Avatar"
+import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
@@ -20,11 +21,6 @@ import SidebarMenu from "./components/SidebarMenu"
 import {useDropdownItems} from "./hooks/useDropdownItems"
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
 import {SidebarConfig} from "./types"
-import FreePlanBanner from "../Banners/BillingPlanBanner/FreePlanBanner"
-import FreeTrialBanner from "../Banners/BillingPlanBanner/FreeTrialBanner"
-import {useSubscriptionData} from "@/oss/services/billing"
-import {isDemo} from "@/oss/lib/helpers/utils"
-import {Plan} from "@/oss/lib/Types"
 
 const {Sider} = Layout
 const {Text} = Typography
@@ -40,27 +36,11 @@ const Sidebar: React.FC = () => {
     const {logout} = useSession()
     const {project, projects} = useProjectData()
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
-    const {subscription} = useSubscriptionData()
+
     const [isHovered, setIsHovered] = useState(false)
     const dropdownItems = useDropdownItems({logout, orgs, selectedOrg, user, project, projects})
 
     const isSidebarExpanded = useMemo(() => collapsed && !isHovered, [collapsed, isHovered])
-
-    const isShowFreePlanBannerVisible = useMemo(
-        () =>
-            isDemo() &&
-            ((!collapsed && isHovered) || (!collapsed && !isHovered)) &&
-            !subscription?.free_trial &&
-            subscription?.plan === Plan.Hobby,
-        [subscription, collapsed, isHovered],
-    )
-    const isShowFreeTrialBannerVisible = useMemo(
-        () =>
-            isDemo() &&
-            ((!collapsed && isHovered) || (!collapsed && !isHovered)) &&
-            subscription?.free_trial,
-        [isHovered, subscription, collapsed],
-    )
 
     const {topItems, bottomItems} = useMemo(() => {
         const topItems: SidebarConfig[] = []
@@ -210,10 +190,10 @@ const Sidebar: React.FC = () => {
                                 collapsed={isSidebarExpanded}
                             />
                             <div>
-                                {isShowFreePlanBannerVisible ? <FreePlanBanner /> : null}
-                                {isShowFreeTrialBannerVisible ? (
-                                    <FreeTrialBanner subscription={subscription} />
-                                ) : null}
+                                <SidePanelSubscriptionInfo
+                                    collapsed={collapsed}
+                                    isHovered={isHovered}
+                                />
                                 <SidebarMenu
                                     menuProps={{
                                         className: classes.menuContainer2,

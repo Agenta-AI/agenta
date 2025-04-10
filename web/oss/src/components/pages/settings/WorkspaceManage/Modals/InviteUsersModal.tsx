@@ -103,31 +103,33 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     </>
                 )}
             </Form.List>
-            <Form.Item
-                name="role"
-                rules={[{required: true, message: "Please select a role"}]}
-                initialValue="editor"
-            >
-                <Select
-                    allowClear
-                    className="w-full"
-                    placeholder="Select role"
-                    options={filteredRoles.map((role) => ({
-                        label: snakeToTitle(role.role_name || ""),
-                        value: role.role_name,
-                        desc: role.role_description,
-                    }))}
-                    optionRender={(option) => (
-                        <Space direction="vertical" size="small">
-                            <Typography.Text>{option.label}</Typography.Text>
-                            <Typography.Text className="text-wrap" type="secondary">
-                                {option.data.desc}
-                            </Typography.Text>
-                        </Space>
-                    )}
-                    optionLabelProp="label"
-                />
-            </Form.Item>
+            {isDemo() ? (
+                <Form.Item
+                    name="role"
+                    rules={[{required: true, message: "Please select a role"}]}
+                    initialValue="editor"
+                >
+                    <Select
+                        allowClear
+                        className="w-full"
+                        placeholder="Select role"
+                        options={filteredRoles.map((role) => ({
+                            label: snakeToTitle(role.role_name || ""),
+                            value: role.role_name,
+                            desc: role.role_description,
+                        }))}
+                        optionRender={(option) => (
+                            <Space direction="vertical" size="small">
+                                <Typography.Text>{option.label}</Typography.Text>
+                                <Typography.Text className="text-wrap" type="secondary">
+                                    {option.data.desc}
+                                </Typography.Text>
+                            </Space>
+                        )}
+                        optionLabelProp="label"
+                    />
+                </Form.Item>
+            ) : null}
         </Form>
     )
 }
@@ -162,8 +164,10 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             destroyOnClose
         >
             <Typography.Paragraph type="secondary">
-                Invite members to your team by entering their emails. You can specify the roles to
-                control the access level of the invited members on Agenta.
+                Invite members to your team by entering their emails.{" "}
+                {!isDemo()
+                    ? "Role base access control is available in the cloud and enterprise editions of Agenta"
+                    : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
             <InviteForm
                 form={form}
