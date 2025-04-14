@@ -36,6 +36,7 @@ from oss.src.dbs.secrets.dao import SecretsDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.services.auth_helper import authentication_middleware
+from oss.src.services.analytics_service import analytics_middleware
 from oss.src.dbs.postgres.observability.dao import ObservabilityDAO
 from oss.src.core.observability.service import ObservabilityService
 from oss.src.apis.fastapi.observability.router import ObservabilityRouter
@@ -72,13 +73,12 @@ async def lifespan(application: FastAPI, cache=True):
 
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
 app.middleware("http")(authentication_middleware)
-
+app.middleware("http")(analytics_middleware)
 
 if is_ee():
     import ee.src.main as ee
 
     app = ee.extend_main(app)
-
 
 app.add_middleware(get_supertokens_middleware())
 allow_headers = ["Content-Type"] + get_all_supertokens_cors_headers()

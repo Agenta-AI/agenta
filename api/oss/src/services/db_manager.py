@@ -1,9 +1,9 @@
 import os
 import uuid
 from pathlib import Path
-from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from json import dumps
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
@@ -21,6 +21,7 @@ from oss.src.services import user_service
 from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
+
 
 if is_ee():
     from ee.src.models.db_models import ProjectDB, WorkspaceDB
@@ -1978,7 +1979,11 @@ async def fetch_app_variant_revision_by_id(
 
     async with engine.session() as session:
         result = await session.execute(
-            select(AppVariantRevisionsDB).filter_by(id=uuid.UUID(variant_revision_id))
+            select(AppVariantRevisionsDB)
+            .options(
+                joinedload(AppVariantRevisionsDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
+            )
+            .filter_by(id=uuid.UUID(variant_revision_id))
         )
         app_revision = result.scalars().first()
         return app_revision
@@ -2500,6 +2505,14 @@ async def create_testset(project_id: str, testset_data: Dict[str, Any]):
     async with engine.session() as session:
         testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
+        log.info(
+            "Saving testset:",
+            project_id=testset_db.project_id,
+            testset_id=testset_db.id,
+            count=len(testset_db.csvdata),
+            size=len(dumps(testset_db.csvdata).encode("utf-8")),
+        )
+
         session.add(testset_db)
         await session.commit()
         await session.refresh(testset_db)
@@ -2525,6 +2538,14 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
         valid_keys = [key for key in values_to_update.keys() if hasattr(testset, key)]
         for key in valid_keys:
             setattr(testset, key, values_to_update[key])
+
+        log.info(
+            "Saving testset:",
+            project_id=testset.project_id,
+            testset_id=testset.id,
+            count=len(testset.csvdata),
+            size=len(dumps(testset.csvdata).encode("utf-8")),
+        )
 
         await session.commit()
         await session.refresh(testset)

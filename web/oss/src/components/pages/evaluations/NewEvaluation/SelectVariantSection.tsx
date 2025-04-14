@@ -9,16 +9,16 @@ import VariantsTable from "@/oss/components/VariantsComponents/Table"
 type SelectVariantSectionProps = {
     isVariantLoading: boolean
     variants: EnhancedVariant[]
-    selectedVariantIds: string[]
-    setSelectedVariantIds: React.Dispatch<React.SetStateAction<string[]>>
+    selectedVariantRevisionIds: string[]
+    setSelectedVariantRevisionIds: React.Dispatch<React.SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     activePanel: string | null
 } & React.ComponentProps<typeof Collapse>
 
 const SelectVariantSection = ({
     variants,
-    selectedVariantIds,
-    setSelectedVariantIds,
+    selectedVariantRevisionIds,
+    setSelectedVariantRevisionIds,
     activePanel,
     handlePanelChange,
     isVariantLoading,
@@ -34,13 +34,13 @@ const SelectVariantSection = ({
     }, [searchTerm, variants])
 
     const selectedVariants = useMemo(
-        () => variants.filter((variant) => selectedVariantIds.includes(variant.variantId)),
-        [variants, selectedVariantIds],
+        () => variants.filter((variant) => selectedVariantRevisionIds.includes(variant.id)),
+        [variants, selectedVariantRevisionIds],
     )
 
-    const handleRemoveVariant = (variantId: string) => {
-        const filterVariant = selectedVariantIds.filter((id) => variantId !== id)
-        setSelectedVariantIds(filterVariant)
+    const handleRemoveVariant = (revisionId: string) => {
+        const filterVariant = selectedVariantRevisionIds.filter((id) => revisionId !== id)
+        setSelectedVariantRevisionIds(filterVariant)
     }
 
     const variantItems = useMemo(
@@ -54,9 +54,9 @@ const SelectVariantSection = ({
                             {selectedVariants.length
                                 ? selectedVariants.map((variant) => (
                                       <Tag
-                                          key={variant.variantId}
+                                          key={variant.id}
                                           closeIcon={<CloseCircleOutlined />}
-                                          onClose={() => handleRemoveVariant(variant.variantId)}
+                                          onClose={() => handleRemoveVariant(variant.id)}
                                       >
                                           {variant.variantName}
                                       </Tag>
@@ -79,17 +79,17 @@ const SelectVariantSection = ({
                 children: (
                     <VariantsTable
                         rowSelection={{
-                            selectedRowKeys: selectedVariantIds,
+                            selectedRowKeys: selectedVariantRevisionIds,
                             onChange: (selectedRowKeys) => {
-                                const currentSelected = new Set(selectedVariantIds)
+                                const currentSelected = new Set(selectedVariantRevisionIds)
                                 filteredVariant.forEach((item) => {
-                                    if (selectedRowKeys.includes(item.variantId)) {
-                                        currentSelected.add(item.variantId)
+                                    if (selectedRowKeys.includes(item.id)) {
+                                        currentSelected.add(item.id)
                                     } else {
-                                        currentSelected.delete(item.variantId)
+                                        currentSelected.delete(item.id)
                                     }
                                 })
-                                setSelectedVariantIds(Array.from(currentSelected))
+                                setSelectedVariantRevisionIds(Array.from(currentSelected))
                             },
                         }}
                         showActionsDropdown={false}
@@ -97,13 +97,13 @@ const SelectVariantSection = ({
                         variants={filteredVariant}
                         onRowClick={() => {}}
                         className="ph-no-capture"
-                        rowKey={"variantId"}
+                        rowKey={"id"}
                         data-cy="evaluation-variant-table"
                     />
                 ),
             },
         ],
-        [filteredVariant, selectedVariantIds, handleRemoveVariant, selectedVariants],
+        [filteredVariant, selectedVariantRevisionIds, handleRemoveVariant, selectedVariants],
     )
 
     return (

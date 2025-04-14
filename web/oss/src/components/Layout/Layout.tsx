@@ -302,7 +302,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const {isNewPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
         return {
             isAuthRoute:
-                router.pathname.includes("/auth") || router.pathname.includes("/post-signup"),
+                router.pathname.includes("/auth") ||
+                router.pathname.includes("/post-signup") ||
+                router.pathname.includes("/workspaces"),
             isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
             isNewPlayground:
                 router.pathname.includes("/playground") &&

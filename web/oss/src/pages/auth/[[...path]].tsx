@@ -10,6 +10,8 @@ import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {useRouter} from "next/router"
+import {useLocalStorage} from "usehooks-ts"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))
@@ -25,6 +27,28 @@ const Auth = () => {
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
+    const [invite, setInvite] = useLocalStorage("invite", {})
+    const router = useRouter()
+
+    const token = router.query.token as string
+    const orgId = router.query.org_id as string
+    const projectId = router.query.project_id as string
+    const workspaceId = router.query.workspace_id as string
+    const _email = router.query.email as string
+    const {redirectToPath, ...queries} = router.query
+    const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
+
+    useEffect(() => {
+        if (isInvitedUser && Object.keys(invite).length === 0) {
+            setInvite({
+                token,
+                org_id: orgId,
+                project_id: projectId,
+                workspace_id: workspaceId,
+                email: _email,
+            })
+        }
+    }, [isInvitedUser, invite])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {
@@ -129,6 +153,7 @@ const Auth = () => {
                             setMessage={setMessage}
                             authErrorMsg={authErrorMsg}
                             setIsLoginCodeVisible={setIsLoginCodeVisible}
+                            isInvitedUser={isInvitedUser}
                         />
                     )}
 

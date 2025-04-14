@@ -73,7 +73,7 @@ export const inviteToWorkspace = async (
     }: {
         orgId: string
         workspaceId: string
-        data: {email: string; roles: string[]}[]
+        data: {email: string; roles?: string[]}[]
     },
     ignoreAxiosError = false,
 ) => {

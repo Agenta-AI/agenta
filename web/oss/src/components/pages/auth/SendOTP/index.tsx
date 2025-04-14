@@ -23,6 +23,7 @@ const SendOTP = ({
     setMessage,
     authErrorMsg,
     setIsLoginCodeVisible,
+    isInvitedUser,
 }: SendOTPProps) => {
     const classes = useStyles()
     const router = useRouter()
@@ -85,9 +86,17 @@ const SendOTP = ({
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
                 ) {
-                    await router.push("/post-signup")
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
                 } else {
-                    await router.push("/apps")
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
                 }
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {
                 const trileLeft =

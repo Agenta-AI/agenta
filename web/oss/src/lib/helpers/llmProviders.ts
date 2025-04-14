@@ -51,6 +51,7 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
                 name: envNameMap[provider] || "",
                 id: secret.id,
                 type: secret.kind,
+                created_at: secret.lifecycle.created_at
             })
         } else if (curr.kind === SecretDTOKind.CUSTOM_PROVIDER_KEY) {
             const secret = curr as CustomSecretDTO

@@ -26,13 +26,16 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
     }, [roles])
 
     const onSubmit = useCallback(
-        ({emails, role}: {emails: string[]; role: string}) => {
+        ({emails, role}: {emails: string[]; role: string | null}) => {
             if (!orgId) return
 
             setLoading(true)
 
             inviteToWorkspace({
-                data: emails.map((email) => ({email, roles: [role]})),
+                data: emails.map((email) => ({
+                    email,
+                    ...(role ? {roles: [role]} : {}),
+                })),
                 orgId,
                 workspaceId,
             })
