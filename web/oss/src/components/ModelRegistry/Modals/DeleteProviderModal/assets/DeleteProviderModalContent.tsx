@@ -11,7 +11,9 @@ const DeleteProviderModalContent = ({selectedProvider}: DeleteProviderModalConte
 
             <div className="flex flex-col gap-1">
                 <Text>You are about to delete:</Text>
-                <Text className="text-sm font-medium">{selectedProvider?.name} API Key</Text>
+                <Text className="text-sm font-medium">
+                    {selectedProvider?.title || selectedProvider?.name} API Key
+                </Text>
             </div>
         </div>
     )

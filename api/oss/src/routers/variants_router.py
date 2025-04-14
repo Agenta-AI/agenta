@@ -73,7 +73,9 @@ async def add_variant_from_base_and_config(
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
-        else payload.new_config_name if payload.new_config_name else base_db.base_name
+        else payload.new_config_name
+        if payload.new_config_name
+        else base_db.base_name
     )
     db_app_variant = await db_manager.add_variant_from_base_and_config(
         base_db=base_db,

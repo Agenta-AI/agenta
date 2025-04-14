@@ -274,7 +274,7 @@ class LLMRunRateLimit(BaseModel):
 
 class LMProvidersEnum(str, Enum):
     openai = "OPENAI_API_KEY"
-    mistral = "MISTRAL_API_KEY"
+    mistral = "MISTRALAI_API_KEY"
     cohere = "COHERE_API_KEY"
     anthropic = "ANTHROPIC_API_KEY"
     anyscale = "ANYSCALE_API_KEY"
@@ -289,18 +289,11 @@ class LMProvidersEnum(str, Enum):
 
 class NewEvaluation(BaseModel):
     app_id: str
-    variant_ids: List[str]
+    revisions_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
     rate_limit: LLMRunRateLimit
-    lm_providers_keys: Optional[Dict[str, str]] = None
     correct_answer_column: Optional[str] = None
-
-    @field_validator("lm_providers_keys", mode="after")
-    def validate_lm_providers_keys(cls, value):
-        if value is not None:
-            return {LMProvidersEnum(key): v for key, v in value.items()}
-        return value
 
 
 class NewEvaluatorConfig(BaseModel):

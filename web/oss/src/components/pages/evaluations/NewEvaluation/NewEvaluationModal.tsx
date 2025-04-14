@@ -11,7 +11,7 @@ import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {apiKeyObject, redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
+import {redirectIfNoLLMKeys} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {JSSTheme, LLMRunRateLimit, testset} from "@/oss/lib/Types"
 import {createEvaluation} from "@/oss/services/evaluations/api"
@@ -20,7 +20,6 @@ import {fetchTestsets} from "@/oss/services/testsets/api"
 import SelectEvaluatorSection from "./SelectEvaluatorSection"
 import SelectTestsetSection from "./SelectTestsetSection"
 import SelectVariantSection from "./SelectVariantSection"
-import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 
 const AdvancedSettingsPopover: any = dynamic(
     () => import("@/oss/components/pages/evaluations/NewEvaluation/AdvancedSettingsPopover"),
@@ -77,11 +76,11 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
     const [evaluators] = useAtom(evaluatorsAtom)
     const [submitLoading, setSubmitLoading] = useState(false)
     const [selectedTestsetId, setSelectedTestsetId] = useState("")
-    const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([])
+    const [selectedVariantRevisionIds, setSelectedVariantRevisionIds] = useState<string[]>([])
     const [selectedEvalConfigs, setSelectedEvalConfigs] = useState<string[]>([])
 
     const {data, isLoading: isVariantLoading} = useVariants(currentApp)({appId})
-    const variants = useMemo(() => groupVariantsByParent(data?.variants, true), [data?.variants])
+    const variants = useMemo(() => data?.variants, [data?.variants])
     const {secrets} = useVaultSecret()
 
     const [activePanel, setActivePanel] = useState<string | null>("testsetPanel")
@@ -94,7 +93,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             setFetching(true)
             setSelectedEvalConfigs([])
             setSelectedTestsetId("")
-            setSelectedVariantIds([])
+            setSelectedVariantRevisionIds([])
 
             try {
                 const testSets = await fetchTestsets()
@@ -123,7 +122,7 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
             message.error("Please select a test set")
             return false
         }
-        if (selectedVariantIds.length === 0) {
+        if (selectedVariantRevisionIds.length === 0) {
             message.error("Please select app variant")
             return false
         }
@@ -151,10 +150,9 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
         setSubmitLoading(true)
         createEvaluation(appId, {
             testset_id: selectedTestsetId,
-            variant_ids: selectedVariantIds,
+            revisions_ids: selectedVariantRevisionIds,
             evaluators_configs: selectedEvalConfigs,
             rate_limit: rateLimitValues,
-            lm_providers_keys: apiKeyObject(secrets),
             correct_answer_column: correctAnswerColumn,
         })
             .then(onSuccess)
@@ -207,8 +205,8 @@ const NewEvaluationModal: React.FC<Props> = ({onSuccess, ...props}) => {
                         activePanel={activePanel}
                         handlePanelChange={handlePanelChange}
                         variants={variants || []}
-                        selectedVariantIds={selectedVariantIds}
-                        setSelectedVariantIds={setSelectedVariantIds}
+                        selectedVariantRevisionIds={selectedVariantRevisionIds}
+                        setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
                         className={classes.collapseContainer}
                         isVariantLoading={isVariantLoading}
                     />

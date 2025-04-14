@@ -12,6 +12,7 @@ export interface SendOTPProps {
     setMessage: React.Dispatch<React.SetStateAction<AuthErrorMsgType>>
     authErrorMsg: (error: any) => void
     setIsLoginCodeVisible: React.Dispatch<React.SetStateAction<boolean>>
+    isInvitedUser: boolean
 }
 
 export interface PasswordlessAuthProps {

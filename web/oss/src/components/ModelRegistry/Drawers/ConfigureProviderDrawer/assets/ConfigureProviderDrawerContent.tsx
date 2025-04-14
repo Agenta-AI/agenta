@@ -136,55 +136,45 @@ const ConfigureProviderDrawerContent = ({
                     </>
                 ))}
 
-                <Form.Item name="models">
-                    <Form.List name="models">
-                        {(fields, {add, remove}) => (
-                            <div className="flex flex-col gap-2">
-                                <div className="w-full flex items-center justify-between">
-                                    <Text className="font-medium">Models</Text>
-                                    <Button
-                                        icon={<Plus size={14} />}
-                                        size="small"
-                                        onClick={() => add()}
-                                    >
-                                        Add
-                                    </Button>
-                                </div>
-                                {fields.length === 0 ? (
-                                    <Text className="text-[#586673]">
-                                        No custom models configured
-                                    </Text>
-                                ) : (
-                                    fields.map((field, index) => (
+                <Form.List name="models">
+                    {(fields, {add, remove}) => (
+                        <div className="flex flex-col gap-2">
+                            <div className="w-full flex items-center justify-between">
+                                <Text className="font-medium">Models</Text>
+                                <Button
+                                    icon={<Plus size={14} />}
+                                    size="small"
+                                    onClick={() => add()}
+                                >
+                                    Add
+                                </Button>
+                            </div>
+                            {fields.length === 0 ? (
+                                <Text className="text-[#586673]">No custom models configured</Text>
+                            ) : (
+                                fields.map((field) => {
+                                    const {key, ...restField} = field
+                                    return (
                                         <Form.Item
-                                            key={field.key}
-                                            name={field.key}
+                                            key={key}
+                                            {...restField}
                                             rules={[
                                                 {
                                                     required: true,
-                                                    min: 1,
                                                     message: "Please add a model name",
+                                                    min: 1,
                                                 },
                                             ]}
                                             className="mb-0"
                                         >
-                                            <ModelNameInput
-                                                value={form.getFieldValue("models")?.[index] || ""}
-                                                onChange={(e) => {
-                                                    const models =
-                                                        form.getFieldValue("models") || []
-                                                    models[index] = e.target.value
-                                                    form.setFieldsValue({models})
-                                                }}
-                                                onDelete={() => remove(index)}
-                                            />
+                                            <ModelNameInput onDelete={() => remove(field.name)} />
                                         </Form.Item>
-                                    ))
-                                )}
-                            </div>
-                        )}
-                    </Form.List>
-                </Form.Item>
+                                    )
+                                })
+                            )}
+                        </div>
+                    )}
+                </Form.List>
             </section>
         </Form>
     )

@@ -1,6 +1,5 @@
 import {useEffect, useState} from "react"
 
-import ProtectedRoute from "@agenta/oss/src/components/ProtectedRoute/ProtectedRoute"
 import {Alert, Spin} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -8,6 +7,7 @@ import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {useLocalStorage} from "usehooks-ts"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
@@ -15,20 +15,35 @@ const Callback = () => {
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
 
+    const [invite] = useLocalStorage("invite", {})
+    const isInvitedUser = invite && Object.keys(invite).length > 0
+
+    const state = router.query.state as string
+    const code = router.query.code as string
+
     const handleGoogleCallback = async () => {
         try {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
                 setMessage({message: "Verification successful", type: "success"})
-                if (
+                const isNewUser =
                     process.env.NEXT_PUBLIC_FF === "cloud" &&
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
-                ) {
-                    await router.push("/post-signup")
+
+                if (isNewUser) {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
                 } else {
-                    await router.push("/apps")
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
                 }
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"})
@@ -58,14 +73,23 @@ const Callback = () => {
 
             if (response.status === "OK") {
                 setMessage({message: "Verification successful", type: "success"})
-                if (
+                const isNewUser =
                     process.env.NEXT_PUBLIC_FF === "cloud" &&
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
-                ) {
-                    await router.push("/post-signup")
+
+                if (isNewUser) {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
                 } else {
-                    await router.push("/apps")
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
                 }
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"})
@@ -88,6 +112,12 @@ const Callback = () => {
             }
         }
     }
+
+    useEffect(() => {
+        if (router.isReady && !state && !code) {
+            router.push("/apps")
+        }
+    }, [state, code, router.isReady])
 
     useEffect(() => {
         if (window.location.pathname === "/auth/callback/google") {
@@ -126,8 +156,4 @@ const Callback = () => {
     )
 }
 
-export default () => (
-    <ProtectedRoute>
-        <Callback />
-    </ProtectedRoute>
-)
+export default Callback
