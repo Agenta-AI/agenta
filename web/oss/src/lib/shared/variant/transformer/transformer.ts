@@ -54,6 +54,15 @@ export function transformToEnhancedVariant(
     routePath?: string,
 ): EnhancedVariant {
     try {
+        // Normalize parameters structure to handle both ag_config and agConfig naming conventions
+        if (variant.parameters) {
+            if (variant.parameters.ag_config && !variant.parameters.agConfig) {
+                variant.parameters.agConfig = variant.parameters.ag_config;
+            } else if (variant.parameters.agConfig && !variant.parameters.ag_config) {
+                variant.parameters.ag_config = variant.parameters.agConfig;
+            }
+        }
+        
         const path = constructPlaygroundTestUrl(
             variant.uriObject || {
                 routePath,

@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.39.3",
+    "version": "0.39.4",
     "private": true,
     "engines": {
         "node": ">=18"
