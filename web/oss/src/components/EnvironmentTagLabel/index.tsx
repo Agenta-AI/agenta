@@ -1,19 +1,26 @@
 import {Tag} from "antd"
 import React from "react"
 
-const statusMap: Record<string, {bgColor: string; textColor: string; label: string}> = {
-    production: {bgColor: "bg-[#D9F7BE]", textColor: "text-[#237804]", label: "Production"},
-    staging: {bgColor: "bg-[#FFF2E8]", textColor: "text-[#FA541C]", label: "Staging"},
-    development: {bgColor: "bg-[#F9F0FF]", textColor: "text-[#722ED1]", label: "Development"},
+export const deploymentStatusColors: Record<
+    string,
+    {bgColor: string; textColor: string; label: string}
+> = {
+    production: {bgColor: "#D9F7BE", textColor: "#237804", label: "Production"},
+    staging: {bgColor: "#FFF2E8", textColor: "#FA541C", label: "Staging"},
+    development: {bgColor: "#F9F0FF", textColor: "#722ED1", label: "Development"},
 }
 
 const defaultStatus = {bgColor: "bg-gray-200", textColor: "text-gray-600", label: "Unknown"}
 
 const EnvironmentTagLabel: React.FC<{environment: string}> = ({environment}) => {
-    const {bgColor, textColor, label} = statusMap[environment] ?? defaultStatus
+    const {bgColor, textColor, label} = deploymentStatusColors[environment] ?? defaultStatus
 
     return (
-        <Tag className={`${bgColor} ${textColor} w-fit`} bordered={false}>
+        <Tag
+            style={{backgroundColor: bgColor, color: textColor}}
+            className="w-fit"
+            bordered={false}
+        >
             {label}
         </Tag>
     )

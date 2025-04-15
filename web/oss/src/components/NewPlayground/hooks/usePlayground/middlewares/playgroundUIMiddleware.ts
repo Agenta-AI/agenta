@@ -289,6 +289,10 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     // Get all revisions from atom store
                     const allRevisions = atomStore.get(allRevisionsAtom) || []
 
+                    console.log("set displayed variants:", {
+                        allRevisions,
+                        selected: variants,
+                    })
                     swr.mutate(
                         (clonedState) => {
                             if (!clonedState) return clonedState
@@ -302,6 +306,10 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     const revisionToAdd = allRevisions.find(
                                         (rev: {id: string}) => rev.id === variantId,
                                     )
+
+                                    console.log("set displayed variants 2:", {
+                                        revisionToAdd
+                                    })
 
                                     if (revisionToAdd) {
                                         clonedState.variants.push(revisionToAdd)

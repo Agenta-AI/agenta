@@ -3,7 +3,7 @@ import {forwardRef} from "react"
 import {Button, Tooltip, type ButtonProps, TooltipProps} from "antd"
 
 interface TooltipButtonProps extends ButtonProps {
-    label?: string
+    label?: React.ReactNode
     tooltipProps?: TooltipProps
 }
 

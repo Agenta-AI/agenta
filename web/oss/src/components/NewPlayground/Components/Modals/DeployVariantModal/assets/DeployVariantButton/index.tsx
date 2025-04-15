@@ -9,6 +9,7 @@ import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
+import {findRevisionDeployment} from "@/oss/lib/shared/variant/utils"
 
 const DeployVariantModal = dynamic(() => import("../.."), {ssr: false})
 
@@ -21,8 +22,17 @@ const DeployVariantButton = ({
     ...props
 }: DeployVariantButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const {environments: _environments, mutate, isEnvironmentsLoading} = useEnvironments()
-    const {environments, variantName, revision} = usePlayground({
+    const {
+        environments: _environments,
+        mutate: mutateEnv,
+        isEnvironmentsLoading,
+    } = useEnvironments()
+    const {
+        environments,
+        variantName,
+        revision,
+        mutate: mutatePlayground,
+    } = usePlayground({
         variantId: revisionId || variantId,
         hookId: "DeployVariantModal",
         stateSelector: useCallback(
@@ -44,9 +54,47 @@ const DeployVariantButton = ({
                     }),
                 }
             },
-            [_environments],
+            [_environments, variantId, revisionId],
         ),
     })
+
+    const onSuccess = useCallback(async () => {
+        const newEnvironmentsData = await mutateEnv() // refetch environments or chain using .then
+
+        mutatePlayground((state) => {
+            const newEnv = newEnvironmentsData.map((env) => ({
+                name: env.name,
+                appId: env.app_id,
+                deployedAppVariantId: env.deployed_app_variant_id,
+                deployedVariantName: env.deployed_variant_name,
+                deployedAppVariantRevisionId: env.deployed_app_variant_revision_id,
+                revision: env.revision,
+            }))
+
+            // map available revisions and update each of them using the new environments data
+            if (state.availableRevisions && state.availableRevisions.length > 0) {
+                state.availableRevisions?.forEach((availableRevision) => {
+                    if (availableRevision) {
+                        availableRevision.deployedIn = findRevisionDeployment(
+                            availableRevision.id,
+                            newEnv,
+                        )
+                    }
+                })
+            }
+
+            // update already mounted data in state.revisions
+            if (state.variants && state.variants.length > 0) {
+                state.variants?.forEach((revision) => {
+                    if (revision) {
+                        revision.deployedIn = findRevisionDeployment(revision.id, newEnv)
+                    }
+                })
+            }
+
+            return state
+        })
+    }, [])
 
     return (
         <>
@@ -66,11 +114,10 @@ const DeployVariantButton = ({
                     type="text"
                     icon={icon && <CloudArrowUp size={14} />}
                     onClick={() => setIsDeployModalOpen(true)}
-                    tooltipProps={icon ? {title: "Deploy"} : {}}
+                    tooltipProps={icon && !label ? {title: "Deploy"} : {}}
+                    label={label}
                     {...props}
-                >
-                    {label}
-                </EnhancedButton>
+                />
             )}
 
             <DeployVariantModal
@@ -79,7 +126,7 @@ const DeployVariantButton = ({
                 variantId={variantId}
                 revisionId={revisionId}
                 environments={environments}
-                mutate={mutate}
+                mutate={onSuccess}
                 variantName={variantName}
                 revision={revision}
                 isLoading={isEnvironmentsLoading}

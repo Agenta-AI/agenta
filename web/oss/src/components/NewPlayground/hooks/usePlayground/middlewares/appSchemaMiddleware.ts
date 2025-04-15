@@ -65,7 +65,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                     logger(`FETCH - FETCH`)
 
                     state.fetching = true
-
+                    state.appType = config.appType
                     try {
                         /**
                          * IMPORTANT ARCHITECTURAL SHIFT (March 2025):
@@ -88,6 +88,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             uri,
                         } = await fetchPriorityRevisions({
                             appId: config.appId || "",
+                            appType: config.appType || "",
                             projectId: config.projectId || "",
                             revisionIds: neededRevisionIds,
                             fallbackToLatest: true,
@@ -146,6 +147,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 // We need to force a full refresh to ensure we process ALL variants, even those skipped in priority loading
                                 fetchAndProcessRevisions({
                                     appId: config.appId || "",
+                                    appType: config.appType || "",
                                     projectId: config.projectId || "",
                                     // Exclude revisions we already have
                                     excludeRevisionIds: priorityRevisions.map((r) => r.id),
@@ -180,6 +182,8 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                             ...priorityRevisions,
                                             ...remainingRevisions,
                                         ]
+
+                                        console.log("allRevisions", allRevisions)
 
                                         // Recalculate isLatestRevision flag across all variants
                                         if (allRevisions.length > 0) {

@@ -18,8 +18,8 @@ import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
-import VariantComparisonModal from "./VariantComparisonModal"
-import VariantDrawer from "./VariantDrawer"
+import VariantComparisonModal from "../../../VariantsComponents/Modals/VariantComparisonModal"
+import VariantDrawer from "../../../VariantsComponents/Drawers/VariantDrawer"
 
 const DeployVariantModal = dynamic(
     () => import("@/oss/components/NewPlayground/Components/Modals/DeployVariantModal"),
@@ -56,7 +56,7 @@ const VariantsOverview = ({
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const [queryVariant, setQueryVariant] = useQueryParam("variant")
+    const [queryVariant, setQueryVariant] = useQueryParam("revisions")
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [selectedVariant, setSelectedVariant] = useState<Variant>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
@@ -213,13 +213,13 @@ const VariantsOverview = ({
                     showEnvBadges
                     variants={slicedVariantList}
                     onRowClick={(variant) => {
-                        setQueryVariant(variant.variantId)
+                        setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
                         setSelectedVariant(variant)
                     }}
                     rowSelection={{onChange: (value) => setSelectedRowKeys(value)}}
                     isLoading={isVariantLoading}
                     handleOpenDetails={(record) => {
-                        setQueryVariant(record.variantId)
+                        setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
                         setSelectedVariant(record)
                     }}
                     handleDeleteVariant={(record) => {
@@ -236,16 +236,12 @@ const VariantsOverview = ({
                 />
             </div>
 
-            {selectedVariant && (
-                <VariantDrawer
-                    open={!!queryVariant}
-                    onClose={() => setQueryVariant("")}
-                    selectedVariant={selectedVariant}
-                    environments={environments}
-                    setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
-                    setIsDeployVariantModalOpen={setIsDeployVariantModalOpen}
-                />
-            )}
+            <VariantDrawer
+                open={!!queryVariant}
+                onClose={() => setQueryVariant("")}
+                variants={variantList}
+                type="variant"
+            />
 
             {selectedVariant && (
                 <DeleteEvaluationModal

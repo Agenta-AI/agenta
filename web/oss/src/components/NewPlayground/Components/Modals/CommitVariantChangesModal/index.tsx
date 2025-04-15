@@ -16,18 +16,22 @@ const CommitVariantChangesModalContent = dynamic(
 
 const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
+    onSuccess,
     ...props
 }) => {
     const {saveVariant, addVariant, baseRevisionId, isMutating, variantName} = usePlayground({
         variantId,
         hookId: "CommitVariantChangesModal",
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            return {
-                isMutating: variant.__isMutating,
-                variantName: variant.variantName,
-                baseRevisionId: variant.id,
-            }
-        }, []),
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                return {
+                    isMutating: variant.__isMutating,
+                    variantName: variant.variantName,
+                    baseRevisionId: variant.id,
+                }
+            },
+            [variantId],
+        ),
     })
 
     const [selectedCommitType, setSelectedCommitType] = useState<SelectedCommitType>({
@@ -45,7 +49,9 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const onSaveVariantChanges = useCallback(async () => {
         if (selectedCommitType?.type === "version") {
-            await saveVariant?.(note)
+            await saveVariant?.(note, (variant) => {
+                onSuccess?.({revisionId: variant?._revisionId})
+            })
         } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
             addVariant?.({
                 note,
@@ -67,6 +73,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         1,
                         originalBaseVariant,
                     )
+
+                    onSuccess?.({
+                        revisionId: variant?._revisionId,
+                        variantId: variant._parentVariant.variantId,
+                    })
 
                     state.variants = newVariants
 

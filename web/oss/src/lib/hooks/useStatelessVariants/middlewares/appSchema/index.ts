@@ -80,7 +80,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         }
 
                         state.fetching = true
-
+                        state.appType = config.appType
                         // Start a new fetch and get the abort controller
                         controllerRef.current = startFetch(fetchKeyRef.current)
                         // Get the signal from the controller to pass to fetch operations
@@ -164,6 +164,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                         transformedBatchResults = await transformVariants(
                                             batchResults,
                                             spec,
+                                            config.appType
                                         )
                                     } catch (error) {
                                         console.error(
@@ -231,34 +232,38 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                             transformedBatchResults.flatMap((variant) => {
                                                 const revs = structuredClone(variant.revisions)
                                                 const _revisions =
-                                                    revs?.map((revision) => {
-                                                        // Get user profiles (would normally come from userProfilesMap)
-                                                        const revisionUserProfile = null
-                                                        const variantUserProfile = null
+                                                    revs
+                                                        ?.filter((rev) => rev.revision > 0)
+                                                        ?.map((revision) => {
+                                                            // Get user profiles (would normally come from userProfilesMap)
+                                                            const revisionUserProfile = null
+                                                            const variantUserProfile = null
 
-                                                        // Use the same utility function as in fetchAndProcessRevisions
-                                                        const adapted = adaptRevisionToVariant(
-                                                            {
-                                                                ...revision,
-                                                                userProfile: revisionUserProfile,
-                                                            },
-                                                            {
-                                                                ...variant,
-                                                                appId: variant.appId || appId,
-                                                                uri: variant.uri || defaultUri,
-                                                                // Create a uriObject with the routePath and runtimePrefix properties
-                                                                // that match what findCustomWorkflowPath would return
-                                                                uriObject: {
-                                                                    routePath: "",
-                                                                    runtimePrefix:
-                                                                        variant.uri || defaultUri,
+                                                            // Use the same utility function as in fetchAndProcessRevisions
+                                                            const adapted = adaptRevisionToVariant(
+                                                                {
+                                                                    ...revision,
+                                                                    userProfile:
+                                                                        revisionUserProfile,
                                                                 },
-                                                                userProfile: variantUserProfile,
-                                                                isStatelessVariant: true,
-                                                            },
-                                                        )
-                                                        return adapted
-                                                    }) || []
+                                                                {
+                                                                    ...variant,
+                                                                    appId: variant.appId || appId,
+                                                                    uri: variant.uri || defaultUri,
+                                                                    // Create a uriObject with the routePath and runtimePrefix properties
+                                                                    // that match what findCustomWorkflowPath would return
+                                                                    uriObject: {
+                                                                        routePath: "",
+                                                                        runtimePrefix:
+                                                                            variant.uri ||
+                                                                            defaultUri,
+                                                                    },
+                                                                    userProfile: variantUserProfile,
+                                                                    isStatelessVariant: true,
+                                                                },
+                                                            )
+                                                            return adapted
+                                                        }) || []
 
                                                 return _revisions
                                             })
@@ -710,6 +715,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         fetchAndProcessRevisions({
                             appId,
                             projectId,
+                            appType: config.appType,
                             // TODO: Revisit this implementation @ardaerzin
                             // initialVariants: config.initialVariants,
                             logger: console.log,

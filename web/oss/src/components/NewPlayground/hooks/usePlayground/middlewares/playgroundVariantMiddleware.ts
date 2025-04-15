@@ -372,7 +372,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             }, [swr, variantId, fetcher, projectId])
 
             const saveVariant = useCallback(
-                async (note?: string) => {
+                async (note?: string, callback?: (variant: EnhancedVariant) => void) => {
                     try {
                         // first set the mutation state of the variant to true
                         swr.mutate(
@@ -454,6 +454,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                                 uri,
                                             } = await fetchAndProcessRevisions({
                                                 appId: config.appId || "",
+                                                appType: config.appType || "",
                                                 projectId: projectId || "",
                                                 forceRefresh: true, // Force refresh to get the new revision
                                                 logger: console.log,
@@ -485,6 +486,8 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                             // with what was sent in the request if needed
 
                                             if (newRevision) {
+                                                callback?.(newRevision)
+
                                                 // Find the index of the variant we're updating to preserve its position
                                                 const index = updatedState.variants.findIndex(
                                                     (v) => v.variantId === variant.variantId,

@@ -153,10 +153,8 @@ async def environment_db_to_output(
             deployed_app_variant_id, str(environment_db.project_id)
         )
         deployed_variant_name = deployed_app_variant.variant_name
-        revision = deployed_app_variant.revision
     else:
         deployed_variant_name = None
-        revision = None
 
     environment_output = EnvironmentOutput(
         name=environment_db.name,
@@ -167,7 +165,7 @@ async def environment_db_to_output(
         deployed_app_variant_revision_id=str(
             environment_db.deployed_app_variant_revision_id
         ),
-        revision=revision,
+        revision=environment_db.revision,
     )
     return environment_output
 
@@ -202,6 +200,7 @@ async def environment_db_and_revision_to_extended_output(
                 deployment=str(app_environment_revision.deployment_id),
                 commit_message=app_environment_revision.commit_message,
                 created_at=str(app_environment_revision.created_at),
+                deployed_variant_name=deployed_variant_name,
             )
         )
     environment_output_extended = EnvironmentOutputExtended(

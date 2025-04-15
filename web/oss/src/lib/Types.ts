@@ -939,3 +939,24 @@ export enum Plan {
     Business = "cloud_v0_business",
     Enterprise = "cloud_v0_enterprise",
 }
+
+export interface DeploymentRevisionConfig {
+    config_name: string
+    current_version: number
+    parameters: Record<string, any>
+}
+
+export interface DeploymentRevision {
+    created_at: string
+    deployed_app_variant_revision: string
+    deployment: string
+    id: string
+    deployed_variant_name: string | null
+    modified_by: string
+    revision: number
+    commit_message: string | null
+}
+
+export interface DeploymentRevisions extends Environment {
+    revisions: DeploymentRevision[]
+}

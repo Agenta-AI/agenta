@@ -159,6 +159,7 @@ export const handleVariantProcessingError = (
  * Process variants and their revisions with common error handling and logging
  */
 async function processVariantsWithMetadata({
+    appType,
     variants,
     spec,
     uri,
@@ -169,6 +170,7 @@ async function processVariantsWithMetadata({
     onBeforeBatchProcessing = null,
 }: {
     variants: any[]
+    appType: string
     spec: any
     uri: any
     fetchKey: string
@@ -195,7 +197,7 @@ async function processVariantsWithMetadata({
         }
 
         const processedVariants = await processBatchesSequentially(batches, async (batch) => {
-            const transformed = await transformVariants(batch, spec)
+            const transformed = await transformVariants(batch, spec, appType)
 
             if (onBatchProcessed) {
                 onBatchProcessed(transformed, spec, uri)
@@ -215,9 +217,11 @@ export async function fetchPriorityRevisions({
     projectId,
     revisionIds,
     fallbackToLatest = true,
+    appType,
 }: SharedEnrichmentOptions & {
     revisionIds?: string[]
     fallbackToLatest?: boolean
+    appType: string
 }): Promise<{
     revisions: any[]
     spec: any
@@ -252,15 +256,16 @@ export async function fetchPriorityRevisions({
 
         // Group revisions by variant
         const variantMap = new Map()
-        for (const variant of [
-            rawVariants.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0],
-        ]) {
+        const toSort = structuredClone(rawVariants).sort(
+            (a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp,
+        )
+
+        for (const variant of toSort) {
             const [revisions] = await fetchVariantMetadata(
                 variant.variantId,
                 projectId,
                 variant.modifiedById,
             )
-
             // Get variant-specific environments
             const variantEnvironments = environments.filter(
                 (env) => env.deployedAppVariantId === variant.variantId,
@@ -307,6 +312,7 @@ export async function fetchPriorityRevisions({
             fetchKey,
             prefix: "PRIORITY",
             batchSize: 5,
+            appType,
         })
 
         // End the fetch for this key when complete
@@ -320,200 +326,6 @@ export async function fetchPriorityRevisions({
     } catch (error) {
         endFetch(fetchKey)
         throw error
-    }
-}
-
-/**
- * Fetches revisions for specific variant IDs
- * This is optimized for cases where we need to fetch only specific variants (e.g., after creating a new variant)
- *
- * @param appId The application ID
- * @param projectId The project ID
- * @param variantIds Array of variant IDs to fetch
- * @param logger Optional logging function
- * @returns Processed revisions for the specified variants, spec and URI info
- */
-export async function fetchRevisionsByVariantIds({
-    appId,
-    projectId,
-    variantIds,
-    logger = console.log,
-}: SharedEnrichmentOptions & {
-    variantIds: string[]
-}): Promise<{
-    revisions: any[]
-    spec: any
-    uri: any
-}> {
-    const fetchKey = `variant_${appId}}`
-    startFetch(fetchKey)
-
-    logger(
-        `[VARIANT_PRIORITY] Starting with ${variantIds.length} variant IDs: ${JSON.stringify(variantIds)}`,
-    )
-
-    try {
-        // 1. Fetch variants and environments in parallel
-        const [rawVariants, environments] = await Promise.all([
-            fetchVariants(appId),
-            fetchAndTransformEnvironments(appId),
-        ])
-
-        if (!rawVariants.length) {
-            throw new Error("No variants found")
-        }
-
-        // 2. Get URI information (needed for schema)
-        const uriStartTime = performance.now()
-        const uri = rawVariants[0].uri ? await findCustomWorkflowPath(rawVariants[0].uri) : null
-
-        if (!uri) {
-            throw new Error("Failed to find URI path")
-        }
-
-        // 3. Fetch OpenAPI schema (needed for transformation)
-        const schemaStartTime = performance.now()
-        const spec = (await fetchOpenApiSchemaJson(uri.runtimePrefix))?.schema
-        logger(
-            `[VARIANT_PRIORITY] Fetched schema in ${(performance.now() - schemaStartTime).toFixed(2)}ms`,
-        )
-        if (!spec) {
-            throw new Error("Failed to fetch OpenAPI schema")
-        }
-
-        // 4. Filter variants to only those we need
-        const targetVariants = rawVariants.filter((variant) =>
-            variantIds.includes(variant.variantId),
-        )
-        logger(
-            `[VARIANT_PRIORITY] Found ${targetVariants.length}/${variantIds.length} requested variants`,
-        )
-
-        if (targetVariants.length === 0) {
-            logger("[VARIANT_PRIORITY] No matching variants found")
-            return {
-                revisions: [],
-                spec,
-                uri,
-            }
-        }
-
-        // 5. Fetch metadata for the target variants
-        const metadataStartTime = performance.now()
-        logger(`[VARIANT_PRIORITY] Starting metadata fetch for ${targetVariants.length} variants`)
-
-        const targetRevisions = []
-
-        // Process variants one by one
-        for (const variant of targetVariants) {
-            const variantStartTime = performance.now()
-            logger(`[VARIANT_PRIORITY] Fetching metadata for variant ${variant.variantId}`)
-
-            const [revisions] = await fetchVariantMetadata(
-                variant.variantId,
-                projectId,
-                variant.modifiedById,
-            )
-
-            logger(
-                `[VARIANT_PRIORITY] Fetched metadata for variant ${variant.variantId} with ${revisions.length} revisions in ${(performance.now() - variantStartTime).toFixed(2)}ms`,
-            )
-
-            // Add all revisions for this variant
-            // Get variant-specific environments
-            const variantEnvironments = environments.filter(
-                (env) => env.deployedAppVariantId === variant.variantId,
-            )
-
-            targetRevisions.push(
-                ...revisions.map((rev) => ({
-                    ...rev,
-                    variantId: variant.variantId,
-                    variant,
-                    deployedIn: findRevisionDeployment(rev.id, variantEnvironments),
-                })),
-            )
-        }
-
-        logger(
-            `[VARIANT_PRIORITY] Completed metadata fetch in ${(performance.now() - metadataStartTime).toFixed(2)}ms`,
-        )
-        logger(
-            `[VARIANT_PRIORITY] Found ${targetRevisions.length} total revisions for requested variants`,
-        )
-
-        // 6. Transform the revisions
-        logger(`[VARIANT_PRIORITY] Starting transformation of ${targetRevisions.length} revisions`)
-
-        // Adapt revisions to variant-like format using the standard adapter function
-        const adaptedRevisions = await Promise.all(
-            targetRevisions.map(async (revision) => {
-                // Use the standard adapter function to ensure consistency
-                return adaptRevisionToVariant(revision, revision.variant)
-            }),
-        )
-
-        console.log("add variant adaptedRevisions", adaptedRevisions)
-
-        // 7. Use core processing utility for transformation and marking latest revisions
-        try {
-            // Use our core processing function
-            const result = await processVariantsCore({
-                rawVariants: targetVariants,
-                targetRevisions: adaptedRevisions,
-                spec,
-                uri,
-                logger: (msg, ...params) => logger(`[VARIANT_PRIORITY] ${msg}`, ...params),
-                fetchKey,
-                batchSize: 10, // Process more revisions at once for variant-specific fetches
-            })
-
-            // Mark latest revision for each variant
-            if (result.revisions.length > 0) {
-                // Group revisions by variant
-                const variantMap = new Map()
-
-                // Group revisions by variant ID
-                for (const revision of result.revisions) {
-                    if (!variantMap.has(revision.variantId)) {
-                        variantMap.set(revision.variantId, [])
-                    }
-                    variantMap.get(revision.variantId).push(revision)
-                }
-
-                // For each variant, find its latest revision
-                for (const [, revisions] of variantMap.entries()) {
-                    // Sort by timestamp descending
-                    revisions.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
-
-                    // Mark the first one (latest) as the latest variant revision
-                    if (revisions.length > 0) {
-                        revisions[0].isLatestVariantRevision = true
-                    }
-                }
-            }
-
-            const totalTime = performance.now() - startTime
-            logger(
-                `[VARIANT_PRIORITY] Completed in ${totalTime.toFixed(2)}ms for ${result.revisions.length} revisions`,
-            )
-            endFetch(fetchKey)
-            return result
-        } catch (error) {
-            logger(`[VARIANT_PRIORITY] Error processing variant revisions: ${error.message}`)
-            endFetch(fetchKey)
-
-            // Return unprocessed revisions if transformation fails
-            return {
-                revisions: adaptedRevisions,
-                spec,
-                uri,
-            }
-        }
-    } catch (error) {
-        return handleVariantProcessingError(error, fetchKey, (msg, ...params) =>
-            logger(`[VARIANT_PRIORITY] ${msg}`, ...params),
-        )
     }
 }
 
@@ -536,6 +348,7 @@ export const processVariantsCore = async ({
     onBeforeBatchProcessing = null,
     logger = console.log,
     fetchKey,
+    appType
 }: {
     rawVariants: any[]
     targetRevisions: any[]
@@ -548,6 +361,7 @@ export const processVariantsCore = async ({
     onBeforeBatchProcessing?: ((totalBatches: number) => void) | null
     logger?: (message?: any, ...optionalParams: any[]) => void
     fetchKey: string
+    appType?: string,
 }): Promise<{
     revisions: any[]
     spec: any
@@ -569,7 +383,7 @@ export const processVariantsCore = async ({
             async (batch) => {
                 batch = batch.map((rev) => ({...rev, uriObject: uri}))
                 // Transform the batch of revisions
-                const transformedBatch = await transformVariants(batch, spec)
+                const transformedBatch = await transformVariants(batch, spec, appType)
 
                 if (onBatchProcessed) {
                     onBatchProcessed(transformedBatch, spec, uri)
@@ -596,6 +410,7 @@ export const processVariantsCore = async ({
 
 export async function fetchAndProcessRevisions({
     appId,
+    appType,
     projectId,
     initialVariants,
     initialSpec,
@@ -619,6 +434,7 @@ export async function fetchAndProcessRevisions({
     onBatchProcessed?: ((batchResults: any[], spec: any, uri: any) => void) | null // Callback for incremental state updates
     onBeforeBatchProcessing?: ((totalBatches: number) => void) | null // Callback to notify about total batches before processing starts
     keyParts?: string
+    appType: string
 }): Promise<{
     revisions: any[]
     spec: any
@@ -834,7 +650,7 @@ export async function fetchAndProcessRevisions({
 
             // Add batch results to our collection
             variantsWithRevisions.push(...batchResults)
-            // Call the callback function if provided to update state incrementally
+            // // Call the callback function if provided to update state incrementally
             if (onBatchProcessed) {
                 onBatchProcessed([...variantsWithRevisions], spec, uri)
             }
@@ -953,6 +769,7 @@ export async function fetchAndProcessRevisions({
                 onBeforeBatchProcessing: null, // We've already called this earlier
                 logger,
                 fetchKey,
+                appType,
             })
 
             // Add appStatus to each variant

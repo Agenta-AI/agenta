@@ -17,6 +17,7 @@ from oss.src.services.db_manager import (
 )
 from oss.src.services.db_manager import (
     get_deployment_by_id,
+    get_user_with_id,
     fetch_base_by_id,
     fetch_app_by_id,
     fetch_app_by_name_and_parameters,
@@ -43,8 +44,8 @@ log = get_module_logger(__file__)
 
 
 class ReferenceDTO(BaseModel):
-    slug: Optional[str]  # shared across versions
-    version: Optional[int]
+    slug: Optional[str] = None  # shared across versions
+    version: Optional[int] = None
     commit_message: Optional[str] = None
     # ---
     id: Optional[UUID]  # unique per version

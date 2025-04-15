@@ -4,6 +4,7 @@ import {Button, Empty, Space, Tooltip, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
+import {BaseButtonProps} from "antd/es/button/button"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     empty: {
@@ -28,6 +29,8 @@ interface Cta {
     onClick?: () => void
     icon?: ReactNode
     tooltip?: string
+    type?: BaseButtonProps["type"]
+    size?: BaseButtonProps["size"]
 }
 
 interface Props {
@@ -46,9 +49,9 @@ const EmptyComponent: React.FC<Props> = ({image, description, primaryCta, second
                 {primaryCta && (
                     <Tooltip title={primaryCta.tooltip}>
                         <Button
-                            size="large"
+                            size={primaryCta.size || "large"}
                             icon={primaryCta.icon}
-                            type="primary"
+                            type={primaryCta.type || "primary"}
                             onClick={primaryCta.onClick}
                         >
                             {primaryCta.text}
@@ -60,9 +63,9 @@ const EmptyComponent: React.FC<Props> = ({image, description, primaryCta, second
                         <Typography.Text>Or</Typography.Text>
                         <Tooltip title={secondaryCta.tooltip} placement="bottom">
                             <Button
-                                size="large"
+                                size={secondaryCta.size || "large"}
                                 icon={secondaryCta.icon}
-                                type="default"
+                                type={secondaryCta.type || "default"}
                                 onClick={secondaryCta.onClick}
                             >
                                 {secondaryCta.text}

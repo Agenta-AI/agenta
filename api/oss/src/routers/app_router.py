@@ -531,9 +531,6 @@ async def list_app_environment_revisions(
     app_id: str,
     environment_name,
 ):
-    user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-        request.state.user_id
-    )
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -548,15 +545,14 @@ async def list_app_environment_revisions(
             )
 
     app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
-        app_id, environment_name, **user_org_workspace_data
+        app_id,
+        environment_name,
     )
     if app_environment is None:
         return JSONResponse({"detail": "App environment not found"}, status_code=404)
 
     app_environment_revisions = (
-        await db_manager.fetch_environment_revisions_for_environment(
-            app_environment, **user_org_workspace_data
-        )
+        await db_manager.fetch_environment_revisions_for_environment(app_environment)
     )
     if app_environment_revisions is None:
         return JSONResponse(

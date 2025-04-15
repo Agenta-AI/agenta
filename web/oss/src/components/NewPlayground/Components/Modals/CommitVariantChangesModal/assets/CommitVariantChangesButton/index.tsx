@@ -12,6 +12,7 @@ const CommitVariantChangesButton = ({
     label,
     icon = true,
     children,
+    onSuccess,
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
@@ -45,6 +46,7 @@ const CommitVariantChangesButton = ({
                     open={isDeployModalOpen}
                     onCancel={() => setIsDeployModalOpen(false)}
                     variantId={variantId}
+                    onSuccess={onSuccess}
                 />
             ) : null}
         </>

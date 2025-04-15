@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func, or_, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
-from sqlalchemy.orm import joinedload, load_only
+from sqlalchemy.orm import joinedload, load_only, selectinload
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
@@ -1895,7 +1895,7 @@ async def deploy_to_environment(
 
 
 async def fetch_app_environment_by_name_and_appid(
-    app_id: str, environment_name: str, **kwargs: dict
+    app_id: str, environment_name: str
 ) -> AppEnvironmentDB:
     """Fetch an app environment using the provided app id and environment name.
 
@@ -1989,14 +1989,11 @@ async def fetch_app_variant_revision_by_id(
         return app_revision
 
 
-async def fetch_environment_revisions_for_environment(
-    environment: AppEnvironmentDB, **kwargs: dict
-):
+async def fetch_environment_revisions_for_environment(environment: AppEnvironmentDB):
     """Returns list of app environment revision for the given environment.
 
     Args:
         environment (AppEnvironmentDB): The app environment to retrieve environments revisions for.
-        **kwargs (dict): Additional keyword arguments.
 
     Returns:
         List[AppEnvironmentRevisionDB]: A list of AppEnvironmentRevisionDB objects.
@@ -2006,15 +2003,27 @@ async def fetch_environment_revisions_for_environment(
         query = select(AppEnvironmentRevisionDB).filter_by(
             environment_id=environment.id
         )
+
         if is_ee():
             query = query.options(
-                joinedload(AppEnvironmentRevisionDB.modified_by.of_type(UserDB)).load_only(UserDB.username)  # type: ignore
+                joinedload(
+                    AppEnvironmentRevisionDB.modified_by.of_type(UserDB)
+                ).load_only(
+                    UserDB.username
+                )  # type: ignore
+            )
+        else:
+            query = query.options(
+                joinedload(AppEnvironmentRevisionDB.modified_by).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
 
         result = await session.execute(
             query.order_by(asc(AppEnvironmentRevisionDB.created_at))
         )
         environment_revisions = result.scalars().all()
+
         return environment_revisions
 
 
