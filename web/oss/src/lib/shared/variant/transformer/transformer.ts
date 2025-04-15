@@ -139,7 +139,7 @@ export function transformToEnhancedVariant(
 
         const isCustom =
             appType === "custom" || (customProperties && Object.keys(customProperties).length > 0)
-
+            
         return {
             ...variant,
             isChat,

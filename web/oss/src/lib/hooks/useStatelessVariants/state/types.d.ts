@@ -50,6 +50,7 @@ export interface InitialStateType {
     dirtyStates: Record<string, boolean>
     error?: Error
     appStatus: boolean
+    appType: string
     uri?: {
         routePath: string
         runtimePrefix: string

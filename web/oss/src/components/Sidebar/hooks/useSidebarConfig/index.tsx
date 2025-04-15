@@ -13,6 +13,7 @@ import {
     TreeView,
     Lightning,
     Rocket,
+    CloudArrowUp,
 } from "@phosphor-icons/react"
 
 import {useAppsData} from "@/oss/contexts/app.context"
@@ -77,7 +78,7 @@ export const useSidebarConfig = () => {
             key: "app-variants-link",
             title: "Registry",
             link: `/apps/${appId || recentlyVisitedAppId}/variants`,
-            isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
         },
         {
@@ -93,6 +94,13 @@ export const useSidebarConfig = () => {
             icon: <TreeView size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
             link: `/apps/${appId || recentlyVisitedAppId}/traces`,
+        },
+        {
+            key: "app-deployments-link",
+            title: "Deployments",
+            link: `/apps/${appId || recentlyVisitedAppId}/deployments`,
+            isHidden: !appId && !recentlyVisitedAppId,
+            icon: <CloudArrowUp size={16} />,
         },
         {
             key: "invite-teammate-link",

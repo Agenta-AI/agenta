@@ -11,6 +11,8 @@ if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
+from oss.src.routers.variants_router import configs_deploy, ReferenceRequestModel
+
 
 router = APIRouter()
 
@@ -173,8 +175,16 @@ async def revert_deployment_revision(
             f"No deployed app variant found for deployment revision: {deployment_revision_id}",
         )
 
-    await db_manager.update_app_environment_deployed_variant_revision(
-        str(environment_revision.environment_id),
-        str(environment_revision.deployed_app_variant_revision_id),
+    app_variant_revision = await db_manager.fetch_app_variant_revision_by_id(
+        str(environment_revision.deployed_app_variant_revision_id)
     )
-    return "Environment was reverted to deployment revision successful"
+
+    variant_ref = ReferenceRequestModel(id=str(app_variant_revision.id))
+
+    environment_ref = ReferenceRequestModel(id=str(environment_revision.environment_id))
+
+    return await configs_deploy(
+        request,
+        variant_ref=variant_ref,
+        environment_ref=environment_ref,
+    )

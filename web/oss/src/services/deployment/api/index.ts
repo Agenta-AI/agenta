@@ -58,12 +58,12 @@ export const createPublishRevision = async (payload: {
             id: payload.revision_id,
             version: payload.revision_number || null,
             slug: null,
-            commit_message: payload.note || null,
         },
         environment_ref: {
             slug: payload.environment_ref,
             version: null,
             id: null,
+            commit_message: payload.note || null,
         },
     })
 }

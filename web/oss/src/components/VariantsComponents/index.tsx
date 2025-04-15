@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useCallback, type Key, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type Key} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
 import {Rocket} from "@phosphor-icons/react"
@@ -15,7 +15,6 @@ import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
 import {groupVariantsByParent, variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {Variant} from "@/oss/lib/Types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {deleteSingleVariant, deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
@@ -28,14 +27,10 @@ const DeleteEvaluationModal = dynamic(
     () => import("@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"),
     {ssr: false},
 )
-const VariantDrawer = dynamic(
-    () => import("@/oss/components/pages/overview/variants/VariantDrawer"),
-    {ssr: false},
-)
-const VariantComparisonModal = dynamic(
-    () => import("@/oss/components/pages/overview/variants/VariantComparisonModal"),
-    {ssr: false},
-)
+const VariantDrawer = dynamic(() => import("./Drawers/VariantDrawer"), {ssr: false})
+const VariantComparisonModal = dynamic(() => import("./Modals/VariantComparisonModal"), {
+    ssr: false,
+})
 const DeployVariantModal = dynamic(
     () => import("@/oss/components/NewPlayground/Components/Modals/DeployVariantModal"),
     {ssr: false},
@@ -53,7 +48,7 @@ const VariantsDashboard = () => {
 
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
 
-    const [queryVariant, setQueryVariant] = useQueryParam("variant")
+    const [queryVariant, setQueryVariant] = useQueryParam("revisions")
 
     const [selectedVariant, setSelectedVariant] = useState<EnhancedVariant>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
@@ -77,6 +72,7 @@ const VariantsDashboard = () => {
             }
         })
     }, [data?.variants, _environments])
+
     const {mutate} = useSWRConfig()
 
     const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
@@ -277,7 +273,7 @@ const VariantsDashboard = () => {
                         showEnvBadges
                         variants={filteredVariants || []}
                         onRowClick={(variant) => {
-                            setQueryVariant(variant.variantId)
+                            setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
                             setSelectedVariant(variant)
                         }}
                         rowSelection={{
@@ -285,7 +281,7 @@ const VariantsDashboard = () => {
                         }}
                         isLoading={isLoading}
                         handleOpenDetails={(record) => {
-                            setQueryVariant(record.variantId)
+                            setQueryVariant(JSON.stringify([record._revisionId ?? record.id]))
                             setSelectedVariant(record)
                         }}
                         handleDeleteVariant={(record) => {
@@ -301,16 +297,12 @@ const VariantsDashboard = () => {
                 </Space>
             </div>
 
-            {selectedVariant && (
-                <VariantDrawer
-                    open={!!queryVariant}
-                    onClose={() => setQueryVariant("")}
-                    selectedVariant={selectedVariant}
-                    environments={environments}
-                    setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
-                    setIsDeployVariantModalOpen={setIsDeployVariantModalOpen}
-                />
-            )}
+            <VariantDrawer
+                open={!!queryVariant}
+                onClose={() => setQueryVariant("")}
+                variants={filteredVariants || []}
+                type={"variant"}
+            />
 
             {selectedVariant && (
                 <DeleteEvaluationModal

@@ -203,6 +203,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                     uri,
                                 } = await fetchAndProcessRevisions({
                                     appId: config.appId || "",
+                                    appType: config.appType || "",
                                     projectId: projectId || "",
                                     forceRefresh: true, // Force refresh to get the new revision
                                     logger: console.log,

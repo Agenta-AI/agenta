@@ -116,7 +116,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
 
     return (
         <div className={clsx("flex flex-col gap-2 pt-3", className)} {...props}>
-            {messageIds.map((messageId) => (
+            {messageIds?.map((messageId) => (
                 <PromptMessageConfig
                     key={messageId}
                     variantId={variantId}

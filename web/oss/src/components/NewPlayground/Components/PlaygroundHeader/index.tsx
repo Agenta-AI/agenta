@@ -51,6 +51,7 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                     forceRefresh: true, // Force refresh the schema and variants
                     logger: console.log,
                     keyParts: "playground",
+                    appType: clonedState.appType
                 })
 
                 // Update state with processed revisions using our shared utility

@@ -1,12 +1,13 @@
-import {MoreOutlined} from "@ant-design/icons"
-import {CloudArrowUp, GearSix, Note, Rocket, Trash} from "@phosphor-icons/react"
-import {Dropdown, Button} from "antd"
+import dynamic from "next/dynamic"
 import {ColumnsType} from "antd/es/table"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {filterVariantParameters, isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {GearSix} from "@phosphor-icons/react"
+
+const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
 
 export const getColumns = ({
     handleOpenDetails,
@@ -124,75 +125,13 @@ export const getColumns = ({
             align: "center",
             render: (_, record) => {
                 return (
-                    <Dropdown
-                        trigger={["click"]}
-                        overlayStyle={{width: 180}}
-                        menu={{
-                            items: [
-                                {
-                                    key: "details",
-                                    label: "Open details",
-                                    icon: <Note size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleOpenDetails?.(record)
-                                    },
-                                },
-                                {
-                                    key: "open_variant",
-                                    label: "Open in playground",
-                                    icon: <Rocket size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleOpenInPlayground?.(record)
-                                    },
-                                },
-                                {
-                                    key: "deploy",
-                                    label: "Deploy",
-                                    icon: <CloudArrowUp size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleDeploy?.(record)
-                                    },
-                                },
-                                // {
-                                //     key: "clone",
-                                //     label: "Clone",
-                                //     icon: <Copy size={16} />,
-                                //     onClick: (e) => {
-                                //         e.domEvent.stopPropagation()
-                                //     },
-                                // },
-                                {type: "divider"},
-                                // {
-                                //     key: "rename",
-                                //     label: "Rename",
-                                //     icon: <PencilLine size={16} />,
-                                //     onClick: (e) => {
-                                //         e.domEvent.stopPropagation()
-
-                                //     },
-                                // },
-                                {
-                                    key: "delete_variant",
-                                    label: "Delete",
-                                    icon: <Trash size={16} />,
-                                    danger: true,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleDeleteVariant?.(record)
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            onClick={(e) => e.stopPropagation()}
-                            type="text"
-                            icon={<MoreOutlined />}
-                        />
-                    </Dropdown>
+                    <VariantDropdown
+                        record={record}
+                        handleOpenDetails={handleOpenDetails}
+                        handleOpenInPlayground={handleOpenInPlayground}
+                        handleDeploy={handleDeploy}
+                        handleDeleteVariant={handleDeleteVariant}
+                    />
                 )
             },
         })

@@ -160,6 +160,7 @@ class EnvironmentRevision(BaseModel):
     deployment: Optional[str] = None
     commit_message: Optional[str] = None
     created_at: str
+    deployed_variant_name: Optional[str] = None
 
 
 class EnvironmentOutputExtended(EnvironmentOutput):

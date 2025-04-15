@@ -6,6 +6,7 @@ export interface CommitVariantChangesButtonProps extends ButtonProps {
     label?: React.ReactNode
     icon?: boolean
     children?: React.ReactNode
+    onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
 }
 
 export interface CommitVariantChangesModalContentProps {
