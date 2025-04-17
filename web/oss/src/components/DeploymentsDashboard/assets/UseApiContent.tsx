@@ -1,7 +1,8 @@
+import {useMemo, useState} from "react"
+
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Tabs} from "antd"
-import React, {useMemo, useState} from "react"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/oss/code_snippets/endpoints/fetch_config/python"
@@ -9,13 +10,13 @@ import fetchConfigtsCode from "@/oss/code_snippets/endpoints/fetch_config/typesc
 import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/curl"
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
+import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import useURI from "@/oss/components/pages/overview/deployments/DeploymentDrawer/hooks/useURI"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import {DeploymentRevisions} from "@/oss/lib/Types"
+import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
 
 interface UseApiContentProps {
     variants: EnhancedVariant[]

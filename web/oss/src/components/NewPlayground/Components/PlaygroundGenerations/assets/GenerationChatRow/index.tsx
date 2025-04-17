@@ -85,11 +85,10 @@ export const GenerationChatRowOutput = ({
                     "w-full",
                     messageProps?.className,
                     {
-                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red] [&_.message-user-select]:pointer-events-none":
-                            messageResult?.error,
                         "!rounded-none": viewType === "comparison",
                     },
                 ])}
+                error={!!messageResult?.error}
                 isMessageDeletable={isMessageDeletable}
                 autoFocus={true}
                 debug

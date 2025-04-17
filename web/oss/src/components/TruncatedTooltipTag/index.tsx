@@ -1,11 +1,12 @@
+import {type ComponentProps} from "react"
+
 import {Tag, Tooltip} from "antd"
-import React from "react"
 
 const TruncatedTooltipTag = ({
     children,
     width = 400,
     ...props
-}: {children: string; width?: number} & React.ComponentProps<typeof Tooltip>) => {
+}: {children: string; width?: number} & ComponentProps<typeof Tooltip>) => {
     return (
         <Tooltip
             title={children}

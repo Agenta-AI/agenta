@@ -1,10 +1,13 @@
-import {Environment, JSSTheme} from "@/oss/lib/Types"
+import type {ComponentProps} from "react"
+
 import {Card, Space, Tag, Typography} from "antd"
-import React from "react"
 import {createUseStyles} from "react-jss"
-import EnvironmentTagLabel, {deploymentStatusColors} from "../EnvironmentTagLabel"
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {Environment, JSSTheme} from "@/oss/lib/Types"
+
+import EnvironmentTagLabel, {deploymentStatusColors} from "../EnvironmentTagLabel"
 import Version from "../NewPlayground/assets/Version"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -36,7 +39,7 @@ type DeploymentCardProps = {
     selectedDeployedVariant: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>> | undefined
     env: Environment
     selectedEnv?: string
-} & React.ComponentProps<typeof Card>
+} & ComponentProps<typeof Card>
 
 const DeploymentCard = ({
     selectedDeployedVariant,

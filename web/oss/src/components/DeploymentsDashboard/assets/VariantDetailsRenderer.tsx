@@ -1,7 +1,7 @@
-import React from "react"
-import VariantDetailsWithStatus from "../../VariantDetailsWithStatus"
 import {Typography} from "antd"
+
 import {DeploymentRevisionWithVariant} from ".."
+import VariantDetailsWithStatus from "../../VariantDetailsWithStatus"
 
 const VariantDetailsRenderer = ({record}: {record: DeploymentRevisionWithVariant}) => {
     return record.variant ? (

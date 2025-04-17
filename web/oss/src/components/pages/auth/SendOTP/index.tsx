@@ -1,6 +1,8 @@
 import {useRef, useState} from "react"
+
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Input, Button, Form, Typography, FormProps} from "antd"
+import {OTPRef} from "antd/es/input/OTP"
 import {useRouter} from "next/router"
 import {
     clearLoginAttemptInfo,
@@ -9,11 +11,10 @@ import {
 } from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
-import {OTPRef} from "antd/es/input/OTP"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 const {Text, Title} = Typography
 

@@ -1,0 +1,34 @@
+.code-block-error-icon {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    font-size: 1rem;
+    z-index: 20;
+    color: red;
+    cursor: help;
+    z-index: 20;
+    background: orange;
+  }
+  
+  .code-block-error-tooltip {
+    position: absolute;
+    top: 1.5rem;
+    right: 0;
+    background-color: #fff8f8;
+    color: #d00000;
+    border: 1px solid #faa;
+    border-radius: 4px;
+    padding: 0.5rem;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 30;
+  }
+  
+  .code-block-error-tooltip-inner {
+    & > div + div {
+        margin-top: 0.25rem;
+    }
+  }
+  

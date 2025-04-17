@@ -55,12 +55,17 @@ const GenerationCompletionRow = ({
                     const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
                     const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
 
+                    const variant = state.variants.find((v) => v.id === variantId)
+                    const isJSONMode = variant?.prompts?.some((p) =>
+                        p.llmConfig?.responseFormat?.value?.type?.includes?.("json"),
+                    )
                     return {
                         isChat: state.variants[0]?.isChat,
                         variableIds,
                         resultHash,
                         isRunning,
                         inputText: variables?.[0]?.value, // Temporary implementation
+                        isJSONMode,
                     }
                 },
                 [rowId, variantId],
@@ -86,6 +91,22 @@ const GenerationCompletionRow = ({
 
     if (viewType === "single" && view !== "focus" && variantId) {
         const responseData = result?.response?.data
+        let value =
+            typeof responseData === "string"
+                ? responseData
+                : typeof responseData === "object" && responseData.hasOwnProperty("content")
+                  ? responseData.content
+                  : ""
+
+        let isJSON = false
+        try {
+            const parsed = JSON.parse(value)
+            isJSON = true
+            value = JSON.stringify(parsed, null, 2)
+        } catch (e) {
+            isJSON = false
+        }
+
         return (
             <div
                 className={clsx([
@@ -136,7 +157,7 @@ const GenerationCompletionRow = ({
                 </div>
 
                 {!inputOnly && (
-                    <div className="w-full flex gap-1 items-start">
+                    <div className="w-full flex gap-1 items-start z-[1]">
                         <div className="w-[100px] shrink-0">
                             {!isRunning ? (
                                 <RunButton onClick={runRow} disabled={!!isRunning} />
@@ -144,7 +165,13 @@ const GenerationCompletionRow = ({
                                 <RunButton isCancel onClick={cancelRow} />
                             )}
                         </div>
-                        <div className="w-full flex flex-col gap-4">
+                        <div
+                            className={clsx([
+                                "w-full flex flex-col gap-4",
+                                {"max-w-[calc(100%-158px)]": viewType !== "comparison"},
+                                {"max-w-[100%]": viewType === "comparison"},
+                            ])}
+                        >
                             {isRunning ? (
                                 <GenerationOutputText text="Running..." />
                             ) : !result ? (
@@ -159,10 +186,10 @@ const GenerationCompletionRow = ({
                                     state="filled"
                                     readOnly
                                     disabled
+                                    error
                                     className={clsx([
                                         {
-                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
-                                                result?.error,
+                                            "": result?.error,
                                         },
                                     ])}
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"
@@ -174,16 +201,16 @@ const GenerationCompletionRow = ({
                             ) : result.response ? (
                                 <SharedEditor
                                     initialValue={
-                                        typeof responseData === "string"
-                                            ? responseData
-                                            : typeof responseData === "object" &&
-                                                responseData.hasOwnProperty("content")
-                                              ? responseData.content
-                                              : ""
+                                        isJSON && typeof value === "string"
+                                            ? JSON.parse(value)
+                                            : value
                                     }
                                     editorType="borderless"
                                     state="filled"
                                     readOnly
+                                    editorProps={{
+                                        codeOnly: isJSON,
+                                    }}
                                     disabled
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"
                                     footer={
@@ -203,7 +230,7 @@ const GenerationCompletionRow = ({
                                 resultHash={resultHash}
                             />
                         ) : (
-                            <div className="flex items-center w-[50px] shrink-0" />
+                            <div className="flex items-center w-[50px] shrink-0 grow-1 self-stretch" />
                         )}
                     </div>
                 )}
@@ -213,7 +240,14 @@ const GenerationCompletionRow = ({
 
     return (
         <>
-            <div className={clsx(["flex flex-col gap-4"])} {...props}>
+            <div
+                className={clsx([
+                    "flex flex-col gap-4",
+                    {"max-w-[calc(100%-158px)]": viewType !== "comparison"},
+                    {"max-w-[100%]": viewType === "comparison"},
+                ])}
+                {...props}
+            >
                 <div className="flex gap-1 items-start">
                     <div className="flex flex-col grow">
                         {variableIds.map((variableId) => {
@@ -224,8 +258,8 @@ const GenerationCompletionRow = ({
                                         "relative group/item px-3 py-2",
                                         {
                                             "border-0 border-b border-solid border-[rgba(5,23,41,0.06)]":
-                                                isChat && viewType == "comparison",
-                                            "!px-0 !py-0": viewType == "comparison",
+                                                isChat && viewType === "comparison",
+                                            "!px-0 !py-0": viewType === "comparison",
                                         },
                                     ])}
                                 >

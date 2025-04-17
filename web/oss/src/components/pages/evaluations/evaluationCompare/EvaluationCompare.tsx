@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState, type FC} from "react"
 
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {CheckOutlined, CloseCircleOutlined, DownloadOutlined, UndoOutlined} from "@ant-design/icons"
@@ -70,7 +70,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
-const EvaluationCompareMode: React.FC<Props> = () => {
+const EvaluationCompareMode: FC<Props> = () => {
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()

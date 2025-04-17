@@ -7,9 +7,15 @@ import {HistoryPlugin} from "@lexical/react/LexicalHistoryPlugin"
 import {OnChangePlugin} from "@lexical/react/LexicalOnChangePlugin"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {Skeleton} from "antd"
+import clsx from "clsx"
 
 import type {EditorPluginsProps} from "../types"
 
+const TabIndentationPlugin = lazy(() =>
+    import("@lexical/react/LexicalTabIndentationPlugin").then((module) => ({
+        default: module.TabIndentationPlugin,
+    })),
+)
 const ToolbarPlugin = lazy(() =>
     import("./toolbar/ToolbarPlugin").then((module) => ({
         default: module.ToolbarPlugin,
@@ -25,11 +31,7 @@ const SingleLinePlugin = lazy(() =>
         default: module.SingleLinePlugin,
     })),
 )
-const CodeEditorPlugin = lazy(() =>
-    import("./code/CodeEditorPlugin").then((module) => ({
-        default: module.CodeEditorPlugin,
-    })),
-)
+const CodeEditorPlugin = lazy(() => import("./code"))
 const TokenPlugin = lazy(() =>
     import("./token/TokenPlugin").then((module) => ({
         default: module.TokenPlugin,
@@ -46,9 +48,19 @@ const EditorPlugins = ({
     placeholder,
     autoFocus,
     handleUpdate,
+    initialValue,
+    validationSchema,
 }: EditorPluginsProps) => {
     return (
-        <Suspense fallback={<Skeleton title={false} paragraph={{rows: 4, width: "100%"}} />}>
+        <Suspense
+            fallback={
+                <Skeleton
+                    className={clsx(["editor-skeleton", {"pl-2": codeOnly}])}
+                    title={false}
+                    paragraph={{rows: 4, width: "100%"}}
+                />
+            }
+        >
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
@@ -70,7 +82,17 @@ const EditorPlugins = ({
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
             {enableTokens && <TokenPlugin />}
             {singleLine && <SingleLinePlugin />}
-            {codeOnly && <CodeEditorPlugin language={language} />}
+            {codeOnly && (
+                <>
+                    <CodeEditorPlugin
+                        validationSchema={validationSchema}
+                        initialValue={initialValue}
+                        language={language}
+                        debug={debug}
+                    />
+                    <TabIndentationPlugin />
+                </>
+            )}
             {debug && <DebugPlugin />}
         </Suspense>
     )

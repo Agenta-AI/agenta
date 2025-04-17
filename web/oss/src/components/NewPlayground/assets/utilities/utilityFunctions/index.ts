@@ -1,5 +1,5 @@
 // Smoothly scrolls to the generation containers bottom.
-export const autoScrollToBottom = (selector: string = ".playground-generation") => {
+export const autoScrollToBottom = (selector = ".playground-generation") => {
     const container = document.querySelector(selector) as HTMLDivElement
 
     if (!container) return

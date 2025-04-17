@@ -1,12 +1,14 @@
+import {ComponentProps, Dispatch, SetStateAction} from "react"
+
+import {CloseOutlined} from "@ant-design/icons"
+import {Button, Modal, Space, Typography} from "antd"
+import {createUseStyles} from "react-jss"
+
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import CommitNote from "@/oss/components/NewPlayground/assets/CommitNote"
-import {Button, Modal, Space, Typography} from "antd"
-import React, {Dispatch, SetStateAction} from "react"
-import {CloseOutlined} from "@ant-design/icons"
-import {createUseStyles} from "react-jss"
-import {JSSTheme} from "@/oss/lib/Types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {JSSTheme} from "@/oss/lib/Types"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -24,7 +26,7 @@ type DeploymentConfirmationModalProps = {
     variant?: EnhancedVariant
     envName: string
     actionType?: "deploy" | "revert"
-} & React.ComponentProps<typeof Modal>
+} & ComponentProps<typeof Modal>
 
 const DeploymentConfirmationModal = ({
     variant,

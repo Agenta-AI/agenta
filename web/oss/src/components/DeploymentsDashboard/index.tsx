@@ -1,26 +1,30 @@
-import React, {Key, useMemo, useState} from "react"
+import {type FC, type Key, useMemo, useState} from "react"
+
+import {CloudArrowUp} from "@phosphor-icons/react"
 import {Button, Flex, Input, Space, Typography, message, notification} from "antd"
-import {createUseStyles} from "react-jss"
 import posthog from "posthog-js"
-import DeploymentsDrawer from "./components/Drawer"
-import SelectDeployVariantModal from "./components/Modal/SelectDeployVariantModal"
-import DeploymentConfirmationModal from "./components/Modal/DeploymentConfirmationModal"
-import UseApiContent from "./assets/UseApiContent"
+import {createUseStyles} from "react-jss"
+
+import {useAppId} from "@/oss/hooks/useAppId"
+import {useQueryParam} from "@/oss/hooks/useQuery"
+import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
+import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {DeploymentRevision, DeploymentRevisionConfig, DeploymentRevisions} from "@/oss/lib/Types"
+import {JSSTheme} from "@/oss/lib/Types"
+import {createPublishRevision} from "@/oss/services/deployment/api"
 import {
     createRevertDeploymentRevision,
     fetchAllDeploymentRevisionConfig,
 } from "@/oss/services/deploymentVersioning/api"
-import {createPublishRevision} from "@/oss/services/deployment/api"
-import {useAppId} from "@/oss/hooks/useAppId"
-import {DeploymentRevision, DeploymentRevisionConfig, DeploymentRevisions} from "@/oss/lib/Types"
-import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {JSSTheme} from "@/oss/lib/Types"
-import DeploymentTable from "./components/Table"
-import {CloudArrowUp} from "@phosphor-icons/react"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
+
 import VariantDrawer from "../VariantsComponents/Drawers/VariantDrawer"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+
+import UseApiContent from "./assets/UseApiContent"
+import DeploymentsDrawer from "./components/Drawer"
+import DeploymentConfirmationModal from "./components/Modal/DeploymentConfirmationModal"
+import SelectDeployVariantModal from "./components/Modal/SelectDeployVariantModal"
+import DeploymentTable from "./components/Table"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -48,7 +52,7 @@ export type DeploymentRevisionWithVariant = DeploymentRevision & {
     environment_revision: number
 }
 
-const DeploymentsDashboard: React.FC<DeploymentsDashboardProps> = ({
+const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     envRevisions,
     variants,
     deployedVariant,

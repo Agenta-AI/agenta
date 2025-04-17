@@ -28,8 +28,6 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
         }, []),
     })
 
-    console.log("revisionParents", revisionParents)
-
     const variantOptions = useMemo(() => {
         return Object.values(revisionParents).map((variantRevisions) => {
             const deployedIn = uniqBy(

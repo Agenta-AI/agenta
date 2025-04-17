@@ -1,5 +1,6 @@
-import {JSSTheme} from "@/oss/lib/Types"
 import {createUseStyles} from "react-jss"
+
+import {JSSTheme} from "@/oss/lib/Types"
 
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     modalContainer: {

@@ -1,5 +1,18 @@
 import {EditorState, LexicalEditor} from "lexical"
 
+export interface EditorContextType {
+    editor: LexicalEditor | null
+    config: any
+}
+
+export interface EditorProviderProps extends React.HTMLProps<HTMLDivElement> {
+    children: React.ReactNode
+    dimensions?: {
+        width: number
+        height: number
+    }
+}
+
 export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     disabled?: boolean
     id?: string
@@ -22,6 +35,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
         height: number
     }
     showBorder?: boolean
+    validationSchema?: unknown
 }
 
 export interface EditorPluginsProps {
@@ -33,5 +47,6 @@ export interface EditorPluginsProps {
     debug: boolean
     language?: string
     placeholder?: string
+    validationSchema?: unknown
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
 }

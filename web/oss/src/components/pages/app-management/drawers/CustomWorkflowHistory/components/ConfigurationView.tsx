@@ -1,7 +1,7 @@
-import SharedEditor from "@/oss/components/NewPlayground/Components/SharedEditor"
 import {Button, Typography} from "antd"
 import clsx from "clsx"
-import React from "react"
+
+import SharedEditor from "@/oss/components/NewPlayground/Components/SharedEditor"
 
 const ConfigurationView = () => {
     return (

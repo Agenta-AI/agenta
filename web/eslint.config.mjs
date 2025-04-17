@@ -23,6 +23,7 @@ const tsEslintConfig = tseslint.config(
 
 const config = [
     ...compat.extends("next/core-web-vitals"),
+    ...compat.extends("plugin:@lexical/recommended"),
     ...tsEslintConfig,
     {
         rules: {

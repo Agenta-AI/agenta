@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {type FC, useEffect, useMemo, useState} from "react"
 
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
@@ -12,6 +12,7 @@ import AgCustomHeader from "@/oss/components/AgCustomHeader/AgCustomHeader"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import CompareOutputDiff from "@/oss/components/CompareOutputDiff/CompareOutputDiff"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {getAppValues, useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
@@ -33,7 +34,6 @@ import {LongTextCellRenderer, ResultRenderer} from "../cellRenderers/cellRendere
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -55,7 +55,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
-const EvaluationScenarios: React.FC<Props> = () => {
+const EvaluationScenarios: FC<Props> = () => {
     const router = useRouter()
     const appId = useAppId()
     const {currentApp} = useAppsData()

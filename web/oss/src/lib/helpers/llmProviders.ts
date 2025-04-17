@@ -2,7 +2,7 @@ import {StandardSecretDTO, CustomSecretDTO, SecretDTOKind} from "../Types"
 
 export const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
-export type LlmProvider = {
+export interface LlmProvider {
     title?: string
     key?: string
     provider?: string

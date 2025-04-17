@@ -1,12 +1,13 @@
-import React, {useMemo, useState} from "react"
+import {type ComponentProps, useMemo, useState} from "react"
 
 import {Spin, Table, TableColumnType} from "antd"
 import {TableRowSelection} from "antd/es/table/interface"
 
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
-import {getColumns} from "./assets/getVariantColumns"
 import ResizableTitle from "../../ResizableTitle"
+
+import {getColumns} from "./assets/getVariantColumns"
 
 type VariantsTableProps = {
     showEnvBadges?: boolean
@@ -20,7 +21,7 @@ type VariantsTableProps = {
     handleDeleteVariant?: (record: EnhancedVariant) => void
     showActionsDropdown?: boolean
     enableColumnResize?: boolean
-} & React.ComponentProps<typeof Table>
+} & ComponentProps<typeof Table>
 
 const VariantsTable = ({
     isLoading,

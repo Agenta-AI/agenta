@@ -1,5 +1,6 @@
+import {type FC} from "react"
+
 import {Tag} from "antd"
-import React from "react"
 
 export const deploymentStatusColors: Record<
     string,
@@ -12,7 +13,7 @@ export const deploymentStatusColors: Record<
 
 const defaultStatus = {bgColor: "bg-gray-200", textColor: "text-gray-600", label: "Unknown"}
 
-const EnvironmentTagLabel: React.FC<{environment: string}> = ({environment}) => {
+const EnvironmentTagLabel: FC<{environment: string}> = ({environment}) => {
     const {bgColor, textColor, label} = deploymentStatusColors[environment] ?? defaultStatus
 
     return (
