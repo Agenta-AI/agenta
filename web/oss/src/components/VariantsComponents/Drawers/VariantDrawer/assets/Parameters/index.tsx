@@ -1,11 +1,11 @@
 import {useMemo} from "react"
-import dynamic from "next/dynamic"
 
 import {Typography} from "antd"
+import dynamic from "next/dynamic"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {filterVariantParameters, getStringOrJson, getYamlOrJson} from "@/oss/lib/helpers/utils"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {EnhancedVariant, VariantParameters} from "@/oss/lib/shared/variant/transformer/types"
 
 import {useStyles} from "../styles"
 import {DrawerVariant} from "../types"
@@ -22,11 +22,19 @@ export const NewVariantParametersView = ({
     parameters?: Record<string, unknown>
 }) => {
     const configJsonString = useMemo(() => {
-        return getYamlOrJson("JSON", selectedVariant.parameters)
-    }, [selectedVariant.parameters])
+        interface OptionalParameters extends Omit<VariantParameters, "agConfig"> {
+            agConfig?: VariantParameters["agConfig"]
+        }
+        const parameters = structuredClone(selectedVariant.parameters) as OptionalParameters
+        if (parameters && parameters.agConfig) {
+            delete parameters.agConfig
+            return getYamlOrJson("JSON", parameters)
+        }
+        return ""
+    }, [selectedVariant?.id])
 
     return (
-        <div className="w-full h-full self-stretch grow">
+        <div className="w-full h-full self-stretch grow" key={selectedVariant?.id}>
             <SharedEditor
                 readOnly
                 editorType="border"

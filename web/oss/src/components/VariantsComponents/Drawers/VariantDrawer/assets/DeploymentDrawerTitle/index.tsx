@@ -7,7 +7,7 @@ import {DeploymentDrawerTitleProps} from "../types"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import {useRouter} from "next/router"
 
-const DeploymentDrawerTitle = ({selectedVariant, onClose, revert}: DeploymentDrawerTitleProps) => {
+const DeploymentDrawerTitle = ({selectedVariant, onClose, revert, isLoading}: DeploymentDrawerTitleProps) => {
     const router = useRouter()
 
     return (
@@ -27,7 +27,7 @@ const DeploymentDrawerTitle = ({selectedVariant, onClose, revert}: DeploymentDra
             <Button
                 icon={<ArrowCounterClockwise size={16} />}
                 size="small"
-                disabled={revert?.isDisabled}
+                disabled={revert?.isDisabled || isLoading}
                 loading={revert?.isLoading}
                 onClick={revert?.onClick}
             >

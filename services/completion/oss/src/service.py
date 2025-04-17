@@ -54,8 +54,12 @@ async def generate(
         )
 
     response = await mockllm.acompletion(
+        **{
+            k: v
+            for k, v in config.prompt.format(**inputs).to_openai_kwargs().items()
+            if k != "model"
+        },
         **provider_settings,
-        **config.prompt.format(**inputs).to_openai_kwargs(),
     )
 
     message = response.choices[0].message

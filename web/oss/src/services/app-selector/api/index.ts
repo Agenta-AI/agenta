@@ -220,14 +220,14 @@ export const createAndStartTemplate = async ({
                     parameters,
                 },
             )
+
+            onStatusChange?.("success", "", app?.app_id)
         } catch (error: any) {
             if (error?.response?.status === 400) {
                 onStatusChange?.("bad_request", error)
                 return
             }
             throw error
-        } finally {
-            onStatusChange?.("success", "", app?.app_id)
         }
     } catch (error) {
         onStatusChange?.("error", error)

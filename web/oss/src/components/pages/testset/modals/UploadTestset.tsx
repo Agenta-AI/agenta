@@ -91,6 +91,15 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 mutate()
                 onCancel()
             } catch (e: any) {
+                console.log(e)
+
+                // IF e.response.data.detail is string then show it as error
+                if (typeof e?.response?.data?.detail === "string") {
+                    message.error(e.response.data.detail)
+                    return
+                }
+
+                // IF e.response.data.detail is array then check if it contains the string "csvdata"
                 if (
                     e?.response?.data?.detail?.find((item: GenericObject) =>
                         item?.loc?.includes("csvdata"),

@@ -23,7 +23,7 @@ const ConfigureProviderModal = ({selectedProvider, ...props}: ConfigureProviderM
     }
 
     useEffect(() => {
-        if (selectedProvider?.key) {
+        if (selectedProvider?.key !== undefined) {
             setKey(selectedProvider.key)
         }
     }, [selectedProvider])

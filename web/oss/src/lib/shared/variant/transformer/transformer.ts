@@ -57,12 +57,12 @@ export function transformToEnhancedVariant(
         // Normalize parameters structure to handle both ag_config and agConfig naming conventions
         if (variant.parameters) {
             if (variant.parameters.ag_config && !variant.parameters.agConfig) {
-                variant.parameters.agConfig = variant.parameters.ag_config;
+                variant.parameters.agConfig = variant.parameters.ag_config
             } else if (variant.parameters.agConfig && !variant.parameters.ag_config) {
-                variant.parameters.ag_config = variant.parameters.agConfig;
+                variant.parameters.ag_config = variant.parameters.agConfig
             }
         }
-        
+
         const path = constructPlaygroundTestUrl(
             variant.uriObject || {
                 routePath,
@@ -71,13 +71,14 @@ export function transformToEnhancedVariant(
             false,
         )
         const requestSchema =
-            openApiSpec.paths[`${path}`]?.post?.requestBody?.content?.["application/json"]?.schema
+            openApiSpec?.paths?.[`${path}`]?.post?.requestBody?.content?.["application/json"]
+                ?.schema
 
         if (!requestSchema || !("properties" in requestSchema)) {
-            throw new Error("Invalid OpenAPI schema 2")
+            console.error("Invalid OpenAPI schema 2")
         }
 
-        const agConfig = requestSchema.properties?.ag_config as AgentaConfigSchema
+        const agConfig = requestSchema?.properties?.ag_config as AgentaConfigSchema
 
         const properties = agConfig?.properties || {}
 
@@ -139,7 +140,7 @@ export function transformToEnhancedVariant(
 
         const isCustom =
             appType === "custom" || (customProperties && Object.keys(customProperties).length > 0)
-            
+
         return {
             ...variant,
             isChat,

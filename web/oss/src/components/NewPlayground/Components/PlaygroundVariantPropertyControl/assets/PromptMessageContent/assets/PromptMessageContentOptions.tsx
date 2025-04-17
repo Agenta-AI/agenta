@@ -27,7 +27,7 @@ const PromptMessageContentOptions = ({
 
         if (text) {
             setIsCopied(true)
-            navigator.clipboard.writeText(text?.value)
+            navigator.clipboard.writeText(text)
             setTimeout(() => {
                 setIsCopied(false)
             }, 1000)

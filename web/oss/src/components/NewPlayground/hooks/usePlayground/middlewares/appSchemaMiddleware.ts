@@ -86,6 +86,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             revisions: priorityRevisions,
                             spec,
                             uri,
+                            appStatus,
                         } = await fetchPriorityRevisions({
                             appId: config.appId || "",
                             appType: config.appType || "",
@@ -94,6 +95,8 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             fallbackToLatest: true,
                             logger: logger,
                         })
+
+                        state.appStatus = appStatus
 
                         logger(`Loaded ${priorityRevisions.length} priority revisions`)
 
@@ -173,6 +176,15 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                         if (remainingRevisions.length === 0) {
                                             logger(
                                                 `[BACKGROUND] No additional revisions found, skipping update`,
+                                            )
+                                            mutate<PlaygroundStateData, PlaygroundStateData>(
+                                                key,
+                                                (state) => {
+                                                    if (!state) return state
+                                                    const clonedState = structuredClone(state)
+                                                    clonedState.fetching = false
+                                                    return clonedState
+                                                },
                                             )
                                             return
                                         }

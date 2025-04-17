@@ -228,7 +228,11 @@ export async function fetchPriorityRevisions({
     uri: any
 }> {
     const fetchKey = `priority_${appId}}`
-
+    const returnData = {
+        revisions: [],
+        spec: null,
+        uri: null,
+    }
     try {
         // 1. Fetch variants and environments in parallel
         const [rawVariants, environments] = await Promise.all([
@@ -239,13 +243,18 @@ export async function fetchPriorityRevisions({
         // 2. Get URI information
         const uri = rawVariants[0].uri ? await findCustomWorkflowPath(rawVariants[0].uri) : null
         if (!uri) {
-            throw new Error("Failed to find URI path")
+            console.error("Failed to find URI path")
+            returnData.appStatus = false
+        } else {
+            returnData.uri = uri
+            returnData.appStatus = true
         }
 
         // 3. Fetch OpenAPI schema
-        const spec = (await fetchOpenApiSchemaJson(uri.runtimePrefix))?.schema
+        const spec = uri ? (await fetchOpenApiSchemaJson(uri.runtimePrefix))?.schema : null
         if (!spec) {
-            throw new Error("Failed to fetch OpenAPI schema")
+            console.error("Failed to fetch OpenAPI schema")
+            returnData.appStatus = false
         }
 
         // Skip if no variants or no revisions needed
@@ -318,11 +327,9 @@ export async function fetchPriorityRevisions({
         // End the fetch for this key when complete
         endFetch(fetchKey)
 
-        return {
-            revisions: processedRevisions,
-            spec,
-            uri,
-        }
+        returnData.revisions = processedRevisions
+        returnData.spec = spec
+        return returnData
     } catch (error) {
         endFetch(fetchKey)
         throw error
@@ -348,7 +355,7 @@ export const processVariantsCore = async ({
     onBeforeBatchProcessing = null,
     logger = console.log,
     fetchKey,
-    appType
+    appType,
 }: {
     rawVariants: any[]
     targetRevisions: any[]
@@ -361,7 +368,7 @@ export const processVariantsCore = async ({
     onBeforeBatchProcessing?: ((totalBatches: number) => void) | null
     logger?: (message?: any, ...optionalParams: any[]) => void
     fetchKey: string
-    appType?: string,
+    appType?: string
 }): Promise<{
     revisions: any[]
     spec: any

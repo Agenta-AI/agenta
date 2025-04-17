@@ -23,6 +23,8 @@ export interface VariantDrawerTitleProps {
     onClose: () => void
     variants: DrawerVariant[]
     isDirty: boolean
+    isLoading: boolean
+    selectedDrawerVariant?: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
 }
 
 export interface VariantDrawerContentProps {
@@ -37,4 +39,5 @@ export interface DeploymentDrawerTitleProps {
     selectedVariant: DrawerVariant
     onClose: () => void
     revert?: Revert
+    isLoading: boolean
 }
