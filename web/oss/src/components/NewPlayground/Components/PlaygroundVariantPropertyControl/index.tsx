@@ -30,6 +30,7 @@ const PlaygroundVariantPropertyControl = ({
     disabled,
     onChange,
     placeholder,
+    ...rest
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     componentLogger("PlaygroundVariantPropertyControl", variantId, propertyId)
 
@@ -140,6 +141,7 @@ const PlaygroundVariantPropertyControl = ({
             propertyId: baseProperty?.__id,
             variantId: variantId,
             baseProperty: baseProperty,
+            ...rest,
         })
     }
 

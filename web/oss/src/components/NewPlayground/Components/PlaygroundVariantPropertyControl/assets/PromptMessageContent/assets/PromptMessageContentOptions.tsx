@@ -16,9 +16,10 @@ const PromptMessageContentOptions = ({
     runnable,
     actions,
     disabled,
+    children,
 }: PromptMessageContentOptionsProps) => {
     const {propertyGetter} = usePlayground()
-    const {deleteMessage, rerunMessage} = actions || {}
+    const {deleteMessage, rerunMessage, executeEditorCommand} = actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 
@@ -59,6 +60,8 @@ const PromptMessageContentOptions = ({
                 disabled={isMessageDeletable}
                 tooltipProps={{title: "Remove"}}
             />
+
+            {children}
         </div>
     )
 }

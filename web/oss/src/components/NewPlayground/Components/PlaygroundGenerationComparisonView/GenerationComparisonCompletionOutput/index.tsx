@@ -50,6 +50,20 @@ const GenerationComparisonCompletionOutput = ({
     }, [resultHash])
 
     const responseData = result?.response?.data
+    const value =
+        typeof responseData === "string"
+            ? responseData
+            : typeof responseData === "object" && responseData.hasOwnProperty("content")
+              ? responseData.content
+              : ""
+
+    let isJSON = false
+    try {
+        JSON.parse(value)
+        isJSON = true
+    } catch (e) {
+        isJSON = false
+    }
 
     return (
         <>
@@ -58,6 +72,7 @@ const GenerationComparisonCompletionOutput = ({
                     className={clsx([
                         "border-0 border-b border-solid border-[rgba(5,23,41,0.06)] bg-white sticky left-0 z-[3] !w-[400px]",
                         {"border-r": variantIndex === 0},
+                        "shrink-0",
                     ])}
                 >
                     {variantIndex === 0 && (
@@ -94,14 +109,8 @@ const GenerationComparisonCompletionOutput = ({
                                     state="filled"
                                     readOnly
                                     disabled
-                                    className={clsx([
-                                        "!pt-0",
-                                        "!rounded-none",
-                                        {
-                                            "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
-                                                result?.error,
-                                        },
-                                    ])}
+                                    className={clsx(["!pt-0", "!rounded-none"])}
+                                    error={!!result.error}
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0 py-3"
                                     footer={
                                         <GenerationResultUtils className="mt-2" result={result} />
@@ -109,18 +118,15 @@ const GenerationComparisonCompletionOutput = ({
                                 />
                             ) : result.response ? (
                                 <SharedEditor
-                                    initialValue={
-                                        typeof responseData === "string"
-                                            ? responseData
-                                            : typeof responseData === "object" &&
-                                                responseData.hasOwnProperty("content")
-                                              ? responseData.content
-                                              : ""
-                                    }
+                                    initialValue={value}
                                     handleChange={handleChange}
                                     editorType="borderless"
                                     state="filled"
                                     readOnly
+                                    test
+                                    editorProps={{
+                                        codeOnly: isJSON,
+                                    }}
                                     disabled
                                     className="!rounded-none !px-4"
                                     editorClassName="min-h-4 [&_p:first-child]:!mt-0"

@@ -308,11 +308,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                     },
                                                 )
 
-                                                console.log(
-                                                    "Transformed to lightweight revisions",
-                                                    lightweightRevisions.length,
-                                                )
-
                                                 // Update availableRevisions with our properly transformed lightweight revisions
                                                 clonedState.availableRevisions =
                                                     lightweightRevisions

@@ -1,7 +1,8 @@
-import {DeploymentRevisionConfig} from "@/oss/lib/Types"
 import {Tabs} from "antd"
-import React from "react"
+
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {DeploymentRevisionConfig} from "@/oss/lib/Types"
+
 import HistoryConfig from "../../pages/overview/deployments/HistoryConfig"
 
 interface DeploymentDetailsProps {

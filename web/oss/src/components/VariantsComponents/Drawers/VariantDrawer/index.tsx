@@ -1,14 +1,16 @@
 import {useCallback, useEffect, useMemo} from "react"
-import dynamic from "next/dynamic"
 
-import type {VariantDrawerProps} from "./assets/types"
+import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
+
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
-import {useRouter} from "next/router"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {useAppId} from "@/oss/hooks/useAppId"
+
+import type {VariantDrawerProps} from "./assets/types"
 import {findVariantById} from "./utils"
 
 const VariantDrawerContent = dynamic(() => import("./assets/VariantDrawerContent"), {ssr: false})
@@ -78,17 +80,6 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
             },
             [routerRevisions, props.open, environments, variants],
         ),
-    })
-
-    console.log("playground-hook", {
-        selected,
-        selectedVariant,
-        setDisplayedVariants,
-        promptIds,
-        isDirty,
-        isLoading,
-        variants,
-        routerRevisions,
     })
 
     // Effect to mount revisions from URL when the component loads

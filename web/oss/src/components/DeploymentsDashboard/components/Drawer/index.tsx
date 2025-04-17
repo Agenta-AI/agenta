@@ -1,14 +1,17 @@
-import {JSSTheme} from "@/oss/lib/Types"
+import {ComponentProps, ReactNode, useState} from "react"
+
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Divider, Drawer, Space, Tag, Typography} from "antd"
-import React, {ReactNode, useState} from "react"
-import {createUseStyles} from "react-jss"
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import clsx from "clsx"
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {DeploymentRevisionWithVariant} from "../.."
+import {Button, Divider, Drawer, Space, Tag, Typography} from "antd"
+import clsx from "clsx"
 import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
+
+import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {JSSTheme} from "@/oss/lib/Types"
+
+import {DeploymentRevisionWithVariant} from "../.."
 import VariantDetailsRenderer from "../../assets/VariantDetailsRenderer"
 
 type DeploymentsDrawerProps = {
@@ -18,7 +21,7 @@ type DeploymentsDrawerProps = {
     initialWidth?: number
     mainContentClassName?: string
     selectedRevisionRow?: DeploymentRevisionWithVariant
-} & React.ComponentProps<typeof Drawer>
+} & ComponentProps<typeof Drawer>
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {

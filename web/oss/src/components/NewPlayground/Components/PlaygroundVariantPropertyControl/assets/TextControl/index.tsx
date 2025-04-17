@@ -20,6 +20,9 @@ const TextControl = ({
     view,
     disabled,
     placeholder,
+    isTool,
+    propertyId,
+    variantId,
     ...props
 }: TextControlProps) => {
     const {viewType} = usePlayground()

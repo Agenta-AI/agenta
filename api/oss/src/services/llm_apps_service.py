@@ -273,6 +273,8 @@ async def invoke_app(
                 "error", f"HTTP error {e.status}: {e.message}"
             )
             stacktrace = app_response.get("detail", {}).get(
+                "message"
+            ) or app_response.get("detail", {}).get(
                 "traceback", "".join(traceback.format_exception_only(type(e), e))
             )
             log.error(f"HTTP error occurred during request: {error_message}")

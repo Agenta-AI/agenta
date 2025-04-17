@@ -267,23 +267,28 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                 setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                             }
                         }
+
+                        updateEvaluationScenarioData(
+                            id,
+                            {
+                                outputs: Object.keys(outputs).map((key) => ({
+                                    variant_id: key,
+                                    variant_output: outputs[key as keyof typeof outputs],
+                                })),
+                                inputs: rows[rowIndex].inputs,
+                            },
+                            showNotification,
+                        )
                     } catch (err) {
                         console.error("Error running evaluation:", err)
-                        setRowValue(rowIndex, variant.variantId, "")
+                        setEvaluationStatus(EvaluationFlow.EVALUATION_FAILED)
+                        setRowValue(
+                            rowIndex,
+                            variant.variantId,
+                            err?.response?.data?.detail?.message || "Failed to run evaluation!",
+                        )
                     }
                 }),
-            )
-
-            updateEvaluationScenarioData(
-                id,
-                {
-                    outputs: Object.keys(outputs).map((key) => ({
-                        variant_id: key,
-                        variant_output: outputs[key as keyof typeof outputs],
-                    })),
-                    inputs: rows[rowIndex].inputs,
-                },
-                showNotification,
             )
         },
         [

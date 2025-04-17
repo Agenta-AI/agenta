@@ -1,7 +1,8 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {Input} from "antd"
 import clsx from "clsx"
+import {v4 as uuidv4} from "uuid"
 
 import EditorWrapper from "@/oss/components/Editor/Editor"
 import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
@@ -21,7 +22,13 @@ const SharedEditor = ({
     editorProps,
     className,
     autoFocus,
+    error,
     useAntdInput = false,
+    noProvider = false,
+    debug,
+    isTool,
+    baseProperty,
+    test = false,
     ...props
 }: SharedEditorProps) => {
     const [isEditorFocused, setIsEditorFocused] = useState(false)
@@ -40,11 +47,17 @@ const SharedEditor = ({
         [setLocalValue],
     )
 
+    const editorId = useMemo(() => {
+        return `${uuidv4()}-${editorProps?.codeOnly ? "code" : "text"}`
+    }, [editorProps?.codeOnly])
+
     return (
         <div
             className={clsx(
+                "agenta-shared-editor",
                 "w-full flex flex-col items-start relative group/item transition-all duration-300 ease-in-out border border-solid rounded-lg",
                 "[&_.agenta-rich-text-editor]:w-full",
+                "[&_.agenta-editor-wrapper]:w-full",
                 "p-[11px]",
                 {
                     "border-[#BDC7D1]": editorType === "border",
@@ -62,6 +75,12 @@ const SharedEditor = ({
                     "hover:border-[transparent] focus:border-[transparent]":
                         state === "filled" && editorType === "borderless",
                 },
+                {
+                    "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red]":
+                        error,
+                    "pt-0 [&_.editor-code]:!pr-2 [&_.editor-code]:!bg-[transparent] [&_.editor-code]:!m-0 [&_.editor-code]:!pt-2 [&_.editor-code]:!pb-1 [&_.agenta-editor-wrapper]:!-ml-[12px] [&_.agenta-editor-wrapper]:!w-[calc(100%+24px)] [&_.agenta-editor-wrapper]:mb-1 overflow-hidden":
+                        editorProps?.codeOnly,
+                },
                 isEditorFocused && "!border-[#BDC7D1]",
                 className,
             )}
@@ -78,23 +97,27 @@ const SharedEditor = ({
                     onChange={(value) => handleLocalValueChange(value.target.value)}
                     className={clsx("!bg-transparent", "!text-inherit", editorClassName)}
                     disabled={disabled}
+                    {...editorProps}
                 />
-            ) : (
+            ) : true ? (
                 <EditorWrapper
                     placeholder={placeholder}
                     showToolbar={false}
-                    enableTokens
+                    enableTokens={!editorProps?.codeOnly}
                     initialValue={localValue}
                     className={editorClassName}
-                    onChange={(value) => {
+                    onChange={(value: any) => {
                         handleLocalValueChange(value.textContent)
                     }}
+                    debug={debug}
                     autoFocus={autoFocus}
                     disabled={disabled}
                     showBorder={false}
+                    key={editorId}
+                    id={editorId}
                     {...editorProps}
                 />
-            )}
+            ) : null}
 
             {footer}
         </div>

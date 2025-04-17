@@ -24,7 +24,7 @@ export interface PlaygroundVariantPropertyControlProps extends BaseContainerProp
     /** Unique identifier for the property */
     propertyId: string
     /** Optional rendering variant for the control */
-    as?: "SimpleDropdownSelect" | "PromptMessageContent"
+    as?: "SimpleDropdownSelect" | "PromptMessageContent" | "SimpleInput"
     view?: string
     withTooltip?: boolean
     placeholder?: string

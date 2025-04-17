@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {ReactNode, useEffect, useState} from "react"
+import {type FC, type ChangeEvent, ReactNode, useEffect, useState} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {Button, Input, Typography, message} from "antd"
@@ -8,6 +8,7 @@ import {AxiosResponse} from "axios"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import {useProjectData} from "@/oss/contexts/project.context"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import useStateCallback from "@/oss/hooks/useStateCallback"
@@ -17,7 +18,6 @@ import {GenericObject, KeyValuePair} from "@/oss/lib/Types"
 import {fetchTestset, updateTestset} from "@/oss/services/testsets/api"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {useProjectData} from "@/oss/contexts/project.context"
 
 import EditRowModal from "./EditRowModal"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
@@ -72,7 +72,7 @@ const useStylesTestset = createUseStyles({
     },
 })
 
-const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
+const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     const [messageApi, contextHolder] = message.useMessage()
 
     const mssgModal = (type: NoticeType, content: ReactNode) => {
@@ -273,7 +273,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         }
     }
 
-    const handleTestsetNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleTestsetNameChange = (e: ChangeEvent<HTMLInputElement>) => {
         setTestsetName(e.target.value)
         setIsDataChanged(true)
     }

@@ -1,4 +1,9 @@
 // @ts-nocheck
+import {useEffect, useMemo, useState} from "react"
+
+import {Flex, Spin, Typography} from "antd"
+import {createUseStyles} from "react-jss"
+
 import DeploymentCard from "@/oss/components/DeploymentCard"
 import DeploymentsDashboard from "@/oss/components/DeploymentsDashboard"
 import {useAppsData} from "@/oss/contexts/app.context"
@@ -9,9 +14,6 @@ import {JSSTheme} from "@/oss/lib/Types"
 import {DeploymentRevisions} from "@/oss/lib/types_ee"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {fetchAllDeploymentRevisions} from "@/oss/services/deploymentVersioning/api"
-import {Flex, Spin, Typography} from "antd"
-import React, {useEffect, useMemo, useState} from "react"
-import {createUseStyles} from "react-jss"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {

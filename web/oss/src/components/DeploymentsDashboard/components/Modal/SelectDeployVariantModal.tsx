@@ -1,20 +1,22 @@
-import {JSSTheme} from "@/oss/lib/Types"
+import {ComponentProps, Dispatch, Key, SetStateAction, useMemo, useState} from "react"
+
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Input, Modal, Typography} from "antd"
-import React, {Key, useMemo, useState} from "react"
 import {createUseStyles} from "react-jss"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import VariantsTable from "@/oss/components/VariantsComponents/Table"
-import {DeploymentRevisions} from "@/oss/lib/Types"
+
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import VariantsTable from "@/oss/components/VariantsComponents/Table"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {DeploymentRevisions} from "@/oss/lib/Types"
+import {JSSTheme} from "@/oss/lib/Types"
 
 type SelectDeployVariantModalProps = {
     variants: EnhancedVariant[]
     envRevisions: DeploymentRevisions | undefined
-    setIsDeployVariantModalOpen: React.Dispatch<React.SetStateAction<boolean>>
-    setSelectedRowKeys: React.Dispatch<React.SetStateAction<Key[]>>
+    setIsDeployVariantModalOpen: Dispatch<SetStateAction<boolean>>
+    setSelectedRowKeys: Dispatch<SetStateAction<Key[]>>
     selectedRowKeys: Key[]
-} & React.ComponentProps<typeof Modal>
+} & ComponentProps<typeof Modal>
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {

@@ -10,8 +10,8 @@ import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modal
 import {useAppsData} from "@/oss/contexts/app.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import {fetchAndProcessRevisions} from "@/oss/lib/shared/variant"
+import {detectChatVariantFromOpenAISchema} from "@/oss/lib/shared/variant/genericTransformer"
 
-import {detectChatVariantFromOpenAISchema} from "../../../../lib/shared/variant/genericTransformer"
 import usePlayground from "../../hooks/usePlayground"
 import {
     initializeGenerationInputs,
