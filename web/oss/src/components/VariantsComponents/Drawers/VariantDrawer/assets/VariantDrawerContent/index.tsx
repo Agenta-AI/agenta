@@ -1,19 +1,20 @@
-import {useMemo} from "react"
+import {ComponentProps, useMemo} from "react"
 
+import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Tabs, Tag, Typography} from "antd"
 import clsx from "clsx"
+import {useRouter} from "next/router"
 
-import PlaygroundVariantConfigPrompt from "@/oss/components/NewPlayground/Components/PlaygroundVariantConfigPrompt"
 import Avatar from "@/oss/components/Avatar/Avatar"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-
-import {VariantDrawerContentProps} from "../types"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {ArrowSquareOut} from "@phosphor-icons/react"
-import {NewVariantParametersView, VariantParametersView} from "../Parameters"
+import PlaygroundVariantConfigPrompt from "@/oss/components/NewPlayground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/NewPlayground/Components/PlaygroundVariantCustomProperties"
-import {useRouter} from "next/router"
+import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
+
+import {NewVariantParametersView, VariantParametersView} from "../Parameters"
+import {VariantDrawerContentProps} from "../types"
 
 const {Text} = Typography
 
@@ -26,6 +27,14 @@ const VariantDrawerContent = ({
 }: VariantDrawerContentProps) => {
     const router = useRouter()
     const appId = useAppId()
+
+    const {appStatus} = usePlayground({
+        stateSelector: (state) => {
+            return {
+                appStatus: state.appStatus,
+            }
+        },
+    })
 
     const deployedIn = useMemo(() => {
         if (type !== "variant") return []
@@ -42,28 +51,30 @@ const VariantDrawerContent = ({
 
     const tabItems = useMemo(() => {
         return [
-            {
-                key: type === "variant" ? "overview" : "variant",
-                label: type === "variant" ? "Overview" : "Variant",
-                className: "w-full h-full flex flex-col px-4",
-                children: (
-                    <>
-                        {(promptIds || [])?.map((promptId: string) => (
-                            <PlaygroundVariantConfigPrompt
-                                key={promptId}
-                                promptId={promptId}
-                                variantId={selectedVariant?.id}
-                                className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
-                            />
-                        ))}
+            appStatus
+                ? {
+                      key: type === "variant" ? "overview" : "variant",
+                      label: type === "variant" ? "Overview" : "Variant",
+                      className: "w-full h-full flex flex-col px-4",
+                      children: (
+                          <>
+                              {(promptIds || [])?.map((promptId: string) => (
+                                  <PlaygroundVariantConfigPrompt
+                                      key={promptId}
+                                      promptId={promptId}
+                                      variantId={selectedVariant?.id}
+                                      className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
+                                  />
+                              ))}
 
-                        <PlaygroundVariantCustomProperties
-                            variantId={selectedVariant?.id}
-                            initialOpen={promptIds?.length === 0}
-                        />
-                    </>
-                ),
-            },
+                              <PlaygroundVariantCustomProperties
+                                  variantId={selectedVariant?.id}
+                                  initialOpen={promptIds?.length === 0}
+                              />
+                          </>
+                      ),
+                  }
+                : undefined,
             {
                 key: "json",
                 label: "JSON",
@@ -75,7 +86,7 @@ const VariantDrawerContent = ({
                     <VariantParametersView selectedVariant={selectedVariant} />
                 ),
             },
-        ]
+        ].filter(Boolean) as ComponentProps<typeof Tabs>["items"]
     }, [selectedVariant, promptIds, type])
 
     if (isLoading) {

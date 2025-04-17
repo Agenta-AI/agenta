@@ -63,7 +63,7 @@ const Settings: React.FC = () => {
             label: (
                 <Space>
                     <Sparkle size={14} className="mt-1" />
-                    LLM Keys
+                    Model Hub
                 </Space>
             ),
             key: "secrets",

@@ -9,6 +9,7 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {findVariantById} from "./utils"
 
 const VariantDrawerContent = dynamic(() => import("./assets/VariantDrawerContent"), {ssr: false})
 const VariantDrawerTitle = dynamic(() => import("./assets/VariantDrawerTitle"), {ssr: false})
@@ -16,9 +17,16 @@ const DeploymentDrawerTitle = dynamic(() => import("./assets/DeploymentDrawerTit
 
 const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) => {
     const appId = useAppId()
-    const [_, setQueryVariant] = useQueryParam("revisions")
+    const [queryVariant, setQueryVariant] = useQueryParam("revisions")
     const router = useRouter()
     const {environments} = useEnvironments({appId})
+
+    const selectedDrawerVariant = useMemo(() => {
+        if (!queryVariant) return undefined
+
+        const targetId = JSON.parse(queryVariant)[0] as string
+        return findVariantById(variants ?? [], targetId)
+    }, [queryVariant, variants])
 
     const onClose = useCallback(() => {
         props.onClose?.({} as any)
@@ -32,7 +40,7 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
             if (typeof router.query.revisions === "string") {
                 const listOfRevisions = JSON.parse(router.query.revisions)
 
-                if (variants[0]?.revisions && variants[0]?.revisions?.length > 0) {
+                if (selectedDrawerVariant && !selectedDrawerVariant._parentVariant) {
                     return [
                         variants?.find((v) => listOfRevisions.includes(v.id))?.revisions?.[0]
                             ?._revisionId,
@@ -100,18 +108,21 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
                 onClose={onClose}
                 classNames={{body: "!p-0"}}
                 title={
-                    isLoading === undefined || isLoading ? null : type === "variant" ? (
+                    type === "variant" ? (
                         <VariantDrawerTitle
                             selectedVariant={selectedVariant}
                             onClose={onClose}
                             variants={variants || []}
                             isDirty={isDirty}
+                            selectedDrawerVariant={selectedDrawerVariant}
+                            isLoading={isLoading === undefined || isLoading}
                         />
                     ) : (
                         <DeploymentDrawerTitle
                             selectedVariant={selectedVariant}
                             onClose={onClose}
                             revert={revert}
+                            isLoading={isLoading === undefined || isLoading}
                         />
                     )
                 }

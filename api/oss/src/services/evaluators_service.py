@@ -217,7 +217,7 @@ async def auto_regex_test(
             )
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -253,21 +253,24 @@ async def auto_field_match_test(
             input=EvaluatorInputInterface(**{"inputs": inputs})
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except ValueError as e:
+    except Exception:
         return Result(
-            type="error",
-            value=None,
+            type="bool",
+            value=False,
             error=Error(
-                message=str(e),
+                message="Could not parse output as JSON",
+                stacktrace=str(traceback.format_exc()),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
-        return Result(type="bool", value=False)
 
 
 async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    prediction_json = json.loads(input.inputs["prediction"])
-    result = prediction_json == input.inputs["ground_truth"]
+    try:
+        prediction_json = json.loads(input.inputs["prediction"])
+        ground_truth_json = json.loads(input.inputs["ground_truth"])
+        result = prediction_json == ground_truth_json
+    except ValueError:
+        result = False
     return {"outputs": {"success": result}}
 
 

@@ -47,10 +47,20 @@ export function transformToRequestBody({
     const customConfigs =
         (extractValueByMetadata(variant.customProperties, allMetadata) as Record<string, any>) || {}
 
-    data.ag_config = {
+    let ag_config = {
         ...promptConfigs,
         ...customConfigs,
     }
+
+    // Fallback: if ag_config is empty, 
+    // but variant.parameters exists, use that
+    if (
+        Object.keys(ag_config).length === 0 && variant.parameters
+    ) {
+        ag_config = variant.parameters.ag_config || variant.parameters.agConfig || {}
+    }
+
+    data.ag_config = ag_config
 
     if (inputRow) {
         if (!variant.isCustom) {

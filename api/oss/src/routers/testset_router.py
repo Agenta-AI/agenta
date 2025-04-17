@@ -41,6 +41,38 @@ log = get_module_logger(__file__)
 
 upload_folder = "./path/to/upload/folder"
 
+TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
+TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
+
+TESTSETS_COUNT_WARNING = f"Test set exceeds the maximum count of {TESTSETS_COUNT_LIMIT} test cases per test set."
+TESTSETS_SIZE_WARNING = f"Test set exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per test set."
+
+TESTSETS_SIZE_EXCEPTION = HTTPException(
+    status_code=400,
+    detail=TESTSETS_SIZE_WARNING,
+)
+
+TESTSETS_COUNT_EXCEPTION = HTTPException(
+    status_code=400,
+    detail=TESTSETS_COUNT_WARNING,
+)
+
+
+def _validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
+    total_size = 2
+    for i, row in enumerate(rows):
+        row_str = json.dumps(row)
+        total_size += len(row_str.encode("utf-8"))
+        if i > 0:
+            total_size += 1
+        if i + 1 > TESTSETS_COUNT_LIMIT:
+            log.error(TESTSETS_COUNT_WARNING)
+            raise TESTSETS_COUNT_EXCEPTION
+        if total_size > TESTSETS_SIZE_LIMIT:
+            log.error(TESTSETS_SIZE_WARNING)
+            raise TESTSETS_SIZE_EXCEPTION
+    return i + 1, total_size
+
 
 @router.post(
     "/upload/", response_model=TestSetSimpleResponse, operation_id="upload_file"
@@ -77,6 +109,9 @@ async def upload_file(
                 status_code=403,
             )
 
+    if file.size > TESTSETS_SIZE_LIMIT:  # Preemptively check file size
+        raise TESTSETS_SIZE_EXCEPTION
+
     # Create a document
     document = {
         "name": testset_name if testset_name else file.filename,
@@ -90,7 +125,7 @@ async def upload_file(
         json_object = json.loads(json_text)
 
         # Populate the document with column names and values
-        for row in json_object:
+        for i, row in enumerate(json_object):
             document["csvdata"].append(row)
 
     else:
@@ -103,8 +138,10 @@ async def upload_file(
         csv_reader = csv.DictReader(csv_file_like_object)
 
         # Populate the document with rows from the CSV reader
-        for row in csv_reader:
+        for i, row in enumerate(csv_reader):
             document["csvdata"].append(row)
+
+    _validate_testset_limits(document["csvdata"])
 
     try:
         testset = await db_manager.create_testset(
@@ -173,6 +210,9 @@ async def import_testset(
 
         # Populate the document with column names and values
         json_response = response.json()
+
+        _validate_testset_limits(json_response)
+
         for row in json_response:
             document["csvdata"].append(row)
 
@@ -231,6 +271,8 @@ async def create_testset(
                 status_code=403,
             )
 
+    _validate_testset_limits(csvdata.csvdata)
+
     testset_data = {
         "name": csvdata.name,
         "csvdata": csvdata.csvdata,
@@ -281,6 +323,8 @@ async def update_testset(
                 {"detail": error_msg},
                 status_code=403,
             )
+
+    _validate_testset_limits(csvdata.csvdata)
 
     testset_update = {
         "name": csvdata.name,

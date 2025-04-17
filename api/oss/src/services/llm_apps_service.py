@@ -408,9 +408,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[
-        InvokationResult
-    ] = []  # Outputs after running all batches
+    list_of_app_outputs: List[InvokationResult] = (
+        []
+    )  # Outputs after running all batches
 
     project = await get_project_by_id(
         project_id=project_id,
@@ -440,7 +440,7 @@ async def batch_invoke(
                 route_path,
                 headers,
             )
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-exception-caught
             openapi_parameters = None
 
         if not openapi_parameters:
@@ -448,20 +448,21 @@ async def batch_invoke(
             if not runtime_prefix.endswith("/"):
                 route_path = "/" + runtime_prefix.split("/")[-1] + route_path
                 runtime_prefix = "/".join(runtime_prefix.split("/")[:-1])
-
             else:
                 route_path = ""
                 runtime_prefix = runtime_prefix[:-1]
 
+    # Final attempt to fetch OpenAPI parameters
     openapi_parameters = await get_parameters_from_openapi(
         runtime_prefix + "/openapi.json",
         route_path,
         headers,
     )
 
-    async def run_batch(start_idx: int):
+    # 🆕 Rewritten loop instead of recursion
+    for start_idx in range(0, len(testset_data), batch_size):
+        print(f"Preparing batch starting at index {start_idx}...")
         tasks = []
-        print(f"Preparing {start_idx} batch...")
 
         end_idx = min(start_idx + batch_size, len(testset_data))
         for index in range(start_idx, end_idx):
@@ -480,21 +481,15 @@ async def batch_invoke(
             )
             tasks.append(task)
 
-        # Gather results of all tasks
         results = await asyncio.gather(*tasks)
 
         for result in results:
             list_of_app_outputs.append(result)
-            print(f"Adding outputs to batch {start_idx}")
+            print(f"Added output for testset index {start_idx}")
 
-        # Schedule the next batch with a delay
-        next_batch_start_idx = end_idx
-        if next_batch_start_idx < len(testset_data):
+        # Delay between batches if more to come
+        if end_idx < len(testset_data):
             await asyncio.sleep(delay_between_batches)
-            await run_batch(next_batch_start_idx)
-
-    # Start the first batch
-    await run_batch(0)
 
     return list_of_app_outputs
 

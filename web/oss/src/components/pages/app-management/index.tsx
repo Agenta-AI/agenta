@@ -224,6 +224,10 @@ const AppManagement: React.FC = () => {
                 }}
                 handleTemplateCardClick={handleTemplateCardClick}
                 fetchingTemplate={fetchingTemplate}
+                afterClose={() => {
+                    setTemplateKey(undefined)
+                    setNewApp("")
+                }}
             />
 
             <MaxAppModal

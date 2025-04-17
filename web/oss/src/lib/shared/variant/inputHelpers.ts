@@ -12,15 +12,15 @@ import {OpenAPISpec} from "./types/openapi"
 
 export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") => {
     const requestSchema =
-        spec.paths[
+        spec?.paths?.[
             `${constructPlaygroundTestUrl({
                 routePath,
             })}`
         ]?.post?.requestBody?.content?.["application/json"]?.schema
     if (!requestSchema || !("properties" in requestSchema)) {
-        throw new Error("Invalid OpenAPI schema")
+        console.error("Invalid OpenAPI schema")
     }
-    const expectedProperties = requestSchema.properties || {}
+    const expectedProperties = requestSchema?.properties || {}
     const expectedPropertyKeys = Object.keys(expectedProperties).filter(
         (key) => !["ag_config", "messages"].includes(key),
     )

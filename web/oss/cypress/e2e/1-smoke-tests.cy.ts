@@ -12,7 +12,7 @@ describe("Basic smoke tests to see if app has loaded correctly", () => {
         cy.clickLinkAndWait('[data-cy="settings-link"]')
         cy.location("pathname").should("include", "/settings")
         cy.get('[data-cy="secrets"]').within(() => {
-            cy.contains("LLM Keys")
+            cy.contains("Model Hub")
         })
     })
 })

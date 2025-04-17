@@ -63,8 +63,10 @@ async def generate(
         )
 
     response = await mockllm.acompletion(
+        **{
+            k: v for k, v in openai_kwargs.items() if k != "model"
+        },  # we should use the model_name from provider_settings
         **provider_settings,
-        **openai_kwargs,
     )
 
     return response.choices[0].message.model_dump(exclude_none=True)

@@ -132,10 +132,6 @@ export const transformVariant = (
     schema: OpenAPISpec,
     appType?: string,
 ) => {
-    // @ts-ignore
-    if (!schema) {
-        return variant
-    }
     try {
         const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
         // Update prompt keys and initialize inputs

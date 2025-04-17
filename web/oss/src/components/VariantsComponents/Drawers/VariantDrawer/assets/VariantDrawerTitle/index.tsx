@@ -1,63 +1,120 @@
 import {memo, useCallback, useMemo} from "react"
+
 import {CloseOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
-
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-
 import {useRouter} from "next/router"
 
-import {VariantDrawerTitleProps} from "../types"
-import {useAppId} from "@/oss/hooks/useAppId"
-import DeployVariantButton from "@/oss/components/NewPlayground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {useQueryParam} from "@/oss/hooks/useQuery"
 import CommitVariantChangesButton from "@/oss/components/NewPlayground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
+import DeployVariantButton from "@/oss/components/NewPlayground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
+import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppsData} from "@/oss/contexts/app.context"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
+
+import {VariantDrawerTitleProps} from "../types"
 
 const VariantDrawerTitle = ({
     selectedVariant,
     onClose,
     variants,
     isDirty,
+    selectedDrawerVariant,
+    isLoading,
 }: VariantDrawerTitleProps) => {
+    const {appStatus} = usePlayground({
+        stateSelector: (state) => ({
+            appStatus: state.appStatus,
+        }),
+    })
     const appId = useAppId()
     const router = useRouter()
     const {currentApp} = useAppsData()
     // @ts-ignore
     const {mutate: fetchAllVariants} = useVariants(currentApp)({appId})
     const [_, setQueryVariant] = useQueryParam("revisions")
+    const [displayMode] = useQueryParam("displayMode")
+
+    const selectedParent = useMemo(
+        () => variants.find((v) => v.id === selectedVariant?._parentVariant.id),
+        [variants, selectedVariant],
+    )
 
     const selectedVariantIndex = useMemo(() => {
-        let index
-
-        if (variants[0]?.revisions && variants[0]?.revisions.length > 0) {
-            index = variants?.findIndex((v) => v.id === selectedVariant?._parentVariant.id)
-        } else {
-            index = variants?.findIndex((v) => v.id === selectedVariant?.id)
+        if (selectedDrawerVariant && !selectedDrawerVariant._parentVariant) {
+            return variants?.findIndex((v) => v.id === selectedVariant?._parentVariant?.id)
         }
-        return index
-    }, [selectedVariant, variants])
+        if (displayMode && displayMode !== "flat") {
+            if (selectedParent) {
+                return selectedParent.revisions?.findIndex((r) => r.id === selectedVariant?.id)
+            }
+            return variants?.findIndex((v) => v.id === selectedVariant?.id)
+        }
+        return variants?.findIndex((v) => v.id === selectedVariant?.id)
+    }, [selectedVariant, variants, selectedDrawerVariant, selectedParent, displayMode])
 
     const loadPrevVariant = useCallback(() => {
-        if (selectedVariantIndex > 0) {
-            setQueryVariant(JSON.stringify([variants[selectedVariantIndex - 1].id]))
+        if (selectedVariantIndex === undefined || selectedVariantIndex <= 0) return
+        if (displayMode && displayMode !== "flat") {
+            if (selectedDrawerVariant && selectedDrawerVariant._parentVariant) {
+                setQueryVariant(
+                    JSON.stringify([selectedParent?.revisions?.[selectedVariantIndex - 1]?.id]),
+                )
+            } else {
+                setQueryVariant(JSON.stringify([variants?.[selectedVariantIndex - 1]?.id]))
+            }
+        } else {
+            setQueryVariant(JSON.stringify([variants?.[selectedVariantIndex - 1]?.id]))
         }
-    }, [selectedVariant, variants])
+    }, [
+        selectedVariantIndex,
+        displayMode,
+        selectedDrawerVariant,
+        selectedParent,
+        variants,
+        setQueryVariant,
+    ])
 
     const loadNextVariant = useCallback(() => {
-        if (selectedVariantIndex < variants?.length - 1) {
-            setQueryVariant(JSON.stringify([variants[selectedVariantIndex + 1].id]))
+        if (selectedVariantIndex === undefined) return
+        if (displayMode && displayMode !== "flat") {
+            if (selectedDrawerVariant && selectedDrawerVariant._parentVariant) {
+                if (
+                    selectedParent?.revisions &&
+                    selectedVariantIndex < selectedParent.revisions.length - 1
+                ) {
+                    setQueryVariant(
+                        JSON.stringify([selectedParent.revisions[selectedVariantIndex + 1]?.id]),
+                    )
+                }
+            } else if (selectedVariantIndex < (variants?.length ?? 0) - 1) {
+                setQueryVariant(JSON.stringify([variants[selectedVariantIndex + 1]?.id]))
+            }
+        } else if (selectedVariantIndex < (variants?.length ?? 0) - 1) {
+            setQueryVariant(JSON.stringify([variants[selectedVariantIndex + 1]?.id]))
         }
-    }, [selectedVariant, variants])
+    }, [
+        selectedVariantIndex,
+        displayMode,
+        selectedDrawerVariant,
+        selectedParent,
+        variants,
+        setQueryVariant,
+    ])
 
     const isDisableNext = useMemo(() => {
-        return selectedVariantIndex === variants?.length - 1
-    }, [selectedVariantIndex, variants])
+        if (displayMode && displayMode !== "flat") {
+            if (selectedDrawerVariant && selectedDrawerVariant._parentVariant) {
+                return selectedVariantIndex === (selectedParent?.revisions?.length ?? 0) - 1
+            }
+            return selectedVariantIndex === (variants?.length ?? 0) - 1
+        }
+        return selectedVariantIndex === (variants?.length ?? 0) - 1
+    }, [selectedVariantIndex, variants, selectedParent, selectedDrawerVariant, displayMode])
 
-    const isDisablePrev = useMemo(() => {
-        return selectedVariantIndex === 0
-    }, [selectedVariantIndex])
+    const isDisablePrev = useMemo(() => selectedVariantIndex === 0, [selectedVariantIndex])
 
     return (
         <section className="flex items-center justify-between">
@@ -71,14 +128,14 @@ const VariantDrawerTitle = ({
                             size="small"
                             type="text"
                             onClick={loadPrevVariant}
-                            disabled={isDisablePrev}
+                            disabled={isDisablePrev || isLoading}
                         />
                         <Button
                             icon={<CaretDown size={16} />}
                             size="small"
                             type="text"
                             onClick={loadNextVariant}
-                            disabled={isDisableNext}
+                            disabled={isDisableNext || isLoading}
                         />
                     </div>
 
@@ -94,6 +151,7 @@ const VariantDrawerTitle = ({
                 <Button
                     className="flex items-center gap-2"
                     size="small"
+                    disabled={!appStatus || isLoading}
                     onClick={() => {
                         router.push({
                             pathname: `/apps/${appId}/playground`,
@@ -119,6 +177,7 @@ const VariantDrawerTitle = ({
                             : undefined
                     }
                     revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
+                    disabled={isLoading}
                 />
 
                 <CommitVariantChangesButton
@@ -126,7 +185,7 @@ const VariantDrawerTitle = ({
                     label="Commit"
                     type="default"
                     size="small"
-                    disabled={!isDirty}
+                    disabled={!isDirty || isLoading}
                     onSuccess={({revisionId, variantId}) => {
                         fetchAllVariants()
 
