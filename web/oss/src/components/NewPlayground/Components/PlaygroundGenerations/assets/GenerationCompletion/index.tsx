@@ -4,15 +4,12 @@ import clsx from "clsx"
 
 import AddButton from "@/oss/components/NewPlayground/assets/AddButton"
 import {componentLogger} from "@/oss/components/NewPlayground/assets/utilities/componentLogger"
-import type {
-    ArrayMetadata,
-    ObjectMetadata,
-} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {findPropertyInObject} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
-import {createInputRow} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/inputHelpers"
 import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/oss/components/NewPlayground/state"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {ArrayMetadata, ObjectMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {createInputRow} from "@/oss/lib/shared/variant/inputHelpers"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"
 
@@ -86,7 +83,7 @@ const GenerationCompletion = ({
             {withControls ? (
                 <div
                     className={clsx([
-                        "flex items-center gap-2 mx-4 mt-2",
+                        "flex items-center gap-2 mx-4 mt-2 -mb-10",
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >

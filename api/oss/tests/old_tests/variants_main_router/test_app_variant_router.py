@@ -1,12 +1,12 @@
 import os
 import httpx
-import random
 import pytest
-import logging
+
 from bson import ObjectId
 
 from sqlalchemy.future import select
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.routers import app_router
 from oss.src.services import db_manager
 from oss.src.models.shared_models import ConfigDB
@@ -28,8 +28,7 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 # Generate a new ObjectId
 new_object_id = ObjectId()
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")

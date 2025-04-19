@@ -1,7 +1,10 @@
-import {Variant} from "@/oss/lib/Types"
 import {Dispatch, SetStateAction} from "react"
-import {KeyedMutator} from "swr"
+
 import {Modal} from "antd"
+import {KeyedMutator} from "swr"
+
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {Variant} from "@/oss/lib/Types"
 
 export type CustomWorkflowModalProps = {
     customWorkflowAppValues: {
@@ -18,7 +21,7 @@ export type CustomWorkflowModalProps = {
     >
     handleCreateApp: () => void
     configureWorkflow?: boolean
-    variants?: any[]
+    variants?: EnhancedVariant[]
     allVariantsDataMutate?: KeyedMutator<Variant[]>
     mutate: () => Promise<any>
     appNameExist?: boolean

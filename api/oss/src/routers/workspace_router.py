@@ -1,9 +1,9 @@
-import logging
 from typing import List, Dict
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace
@@ -14,11 +14,17 @@ if is_ee():
     from ee.src.services.selectors import get_user_org_and_workspace_id
     from ee.src.services import db_manager_ee, workspace_manager, converters
 
+    from ee.src.utils.entitlements import (
+        check_entitlements,
+        Tracker,
+        Gauge,
+        NOT_ENTITLED_RESPONSE,
+    )
 
-# initialize api router and logger
+
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 
 @router.get("/", operation_id="get_workspace", response_model=List[Workspace])
@@ -121,6 +127,12 @@ async def remove_user_from_workspace(
                     "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
                 },
             )
+
+        check, _, _ = await check_entitlements(
+            organization_id=request.state.organization_id,
+            key=Gauge.USERS,
+            delta=-1,
+        )
 
         delete_user_from_workspace = await workspace_manager.remove_user_from_workspace(
             workspace_id, email

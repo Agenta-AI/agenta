@@ -1,9 +1,9 @@
 import {Drawer} from "antd"
-import React from "react"
-import {CustomWorkflowHistoryProps} from "./types"
+import clsx from "clsx"
+
 import ConfigurationTable from "./components/ConfigurationTable"
 import ConfigurationView from "./components/ConfigurationView"
-import clsx from "clsx"
+import {CustomWorkflowHistoryProps} from "./types"
 
 const CustomWorkflowHistory = ({...props}: CustomWorkflowHistoryProps) => {
     return (

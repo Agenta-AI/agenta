@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Modal} from "antd"
 import {useAtom} from "jotai"
@@ -17,6 +17,7 @@ import {fetchTestsets} from "@/oss/services/testsets/api"
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import Evaluators from "./Evaluators"
 import NewEvaluator from "./NewEvaluator"
+import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 
 type EvaluatorsModalProps = {
     current: number
@@ -85,9 +86,11 @@ const EvaluatorsModal = ({
 
     const {data} = useVariants(currentApp)({appId})
 
+    const variants = useMemo(() => groupVariantsByParent(data?.variants, true), [data?.variants])
+
     useEffect(() => {
-        if (data?.variants?.length) {
-            setSelectedVariant(data?.variants[0].variant)
+        if (variants?.length) {
+            setSelectedVariant(variants[0])
         }
     }, [data])
 
@@ -148,7 +151,7 @@ const EvaluatorsModal = ({
                         setCloneConfig(false)
                         setEditEvalEditValues(null)
                     }}
-                    variants={data?.variants || []}
+                    variants={variants || []}
                     testsets={testsets}
                     onSuccess={() => {
                         evalConfigFetcher()

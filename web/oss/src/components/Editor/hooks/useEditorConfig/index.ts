@@ -32,17 +32,26 @@ const useEditorConfig = ({
 
             if (codeOnly) {
                 const initialNodesPromises = await Promise.all([
-                    import("../../plugins/code/CodeNode/CodeNode"),
-                    import("../../plugins/code/CodeNode/CodeHighlightNode"),
-                    import("../../plugins/code/CodeNode/CodeLineNode"),
+                    import("../../plugins/code/nodes/CodeBlockNode"),
+                    import("../../plugins/code/nodes/CodeHighlightNode"),
+                    import("../../plugins/code/nodes/CodeLineNode"),
+                    import("../../plugins/code/nodes/CodeBlockErrorIndicatorNode"),
                 ])
 
                 initialNodes.push(
                     ...[
-                        initialNodesPromises[0].CodeNode,
+                        initialNodesPromises[0].CodeBlockNode,
                         initialNodesPromises[1].CodeHighlightNode,
                         initialNodesPromises[2].CodeLineNode,
+                        initialNodesPromises[3].CodeBlockErrorIndicatorNode,
                     ],
+                )
+            } else {
+                const codeNodePromises = await Promise.all([import("@lexical/code")])
+                // @ts-ignore
+                initialNodes.push(
+                    // @ts-ignore
+                    ...[codeNodePromises[0].CodeNode, codeNodePromises[0].CodeHighlightNode],
                 )
             }
 
@@ -66,12 +75,10 @@ const useEditorConfig = ({
                     initialNodesPromises[1].ListNode,
                     initialNodesPromises[1].ListItemNode,
                     initialNodesPromises[0].QuoteNode,
-                    initialNodesPromises[2].CodeNode,
                     initialNodesPromises[3].TableNode,
                     initialNodesPromises[3].TableCellNode,
                     initialNodesPromises[3].TableRowNode,
                     initialNodesPromises[4].HashtagNode, //TODO: type error is caused by this line. Check after upgrading lexical
-                    initialNodesPromises[2].CodeHighlightNode,
                     initialNodesPromises[5].AutoLinkNode,
                     initialNodesPromises[5].LinkNode,
                     initialNodesPromises[6].OverflowNode,

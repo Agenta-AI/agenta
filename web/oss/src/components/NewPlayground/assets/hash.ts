@@ -2,7 +2,11 @@ import crypto from "crypto"
 
 import stableHash from "stable-hash"
 
-import {updateMetadataAtom, updateVariantsRefAtom, updateResponseAtom} from "../state"
+import {
+    updateMetadataAtom,
+    updateVariantsRefAtom,
+    updateResponseAtom,
+} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 const hashCache = new WeakMap()
 

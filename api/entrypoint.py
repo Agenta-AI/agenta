@@ -8,6 +8,8 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+
+from oss.src.utils.logging import get_module_logger
 from oss.src.routers import (
     app_router,
     environment_router,
@@ -34,6 +36,7 @@ from oss.src.dbs.secrets.dao import SecretsDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.services.auth_helper import authentication_middleware
+from oss.src.services.analytics_service import analytics_middleware
 from oss.src.dbs.postgres.observability.dao import ObservabilityDAO
 from oss.src.core.observability.service import ObservabilityService
 from oss.src.apis.fastapi.observability.router import ObservabilityRouter
@@ -51,6 +54,8 @@ origins = [
 celery_app = Celery("agenta_app")
 celery_app.config_from_object("oss.src.celery_config")
 
+log = get_module_logger(__file__)
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI, cache=True):
@@ -61,23 +66,19 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
-
     await check_for_new_migrations()
 
     yield
 
 
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
-
-if is_oss():
-    app.middleware("http")(authentication_middleware)
-
+app.middleware("http")(authentication_middleware)
+app.middleware("http")(analytics_middleware)
 
 if is_ee():
     import ee.src.main as ee
 
     app = ee.extend_main(app)
-
 
 app.add_middleware(get_supertokens_middleware())
 allow_headers = ["Content-Type"] + get_all_supertokens_cors_headers()

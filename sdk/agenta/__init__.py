@@ -20,7 +20,7 @@ from .sdk.types import (
     PromptTemplate,
 )
 
-from .sdk.utils.logging import log as logging
+from .sdk.utils.logging import get_module_logger
 from .sdk.tracing import Tracing, get_tracer
 from .sdk.decorators.tracing import instrument
 from .sdk.tracing.conventions import Reference

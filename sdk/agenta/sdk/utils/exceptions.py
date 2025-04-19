@@ -3,7 +3,9 @@ from traceback import format_exc
 from functools import wraps
 from inspect import iscoroutinefunction
 
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__file__)
 
 
 def display_exception(message: str):

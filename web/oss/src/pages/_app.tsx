@@ -15,6 +15,8 @@ import ProjectContextProvider from "@/oss/contexts/project.context"
 import AgSWRConfig from "@/oss/lib/api/SWRConfig"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
 
+import AppContextComponent from "../components/AppMessageContext"
+
 const NoMobilePageWrapper = dynamic(
     () => import("@/oss/components/NoMobilePageWrapper/NoMobilePageWrapper"),
     {
@@ -51,6 +53,7 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                                             <AppContextProvider>
                                                 <AppComponent>
                                                     <Layout>
+                                                        <AppContextComponent />
                                                         <Component {...pageProps} />
                                                         <NoMobilePageWrapper />
                                                     </Layout>

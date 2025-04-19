@@ -15,7 +15,7 @@ class Workspace(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str
-    roles: List[str]
+    roles: Optional[List[str]] = None
 
 
 class InviteToken(BaseModel):

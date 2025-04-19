@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useCallback, useState} from "react"
+import {useCallback, useState, useMemo} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {PencilLine, PencilSimple, Trash} from "@phosphor-icons/react"
@@ -10,18 +10,17 @@ import {createUseStyles} from "react-jss"
 
 import AbTestingEvaluation from "@/oss/components/HumanEvaluations/AbTestingEvaluation"
 import SingleModelEvaluation from "@/oss/components/HumanEvaluations/SingleModelEvaluation"
+import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import AutomaticEvalOverview from "@/oss/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useAllVariantsData} from "@/oss/lib/hooks/useAllVariantsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {JSSTheme, Variant} from "@/oss/lib/Types"
+import type {JSSTheme} from "@/oss/lib/Types"
 import {deleteApp} from "@/oss/services/app-selector/api"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
@@ -56,16 +55,24 @@ const OverviewPage = () => {
     const appId = useAppId()
     const classes = useStyles()
     const {currentApp, mutate: mutateApps} = useAppsData()
-    const [isVariantLoading, setIsVariantLoading] = useState(false)
     const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
     const [isDelAppLoading, setIsDelAppLoading] = useState(false)
     const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({})
 
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
 
-    const {usernames, data: variants, mutate} = useAllVariantsData({appId})
+    const {data, mutate, isLoading: isVariantLoading} = useVariants(currentApp)({appId})
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        afterConfigSave: mutate,
+    })
+    const sortedVariants = useMemo(() => {
+        if (!data) return []
+
+        return data.variants.sort((a, b) => {
+            return b.createdAtTimestamp - a.createdAtTimestamp
+        })
+    }, [data])
     const {
         environments,
         isEnvironmentsLoading: isDeploymentLoading,
@@ -85,7 +92,6 @@ const OverviewPage = () => {
         } finally {
             localStorage.removeItem(`tabIndex_${currentApp.app_id}`)
             setIsDeleteAppModalOpen(false)
-            setIsVariantLoading(false)
         }
     }, [currentApp, router])
 
@@ -140,23 +146,22 @@ const OverviewPage = () => {
 
                 <ObservabilityOverview />
 
-                {variants?.length && (
+                {sortedVariants?.length > 0 && (
                     <DeploymentOverview
-                        variants={variants}
+                        variants={sortedVariants}
                         isDeploymentLoading={isDeploymentLoading}
                         loadEnvironments={loadEnvironments}
                         environments={environments}
                     />
                 )}
 
-                {variants?.length && (
+                {sortedVariants?.length > 0 && (
                     <VariantsOverview
-                        variantList={variants}
+                        variantList={sortedVariants}
                         isVariantLoading={isVariantLoading}
                         environments={environments}
                         fetchAllVariants={mutate}
                         loadEnvironments={loadEnvironments}
-                        usernames={usernames}
                     />
                 )}
 

@@ -15,13 +15,14 @@ const DeleteProviderModalContent = dynamic(() => import("./assets/DeleteProvider
 
 const DeleteProviderModal = ({selectedProvider, ...props}: DeleteProviderModalProps) => {
     const [isLoading, setIsLoading] = useState(false)
-    const {handleDeleteVaultSecret} = useVaultSecret()
+    const {handleDeleteVaultSecret, mutate} = useVaultSecret()
 
     const onDelete = async () => {
         try {
             setIsLoading(true)
             await handleDeleteVaultSecret(selectedProvider as LlmProvider)
 
+            mutate()
             props.onCancel?.({} as any)
         } catch (error) {
             console.log(error)

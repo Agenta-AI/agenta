@@ -16,7 +16,7 @@ const GenerationComparisonOutput = ({rowId, isLastRow}: {rowId: string; isLastRo
             (state: PlaygroundStateData) => {
                 const chatRow = findPropertyInObject(state, rowId) as GenerationChatRow
                 const chatHistory = chatRow?.history?.value?.map((item) => item.__id)
-                return {isChat: state.variants[0].isChat, chatHistory}
+                return {isChat: state.variants[0]?.isChat, chatHistory}
             },
             [rowId],
         ),

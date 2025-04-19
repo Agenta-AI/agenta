@@ -1,17 +1,16 @@
 import re
 import json
-import asyncio
-import litellm
-import logging
 import traceback
 from typing import Any, Dict, Union
 
+import litellm
 import httpx
 import numpy as np
-from openai import OpenAI, AsyncOpenAI
+from openai import AsyncOpenAI
 from numpy._core._multiarray_umath import array
 from autoevals.ragas import Faithfulness, ContextRelevancy
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.services.security import sandbox
 from oss.src.models.shared_models import Error, Result
 from oss.src.models.api.evaluation_model import (
@@ -26,9 +25,7 @@ from oss.src.utils.traces import (
     get_field_value_from_trace_tree,
 )
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 def validate_string_output(
@@ -220,7 +217,7 @@ async def auto_regex_test(
             )
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -256,22 +253,24 @@ async def auto_field_match_test(
             input=EvaluatorInputInterface(**{"inputs": inputs})
         )
         return Result(type="bool", value=response["outputs"]["success"])
-    except ValueError as e:
+    except Exception:
         return Result(
-            type="error",
-            value=None,
+            type="bool",
+            value=False,
             error=Error(
-                message=str(e),
+                message="Could not parse output as JSON",
+                stacktrace=str(traceback.format_exc()),
             ),
         )
-    except Exception as e:  # pylint: disable=broad-except
-        logging.debug("Field Match Test Failed because of Error: %s", str(e))
-        return Result(type="bool", value=False)
 
 
 async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
-    prediction_json = json.loads(input.inputs["prediction"])
-    result = prediction_json == input.inputs["ground_truth"]
+    try:
+        prediction_json = json.loads(input.inputs["prediction"])
+        ground_truth_json = json.loads(input.inputs["ground_truth"])
+        result = prediction_json == ground_truth_json
+    except ValueError:
+        result = False
     return {"outputs": {"success": result}}
 
 
@@ -956,7 +955,7 @@ async def rag_faithfulness(
 ) -> Result:
     try:
         if isinstance(output, str):
-            logging.error("'output' is most likely not BaseResponse.")
+            log.error("'output' is most likely not BaseResponse.")
             raise NotImplementedError(
                 "Please update the SDK to the latest version, which supports RAG evaluators."
             )
@@ -968,7 +967,7 @@ async def rag_faithfulness(
         contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
-            logging.error(
+            log.error(
                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
             )
             raise ValueError(
@@ -995,7 +994,7 @@ async def rag_faithfulness(
         )
 
         if None in [question_val, answer_val, contexts_val]:
-            logging.error(
+            log.error(
                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
@@ -1069,7 +1068,7 @@ async def rag_context_relevancy(
 ) -> Result:
     try:
         if isinstance(output, str):
-            logging.error("'output' is most likely not BaseResponse.")
+            log.error("'output' is most likely not BaseResponse.")
             raise NotImplementedError(
                 "Please update the SDK to the latest version, which supports RAG evaluators."
             )
@@ -1081,7 +1080,7 @@ async def rag_context_relevancy(
         contexts_key: Union[str, None] = mapping_keys.get("contexts_key", None)
 
         if None in [question_key, answer_key, contexts_key]:
-            logging.error(
+            log.error(
                 f"Missing evaluator settings ? {['question', question_key is None, 'answer', answer_key is None, 'context', contexts_key is None]}"
             )
             raise ValueError(
@@ -1108,7 +1107,7 @@ async def rag_context_relevancy(
         )
 
         if None in [question_val, answer_val, contexts_val]:
-            logging.error(
+            log.error(
                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 

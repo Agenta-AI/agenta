@@ -3,18 +3,18 @@ import {useCallback} from "react"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {ObjectMetadata} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {autoScrollToBottom} from "@/oss/components/NewPlayground/assets/utilities/utilityFunctions"
 import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {ObjectMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 
 import usePlayground from "../../../../hooks/usePlayground"
-import {getMetadataLazy} from "../../../../state"
 import PromptMessageConfig from "../../../PromptMessageConfig"
 import GenerationChatRow from "../GenerationChatRow"
 import GenerationCompletionRow from "../GenerationCompletionRow"
 
 import type {GenerationChatProps} from "./types"
-import {autoScrollToBottom} from "@/oss/components/NewPlayground/assets/utilities/utilityFunctions"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
     const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({

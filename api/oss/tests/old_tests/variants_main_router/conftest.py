@@ -1,11 +1,11 @@
 import os
 import pytest
-import logging
 from datetime import datetime, timezone
 
 import httpx
 from sqlalchemy.future import select
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.models.shared_models import ConfigDB
 from oss.src.models.db_models import (
     ProjectDB,
@@ -21,13 +21,9 @@ from oss.src.tests.unit.test_traces import (
 )
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
 
-
 from oss.src.dbs.postgres.shared.engine import engine
 
-
-# Initialize logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")

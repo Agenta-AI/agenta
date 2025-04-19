@@ -1,10 +1,10 @@
 from uuid import UUID, uuid4
 from datetime import datetime
-from logging import getLogger, INFO
 from typing import Any, Dict, Optional, Tuple, List
 
 from pydantic import BaseModel
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.exceptions import suppress
 from oss.src.services.db_manager import (
@@ -16,9 +16,8 @@ from oss.src.services.db_manager import (
     AppEnvironmentRevisionDB,
 )
 from oss.src.services.db_manager import (
-    get_user,  # It is very wrong that I have to use this,
-    get_user_with_uid,  # instead of this.
     get_deployment_by_id,
+    get_user_with_id,
     fetch_base_by_id,
     fetch_app_by_id,
     fetch_app_by_name_and_parameters,
@@ -37,8 +36,7 @@ from oss.src.services.db_manager import (
 )
 
 
-logger = getLogger(__name__)
-logger.setLevel(INFO)
+log = get_module_logger(__file__)
 
 ### POSTGRES ASSUMPTIONS
 # UNIQUE: (project_id, {entity}_id) -- PK
@@ -46,8 +44,9 @@ logger.setLevel(INFO)
 
 
 class ReferenceDTO(BaseModel):
-    slug: Optional[str]  # shared across versions
-    version: Optional[int]
+    slug: Optional[str] = None  # shared across versions
+    version: Optional[int] = None
+    commit_message: Optional[str] = None
     # ---
     id: Optional[UUID]  # unique per version
 
@@ -85,8 +84,6 @@ async def _fetch_app(
     app_id: Optional[UUID] = None,
     app_name: Optional[str] = None,
 ) -> Optional[AppDB]:
-    logger.warning("[HELPERS] Fetching: app")
-
     app = None
 
     with suppress():
@@ -110,8 +107,6 @@ async def _fetch_deployment(
     project_id: str,
     base_id: UUID,
 ) -> Optional[DeploymentDB]:
-    logger.warning("[HELPERS] Fetching: variant_base")
-
     variant_base = None
 
     with suppress():
@@ -122,8 +117,6 @@ async def _fetch_deployment(
 
     if not variant_base:
         return None
-
-    logger.warning("[HELPERS] Fetching: deployment")
 
     deployment = None
 
@@ -144,8 +137,6 @@ async def _fetch_variant(
     variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
 ) -> Tuple[Optional[AppVariantDB], Optional[AppVariantRevisionsDB]]:
-    logger.warning("[HELPERS] Fetching: app_variant_revision / app_variant")
-
     app_variant_revision = None
     app_variant = None
 
@@ -214,8 +205,6 @@ async def _fetch_variants(
     project_id: str,
     application_ref: ReferenceDTO,
 ) -> List[AppVariantDB]:  # type: ignore
-    logger.warning("[HELPERS] Fetching: app_variants")
-
     app_variants = []
 
     with suppress():
@@ -237,8 +226,6 @@ async def _fetch_variant_versions(
     application_ref: Optional[ReferenceDTO],
     variant_ref: ReferenceDTO,
 ) -> Optional[List[AppVariantRevisionsDB]]:
-    logger.warning("[HELPERS]: Fetching variant versions")
-
     variant_revisions = []
 
     with suppress():
@@ -281,8 +268,6 @@ async def _fetch_environment(
     environment_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO] = None,
 ) -> Tuple[Optional[AppEnvironmentDB], Optional[AppEnvironmentRevisionDB]]:
-    logger.warning("[HELPERS] Fetching: app_environment_revision / app_environment")
-
     app_environment_revision = None
     app_environment = None
 
@@ -343,7 +328,7 @@ async def _fetch_environment(
             # as opposed to the latest version of a variant which is indicated by a version number
             # coming from the app_variant revision.
 
-            with suppress():
+            with suppress(verbose=False):
                 (
                     app_environment_revision,
                     version,
@@ -371,9 +356,8 @@ async def _create_variant(
     slug: str,
     params: Dict[str, Any],
     base_id: UUID,
+    commit_message: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[int]]:
-    logger.warning("[HELPERS] Fetching: variant_base")
-
     variant_base = None
 
     with suppress():
@@ -385,17 +369,16 @@ async def _create_variant(
     if not variant_base:
         return None, None
 
-    logger.warning("[HELPERS] Adding: app_variant")
-
     app_variant = None
 
     with suppress():
         app_variant = await add_variant_from_base_and_config(
-            project_id=project_id,
-            user_uid=user_id,
             base_db=variant_base,
             new_config_name=slug,
             parameters=params,
+            user_uid=user_id,
+            project_id=project_id,
+            commit_message=commit_message,
         )
 
     if not app_variant:
@@ -409,9 +392,8 @@ async def _update_variant(
     user_id: str,
     variant_id: UUID,
     params: Dict[str, Any],
+    commit_message: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[int], Optional[datetime]]:
-    logger.warning("[HELPERS] Updating: app_variant")
-
     app_variant = None
 
     with suppress():
@@ -420,6 +402,7 @@ async def _update_variant(
             user_uid=user_id,
             app_variant_id=variant_id.hex,
             parameters=params,
+            commit_message=commit_message,
         )
 
     if not app_variant:
@@ -433,14 +416,18 @@ async def _update_environment(
     user_id: str,
     environment_name: str,
     variant_id: UUID,
+    variant_revision_id: Optional[UUID] = None,
+    commit_message: Optional[str] = None,
 ):
-    logger.warning("[HELPERS] Deploying: variant")
-
     with suppress():
         await deploy_to_environment(
             # project_id=project_id,
             environment_name=environment_name,
             variant_id=variant_id.hex,
+            variant_revision_id=(
+                variant_revision_id.hex if variant_revision_id else None
+            ),
+            commit_message=commit_message,
             **{"user_uid": user_id},
         )
 
@@ -454,7 +441,7 @@ async def add_config(
     application_ref: ReferenceDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
-    logger.warning("[ADD]     Fetching: app")
+    log.warning("[ADD]     Fetching: app")
 
     app = await _fetch_app(
         project_id=project_id,
@@ -463,13 +450,13 @@ async def add_config(
     )
 
     if not app:
-        logger.warning("[ADD]  App not found.")
+        log.warning("[ADD]  App not found.")
 
         return None
 
     # --> FETCHING: bases
-    logger.warning(f"[ADD]     Found app: {str(app.id)}")
-    logger.warning("[ADD]     Fetching: bases")
+    log.warning(f"[ADD]     Found app: {str(app.id)}")
+    log.warning("[ADD]     Fetching: bases")
 
     bases = None
 
@@ -484,7 +471,7 @@ async def add_config(
 
     base_id = bases[0].id  # needs to be changed to use the 'default base'
 
-    logger.warning("[ADD]     Creating: variant")
+    log.warning("[ADD]     Creating: variant")
 
     if not variant_ref.slug:
         return None
@@ -495,6 +482,7 @@ async def add_config(
         slug=variant_ref.slug,
         params={},
         base_id=base_id,
+        commit_message=variant_ref.commit_message,
     )
 
     if not (variant_slug and variant_version):
@@ -504,6 +492,7 @@ async def add_config(
         slug=variant_slug,
         version=variant_version,
         id=None,
+        commit_message=variant_ref.commit_message,
     )
 
     config = await fetch_config_by_variant_ref(
@@ -542,7 +531,7 @@ async def fetch_configs_by_application_ref(
         return configs_list
 
     for variant in variants:
-        logger.warning(f"[FETCH]: Fetching latest version of variant {variant.id}")
+        log.warning(f"[FETCH]: Fetching latest version of variant {variant.id}")
 
         variant_latest_version = await db_manager.fetch_app_variant_revision_by_variant(
             app_variant_id=variant.id.hex,
@@ -563,6 +552,7 @@ async def fetch_configs_by_application_ref(
                 slug=variant.config_name,
                 version=variant_latest_version.revision,
                 id=variant_latest_version.id,
+                commit_message=variant_latest_version.commit_message,
             ),
             environment_ref=None,
             #
@@ -585,7 +575,7 @@ async def fetch_configs_by_variant_ref(
     variant_ref: ReferenceDTO,
     application_ref: Optional[ReferenceDTO],
 ) -> List[ConfigDTO]:
-    configs_list = []
+    configs_list: List[ConfigDTO] = []
 
     variant_versions = await _fetch_variant_versions(
         project_id=project_id,
@@ -610,6 +600,7 @@ async def fetch_configs_by_variant_ref(
                 slug=variant_version.variant_revision.config_name,
                 version=variant_version.variant_revision.revision,
                 id=variant_version.variant_revision.id,
+                commit_message=variant_version.commit_message,
             ),
             environment_ref=None,
             #
@@ -632,7 +623,7 @@ async def fetch_config_by_variant_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
-    logger.warning("[FETCH]   Fetching: variant")
+    log.warning("[FETCH]   Fetching: variant")
 
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
@@ -643,7 +634,7 @@ async def fetch_config_by_variant_ref(
     if not (app_variant and app_variant_revision):
         return None
 
-    logger.warning("[FETCH]   Fetching: deployment")
+    log.warning("[FETCH]   Fetching: deployment")
 
     deployment = await _fetch_deployment(
         project_id=project_id,
@@ -653,7 +644,7 @@ async def fetch_config_by_variant_ref(
     if not deployment:
         return None
 
-    logger.warning("[FETCH]   Fetching: app")
+    log.warning("[FETCH]   Fetching: app")
 
     app = await _fetch_app(
         project_id=project_id,
@@ -668,7 +659,7 @@ async def fetch_config_by_variant_ref(
 
     if user_id:
         with suppress():
-            user = await get_user_with_uid(user_uid=user_id)
+            user = await get_user_with_id(user_id=user_id)
             _user_id = str(user.id)
             _user_email = user.email
 
@@ -685,6 +676,7 @@ async def fetch_config_by_variant_ref(
             slug=app_variant.config_name,
             version=app_variant_revision.revision,
             id=app_variant_revision.id,
+            commit_message=app_variant_revision.commit_message,
         ),
         environment_ref=None,
         #
@@ -705,8 +697,6 @@ async def fetch_config_by_environment_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
-    logger.warning("[FETCH]   Fetching: environment")
-
     app_environment, app_environment_revision = await _fetch_environment(
         project_id=project_id,
         environment_ref=environment_ref,
@@ -720,6 +710,7 @@ async def fetch_config_by_environment_ref(
         slug=app_environment.name,
         version=app_environment_revision.revision,
         id=app_environment_revision.id,
+        commit_message=app_environment_revision.commit_message,
     )
 
     variant_ref = ReferenceDTO(
@@ -744,7 +735,7 @@ async def fetch_config_by_environment_ref(
 
     if user_id:
         with suppress():
-            user = await get_user_with_uid(user_uid=user_id)
+            user = await get_user_with_id(user_id=user_id)
             _user_id = str(user.id)
             _user_email = user.email
 
@@ -767,8 +758,6 @@ async def fork_config_by_variant_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
-    logger.warning("[FORK] Fetching: variant")
-
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -778,17 +767,20 @@ async def fork_config_by_variant_ref(
     if not (app_variant and app_variant_revision):
         return None
 
-    logger.warning("[FORK] Creating: variant")
-
     if not user_id:
         return None
 
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
         user_id=user_id,
-        slug=app_variant.config_name + "_" + uuid4().hex[:8],
+        slug=(
+            variant_ref.slug
+            if variant_ref.slug
+            else app_variant.config_name + "_" + uuid4().hex[:8]
+        ),
         params=app_variant_revision.config_parameters,
         base_id=app_variant.base_id,
+        commit_message=variant_ref.commit_message,
     )
 
     if not (variant_slug and variant_version):
@@ -803,6 +795,7 @@ async def fork_config_by_variant_ref(
     variant_ref = ReferenceDTO(
         slug=variant_slug,
         version=variant_version,
+        commit_message=variant_ref.commit_message,
         id=None,
     )
 
@@ -822,8 +815,6 @@ async def fork_config_by_environment_ref(
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
     # --> FETCHING: environment
-    logger.warning("[FORK] Fetching: environment")
-
     app_environment, app_environment_revision = await _fetch_environment(
         project_id=project_id,
         environment_ref=environment_ref,
@@ -838,11 +829,13 @@ async def fork_config_by_environment_ref(
         slug=app_environment.name,
         version=app_environment_revision.revision,
         id=app_environment_revision.id,
+        commit_message=app_environment_revision.commit_message,
     )
 
     variant_ref = ReferenceDTO(
         slug=None,
         version=None,
+        commit_message=app_environment_revision.commit_message,
         id=app_environment_revision.deployed_app_variant_revision_id,
     )
 
@@ -869,8 +862,6 @@ async def commit_config(
     config: ConfigDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
-    logger.warning("[COMMIT] Fetching: variant")
-
     if not config.variant_ref:
         return None
 
@@ -883,13 +874,14 @@ async def commit_config(
     if not (app_variant and app_variant_revision):
         return None
 
-    logger.warning("[COMMIT] Updating: variant")
-
     variant_slug, variant_version, variant_updated_at = await _update_variant(
         project_id=project_id,
         user_id=user_id,
         variant_id=app_variant.id,
         params=config.params,
+        commit_message=(
+            config.variant_ref.commit_message if config.variant_ref else None
+        ),
     )
 
     application_ref = ReferenceDTO(
@@ -900,6 +892,9 @@ async def commit_config(
     variant_ref = ReferenceDTO(
         slug=variant_slug,
         version=variant_version,
+        commit_message=(
+            config.variant_ref.commit_message if config.variant_ref else None
+        ),
         id=None,
     )
 
@@ -923,8 +918,6 @@ async def deploy_config(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
-    logger.warning("[DEPLOY]  Fetching: variant")
-
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -933,8 +926,6 @@ async def deploy_config(
 
     if not (app_variant and app_variant_revision):
         return None
-
-    logger.warning("[DEPLOY]  Fetching: environment")
 
     environment_ref.version = None
 
@@ -947,13 +938,13 @@ async def deploy_config(
     if not app_environment:
         return None
 
-    logger.warning("[DEPLOY]  Updating: environment")
-
     await _update_environment(
         project_id=project_id,
         user_id=user_id,  # type: ignore
         environment_name=app_environment.name,
         variant_id=app_variant.id,
+        variant_revision_id=app_variant_revision.id,
+        commit_message=environment_ref.commit_message,
     )
 
     config = await fetch_config_by_environment_ref(
@@ -1014,7 +1005,4 @@ async def delete_config(
     if not variant:
         return None
 
-    await db_manager.remove_app_variant_from_db(
-        app_variant_db=variant,
-        project_id=project_id,
-    )
+    await db_manager.mark_app_variant_as_hidden(app_variant_id=str(variant.id))

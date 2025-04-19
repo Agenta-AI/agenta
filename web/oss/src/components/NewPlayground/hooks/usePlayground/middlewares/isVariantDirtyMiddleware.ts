@@ -5,13 +5,18 @@ import type {Key, SWRHook} from "swr"
 
 import {hashVariant} from "@/oss/components/NewPlayground/assets/hash"
 import {type FetcherOptions} from "@/oss/lib/api/types"
+import {getUniqueInputKeys} from "@/oss/lib/hooks/useStatelessVariants/assets/comparisonHelpers"
+import {
+    getMetadataLazy,
+    getVariantsLazy,
+    initialState,
+} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {omitDeep} from "@/oss/lib/shared/variant"
+import {syncVariantInputs, updateVariantPromptKeys} from "@/oss/lib/shared/variant/inputHelpers"
 
-import {ArrayMetadata} from "../../../assets/utilities/genericTransformer/types"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {getMetadataLazy, getVariantsLazy, initialState} from "../../../state"
-import {getUniqueInputKeys} from "../assets/generationHelpers"
-import {findPropertyInObject, findVariantById, isPlaygroundEqual, omitDeep} from "../assets/helpers"
-import {syncVariantInputs, updateVariantPromptKeys} from "../assets/inputHelpers"
+import {ArrayMetadata} from "../../../../../lib/shared/variant/genericTransformer/types"
+import type {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
+import {findPropertyInObject, findVariantById, isPlaygroundEqual} from "../assets/helpers"
 import {createMessageFromSchema} from "../assets/messageHelpers"
 import type {
     PlaygroundStateData,
@@ -170,6 +175,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = <
                         for (const variantId of clonedState.selected) {
                             const _variant = findVariantById(clonedState, variantId)
                             if (!_variant || _variant.isCustom) continue
+                            // @ts-ignore
                             updateVariantPromptKeys(_variant)
                         }
                         const currentInputs = getUniqueInputKeys(
@@ -180,6 +186,7 @@ const isVariantDirtyMiddleware: PlaygroundMiddleware = <
 
                         if (!isPlaygroundEqual(previousInputs, currentInputs)) {
                             clonedState.generationData.inputs = syncVariantInputs(
+                                // @ts-ignore
                                 clonedState.variants.filter((variant) =>
                                     currentSelected.includes(variant.id),
                                 ),

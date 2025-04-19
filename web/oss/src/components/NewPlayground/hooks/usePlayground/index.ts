@@ -6,6 +6,7 @@ import useSWR, {type Middleware} from "swr"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 
+import {getPlaygroundKey} from "./assets/helpers"
 import appSchemaMiddleware from "./middlewares/appSchemaMiddleware"
 import isVariantDirtyMiddleware from "./middlewares/isVariantDirtyMiddleware"
 import playgroundUIMiddleware from "./middlewares/playgroundUIMiddleware"
@@ -40,10 +41,9 @@ const usePlayground = <Selected = unknown>(
     const {apps} = useAppsData()
     const currentApp = apps.find((app) => app.app_id === appId)
     const pathRef = useRef(pathReference || router.pathname.replaceAll("/", "_"))
-    const key = useMemo(
-        () => `/api/apps/${appId}/variants?project_id=${projectId}&v=2&path=${pathRef.current}`,
-        [appId, projectId],
-    )
+    const key = useMemo(() => {
+        return getPlaygroundKey(appId, projectId, pathRef.current)
+    }, [appId, projectId])
 
     const middlewares = useMemo(() => {
         return [

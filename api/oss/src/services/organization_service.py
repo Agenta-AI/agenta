@@ -183,7 +183,7 @@ async def invite_user_to_organization(
         )
 
     # Create a new invitation since user hasn't been invited
-    invitation = await create_invitation(payload.roles[0], project_id, payload.email)
+    invitation = await create_invitation("editor", project_id, payload.email)
 
     # Get project by id
     project_db = await db_manager.get_project_by_id(project_id=project_id)
@@ -233,7 +233,7 @@ async def resend_user_organization_invite(
         invitation = existing_invitation
     else:
         # Create a new invitation
-        invitation = await create_invitation(payload.role, project_id, payload.email)
+        invitation = await create_invitation("editor", project_id, payload.email)
 
     # Get project by id
     project_db = await db_manager.get_project_by_id(project_id=project_id)

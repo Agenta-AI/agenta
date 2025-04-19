@@ -8,7 +8,6 @@ import {useApps} from "@/oss/contexts/app.context"
 import {ListAppsItem} from "@/oss/lib/Types"
 
 const NewPlayground = dynamic(() => import("../NewPlayground/Playground"), {ssr: false})
-const OldPlayground = dynamic(() => import("../OldPlayground/Playground"), {ssr: false})
 
 const PlaygroundRouter = () => {
     const router = useRouter()
@@ -32,7 +31,7 @@ const PlaygroundRouter = () => {
         )
     } else if (app) {
         if (!app.app_type || app.app_type.includes(" (old)")) {
-            return <OldPlayground />
+            return null
         } else {
             if (!router.query.playground) {
                 router.replace(

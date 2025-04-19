@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
-import {Sparkle} from "@phosphor-icons/react"
+import {Receipt, Sparkle} from "@phosphor-icons/react"
 import {Space, Tabs, Typography} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -10,6 +10,7 @@ import {createUseStyles} from "react-jss"
 import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
@@ -21,16 +22,11 @@ const WorkspaceManage = dynamic(
 const APIKeys = dynamic(() => import("@/oss/components/pages/settings/APIKeys/APIKeys"), {
     ssr: false,
 })
+const Billing = dynamic(() => import("@/oss/components/pages/settings/Billing"), {
+    ssr: false,
+})
 
 const useStyles = createUseStyles({
-    root: {
-        display: "flex",
-        flexDirection: "column",
-    },
-    heading: {
-        marginTop: "1rem",
-        marginBottom: "1rem !important",
-    },
     tabs: {
         height: "calc(100vh - 228px)",
         "& .ant-tabs-content-holder": {
@@ -66,8 +62,8 @@ const Settings: React.FC = () => {
         {
             label: (
                 <Space>
-                    <Sparkle size={14} />
-                    LLM Keys
+                    <Sparkle size={14} className="mt-1" />
+                    Model Hub
                 </Space>
             ),
             key: "secrets",
@@ -83,15 +79,29 @@ const Settings: React.FC = () => {
             key: "apiKeys",
             children: <APIKeys />,
         },
+        ...(isDemo()
+            ? [
+                  {
+                      label: (
+                          <Space>
+                              <Receipt size={14} className="mt-1" />
+                              Usage & Billing
+                          </Space>
+                      ),
+                      key: "billing",
+                      children: <Billing />,
+                  },
+              ]
+            : []),
     ]
 
     return (
-        <div className={classes.root}>
-            <Typography.Title className={classes.heading} level={3}>
+        <main className="flex flex-col gap-4">
+            <Typography.Title level={4} className="!font-medium">
                 Settings
             </Typography.Title>
             <Tabs className={classes.tabs} onChange={setTab} activeKey={tab} items={items} />
-        </div>
+        </main>
     )
 }
 

@@ -8,6 +8,7 @@ import {ErrorBoundary} from "react-error-boundary"
 import {useLocalStorage} from "usehooks-ts"
 
 import Avatar from "@/oss/components/Avatar/Avatar"
+import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
@@ -35,6 +36,7 @@ const Sidebar: React.FC = () => {
     const {logout} = useSession()
     const {project, projects} = useProjectData()
     const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
+
     const [isHovered, setIsHovered] = useState(false)
     const dropdownItems = useDropdownItems({logout, orgs, selectedOrg, user, project, projects})
 
@@ -142,7 +144,7 @@ const Sidebar: React.FC = () => {
                                         }}
                                     >
                                         <Button
-                                            className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-none" : ""}`}
+                                            className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-transparent" : ""}`}
                                         >
                                             <div className={classes.avatarContainer}>
                                                 <Avatar
@@ -187,17 +189,23 @@ const Sidebar: React.FC = () => {
                                 items={topItems}
                                 collapsed={isSidebarExpanded}
                             />
-                            <SidebarMenu
-                                menuProps={{
-                                    className: classes.menuContainer2,
-                                    selectedKeys,
-                                    openKeys: openKey ? [openKey] : [],
-                                    onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
-                                }}
-                                items={bottomItems}
-                                collapsed={isSidebarExpanded}
-                                mode={isSidebarExpanded ? "inline" : "vertical"}
-                            />
+                            <div>
+                                <SidePanelSubscriptionInfo
+                                    collapsed={collapsed}
+                                    isHovered={isHovered}
+                                />
+                                <SidebarMenu
+                                    menuProps={{
+                                        className: classes.menuContainer2,
+                                        selectedKeys,
+                                        openKeys: openKey ? [openKey] : [],
+                                        onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
+                                    }}
+                                    items={bottomItems}
+                                    collapsed={isSidebarExpanded}
+                                    mode={"vertical"}
+                                />
+                            </div>
                         </div>
                     </ErrorBoundary>
                 </div>

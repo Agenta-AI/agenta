@@ -34,6 +34,7 @@ export function useLegacyVariant(options: {appId: string}, variant: Variant) {
     const [variantErrorLogs, setVariantErrorLogs] = useState("")
     const onClickShowLogs = useRef(false)
 
+    console.log("useLegacyVariant")
     const getVariantLogs = async () => {
         try {
             setIsLogsLoading(true)

@@ -32,7 +32,7 @@ const StatusRenderer = ({
     const errorMsg = status?.code === NodeStatusCode.ERROR ? status?.message : null
 
     return (
-        <Space align="center" size={0}>
+        <Space>
             <Tag color={color} icon={icon} className="font-mono">
                 {label}
             </Tag>

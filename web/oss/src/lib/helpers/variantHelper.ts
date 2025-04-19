@@ -1,3 +1,4 @@
+// @ts-nocheck
 import {Variant, Parameter, InputParameter} from "@/oss/lib/Types"
 import {fetchVariantParametersFromOpenAPI} from "@/oss/services/api"
 
@@ -48,11 +49,22 @@ export const updateInputParams = (
  * @param variant
  * @returns parameters, inputs, URIPath
  */
-export const getAllVariantParameters = async (appId: string, variant: Variant) => {
+export const getAllVariantParameters = async (
+    appId: string,
+    _variant:
+        | {
+              variant?: Variant
+          }
+        | Variant,
+) => {
     let parameters: Parameter[] = []
     let inputs: Parameter[] = []
 
+    const variant =
+        "variant" in _variant && _variant.variant ? _variant.variant : (_variant as Variant)
+
     try {
+        console.log("getAllVariantParameters !!")
         const {initOptParams, inputParams, isChatVariant} = await fetchVariantParametersFromOpenAPI(
             appId,
             variant.variantId,
@@ -82,6 +94,7 @@ export const getAllVariantParameters = async (appId: string, variant: Variant) =
 }
 
 export const getVariantInputParameters = async (appId: string, variant: Variant) => {
+    console.log("getVariantInputParameters")
     const {parameters, inputs} = await getAllVariantParameters(appId, variant)
     return updateInputParams(parameters, inputs || []) || inputs
 }
@@ -95,4 +108,31 @@ export const variantNameWithRev = (variant: {
         name += ` v${variant.revision}`
     }
     return name
+}
+
+export const groupVariantsByParent = (variants: Variant[], showOnlyParents = false) => {
+    const parentMap = {}
+
+    variants
+        ?.sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
+        .forEach((item) => {
+            if (item._parentVariant) {
+                const parentId = item._parentVariant.id
+
+                if (!parentMap[parentId]) {
+                    parentMap[parentId] = {
+                        ...item._parentVariant,
+                        children: showOnlyParents ? undefined : [],
+                        revisions: [],
+                    }
+                }
+
+                if (!showOnlyParents) {
+                    parentMap[parentId].children.push(item)
+                }
+                parentMap[parentId].revisions.push(item)
+            }
+        })
+
+    return Object.values(parentMap)
 }

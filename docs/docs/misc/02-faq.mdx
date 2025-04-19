@@ -1,0 +1,67 @@
+---
+title: "Frequently Asked Questions"
+description: "Answers to common questions about Agenta, including language compatibility, features, and integrations"
+sidebar_label: "FAQ"
+---
+
+## Does Agenta work with TypeScript?
+
+:::info
+The same described here applies to other languages like JavaScript, Java, Go, etc. Agenta's API-first approach enables integration with virtually any programming language.
+:::
+
+Yes, Agenta can be used with TypeScript, though with varying levels of native support.
+
+### Current TypeScript Support
+
+1. **Prompt Management**
+   
+   While we don't currently have a native TypeScript SDK, you can fully leverage our prompt management features through direct API calls. All our APIs are documented in our [API Reference](/reference/api/variants).
+   
+   This allows you to create prompts, fetch variants, and programmatically manage them without needing the Python SDK.
+
+2. **Observability**
+   
+   Agenta is fully OpenTelemetry compliant. You can auto-instrument your TypeScript application using Opentelemetry compatible integrations such as [OpenLLMetry](https://github.com/traceloop/openllmetry-js) which works well with TypeScript projects.
+   
+   We have documentation on [setting up OpenTelemetry](/observability/opentelemetry#opentelemetry-tracing-without-agenta-sdk) with your API key.
+
+3. **Evaluation**
+   
+   For evaluation, any prompts you create within the UI can be evaluated there. However, for more complex workflows like agentic applications, we currently only support Python for creating custom workflows in the playground.
+   
+   **Workaround**: You can create a Python wrapper that calls your TypeScript endpoint and add this to Agenta. This would allow subject matter experts to run evaluations from the UI.
+
+
+:::tip
+If you need support with integration, [create an issue in Github](https://github.com/agenta-ai/agenta/issues).
+:::
+
+## What LLM providers does Agenta support?
+
+Agenta works with almost any provider, including:
+
+- [OpenAI](https://openai.com)
+- [Anthropic](https://anthropic.com)
+- [Cohere](https://cohere.com)
+- [OpenRouter](https://openrouter.ai)
+- [Anyscale](https://anyscale.com)
+- [Perplexity AI](https://perplexity.ai)
+- [TogetherAI](https://togetherai.com)
+- [DeepInfra](https://deepinfra.com)
+- [Aleph Alpha](https://aleph-alpha.com)
+- [Groq](https://groq.com)
+- [Gemini](https://gemini.com)
+- [Mistral](https://mistral.ai)
+- [Ollama](https://ollama.com)
+
+In addition it works natively with 
+- [AWS Bedrock](https://aws.amazon.com/bedrock/)
+- [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service/)
+- [Vertex AI](https://cloud.google.com/vertex-ai)
+
+You can add any OpenAI compatible endpoint, including self-hosted models and custom models (for instance using [Ollama](https://docs.agenta.ai/prompt-management/adding-custom-providers#configuring-openai-compatible-endpoints-eg-ollama)).
+You can also dynamically add new models to any provider already listed in the playground, such as [OpenRouter](/prompt-management/adding-custom-providers#adding-models-to-a-provider-eg-openrouter), Anthropic, Gemini, Cohere, and others.
+
+You can learn more about setting up different models in the [documentation](/prompt-management/adding-custom-providers).
+

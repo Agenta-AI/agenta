@@ -1,11 +1,10 @@
 FROM python:3.9-slim-buster
 
-WORKDIR /app/
+WORKDIR /app
 
 RUN pip install --upgrade pip \
     && pip install poetry
 
-    
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
 

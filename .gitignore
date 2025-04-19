@@ -8,10 +8,14 @@
 **/*.pem
 **/*dont_commit_me*
 
+**/error-*.log
+
 /.nox/
 /docs/_build/
 env/
 myenv/
+
+**/error-*.log
 
 
 # hosting/

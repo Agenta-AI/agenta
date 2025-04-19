@@ -3,6 +3,7 @@ import Session from "supertokens-auth-react/recipe/session"
 import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
@@ -18,9 +19,8 @@ import {
     User,
 } from "@/oss/lib/Types"
 
-import {constructPlaygroundTestUrl} from "../components/NewPlayground/assets/utilities/transformer/reverseTransformer"
-import {findCustomWorkflowPath} from "../components/NewPlayground/hooks/usePlayground/assets/helpers"
-import {uriFixer} from "../lib/hooks/useStatelessVariant/assets/helpers"
+import {findCustomWorkflowPath, uriFixer} from "../lib/shared/variant"
+import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -51,7 +51,7 @@ export async function fetchVariants(appId: string, ignoreAxiosError = false): Pr
 
     if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         return response.data.map((variant: Record<string, any>) => {
-            const v: Variant = {
+            return {
                 variantName: variant.variant_name,
                 templateVariantName: variant.previous_variant_name,
                 persistent: true,
@@ -63,11 +63,13 @@ export async function fetchVariants(appId: string, ignoreAxiosError = false): Pr
                 configName: variant.config_name,
                 revision: variant.revision,
                 updatedAt: formatDay(variant.updated_at),
+                updatedAtTimestamp: dayjs(variant.updated_at, "YYYY/MM/DD H:mm:ssAZ").valueOf(),
                 modifiedById: variant.modified_by_id,
                 createdAt: formatDay(variant.created_at),
+                createdAtTimestamp: dayjs(variant.created_at, "YYYY/MM/DD H:mm:ssAZ").valueOf(),
                 uri: uriFixer(variant.uri),
-            }
-            return v
+                appId: variant.app_id,
+            } as Variant
         })
     }
 
@@ -116,6 +118,7 @@ export async function callVariant(
         runtimePrefix: string
         routePath?: string
     },
+    variantId?: string,
 ): Promise<string | FuncResponse | BaseResponse> {
     const isChatVariant = Array.isArray(chatMessages) && chatMessages.length > 0
     // Separate input parameters into two dictionaries based on the 'input' property
@@ -197,7 +200,7 @@ export async function callVariant(
 
         return response?.data
     } else {
-        const appContainerURI = await fetchAppContainerURL(appId, undefined, baseId)
+        const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
         const {projectId} = getCurrentProject()
         const jwt = await getJWT()
 
@@ -254,6 +257,7 @@ export const fetchVariantParametersFromOpenAPI = async (
     baseId?: string,
     ignoreAxiosError = false,
 ) => {
+    console.log("fetchVariantParametersFromOpenAPI !!")
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
     const {projectId} = getCurrentProject()
     const jwt = await getJWT()

@@ -1,14 +1,15 @@
-import {Tooltip, Typography} from "antd"
+import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
-import {EnhancedConfigValue} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
 
-import {getMetadataLazy} from "../../../state"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
 import BooleanControl from "./BooleanControl"
 import MinMaxControl from "./MinMaxControl"
 import MultiSelectControl from "./MultiSelectControl"
+import PlaygroundOutputControl from "./PlaygroundOutputControl"
 import PlaygroundVariantPropertyControlWrapper from "./PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContent from "./PromptMessageContent"
 import SimpleDropdownSelect from "./SimpleDropdownSelect"
@@ -68,6 +69,7 @@ export const renderMap: RenderFunctions = {
         as,
         className,
         view,
+        ...rest
     }) => {
         if (metadata.options) {
             if (as === "SimpleDropdownSelect") {
@@ -126,10 +128,35 @@ export const renderMap: RenderFunctions = {
                     disabled={disabled}
                 />
             )
+        } else if (as === "SimpleInput") {
+            const change = (value: string) => {
+                handleChange(value)
+            }
+            return (
+                <Input
+                    {...rest}
+                    value={value}
+                    handleChange={change}
+                    onChange={change}
+                    className={className}
+                    view={view}
+                    description={metadata.description}
+                    placeholder={placeholder}
+                    withTooltip={withTooltip}
+                    disabled={disabled}
+                    {...(rest.editorProps || {})}
+                    {...(disabled
+                        ? {
+                              state: "disabled",
+                          }
+                        : {})}
+                />
+            )
         }
 
         return (
             <TextControl
+                {...rest}
                 metadata={metadata}
                 value={value}
                 handleChange={handleChange}
@@ -272,7 +299,11 @@ export const renderMap: RenderFunctions = {
             </PlaygroundVariantPropertyControlWrapper>
         )
     },
-    compound: ({withTooltip, metadata}) => {
-        return <Typography.Text>Compound input not implemented</Typography.Text>
+    compound: (props) => {
+        if (props.metadata.options && Array.isArray(props.metadata.options)) {
+            return <PlaygroundOutputControl {...props} />
+        } else {
+            return <Typography.Text>Compound input not implemented</Typography.Text>
+        }
     },
 } as const

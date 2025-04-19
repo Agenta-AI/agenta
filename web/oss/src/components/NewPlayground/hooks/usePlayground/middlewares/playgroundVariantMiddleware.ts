@@ -2,14 +2,24 @@ import {useCallback} from "react"
 
 import type {Key, SWRHook} from "swr"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {hashVariant, hashResponse} from "@/oss/components/NewPlayground/assets/hash"
-import {generateId} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/utilities/string"
-import {getAllMetadata, getMetadataLazy, getSpecLazy} from "@/oss/components/NewPlayground/state"
 import {type FetcherOptions} from "@/oss/lib/api/types"
+import {useGlobalVariantsRefetch} from "@/oss/lib/hooks/useStatelessVariants"
+import {
+    getAllMetadata,
+    getMetadataLazy,
+    getSpecLazy,
+    atomStore,
+    allRevisionsAtom,
+} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {fetchAndProcessRevisions} from "@/oss/lib/shared/variant"
+import {updateVariantPromptKeys} from "@/oss/lib/shared/variant/inputHelpers"
+import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
+import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
-import {transformToRequestBody} from "../../../assets/utilities/transformer/reverseTransformer"
-import type {EnhancedVariant} from "../../../assets/utilities/transformer/types"
-import {message} from "../../../state/messageContext"
+import type {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import useWebWorker, {WorkerMessage} from "../../useWebWorker"
 import {
     compareVariant,
@@ -17,10 +27,9 @@ import {
     findPropertyInObject,
     findVariantById,
     isPlaygroundEqual,
-    setVariant,
 } from "../assets/helpers"
-import {updateVariantPromptKeys} from "../assets/inputHelpers"
 import {createMessageFromSchema} from "../assets/messageHelpers"
+import {updateStateWithProcessedRevisions} from "../assets/stateHelpers"
 import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
@@ -72,6 +81,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                         name: "playgroundVariantMiddleware",
                     },
                 })
+            const refetchVariants = useGlobalVariantsRefetch()
             const {variantId, projectId} = config
 
             const swr = useSWRNext(key, fetcher, {
@@ -166,6 +176,14 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                         if (targetMessageIndex >= 0) {
                             const targetMessage = targetRow.history.value[targetMessageIndex]
+
+                            if (
+                                targetMessage.__runs &&
+                                targetMessage.__runs[variantId]?.__isRunning !==
+                                    message.payload.runId
+                            )
+                                return clonedState
+
                             const metadata = getMetadataLazy(targetMessage.__metadata)
                             if (!metadata) return clonedState
 
@@ -185,7 +203,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             targetMessage.__runs[variantId] = {
                                 __result: responseHash,
                                 message: incomingMessage,
-                                __isRunning: false,
+                                __isRunning: "",
                                 __id: generateId(),
                             }
 
@@ -227,10 +245,17 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                                 if (!inputTestRow || !inputTestRow.__runs) return clonedState
 
+                                // do not handle this message if the runId does not match the id generated when starting this flow
+                                if (
+                                    inputTestRow.__runs[variantId]?.__isRunning !==
+                                    message.payload.runId
+                                )
+                                    return clonedState
+
                                 const responseHash = hashResponse(message.payload.result)
                                 inputTestRow.__runs[variantId] = {
                                     __result: responseHash,
-                                    __isRunning: false,
+                                    __isRunning: "",
                                 }
 
                                 return clonedState
@@ -249,155 +274,356 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
              */
             const deleteVariant = useCallback(async () => {
                 try {
-                    // first set the mutation state of the variant to true
-                    swr.mutate(
-                        (clonedState) => {
-                            const variant = findVariantById(clonedState, variantId!)
-                            if (!variant) throw new Error("Variant not found")
+                    return new Promise<void>((res) => {
+                        swr.mutate(
+                            (clonedState) => {
+                                const variant = findVariantById(clonedState, variantId!)
+                                if (!variant) throw new Error("Variant not found")
 
-                            variant.__isMutating = true
-                            return clonedState
-                        },
-                        {
-                            revalidate: false,
-                        },
-                    ).then(() => {
-                        // then continue with the operation
-                        swr.mutate(async (state) => {
-                            const variant = (swr.data?.variants || []).find(
-                                (v) => v.id === variantId,
-                            )
-                            if (!variant) return state
+                                variant.__isMutating = true
+                                return clonedState
+                            },
+                            {
+                                revalidate: false,
+                            },
+                        ).then(() => {
+                            // then continue with the operation
+                            swr.mutate(
+                                async (state) => {
+                                    const variant = (swr.data?.variants || []).find(
+                                        (v) => v.id === variantId,
+                                    )
+                                    if (!variant) return state
 
-                            const _variantId = variant.id
-                            try {
-                                const deleteResponse = await fetcher?.(
-                                    `/api/variants/${_variantId}?project_id=${projectId}`,
-                                    {
-                                        method: "DELETE",
-                                    },
-                                )
+                                    const _variantId = variant.id
+                                    try {
+                                        await deleteSingleVariantRevision(
+                                            variant.variantId,
+                                            variant.id,
+                                        )
 
-                                if (deleteResponse && deleteResponse?.status !== 200) {
-                                    // error
-                                    message.error("Failed to delete variant")
-                                }
+                                        if (state.selected.includes(_variantId)) {
+                                            state.selected.splice(
+                                                state.selected.indexOf(_variantId),
+                                                1,
+                                            )
+                                            state.selected = state.selected.filter(Boolean)
+                                            state.availableRevisions?.splice(
+                                                state.availableRevisions.findIndex(
+                                                    (ar) => ar.id === _variantId,
+                                                ),
+                                                1,
+                                            )
+                                        }
 
-                                if (state.selected.includes(_variantId)) {
-                                    state.selected.splice(state.selected.indexOf(_variantId), 1)
-                                }
+                                        if (!state.selected.length) {
+                                            const newId = (
+                                                state.availableRevisions?.find(
+                                                    (rev) => rev.isLatestRevision,
+                                                ) ||
+                                                state.availableRevisions?.sort(
+                                                    (a, b) =>
+                                                        b.createdAtTimestamp - a.createdAtTimestamp,
+                                                )?.[0]
+                                            )?.id
 
-                                state?.variants?.forEach((v: EnhancedVariant) => {
-                                    if (v.id === _variantId) {
-                                        const index = state.variants.indexOf(v)
-                                        state.variants.splice(index, 1)
+                                            if (newId) {
+                                                state.selected.push(newId)
+                                                const allRevisions =
+                                                    atomStore.get(allRevisionsAtom) || []
+                                                const selectedRevision = allRevisions.find(
+                                                    (rev: {id: string}) => rev.id === newId,
+                                                )
+                                                if (selectedRevision) {
+                                                    // Replace variants with just the selected one from our atom
+                                                    state.variants = [selectedRevision]
+                                                    console.log(
+                                                        "Retrieved variant from atom store:",
+                                                        variantId,
+                                                    )
+                                                } else {
+                                                    console.warn(
+                                                        "Selected variant not found in atom store:",
+                                                        variantId,
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        refetchVariants()
+                                        return state
+                                    } catch (err) {
+                                        message.error("Failed to delete variant")
+                                        return state
                                     }
-                                })
-
-                                return state
-                            } catch (err) {
-                                message.error("Failed to delete variant")
-                                return state
-                            }
+                                },
+                                {
+                                    revalidate: false,
+                                },
+                            ).then(() => {
+                                res()
+                            })
                         })
                     })
+                    // first set the mutation state of the variant to true
                 } catch (err) {
                     message.error("Failed to delete variant")
                 }
             }, [swr, variantId, fetcher, projectId])
 
-            const saveVariant = useCallback(async () => {
-                try {
-                    // first set the mutation state of the variant to true
-                    swr.mutate(
-                        (clonedState) => {
-                            const variant = findVariantById(clonedState, variantId!)
-                            if (!variant) throw new Error("Variant not found")
-
-                            variant.__isMutating = true
-                            return clonedState
-                        },
-                        {
-                            revalidate: false,
-                        },
-                    ).then(async (data) => {
-                        // then continue with the operation
+            const saveVariant = useCallback(
+                async (note?: string, callback?: (variant: EnhancedVariant) => void) => {
+                    try {
+                        // first set the mutation state of the variant to true
                         swr.mutate(
-                            async (state) => {
-                                if (!state) return state
-                                const variant = (state?.variants || []).find(
-                                    (v) => v.id === variantId,
-                                )
-                                if (!variant) return state
-                                const spec = getSpecLazy()
+                            (clonedState) => {
+                                const variant = findVariantById(clonedState, variantId!)
+                                if (!variant) throw new Error("Variant not found")
 
-                                if (!spec) return state
-
-                                try {
-                                    const parameters = transformToRequestBody({
-                                        variant,
-                                        allMetadata: getAllMetadata(),
-                                        spec,
-                                        routePath: state.uri?.routePath,
-                                    })
-                                    const saveResponse = await fetcher?.(
-                                        `/api/variants/${variant.id}/parameters?project_id=${projectId}`,
-                                        {
-                                            method: "PUT",
-                                            body: {
-                                                parameters,
-                                            },
-                                        },
-                                    )
-
-                                    if (saveResponse && saveResponse?.status !== 200) {
-                                        // error
-                                        message.error("Failed to save variant")
-                                    } else {
-                                        const saveResponse = await fetcher?.(
-                                            `/api/variants/${variant.id}?project_id=${projectId}`,
-                                            {method: "GET", cache: false},
-                                        )
-
-                                        const t = setVariant(saveResponse)
-
-                                        const clonedState = state
-                                        const index = clonedState?.variants?.findIndex(
-                                            (v) => v.id === variant.id,
-                                        )
-
-                                        const updatedVariant = {
-                                            ...variant,
-                                            ...t,
-                                        }
-                                        updatedVariant.isChat = variant.isChat
-                                        updatedVariant.__isMutating = false
-                                        clonedState.variants[index] = updatedVariant
-                                        message.success("Changes saved successfully!")
-
-                                        clonedState.dataRef = structuredClone(clonedState.dataRef)
-                                        if (!clonedState.dataRef) clonedState.dataRef = {}
-                                        clonedState.dataRef[updatedVariant.id] =
-                                            hashVariant(updatedVariant)
-
-                                        return clonedState
-                                    }
-
-                                    return state
-                                } catch (err) {
-                                    message.error("Failed to save variant")
-                                    return state
-                                }
+                                variant.__isMutating = true
+                                return clonedState
                             },
                             {
                                 revalidate: false,
                             },
-                        )
-                    })
-                } catch (err) {
-                    message.error("Failed to save variant")
-                }
-            }, [swr, variantId, fetcher, projectId])
+                        ).then(async (data) => {
+                            // then continue with the operation
+                            swr.mutate(
+                                async (state) => {
+                                    if (!state) return state
+                                    const variant = (state?.variants || []).find(
+                                        (v) => v.id === variantId,
+                                    )
+                                    if (!variant) return state
+                                    const spec = getSpecLazy()
+
+                                    if (!spec) return state
+
+                                    try {
+                                        const parameters = transformToRequestBody({
+                                            variant,
+                                            allMetadata: getAllMetadata(),
+                                            spec,
+                                            routePath: state.uri?.routePath,
+                                        })
+                                        // Attempt to save the variant parameters with a commit message
+                                        await fetcher?.(
+                                            `/api/variants/${variant.variantId}/parameters?project_id=${projectId}`,
+                                            {
+                                                method: "PUT",
+                                                body: {
+                                                    parameters,
+                                                    commit_message: note,
+                                                },
+                                            },
+                                        )
+
+                                        // Since the API doesn't return the updated data after PUT,
+                                        // we need to fetch the latest variant data explicitly
+                                        try {
+                                            // Fetch the latest variant data to confirm the update was successful
+                                            const latestVariantData = await fetcher?.(
+                                                `/api/variants/${variant.variantId}?project_id=${projectId}`,
+                                                {method: "GET"},
+                                            )
+
+                                            if (!latestVariantData) {
+                                                throw new Error(
+                                                    "Failed to fetch updated variant data",
+                                                )
+                                            }
+                                        } catch (fetchError) {
+                                            console.error(
+                                                "Error fetching updated variant data:",
+                                                fetchError,
+                                            )
+                                            message.error(
+                                                "Saved variant but couldn't verify the update",
+                                            )
+                                        }
+
+                                        // Continue with updating the state regardless of verification result
+                                        // When saving a variant, a new revision is created on the backend
+                                        // We need to fetch the complete set of revisions to get the newly created one
+                                        message.loading("Updating playground with new revision...")
+                                        try {
+                                            // Get all revisions for this app, including the new one
+                                            const {
+                                                revisions: processedRevisions,
+                                                spec,
+                                                uri,
+                                            } = await fetchAndProcessRevisions({
+                                                appId: config.appId || "",
+                                                appType: config.appType || "",
+                                                projectId: projectId || "",
+                                                forceRefresh: true, // Force refresh to get the new revision
+                                                logger: console.log,
+                                                keyParts: "playground",
+                                            })
+
+                                            // Create a deep clone of the state to avoid mutation issues
+                                            // const clonedState = structuredClone(state)
+
+                                            // Use our shared utility to update the state with the fresh revisions
+                                            const updatedState = updateStateWithProcessedRevisions(
+                                                state,
+                                                processedRevisions,
+                                                spec,
+                                                uri,
+                                            ) as typeof state
+
+                                            // Find the latest revision for the current variant by timestamp
+                                            // Filter revisions for the current variant and sort by timestamp (newest first)
+                                            const newRevision = processedRevisions
+                                                .filter(
+                                                    (rev) => rev.variantId === variant.variantId,
+                                                )
+                                                .sort(
+                                                    (a, b) =>
+                                                        b.createdAtTimestamp - a.createdAtTimestamp,
+                                                )[0]
+                                            // Additional verification could be added here to compare parameters
+                                            // with what was sent in the request if needed
+
+                                            if (newRevision) {
+                                                callback?.(newRevision)
+
+                                                // Find the index of the variant we're updating to preserve its position
+                                                const index = updatedState.variants.findIndex(
+                                                    (v) => v.variantId === variant.variantId,
+                                                )
+
+                                                // Find the old variant that we're replacing
+                                                const oldVariant =
+                                                    index !== -1
+                                                        ? updatedState.variants[index]
+                                                        : null
+
+                                                // Preserve any UI state or props from the old variant that might be needed
+                                                if (oldVariant) {
+                                                    // Copy any UI-specific properties that shouldn't be lost during replacement
+                                                    // Use a type-safe approach with a dynamic property assignment
+                                                    // This preserves UI state without TypeScript errors
+                                                    const oldUiState =
+                                                        (oldVariant as any).__uiState || {}
+                                                    ;(newRevision as any).__uiState = oldUiState
+                                                }
+
+                                                // Create a new variants array with the new revision at the same position
+                                                if (index !== -1) {
+                                                    // Get the original pristine variant from the atom store
+                                                    const allRevisions =
+                                                        atomStore.get(allRevisionsAtom) || []
+                                                    const pristineVariant = allRevisions.find(
+                                                        (rev: {id: string}) =>
+                                                            rev.id === oldVariant?.id,
+                                                    )
+
+                                                    // Create a new variants array to maintain UI state
+                                                    const newVariants = [...updatedState.variants]
+
+                                                    // Add the new revision
+                                                    newVariants[index] = newRevision
+
+                                                    // If we found the pristine variant, restore it to its original state
+                                                    // and add it back to the variants array (but not in the selected array)
+                                                    if (pristineVariant && oldVariant) {
+                                                        // Preserve UI state for the pristine variant
+                                                        const oldUiState =
+                                                            (oldVariant as any).__uiState || {}
+                                                        const pristineWithUiState = {
+                                                            ...pristineVariant,
+                                                        }
+                                                        ;(pristineWithUiState as any).__uiState =
+                                                            oldUiState
+
+                                                        // Find if the pristine variant is already in the array
+                                                        const pristineIndex = newVariants.findIndex(
+                                                            (v) => v.id === pristineVariant.id,
+                                                        )
+
+                                                        // Replace or add the pristine variant
+                                                        if (
+                                                            pristineIndex !== -1 &&
+                                                            pristineIndex !== index
+                                                        ) {
+                                                            newVariants[pristineIndex] =
+                                                                pristineWithUiState
+                                                        }
+
+                                                        // Update dataRef for the pristine variant to mark it as not dirty
+                                                        if (updatedState.dataRef) {
+                                                            updatedState.dataRef[
+                                                                pristineVariant.id
+                                                            ] = hashVariant(pristineVariant)
+                                                        }
+                                                    }
+
+                                                    updatedState.variants = newVariants
+                                                } else {
+                                                    // If not found (unlikely), just add it to the end
+                                                    updatedState.variants = [
+                                                        ...updatedState.variants,
+                                                        newRevision,
+                                                    ]
+                                                }
+
+                                                // Update the selection to point to the new revision
+                                                // We need to check both the variant.id and variant.variantId since
+                                                // selected might contain either depending on how it was added
+                                                updatedState.selected = updatedState.selected.map(
+                                                    (id) => {
+                                                        // Check if this ID matches either the variant ID or variantId
+                                                        if (
+                                                            id === variant.id ||
+                                                            id === variant.variantId
+                                                        ) {
+                                                            console.log(
+                                                                `Updating selected ID from ${id} to ${newRevision.id}`,
+                                                            )
+                                                            return newRevision.id
+                                                        }
+                                                        return id
+                                                    },
+                                                )
+
+                                                // Update the dataRef to track the new revision
+                                                updatedState.dataRef = structuredClone(
+                                                    updatedState.dataRef || {},
+                                                )
+                                                updatedState.dataRef[newRevision.id] =
+                                                    hashVariant(newRevision)
+
+                                                message.success("Variant saved successfully")
+                                                refetchVariants()
+                                                return updatedState
+                                            } else {
+                                                // If we couldn't find the new revision, just return the updated state anyway
+                                                message.warning(
+                                                    "Variant saved but couldn't find the new revision",
+                                                )
+                                                return updatedState
+                                            }
+                                        } catch (error) {
+                                            message.error("Error updating revision state")
+                                            return state
+                                        }
+                                    } catch (err) {
+                                        message.error("Failed to save variant")
+                                        return state
+                                    }
+                                },
+                                {
+                                    revalidate: false,
+                                },
+                            )
+                        })
+                    } catch (err) {
+                        message.error("Failed to save variant")
+                    }
+                },
+                [swr, variantId, fetcher, projectId],
+            )
 
             /**
              * Updates the current variant with new properties
@@ -428,6 +654,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
 
                             // Update prompt keys
                             if (!updatedVariant.isCustom) {
+                                // @ts-ignore
                                 updateVariantPromptKeys(updatedVariant)
                             }
 

@@ -136,6 +136,10 @@ export const createConfig = (content: string[] = []): Config => {
             },
         ],
         plugins: [
+            require("tailwind-scrollbar")({
+                nocompatible: true,
+                preferredStrategy: "pseudoelements",
+            }),
             require("@headlessui/tailwindcss"),
             require("@tailwindcss/forms"),
             require("@tailwindcss/container-queries"),

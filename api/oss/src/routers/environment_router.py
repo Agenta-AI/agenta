@@ -1,10 +1,7 @@
-import logging
-from typing import Optional
-
 from fastapi.responses import JSONResponse
-from fastapi import Request, HTTPException
+from fastapi import Request
 
-
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager, app_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.api_models import DeployToEnvironmentPayload
@@ -14,8 +11,8 @@ if is_ee():
     from ee.src.utils.permissions import check_action_access
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 
 @router.post("/deploy/", operation_id="deploy_to_environment")
@@ -42,10 +39,9 @@ async def deploy_to_environment(
             project_id=str(variant.project_id),
             permission=Permission.DEPLOY_APPLICATION,
         )
-        logger.debug(f"User has permission deploy to environment: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -54,6 +50,7 @@ async def deploy_to_environment(
     await db_manager.deploy_to_environment(
         environment_name=payload.environment_name,
         variant_id=payload.variant_id,
+        commit_message=payload.commit_message,
         user_uid=request.state.user_id,
     )
 
@@ -64,4 +61,3 @@ async def deploy_to_environment(
         object_type="variant",
         project_id=str(variant.project_id),
     )
-    logger.debug("Successfully updated last_modified_by app information")

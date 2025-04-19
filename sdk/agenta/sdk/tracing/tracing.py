@@ -15,7 +15,7 @@ from opentelemetry.sdk.resources import Resource
 
 from agenta.sdk.utils.singleton import Singleton
 from agenta.sdk.utils.exceptions import suppress
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.tracing.processors import TraceProcessor
 from agenta.sdk.tracing.exporters import InlineExporter, OTLPExporter
 from agenta.sdk.tracing.spans import CustomSpan
@@ -23,6 +23,8 @@ from agenta.sdk.tracing.inline import parse_inline_trace
 from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
+
+log = get_module_logger(__file__)
 
 
 class Tracing(metaclass=Singleton):

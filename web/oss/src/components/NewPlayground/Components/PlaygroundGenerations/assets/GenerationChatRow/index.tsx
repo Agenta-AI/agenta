@@ -5,11 +5,6 @@ import dynamic from "next/dynamic"
 
 import AddButton from "@/oss/components/NewPlayground/assets/AddButton"
 import RunButton from "@/oss/components/NewPlayground/assets/RunButton"
-import type {
-    ArrayMetadata,
-    Enhanced,
-    ObjectMetadata,
-} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
 import {
     findPropertyInObject,
@@ -17,11 +12,14 @@ import {
 } from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {createMessageFromSchema} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/messageHelpers"
 import type {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
-import {getMetadataLazy, getResponseLazy} from "@/oss/components/NewPlayground/state"
+import {GenerationChatHistoryItem} from "@/oss/components/NewPlayground/state/types"
+import {getMetadataLazy, getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
 import {
-    GenerationChatHistoryItem,
-    MessageWithRuns,
-} from "@/oss/components/NewPlayground/state/types"
+    ArrayMetadata,
+    Enhanced,
+    ObjectMetadata,
+} from "@/oss/lib/shared/variant/genericTransformer/types"
 
 import TextControl from "../../../PlaygroundVariantPropertyControl/assets/TextControl"
 import PromptMessageConfig from "../../../PromptMessageConfig"
@@ -87,10 +85,10 @@ export const GenerationChatRowOutput = ({
                     "w-full",
                     messageProps?.className,
                     {
-                        "[&_.agenta-rich-text-editor_*]:!text-[red] [&_.message-user-select]:text-[red] [&_.message-user-select]:pointer-events-none":
-                            messageResult?.error,
+                        "!rounded-none": viewType === "comparison",
                     },
                 ])}
+                error={!!messageResult?.error}
                 isMessageDeletable={isMessageDeletable}
                 autoFocus={true}
                 debug
@@ -130,6 +128,7 @@ const GenerationChatRow = ({
         historyItem,
         messageRow,
         runTests,
+        cancelRunTests,
         mutate,
         viewType,
         displayedVariants,
@@ -304,7 +303,7 @@ const GenerationChatRow = ({
                     viewAs={viewAs}
                     rowId={messageRow?.__id}
                     resultHash={historyItem?.__result}
-                    isRunning={historyItem?.__isRunning || isRunning}
+                    isRunning={!!historyItem?.__isRunning || isRunning}
                     disabled={!messageRow}
                     placeholder="Type a message..."
                     messageProps={{
@@ -320,15 +319,24 @@ const GenerationChatRow = ({
                 <div
                     className={clsx([
                         "flex items-center gap-2 mt-5",
-                        {"px-3": viewType === "comparison"},
+                        {"px-3 mb-2": viewType === "comparison"},
                     ])}
                 >
-                    <RunButton
-                        size="small"
-                        disabled={historyItem?.__isRunning}
-                        onClick={() => runTests?.()}
-                        className="flex"
-                    />
+                    {!!historyItem?.__isRunning || isRunning ? (
+                        <RunButton
+                            isCancel
+                            onClick={() => cancelRunTests?.()}
+                            size="small"
+                            className="flex"
+                        />
+                    ) : (
+                        <RunButton
+                            size="small"
+                            disabled={!!historyItem?.__isRunning || isRunning}
+                            onClick={() => runTests?.()}
+                            className="flex"
+                        />
+                    )}
                     <AddButton size="small" label="Message" onClick={addNewMessageToRowHistory} />
                 </div>
             ) : null}

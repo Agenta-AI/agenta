@@ -1,18 +1,16 @@
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 
 import {Copy, MinusCircle} from "@phosphor-icons/react"
 import {Button} from "antd"
 import clsx from "clsx"
 
-import type {
-    ArrayMetadata,
-    ObjectMetadata,
-} from "../../../../assets/utilities/genericTransformer/types"
-import {getEnhancedProperties} from "../../../../assets/utilities/genericTransformer/utilities/enhanced"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getEnhancedProperties} from "@/oss/lib/shared/variant"
+import type {ArrayMetadata, ObjectMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {createInputRow} from "@/oss/lib/shared/variant/inputHelpers"
+
 import usePlayground from "../../../../hooks/usePlayground"
-import {createInputRow} from "../../../../hooks/usePlayground/assets/inputHelpers"
 import {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
-import {getMetadataLazy, getResponseLazy} from "../../../../state"
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
 
 import type {GenerationVariableOptionsProps} from "./types"

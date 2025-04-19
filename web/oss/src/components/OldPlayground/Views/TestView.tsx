@@ -598,6 +598,10 @@ const App: FC<TestViewProps> = ({
                 isChatVariant ? testItem.chat || [{}] : [],
                 controller.signal,
                 true,
+                false,
+                false,
+                undefined,
+                variant.variantId,
             )
 
             let res: BaseResponse | undefined
@@ -825,7 +829,7 @@ const App: FC<TestViewProps> = ({
                 open={isLLMProviderMissingModalOpen}
                 onOk={() => router.push("/settings?tab=secrets")}
                 onCancel={() => setIsLLMProviderMissingModalOpen(false)}
-                okText={"View LLM Keys"}
+                okText={"View Model Hub"}
                 {...(!isDemo() && {footer: null})}
             >
                 <p>

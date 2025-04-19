@@ -7,19 +7,20 @@ export function useEditorResize({
     enableResize,
     boundWidth,
     boundHeight,
+    skipHandle,
 }: Pick<EditorProps, "singleLine" | "enableResize" | "boundWidth" | "boundHeight">) {
     const containerRef = useRef<HTMLDivElement>(null)
     const isResizing = useRef(false)
     const [dimensions, setDimensions] = useState({width: 0, height: 0})
-
+    const [containerElm, setContainerElm] = useState(null)
     useEffect(() => {
-        if (!containerRef.current || singleLine || !enableResize) {
+        if ((!containerRef.current && !containerElm) || singleLine || !enableResize) {
             return
         }
 
-        const container = containerRef.current
+        const container = containerRef.current || containerElm
         const handle = container.querySelector(".resize-handle") as HTMLElement
-        if (!handle) {
+        if (!skipHandle && !handle) {
             return
         }
 
@@ -58,16 +59,28 @@ export function useEditorResize({
             requestAnimationFrame(() => resize(e))
         }
 
-        handle.addEventListener("mousedown", startResize)
-        document.addEventListener("mousemove", throttledResize)
-        document.addEventListener("mouseup", stopResize)
+        if (handle) {
+            handle.addEventListener("mousedown", startResize)
+            document.addEventListener("mousemove", throttledResize)
+            document.addEventListener("mouseup", stopResize)
+        }
 
         return () => {
-            handle.removeEventListener("mousedown", startResize)
+            if (handle) {
+                handle.removeEventListener("mousedown", startResize)
+            }
             document.removeEventListener("mousemove", throttledResize)
             document.removeEventListener("mouseup", stopResize)
         }
-    }, [singleLine, enableResize, boundWidth, boundHeight, containerRef.current])
+    }, [
+        containerElm,
+        skipHandle,
+        singleLine,
+        enableResize,
+        boundWidth,
+        boundHeight,
+        containerRef.current,
+    ])
 
-    return {containerRef, dimensions}
+    return {containerRef, dimensions, setContainerElm}
 }

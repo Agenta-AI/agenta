@@ -1,6 +1,8 @@
 import {useRef, useState} from "react"
+
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Input, Button, Form, Typography, FormProps} from "antd"
+import {OTPRef} from "antd/es/input/OTP"
 import {useRouter} from "next/router"
 import {
     clearLoginAttemptInfo,
@@ -9,11 +11,10 @@ import {
 } from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
-import {OTPRef} from "antd/es/input/OTP"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 const {Text, Title} = Typography
 
@@ -23,6 +24,7 @@ const SendOTP = ({
     setMessage,
     authErrorMsg,
     setIsLoginCodeVisible,
+    isInvitedUser,
 }: SendOTPProps) => {
     const classes = useStyles()
     const router = useRouter()
@@ -85,9 +87,17 @@ const SendOTP = ({
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
                 ) {
-                    await router.push("/post-signup")
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
                 } else {
-                    await router.push("/apps")
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
                 }
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {
                 const trileLeft =

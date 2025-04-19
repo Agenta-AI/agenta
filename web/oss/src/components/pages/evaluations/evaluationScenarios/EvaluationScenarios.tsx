@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {type FC, useEffect, useMemo, useState} from "react"
 
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
@@ -12,6 +12,7 @@ import AgCustomHeader from "@/oss/components/AgCustomHeader/AgCustomHeader"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import CompareOutputDiff from "@/oss/components/CompareOutputDiff/CompareOutputDiff"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {getAppValues, useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
@@ -54,7 +55,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface Props {}
 
-const EvaluationScenarios: React.FC<Props> = () => {
+const EvaluationScenarios: FC<Props> = () => {
     const router = useRouter()
     const appId = useAppId()
     const {currentApp} = useAppsData()
@@ -353,10 +354,10 @@ const EvaluationScenarios: React.FC<Props> = () => {
                         <Typography.Link
                             href={`/apps/${appId}/playground?variant=${evalaution?.variants[0].variantName}`}
                         >
-                            {variantNameWithRev({
-                                variant_name: evalaution?.variants[0].variantName ?? "",
-                                revision: evalaution?.revisions[0],
-                            })}
+                            <VariantDetailsWithStatus
+                                variantName={evalaution?.variants[0].variantName ?? ""}
+                                revision={evalaution?.revisions[0]}
+                            />
                         </Typography.Link>
                     </Space>
                 </Space>

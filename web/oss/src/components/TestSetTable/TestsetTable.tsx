@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {ReactNode, useEffect, useState} from "react"
+import {type FC, type ChangeEvent, ReactNode, useEffect, useState} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {Button, Input, Typography, message} from "antd"
@@ -8,6 +8,7 @@ import {AxiosResponse} from "axios"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import {useProjectData} from "@/oss/contexts/project.context"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import useStateCallback from "@/oss/hooks/useStateCallback"
@@ -71,7 +72,7 @@ const useStylesTestset = createUseStyles({
     },
 })
 
-const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
+const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     const [messageApi, contextHolder] = message.useMessage()
 
     const mssgModal = (type: NoticeType, content: ReactNode) => {
@@ -98,6 +99,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
     const classes = useStylesTestset()
     const router = useRouter()
     const {appTheme} = useAppTheme()
+    const {isProjectId} = useProjectData()
 
     const {testset_id} = router.query
 
@@ -126,7 +128,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
             setInputValues(newColDefs.filter((col) => !!col.field).map((col) => col.field))
         }
 
-        if (writeMode === "edit" && testset_id) {
+        if (writeMode === "edit" && testset_id && isProjectId) {
             fetchTestset(testset_id as string).then((data) => {
                 setTestsetName(data.name)
                 if (data.csvdata.length > 0) {
@@ -139,7 +141,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
                 }
             })
         }
-    }, [writeMode, testset_id])
+    }, [writeMode, testset_id, isProjectId])
 
     const handleExportClick = () => {
         const csvData = convertToCsv(
@@ -271,7 +273,7 @@ const TestsetTable: React.FC<TestsetTableProps> = ({mode}) => {
         }
     }
 
-    const handleTestsetNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleTestsetNameChange = (e: ChangeEvent<HTMLInputElement>) => {
         setTestsetName(e.target.value)
         setIsDataChanged(true)
     }

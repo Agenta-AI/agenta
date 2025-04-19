@@ -545,6 +545,9 @@ class PromptTemplate(BaseModel):
         }
 
         # Add optional parameters only if they are set
+        if self.llm_config.model is not None:
+            kwargs["model"] = self.llm_config.model
+
         if self.llm_config.temperature is not None:
             kwargs["temperature"] = self.llm_config.temperature
 

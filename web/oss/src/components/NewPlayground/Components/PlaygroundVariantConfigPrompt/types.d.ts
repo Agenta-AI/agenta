@@ -1,6 +1,6 @@
 import {type CollapseProps} from "antd"
 
-import {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {BaseContainerProps} from "../types"
 
 export interface PlaygroundVariantConfigPromptComponentProps extends CollapseProps {

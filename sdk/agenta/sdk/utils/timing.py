@@ -1,7 +1,9 @@
 import time
 from functools import wraps
 
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__file__)
 
 
 def timeit(func):

@@ -1,15 +1,11 @@
-import {
-    ConfigMetadata,
-    OpenAPISpec,
-} from "@/oss/components/NewPlayground/assets/utilities/genericTransformer/types"
 import {GenerationChatRow, GenerationInputRow} from "@/oss/components/NewPlayground/state/types"
+import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
+import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
 
+import {transformToRequestBody} from "../../../../../lib/shared/variant/transformer/transformToRequestBody"
+import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import {parseValidationError} from "../../../assets/utilities/errors"
-import {
-    constructPlaygroundTestUrl,
-    transformToRequestBody,
-} from "../../../assets/utilities/transformer/reverseTransformer"
-import {EnhancedVariant} from "../../../assets/utilities/transformer/types"
 
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
@@ -28,6 +24,7 @@ async function runVariantInputRow(payload: {
     messageId?: string
     chatHistory?: any[]
     spec: OpenAPISpec
+    runId: string
 }) {
     const {
         variant,
@@ -42,6 +39,7 @@ async function runVariantInputRow(payload: {
         appId,
         chatHistory,
         spec,
+        runId,
     } = payload
     const requestBody = transformToRequestBody({
         variant,
@@ -53,7 +51,6 @@ async function runVariantInputRow(payload: {
         routePath: uri?.routePath,
     })
     let result
-
     try {
         const response = await fetch(
             `${constructPlaygroundTestUrl(uri, "/test", true)}${headers.Authorization ? `?project_id=${projectId}&application_id=${appId}` : `?application_id=${appId}`}`,
@@ -67,7 +64,6 @@ async function runVariantInputRow(payload: {
                 body: JSON.stringify(requestBody),
             },
         )
-
         const data = await response.json()
         if (!response.ok) {
             const errorMessage = parseValidationError(data)
@@ -107,6 +103,7 @@ async function runVariantInputRow(payload: {
                 rowId,
                 result,
                 messageId,
+                runId,
             },
         })
     }

@@ -1,6 +1,6 @@
 import type {PopoverProps} from "antd"
 
-import type {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import type {BaseContainerProps} from "../types"
 
 /** Property configuration for model parameters */

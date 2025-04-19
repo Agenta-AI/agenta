@@ -1,1 +1,1 @@
-export default () => null
+export default (props?: any) => null

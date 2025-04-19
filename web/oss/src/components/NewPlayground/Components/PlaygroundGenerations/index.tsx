@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {EnhancedVariant} from "../../assets/utilities/transformer/types"
+import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import usePlayground from "../../hooks/usePlayground"
 
 import GenerationChat from "./assets/GenerationChat"

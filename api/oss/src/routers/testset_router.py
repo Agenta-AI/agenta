@@ -2,7 +2,6 @@ import io
 import os
 import csv
 import json
-import logging
 import requests
 from pathlib import Path
 from typing import Optional, List
@@ -12,11 +11,10 @@ from pydantic import ValidationError
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, UploadFile, File, Form, Request
 
-
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.converters import testset_db_to_pydantic
-
 
 from oss.src.models.api.testset_model import (
     NewTestset,
@@ -38,10 +36,42 @@ if is_ee():
 
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 upload_folder = "./path/to/upload/folder"
+
+TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
+TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
+
+TESTSETS_COUNT_WARNING = f"Test set exceeds the maximum count of {TESTSETS_COUNT_LIMIT} test cases per test set."
+TESTSETS_SIZE_WARNING = f"Test set exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per test set."
+
+TESTSETS_SIZE_EXCEPTION = HTTPException(
+    status_code=400,
+    detail=TESTSETS_SIZE_WARNING,
+)
+
+TESTSETS_COUNT_EXCEPTION = HTTPException(
+    status_code=400,
+    detail=TESTSETS_COUNT_WARNING,
+)
+
+
+def _validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
+    total_size = 2
+    for i, row in enumerate(rows):
+        row_str = json.dumps(row)
+        total_size += len(row_str.encode("utf-8"))
+        if i > 0:
+            total_size += 1
+        if i + 1 > TESTSETS_COUNT_LIMIT:
+            log.error(TESTSETS_COUNT_WARNING)
+            raise TESTSETS_COUNT_EXCEPTION
+        if total_size > TESTSETS_SIZE_LIMIT:
+            log.error(TESTSETS_SIZE_WARNING)
+            raise TESTSETS_SIZE_EXCEPTION
+    return i + 1, total_size
 
 
 @router.post(
@@ -71,14 +101,16 @@ async def upload_file(
             project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
-        logger.debug(f"User has Permission to upload Testset: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
+
+    if file.size > TESTSETS_SIZE_LIMIT:  # Preemptively check file size
+        raise TESTSETS_SIZE_EXCEPTION
 
     # Create a document
     document = {
@@ -93,7 +125,7 @@ async def upload_file(
         json_object = json.loads(json_text)
 
         # Populate the document with column names and values
-        for row in json_object:
+        for i, row in enumerate(json_object):
             document["csvdata"].append(row)
 
     else:
@@ -106,8 +138,10 @@ async def upload_file(
         csv_reader = csv.DictReader(csv_file_like_object)
 
         # Populate the document with rows from the CSV reader
-        for row in csv_reader:
+        for i, row in enumerate(csv_reader):
             document["csvdata"].append(row)
+
+    _validate_testset_limits(document["csvdata"])
 
     try:
         testset = await db_manager.create_testset(
@@ -149,10 +183,9 @@ async def import_testset(
             project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
-        logger.debug(f"User has Permission to import Testset: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -177,6 +210,9 @@ async def import_testset(
 
         # Populate the document with column names and values
         json_response = response.json()
+
+        _validate_testset_limits(json_response)
+
         for row in json_response:
             document["csvdata"].append(row)
 
@@ -227,14 +263,15 @@ async def create_testset(
             project_id=request.state.project_id,
             permission=Permission.CREATE_TESTSET,
         )
-        logger.debug(f"User has Permission to create Testset: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
+
+    _validate_testset_limits(csvdata.csvdata)
 
     testset_data = {
         "name": csvdata.name,
@@ -279,14 +316,15 @@ async def update_testset(
             project_id=str(testset.project_id),
             permission=Permission.EDIT_TESTSET,
         )
-        logger.debug(f"User has Permission to update Testset: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
+
+    _validate_testset_limits(csvdata.csvdata)
 
     testset_update = {
         "name": csvdata.name,
@@ -324,18 +362,12 @@ async def get_testsets(
                 project_id=request.state.project_id,
                 permission=Permission.VIEW_TESTSET,
             )
-
-            logger.debug(
-                "User has Permission to view Testsets: %s",
-                has_permission,
-            )
-
             if not has_permission:
                 error_msg = (
                     "You do not have permission to perform this action. "
                     + "Please contact your organization admin."
                 )
-                logger.error(error_msg)
+                log.error(error_msg)
 
                 return JSONResponse(
                     status_code=403,
@@ -357,7 +389,7 @@ async def get_testsets(
         ]
 
     except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
 
         raise HTTPException(
             status_code=500,
@@ -388,10 +420,9 @@ async def get_single_testset(
                 project_id=str(test_set.project_id),
                 permission=Permission.VIEW_TESTSET,
             )
-            logger.debug(f"User has Permission to view Testset: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
+                log.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -428,10 +459,9 @@ async def delete_testsets(
                 project_id=str(testset.project_id),
                 permission=Permission.DELETE_TESTSET,
             )
-            logger.debug(f"User has Permission to delete Testset: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-                logger.error(error_msg)
+                log.error(error_msg)
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,

@@ -103,19 +103,63 @@ def _encode_key(
     return f"ag.{namespace}.{key}"
 
 
-def _encode_value(
-    value: Any,
-) -> Optional[Attribute]:
+def _make_serializable(value: Any) -> Any:
+    """
+    Transform complex nested structures into JSON-serializable form.
+    Handles Pydantic models, nested dictionaries and lists recursively.
+    """
+    if value is None or isinstance(value, (str, int, float, bool, bytes)):
+        return value
+
+    # Handle Pydantic objects (prioritize v2 over v1 API)
+    if hasattr(value, "model_dump"):  # Pydantic v2
+        return value.model_dump()
+    elif hasattr(value, "dict"):  # Pydantic v1
+        return value.dict()
+
+    if isinstance(value, dict):
+        try:
+            # Test serialization without modifying - optimizes for already-serializable dicts
+            dumps(
+                value
+            )  # If serialization fails, we'll catch the exception and process deeply
+            return value  # Avoid unnecessary recursion for serializable dicts
+        except TypeError:
+            return {k: _make_serializable(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        try:
+            # Test serialization without modifying - optimizes for already-serializable lists
+            dumps(
+                value
+            )  # If serialization fails, we'll catch the exception and process deeply
+            return value  # Avoid unnecessary recursion for serializable lists
+        except TypeError:
+            return [_make_serializable(item) for item in value]
+
+    return repr(value)
+
+
+def _encode_value(value: Any) -> Optional[Attribute]:
+    """
+    Encode values for tracing, ensuring proper JSON serialization.
+    Adds the @ag.type=json: prefix only to appropriate values.
+    """
     if value is None:
         return None
 
     if isinstance(value, (str, int, float, bool, bytes)):
         return value
 
-    if isinstance(value, dict) or isinstance(value, list):
-        encoded = dumps(value)
-        value = "@ag.type=json:" + encoded
-        return value
+    try:
+        if (
+            isinstance(value, (dict, list))
+            or hasattr(value, "model_dump")
+            or hasattr(value, "dict")
+        ):
+            serializable_value = _make_serializable(value)
+            return "@ag.type=json:" + dumps(serializable_value)
+    except TypeError:
+        pass
 
     return repr(value)
 

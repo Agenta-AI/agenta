@@ -1,17 +1,17 @@
 // @ts-nocheck
-import {findCustomWorkflowPath} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {getOrgValues} from "@/oss/contexts/org.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {
     fetchOpenApiSchemaJson,
+    findCustomWorkflowPath,
     setVariant,
     transformVariant,
-} from "@/oss/lib/hooks/useStatelessVariant/assets/helpers"
-import {transformToRequestBody} from "@/oss/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
+} from "@/oss/lib/shared/variant"
+import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {AppTemplate} from "@/oss/lib/Types"
 
 //Prefix convention:
@@ -66,7 +66,7 @@ export const createApp = async ({
 
 export const createVariant = async ({
     appId,
-    variantName = "app.key",
+    variantName = "default",
     baseName = "app",
     templateKey,
     serviceUrl,
@@ -86,7 +86,6 @@ export const createVariant = async ({
         key?: ServiceType
         url?: string
     }
-
     /**
      * this functions utilizes either serviceUrl or templateKey
      */
@@ -126,7 +125,11 @@ export const updateVariant = async (
     ignoreAxiosError = false,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/variants/${variantId}/service/?url=${serviceUrl}`,
+        `${getAgentaApiUrl()}/api/variants/${variantId}/service`,
+        {
+            url: serviceUrl,
+            variant_id: variantId,
+        },
         {_ignoreError: ignoreAxiosError} as any,
     )
 
@@ -203,6 +206,7 @@ export const createAndStartTemplate = async ({
                 throw new Error("No schema found")
             }
 
+            // TODO: HANDLE NEW UPDATE -> NEW REVISION MOUNT
             const variant = transformVariant(setVariant(_variant, uri), schema, _variant.appType)
 
             const parameters = transformToRequestBody({
@@ -216,14 +220,14 @@ export const createAndStartTemplate = async ({
                     parameters,
                 },
             )
+
+            onStatusChange?.("success", "", app?.app_id)
         } catch (error: any) {
             if (error?.response?.status === 400) {
                 onStatusChange?.("bad_request", error)
                 return
             }
             throw error
-        } finally {
-            onStatusChange?.("success", "", app?.app_id)
         }
     } catch (error) {
         onStatusChange?.("error", error)

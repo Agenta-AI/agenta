@@ -2,9 +2,11 @@ import {useCallback} from "react"
 
 import type {Key, SWRHook} from "swr"
 
+import {message} from "@/oss/components/AppMessageContext"
+import {hashVariant} from "@/oss/components/NewPlayground/assets/hash"
 import type {FetcherOptions} from "@/oss/lib/api/types"
+import {atomStore, allRevisionsAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 
-import {message} from "../../../state/messageContext"
 import {isPlaygroundEqual} from "../assets/helpers"
 import type {
     PlaygroundStateData,
@@ -150,11 +152,30 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
              */
             const setSelectedDisplayVariant = useCallback(
                 (variantId: string) => {
+                    // Get all transformed revisions from atom store
+                    const allRevisions = atomStore.get(allRevisionsAtom) || []
+
                     swr.mutate(
                         (state) => {
                             if (!state) return state
 
+                            // Update selected ID in state
                             state.selected = [variantId]
+
+                            // Find the selected revision from the atom store
+                            const selectedRevision = allRevisions.find(
+                                (rev: {id: string}) => rev.id === variantId,
+                            )
+
+                            // If we found it in the atom store, use it directly
+                            if (selectedRevision) {
+                                // Replace variants with just the selected one from our atom
+                                state.variants = [selectedRevision]
+                                console.log("Retrieved variant from atom store:", variantId)
+                            } else {
+                                console.warn("Selected variant not found in atom store:", variantId)
+                            }
+
                             return state
                         },
                         {revalidate: false},
@@ -170,7 +191,10 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
              * @param display - Optional forced display state
              */
             const toggleVariantDisplay = useCallback(
-                (variantId: string, display: boolean) => {
+                (variantId: string, display?: boolean) => {
+                    // Get all revisions from atom store
+                    const allRevisions = atomStore.get(allRevisionsAtom) || []
+
                     swr.mutate(
                         (state) => {
                             if (!state) return state
@@ -178,27 +202,74 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             const _display = display ?? !isInView
 
                             if (_display) {
+                                // Add to selection
                                 const selectedVariants = Array.from(
                                     new Set([...state.selected, variantId]),
                                 )
                                 state.selected = selectedVariants
 
-                                const selectedVariantName = state.variants.find(
-                                    (variant) => variant.id === variantId,
-                                )?.variantName
+                                // Find the revision in the atom store
+                                const revisionToAdd = allRevisions.find(
+                                    (rev: {id: string}) => rev.id === variantId,
+                                )
+
+                                // Only add it to variants if it's not already there
+                                if (
+                                    revisionToAdd &&
+                                    !state.variants.some((v) => v.id === variantId)
+                                ) {
+                                    state.variants = [...state.variants, revisionToAdd]
+                                    console.log("Added variant from atom store:", variantId)
+                                }
+
+                                // Get variant name for message
+                                const selectedVariantName =
+                                    revisionToAdd?.variantName ||
+                                    state.variants.find((variant) => variant.id === variantId)
+                                        ?.variantName ||
+                                    "Unknown"
+
                                 message.success(
                                     `Variant named ${selectedVariantName} added to comparison`,
                                 )
                             } else {
+                                // Don't allow removing if it's the only one displayed
                                 if (state.selected.length === 1) {
                                     message.error("At least one variant must be displayed")
+                                    return state
                                 } else {
+                                    // Before removing from selection, sync any local changes to the atom store
+                                    const variantToUnmount = state.variants.find(
+                                        (v) => v.id === variantId,
+                                    )
+                                    if (variantToUnmount) {
+                                        // Check if this variant has local changes by comparing with dataRef
+                                        const currentHash = hashVariant(variantToUnmount)
+                                        const originalHash = state.dataRef?.[variantId]
+
+                                        // If hash is different, this variant has local changes
+                                        if (currentHash !== originalHash) {
+                                            console.log(
+                                                "Syncing locally modified variant to atom store before unmounting:",
+                                                variantId,
+                                            )
+
+                                            // Update the variant in the atom store to preserve changes
+                                            const updatedRevisions = allRevisions.map((rev) =>
+                                                rev.id === variantId ? variantToUnmount : rev,
+                                            )
+                                            atomStore.set(allRevisionsAtom, () => updatedRevisions)
+                                        }
+                                    }
+
+                                    // Remove from selection
                                     state.selected = state.selected.filter((id) => id !== variantId)
                                 }
 
-                                const selectedVariantName = state.variants.find(
-                                    (variant) => variant.id === variantId,
-                                )?.variantName
+                                // Get variant name for message
+                                const selectedVariantName =
+                                    state.variants.find((variant) => variant.id === variantId)
+                                        ?.variantName || "Unknown"
 
                                 message.success(
                                     `Variant named ${selectedVariantName} removed from comparison`,
@@ -215,10 +286,41 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
             const setDisplayedVariants = useCallback(
                 (variants: string[]) => {
+                    // Get all revisions from atom store
+                    const allRevisions = atomStore.get(allRevisionsAtom) || []
+
+                    console.log("set displayed variants:", {
+                        allRevisions,
+                        selected: variants,
+                    })
                     swr.mutate(
                         (clonedState) => {
                             if (!clonedState) return clonedState
+
+                            // Update the selected variants
                             clonedState.selected = variants
+
+                            // Ensure all selected variants are in the variants array
+                            for (const variantId of variants) {
+                                if (!clonedState.variants.some((v) => v.id === variantId)) {
+                                    const revisionToAdd = allRevisions.find(
+                                        (rev: {id: string}) => rev.id === variantId,
+                                    )
+
+                                    console.log("set displayed variants 2:", {
+                                        revisionToAdd
+                                    })
+
+                                    if (revisionToAdd) {
+                                        clonedState.variants.push(revisionToAdd)
+                                        console.log(
+                                            "Added variant from atom store in setDisplayedVariants:",
+                                            variantId,
+                                        )
+                                    }
+                                }
+                            }
+
                             return clonedState
                         },
                         {revalidate: false},

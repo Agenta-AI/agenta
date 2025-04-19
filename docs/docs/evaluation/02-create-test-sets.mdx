@@ -2,13 +2,22 @@
 title: "Create Test Sets"
 ---
 
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
 import Image from "@theme/IdealImage";
+```
 
 This guide outlines the various methods for creating test sets in Agenta and provides specifications for the test set schema.
 
-Test sets are used for runnning automatic or human evaluation. They can also be loaded into the playground, allowing you to experiment with different prompts.
+Test sets are one of the most critical components for building reliable LLM-powered applications. They allow you to evaluate your application, find edge cases, prevent regressions, and systematically improve performance over time.
 
-Test sets contain input data for the LLM application. They may also include a reference output (i.e., expected output or ground truth), though this is optional.
+## What is a Test Set?
+
+A test set is a collection of test cases, each containing:
+
+- **Inputs**: The data your LLM application expects (required)
+- **Ground Truth**: The expected answer from your application (optional, often stored as "correct_answer")
+- **Annotations**: Additional metadata or rules about the test case (optional)
 
 You can create a test set in Agenta using the following methods:
 
@@ -116,33 +125,59 @@ Remember to click `Save test set`
 
 ## Creating a Test Set from the Playground
 
-The playground offers a convenient way to create and add data to a test set. This workflow is useful if you want to build your test set ad hoc, each time you find an interesting input for the LLM app, you can immediately add these inputs to the test set and optionally set a reference answer.
+<Stream controls src="27668e5d4c08c8211d4d808af16090bd" height="400px" />
+<br />
 
-To add a data point to a test set from the playground, simply click the `Add to test set` button located near the `Run` button.
+The playground offers a convenient way to create and add data to a test set. This workflow is useful when you discover interesting cases or edge cases while experimenting with your LLM application.
 
-A drawer will display the inputs and outputs from the playground. Here, you can modify inputs and correct answers if needed. Select an existing test set to add to, or choose `+Add new` to create a new one. Once you're satisfied, click `Add` to finalize.
+To add a data point to a test set from the playground:
 
-:::warning
-Currently, when adding a test point from the playground, the correct answer is always added to a column called `correct_answer`.
-:::
-
-:::warning
-When adding a new data point, ensure that the column names in the test set match those of the LLM application. All columns from the playground (input columns and `correct_answer`) must exist in the test set. They will be created automatically if you're making a new test set. Any additional columns in the test set not available in the playground will be left empty.
-:::
-
-<Image img={require("/images/test-sets/add_test_set_playground.png")} />
-
-### Adding Chat History from the Playground
-
-When adding chat history, you can choose to include all turns from the conversation. For example:
-
-- User: Hi
-- Assistant: Hi, how can I help you?
-- User: I would like to book a table
-- Assistant: Sure, for how many people?
-
-If you select "Turn by Turn," two rows will be added to the test set: one for "Hi/Hi, how can I help you?" and another for "Hi/Hi, how can I help you?/I would like to book a table/Sure, for how many people?"
+1. Work with your application in the playground
+2. When you find an interesting case, click the `Add to test set` button located near the `Run` button
+3. A drawer will display showing the inputs and outputs from the playground
+4. You can modify inputs and correct answers if needed
+5. Select an existing test set to add to, or choose `+Add new` to create a new one
+6. Once you're satisfied, click `Add` to finalize
 
 ## Adding Data From Traces
 
-You can add any data logged to agenta to test sets. Simply navigate to observability, select the trace (or any span), then click on `Add to testset` or the `+` button.
+One of the most valuable sources of test cases is your production data. Traces captured in the Observability view represent real user interactions with your LLM application.
+
+<Stream controls src="03031e0bf0b33319923d5dadbf5d5e5a" height="400px" />
+<br />
+
+### Adding a Single Trace
+
+To add a single trace to a test set:
+
+1. Navigate to the **Observability** view in Agenta
+2. Find a trace you want to add to a test set
+3. Click the **Add to test set** button at the top of the trace
+4. Choose to create a new test set or select an existing one
+5. Review the mapping between trace data and test set columns
+   - Agenta will automatically map the inputs and outputs to appropriate columns
+   - You can edit the expected answer if you don't agree with the output
+6. Click **Save** to add the trace to your test set
+
+### Adding Multiple Traces at Once
+
+To efficiently add multiple traces:
+
+1. In the Observability view, use the search function to filter traces
+   - For example, search for specific response patterns like "I don't have enough information"
+2. Select all relevant traces by checking the boxes next to them
+3. Click **Add to test set**
+4. Choose an existing test set or create a new one
+5. Review the mapping for the traces
+6. Click **Save** to add all selected traces to your test set
+
+## Using Your Test Sets
+
+Once you have created test sets, you can use them for:
+
+1. **Playground Iteration**: Load test sets in the playground to test and refine your prompts
+2. **Automated Evaluation**: Run systematic evaluations comparing outputs against expected answers
+3. **Human Evaluation**: Collect human feedback on your application's performance
+4. **Regression Testing**: Ensure new changes don't break existing functionality
+
+To learn more about using your test sets for evaluation, see our [Evaluation documentation](/evaluation/overview).

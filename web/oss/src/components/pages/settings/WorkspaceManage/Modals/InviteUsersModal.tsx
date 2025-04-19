@@ -1,7 +1,7 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
-import {MinusCircleOutlined, PlusOutlined} from "@ant-design/icons"
-import {Button, Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
+import {MinusCircleOutlined} from "@ant-design/icons"
+import {Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
 import {useAtom} from "jotai"
 
 import {useOrgData} from "@/oss/contexts/org.context"
@@ -26,13 +26,16 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
     }, [roles])
 
     const onSubmit = useCallback(
-        ({emails, role}: {emails: string[]; role: string}) => {
+        ({emails, role}: {emails: string[]; role: string | null}) => {
             if (!orgId) return
 
             setLoading(true)
 
             inviteToWorkspace({
-                data: emails.map((email) => ({email, roles: [role]})),
+                data: emails.map((email) => ({
+                    email,
+                    ...(role ? {roles: [role]} : {}),
+                })),
                 orgId,
                 workspaceId,
             })
@@ -86,7 +89,10 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                                 )}
                             </Space>
                         ))}
-                        <Form.Item>
+
+                        {/* NOTE: The code disables the ability to invite multiple users at once due to the complexity of handling partial failures, entitlement limits, and lifecycle management. The marginal benefit of saving a few clicks does not justify the added complexity.
+                         */}
+                        {/* <Form.Item>
                             <Button
                                 type="dashed"
                                 onClick={() => add()}
@@ -96,35 +102,37 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                             >
                                 Add another
                             </Button>
-                        </Form.Item>
+                        </Form.Item> */}
                     </>
                 )}
             </Form.List>
-            <Form.Item
-                name="role"
-                rules={[{required: true, message: "Please select a role"}]}
-                initialValue="editor"
-            >
-                <Select
-                    allowClear
-                    className="w-full"
-                    placeholder="Select role"
-                    options={filteredRoles.map((role) => ({
-                        label: snakeToTitle(role.role_name || ""),
-                        value: role.role_name,
-                        desc: role.role_description,
-                    }))}
-                    optionRender={(option) => (
-                        <Space direction="vertical" size="small">
-                            <Typography.Text>{option.label}</Typography.Text>
-                            <Typography.Text className="text-wrap" type="secondary">
-                                {option.data.desc}
-                            </Typography.Text>
-                        </Space>
-                    )}
-                    optionLabelProp="label"
-                />
-            </Form.Item>
+            {isDemo() ? (
+                <Form.Item
+                    name="role"
+                    rules={[{required: true, message: "Please select a role"}]}
+                    initialValue="editor"
+                >
+                    <Select
+                        allowClear
+                        className="w-full"
+                        placeholder="Select role"
+                        options={filteredRoles.map((role) => ({
+                            label: snakeToTitle(role.role_name || ""),
+                            value: role.role_name,
+                            desc: role.role_description,
+                        }))}
+                        optionRender={(option) => (
+                            <Space direction="vertical" size="small">
+                                <Typography.Text>{option.label}</Typography.Text>
+                                <Typography.Text className="text-wrap" type="secondary">
+                                    {option.data.desc}
+                                </Typography.Text>
+                            </Space>
+                        )}
+                        optionLabelProp="label"
+                    />
+                </Form.Item>
+            ) : null}
         </Form>
     )
 }
@@ -159,8 +167,10 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             destroyOnClose
         >
             <Typography.Paragraph type="secondary">
-                Invite members to your team by entering their emails. You can specify the roles to
-                control the access level of the invited members on Agenta.
+                Invite members to your team by entering their emails.{" "}
+                {!isDemo()
+                    ? "Role base access control is available in the cloud and enterprise editions of Agenta"
+                    : "You can specify the roles to control the access level of the invited members on Agenta."}
             </Typography.Paragraph>
             <InviteForm
                 form={form}

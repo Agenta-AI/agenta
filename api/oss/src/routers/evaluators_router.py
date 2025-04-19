@@ -1,17 +1,13 @@
-import logging
-import traceback
-
-from typing import List, Optional
+from typing import List
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
-
+from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import (
     evaluator_manager,
     db_manager,
     evaluators_service,
-    app_manager,
 )
 
 from oss.src.models.api.evaluation_model import (
@@ -30,7 +26,8 @@ if is_ee():
     from ee.src.utils.permissions import check_action_access
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+
+log = get_module_logger(__file__)
 
 
 @router.get("/", response_model=List[Evaluator])
@@ -113,7 +110,7 @@ async def get_evaluator_configs(
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -145,7 +142,7 @@ async def get_evaluator_config(
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -180,7 +177,7 @@ async def create_new_evaluator_config(
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -219,7 +216,7 @@ async def update_evaluator_config(
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -256,7 +253,7 @@ async def delete_evaluator_config(
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
-            logger.error(error_msg)
+            log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,

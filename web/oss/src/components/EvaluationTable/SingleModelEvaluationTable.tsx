@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useState, useEffect, useCallback} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {
     Button,
@@ -31,12 +31,12 @@ import {
     getStringOrJson,
 } from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {transformToRequestBody} from "@/oss/lib/hooks/useStatelessVariant/assets/transformer/reverseTransformer"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariant/state"
+import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
-import type {EvaluationScenario, KeyValuePair, Variant, BaseResponse} from "@/oss/lib/Types"
+import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
+import type {BaseResponse, EvaluationScenario, KeyValuePair, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
-import {updateEvaluationScenario, updateEvaluation} from "@/oss/services/human-evaluations/api"
+import {updateEvaluation, updateEvaluationScenario} from "@/oss/services/human-evaluations/api"
 
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
@@ -206,7 +206,6 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             (acc, op) => ({...acc, [op.variant_id]: op.variant_output}),
             {},
         )
-
         await Promise.all(
             variants.map(async (variant: Variant, idx: number) => {
                 setRowValue(rowIndex, variant.variantId, "loading...")
@@ -216,7 +215,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                         variantData[idx].inputParams!,
                         variantData[idx].parameters
                             ? transformToRequestBody({
-                                  variant: variantData[idx].variant,
+                                  variant: variantData[idx],
                                   allMetadata: getAllMetadata(),
                               })
                             : variantData[idx].promptOptParams!,
@@ -257,23 +256,28 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             setEvaluationStatus(EvaluationFlow.EVALUATION_FINISHED)
                         }
                     }
+
+                    updateEvaluationScenarioData(
+                        id,
+                        {
+                            outputs: Object.keys(outputs).map((key) => ({
+                                variant_id: key,
+                                variant_output: outputs[key as keyof typeof outputs],
+                            })),
+                            inputs: rows[rowIndex].inputs,
+                        },
+                        showNotification,
+                    )
                 } catch (err) {
                     console.error("Error running evaluation:", err)
-                    setRowValue(rowIndex, variant.variantId, "")
+                    setEvaluationStatus(EvaluationFlow.EVALUATION_FAILED)
+                    setRowValue(
+                        rowIndex,
+                        variant.variantId,
+                        err?.response?.data?.detail?.message || "Failed to run evaluation!",
+                    )
                 }
             }),
-        )
-
-        updateEvaluationScenarioData(
-            id,
-            {
-                outputs: Object.keys(outputs).map((key) => ({
-                    variant_id: key,
-                    variant_output: outputs[key as keyof typeof outputs],
-                })),
-                inputs: rows[rowIndex].inputs,
-            },
-            showNotification,
         )
     }
 

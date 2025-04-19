@@ -32,6 +32,7 @@ from oss.src.core.observability.dtos import (
     OTelLinkDTO,
     BucketDTO,
     NodeType,
+    TreeType,
 )
 from oss.src.core.observability.dtos import (
     GroupingDTO,
@@ -478,24 +479,37 @@ def _parse_from_events(
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
 ) -> SpanDTO:
-    _parse_from_semconv(otel_span_dto.attributes)
+    try:
+        _parse_from_semconv(otel_span_dto.attributes)
+    except:  # pylint: disable=bare-except
+        pass
 
-    types = _parse_from_types(otel_span_dto)
+    types = {}
+    try:
+        types = _parse_from_types(otel_span_dto)
+    except:  # pylint: disable=bare-except
+        pass
 
     tree_id = UUID(otel_span_dto.context.trace_id[2:])
 
-    tree_type: str = types.get("tree")
+    tree_type = None
+    try:
+        tree_type: str = types.get("tree")
+        tree_type = TreeType(tree_type.lower()) if tree_type else None
+    except:  # pylint: disable=bare-except
+        pass
 
     tree = TreeDTO(
         id=tree_id,
-        type=tree_type.lower() if tree_type else None,
+        type=tree_type,
     )
 
     node_id = UUID(tree_id.hex[16:] + otel_span_dto.context.span_id[2:])
 
     node_type = NodeType.TASK
     try:
-        node_type = NodeType(types.get("node", "").lower())
+        node_type: str = types.get("node")
+        node_type = NodeType(node_type.lower()) if node_type else None
     except:  # pylint: disable=bare-except
         pass
 
@@ -523,27 +537,41 @@ def parse_from_otel_span_dto(
         end=otel_span_dto.end_time,
     )
 
+    duration = round((time.end - time.start).total_seconds() * 1_000, 3)  # milliseconds
+
     status = StatusDTO(
         code=otel_span_dto.status_code.value.replace("STATUS_CODE_", ""),
         message=otel_span_dto.status_message,
     )
 
-    links = _parse_from_links(otel_span_dto)
+    links = None
+    try:
+        links = _parse_from_links(otel_span_dto)
+    except:  # pylint: disable=bare-except
+        pass
 
-    data, metrics, meta, refs = _parse_from_attributes(otel_span_dto)
-
-    duration = (otel_span_dto.end_time - otel_span_dto.start_time).total_seconds()
+    data, metrics, meta, refs = None, None, None, None
+    try:
+        data, metrics, meta, refs = _parse_from_attributes(otel_span_dto)
+    except:  # pylint: disable=bare-except
+        pass
 
     if metrics is None:
         metrics = dict()
 
-    metrics["acc.duration.total"] = round(duration * 1_000, 3)  # milliseconds
+    metrics["acc.duration.total"] = duration
 
-    exception = _parse_from_events(otel_span_dto)
+    exception = None
+    try:
+        exception = _parse_from_events(otel_span_dto)
+    except:  # pylint: disable=bare-except
+        pass
 
     root_id = refs.get("scenario.id", str(tree.id)) if refs else str(tree.id)
 
-    root = RootDTO(id=UUID(root_id))
+    root = RootDTO(
+        id=UUID(root_id),
+    )
 
     otel = OTelExtraDTO(
         kind=otel_span_dto.kind.value,
@@ -740,7 +768,10 @@ def parse_to_agenta_span_dto(
         span_dto.data = _unmarshal_attributes(span_dto.data)
 
         if "outputs" in span_dto.data:
-            if "__default__" in span_dto.data["outputs"]:
+            if (
+                isinstance(span_dto.data["outputs"], dict)
+                and "__default__" in span_dto.data["outputs"]
+            ):
                 span_dto.data["outputs"] = span_dto.data["outputs"]["__default__"]
 
     # METRICS
@@ -824,11 +855,6 @@ def parse_legacy_analytics_dto(
     if not timeRange and not environment and not variant:
         return None
 
-    print("timeRange: ", timeRange)
-    print("app_id: ", app_id)
-    print("environment: ", environment)
-    print("variant: ", variant)
-
     application_condition = None
     environment_condition = None
     variant_condition = None
@@ -872,11 +898,6 @@ def parse_legacy_analytics_dto(
 
     if timeRange:
         newest, oldest, window = _parse_time_range(timeRange)
-
-        print("newest: ", newest)
-        print("oldest: ", oldest)
-        print("window: ", window)
-
         windowing = WindowingDTO(newest=newest, oldest=oldest, window=window)
 
     grouping = GroupingDTO(focus="tree")

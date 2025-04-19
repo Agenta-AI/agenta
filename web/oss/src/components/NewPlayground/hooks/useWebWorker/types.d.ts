@@ -1,4 +1,4 @@
-import {TestResult} from "../../assets/utilities/transformer/types"
+import {TestResult} from "../../../../lib/shared/variant/transformer/types"
 
 export type WorkerStatus = "idle" | "working"
 
@@ -14,6 +14,7 @@ export interface WorkerMessage<
         rowId: string
         messageId: string
         result: TestResult
+        runId: string
     },
 > {
     type: string

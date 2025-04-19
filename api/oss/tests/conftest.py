@@ -1,6 +1,5 @@
 import os
 import uuid
-import logging
 import json
 from json import loads
 from traceback import format_exc
@@ -14,6 +13,8 @@ import pytest_asyncio
 from dotenv import load_dotenv
 from httpx import AsyncClient, Timeout
 from pytest_asyncio import is_async_test
+
+from oss.src.utils.logging import get_module_logger
 
 
 AGENTA_HOST = os.getenv("AGENTA_HOST", "http://localhost")
@@ -63,8 +64,7 @@ API_KEYS_MAPPING = {
 session = boto3.Session(profile_name=AGENTA_AWS_PROFILE_NAME)
 sm_client = session.client("secretsmanager")
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+log = get_module_logger(__file__)
 
 
 def pytest_collection_modifyitems(items):

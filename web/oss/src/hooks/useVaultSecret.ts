@@ -185,6 +185,7 @@ export const useVaultSecret = () => {
                     ...secret,
                     key: match.key,
                     id: match.id,
+                    created_at: match.created_at
                 }
             } else {
                 return secret

@@ -17,7 +17,7 @@ export function ToolbarPlugin(): JSX.Element {
     const [isUnderline, setIsUnderline] = useState(false)
     const [isCode, setIsCode] = useState(false)
 
-    const updateToolbar = useCallback(() => {
+    const $updateToolbar = useCallback(() => {
         const selection = $getSelection()
         if ($isRangeSelection(selection)) {
             setIsBold(selection.hasFormat("bold"))
@@ -31,11 +31,11 @@ export function ToolbarPlugin(): JSX.Element {
         return mergeRegister(
             editor.registerUpdateListener(({editorState}) => {
                 editorState.read(() => {
-                    updateToolbar()
+                    $updateToolbar()
                 })
             }),
         )
-    }, [editor, updateToolbar])
+    }, [editor, $updateToolbar])
 
     const toolbarButton = "p-2 rounded hover:bg-gray-100 transition-colors"
     const activeClass = "bg-gray-200"

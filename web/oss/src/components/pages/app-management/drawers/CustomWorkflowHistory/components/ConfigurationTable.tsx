@@ -1,7 +1,8 @@
+import {useMemo} from "react"
+
 import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
-import React, {useMemo} from "react"
 
 const ConfigurationTable = () => {
     const columns: ColumnsType<any> = useMemo(

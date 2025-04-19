@@ -28,7 +28,7 @@ from agenta.sdk.context.tracing import (
 )
 from agenta.sdk.router import router
 from agenta.sdk.utils.exceptions import suppress, display_exception
-from agenta.sdk.utils.logging import log
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.helpers import get_current_version
 from agenta.sdk.types import (
     MultipleChoice,
@@ -38,7 +38,7 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
-log.setLevel("DEBUG")
+log = get_module_logger(__file__)
 
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 

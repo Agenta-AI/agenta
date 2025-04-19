@@ -18,7 +18,7 @@ export function TokenPlugin(): null {
             throw new Error("TokenPlugin: TokenNode or TokenInputNode not registered on editor")
         }
 
-        const transformNode = (textNode: LexicalNode | null | undefined) => {
+        const $transformNode = (textNode: LexicalNode | null | undefined) => {
             if (!textNode) return
 
             const text = textNode?.getTextContent()
@@ -130,10 +130,10 @@ export function TokenPlugin(): null {
             }
         }
 
-        const unregisterTextNodeTransform = editor.registerNodeTransform(TextNode, transformNode)
+        const unregisterTextNodeTransform = editor.registerNodeTransform(TextNode, $transformNode)
         const unregisterTokenInputNodeTransform = editor.registerNodeTransform(
             TokenInputNode,
-            transformNode,
+            $transformNode,
         )
 
         return () => {
@@ -174,16 +174,16 @@ export function TokenPlugin(): null {
         return null
     }, [])
 
-    const createTokenNode = useCallback((textNode: TextNode) => {
+    const $createTokenNode_ = useCallback((textNode: TextNode) => {
         return $createTokenNode(textNode.getTextContent())
     }, [])
 
-    const createTokenInputNode = useCallback((textNode: TextNode) => {
+    const $createTokenInputNode_ = useCallback((textNode: TextNode) => {
         return $createTokenInputNode(textNode.getTextContent())
     }, [])
 
-    useLexicalTextEntity<TokenNode>(getTokenMatch, TokenNode, createTokenNode)
-    useLexicalTextEntity<TokenInputNode>(getTokenInputMatch, TokenInputNode, createTokenInputNode)
+    useLexicalTextEntity<TokenNode>(getTokenMatch, TokenNode, $createTokenNode_)
+    useLexicalTextEntity<TokenInputNode>(getTokenInputMatch, TokenInputNode, $createTokenInputNode_)
 
     return null
 }

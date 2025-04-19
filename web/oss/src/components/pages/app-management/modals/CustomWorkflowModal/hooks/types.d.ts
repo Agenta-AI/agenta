@@ -1,6 +1,6 @@
 import {SetStateAction} from "react"
 
-export type useCustomWorkflowConfigProps = {
+export interface useCustomWorkflowConfigProps {
     configureWorkflow?: boolean
     setStatusData?: (
         value: SetStateAction<{

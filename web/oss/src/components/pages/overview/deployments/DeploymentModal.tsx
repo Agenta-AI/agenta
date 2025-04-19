@@ -1,15 +1,16 @@
-import {useState} from "react"
+import {useCallback, useState} from "react"
 
 import {Rocket} from "@phosphor-icons/react"
 import {message, Modal, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
-import {createPublishVariant} from "@/oss/services/deployment/api"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {Environment, JSSTheme} from "@/oss/lib/Types"
+import {createPublishVariant, createPublishRevision} from "@/oss/services/deployment/api"
 
 type DeploymentModalProps = {
     selectedEnvironment: Environment
-    selectedVariant: Variant
+    selectedVariant: EnhancedVariant
     loadEnvironments: () => Promise<void>
     setIsDeploymentModalOpen: (value: React.SetStateAction<boolean>) => void
 } & React.ComponentProps<typeof Modal>
@@ -48,10 +49,25 @@ const DeploymentModal = ({
     const classes = useStyles()
     const [isPublishVariantLoading, setIsPublishVariantLoading] = useState(false)
 
-    const publishVariant = async () => {
+    const publishVariant = useCallback(async () => {
         try {
+            if (!selectedEnvironment || !selectedVariant) return
             setIsPublishVariantLoading(true)
-            await createPublishVariant(selectedVariant.variantId, selectedEnvironment.name)
+
+            if (selectedVariant._parentVariant) {
+                await createPublishRevision({
+                    revision_id: selectedVariant.id,
+                    environment_ref: selectedEnvironment.name,
+                    note: "",
+                })
+            } else {
+                await createPublishVariant({
+                    variant_id: selectedVariant.variantId,
+                    revision_id: selectedVariant.id,
+                    environment_name: selectedEnvironment.name,
+                    note: "",
+                })
+            }
             await loadEnvironments()
             message.success(
                 `Published ${selectedVariant.variantName} to ${selectedEnvironment.name}`,
@@ -62,7 +78,7 @@ const DeploymentModal = ({
             setIsPublishVariantLoading(false)
             setIsDeploymentModalOpen(false)
         }
-    }
+    }, [createPublishVariant, selectedEnvironment, selectedVariant, loadEnvironments])
 
     return (
         <Modal
@@ -83,8 +99,11 @@ const DeploymentModal = ({
 
                 <div className="flex flex-col gap-4">
                     <div>
-                        You are about to deploy {selectedVariant.variantName} to{" "}
-                        {selectedEnvironment.name} environment. This will overwrite the existing
+                        You are about to deploy {selectedVariant.variantName}{" "}
+                        <span className="bg-[rgba(5,23,41,0.06)] px-2 !text-xs">
+                            {selectedVariant.revision}
+                        </span>{" "}
+                        to {selectedEnvironment.name} environment. This will overwrite the existing
                         configuration. This change will affect all future calls to this environment.
                     </div>
                     <div className="flex flex-col">

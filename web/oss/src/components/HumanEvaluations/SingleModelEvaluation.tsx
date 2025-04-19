@@ -26,6 +26,8 @@ import {
     fetchEvaluationResults,
 } from "@/oss/services/human-evaluations/api"
 
+import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
+
 const {Title} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -168,12 +170,10 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
             }),
             render: (value, record: SingleModelEvaluationListTableDataType) => {
                 return (
-                    <span>
-                        {variantNameWithRev({
-                            variant_name: value[0].variantName,
-                            revision: record.revisions[0],
-                        })}
-                    </span>
+                    <VariantDetailsWithStatus
+                        variantName={value[0].variantName}
+                        revision={record.revisions[0]}
+                    />
                 )
             },
         },

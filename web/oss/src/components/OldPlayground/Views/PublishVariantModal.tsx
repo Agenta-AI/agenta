@@ -57,7 +57,11 @@ const PublishVariantModal: React.FC<Props> = ({
 
     const publishVariants = async () => {
         selectedEnvs.forEach(async (envName) => {
-            await createPublishVariant(variant.variantId, envName)
+            await createPublishVariant({
+                variant_id: variant.variantId,
+                environment_name: envName
+                note: ""
+            })
             closeModal()
             await loadEnvironments()
             message.success(`Published ${variant.variantName} to ${envName}`)

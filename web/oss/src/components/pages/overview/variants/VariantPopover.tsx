@@ -1,61 +1,65 @@
-import {useEffect, useState} from "react"
-
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Badge, Button, Popover, Tag, theme, Typography} from "antd"
+import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 import {useRouter} from "next/router"
 
+import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
-import {Environment, Variant} from "@/oss/lib/Types"
-import {fetchSingleProfile} from "@/oss/services/api"
-
-const {useToken} = theme
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {Environment} from "@/oss/lib/Types"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 type VariantPopoverProps = {
     env: Environment
-    selectedDeployedVariant: Variant | undefined
+    selectedDeployedVariant: EnhancedVariant | undefined
 } & React.ComponentProps<typeof Popover>
 
 const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
     const router = useRouter()
-    const {token} = useToken()
     const appId = router.query.app_id as string
-    const [variantUsername, setVariantUsername] = useState<string>()
-
-    useEffect(() => {
-        const handleFetchVariantProfile = async () => {
-            try {
-                if (!selectedDeployedVariant) return
-                const data = await fetchSingleProfile(selectedDeployedVariant.modifiedById)
-                setVariantUsername(data.username)
-            } catch (error) {
-                console.error(error)
-            }
-        }
-
-        handleFetchVariantProfile()
-    }, [selectedDeployedVariant])
 
     return (
         <Popover
             {...props}
             placement="bottom"
             trigger={"hover"}
-            overlayStyle={{width: 256}}
+            overlayStyle={{minWidth: 256, maxWidth: 360}}
             arrow={false}
             title={
-                <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                        <Typography.Text>{env.deployed_variant_name}</Typography.Text>
+                <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-4">
+                    <Flex justify="space-between">
+                        <VariantDetailsWithStatus
+                            variantName={selectedDeployedVariant?.variantName}
+                            revision={selectedDeployedVariant?.revision}
+                            variant={selectedDeployedVariant}
+                        />
 
                         <Button
                             size="small"
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
-                            href={`/apps/${appId}/playground?variant=${env.deployed_variant_name}`}
+                            // href={`/apps/${appId}/playground?variant=${env.deployed_variant_name}`}
+                            onClick={() => {
+                                console.log("Variant Popover Action")
+                                router.push({
+                                    pathname: `/apps/${appId}/playground`,
+                                    query: {
+                                        revisions: JSON.stringify([
+                                            env.deployed_app_variant_revision_id,
+                                        ]),
+                                    },
+                                })
+                            }}
                         />
-                    </div>
-                    {selectedDeployedVariant && (
-                        <Typography.Text className="font-normal">{variantUsername}</Typography.Text>
+                    </Flex>
+                    {selectedDeployedVariant?.modifiedBy && (
+                        <Typography.Text className="font-normal">
+                            {selectedDeployedVariant.modifiedBy}
+                        </Typography.Text>
+                    )}
+                    {selectedDeployedVariant?.commitMessage && (
+                        <Typography.Text type="secondary">
+                            {selectedDeployedVariant?.commitMessage}
+                        </Typography.Text>
                     )}
                 </div>
             }
@@ -65,8 +69,8 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                 onClick={(e) => e.stopPropagation()}
             >
                 <Badge
-                    color={token.colorPrimary}
                     text={formatVariantIdWithHash(env.deployed_app_variant_revision_id as string)}
+                    color={statusMap[env.name]?.badge ?? "transparent"}
                 />
             </Tag>
         </Popover>

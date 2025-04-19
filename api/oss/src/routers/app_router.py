@@ -1,10 +1,10 @@
 import os
-import logging
 from typing import List, Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
@@ -33,6 +33,14 @@ if is_ee():
         EnvironmentOutput_ as EnvironmentOutput,
         EnvironmentOutputExtended_ as EnvironmentOutputExtended,
     )
+
+    from ee.src.utils.entitlements import (
+        check_entitlements,
+        Tracker,
+        Gauge,
+        Flag,
+        NOT_ENTITLED_RESPONSE,
+    )
 else:
     from oss.src.models.api.api_models import (
         CreateApp,
@@ -41,10 +49,12 @@ else:
         EnvironmentOutputExtended,
     )
 
+from oss.src.models.shared_models import AppType
+
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
+log = get_module_logger(__file__)
 
 registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
 
@@ -75,7 +85,6 @@ async def list_app_variants(
             project_id=str(app.project_id),
             permission=Permission.VIEW_APPLICATION,
         )
-        logger.debug(f"User has Permission to list app variants: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
@@ -120,9 +129,6 @@ async def get_variant_by_env(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
                 permission=Permission.VIEW_APPLICATION,
-            )
-            logger.debug(
-                f"user has Permission to get variant by environment: {has_permission}"
             )
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
@@ -190,7 +196,6 @@ async def create_app(
                 project_id=request.state.project_id,
                 permission=Permission.CREATE_APPLICATION,
             )
-            logger.debug(f"User has Permission to Create Application: {has_permission}")
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
@@ -199,6 +204,24 @@ async def create_app(
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+        if db_manager.get_app_type(payload.template_key) == AppType.CUSTOM:
+            check, _, _ = await check_entitlements(
+                organization_id=request.state.organization_id,
+                key=Flag.HOOKS,
+            )
+
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
+        check, _, _ = await check_entitlements(
+            organization_id=request.state.organization_id,
+            key=Gauge.APPLICATIONS,
+            delta=1,
+        )
+
+        if not check:
+            return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
 
     try:
         app_db = await db_manager.create_app_and_envs(
@@ -248,7 +271,6 @@ async def update_app(
             project_id=str(app.project_id),
             permission=Permission.EDIT_APPLICATION,
         )
-        logger.debug(f"User has Permission to update app: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
@@ -284,7 +306,6 @@ async def list_apps(
             project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATION,  # type: ignore
         )
-        logger.debug(f"User has Permission to list apps: {has_permission}")
         if not has_permission:
             raise HTTPException(
                 status_code=403,
@@ -298,7 +319,6 @@ async def list_apps(
     return apps
 
 
-@router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
 async def add_variant_from_url(
     app_id: str,
     payload: AddVariantFromURLPayload,
@@ -319,7 +339,7 @@ async def add_variant_from_url(
     """
 
     try:
-        app = await db_manager.fetch_app_by_id(app_id)
+        app = await db_manager.fetch_app_by_id(app_id=app_id)
     except db_manager.NoResultFound:
         raise HTTPException(
             status_code=404, detail=f"No application with ID '{app_id}' found"
@@ -331,9 +351,6 @@ async def add_variant_from_url(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
                 permission=Permission.CREATE_APPLICATION,
-            )
-            logger.debug(
-                f"User has Permission to create app from url: {has_permission}"
             )
             if not has_permission:
                 error_msg = f"You do not have access to perform this action. Please contact your organization admin."
@@ -350,6 +367,7 @@ async def add_variant_from_url(
             base_name=payload.base_name,
             config_name=payload.config_name,
             user_uid=request.state.user_id,
+            commit_message=payload.commit_message,
         )
 
         app_variant_db = await db_manager.fetch_app_variant_by_id(
@@ -363,12 +381,30 @@ async def add_variant_from_url(
         return app_variant_dto
 
     except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/{app_id}/variant/from-service/", operation_id="add_variant_from_url")
+async def add_variant_from_url_route(
+    app_id: str,
+    payload: AddVariantFromURLPayload,
+    request: Request,
+):
+    if is_ee():
+        check, _, _ = await check_entitlements(
+            organization_id=request.state.organization_id,
+            key=Flag.HOOKS,
+        )
+
+        if not check:
+            return NOT_ENTITLED_RESPONSE(Tracker.FLAGS)
+
+    return await add_variant_from_url(app_id, payload, request)
+
+
 @router.post("/{app_id}/variant/from-template/", operation_id="add_variant_from_key")
-async def add_variant_from_key(
+async def add_variant_from_key_route(
     app_id: str,
     payload: AddVariantFromKeyPayload,
     request: Request,
@@ -377,11 +413,11 @@ async def add_variant_from_key(
         url = app_manager.get_service_url_from_template_key(payload.key)
 
     except NotImplementedError as e:
-        logger.exception(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
-        logger.exception(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     if not url:
@@ -390,6 +426,7 @@ async def add_variant_from_key(
     payload = AddVariantFromURLPayload(
         variant_name=payload.variant_name,
         url=url,
+        commit_message=payload.commit_message,
         base_name=payload.base_name,
         config_name=payload.config_name,
     )
@@ -421,13 +458,18 @@ async def remove_app(
             project_id=str(app.project_id),
             permission=Permission.DELETE_APPLICATION,
         )
-        logger.debug(f"User has Permission to delete app: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
+
+        check, _, _ = await check_entitlements(
+            organization_id=request.state.organization_id,
+            key=Gauge.APPLICATIONS,
+            delta=-1,
+        )
 
     await app_manager.remove_app(app)
 
@@ -451,14 +493,12 @@ async def list_environments(
         List[EnvironmentOutput]: A list of environment objects.
     """
 
-    logger.debug(f"Listing environments for app: {app_id}")
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATION,
         )
-        logger.debug(f"User has Permission to list environments: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
@@ -469,7 +509,6 @@ async def list_environments(
     environments_db = await db_manager.list_environments(
         app_id=app_id, project_id=request.state.project_id
     )
-    logger.debug(f"environments_db: {environments_db}")
 
     fixed_order = ["development", "staging", "production"]
 
@@ -492,17 +531,12 @@ async def list_app_environment_revisions(
     app_id: str,
     environment_name,
 ):
-    logger.debug("getting environment " + environment_name)
-    user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-        request.state.user_id
-    )
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATION,
         )
-        logger.debug(f"User has Permission to list environments: {has_permission}")
         if not has_permission:
             error_msg = f"You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
@@ -511,15 +545,14 @@ async def list_app_environment_revisions(
             )
 
     app_environment = await db_manager.fetch_app_environment_by_name_and_appid(
-        app_id, environment_name, **user_org_workspace_data
+        app_id,
+        environment_name,
     )
     if app_environment is None:
         return JSONResponse({"detail": "App environment not found"}, status_code=404)
 
     app_environment_revisions = (
-        await db_manager.fetch_environment_revisions_for_environment(
-            app_environment, **user_org_workspace_data
-        )
+        await db_manager.fetch_environment_revisions_for_environment(app_environment)
     )
     if app_environment_revisions is None:
         return JSONResponse(

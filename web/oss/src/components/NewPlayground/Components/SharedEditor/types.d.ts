@@ -16,4 +16,5 @@ export interface SharedEditorProps extends BaseContainerProps {
     disabled?: boolean
     editorProps?: EditorProps
     useAntdInput?: boolean
+    error?: boolean
 }
