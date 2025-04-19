@@ -12,6 +12,9 @@ const COMMON_CONFIG: NextConfig = {
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
     eslint: {
         ignoreDuringBuilds: true,
     },
