@@ -40,7 +40,7 @@ x-shared-environment: &shared-environment
     POSTGRESQL_CONNECTION_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-postgres}:5432/supertokens_oss
     RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
     RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
-    CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}@rabbitmq//
+    CELERY_BROKER_URL: amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq//
     REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
 
