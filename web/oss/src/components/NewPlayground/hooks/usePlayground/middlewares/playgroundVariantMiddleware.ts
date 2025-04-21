@@ -51,7 +51,7 @@ export const findPropertyById = (variant: EnhancedVariant, propertyId?: string) 
     if (!propertyId || !variant) return undefined
 
     // Search in prompts
-    for (const prompt of variant.prompts) {
+    for (const prompt of variant.prompts || []) {
         const found = findPropertyInObject(prompt, propertyId)
         if (found) return found
     }
