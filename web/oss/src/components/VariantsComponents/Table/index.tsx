@@ -96,6 +96,7 @@ const VariantsTable = ({
                 }}
                 pagination={false}
                 onRow={(record: any) => ({
+                    className: "variant-table-row",
                     style: {cursor: "pointer"},
                     onClick: () => {
                         onRowClick(record)

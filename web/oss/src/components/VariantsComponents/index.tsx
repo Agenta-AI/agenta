@@ -228,30 +228,33 @@ const VariantsDashboard = () => {
 
                 <Space direction="vertical">
                     <div className="flex items-center justify-between">
-                        <Input.Search
-                            placeholder="Search"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-[400px]"
-                            allowClear
-                        />
-                        <Space>
+                        <div className="flex items-center gap-2 flex-1">
+                            <Input.Search
+                                placeholder="Search"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="md:max-w-[300px] lg:max-w-[400px] lg:w-[400px]"
+                                allowClear
+                            />
+                            <Radio.Group
+                                value={displayMode}
+                                onChange={(e) => setDisplayMode(e.target.value)}
+                                className="flex-shrink-0"
+                            >
+                                <Radio.Button value="grouped">Variants</Radio.Button>
+                                <Radio.Button value="flat">Revisions</Radio.Button>
+                            </Radio.Group>
+                        </div>
+
+                        <div className="flex items-center gap-3">
                             {selectedVariantsToCompare.compareVariantList.length > 0 && (
-                                <Typography.Text type="secondary">
+                                <Typography.Text type="secondary" className="flex-shrink-0">
                                     {selectedVariantsToCompare.compareVariantList.length} selected
                                 </Typography.Text>
                             )}
-                            <Space>
-                                <Radio.Group
-                                    value={displayMode}
-                                    onChange={(e) => setDisplayMode(e.target.value)}
-                                >
-                                    <Radio.Button value="grouped">Variants</Radio.Button>
-                                    <Radio.Button value="flat">Revisions</Radio.Button>
-                                </Radio.Group>
-                            </Space>
+
                             <Button
-                                type="link"
+                                type="text"
                                 disabled={selectedVariantsToCompare.isCompareDisabled}
                                 icon={<SwapOutlined />}
                                 onClick={() => setIsComparisonModalOpen(true)}
@@ -265,7 +268,7 @@ const VariantsDashboard = () => {
                             >
                                 Playground
                             </Button>
-                        </Space>
+                        </div>
                     </div>
 
                     <VariantsTable

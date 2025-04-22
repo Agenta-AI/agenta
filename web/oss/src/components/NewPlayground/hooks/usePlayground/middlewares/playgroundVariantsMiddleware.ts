@@ -159,8 +159,6 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                 routePath: state.uri?.routePath,
                             })
 
-                            console.log("addVariant", parameters, baseRevision)
-
                             const newVariantBody: Partial<Variant> &
                                 Pick<Variant, "variantName" | "configName" | "baseId"> = {
                                 variantName: updateNewVariantName,
@@ -530,6 +528,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                     postMessageToWorker(
                                         createWorkerMessage("runVariantInputRow", {
                                             variant: variant,
+                                            runId,
                                             messageRow,
                                             chatHistory,
                                             messageId: outputHistoryItem.__id,
@@ -572,6 +571,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                             createWorkerMessage("runVariantInputRow", {
                                                 // Use the variant we already found instead of searching again
                                                 variant: variant,
+                                                runId,
                                                 messageRow,
                                                 chatHistory,
                                                 messageId: outputHistoryItem.__id,
@@ -759,17 +759,18 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                     for (const messageRow of messageRows) {
                                         const messagesInRow = messageRow.history.value
 
-                                        const lastMessage = messagesInRow[messagesInRow.length - 1]
-                                        for (const variantId of visibleVariants) {
-                                            const variant = clonedState.variants.find(
-                                                (v) => v.id === variantId,
-                                            )
+                                        for (const message of messagesInRow) {
+                                            for (const variantId of visibleVariants) {
+                                                const variant = clonedState.variants.find(
+                                                    (v) => v.id === variantId,
+                                                )
 
-                                            if (!variant) continue
+                                                if (!variant) continue
 
-                                            if (lastMessage?.__runs?.[variantId]) {
-                                                lastMessage.__runs[variantId].__isRunning = ""
-                                                lastMessage.__runs[variantId].__result = ""
+                                                if (message?.__runs?.[variantId]) {
+                                                    message.__runs[variantId].__isRunning = ""
+                                                    message.__runs[variantId].__result = ""
+                                                }
                                             }
                                         }
                                     }

@@ -45,6 +45,8 @@ const useCustomWorkflowConfig = ({
     const {user} = useProfileData()
 
     useEffect(() => {
+        if (!configureWorkflow) return
+
         if (variant) {
             setCustomWorkflowAppValues({
                 appName: currentApp?.app_name ?? "",
@@ -52,7 +54,7 @@ const useCustomWorkflowConfig = ({
                 appDesc: "",
             })
         }
-    }, [variant, currentApp])
+    }, [variant, currentApp, configureWorkflow])
 
     const handleCustomWorkflowClick = async () => {
         if (!setFetchingTemplate || !setStatusData || !setStatusModalOpen) return

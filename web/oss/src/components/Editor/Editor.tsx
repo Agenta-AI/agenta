@@ -93,7 +93,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 
                         const result = {
                             value: "", // Omit this for now
-                            textContent,
+                            textContent: textContent.replaceAll(/\\(.)/g, "$1"),
                             tokens,
                         }
 

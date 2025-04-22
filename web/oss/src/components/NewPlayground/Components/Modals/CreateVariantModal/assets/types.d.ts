@@ -10,6 +10,7 @@ export interface NewVariantButtonProps extends AddButtonProps {
 
 export interface CreateVariantModalContentProps {
     setTemplateVariantName: (value: string) => void
+    templateVariantName: string
     setIsInputValid: Dispatch<SetStateAction<boolean>>
     newVariantName: string
     setNewVariantName: (value: string) => void

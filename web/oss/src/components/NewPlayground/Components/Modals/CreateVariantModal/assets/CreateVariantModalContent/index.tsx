@@ -11,6 +11,7 @@ const {Text} = Typography
 
 const CreateVariantModalContent = ({
     setTemplateVariantName,
+    templateVariantName,
     setIsInputValid,
     newVariantName,
     setNewVariantName,
@@ -61,8 +62,8 @@ const CreateVariantModalContent = ({
                             <Select
                                 showSearch
                                 className="w-full"
-                                data-cy="new-variant-modal-select"
                                 placeholder="Select a variant"
+                                value={templateVariantName}
                                 onChange={handleTemplateVariantChange}
                                 options={variants?.map((variant) => ({
                                     value: variant.variantName,

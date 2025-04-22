@@ -37,6 +37,9 @@ export const NewVariantParametersView = ({
         <div className="w-full h-full self-stretch grow" key={selectedVariant?.id}>
             <SharedEditor
                 readOnly
+                editorProps={{
+                    codeOnly: true,
+                }}
                 editorType="border"
                 initialValue={configJsonString}
                 handleChange={() => {}}

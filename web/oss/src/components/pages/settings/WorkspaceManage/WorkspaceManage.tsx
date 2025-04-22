@@ -47,7 +47,7 @@ const WorkspaceManage: FC = () => {
     const filteredMembers = useMemo(() => {
         if (searchTerm) {
             return members.filter((member) =>
-                member.user.username.toLowerCase().includes(searchTerm.toLowerCase()),
+                member.user.email.toLowerCase().includes(searchTerm.toLowerCase()),
             )
         }
         return members
