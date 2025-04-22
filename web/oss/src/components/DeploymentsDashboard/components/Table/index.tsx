@@ -78,6 +78,7 @@ const DeploymentTable = ({
                 showSizeChanger: true,
             }}
             onRow={(record) => ({
+                className: "variant-table-row",
                 style: {cursor: "pointer"},
                 onClick: () => {
                     handleFetchRevisionConfig(record.id)

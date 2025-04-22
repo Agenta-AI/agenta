@@ -68,7 +68,7 @@ const DeployVariantModal = ({
         } finally {
             setIsLoading(false)
         }
-    }, [createPublishVariant, revision, revisionId, variantId, selectedEnvName])
+    }, [createPublishVariant, revision, revisionId, variantId, selectedEnvName, note])
 
     return (
         <EnhancedModal

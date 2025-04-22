@@ -143,7 +143,7 @@ const GenerationComparisonChatOutputCell = ({
                                 withControls={isLastRow} // Only show controls (to add a message) in the last row
                                 isMessageDeletable={messageRow.history?.value?.length === 1}
                                 messageProps={{
-                                    className: "!p-0",
+                                    className: "!p-0 [&_.agenta-editor-wrapper]:!p-3",
                                     editorClassName: "!p-3",
                                     headerClassName:
                                         "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
@@ -175,7 +175,7 @@ const GenerationComparisonChatOutputCell = ({
                             isRunning={message?.__isRunning}
                             disabled={!messageRow}
                             messageProps={{
-                                className: "!p-0",
+                                className: "!p-0 [&_.agenta-editor-wrapper]:!p-3",
                                 editorClassName: "!p-3",
                                 headerClassName:
                                     "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",

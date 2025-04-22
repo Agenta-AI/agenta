@@ -6,6 +6,8 @@ import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {filterVariantParameters, isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {GearSix} from "@phosphor-icons/react"
+import {Tag} from "antd"
+import Avatar from "@/oss/components/Avatar/Avatar"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
 
@@ -91,9 +93,19 @@ export const getColumns = ({
             }),
             render: (_, record) => {
                 if (record._parentVariant) {
-                    return <div>{record.modifiedBy}</div>
+                    return (
+                        <Tag bordered={false}>
+                            <Avatar name={record?.modifiedBy} className="w-4 h-4 text-[9px]" />{" "}
+                            {record?.modifiedBy}
+                        </Tag>
+                    )
                 } else {
-                    return <div>{record.createdBy}</div>
+                    return (
+                        <Tag bordered={false}>
+                            <Avatar name={record?.createdBy} className="w-4 h-4 text-[9px]" />{" "}
+                            {record?.createdBy}
+                        </Tag>
+                    )
                 }
             },
         })

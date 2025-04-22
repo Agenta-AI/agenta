@@ -96,8 +96,8 @@ const CustomWorkflowModalFooter = ({
                             !customWorkflowAppValues.appName ||
                             !customWorkflowAppValues.appUrl ||
                             appNameExist ||
-                            !isAppNameInputValid(customWorkflowAppValues.appName)
-                            // !testConnectionStatus.success
+                            !isAppNameInputValid(customWorkflowAppValues.appName) ||
+                            !testConnectionStatus.success
                         }
                         onClick={() => {
                             if (appNameExist) {

@@ -176,114 +176,153 @@ body {
 
 .code-editor {
     /* === Editor container === */
-    .editor-code {
-        
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        position: relative;
-        white-space: pre;
-        tab-size: 2;
-        padding-left: 0 !important;
-  
-        font-family: Menlo, Consolas, Monaco, monospace;
-          display: block;
-          line-height: 1.53;
-          font-size: 13px;
-          margin: 0;
-          margin-top: 8px;
-          margin-bottom: 8px;
-          
-          tab-size: 2;
-          padding: 0px;
-  
-  
-        /* Light theme (default) */
-        --editor-bg: #f8f9fb;
-        --editor-text: #2d2d2d;
-        --editor-line-number: #aaa;
-        --editor-gutter-bg: #f0f0f0;
-        --editor-gutter-border: #ddd;
-        --editor-selection-bg: rgba(56, 139, 253, 0.4);
-        --editor-cursor: #000;
-        --editor-error-bg: rgba(255, 0, 0, 0.05);
-        --editor-error-border: #ff0000;
-        
-        /* Syntax highlighting - Light theme */
-        --token-comment: #6a9955;
-        --token-string: #50a14f;
-        --token-keyword: #a626a4;
-        --token-number: #986801;
-        --token-property: #e45649;
-        --token-operator: #c18401;
-        --token-punctuation: #383a42;
-        --token-function: #4078f2;
-        --token-class-name: #4078f2;
-        --token-variable: #e45649;
-        --token-plain: #2d2d2d;
-        
-        /* Apply light theme variables */
-        background-color: var(--editor-bg);
-        color: var(--editor-text);
-  
-        /* Dark theme */
-        &.dark-theme {
-          /* Enhanced dark theme with more contrast */
-          --editor-bg: #1a1a1a;
-          --editor-text: #ffffff;
-          --editor-line-number: #a0a0a0;
-          --editor-gutter-bg: #252526;
-          --editor-gutter-border: #444;
-          --editor-selection-bg: rgba(97, 175, 239, 0.6);
-          --editor-cursor: #fff;
-          --editor-error-bg: rgba(255, 70, 70, 0.2);
-          --editor-error-border: #ff5555;
-          
-          /* Vibrant syntax highlighting for dark theme */
-          --token-comment: #7cdc7c;         /* Brighter green */
-          --token-string: #ff9d70;          /* Vibrant orange */
-          --token-keyword: #79b8ff;         /* Bright blue */
-          --token-number: #ffbf7a;          /* Warm yellow */
-          --token-property: #79cbff;        /* Sky blue */
-          --token-operator: #f8f8f8;        /* Near white */
-          --token-punctuation: #e6e6e6;     /* Light gray */
-          --token-function: #ffdf9e;        /* Gold */
-          --token-class-name: #7ce3c7;      /* Teal */
-          --token-variable: #b392f0;        /* Purple */
-          --token-plain: #ffffff;           /* White */
-        }
-      }
-  
-      /* use colors via css vars from this point on */
-    
-      /* Add selection styling */
-      .editor-code ::selection {
-        background-color: var(--editor-selection-bg) !important;
-        color: var(--editor-text) !important;
-        text-shadow: none !important;
-      }
+    .editor-code {     
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      position: relative;
+      white-space: pre;
+      tab-size: 2;
+      padding-left: 0 !important;
+
+      font-family: Menlo, Consolas, Monaco, monospace;
+      display: block;
+      line-height: 1.53;
+      font-size: 13px;
+      margin: 0;
+      margin-top: 8px;
+      margin-bottom: 8px;
       
-      .editor-code-highlight {
-        overflow-wrap: break-word;
+      tab-size: 2;
+      padding: 0px;
+
+
+      /* Light theme (default) */
+      --editor-bg: #f8f9fb;
+      --editor-text: #2d2d2d;
+      --editor-line-number: #aaa;
+      --editor-gutter-bg: #f0f0f0;
+      --editor-gutter-border: #ddd;
+      --editor-selection-bg: rgba(56, 139, 253, 0.4);
+      --editor-cursor: #000;
+      --editor-error-bg: rgba(255, 0, 0, 0.05);
+      --editor-error-border: #ff0000;
+      
+      /* Syntax highlighting - Light theme */
+      --token-comment: #6a9955;
+      --token-string: #50a14f;
+      --token-keyword: #a626a4;
+      --token-number: #986801;
+      --token-property: #e45649;
+      --token-operator: #c18401;
+      --token-punctuation: #383a42;
+      --token-function: #4078f2;
+      --token-class-name: #4078f2;
+      --token-variable: #e45649;
+      --token-plain: #2d2d2d;
+      
+      /* Apply light theme variables */
+      background-color: var(--editor-bg);
+      color: var(--editor-text);
+  
+      /* Dark theme */
+      &.dark-theme {
+        /* Enhanced dark theme with more contrast */
+        --editor-bg: #1a1a1a;
+        --editor-text: #ffffff;
+        --editor-line-number: #a0a0a0;
+        --editor-gutter-bg: #252526;
+        --editor-gutter-border: #444;
+        --editor-selection-bg: rgba(97, 175, 239, 0.6);
+        --editor-cursor: #fff;
+        --editor-error-bg: rgba(255, 70, 70, 0.2);
+        --editor-error-border: #ff5555;
+        
+        /* Vibrant syntax highlighting for dark theme */
+        --token-comment: #7cdc7c;         /* Brighter green */
+        --token-string: #ff9d70;          /* Vibrant orange */
+        --token-keyword: #79b8ff;         /* Bright blue */
+        --token-number: #ffbf7a;          /* Warm yellow */
+        --token-property: #79cbff;        /* Sky blue */
+        --token-operator: #f8f8f8;        /* Near white */
+        --token-punctuation: #e6e6e6;     /* Light gray */
+        --token-function: #ffdf9e;        /* Gold */
+        --token-class-name: #7ce3c7;      /* Teal */
+        --token-variable: #b392f0;        /* Purple */
+        --token-plain: #ffffff;           /* White */
       }
-      .editor-code-highlight.selected,
-      .editor-code-highlight::selection {
-        background-color: var(--editor-selection-bg) !important;
-        color: var(--editor-text) !important;
-        text-shadow: none !important;
-      }
+    }
+  
+    /* use colors via css vars from this point on */
+  
+    /* Add selection styling */
+    ::selection {
+      background-color: var(--editor-selection-bg) !important;
+      color: var(--editor-text) !important;
+      text-shadow: none !important;
+    }
+      
+    .editor-code-highlight {
+      overflow-wrap: break-word;
+      white-space: pre;
+    }
+    .editor-code-highlight.selected,
+    .editor-code-highlight::selection {
+      background-color: var(--editor-selection-bg) !important;
+      color: var(--editor-text) !important;
+      text-shadow: none !important;
+    }
     
       .editor-code-line {
-        display: block;
+        &:first-child {
+          &::before {
+            padding-top: theme("spacing.2");
+            margin-top: calc(-1 * theme("spacing.2"));
+          }
+        }
+        &::before {
+          content: attr(data-gutter);
+          z-index: 10;
+          position: absolute;
+          border-right: 1px solid var(--editor-gutter-border);
+          top: 0;
+          bottom: 0;
+          /* background-color: var(--editor-gutter-bg); */
+          background-color: var(--editor-bg);
+          
+          /* left: theme(spacing.3); */
+          left: 0;
+          padding: 0;
+          padding-right: 4px;
+          /* padding-top: theme("spacing.2"); */
+          /* padding-bottom: theme("spacing.1"); */
+          width: 2em;
+          text-align: right;
+          color: var(--editor-line-number);
+          user-select: none;
+          white-space: pre;
+        }
         position: relative;
         
         padding-left: theme(spacing.12) !important;
-        overflow-x: auto;
-        overflow-y: visible;
+
 
         z-index: 1;
         @apply scrollbar scrollbar-h-0 scrollbar-thumb-[#ddd] scrollbar-track-[#f0f0f0];
         &:hover {
           @apply scrollbar-h-[2px];
         }
+        white-space: pre;
+
+        &.flex {
+          .editor-code-highlight {
+            &:not(.token-property) {
+              white-space: pre-line;
+            }
+            &.token-plain {
+              white-space: break-spaces;
+            }
+          }
+        }
+
         /* text-overflow: ellipsis;
         white-space: nowrap;
   
@@ -315,28 +354,6 @@ body {
     
       .fold-toggle:hover {
         color: var(--editor-text);
-      }
-    
-      .editor-code::before {
-        content: attr(data-gutter);
-        z-index: 10;
-        position: absolute;
-        border-right: 1px solid var(--editor-gutter-border);
-        top: 0;
-        /* background-color: var(--editor-gutter-bg); */
-        background-color: var(--editor-bg);
-        
-        /* left: theme(spacing.3); */
-        left: 0;
-        padding: 0;
-        padding-right: 4px;
-        padding-top: theme("spacing.2");
-        padding-bottom: theme("spacing.1");
-        width: 2em;
-        text-align: right;
-        color: var(--editor-line-number);
-        user-select: none;
-        white-space: pre;
       }
     
       /* === Prism token styling === */

@@ -38,6 +38,9 @@ export class CodeLineNode extends ElementNode {
     __isCollapsed: boolean
     /** Whether this line is hidden due to parent folding */
     __isHidden: boolean
+    /** Whether this line is empty */
+    __isEmpty: boolean
+    __index: number
 
     /**
      * Returns the node type identifier.
@@ -53,10 +56,14 @@ export class CodeLineNode extends ElementNode {
      * @returns A new CodeLineNode with the same folding state
      */
     static clone(node: CodeLineNode): CodeLineNode {
-        const clone = new CodeLineNode(node.__key)
-        clone.__isFoldable = node.__isFoldable
-        clone.__isCollapsed = node.__isCollapsed
-        clone.__isHidden = node.__isHidden
+        const clone = new CodeLineNode(
+            node.__key,
+            node.__isFoldable,
+            node.__isCollapsed,
+            node.__isHidden,
+            node.__isEmpty ??
+                (node.getTextContent() === "\u200b" || node.getTextContent().trim() === ""),
+        )
         return clone
     }
 
@@ -64,11 +71,18 @@ export class CodeLineNode extends ElementNode {
      * Creates a new CodeLineNode instance.
      * @param key - Optional unique identifier for the node
      */
-    constructor(key?: string) {
+    constructor(
+        key?: string,
+        isFoldable = false,
+        isCollapsed = false,
+        isHidden = false,
+        isEmpty = false,
+    ) {
         super(key)
-        this.__isFoldable = false
-        this.__isCollapsed = false
-        this.__isHidden = false
+        this.__isFoldable = isFoldable
+        this.__isCollapsed = isCollapsed
+        this.__isHidden = isHidden
+        this.__isEmpty = isEmpty
     }
 
     /**
@@ -77,18 +91,40 @@ export class CodeLineNode extends ElementNode {
      * @returns HTMLElement representing the code line
      */
     createDOM(): HTMLElement {
+        const latest = this.getLatest()
         const element = document.createElement("div")
         element.classList.add("editor-code-line")
         element.setAttribute("data-lexical-node-key", this.__key)
-        if (this.__isHidden) {
+        if (latest.__isHidden) {
             element.classList.add("folded")
         }
 
-        if (this.__isFoldable) {
+        if (latest.__isFoldable) {
             const btn = document.createElement("button")
             btn.className = "fold-toggle"
             btn.textContent = this.__isCollapsed ? "▸" : "▾"
             element.appendChild(btn)
+        }
+
+        if (latest.__index !== undefined && latest.__index > 0) {
+            element.setAttribute("data-gutter", latest.__index.toString())
+        } else {
+            const foundIndex = latest.getIndexWithinParent()
+            if (foundIndex >= 0) {
+                element.setAttribute("data-gutter", (foundIndex + 1).toString())
+            } else {
+                element.setAttribute("data-gutter", "")
+            }
+        }
+
+        if (latest.__isEmpty === undefined || latest.__isEmpty) {
+            element.classList.add("block")
+            element.classList.remove("flex")
+            // element.classList.toggle("bg-[red]", false)
+        } else {
+            element.classList.remove("block")
+            element.classList.add("flex")
+            // element.classList.toggle("bg-[red]", true)
         }
 
         return element
@@ -110,11 +146,24 @@ export class CodeLineNode extends ElementNode {
      */
     updateDOM(prevNode: CodeLineNode, dom: HTMLElement): boolean {
         // Check for any state changes that require DOM updates
+        const latest = this.getLatest()
+        const latestContent = latest.getTextContent()
+        const isEmpty = latestContent === "\u200b" || latestContent.trim() === ""
+        const latestIndex = latest.getIndexWithinParent() + 1
+
         if (
-            prevNode.__isFoldable !== this.__isFoldable ||
-            prevNode.__isCollapsed !== this.__isCollapsed ||
-            prevNode.__isHidden !== this.__isHidden
+            prevNode.__isFoldable !== latest.__isFoldable ||
+            prevNode.__isCollapsed !== latest.__isCollapsed ||
+            prevNode.__isHidden !== latest.__isHidden ||
+            prevNode.__isEmpty !== isEmpty ||
+            prevNode.__index !== latestIndex
         ) {
+            if (prevNode.__isEmpty !== isEmpty) {
+                this.getWritable().__isEmpty = isEmpty
+            }
+            if (prevNode.__index !== latestIndex) {
+                this.getWritable().__index = latestIndex
+            }
             // Remove old button if it exists
             const oldBtn = dom.querySelector(".fold-toggle")
             if (oldBtn) {
@@ -122,10 +171,10 @@ export class CodeLineNode extends ElementNode {
             }
 
             // Add new button if needed
-            if (this.__isFoldable) {
+            if (latest.__isFoldable) {
                 const btn = document.createElement("button")
                 btn.className = "fold-toggle"
-                btn.textContent = this.__isCollapsed ? "▸" : "▾"
+                btn.textContent = latest.__isCollapsed ? "▸" : "▾"
                 btn.style.position = "absolute"
                 btn.style.left = "-1.5em"
                 btn.style.top = "0"

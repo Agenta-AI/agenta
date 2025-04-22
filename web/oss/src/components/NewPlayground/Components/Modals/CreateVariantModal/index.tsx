@@ -23,7 +23,7 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
     const [nameExists, setNameExists] = useState(false)
     const [isCompareMode, setIsCompareMode] = useState(false)
     const [newVariantName, setNewVariantName] = useState("")
-    const [baseVariantName, setBaseVariantName] = useState("")
+    const [baseVariantName, setBaseVariantName] = useState("default")
     const [note, setNote] = useState("")
 
     const {addVariant, baseVariant, variantOptions} = usePlayground({
@@ -61,6 +61,7 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
         addVariant?.({
             baseVariantName: baseVariant.variantName,
             newVariantName: newVariantName,
+            note: note,
             callback: (variant, state) => {
                 if (isCompareMode) {
                     state.selected = [...state.selected, variant.id]
@@ -79,7 +80,7 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
         (value: boolean) => {
             if (!value) {
                 setNewVariantName("")
-                setBaseVariantName("")
+                setBaseVariantName("default")
                 setNameExists((oldValue) => false)
                 setIsCompareMode(false)
                 setNote("")
@@ -102,12 +103,11 @@ const CreateVariantModal: FC<CreateVariantModalProps> = ({
             }}
             okText="Confirm"
             onCancel={() => setIsModalOpen(false)}
-            okButtonProps={{disabled: !isInputValid}} // Disable OK button if input is not valid
-            destroyOnClose
-            centered
+            okButtonProps={{disabled: !isInputValid || !baseVariantName}} // Disable OK button if input is not valid
         >
             <CreateVariantModalContent
                 setTemplateVariantName={setBaseVariantName}
+                templateVariantName={baseVariantName}
                 setIsInputValid={setIsInputValid}
                 newVariantName={newVariantName}
                 setNewVariantName={setNewVariantName}

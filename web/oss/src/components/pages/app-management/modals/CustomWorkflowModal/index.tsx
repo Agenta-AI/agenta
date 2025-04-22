@@ -33,6 +33,7 @@ const CustomWorkflowModal = ({
         loading: false,
     })
     const [isConfiguringWorkflow, setIsConfiguringWorkflow] = useState(false)
+    const workflowUrlInput = customWorkflowAppValues.appUrl
 
     const handleEditCustomUrl = useCallback(async () => {
         if (!variants?.length) return
@@ -55,19 +56,23 @@ const CustomWorkflowModal = ({
             await Promise.all(
                 uniqueParentVariants.map((variant) => {
                     return updateVariant({
-                        serviceUrl: removeTrailingSlash(customWorkflowAppValues.appUrl),
+                        serviceUrl: removeTrailingSlash(workflowUrlInput),
                         variantId: variant?.id,
                     })
                 }),
             )
             await Promise.all([allVariantsDataMutate?.(), mutate()])
+            setCustomWorkflowAppValues((prev) => ({
+                ...prev,
+                appUrl: workflowUrlInput,
+            }))
         } catch (error) {
             console.error("Failed to update variants:", error)
         } finally {
             setIsConfiguringWorkflow(false)
             props.onCancel?.({} as any)
         }
-    }, [variants, customWorkflowAppValues.appUrl])
+    }, [variants, workflowUrlInput])
 
     const runTestConnection = useCallback(async (delay = 0, url?: string) => {
         if (!url) return
@@ -76,7 +81,8 @@ const CustomWorkflowModal = ({
 
         try {
             if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-            await findCustomWorkflowPath(url, "/health")
+            const {status} = (await findCustomWorkflowPath(url, "/health")) || {}
+            if (!status) throw new Error("Unable to establish connection")
             setTestConnectionStatus({success: true, error: false, loading: false})
         } catch (error) {
             console.error(error)
@@ -85,14 +91,11 @@ const CustomWorkflowModal = ({
     }, [])
 
     useEffect(() => {
-        if (customWorkflowAppValues.appUrl) {
-            const timeout = setTimeout(
-                () => runTestConnection(undefined, customWorkflowAppValues.appUrl),
-                100,
-            )
+        if (workflowUrlInput) {
+            const timeout = setTimeout(() => runTestConnection(undefined, workflowUrlInput), 100)
             return () => clearTimeout(timeout)
         }
-    }, [customWorkflowAppValues.appUrl, runTestConnection])
+    }, [workflowUrlInput, runTestConnection])
 
     useEffect(() => {
         if (props.open) {
@@ -229,7 +232,7 @@ const CustomWorkflowModal = ({
 
                 <SharedEditor
                     header={<Typography className={classes.label}>Workflow URL *</Typography>}
-                    initialValue={customWorkflowAppValues.appUrl}
+                    initialValue={workflowUrlInput}
                     handleChange={(value) =>
                         setCustomWorkflowAppValues((prev) => ({
                             ...prev,

@@ -146,24 +146,20 @@ const OverviewPage = () => {
 
                 <ObservabilityOverview />
 
-                {sortedVariants?.length > 0 && (
-                    <DeploymentOverview
-                        variants={sortedVariants}
-                        isDeploymentLoading={isDeploymentLoading}
-                        loadEnvironments={loadEnvironments}
-                        environments={environments}
-                    />
-                )}
+                <DeploymentOverview
+                    variants={sortedVariants}
+                    isDeploymentLoading={isDeploymentLoading}
+                    loadEnvironments={loadEnvironments}
+                    environments={environments}
+                />
 
-                {sortedVariants?.length > 0 && (
-                    <VariantsOverview
-                        variantList={sortedVariants}
-                        isVariantLoading={isVariantLoading}
-                        environments={environments}
-                        fetchAllVariants={mutate}
-                        loadEnvironments={loadEnvironments}
-                    />
-                )}
+                <VariantsOverview
+                    variantList={sortedVariants}
+                    isVariantLoading={isVariantLoading}
+                    environments={environments}
+                    fetchAllVariants={mutate}
+                    loadEnvironments={loadEnvironments}
+                />
 
                 {isDemo() && (
                     <>

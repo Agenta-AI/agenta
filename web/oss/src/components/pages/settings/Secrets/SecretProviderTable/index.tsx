@@ -118,7 +118,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
             {
                 title: <GearSix size={16} />,
                 key: "key",
-                width: 56,
+                width: 85,
                 fixed: "right",
                 align: "center",
                 render: (_, record) => {
@@ -134,6 +134,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                     color="danger"
                                     variant="text"
                                     icon={<Trash />}
+                                    size="small"
                                 />
                                 <Button
                                     onClick={(e) => {
@@ -147,6 +148,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                     }}
                                     type="text"
                                     icon={<PencilSimpleLine />}
+                                    size="small"
                                 />
                             </div>
                         )

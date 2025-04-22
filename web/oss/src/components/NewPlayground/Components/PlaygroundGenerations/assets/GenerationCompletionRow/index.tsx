@@ -243,7 +243,7 @@ const GenerationCompletionRow = ({
             <div
                 className={clsx([
                     "flex flex-col gap-4",
-                    {"max-w-[calc(100%-158px)]": viewType !== "comparison"},
+                    // {"max-w-[calc(100%-158px)]": viewType !== "comparison"},
                     {"max-w-[100%]": viewType === "comparison"},
                 ])}
                 {...props}
