@@ -91,7 +91,7 @@ async def authentication_middleware(request: Request, call_next):
         return response
 
     except TryRefreshTokenError:
-        log.warning("Unauthorized: Refresh Token")
+        log.warn("Unauthorized: Refresh Token")
 
         return Response(status_code=401, content="Unauthorized")
 

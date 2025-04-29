@@ -5,7 +5,7 @@ import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
-import {COMMAND_PRIORITY_LOW, EditorState, LexicalEditor, createCommand} from "lexical"
+import {$getRoot, COMMAND_PRIORITY_LOW, EditorState, LexicalEditor, createCommand} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
 import useEditorConfig from "./hooks/useEditorConfig"
@@ -62,6 +62,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             enableResize = false, // New prop
             boundWidth = true, // New prop
             boundHeight, // New prop
+            disabled = false,
+            ...rest
         }: EditorProps,
         ref,
     ) => {
@@ -77,6 +79,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         const handleUpdate = useCallback(
             (editorState: EditorState, _editor: LexicalEditor) => {
                 editorState.read(() => {
+                    if (!_editor.isEditable()) return
+
                     if (codeOnly) {
                         const textContent = $getEditorCodeAsString(_editor)
                         const result = {
@@ -109,6 +113,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
         const [editor] = useLexicalComposerContext()
 
         const isInitRef = useRef(false)
+
+        useEffect(() => {
+            editor.setEditable(!disabled)
+        }, [disabled, editor])
 
         useEffect(() => {
             /**
@@ -270,6 +278,7 @@ const Editor = ({
     showBorder = true,
     validationSchema,
     noProvider = false,
+    ...rest
 }: EditorProps) => {
     const {setContainerElm, dimensions: dimension} = useEditorResize({
         singleLine,
@@ -300,6 +309,7 @@ const Editor = ({
                     enableTokens={enableTokens}
                     debug={debug}
                     autoFocus={autoFocus}
+                    disabled={disabled}
                     validationSchema={validationSchema}
                 />
             ) : (
@@ -354,6 +364,7 @@ const Editor = ({
                         debug={debug}
                         autoFocus={autoFocus}
                         validationSchema={validationSchema}
+                        disabled={disabled}
                     />
                 </EditorProvider>
             )}

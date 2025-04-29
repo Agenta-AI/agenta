@@ -1,17 +1,16 @@
 import {useMemo, useCallback, useState, useEffect} from "react"
 
 import {mergeRegister} from "@lexical/utils"
-import {Select} from "antd"
 import clsx from "clsx"
-import isEqual from "fast-deep-equal"
+import JSON5 from "json5"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
 
 import {useLexicalComposerContext, EditorProvider} from "@/oss/components/Editor/Editor"
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
 import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
-import useResizeObserver from "@/oss/hooks/useResizeObserver"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
+import {getMetadataLazy, getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {
     Enhanced,
@@ -21,12 +20,15 @@ import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {componentLogger} from "../../assets/utilities/componentLogger"
 import usePlayground from "../../hooks/usePlayground"
 import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
+import {constructChatHistory} from "../../hooks/usePlayground/assets/messageHelpers"
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
+import {TooltipWithCopyAction} from "../PlaygroundGenerations/assets/GenerationCompletionRow"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import SharedEditor from "../SharedEditor"
 
 import type {PromptMessageConfigProps} from "./types"
+
 const PromptMessageContentOptions = dynamic(
     () =>
         import(
@@ -49,6 +51,7 @@ const PromptMessageContentOptions = dynamic(
  * @param props.variantId - Unique identifier for the variant being configured
  */
 const PromptMessageConfig = ({
+    isFunction,
     variantId,
     messageId,
     className,
@@ -66,8 +69,11 @@ const PromptMessageConfig = ({
     headerClassName,
     footerClassName,
     editorProps,
+    isJSON,
     ...props
 }: PromptMessageConfigProps) => {
+    const [_messageId, _setMessageId] = useState("")
+    const [minimized, setMinimized] = useState(false)
     const {message} = usePlayground({
         variantId,
         hookId: "PromptMessageConfig",
@@ -86,6 +92,7 @@ const PromptMessageConfig = ({
                                     content: message.content.__id,
                                     name: message.name?.__id,
                                     toolCalls: message.toolCalls?.__id,
+                                    toolCallId: message.toolCallId?.__id,
                                 },
                             }
                         }
@@ -105,6 +112,9 @@ const PromptMessageConfig = ({
                         message: {
                             role: message.role.__id,
                             content: message.content.__id,
+                            toolCalls: message.toolCalls?.__id,
+                            name: message.name?.__id,
+                            toolCallId: message.toolCallId?.__id,
                         },
                     }
                 }
@@ -118,6 +128,7 @@ const PromptMessageConfig = ({
         handleParamUpdate: updateVariantProperty,
         baseProperty,
         isTool,
+        messageRow,
     } = usePlayground({
         hookId: "PlaygroundVariantPropertyControl",
         stateSelector: (state) => {
@@ -128,22 +139,30 @@ const PromptMessageConfig = ({
                   ? state.variants.find((v) => v.id === variantId)
                   : null
 
+            const messageRow = state.generationData.messages.value.find(
+                (messageId) => messageId.__id === rowId,
+            )
+
             if (!object) {
                 return {}
             } else {
-                const role = findPropertyById(object as EnhancedVariant, message?.role)
-                const isTool = role?.value === "tool"
+                const toolCalls =
+                    findPropertyById(object as EnhancedVariant, message?.toolCalls) ||
+                    findPropertyInObject(state, message?.toolCalls)
+
+                const isTool = !!toolCalls?.value && toolCalls.value.length > 0
+
                 const property = rowId
                     ? (findPropertyInObject(
                           object,
-                          isTool ? message?.toolCalls : message?.content,
+                          isTool ? toolCalls.value[0].__id : message?.content,
                       ) as EnhancedObjectConfig<any>)
                     : (findPropertyById(
                           object as EnhancedVariant,
-                          isTool ? message?.toolCalls : message?.content,
+                          isTool ? toolCalls.value[0].__id : message?.content,
                       ) as EnhancedObjectConfig<any>)
 
-                return {baseProperty: property, isTool}
+                return {baseProperty: property, isTool, messageRow}
             }
         },
     })
@@ -155,7 +174,18 @@ const PromptMessageConfig = ({
 
         const handler = isTool
             ? (e: any) => {
-                  console.log("tool handler")
+                  mutate((clonedState) => {
+                      const message = findPropertyById(
+                          clonedState.variants.find((v) => v.id === variantId) as EnhancedVariant,
+                          baseProperty.__id,
+                      )
+                      if (!message) return clonedState
+                      try {
+                          const obj = typeof e === "string" ? JSON.parse(e) : e
+                      } catch (error) {
+                          const obj = tryParsePartialJson(e)
+                      }
+                  })
               }
             : rowId
               ? (e: any) => {
@@ -202,7 +232,7 @@ const PromptMessageConfig = ({
 
         return {
             __metadata: getMetadataLazy(__metadata),
-            value,
+            value: isTool ? baseProperty : value,
             handleChange: handler,
         }
     }, [isTool, baseProperty, mutate, message?.content, rowId, updateVariantProperty, variantId])
@@ -210,12 +240,20 @@ const PromptMessageConfig = ({
     const {__metadata: metadata, value, handleChange} = property || {}
 
     const _value = useMemo(() => {
-        if (isTool) {
-            return JSON.stringify((propsInitialValue || value)?.[0], null, 2)
+        if (isFunction) {
+            return propsInitialValue || value
+        } else if (isTool) {
+            let _val = propsInitialValue || value
+            let args = _val?.function?.arguments
+            if (typeof args === "string") {
+                args = JSON5.parse(args)
+                _val = args
+            }
+            return JSON5.stringify(_val, null, 2)
         } else {
             return propsInitialValue || value
         }
-    }, [propsInitialValue, value])
+    }, [propsInitialValue, value, isFunction, isTool])
 
     // Try to access the Lexical editor instance from context
     // This will work if this component is a child of LexicalComposer
@@ -242,24 +280,16 @@ const PromptMessageConfig = ({
     // Function to execute a command on the Lexical editor
     const executeEditorCommand = useCallback(
         (newLanguage: "json" | "yaml") => {
-            console.log("Executing editor command using useLexicalComposerContext", newLanguage)
-
             if (editor) {
-                console.log("Found editor from context, dispatching ON_CHANGE_LANGUAGE command")
                 editor.dispatchCommand(ON_CHANGE_LANGUAGE, {
                     language: newLanguage,
                 })
             } else {
-                console.log(
-                    "No editor found in context - this component might not be inside a LexicalComposer",
-                )
-
                 // Fallback: Try using the global window registry
                 if (typeof window !== "undefined") {
                     // @ts-ignore - Accessing custom property
                     const globalEditor = window._lexicalEditor
                     if (globalEditor) {
-                        console.log("Found editor through window global")
                         globalEditor.dispatchCommand(ON_CHANGE_LANGUAGE, {
                             language: "yaml",
                         })
@@ -272,6 +302,42 @@ const PromptMessageConfig = ({
         [editor],
     )
 
+    const _resultHashes = useMemo(() => {
+        if (!messageRow?.history?.value) return []
+
+        if (_messageId) {
+            const chatHistory = constructChatHistory({
+                messageRow,
+                messageId: _messageId,
+                variantId,
+                includeResults: true,
+            })
+
+            return chatHistory?.map((history: any) => history?.result).filter(Boolean) || []
+        }
+
+        const results =
+            messageRow?.history.value
+                .map((history) => history.__runs?.[variantId]?.__result)
+                .filter(Boolean) || []
+
+        return results
+    }, [_messageId])
+
+    const onClickTestsetDrawer = useCallback(() => {
+        _setMessageId(messageId)
+    }, [messageId])
+    const toolInfo = useMemo(() => {
+        if (!message || !isTool) return null
+        const _value = propsInitialValue || value
+        const parsed = typeof _value === "string" ? JSON5.parse(_value) : _value
+        return parsed
+    }, [propsInitialValue, message, value, isTool])
+
+    const _placeholder = useMemo(() => {
+        return isFunction ? "Enter function output" : placeholder
+    }, [isFunction, placeholder])
+
     if (!property) {
         return null
     }
@@ -281,60 +347,139 @@ const PromptMessageConfig = ({
     }
 
     componentLogger("PromptMessageConfig", variantId, messageId, message)
-
-    if (isTool) {
-        console.log("message role", value, propsInitialValue || value)
-    }
-
     return (
         <SharedEditor
             header={
-                isTool ? (
+                isFunction ? (
+                    <div
+                        className={clsx("w-full flex flex-col items-center gap-1", headerClassName)}
+                    >
+                        <div className={clsx("w-full flex items-center justify-between")}>
+                            <PlaygroundVariantPropertyControl
+                                propertyId={message.role}
+                                variantId={variantId}
+                                rowId={rowId}
+                                as="SimpleDropdownSelect"
+                                className="message-user-select"
+                                disabled={disabled}
+                            />
+                            {!disabled && (
+                                <PromptMessageContentOptions
+                                    className="invisible group-hover/item:visible"
+                                    propertyId={message.content}
+                                    variantId={variantId}
+                                    messageId={messageId}
+                                    isMessageDeletable={isMessageDeletable}
+                                    disabled={disabled}
+                                    runnable={runnable}
+                                    minimized={minimized}
+                                    actions={{
+                                        deleteMessage,
+                                        rerunMessage,
+                                        minimize: () => {
+                                            setMinimized((current) => !current)
+                                        },
+                                    }}
+                                />
+                            )}
+                        </div>
+                        <div className="w-full pb-2 pt-0 flex items-center justify-between">
+                            <PlaygroundVariantPropertyControl
+                                propertyId={message.name}
+                                variantId={variantId}
+                                rowId={rowId}
+                                as="SimpleInput"
+                                className="message-user-select px-0"
+                                disabled={disabled}
+                                placeholder="Function name"
+                                editorProps={{
+                                    variant: "borderless",
+                                }}
+                            />
+                            <PlaygroundVariantPropertyControl
+                                propertyId={message.toolCallId}
+                                variantId={variantId}
+                                rowId={rowId}
+                                as="SimpleInput"
+                                className="message-user-select px-0 text-right"
+                                disabled={disabled}
+                                placeholder="Tool call id"
+                                editorProps={{
+                                    variant: "borderless",
+                                }}
+                            />
+                            {/* test
+                            {message.name} */}
+                            {/* <Input variant="borderless" placeholder="Function name" /> */}
+                            {/* <Input variant="borderless" placeholder="Call Id" value={""} /> */}
+                            {/* <TooltipWithCopyAction title={"Call id"}>
+                                <span>{value?.id}</span>
+                            </TooltipWithCopyAction> */}
+                        </div>
+                    </div>
+                ) : isTool ? (
                     <div
                         className={clsx(
-                            "w-full flex items-center justify-between",
+                            "pt-2 w-full flex flex-col items-center gap-1",
                             headerClassName,
                         )}
                     >
-                        <PlaygroundVariantPropertyControl
-                            propertyId={message.name}
-                            variantId={variantId}
-                            rowId={rowId}
-                            disabled={disabled}
-                            useAntdInput
-                            editorProps={{
-                                variant: "borderless",
-                            }}
-                            placeholder="Enter tool name"
-                            as="SimpleInput"
-                        />
-                        {!disabled && (
-                            <PromptMessageContentOptions
-                                className="invisible group-hover/item:visible"
-                                propertyId={message.content}
+                        <div className={clsx("w-full flex items-center justify-between")}>
+                            <PlaygroundVariantPropertyControl
+                                propertyId={message.role}
                                 variantId={variantId}
-                                messageId={messageId}
-                                isMessageDeletable={isMessageDeletable}
+                                rowId={rowId}
+                                as="SimpleDropdownSelect"
+                                className="message-user-select"
                                 disabled={disabled}
                                 runnable={runnable}
+                                resultHashes={_resultHashes}
                                 actions={{
                                     deleteMessage,
                                     rerunMessage,
+                                    onClickTestsetDrawer,
                                 }}
-                            >
-                                <Select
-                                    variant="borderless"
-                                    options={[
-                                        {value: "json", label: "JSON"},
-                                        {value: "yaml", label: "YAML"},
-                                    ]}
-                                    value={language}
-                                    popupMatchSelectWidth={false}
-                                    size="small"
-                                    onChange={executeEditorCommand}
-                                />
-                            </PromptMessageContentOptions>
-                        )}
+                            ></PlaygroundVariantPropertyControl>
+                            {!disabled && (
+                                <PromptMessageContentOptions
+                                    className="invisible group-hover/item:visible"
+                                    propertyId={message.content}
+                                    variantId={variantId}
+                                    messageId={messageId}
+                                    isMessageDeletable={isMessageDeletable}
+                                    disabled={disabled}
+                                    runnable={runnable}
+                                    minimized={minimized}
+                                    actions={{
+                                        deleteMessage,
+                                        rerunMessage,
+                                        minimize: () => {
+                                            setMinimized((current) => !current)
+                                        },
+                                    }}
+                                >
+                                    {/* <Select
+                                        variant="borderless"
+                                        options={[
+                                            {value: "json", label: "JSON"},
+                                            {value: "yaml", label: "YAML"},
+                                        ]}
+                                        value={language}
+                                        popupMatchSelectWidth={false}
+                                        size="small"
+                                        onChange={executeEditorCommand}
+                                    /> */}
+                                </PromptMessageContentOptions>
+                            )}
+                        </div>
+                        <div className="w-full p-2 pt-0 flex items-center justify-between">
+                            <TooltipWithCopyAction title={"Function name"}>
+                                <span>{toolInfo?.function?.name}</span>
+                            </TooltipWithCopyAction>
+                            <TooltipWithCopyAction title={"Call id"}>
+                                <span>{value?.id}</span>
+                            </TooltipWithCopyAction>
+                        </div>
                     </div>
                 ) : (
                     <div
@@ -361,71 +506,63 @@ const PromptMessageConfig = ({
                                 isMessageDeletable={isMessageDeletable}
                                 disabled={disabled}
                                 runnable={runnable}
+                                resultHashes={_resultHashes}
                                 actions={{
                                     deleteMessage,
                                     rerunMessage,
+                                    onClickTestsetDrawer,
+                                    minimize: () => {
+                                        setMinimized((current) => !current)
+                                    },
                                 }}
                             />
                         )}
                     </div>
                 )
             }
+            key={`${isTool}-${messageId}`}
             handleChange={propsHandleChange || handleChange}
             initialValue={_value}
             editorClassName={editorClassName}
-            placeholder={placeholder || metadata?.description}
+            placeholder={_placeholder || metadata?.description}
             disabled={disabled}
-            className={className}
+            className={clsx([
+                "mt-2",
+                {
+                    "[&_.agenta-editor-wrapper]:h-[calc(8px+calc(3*19.88px))] [&_.agenta-editor-wrapper]:overflow-y-auto [&_.agenta-editor-wrapper]:!mb-0":
+                        minimized,
+                    "[&_.agenta-editor-wrapper]:h-fit": !minimized,
+                },
+                className,
+            ])}
             editorProps={{
                 ...(editorProps || {}),
-                codeOnly: isTool,
+                codeOnly: isJSON || isTool,
                 noProvider: true,
-                validationSchema: isTool
-                    ? {
-                          type: "object",
-                          properties: {
-                              type: {
-                                  type: "string",
-                                  const: "function",
-                                  title: "Type",
-                                  default: "function",
-                              },
-                              name: {
-                                  type: "string",
-                                  title: "Name",
-                              },
-                              description: {
-                                  type: "string",
-                                  title: "Description",
-                              },
-                              parameters: {
-                                  type: "object",
-                                  properties: {
-                                      location: {
-                                          type: "string",
-                                          description: "City and country e.g. Bogotá, Colombia",
-                                          title: "Location",
-                                      },
-                                  },
-                                  required: ["location"],
-                                  additionalProperties: false,
-                                  title: "Parameters",
-                              },
-                          },
-                          required: ["type", "name", "description", "parameters"],
-                          additionalProperties: false,
-                          title: "Function",
-                      }
-                    : undefined,
-                enableTokens: !isTool,
+                enableTokens: !(isJSON || isTool),
+                showToolbar: false,
             }}
             {...props}
         />
     )
 }
 
+const checkIsJSON = (_value) => {
+    if (!_value) return false
+    try {
+        if (typeof _value === "string") {
+            const json = JSON5.parse(_value)
+            return typeof json === "object" && Object.keys(json).length > 0
+        } else {
+            return true
+        }
+    } catch (e) {
+        return false
+    }
+}
+
 const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
-    const {message} = usePlayground({
+    const {message, messages, isFunction, isJSON} = usePlayground({
         variantId: props.variantId,
         hookId: "PromptMessageConfig",
         stateSelector: useCallback(
@@ -446,10 +583,11 @@ const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
                                     name: message.name?.__id,
                                     toolCalls: message.toolCalls?.__id,
                                 },
+                                isJSON: checkIsJSON(message.content?.value),
                             }
                         }
                     }
-                    return {message: undefined}
+                    return {message: undefined, isJSON: false}
                 } else {
                     const object =
                         state.generationData.inputs.value.find((v) => v.__id === props.rowId) ||
@@ -459,13 +597,33 @@ const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
 
                     message = message?.value || message
 
-                    if (!message) return {message: undefined}
-                    return {
-                        message: {
-                            role: message.role.__id,
-                            content: message.content.__id,
-                        },
+                    if (!message) return {message: undefined, isJSON: false}
+
+                    if (!message.role) {
+                        const messagesResponse = getResponseLazy(message?.__result)?.response
+                        if (messagesResponse) {
+                            return {
+                                messages: messagesResponse,
+                                isJSON: checkIsJSON(message.content?.value),
+                            }
+                        }
                     }
+                    return message.role && message.content
+                        ? {
+                              message: {
+                                  role: message.role?.__id,
+                                  content: message.content?.__id,
+                                  toolCalls: message.toolCalls?.__id,
+                                  toolCallId: message.toolCallId?.__id,
+                                  name: message.name?.__id,
+                              },
+                              isJSON: checkIsJSON(message.content?.value),
+                              isFunction: message.role?.value === "tool",
+                          }
+                        : {
+                              messages: undefined,
+                              isJSON: false,
+                          }
                 }
             },
             [props.messageId, props.rowId, props.variantId],
@@ -485,8 +643,12 @@ const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
             if (!object) {
                 return {}
             } else {
-                const role = findPropertyById(object as EnhancedVariant, message?.role)
-                const isTool = role?.value === "tool"
+                const toolCalls =
+                    findPropertyById(object as EnhancedVariant, message?.toolCalls) ||
+                    findPropertyInObject(state, message?.toolCalls)
+
+                const isTool = !!toolCalls?.value && toolCalls.value.length > 0
+
                 return {isTool}
             }
         },
@@ -495,50 +657,16 @@ const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
     return (
         <div className="w-full relative">
             <EditorProvider
-                codeOnly={isTool}
-                validationSchema={
-                    isTool
-                        ? {
-                              type: "object",
-                              properties: {
-                                  type: {
-                                      type: "string",
-                                      const: "function",
-                                      title: "Type",
-                                      default: "function",
-                                  },
-                                  name: {
-                                      type: "string",
-                                      title: "Name",
-                                  },
-                                  description: {
-                                      type: "string",
-                                      title: "Description",
-                                  },
-                                  parameters: {
-                                      type: "object",
-                                      properties: {
-                                          location: {
-                                              type: "string",
-                                              description: "City and country e.g. Bogotá, Colombia",
-                                              title: "Location",
-                                          },
-                                      },
-                                      required: ["location"],
-                                      additionalProperties: false,
-                                      title: "Parameters",
-                                  },
-                              },
-                              required: ["type", "name", "description", "parameters"],
-                              additionalProperties: false,
-                              title: "Function",
-                          }
-                        : undefined
-                }
-                enableTokens={!isTool}
+                codeOnly={isTool || isJSON}
+                enableTokens={!(isTool || isJSON)}
                 showToolbar={false}
             >
-                <PromptMessageConfig isTool={isTool} {...props} />
+                <PromptMessageConfig
+                    isJSON={isJSON}
+                    isFunction={isFunction}
+                    isTool={isTool}
+                    {...props}
+                />
             </EditorProvider>
         </div>
     )

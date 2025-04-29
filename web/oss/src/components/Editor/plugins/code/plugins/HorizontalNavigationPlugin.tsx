@@ -17,508 +17,366 @@ import {
     COMMAND_PRIORITY_CRITICAL,
     KEY_ARROW_LEFT_COMMAND,
     KEY_ARROW_RIGHT_COMMAND,
-    LexicalNode,
     $isTabNode,
+    MOVE_TO_START,
+    MOVE_TO_END,
+    KEY_DOWN_COMMAND,
 } from "lexical"
 
 import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
-import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
+import {$isCodeLineNode} from "../nodes/CodeLineNode"
 import {createLogger} from "../utils/createLogger"
 
+import {isSkippableToken, $findNextValidPosition} from "./horizontalNavigationUtils"
+
 const PLUGIN_NAME = "HorizontalNavigationPlugin"
-const log = createLogger(PLUGIN_NAME, {disabled: true})
+const log = createLogger(PLUGIN_NAME, {disabled: false})
 
-/**
- * Finds the next valid position for cursor placement
- * Skips zero-width characters and handles special nodes
- */
-function $findNextValidPosition(
-    node: LexicalNode,
-    offset: number,
-    direction: "left" | "right",
-): {node: LexicalNode; offset: number} | null {
-    // If we're at a tab node, handle it specially
-    if ($isTabNode(node)) {
-        log("Tab node detected", {nodeKey: node.getKey(), direction, offset})
-
-        const sel = $getSelection()
-        if (!$isRangeSelection(sel)) return null
-        sel.modify("move", direction === "left", "character")
-        const newSel = $getSelection()
-
-        return {
-            node: newSel?.anchor?.getNode() || node,
-            offset: newSel?.anchor?.offset || offset,
-        }
-
-        // if (direction === "right") {
-        //     // Moving right from a tab node, ALWAYS go to next node
-        //     // regardless of current offset within the tab
-        //     const sel = $getSelection()
-        //     if (!$isRangeSelection(sel)) return null
-        //     sel.modify("move", direction === "left", "character")
-        //     const newSel = $getSelection()
-        //     log("Right to the tab node", {
-        //         nodeKey: newSel.anchor.getNode(),
-        //         direction,
-        //         offset: newSel.anchor.offset,
-        //     })
-        //     return {
-        //         node: newSel?.anchor?.getNode() || node,
-        //         offset: newSel?.anchor?.offset || offset,
-        //     }
-        //     // const nextSibling = node.getNextSibling()
-        //     // if (nextSibling) {
-        //     //     return {node: nextSibling, offset: 0}
-        //     // }
-        // } else if (direction === "left") {
-        //     // If we're already at the beginning of the tab, go to previous node
-        //     if (offset === 0) {
-        //         const prevSibling = node.getPreviousSibling()
-        //         if (prevSibling) {
-        //             return {node: prevSibling, offset: prevSibling.getTextContentSize()}
-        //         }
-        //     } else {
-        //         // If we're in the middle of the tab, go to the beginning
-        //         return {node, offset: 0}
-        //     }
-        // }
-
-        // If at tab node, just stay where we are - tab is a valid position
-        return {node, offset}
-    }
-
-    // Handle CodeHighlightNode with zero-width space or empty content
-    if ($isCodeHighlightNode(node)) {
-        const text = node.getTextContent()
-        const char = text[offset]
-        if (!char) {
-            const sel = $getSelection()
-            if (!$isRangeSelection(sel)) return null
-            sel.modify("move", direction === "left", "character")
-            const newSel = $getSelection()
-            const target = newSel?.anchor?.getNode()
-            const _char = target?.getTextContent()[newSel?.anchor?.offset || 0]
-            const targetText = target.getTextContent()
-
-            const textBefore = target?.getTextContent().slice(0, offset)
-
-            if (textBefore === "\u200B" && !char) {
-                return $findNextValidPosition(target, newSel?.anchor?.offset, direction)
-            }
-
-            if (newSel) {
-                return {
-                    node: newSel.anchor.getNode(),
-                    offset: newSel.anchor.offset,
-                }
-            }
-        } else if (char === "\u200B") {
-            const sel = $getSelection()
-            if (!$isRangeSelection(sel)) return null
-            sel.modify("move", direction === "left", "character")
-            const newSel = $getSelection()
-            const target = newSel?.anchor?.getNode()
-            const _char = target?.getTextContent()[newSel?.anchor?.offset || 0]
-            if (_char === "\u200B") {
-                return $findNextValidPosition(node, 0, direction)
-            }
-            if (!newSel) {
-                const nextSibling = node.getNextSibling()
-                if (nextSibling) {
-                    return $findNextValidPosition(node, 0, direction)
-                }
-            }
-            return $findNextValidPosition(
-                newSel?.anchor?.getNode(),
-                newSel?.anchor?.offset,
-                direction,
-            )
-        }
-
-        return {node: node, offset: offset + (direction === "left" ? -1 : 1)}
-        // Handle empty nodes or nodes with zero-width space
-        // if (text === "" || text.includes("\u200B")) {
-        //     log("Zero-width space detected", {
-        //         nodeKey: node.getKey(),
-        //         text,
-        //         offset,
-        //         direction,
-        //     })
-
-        //     // Handle empty nodes or nodes with only zero-width space
-        //     if (text === "" || text === "\u200B") {
-        //         // If the node only contains a zero-width space
-        //         if (direction === "right") {
-        //             // Try to find next sibling
-        //             const nextSibling = node.getNextSibling()
-        //             if (nextSibling) {
-        //                 return {node: nextSibling, offset: 0}
-        //             }
-
-        //             // If no next sibling, try to find next line
-        //             const parentLine = node.getParent()
-        //             if ($isCodeLineNode(parentLine)) {
-        //                 const nextLine = parentLine.getNextSibling()
-        //                 if (nextLine) {
-        //                     const firstChild = nextLine.getFirstChild()
-        //                     if (firstChild) {
-        //                         return {node: firstChild, offset: 0}
-        //                     }
-        //                 }
-        //             }
-        //         } else if (direction === "left") {
-        //             // Try to find previous sibling
-        //             const prevSibling = node.getPreviousSibling()
-        //             if (prevSibling) {
-        //                 // If previous sibling is a tab node, move to it
-        //                 return {node: prevSibling, offset: prevSibling.getTextContentSize()}
-        //             }
-
-        //             // If no previous sibling, try to find previous line
-        //             const parentLine = node.getParent()
-        //             if ($isCodeLineNode(parentLine)) {
-        //                 const prevLine = parentLine.getPreviousSibling()
-        //                 if (prevLine) {
-        //                     // Get the last child of the previous line
-        //                     const children = prevLine.getChildren()
-        //                     if (children.length > 0) {
-        //                         const lastChild = children[children.length - 1]
-        //                         return {node: lastChild, offset: lastChild.getTextContentSize()}
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     } else {
-        //         // Node contains zero-width space and other content
-        //         // Find positions of zero-width spaces
-        //         const zeroWidthPositions: number[] = []
-        //         for (let i = 0; i < text.length; i++) {
-        //             if (text[i] === "\u200B") {
-        //                 zeroWidthPositions.push(i)
-        //             }
-        //         }
-
-        //         if (direction === "right") {
-        //             // Find the next non-zero-width position
-        //             for (let i = offset; i < text.length; i++) {
-        //                 if (!zeroWidthPositions.includes(i) && i > offset) {
-        //                     return {node, offset: i}
-        //                 }
-        //             }
-
-        //             // If we're at the end, try next node
-        //             const nextSibling = node.getNextSibling()
-        //             if (nextSibling) {
-        //                 return {node: nextSibling, offset: 0}
-        //             }
-        //         } else if (direction === "left") {
-        //             // Find the previous non-zero-width position
-        //             for (let i = offset - 1; i >= 0; i--) {
-        //                 if (!zeroWidthPositions.includes(i)) {
-        //                     return {node, offset: i}
-        //                 }
-        //             }
-
-        //             // If we're at the beginning, try previous node
-        //             const prevSibling = node.getPreviousSibling()
-        //             if (prevSibling) {
-        //                 // If previous sibling is a tab node, move to it with offset 0
-        //                 if ($isTabNode(prevSibling)) {
-        //                     log("Moving to tab node", {
-        //                         from: node.getKey(),
-        //                         to: prevSibling.getKey(),
-        //                     })
-        //                     return {node: prevSibling, offset: 0}
-        //                 }
-        //                 return {node: prevSibling, offset: prevSibling.getTextContentSize()}
-        //             }
-        //         }
-        //     }
-        // }
-    }
-
-    // If we didn't find a better position, return null to let default behavior happen
-    return null
-}
-
-/**
- * Plugin that improves horizontal navigation in code blocks
- */
 export function HorizontalNavigationPlugin() {
     const [editor] = useLexicalComposerContext()
 
     useEffect(() => {
-        // Handle left arrow key
-        const removeLeftHandler = editor.registerCommand(
-            KEY_ARROW_LEFT_COMMAND,
+        const moveStartHandler = editor.registerCommand(
+            MOVE_TO_START,
             (event) => {
+                log("MOVE TO START", event)
                 const selection = $getSelection()
                 if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
                     return false
                 }
-
                 const anchorNode = selection.anchor.getNode()
-                const offset = selection.anchor.offset
+                // Find containing code line
+                let lineNode = anchorNode
+                while (lineNode && !$isCodeLineNode(lineNode)) {
+                    lineNode = lineNode.getParent()
+                }
+                if (!lineNode || !$isCodeLineNode(lineNode)) return false
+                const children = lineNode.getChildren()
+                // Find first non-tab child
+                let firstContentNode = null
+                const tabNodes = []
+                for (const child of children) {
+                    if ($isTabNode(child)) {
+                        tabNodes.push(child)
+                    } else {
+                        firstContentNode = child
+                        break
+                    }
+                }
+                if (firstContentNode && typeof firstContentNode.getKey === "function") {
+                    // Place caret at start of first content node
+                    const sel = $createRangeSelection()
+                    sel.anchor.set(firstContentNode.getKey(), 0, "text")
+                    sel.focus.set(firstContentNode.getKey(), 0, "text")
+                    $setSelection(sel)
+                    return true
+                } else if (tabNodes.length > 0) {
+                    // Only tabs: place caret at end of last tab
+                    const lastTabNode = tabNodes[tabNodes.length - 1]
+                    const sel = lastTabNode.selectEnd()
+                    $setSelection(sel)
+                    return true
+                } else {
+                    // Empty line: select start of line node
+                    const sel = lineNode.selectStart()
+                    $setSelection(sel)
+                    return true
+                }
+            },
+            COMMAND_PRIORITY_CRITICAL,
+        )
+        const moveEndHandler = editor.registerCommand(
+            MOVE_TO_END,
+            (event) => {
+                log("MOVE TO END", event)
+                const selection = $getSelection()
+                if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+                    return false
+                }
+                const anchorNode = selection.anchor.getNode()
+                // Find containing code line
+                let lineNode = anchorNode
+                while (lineNode && !$isCodeLineNode(lineNode)) {
+                    lineNode = lineNode.getParent()
+                }
+                if (!lineNode || !$isCodeLineNode(lineNode)) return false
+                const children = lineNode.getChildren()
+                // Find last non-tab child
+                let lastContentNode = null
+                const tabNodes = []
+                for (let i = children.length - 1; i >= 0; i--) {
+                    const child = children[i]
+                    if ($isTabNode(child)) {
+                        tabNodes.push(child)
+                    } else if (!lastContentNode) {
+                        lastContentNode = child
+                    }
+                }
+                if (lastContentNode && typeof lastContentNode.getKey === "function") {
+                    // Place caret at end of last content node
+                    const sel = $createRangeSelection()
+                    let endOffset = 0
+                    if (typeof lastContentNode.getTextContentSize === "function") {
+                        endOffset = lastContentNode.getTextContentSize()
+                    } else if (typeof lastContentNode.getTextContent === "function") {
+                        endOffset = lastContentNode.getTextContent().length
+                    }
+                    sel.anchor.set(lastContentNode.getKey(), endOffset, "text")
+                    sel.focus.set(lastContentNode.getKey(), endOffset, "text")
+                    $setSelection(sel)
+                    return true
+                } else if (tabNodes.length > 0) {
+                    // Only tabs: place caret at end of last tab
+                    const lastTabNode = tabNodes[0] // since we pushed from the end
+                    const sel = lastTabNode.selectEnd()
+                    $setSelection(sel)
+                    return true
+                } else {
+                    // Empty line: select start of line node
+                    const sel = lineNode.selectStart()
+                    $setSelection(sel)
+                    return true
+                }
+            },
+            COMMAND_PRIORITY_CRITICAL,
+        )
+        const keyDownHandler = editor.registerCommand(
+            KEY_DOWN_COMMAND,
+            (event) => {
+                if (["ArrowRight", "ArrowLeft"].includes(event.key) && event.altKey) {
+                    log("KEY_DOWN_COMMAND", event)
+                    event.preventDefault()
+                    // --- Alt+Arrow navigation logic ---
+                    const selection = $getSelection()
+                    if (!$isRangeSelection(selection)) return false
 
-                const fixSelection = (targetNode, targetOffset) => {
-                    const targetContent = targetNode.getTextContent()[targetOffset]
+                    // Use focus for direction (caret for collapsed, focus for selection)
+                    const node = selection.focus.getNode()
+                    let lineNode = node
+                    while (lineNode && !$isCodeLineNode(lineNode)) {
+                        lineNode = lineNode.getParent()
+                    }
+                    if (!lineNode || !$isCodeLineNode(lineNode)) return false
+                    const children = lineNode.getChildren()
+                    if (children.length === 0) return false
 
-                    if (targetContent === "\u200B") {
-                        const nextCharInNode = targetNode.getTextContent()[targetOffset - 1]
-                        if (nextCharInNode && nextCharInNode !== "\u200B") {
-                            targetOffset -= 1
+                    // Find current token and offset
+                    const tokenIdx = children.findIndex((child) => child.getKey() === node.getKey())
+                    const offset = selection.focus.offset
+                    // Helper: is at start or end of token
+                    const nodeTextLength = typeof node.getTextContentSize === "function"
+                        ? node.getTextContentSize()
+                        : typeof node.getTextContent === "function"
+                            ? node.getTextContent().length
+                            : 0
+                    let isAtTokenStart = offset === 0
+                    let isAtTokenEnd = offset === nodeTextLength
+
+                    // Special handling for string tokens
+                    let isStringToken = false
+                    if ($isCodeHighlightNode(node)) {
+                        const tokenType = typeof node.getType === "function" ? node.getType() : undefined
+                        const text = node.getTextContent()
+                        isStringToken = tokenType === "string" || (text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))
+                        if (isStringToken && text.length > 1) {
+                            // If caret is just after opening quote, treat as start
+                            if (offset === 1) isAtTokenStart = true
+                            // If caret is just before closing quote, treat as end
+                            if (offset === text.length - 1) isAtTokenEnd = true
+                        }
+                    }
+
+                    // Directional logic
+                    let targetNode = node
+                    let targetOffset = offset
+                    let found = false
+
+                    if (event.key === "ArrowLeft") {
+                        // Move to start of current token, or previous token
+                        if (!isAtTokenStart) {
+                            targetOffset = 0
+                            found = true
                         } else {
-                            const nextNode = targetNode.getPreviousSibling()
-                            if (nextNode) {
-                                targetNode = nextNode
-                                targetOffset = nextNode.getTextContentSize()
-                            } else {
-                                const lineNode = anchorNode
-                                    .getParents()
-                                    .find($isCodeLineNode) as CodeLineNode
-                                const nextLineNode = lineNode?.getPreviousSibling() as CodeLineNode
-                                if (nextLineNode) {
-                                    const firstChild = nextLineNode.getLastChild()
-                                    if (firstChild) {
-                                        targetNode = firstChild
-                                        targetOffset = firstChild.getTextContentSize()
+                            // Find previous non-skippable token
+                            for (let i = tokenIdx - 1; i >= 0; i--) {
+                                if (!isSkippableToken(children[i])) {
+                                    targetNode = children[i]
+                                    targetOffset = 0
+                                    found = true
+                                    break
+                                }
+                            }
+                            // If at start of line, try previous line
+                            if (!found && tokenIdx === 0) {
+                                const prevLine = lineNode.getPreviousSibling()
+                                if (
+                                    prevLine &&
+                                    $isCodeLineNode(prevLine) &&
+                                    prevLine.getChildren().length > 0
+                                ) {
+                                    const prevChildren = prevLine.getChildren()
+                                    let lastIdx = prevChildren.length - 1
+                                    while (
+                                        lastIdx >= 0 &&
+                                        isSkippableToken(prevChildren[lastIdx])
+                                    ) {
+                                        lastIdx--
                                     }
-                                    return fixSelection(firstChild, 0)
+                                    if (lastIdx >= 0) {
+                                        targetNode = prevChildren[lastIdx]
+                                        targetOffset = 0
+                                        found = true
+                                    }
+                                }
+                            }
+                        }
+                    } else if (event.key === "ArrowRight") {
+                        // Move to end of current token, or next token
+                        if (!isAtTokenEnd) {
+                            targetOffset = nodeTextLength
+                            found = true
+                        } else {
+                            // Find next non-skippable token
+                            for (let i = tokenIdx + 1; i < children.length; i++) {
+                                if (!isSkippableToken(children[i])) {
+                                    targetNode = children[i]
+                                    targetOffset = 0
+                                    found = true
+                                    break
+                                }
+                            }
+                            // If at end of line, try next line
+                            if (!found && tokenIdx === children.length - 1) {
+                                const nextLine = lineNode.getNextSibling()
+                                if (
+                                    nextLine &&
+                                    $isCodeLineNode(nextLine) &&
+                                    nextLine.getChildren().length > 0
+                                ) {
+                                    const nextChildren = nextLine.getChildren()
+                                    let firstIdx = 0
+                                    while (
+                                        firstIdx < nextChildren.length &&
+                                        isSkippableToken(nextChildren[firstIdx])
+                                    ) {
+                                        firstIdx++
+                                    }
+                                    if (firstIdx < nextChildren.length) {
+                                        targetNode = nextChildren[firstIdx]
+                                        targetOffset = 0
+                                        found = true
+                                    }
                                 }
                             }
                         }
                     }
 
-                    return {targetNode, targetOffset}
-                }
-
-                log("Left arrow pressed", {
-                    nodeKey: anchorNode.getKey(),
-                    nodeType: anchorNode.getType(),
-                    offset,
-                    text: anchorNode.getTextContent(),
-                })
-
-                // Check if we're at the beginning of a line and need to move to the previous line
-                if (offset === 0 && !anchorNode.getPreviousSibling()) {
-                    log("Left arrow pressed 1")
-                    const parentLine = anchorNode.getParent()
-                    if ($isCodeLineNode(parentLine)) {
-                        const prevLine = parentLine.getPreviousSibling()
-                        if (prevLine) {
-                            const children = prevLine.getChildren()
-                            if (children.length > 0) {
-                                const lastChild = children[children.length - 1]
-                                event.preventDefault()
-
-                                const newSelection = $createRangeSelection()
-                                newSelection.anchor.set(
-                                    lastChild.getKey(),
-                                    lastChild.getTextContentSize(),
-                                    "text",
-                                )
-                                newSelection.focus.set(
-                                    lastChild.getKey(),
-                                    lastChild.getTextContentSize(),
-                                    "text",
-                                )
-                                $setSelection(newSelection)
-
-                                log("Moving to end of previous line", {
-                                    fromLine: parentLine.getKey(),
-                                    toLine: prevLine.getKey(),
-                                    toNode: lastChild.getKey(),
-                                })
-
-                                return true
+                    // Token-aware caret placement
+                    if ($isCodeHighlightNode(targetNode)) {
+                        const tokenType =
+                            typeof targetNode.getType === "function"
+                                ? targetNode.getType()
+                                : undefined
+                        const text = targetNode.getTextContent()
+                        // If token is a string (by type or by quotes)
+                        const isStringToken =
+                            tokenType === "string" ||
+                            (text.startsWith('"') && text.endsWith('"')) ||
+                            (text.startsWith("'") && text.endsWith("'"))
+                        if (isStringToken && text.length > 1) {
+                            if (event.key === "ArrowLeft") {
+                                // Place just after opening quote
+                                targetOffset = 1
+                            } else if (event.key === "ArrowRight") {
+                                // Place just before closing quote
+                                targetOffset = text.length - 1
+                                if (targetOffset < 1) targetOffset = 1
                             }
+                        } else if (isStringToken && text.length === 1) {
+                            // Only quote, place after
+                            targetOffset = 1
                         }
                     }
-                }
 
-                // Check for zero-width characters when navigating left
-                if ($isCodeHighlightNode(anchorNode)) {
-                    const content = anchorNode.getTextContent()
-
-                    log("Left arrow pressed 2", {offset, content})
-                    // If we're at offset 1 and there's a zero-width character at position 0, skip it
-                    if (offset === 1 && content.charAt(0) === "\u200B") {
-                        log("Left arrow pressed 3")
-                        // Try to move to the previous node
-                        const prevSibling = anchorNode.getPreviousSibling()
-                        if (prevSibling) {
-                            event.preventDefault()
-
-                            let targetOffset = $isTabNode(prevSibling)
-                                ? 0
-                                : prevSibling.getTextContentSize()
-                            const prevContent = prevSibling.getTextContent()
-
-                            // Check if the previous node ends with a zero-width character
-                            if (prevContent.endsWith("\u200B") && targetOffset > 0) {
-                                targetOffset -= 1
-                            }
-
-                            log("Skipping zero-width character when moving left", {
-                                from: anchorNode.getKey(),
-                                to: prevSibling.getKey(),
-                                targetOffset,
-                            })
-
-                            const selection = $createRangeSelection()
-                            selection.anchor.set(prevSibling.getKey(), targetOffset, "text")
-                            selection.focus.set(prevSibling.getKey(), targetOffset, "text")
-                            $setSelection(selection)
-
-                            return true
-                        }
-                    }
-                }
-
-                const newPosition = $findNextValidPosition(anchorNode, offset, "left")
-                log("LEFT ARROW PRESSED 3", newPosition)
-                if (newPosition) {
-                    event.preventDefault()
-
-                    // Check if the target node has a zero-width character at the target offset
-                    const targetOffset = newPosition.offset
-                    const targetNode = newPosition.node
-
-                    const newOffsets = fixSelection(targetNode, targetOffset)
-
-                    log("Set new left position", {
-                        newOffsets,
-                        newPosition,
-                        originalOffset: newPosition.offset,
-                        originalNode: newPosition.node.getKey(),
-                    })
-
-                    $setSelection(null)
-
-                    // Then create and set a new selection
-                    const selection = $createRangeSelection()
-                    selection.anchor.set(
-                        newOffsets.targetNode.getKey(),
-                        newOffsets.targetOffset,
-                        "text",
-                    )
-                    selection.focus.set(
-                        newOffsets.targetNode.getKey(),
-                        newOffsets.targetOffset,
-                        "text",
-                    )
-                    $setSelection(selection)
-
-                    // // Check if the target node has a zero-width character at the target offset
-                    // let targetOffset = newPosition.offset
-                    // let targetNode = newPosition.node
-                    // const targetContent = targetNode.getTextContent()
-
-                    // // If we're moving to a node with zero-width characters
-                    // if (targetContent.includes("\u200B")) {
-                    //     // If we're at the beginning and it starts with a zero-width character
-                    //     if (targetOffset === 0 && targetContent.startsWith("\u200B")) {
-                    //         // Skip all leading zero-width characters
-                    //         while (
-                    //             targetOffset < targetContent.length &&
-                    //             targetContent[targetOffset] === "\u200B"
-                    //         ) {
-                    //             targetOffset += 1
-                    //         }
-
-                    //         // If we skipped all content in this node, try to move to the next node
-                    //         if (targetOffset >= targetContent.length) {
-                    //             const nextSibling = targetNode.getNextSibling()
-                    //             if (nextSibling) {
-                    //                 targetNode = nextSibling
-                    //                 targetOffset = 0
-                    //                 const nextContent = nextSibling.getTextContent()
-
-                    //                 // Skip any leading zero-width chars in the next node
-                    //                 while (
-                    //                     targetOffset < nextContent.length &&
-                    //                     nextContent[targetOffset] === "\u200B"
-                    //                 ) {
-                    //                     targetOffset += 1
-                    //                 }
-
-                    //                 log(
-                    //                     "Left: Moved to next sibling after skipping zero-width chars",
-                    //                     {
-                    //                         from: newPosition.node.getKey(),
-                    //                         to: nextSibling.getKey(),
-                    //                         offset: targetOffset,
-                    //                     },
-                    //                 )
-                    //             }
-                    //         } else {
-                    //             log("Left: Skipped leading zero-width chars", {
-                    //                 node: targetNode.getKey(),
-                    //                 newOffset: targetOffset,
-                    //             })
-                    //         }
-                    //     } else if (
-                    //         targetOffset > 0 &&
-                    //         targetContent[targetOffset - 1] === "\u200B"
-                    //     ) {
-                    //         // If we're just after a zero-width character, try to find a better position
-                    //         // Move back until we find a non-zero-width character
-                    //         while (
-                    //             targetOffset > 0 &&
-                    //             targetContent[targetOffset - 1] === "\u200B"
-                    //         ) {
-                    //             targetOffset -= 1
-                    //         }
-
-                    //         // If we went all the way to the beginning, check the previous sibling
-                    //         if (targetOffset === 0) {
-                    //             const prevSibling = targetNode.getPreviousSibling()
-                    //             if (prevSibling) {
-                    //                 targetNode = prevSibling
-                    //                 const prevContent = prevSibling.getTextContent()
-                    //                 targetOffset = prevContent.length
-
-                    //                 // Skip any trailing zero-width chars in the previous node
-                    //                 while (
-                    //                     targetOffset > 0 &&
-                    //                     prevContent[targetOffset - 1] === "\u200B"
-                    //                 ) {
-                    //                     targetOffset -= 1
-                    //                 }
-
-                    //                 log(
-                    //                     "Left: Moved to previous sibling after skipping zero-width chars",
-                    //                     {
-                    //                         from: newPosition.node.getKey(),
-                    //                         to: prevSibling.getKey(),
-                    //                         offset: targetOffset,
-                    //                     },
-                    //                 )
-                    //             }
-                    //         } else {
-                    //             log("Left: Skipped trailing zero-width chars", {
-                    //                 node: targetNode.getKey(),
-                    //                 newOffset: targetOffset,
-                    //             })
-                    //         }
-                    //     }
-                    // }
-
-                    // const selection = $createRangeSelection()
-                    // selection.anchor.set(targetNode.getKey(), targetOffset, "text")
-                    // selection.focus.set(targetNode.getKey(), targetOffset, "text")
-                    // $setSelection(selection)
-
-                    // log("Set new left position", {
-                    //     nodeKey: targetNode.getKey(),
-                    //     targetNode,
-                    //     offset: targetOffset,
-                    //     originalOffset: newPosition.offset,
-                    //     originalNode: newPosition.node.getKey(),
-                    // })
-
+                    // Set selection
+                    const sel = $createRangeSelection()
+                    sel.anchor.set(targetNode.getKey(), targetOffset, "text")
+                    sel.focus.set(targetNode.getKey(), targetOffset, "text")
+                    $setSelection(sel)
                     return true
+                }
+                return false
+            },
+            COMMAND_PRIORITY_CRITICAL,
+        )
+
+        // LEFT ARROW
+        const removeLeftHandler = editor.registerCommand(
+            KEY_ARROW_LEFT_COMMAND,
+            (event) => {
+                event.preventDefault()
+                const selection = $getSelection()
+                if (!$isRangeSelection(selection)) {
+                    return false
+                }
+
+                if (event.shiftKey) {
+                    const anchorNode = selection.focus.getNode()
+                    const offset = selection.focus.offset
+                    const newPosition = $findNextValidPosition(anchorNode, offset, "left")
+
+                    if (newPosition) {
+                        // selection.focus.set(newPosition.node.getKey(), newPosition.offset, "text")
+                        const newSelection = $createRangeSelection()
+                        // return true
+                        newSelection.anchor.set(
+                            selection.anchor.getNode().getKey(),
+                            selection.anchor.offset,
+                            "text",
+                        )
+                        newSelection.focus.set(
+                            newPosition.node.getKey(),
+                            newPosition.offset,
+                            "text",
+                        )
+                        $setSelection(newSelection)
+                        log("Set new left selection position", {
+                            nodeKey: newPosition.node.getKey(),
+                            offset: newPosition.offset,
+                        })
+                    }
+                    return true
+                } else {
+                    const anchorNode = selection.anchor.getNode()
+                    const offset = selection.anchor.offset
+                    log("Left arrow pressed", {
+                        nodeKey: anchorNode.getKey(),
+                        nodeType: anchorNode.getType(),
+                        offset,
+                        text: anchorNode.getTextContent(),
+                    })
+                    const newPosition = $findNextValidPosition(anchorNode, offset, "left")
+                    log("LEFT ARROW newPosition", newPosition)
+                    if (newPosition) {
+                        const newSelection = $createRangeSelection()
+                        newSelection.anchor.set(
+                            newPosition.node.getKey(),
+                            newPosition.offset,
+                            "text",
+                        )
+                        newSelection.focus.set(
+                            newPosition.node.getKey(),
+                            newPosition.offset,
+                            "text",
+                        )
+                        $setSelection(newSelection)
+                        log("Set new left position", {
+                            nodeKey: newPosition.node.getKey(),
+                            offset: newPosition.offset,
+                        })
+
+                        return true
+                    }
                 }
 
                 return false
@@ -526,247 +384,111 @@ export function HorizontalNavigationPlugin() {
             COMMAND_PRIORITY_CRITICAL,
         )
 
-        // Handle right arrow key
+        // RIGHT ARROW
         const removeRightHandler = editor.registerCommand(
             KEY_ARROW_RIGHT_COMMAND,
             (event) => {
+                log("Right arrow pressed", event)
                 event.preventDefault()
-
                 const selection = $getSelection()
-                if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+                if (!$isRangeSelection(selection)) {
                     return false
                 }
-
                 const anchorNode = selection.anchor.getNode()
                 const offset = selection.anchor.offset
+                log("Right arrow pressed", {
+                    nodeKey: anchorNode.getKey(),
+                    nodeType: anchorNode.getType(),
+                    offset,
+                    text: anchorNode.getTextContent(),
+                })
 
-                const fixSelection = (targetNode, targetOffset) => {
-                    const targetContent = targetNode.getTextContent()[targetOffset]
+                if (event.shiftKey) {
+                    const anchorNode = selection.focus.getNode()
+                    const offset = selection.focus.offset
+                    const newPosition = $findNextValidPosition(anchorNode, offset, "right")
 
-                    if (targetContent === "\u200B") {
-                        const nextCharInNode = targetNode.getTextContent()[targetOffset + 1]
-                        if (nextCharInNode && nextCharInNode !== "\u200B") {
-                            targetOffset += 1
-                        } else {
-                            const nextNode = targetNode.getNextSibling()
-                            if (nextNode) {
-                                targetNode = nextNode
-                                targetOffset = 0
-                            } else {
-                                const lineNode = anchorNode
-                                    .getParents()
-                                    .find($isCodeLineNode) as CodeLineNode
-                                const nextLineNode = lineNode?.getNextSibling() as CodeLineNode
-                                if (nextLineNode) {
-                                    const firstChild = nextLineNode.getFirstChild()
-                                    if (firstChild) {
-                                        targetNode = firstChild
-                                        targetOffset = 0
-                                    }
-                                    return fixSelection(firstChild, 0)
-                                }
+                    if (newPosition) {
+                        // selection.focus.set(newPosition.node.getKey(), newPosition.offset, "text")
+                        const newSelection = $createRangeSelection()
+                        // return true
+                        newSelection.anchor.set(
+                            selection.anchor.getNode().getKey(),
+                            selection.anchor.offset,
+                            "text",
+                        )
+                        newSelection.focus.set(
+                            newPosition.node.getKey(),
+                            newPosition.offset,
+                            "text",
+                        )
+                        $setSelection(newSelection)
+                        log("Set new right selection position", {
+                            nodeKey: newPosition.node.getKey(),
+                            offset: newPosition.offset,
+                        })
+                    }
+                    return true
+                } else {
+                    const newPosition = $findNextValidPosition(anchorNode, offset, "right")
+                    log("RIGHT ARROW newPosition", newPosition)
+                    if (newPosition) {
+                        // Validate node/offset before setting selection
+                        let valid = true
+                        if (
+                            typeof newPosition.offset !== "number" ||
+                            !newPosition.node ||
+                            typeof newPosition.node.getKey !== "function"
+                        ) {
+                            valid = false
+                        }
+                        // Additional: check if offset is in range for text nodes
+                        if ($isCodeHighlightNode(newPosition.node)) {
+                            const text = newPosition.node.getTextContent()
+                            if (newPosition.offset < 0 || newPosition.offset > text.length) {
+                                valid = false
                             }
                         }
-                    }
-
-                    return {targetNode, targetOffset}
-                }
-
-                // Special handling for tab nodes to ensure consistent behavior
-                if ($isTabNode(anchorNode)) {
-                    // Check if we're at the end of the tab
-                    // For tabs, we want to move to the next node when pressing right arrow
-                    // regardless of the current offset
-                    const x = $findNextValidPosition(anchorNode, offset, "right")
-                    log("Tab node: Moving to next node", {
-                        from: anchorNode.getKey(),
-                        to: x.node.getKey(),
-                        // newOffsets,
-                    })
-
-                    // Force a complete editor update cycle
-                    // editor.update(() => {
-                    //     // First clear any existing selection
-                    // })
-                    $setSelection(null)
-
-                    // Then create and set a new selection
-                    const selection = $createRangeSelection()
-                    selection.anchor.set(x.node.getKey(), x.offset, "text")
-                    selection.focus.set(x.node.getKey(), x.offset, "text")
-                    $setSelection(selection)
-
-                    return true
-
-                    // const nextSibling = anchorNode.getNextSibling()
-                    // if (nextSibling) {
-                    //     // Always move to the next sibling first, even if it's empty
-                    //     // This allows users to position their cursor after the tab
-                    //     const targetNode = nextSibling
-                    //     const targetOffset = 0
-
-                    //     // We need to use editor.update to ensure the selection change takes effect
-                    //     // editor.update(() => {
-                    //     // })
-                    //     // Get the corrected target node and offset
-                    //     // const newOffsets = fixSelection(targetNode, targetOffset)
-                    // }
-                }
-
-                // Special handling for nodes with zero-width characters
-                if ($isCodeHighlightNode(anchorNode)) {
-                    const content = anchorNode.getTextContent()
-
-                    // Check if this node contains a zero-width character
-                    if (content.includes("\u200B")) {
-                        // If we're at the beginning and moving right, skip past the zero-width character
-                        if (offset === 0 && content.startsWith("\u200B")) {
+                        log("About to set selection", {
+                            valid,
+                            nodeKey: newPosition.node.getKey(),
+                            offset: newPosition.offset,
+                            nodeType: newPosition.node.getType(),
+                        })
+                        if (valid) {
+                            $setSelection(null)
+                            const newSelection = $createRangeSelection()
+                            newSelection.anchor.set(
+                                newPosition.node.getKey(),
+                                newPosition.offset,
+                                "text",
+                            )
+                            newSelection.focus.set(
+                                newPosition.node.getKey(),
+                                newPosition.offset,
+                                "text",
+                            )
+                            $setSelection(newSelection)
+                            // Extra: log the state immediately after
+                            const sel = $getSelection()
+                            log("Selection after set", {
+                                anchorKey: sel?.anchor?.key,
+                                anchorOffset: sel?.anchor?.offset,
+                                focusKey: sel?.focus?.key,
+                                focusOffset: sel?.focus?.offset,
+                                type: sel?.type,
+                            })
+                            log("Set new right position", {
+                                nodeKey: newPosition.node.getKey(),
+                                offset: newPosition.offset,
+                            })
                             event.preventDefault()
-
-                            // If there's more content after the zero-width, move past it
-                            if (content.length > 1) {
-                                const selection = $createRangeSelection()
-                                selection.anchor.set(anchorNode.getKey(), 1, "text")
-                                selection.focus.set(anchorNode.getKey(), 1, "text")
-                                $setSelection(selection)
-                                // editor.update(() => {
-                                // })
-
-                                log("Skipping zero-width character", {
-                                    node: anchorNode.getKey(),
-                                    content: content,
-                                })
-
-                                return true
-                            } else {
-                                // If it's only a zero-width character, try to move to the next node or line
-                                const nextSibling = anchorNode.getNextSibling()
-                                if (nextSibling) {
-                                    // editor.update(() => {
-                                    // })
-                                    const selection = $createRangeSelection()
-                                    selection.anchor.set(nextSibling.getKey(), 0, "text")
-                                    selection.focus.set(nextSibling.getKey(), 0, "text")
-                                    $setSelection(selection)
-
-                                    log("Skipping zero-width node", {
-                                        from: anchorNode.getKey(),
-                                        to: nextSibling.getKey(),
-                                    })
-
-                                    return true
-                                } else {
-                                    // Try to move to the next line
-                                    const parentLine = anchorNode.getParent()
-                                    if ($isCodeLineNode(parentLine)) {
-                                        const nextLine = parentLine.getNextSibling()
-                                        if (nextLine && nextLine.getChildren().length > 0) {
-                                            const lineChildren = nextLine.getChildren()
-
-                                            // Find the first node that isn't just a zero-width character
-                                            let targetNode = lineChildren[0]
-                                            let targetOffset = 0
-
-                                            // If the first node is a zero-width character and there are other nodes,
-                                            // try to find a better node to navigate to
-                                            if (lineChildren.length > 1) {
-                                                const firstNodeContent = targetNode.getTextContent()
-                                                if (
-                                                    firstNodeContent === "\u200B" ||
-                                                    firstNodeContent === ""
-                                                ) {
-                                                    // Check other nodes in the line
-                                                    for (let i = 1; i < lineChildren.length; i++) {
-                                                        const node = lineChildren[i]
-                                                        const content = node.getTextContent()
-
-                                                        // If this node has visible content, use it
-                                                        if (
-                                                            content !== "\u200B" &&
-                                                            content !== ""
-                                                        ) {
-                                                            targetNode = node
-                                                            targetOffset = 0
-                                                            break
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            log(
-                                                "Skipping zero-width node and moving to next line",
-                                                {
-                                                    from: anchorNode.getKey(),
-                                                    to: targetNode.getKey(),
-                                                    lineChildCount: lineChildren.length,
-                                                    targetContent: targetNode.getTextContent(),
-                                                },
-                                            )
-
-                                            // Use editor.update to ensure the selection change is properly applied
-                                            // editor.update(() => {
-                                            // })
-                                            const selection = $createRangeSelection()
-                                            selection.anchor.set(
-                                                targetNode.getKey(),
-                                                targetOffset,
-                                                "text",
-                                            )
-                                            selection.focus.set(
-                                                targetNode.getKey(),
-                                                targetOffset,
-                                                "text",
-                                            )
-                                            $setSelection(selection)
-
-                                            return true
-                                        }
-                                    }
-                                }
-                            }
+                            return true
+                        } else {
+                            log("Invalid navigation target", newPosition)
                         }
                     }
                 }
-
-                const newPosition = $findNextValidPosition(anchorNode, offset, "right")
-                if (newPosition) {
-                    event.preventDefault()
-
-                    // Check if the target node has a zero-width character at the target offset
-                    const targetOffset = newPosition.offset
-                    const targetNode = newPosition.node
-
-                    const newOffsets = fixSelection(targetNode, targetOffset)
-
-                    log("Set new right position", {
-                        newOffsets,
-                        newPosition,
-                        originalOffset: newPosition.offset,
-                        originalNode: newPosition.node.getKey(),
-                    })
-
-                    // editor.update(() => {
-                    //     // First clear any existing selection
-                    // })
-                    $setSelection(null)
-
-                    // Then create and set a new selection
-                    const selection = $createRangeSelection()
-                    selection.anchor.set(
-                        newOffsets.targetNode.getKey(),
-                        newOffsets.targetOffset,
-                        "text",
-                    )
-                    selection.focus.set(
-                        newOffsets.targetNode.getKey(),
-                        newOffsets.targetOffset,
-                        "text",
-                    )
-                    $setSelection(selection)
-
-                    return true
-                }
-
                 return false
             },
             COMMAND_PRIORITY_CRITICAL,
@@ -775,6 +497,9 @@ export function HorizontalNavigationPlugin() {
         return () => {
             removeLeftHandler()
             removeRightHandler()
+            moveStartHandler()
+            moveEndHandler()
+            keyDownHandler()
         }
     }, [editor])
 

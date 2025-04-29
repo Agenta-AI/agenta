@@ -241,7 +241,7 @@ export const findParentOfPropertyInObject = (obj: any, propertyId: string): any 
 const findPropertyInVariant = (variant: EnhancedVariant, propertyId?: string) => {
     if (!propertyId || !variant) return undefined
 
-    for (const prompt of variant.prompts) {
+    for (const prompt of variant.prompts || []) {
         const found = findPropertyInObject(prompt, propertyId)
         if (found) return found
     }

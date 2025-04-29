@@ -3,7 +3,6 @@ import {useEffect, useMemo, useState, type FC} from "react"
 import {GearSix, Plus} from "@phosphor-icons/react"
 import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import dayjs from "dayjs"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -17,6 +16,7 @@ import {fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const InvitedUserLinkModal = dynamic(() => import("./Modals/InvitedUserLinkModal"), {ssr: false})
 const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr: false})
@@ -116,9 +116,7 @@ const WorkspaceManage: FC = () => {
                             }
                             return (
                                 <Space direction="vertical">
-                                    <Typography.Text>
-                                        {dayjs(user.created_at).format("DD MMM YYYY")}
-                                    </Typography.Text>
+                                    <Typography.Text>{formatDay({date: user.created_at})}</Typography.Text>
                                     {!isMember && <Tag color={color}>{text}</Tag>}
                                 </Space>
                             )

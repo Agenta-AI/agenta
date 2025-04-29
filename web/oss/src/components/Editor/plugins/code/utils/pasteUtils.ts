@@ -1,9 +1,9 @@
-import {$createRangeSelection, $setSelection, $getRoot, $isRangeSelection} from "lexical"
+import {$createRangeSelection, $setSelection, $createTabNode} from "lexical"
 
-import {$isCodeBlockNode, $createCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode} from "../nodes/CodeLineNode"
 
+import {normalizePastedLinesIndentation} from "./indentationUtils"
 import {tokenizeCodeLine} from "./tokenizer"
 
 /**
@@ -12,23 +12,12 @@ import {tokenizeCodeLine} from "./tokenizer"
  */
 export function $insertLinesWithSelectionAndIndent({
     lines,
-    createNodeForLine,
-    selection,
     anchorNode,
     anchorOffset,
     currentLine,
     parentBlock,
-    beforeNodes,
-    afterNodes,
-    beforeContent,
-    afterContent,
-    followingLines,
-    editor,
-    insertIndex = null,
 }: {
     lines: string[]
-    createNodeForLine: (line: string, idx: number) => any
-    selection: any
     anchorNode: any
     anchorOffset: number
     currentLine: any
@@ -38,7 +27,7 @@ export function $insertLinesWithSelectionAndIndent({
     beforeContent: string
     afterContent: string
     followingLines: any[]
-    editor: any
+
     insertIndex?: number | null
 }) {
     // 1. Find selection context and extract state
@@ -67,6 +56,20 @@ export function $insertLinesWithSelectionAndIndent({
     const afterInLine: any[] = []
     let found = false
     let cursorCount = 0
+
+    // --- NEW: Compute base indentation from current line ---
+    // Count leading tabs (or 2-space groups) in current line
+    const currentLineText = currentLine.getTextContent()
+    let baseIndentCount = 0
+    const match = currentLineText.match(/^(\s*)/)
+    if (match) {
+        const tabCount = (match[1].match(/\t/g) || []).length
+        const spaceCount = (match[1].match(/ /g) || []).length
+        baseIndentCount = tabCount + Math.floor(spaceCount / 2)
+    }
+    // --- Normalize pasted lines ---
+    lines = normalizePastedLinesIndentation(lines, baseIndentCount)
+
     // Find anchorNode in currentLine children, split at anchorOffset
     for (const node of children) {
         if (!found && node.getKey && anchorNode && node.getKey() === anchorNode.getKey()) {
@@ -149,21 +152,24 @@ export function $insertLinesWithSelectionAndIndent({
     // First line: nodesBeforeSelection + first pasted line
     if (lines.length > 0) {
         const firstLine = $createNodeForLineWithTabs(lines[0], parentBlock.getLanguage())
-        console.log("firstLine", firstLine.getChildren(), beforeInLine)
+        console.log("[pasteUtils] First line", firstLine.getTextContent())
         // Prepend beforeInLine nodes
-        for (let i = 0; i < beforeInLine.length; i++) {
+        for (let i = beforeInLine.length - 1; i >= 0; i--) {
+            console.log(
+                "[pasteUtils] Inserting beforeInLine node",
+                beforeInLine[i].getTextContent(),
+            )
             firstLine.getFirstChild()?.insertBefore(beforeInLine[i])
-            // firstLine.insertBefore(beforeInLine[i], firstLine.getFirstChild())
         }
-        console.log(
-            "INSERT FIRST LINE!",
+        console.log("[pasteUtils] INSERT FIRST LINE!", {
             insertIdx,
             parentBlock,
-            parentBlock.getChildren(),
-            parentBlock.getChildAtIndex(insertIdx),
-            parentBlock.getChildAtIndex(insertIdx - 1),
-            firstLine,
-        )
+            children: parentBlock.getChildren(),
+            text: firstLine
+                .getChildren()
+                .map((n) => n.getTextContent())
+                .join(""),
+        })
         const lineBefore = parentBlock.getChildAtIndex(insertIdx - 1)
         if (lineBefore) {
             lineBefore.insertAfter(firstLine)
@@ -173,17 +179,30 @@ export function $insertLinesWithSelectionAndIndent({
 
         insertIdx++
         let latestLine = firstLine
-        // Middle lines
-        for (let i = 1; i < lines.length; i++) {
-            const lineNode = $createNodeForLineWithTabs(lines[i], parentBlock.getLanguage())
-            // Last pasted line: append afterInLine nodes
-            if (i === lines.length - 1 && afterInLine.length > 0) {
-                afterInLine.forEach((n) => lineNode.append(n))
+        console.log("[pasteUtils] HERE", lines)
+
+        if (lines.length === 1) {
+            afterInLine.forEach((n) => {
+                console.log("[pasteUtils] Last pasted line", n.getTextContent())
+                firstLine.append(n)
+            })
+        } else {
+            // Middle lines
+            for (let i = 1; i < lines.length; i++) {
+                console.log("[pasteUtils] HERE 2")
+                const lineNode = $createNodeForLineWithTabs(lines[i], parentBlock.getLanguage())
+                // Last pasted line: append afterInLine nodes
+                if (i === lines.length - 1 && afterInLine.length > 0) {
+                    afterInLine.forEach((n) => {
+                        console.log("[pasteUtils] Last pasted line", n.getTextContent())
+                        lineNode.append(n)
+                    })
+                }
+                latestLine.insertAfter(lineNode)
+                latestLine = lineNode
+                // parentBlock.insertBefore(lineNode, parentBlock.getChildAtIndex(insertIdx))
+                insertIdx++
             }
-            latestLine.insertAfter(lineNode)
-            latestLine = lineNode
-            // parentBlock.insertBefore(lineNode, parentBlock.getChildAtIndex(insertIdx))
-            insertIdx++
         }
     } else {
         // No pasted lines, just keep before/after nodes as a new line
@@ -196,9 +215,7 @@ export function $insertLinesWithSelectionAndIndent({
 
     // Add trailing lines (use clones)
     clonedTrailingLines.forEach((l, i) => {
-        console.log("add trailing lines", parentBlock.getChildren(), insertIdx, i)
         parentBlock.getChildAtIndex(insertIdx - 1 + i).insertAfter(l)
-        // parentBlock.insertBefore(l, parentBlock.getChildAtIndex(insertIdx + i))
     })
     // Restore selection at end of last inserted line
     const lastInserted = parentBlock.getChildAtIndex(insertIdx - 1)
@@ -242,7 +259,7 @@ export function $createNodeForLineWithTabs(line: string, language: "json" | "yam
         let i = 0
         while (i < indent.length) {
             if (indent[i] === "\t") {
-                codeLine.append($createCodeHighlightNode("\t", "tab"))
+                codeLine.append($createTabNode())
                 i += 1
             } else if (indent[i] === " ") {
                 // Count consecutive spaces
@@ -250,12 +267,12 @@ export function $createNodeForLineWithTabs(line: string, language: "json" | "yam
                 while (indent[i + spaceCount] === " ") spaceCount++
                 const tabs = Math.floor(spaceCount / tabSize)
                 for (let t = 0; t < tabs; t++) {
-                    codeLine.append($createCodeHighlightNode("\t", "tab"))
+                    codeLine.append($createTabNode())
                 }
                 i += tabs * tabSize
                 // If any leftover spaces, append as plain
                 for (; i < indent.length && indent[i] === " "; i++) {
-                    codeLine.append($createCodeHighlightNode(" ", "plain"))
+                    codeLine.append($createTabNode())
                 }
             }
         }
@@ -266,87 +283,6 @@ export function $createNodeForLineWithTabs(line: string, language: "json" | "yam
         codeLine.append($createCodeHighlightNode(token.content, token.type))
     })
     return codeLine
-}
-
-/**
- * Handles invalid pasted or initial content by splitting into lines and inserting as plain text,
- * with proper selection and indentation. Used for fallback when JSON/YAML is invalid.
- *
- * @param text - The raw text to insert
- * @param language - The code language ("json" | "yaml")
- * @param editor - The Lexical editor instance
- */
-function isTrulyEmptyContent(text: string): boolean {
-    // Remove all whitespace and zero-width spaces
-    const normalized = text.replace(/[\s\uFEFF\xA0]/g, "")
-    return normalized.length === 0
-}
-
-export function $handleInvalidContent(text: string, language: "json" | "yaml", editor: any) {
-    editor.update(() => {
-        const root = $getRoot()
-        if (!root) return
-        let codeBlock = root.getChildren().find($isCodeBlockNode)
-        if (!codeBlock) {
-            codeBlock = $createCodeBlockNode(language)
-            root.append(codeBlock)
-        }
-        // Handle empty or whitespace-only content
-        if (isTrulyEmptyContent(text)) {
-            if (typeof codeBlock.clear === "function") codeBlock.clear()
-            // Always ensure at least one empty CodeLineNode with a zero-width space
-            const line = $createCodeLineNode()
-            const highlightNode = $createCodeHighlightNode("\u200B", "plain", false, null)
-            line.append(highlightNode)
-            codeBlock.append(line)
-            return
-        }
-        // Robust line splitting and pretty-printing for valid JSON
-        let lines: string[] = []
-        if (language === "json") {
-            try {
-                const parsed = JSON.parse(text)
-                lines = JSON.stringify(parsed, null, 2).split(/\r?\n/)
-            } catch {
-                lines = text.split(/\r?\n/)
-            }
-        } else {
-            lines = text.split(/\r?\n/)
-        }
-        // Remove empty or whitespace-only lines
-        lines = lines.filter((line) => !isTrulyEmptyContent(line))
-        // If no valid lines, insert a single empty line with ZWSP
-        if (lines.length === 0) {
-            if (typeof codeBlock.clear === "function") codeBlock.clear()
-            const line = $createCodeLineNode()
-            const highlightNode = $createCodeHighlightNode("\u200B", "plain", false, null)
-            line.append(highlightNode)
-            codeBlock.append(line)
-            return
-        }
-        // Guarantee a valid currentLine for $insertLinesWithSelectionAndIndent
-        let currentLine = codeBlock.getChildren().find((n) => n.__type === "code-line")
-        if (!currentLine) {
-            currentLine = $createCodeLineNode()
-            codeBlock.append(currentLine)
-        }
-        const selection = editor._getSelection && editor._getSelection()
-        $insertLinesWithSelectionAndIndent({
-            lines,
-            createNodeForLine: (line: string) => createNodeForLineWithTabs(line, language),
-            selection,
-            anchorNode: null,
-            anchorOffset: 0,
-            currentLine,
-            parentBlock: codeBlock,
-            beforeNodes: [],
-            afterNodes: [],
-            beforeContent: "",
-            afterContent: "",
-            followingLines: [],
-            editor,
-        })
-    })
 }
 
 /** @deprecated renamed to {@link $insertLinesWithSelectionAndIndent} by @lexical/eslint-plugin rules-of-lexical */

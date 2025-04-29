@@ -2,7 +2,7 @@ import {forwardRef} from "react"
 
 import {Button, Tooltip, type ButtonProps, TooltipProps} from "antd"
 
-interface TooltipButtonProps extends ButtonProps {
+export interface TooltipButtonProps extends ButtonProps {
     label?: React.ReactNode
     tooltipProps?: TooltipProps
 }

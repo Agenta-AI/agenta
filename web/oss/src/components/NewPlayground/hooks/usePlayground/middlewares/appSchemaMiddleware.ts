@@ -98,6 +98,8 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                         state.appStatus = appStatus
 
+                        console.log("spec", spec)
+
                         logger(`Loaded ${priorityRevisions.length} priority revisions`)
 
                         // 3. Update state with priority revisions

@@ -36,7 +36,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
 
     return {
         id: item.id,
-        createdAt: formatDay(item.created_at),
+        createdAt: formatDay({date: item.created_at}),
         user: {
             id: item.user_id,
             username: item.user_username,
@@ -93,7 +93,7 @@ export const abTestingEvaluationTransformer = ({
     results: any
 }) => ({
     key: item.id,
-    createdAt: formatDay(item.created_at),
+    createdAt: formatDay({date: item.created_at}),
     variants: item.variant_ids,
     variantNames: item.variant_names,
     votesData: results.votes_data,

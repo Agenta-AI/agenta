@@ -37,7 +37,7 @@ const AppTable = ({
             dataIndex: "updated_at",
             key: "updated_at",
             render: (_, record) => {
-                return <div>{formatDay(record.updated_at)}</div>
+                return <div>{formatDay({date: record.updated_at})}</div>
             },
         },
         {

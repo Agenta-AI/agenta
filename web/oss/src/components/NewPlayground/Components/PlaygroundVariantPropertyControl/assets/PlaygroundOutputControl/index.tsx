@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Input, Modal, Switch, Tooltip, Typography} from "antd"
-import TextArea from "antd/es/input/TextArea"
+import {Button, Modal, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
@@ -10,8 +9,10 @@ import {
     constructJsonFromSchema,
 } from "@/oss/components/Editor/plugins/code/plugins/RealTimeValidationPlugin"
 import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
+import {CompoundMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 
 import SharedEditor from "../../../SharedEditor"
+import {RenderFunctions} from "../../types"
 import MultiSelectControl from "../MultiSelectControl"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
 
@@ -25,6 +26,9 @@ const PlaygroundOutputControl = ({
 }: {
     withTooltip: boolean
     promptName: string
+    metadata: CompoundMetadata
+    handleChange: Parameters<NonNullable<RenderFunctions["compound"]>>[0]["handleChange"]
+    value: Parameters<NonNullable<RenderFunctions["compound"]>>[0]["value"]
 }) => {
     const [editor] = useLexicalComposerContext()
     const [modalState, setModalState] = useState(false)

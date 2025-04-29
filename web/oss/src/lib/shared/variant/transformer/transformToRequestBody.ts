@@ -52,11 +52,9 @@ export function transformToRequestBody({
         ...customConfigs,
     }
 
-    // Fallback: if ag_config is empty, 
+    // Fallback: if ag_config is empty,
     // but variant.parameters exists, use that
-    if (
-        Object.keys(ag_config).length === 0 && variant.parameters
-    ) {
+    if (Object.keys(ag_config).length === 0 && variant.parameters) {
         ag_config = variant.parameters.ag_config || variant.parameters.agConfig || {}
     }
 
@@ -90,13 +88,17 @@ export function transformToRequestBody({
                     .flatMap((historyMessage) => {
                         const messages = [extractValueByMetadata(historyMessage, allMetadata)]
 
-                        if (historyMessage.__runs && historyMessage.__runs[variant.id]?.message) {
-                            messages.push(
-                                extractValueByMetadata(
-                                    historyMessage.__runs[variant.id]?.message,
-                                    allMetadata,
-                                ),
-                            )
+                        if (historyMessage.__runs) {
+                            const runMessages =
+                                historyMessage.__runs[variant.id]?.messages &&
+                                historyMessage.__runs[variant.id]?.messages.length
+                                    ? historyMessage.__runs[variant.id]?.messages
+                                    : [historyMessage.__runs[variant.id]?.message]
+
+                            for (const runMessage of runMessages) {
+                                const extracted = extractValueByMetadata(runMessage, allMetadata)
+                                messages.push(extracted)
+                            }
                         }
 
                         return messages

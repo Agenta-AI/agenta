@@ -120,7 +120,7 @@ const AppCard: React.FC<{
                     </div>
                     <div>
                         <Text>Last modified:</Text>
-                        <Text>{formatDay(app.updated_at)}</Text>
+                        <Text>{formatDay({date: app.updated_at})}</Text>
                     </div>
                 </div>
             </Card>

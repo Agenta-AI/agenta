@@ -38,7 +38,7 @@ if POSTHOG_API_KEY:
     posthog.host = POSTHOG_HOST
     log.info("PostHog initialized with host %s:", POSTHOG_HOST)
 else:
-    log.warning("PostHog API key not found in environment variables")
+    log.warn("PostHog API key not found in environment variables")
 
 
 def run_background_with_timeout(coro: Awaitable, timeout: float = 5.0):
@@ -54,7 +54,7 @@ def run_background_with_timeout(coro: Awaitable, timeout: float = 5.0):
         try:
             await asyncio.wait_for(coro, timeout=timeout)
         except asyncio.TimeoutError:
-            log.warning("❌ Background task timed out")
+            log.warn("❌ Background task timed out")
         except Exception as e:
             log.error("❌ Background task failed: %s", e)
 
@@ -66,7 +66,7 @@ async def capture_event(
     user_email: str, event_name: str, properties: Optional[Dict[str, Any]] = None
 ):
     if not POSTHOG_API_KEY:
-        log.warning(f"PostHog API key not set, skipping capture_event: {event_name}")
+        log.warn(f"PostHog API key not set, skipping capture_event: {event_name}")
         return
 
     try:

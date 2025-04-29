@@ -3,6 +3,10 @@ from traceback import print_exc
 from fastapi import HTTPException
 from uuid import uuid4
 
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 
 def handle_exceptions():
     def decorator(func):
@@ -14,7 +18,7 @@ def handle_exceptions():
                 raise e
             except Exception:
                 support_id = str(uuid4())
-                print(f"ERROR : support_id={support_id} & operation_id={func.__name__}")
+                log.error("ERROR", support_id=support_id, operation_id=func.__name__)
                 print_exc()
                 raise HTTPException(
                     status_code=500,

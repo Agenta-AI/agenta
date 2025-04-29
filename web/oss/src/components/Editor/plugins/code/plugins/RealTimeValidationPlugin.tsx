@@ -3,6 +3,7 @@ import {useEffect, useRef, useState} from "react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import Ajv, {ErrorObject} from "ajv"
 import yaml from "js-yaml"
+import JSON5 from "json5"
 import {$getRoot, $isTabNode, LexicalEditor} from "lexical"
 import isEqual from "lodash/isEqual"
 
@@ -86,6 +87,10 @@ export function constructJsonFromSchema(schema: any, valueMap: Record<string, st
     }
 }
 
+export function removeNewlinesAndTabs(input: string): string {
+    return input.replace(/[\n\r\t]/g, "")
+}
+
 /**
  * Extracts the text content from the editor as a single string.
  * Processes each line by combining text from CodeHighlightNodes and
@@ -94,7 +99,7 @@ export function constructJsonFromSchema(schema: any, valueMap: Record<string, st
  * @param editor - The Lexical editor instance
  * @returns The editor content as a plain string with newlines
  */
-export function $getEditorCodeAsString(editor: LexicalEditor): string {
+export function $getEditorCodeAsString(editor?: LexicalEditor): string {
     const root = $getRoot()
     let result = ""
 
@@ -120,7 +125,7 @@ export function $getEditorCodeAsString(editor: LexicalEditor): string {
         }
     }
 
-    return result.trimEnd()
+    return removeNewlinesAndTabs(result.trimEnd())
 }
 
 /**
@@ -177,7 +182,7 @@ export function RealTimeValidationPlugin({debug, schema}: {debug?: boolean; sche
 
                 try {
                     // Parse content based on active language mode
-                    parsed = language === "yaml" ? yaml.load(textContent) : JSON.parse(textContent)
+                    parsed = language === "yaml" ? yaml.load(textContent) : JSON5.parse(textContent)
 
                     // Validate parsed content against schema
                     const valid = validate(parsed)

@@ -12,6 +12,4 @@ def setup_pytest_variables():
 
     for section in config.sections():
         for key, value in config[section].items():
-            log.info("Setting Pytest environment variables:")
-            log.info(f"KEY: {key.upper()}, VALUE: {value}")
             os.environ[key.upper()] = value

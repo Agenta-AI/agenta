@@ -358,7 +358,7 @@ const AutoEvaluation = () => {
                 compare: (a, b) => dayjs(a.created_at).valueOf() - dayjs(b.created_at).valueOf(),
             },
             render: (_, record) => {
-                return formatDay(record.created_at)
+                return formatDay({date: record.created_at})
             },
             ...getFilterParams("created_at", "date"),
         },

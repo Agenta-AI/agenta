@@ -3,7 +3,6 @@ import {useState} from "react"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, Note, Trash} from "@phosphor-icons/react"
 import {Button, Card, Dropdown, Empty, Tag, Typography} from "antd"
-import dayjs from "dayjs"
 import {useAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
@@ -11,6 +10,7 @@ import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
 
 import DeleteModal from "./DeleteModal"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 interface EvaluatorCardProps {
     evaluatorConfigs: EvaluatorConfig[]
@@ -186,7 +186,7 @@ const EvaluatorCard = ({
                             <div>
                                 <Typography.Text>Date Modified</Typography.Text>
                                 <Typography.Text type="secondary">
-                                    {dayjs(item.updated_at).format("DD MMM YY")}
+                                    {formatDay({date: item.updated_at})}
                                 </Typography.Text>
                             </div>
                         </Card>

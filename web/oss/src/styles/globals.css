@@ -173,6 +173,14 @@ body {
     }
 }
 
+.agenta-editor-wrapper {
+  interpolate-size: allow-keywords;
+  transition: height 0.3s ease-in-out;
+  &:focus-within {
+    height: fit-content !important;
+  }
+}
+
 
 .code-editor {
     /* === Editor container === */
@@ -194,6 +202,10 @@ body {
       tab-size: 2;
       padding: 0px;
 
+      &:focus-visible {
+        outline: none;
+      }
+
 
       /* Light theme (default) */
       --editor-bg: #f8f9fb;
@@ -201,7 +213,7 @@ body {
       --editor-line-number: #aaa;
       --editor-gutter-bg: #f0f0f0;
       --editor-gutter-border: #ddd;
-      --editor-selection-bg: rgba(56, 139, 253, 0.4);
+      --editor-selection-bg: rgb(171, 205, 252);
       --editor-cursor: #000;
       --editor-error-bg: rgba(255, 0, 0, 0.05);
       --editor-error-border: #ff0000;
@@ -488,9 +500,12 @@ body {
       /* Container for positioning error indicators */
       .code-block-error-anchor {
         position: absolute;
-        top: 0;
-        right: 0;
+        top: theme(spacing.1);
+        right: theme(spacing.1);
         z-index: 5;
+        & > span {
+          font-size: 1rem !important;
+        }
       }
   
       /* Styling for the clickable error indicator button */

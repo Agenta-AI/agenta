@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {formatDay, formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {getIsFetching, startFetch, endFetch} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {User} from "@/oss/lib/Types"
@@ -291,7 +291,7 @@ export async function fetchPriorityRevisions({
                             modifiedBy: rev.modified_by,
                             commitMessage: rev.commit_message || null,
                             parameters: rev.config.parameters,
-                            createdAt: formatDay(rev.created_at),
+                            createdAt: formatDay({date:rev.created_at}),
                             createdAtTimestamp: dayjs(
                                 rev.created_at,
                                 "YYYY/MM/DD H:mm:ssAZ",
@@ -630,7 +630,7 @@ export async function fetchAndProcessRevisions({
                                     configName: rev.config.config_name,
                                     parameters: rev.config.parameters,
                                 },
-                                createdAt: formatDay(rev.created_at),
+                                createdAt: formatDay({date: rev.created_at}),
                                 createdAtTimestamp: dayjs(
                                     rev.created_at,
                                     "YYYY/MM/DD H:mm:ssAZ",
@@ -955,7 +955,7 @@ export const adaptRevisionToVariant = (
         // These are the fields we want to prioritize from the revision, NOT from parent variant
         // Each revision has its own unique configuration values
         parameters: revision.parameters || revision.config?.parameters,
-        prompts: revision.prompts || parentVariant.prompts,
+        prompts: revision.prompts || parentVariant.prompts || [],
         customProperties: revision.customProperties || parentVariant.customProperties,
 
         // Variant ID for backwards compatibility with APIs

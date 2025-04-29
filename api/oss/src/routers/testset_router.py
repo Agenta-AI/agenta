@@ -227,15 +227,15 @@ async def import_testset(
         )
 
     except HTTPException as error:
-        print(error)
+        log.error(error)
         raise error
     except json.JSONDecodeError as error:
-        print(error)
+        log.error(error)
         raise HTTPException(
             status_code=400, detail="Endpoint does not return valid JSON testset data"
         ) from error
     except Exception as error:
-        print(error)
+        log.error(error)
         raise HTTPException(
             status_code=500, detail="Failed to import testset from endpoint"
         ) from error
