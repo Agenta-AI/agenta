@@ -1,16 +1,12 @@
 import {useCallback} from "react"
 
 import {Alert} from "antd"
-import {Select} from "antd/lib"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
 
 import {findVariantById} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-// import {ArrayMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-
 import {ArrayMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 import {createObjectFromMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/arrays"
@@ -46,6 +42,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         isCustom,
         inputKeys,
         messageIds,
+        toolIds,
         mutateVariant,
         hasVariable,
         mutate,
@@ -69,6 +66,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     responseFormatId: prompt.llmConfig?.responseFormat?.__id,
                     responseFormat: prompt.llmConfig?.responseFormat?.value?.type,
                     promptName: prompt.__name,
+                    toolIds: (prompt.llmConfig?.tools?.value || []).map((tool) => tool.__id),
                 }
             },
             [promptId],
@@ -80,46 +78,60 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
 
         mutateVariant((draft) => {
             const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
-            const messages = variantPrompt?.messages.value
-            const parentMetadata = getMetadataLazy<ArrayMetadata>(
-                variantPrompt?.messages.__metadata,
-            )
-            const metadata = parentMetadata?.itemMetadata
+            if (!variantPrompt?.llmConfig?.tools.value) {
+                variantPrompt.llmConfig.tools.value = []
+            }
 
-            if (variantPrompt && messages && metadata) {
-                const newMessage = createObjectFromMetadata(metadata) as (typeof messages)[number]
-                newMessage.role.value = "tool"
-
-                const metadataHash = hashMetadata(metadata.properties.name)
-                newMessage.name = {
-                    __id: generateId(),
-                    value: "",
-                    __metadata: metadataHash,
-                }
-                newMessage.toolCalls = {
-                    __id: generateId(),
-                    value: [
-                        {
-                            id: uuidv4(),
-                            type: "function",
-                            function: {
-                                type: "object",
-                                id: uuidv4(),
-                                name: "",
-                                description: "",
-                                properties: {},
-                                required: [],
-                                additionalProperties: false,
+            variantPrompt?.llmConfig?.tools.value.push({
+                __id: uuidv4(),
+                __metadata: hashMetadata({
+                    type: "object",
+                    name: "ToolConfiguration",
+                    description: "Tool configuration",
+                    properties: {
+                        type: {
+                            type: "string",
+                            description: "Type of the tool",
+                        },
+                        name: {
+                            type: "string",
+                            description: "Name of the tool",
+                        },
+                        description: {
+                            type: "string",
+                            description: "Description of the tool",
+                        },
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                type: {
+                                    type: "string",
+                                    enum: ["object", "function"],
+                                },
                             },
                         },
-                    ],
-                    __metadata: hashMetadata(metadata.properties.toolCalls),
-                }
-                if (newMessage) {
-                    console.log("push new message", newMessage)
-                    messages.push(newMessage)
-                }
-            }
+                    },
+                    required: ["name", "description", "parameters"],
+                }),
+                value: {
+                    type: "function",
+                    function: {
+                        name: "get_weather",
+                        description: "Get current temperature for a given location.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                location: {
+                                    type: "string",
+                                    description: "City and country e.g. Bogotá, Colombia",
+                                },
+                            },
+                            required: ["location"],
+                            additionalProperties: false,
+                        },
+                    },
+                },
+            })
 
             return draft
         })
@@ -196,6 +208,17 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     isMessageDeletable={messageIds?.length === 1}
                 />
             ))}
+            {(toolIds || [])?.map((toolId) => (
+                <div key={toolId}>
+                    <PlaygroundVariantPropertyControl
+                        key={toolId}
+                        variantId={variantId}
+                        propertyId={toolId}
+                        promptName={promptName}
+                        debug
+                    />
+                </div>
+            ))}
 
             {!isCustom && !hasVariable && (
                 <Alert
@@ -211,15 +234,17 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 />
             )}
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 flex-wrap">
                 <AddButton className="mt-2" size="small" label="Message" onClick={addNewMessage} />
-                {/* <AddButton className="mt-2" size="small" label="Tool" onClick={addNewTool} /> */}
+                <AddButton className="mt-2" size="small" label="Tool" onClick={addNewTool} />
                 {responseFormatId ? (
-                    <PlaygroundVariantPropertyControl
-                        variantId={variantId}
-                        propertyId={responseFormatId}
-                        promptName={promptName}
-                    />
+                    <div>
+                        <PlaygroundVariantPropertyControl
+                            variantId={variantId}
+                            propertyId={responseFormatId}
+                            promptName={promptName}
+                        />
+                    </div>
                 ) : null}
             </div>
         </div>

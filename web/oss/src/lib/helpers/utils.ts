@@ -2,10 +2,12 @@ import {notification} from "antd"
 import dayjs from "dayjs"
 import utc from "dayjs/plugin/utc"
 import yaml from "js-yaml"
+import JSON5 from "json5"
 import Router from "next/router"
 import promiseRetry from "promise-retry"
 import {v4 as uuidv4} from "uuid"
 
+import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 import {EvaluationType} from "../enums"
@@ -127,9 +129,21 @@ export const removeKeys = (obj: GenericObject, keys: string[]) => {
 export const safeParse = (str: string, fallback: any = "") => {
     try {
         if (!str) return fallback
-        return JSON.parse(str)
+        return JSON5.parse(str)
     } catch (error) {
         return fallback
+    }
+}
+
+/**
+ * Parses a string using JSON5, falling back to tryParsePartialJson if parsing fails.
+ * Returns the parsed object or null if parsing fails.
+ */
+export function safeJson5Parse(input: string): any | null {
+    try {
+        return JSON5.parse(input)
+    } catch {
+        return tryParsePartialJson(input)
     }
 }
 
@@ -153,7 +167,7 @@ export const extractChatMessages = (testcase: any) => {
 const parseStringToJson = (value: any) => {
     if (typeof value === "string") {
         try {
-            return JSON.parse(value)
+            return JSON5.parse(value)
         } catch {
             return value
         }

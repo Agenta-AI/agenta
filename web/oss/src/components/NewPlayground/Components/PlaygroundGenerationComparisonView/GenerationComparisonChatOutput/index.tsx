@@ -24,7 +24,7 @@ const GenerationComparisonChatOutputCell = ({
     isFirstRow,
     isLastRow,
 }: GenerationComparisonChatOutputCellProps) => {
-    const {rerunChatOutput, message, messageRow, inputRowIds, mutate} = usePlayground({
+    const {rerunChatOutput, messages, messageRow, inputRowIds, mutate} = usePlayground({
         variantId,
         registerToWebWorker: true,
         stateSelector: useCallback(
@@ -37,11 +37,19 @@ const GenerationComparisonChatOutputCell = ({
                 const runs = !historyMessage?.__runs?.[variantId]
                     ? undefined
                     : historyMessage?.__runs?.[variantId]
-                      ? {
-                            ...historyMessage.__runs[variantId].message,
-                            __result: historyMessage.__runs[variantId].__result,
-                            __isRunning: historyMessage.__runs[variantId].__isRunning,
-                        }
+                      ? historyMessage?.__runs?.[variantId].messages
+                          ? historyMessage?.__runs?.[variantId].messages.map((message) => ({
+                                ...message,
+                                __result: historyMessage.__runs[variantId].__result,
+                                __isRunning: historyMessage.__runs[variantId].__isRunning,
+                            }))
+                          : [
+                                {
+                                    ...historyMessage.__runs[variantId].message,
+                                    __result: historyMessage.__runs[variantId].__result,
+                                    __isRunning: historyMessage.__runs[variantId].__isRunning,
+                                },
+                            ]
                       : undefined
 
                 const inputRowIds = (inputRows || [])
@@ -56,7 +64,7 @@ const GenerationComparisonChatOutputCell = ({
                     .map((inputRow) => inputRow.__id)
 
                 return {
-                    message: runs,
+                    messages: runs,
                     messageRow,
                     inputRowIds,
                 }
@@ -102,8 +110,12 @@ const GenerationComparisonChatOutputCell = ({
     )
 
     const canRerunMessage = useMemo(() => {
-        return !message?.__isRunning && !!message?.__result
-    }, [variantId, message])
+        const isRunning = messages?.some((message) => message.__isRunning)
+        const hasResult = messages?.some((message) => !!message.__result)
+
+        return !isRunning && hasResult
+        // !message?.__isRunning && !!message?.__result
+    }, [variantId, messages])
 
     const rerunMessage = useCallback(
         (messageId: string) => {
@@ -146,7 +158,7 @@ const GenerationComparisonChatOutputCell = ({
                                     className: "!p-0 [&_.agenta-editor-wrapper]:!p-3",
                                     editorClassName: "!p-3",
                                     headerClassName:
-                                        "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                        "min-h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                                     footerClassName: "px-3",
                                 }}
                             />
@@ -164,24 +176,34 @@ const GenerationComparisonChatOutputCell = ({
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
-                    {message ? (
-                        <GenerationChatRowOutput
-                            message={message}
-                            deleteMessage={handleDeleteMessage}
-                            variantId={variantId}
-                            rerunMessage={canRerunMessage ? rerunMessage : undefined}
-                            rowId={messageRow?.__id}
-                            resultHash={message?.__result}
-                            isRunning={message?.__isRunning}
-                            disabled={!messageRow}
-                            messageProps={{
-                                className: "!p-0 [&_.agenta-editor-wrapper]:!p-3",
-                                editorClassName: "!p-3",
-                                headerClassName:
-                                    "h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                                footerClassName: "px-3 h-[48px] !m-0",
-                            }}
-                        />
+                    {messages && messages.length ? (
+                        messages.map((message) => (
+                            <GenerationChatRowOutput
+                                key={message.__id}
+                                message={message}
+                                className="[&:nth-child(1)]:!mt-0 mt-2"
+                                deleteMessage={handleDeleteMessage}
+                                variantId={variantId}
+                                rerunMessage={
+                                    canRerunMessage && !message.toolCallId.value
+                                        ? rerunMessage
+                                        : undefined
+                                }
+                                rowId={messageRow?.__id}
+                                resultHash={
+                                    !message?.toolCallId?.value ? message?.__result : undefined
+                                }
+                                isRunning={message?.__isRunning}
+                                disabled={!messageRow}
+                                messageProps={{
+                                    className: "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0",
+                                    editorClassName: "!p-3",
+                                    headerClassName:
+                                        "min-h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                                    footerClassName: "px-3 h-[48px] !m-0",
+                                }}
+                            />
+                        ))
                     ) : (
                         <div className="p-3">
                             <GenerationOutputText text="Click run to generate" isPlaceholder />

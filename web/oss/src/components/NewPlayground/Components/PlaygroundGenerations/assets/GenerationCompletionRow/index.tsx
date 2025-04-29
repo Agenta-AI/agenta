@@ -1,7 +1,9 @@
-import {useCallback, useMemo} from "react"
+import {useRef, cloneElement, ReactNode, useCallback, useMemo, useState} from "react"
 
-import {Typography} from "antd"
+import {CheckCircleFilled} from "@ant-design/icons"
+import {Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
 import RunButton from "@/oss/components/NewPlayground/assets/RunButton"
@@ -28,6 +30,35 @@ const GenerationVariableOptions = dynamic(() => import("../GenerationVariableOpt
 
 const handleChange = () => undefined
 
+export const TooltipWithCopyAction = ({children, title}: {children: ReactNode; title: string}) => {
+    const [tooltipDisplay, setTooltipDisplay] = useState(title)
+    const timeoutRef = useRef<NodeJS.Timeout>()
+    const handleClick = useCallback(() => {
+        setTooltipDisplay(() => {
+            return (
+                <div className="flex items-center gap-1">
+                    <CheckCircleFilled style={{color: "green"}} />
+                    <span>Copied to clipboard</span>
+                </div>
+            )
+        })
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+        }
+        timeoutRef.current = setTimeout(() => {
+            setTooltipDisplay(title)
+        }, 2000)
+    }, [])
+    return (
+        <Tooltip title={tooltipDisplay} placement="top">
+            {cloneElement(children, {
+                className: "cursor-pointer",
+                onClick: handleClick,
+            })}
+        </Tooltip>
+    )
+}
+
 const GenerationCompletionRow = ({
     variantId,
     rowId,
@@ -38,39 +69,43 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {resultHash, variableIds, runTests, isRunning, viewType, isChat, cancelRunTests} =
-        usePlayground({
-            variantId,
-            rowId,
-            registerToWebWorker: true,
-            stateSelector: useCallback(
-                (state: PlaygroundStateData) => {
-                    const inputRow = state.generationData.inputs.value.find((inputRow) => {
-                        return inputRow.__id === rowId
-                    })
+    const {
+        resultId,
+        resultHash,
+        variableIds,
+        isRunning,
+        viewType,
+        isChat,
+        runTests,
+        cancelRunTests,
+    } = usePlayground({
+        variantId,
+        rowId,
+        registerToWebWorker: true,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const inputRow = state.generationData.inputs.value.find((inputRow) => {
+                    return inputRow.__id === rowId
+                })
 
-                    const variables = getEnhancedProperties(inputRow)
-                    const variableIds = variables.map((p) => p.__id)
+                const variables = getEnhancedProperties(inputRow)
+                const variableIds = variables.map((p) => p.__id)
 
-                    const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
-                    const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
-
-                    const variant = state.variants.find((v) => v.id === variantId)
-                    const isJSONMode = variant?.prompts?.some((p) =>
-                        p.llmConfig?.responseFormat?.value?.type?.includes?.("json"),
-                    )
-                    return {
-                        isChat: state.variants[0]?.isChat,
-                        variableIds,
-                        resultHash,
-                        isRunning,
-                        inputText: variables?.[0]?.value, // Temporary implementation
-                        isJSONMode,
-                    }
-                },
-                [rowId, variantId],
-            ),
-        })
+                const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
+                const resultId = variantId ? inputRow?.__runs?.[variantId]?.__id : null
+                const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
+                return {
+                    isChat: state.variants[0]?.isChat,
+                    variableIds,
+                    resultHash,
+                    isRunning,
+                    inputText: variables?.[0]?.value, // Temporary implementation
+                    resultId,
+                }
+            },
+            [rowId, variantId],
+        ),
+    })
 
     useLazyEffect(() => {
         const timer = autoScrollToBottom()
@@ -100,7 +135,7 @@ const GenerationCompletionRow = ({
 
         let isJSON = false
         try {
-            const parsed = JSON.parse(value)
+            const parsed = JSON5.parse(value)
             isJSON = true
             value = JSON.stringify(parsed, null, 2)
         } catch (e) {
@@ -168,7 +203,7 @@ const GenerationCompletionRow = ({
                         <div
                             className={clsx([
                                 "w-full flex flex-col gap-4",
-                                {"max-w-[calc(100%-158px)]": viewType !== "comparison"},
+                                {"max-w-[calc(100%-158px)]": viewType !== "comparison" && !isChat},
                                 {"max-w-[100%]": viewType === "comparison"},
                             ])}
                         >
@@ -199,25 +234,83 @@ const GenerationCompletionRow = ({
                                     handleChange={handleChange}
                                 />
                             ) : result.response ? (
-                                <SharedEditor
-                                    initialValue={
-                                        isJSON && typeof value === "string"
-                                            ? JSON.parse(value)
-                                            : value
-                                    }
-                                    editorType="borderless"
-                                    state="filled"
-                                    readOnly
-                                    editorProps={{
-                                        codeOnly: isJSON,
-                                    }}
-                                    disabled
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
-                                    footer={
-                                        <GenerationResultUtils className="mt-2" result={result} />
-                                    }
-                                    handleChange={handleChange}
-                                />
+                                Array.isArray(result.response) ? (
+                                    result.response.map((message, index) => {
+                                        let _json = false
+                                        try {
+                                            const parsed = JSON5.parse(message.content)
+                                            parsed.function.arguments = JSON5.parse(
+                                                parsed.function.arguments,
+                                            )
+                                            const displayValue = {
+                                                arguments: parsed.function.arguments,
+                                            }
+                                            _json = true
+
+                                            return (
+                                                <SharedEditor
+                                                    key={message.id}
+                                                    initialValue={displayValue}
+                                                    editorType="border"
+                                                    // state="filled"
+                                                    readOnly
+                                                    editorProps={{
+                                                        codeOnly: _json,
+                                                    }}
+                                                    header={
+                                                        <div className="py-1 flex items-center justify-between w-full">
+                                                            <TooltipWithCopyAction
+                                                                title={"Function name"}
+                                                            >
+                                                                <span>{parsed.function.name}</span>
+                                                            </TooltipWithCopyAction>
+                                                            <TooltipWithCopyAction
+                                                                title={"Call id"}
+                                                            >
+                                                                <span>{parsed.id}</span>
+                                                            </TooltipWithCopyAction>
+                                                        </div>
+                                                    }
+                                                    disabled
+                                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                                    footer={
+                                                        <GenerationResultUtils
+                                                            className="mt-2"
+                                                            result={result}
+                                                        />
+                                                    }
+                                                    handleChange={handleChange}
+                                                />
+                                            )
+                                        } catch (e) {
+                                            console.log("RENDER MSG ITEM ERROR!", message, e)
+                                            return <div>errored</div>
+                                        }
+                                    })
+                                ) : (
+                                    <SharedEditor
+                                        initialValue={
+                                            isJSON && typeof value === "string"
+                                                ? JSON.parse(value)
+                                                : value
+                                        }
+                                        editorType="borderless"
+                                        state="filled"
+                                        readOnly
+                                        editorProps={{
+                                            codeOnly: isJSON,
+                                        }}
+                                        disabled
+                                        editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                        footer={
+                                            <GenerationResultUtils
+                                                className="mt-2"
+                                                result={result}
+                                            />
+                                        }
+                                        handleChange={handleChange}
+                                    />
+                                )
                             ) : null}
                         </div>
 
@@ -243,7 +336,7 @@ const GenerationCompletionRow = ({
             <div
                 className={clsx([
                     "flex flex-col gap-4",
-                    // {"max-w-[calc(100%-158px)]": viewType !== "comparison"},
+                    {"max-w-[calc(100%-158px)]": viewType !== "comparison" && !isChat},
                     {"max-w-[100%]": viewType === "comparison"},
                 ])}
                 {...props}

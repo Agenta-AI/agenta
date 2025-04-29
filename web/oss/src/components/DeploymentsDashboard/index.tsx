@@ -7,16 +7,12 @@ import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {DeploymentRevision, DeploymentRevisionConfig, DeploymentRevisions} from "@/oss/lib/Types"
 import {JSSTheme} from "@/oss/lib/Types"
 import {createPublishRevision} from "@/oss/services/deployment/api"
-import {
-    createRevertDeploymentRevision,
-    fetchAllDeploymentRevisionConfig,
-} from "@/oss/services/deploymentVersioning/api"
+import {fetchAllDeploymentRevisionConfig} from "@/oss/services/deploymentVersioning/api"
 
 import VariantDrawer from "../VariantsComponents/Drawers/VariantDrawer"
 
@@ -25,6 +21,7 @@ import DeploymentsDrawer from "./components/Drawer"
 import DeploymentConfirmationModal from "./components/Modal/DeploymentConfirmationModal"
 import SelectDeployVariantModal from "./components/Modal/SelectDeployVariantModal"
 import DeploymentTable from "./components/Table"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -94,7 +91,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                 .map((rev, index) => ({
                     ...rev,
-                    created_at: dayjs(rev.created_at).format("DD MMM YYYY"),
+                    created_at: formatDay({date: rev.created_at}),
                     variant: variants.find(
                         (variant) => variant.id === rev.deployed_app_variant_revision,
                     ),

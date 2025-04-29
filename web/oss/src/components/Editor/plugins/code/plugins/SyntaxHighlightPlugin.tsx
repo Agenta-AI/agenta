@@ -28,7 +28,7 @@ import {isPluginLocked, lockPlugin, unlockPlugin} from "../utils/pluginLocks"
 import {tokenizeCodeLine} from "../utils/tokenizer"
 
 const PLUGIN_NAME = "SyntaxHighlightPlugin"
-const log = createLogger(PLUGIN_NAME, {disabled: false})
+const log = createLogger(PLUGIN_NAME, {disabled: true})
 
 /**
  * Updates a code line while preserving cursor position.

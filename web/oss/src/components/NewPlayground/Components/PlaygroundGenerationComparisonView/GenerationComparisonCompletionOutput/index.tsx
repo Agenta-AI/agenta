@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import clsx from "clsx"
+import JSON5 from "json5"
 import dynamic from "next/dynamic"
 
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
@@ -9,6 +10,7 @@ import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
+import {TooltipWithCopyAction} from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import SharedEditor from "../../SharedEditor"
 
@@ -28,7 +30,7 @@ const GenerationComparisonCompletionOutput = ({
     isLastRow,
     registerToWebWorker,
 }: GenerationComparisonCompletionOutputProps) => {
-    const {resultHash, isRunning, viewType} = usePlayground({
+    const {resultHash, isRunning} = usePlayground({
         registerToWebWorker: registerToWebWorker ?? true,
         variantId,
         rowId,
@@ -117,23 +119,82 @@ const GenerationComparisonCompletionOutput = ({
                                     }
                                 />
                             ) : result.response ? (
-                                <SharedEditor
-                                    initialValue={value}
-                                    handleChange={handleChange}
-                                    editorType="borderless"
-                                    state="filled"
-                                    readOnly
-                                    test
-                                    editorProps={{
-                                        codeOnly: isJSON,
-                                    }}
-                                    disabled
-                                    className="!rounded-none !px-4"
-                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
-                                    footer={
-                                        <GenerationResultUtils className="mt-2" result={result} />
-                                    }
-                                />
+                                Array.isArray(result.response) ? (
+                                    result.response.map((message, index) => {
+                                        let _json = false
+                                        try {
+                                            const parsed = JSON5.parse(message.content)
+                                            parsed.function.arguments = JSON5.parse(
+                                                parsed.function.arguments,
+                                            )
+                                            const displayValue = {
+                                                arguments: parsed.function.arguments,
+                                            }
+                                            _json = true
+
+                                            return (
+                                                <SharedEditor
+                                                    key={message.id}
+                                                    initialValue={displayValue}
+                                                    editorType="border"
+                                                    // state="filled"
+                                                    readOnly
+                                                    editorProps={{
+                                                        codeOnly: _json,
+                                                    }}
+                                                    header={
+                                                        <div className="py-1 flex items-center justify-between w-full">
+                                                            <TooltipWithCopyAction
+                                                                title={"Function name"}
+                                                            >
+                                                                <span>{parsed.function.name}</span>
+                                                            </TooltipWithCopyAction>
+                                                            <TooltipWithCopyAction
+                                                                title={"Call id"}
+                                                            >
+                                                                <span>{parsed.id}</span>
+                                                            </TooltipWithCopyAction>
+                                                        </div>
+                                                    }
+                                                    disabled
+                                                    editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                                    footer={
+                                                        <GenerationResultUtils
+                                                            className="mt-2"
+                                                            result={result}
+                                                        />
+                                                    }
+                                                    className="mt-2 [&:first-child]:!mt-0"
+                                                    handleChange={handleChange}
+                                                />
+                                            )
+                                        } catch (e) {
+                                            console.log("RENDER MSG ITEM ERROR!", message, e)
+                                            return <div>errored</div>
+                                        }
+                                    })
+                                ) : (
+                                    <SharedEditor
+                                        initialValue={value}
+                                        handleChange={handleChange}
+                                        editorType="borderless"
+                                        state="filled"
+                                        readOnly
+                                        test
+                                        editorProps={{
+                                            codeOnly: isJSON,
+                                        }}
+                                        disabled
+                                        className="!rounded-none !px-4"
+                                        editorClassName="min-h-4 [&_p:first-child]:!mt-0"
+                                        footer={
+                                            <GenerationResultUtils
+                                                className="mt-2"
+                                                result={result}
+                                            />
+                                        }
+                                    />
+                                )
                             ) : null}
                         </div>
                     </div>

@@ -441,7 +441,7 @@ async def add_config(
     application_ref: ReferenceDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
-    log.warning("[ADD]     Fetching: app")
+    log.warn("[ADD]     Fetching: app")
 
     app = await _fetch_app(
         project_id=project_id,
@@ -450,13 +450,13 @@ async def add_config(
     )
 
     if not app:
-        log.warning("[ADD]  App not found.")
+        log.warn("[ADD]  App not found.")
 
         return None
 
     # --> FETCHING: bases
-    log.warning(f"[ADD]     Found app: {str(app.id)}")
-    log.warning("[ADD]     Fetching: bases")
+    log.warn(f"[ADD]     Found app: {str(app.id)}")
+    log.warn("[ADD]     Fetching: bases")
 
     bases = None
 
@@ -471,7 +471,7 @@ async def add_config(
 
     base_id = bases[0].id  # needs to be changed to use the 'default base'
 
-    log.warning("[ADD]     Creating: variant")
+    log.warn("[ADD]     Creating: variant")
 
     if not variant_ref.slug:
         return None
@@ -531,7 +531,7 @@ async def fetch_configs_by_application_ref(
         return configs_list
 
     for variant in variants:
-        log.warning(f"[FETCH]: Fetching latest version of variant {variant.id}")
+        log.warn(f"[FETCH]: Fetching latest version of variant {variant.id}")
 
         variant_latest_version = await db_manager.fetch_app_variant_revision_by_variant(
             app_variant_id=variant.id.hex,
@@ -623,7 +623,7 @@ async def fetch_config_by_variant_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
-    log.warning("[FETCH]   Fetching: variant")
+    log.warn("[FETCH]   Fetching: variant")
 
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
@@ -634,7 +634,7 @@ async def fetch_config_by_variant_ref(
     if not (app_variant and app_variant_revision):
         return None
 
-    log.warning("[FETCH]   Fetching: deployment")
+    log.warn("[FETCH]   Fetching: deployment")
 
     deployment = await _fetch_deployment(
         project_id=project_id,
@@ -644,7 +644,7 @@ async def fetch_config_by_variant_ref(
     if not deployment:
         return None
 
-    log.warning("[FETCH]   Fetching: app")
+    log.warn("[FETCH]   Fetching: app")
 
     app = await _fetch_app(
         project_id=project_id,

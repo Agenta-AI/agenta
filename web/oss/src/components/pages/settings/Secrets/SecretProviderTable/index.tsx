@@ -11,6 +11,7 @@ import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import LLMIcons from "@/oss/components/LLMIcons"
 import ConfigureProviderModal from "@/oss/components/ModelRegistry/Modals/ConfigureProviderModal"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
     const {customRowSecrets, secrets, loading} = useVaultSecret()
@@ -111,7 +112,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                 }),
                 render: (_, record) => {
                     return record.created_at
-                        ? dayjs(record.created_at).format("YYYY-MM-DD HH:mm")
+                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
                         : "-"
                 },
             },

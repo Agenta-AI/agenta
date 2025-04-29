@@ -16,7 +16,9 @@ export const hash = (value: any) => {
     const weakHash = stableHash(value)
     const safeHash = crypto.createHash("MD5").update(weakHash).digest("hex")
 
-    hashCache.set(value, safeHash)
+    if (value) {
+        hashCache.set(value, safeHash)
+    }
     return safeHash
 }
 

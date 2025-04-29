@@ -1,10 +1,12 @@
 import {useCallback, memo, useState} from "react"
 
-import {MinusCircle, Copy, Check, ArrowClockwise} from "@phosphor-icons/react"
+import {MinusCircle, Copy, Check, ArrowClockwise, CaretDown, CaretUp} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import EnhancedButton from "@/oss/components/NewPlayground/assets/EnhancedButton"
 import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+
+import TestsetDrawerButton from "../../../../Drawers/TestsetDrawer"
 
 import type {PromptMessageContentOptionsProps} from "./types"
 
@@ -13,13 +15,15 @@ const PromptMessageContentOptions = ({
     className,
     propertyId,
     isMessageDeletable,
-    runnable,
     actions,
     disabled,
+    minimized,
     children,
+    resultHashes,
 }: PromptMessageContentOptionsProps) => {
     const {propertyGetter} = usePlayground()
-    const {deleteMessage, rerunMessage, executeEditorCommand} = actions || {}
+    const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer, executeEditorCommand} =
+        actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 
@@ -46,6 +50,16 @@ const PromptMessageContentOptions = ({
                 />
             ) : null}
 
+            {resultHashes && resultHashes?.length > 0 ? (
+                <TestsetDrawerButton
+                    tooltipProps={{title: "Add to test set"}}
+                    type="text"
+                    resultHashes={resultHashes}
+                    onClickTestsetDrawer={onClickTestsetDrawer}
+                    messageId={messageId}
+                />
+            ) : null}
+
             <EnhancedButton
                 icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
                 type="text"
@@ -59,6 +73,14 @@ const PromptMessageContentOptions = ({
                 onClick={() => deleteMessage?.(messageId)}
                 disabled={isMessageDeletable}
                 tooltipProps={{title: "Remove"}}
+            />
+
+            <EnhancedButton
+                icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+                type="text"
+                onClick={() => minimize?.(messageId)}
+                disabled={isMessageDeletable}
+                tooltipProps={{title: "Minimize"}}
             />
 
             {children}

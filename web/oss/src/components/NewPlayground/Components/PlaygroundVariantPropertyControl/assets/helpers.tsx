@@ -1,9 +1,10 @@
-import {Typography} from "antd"
+import {Input, Tooltip, Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
 
+import PlaygroundTool from "../../PlaygroundTool"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
 import BooleanControl from "./BooleanControl"
@@ -132,19 +133,19 @@ export const renderMap: RenderFunctions = {
             const change = (value: string) => {
                 handleChange(value)
             }
+            const {propertyId, variantId, baseProperty, editorProps, ...props} = rest
             return (
                 <Input
-                    {...rest}
+                    {...props}
                     value={value}
-                    handleChange={change}
                     onChange={change}
                     className={className}
                     view={view}
                     description={metadata.description}
                     placeholder={placeholder}
-                    withTooltip={withTooltip}
+                    tooltip={withTooltip ? metadata.description : undefined}
                     disabled={disabled}
-                    {...(rest.editorProps || {})}
+                    {...(editorProps || {})}
                     {...(disabled
                         ? {
                               state: "disabled",
@@ -176,7 +177,9 @@ export const renderMap: RenderFunctions = {
     },
 
     array: ({disabled, withTooltip, metadata, value, handleChange}) => {
-        if (!Array.isArray(value?.value)) return null
+        if (!Array.isArray(value?.value)) {
+            return null
+        }
 
         return (
             <div className="flex flex-col gap-2">
@@ -255,7 +258,9 @@ export const renderMap: RenderFunctions = {
         const objectProperties = metadata.properties
         const withTooltip = props.withTooltip
         const baseProperty = props.baseProperty
-        return (
+        return metadata.name === "ToolConfiguration" ? (
+            <PlaygroundTool {...props} />
+        ) : (
             <PlaygroundVariantPropertyControlWrapper>
                 <div className="border-0 border-t border-solid border-t-[rgba(5,23,41,0.06)] py-3">
                     {withTooltip ? (

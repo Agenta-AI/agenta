@@ -1,11 +1,11 @@
 import {useCallback} from "react"
 
 import {Menu, Tag, Tooltip} from "antd"
+import clsx from "clsx"
 import Link from "next/link"
 
 import {useStyles} from "../assets/styles"
 import {SidebarConfig, SidebarMenuProps} from "../types"
-import clsx from "clsx"
 
 const SidebarMenu: React.FC<SidebarMenuProps> = ({
     items,
@@ -88,7 +88,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
         <Menu
             mode={mode}
             items={transformItems(items)}
-            inlineCollapsed={collapsed}
+            {...(mode === "inline" ? {inlineCollapsed: collapsed} : {})}
             {...menuProps}
             className={clsx(
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",

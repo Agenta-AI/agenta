@@ -306,7 +306,7 @@ const AutomaticEvalOverview = () => {
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                return formatDay(record.created_at)
+                return formatDay({date: record.created_at})
             },
         },
         {

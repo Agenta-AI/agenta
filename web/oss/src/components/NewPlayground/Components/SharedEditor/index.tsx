@@ -25,7 +25,7 @@ const SharedEditor = ({
     error,
     useAntdInput = false,
     noProvider = false,
-    debug,
+    debug = false,
     isTool,
     baseProperty,
     test = false,

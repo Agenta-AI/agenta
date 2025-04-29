@@ -1,6 +1,6 @@
 import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {generateId, toSnakeCase} from "@/oss/lib/shared/variant/stringUtils"
 import {checkValidity, extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 
 import {isObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/metadata"
@@ -24,18 +24,36 @@ export const createMessageFromSchema = (
             const metadataHash = hashMetadata(propMetadata)
 
             // Initialize with default values based on property type
+            let value = json?.[key] || json?.[toSnakeCase(key)]
             let defaultValue: any = null
             if (key === "role") {
                 defaultValue = ""
                 // "user" // Default role
             } else if (key === "content") {
                 defaultValue = "" // Empty content
+            } else if (key === "toolCalls") {
+                defaultValue = undefined
+                if (Array.isArray(value)) {
+                    const test = value.map((item) => {
+                        const x = structuredClone(item)
+                        return {
+                            __id: generateId(),
+                            __metadata: hashMetadata(propMetadata),
+                            ...x,
+                        }
+                    })
+                    value = test
+                } else {
+                    console.log("ayo! create message 1")
+                }
             }
+
+            value = value || defaultValue
 
             properties[key] = {
                 __id: generateId(),
                 __metadata: metadataHash,
-                value: json?.[key] || defaultValue,
+                value,
             }
         })
         const metadataHash = hashMetadata(metadata)
@@ -74,13 +92,16 @@ export const constructChatHistory = ({
     messageId,
     variantId,
     includeLastMessage = false,
+    includeResults = false,
 }: {
     messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
     messageId: string
     variantId: string
     includeLastMessage?: boolean
+    includeResults?: boolean
 }) => {
     let constructedHistory = []
+    const results = []
     const allMetadata = getAllMetadata()
 
     if (messageRow) {
@@ -89,6 +110,16 @@ export const constructChatHistory = ({
             const messageMetadata = getMetadataLazy<ObjectMetadata>(
                 historyItem.__metadata as string,
             )
+
+            // Extract run data if requested and __runs exists
+            if (includeResults && historyItem.__runs) {
+                for (const runData of Object.values(historyItem.__runs)) {
+                    results.push({
+                        isRunning: runData?.__isRunning,
+                        result: runData?.__result,
+                    })
+                }
+            }
 
             if (messageMetadata) {
                 userMessage = checkValidity(historyItem, messageMetadata) ? userMessage : undefined
@@ -102,24 +133,33 @@ export const constructChatHistory = ({
 
                 constructedHistory.push(userMessage)
 
-                const variantResponse = historyItem.__runs?.[variantId]?.message
-                if (variantResponse?.__id === messageId) {
-                    break
-                }
-                let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
+                const variantResponses = historyItem.__runs?.[variantId]?.messages
+                    ? historyItem.__runs?.[variantId]?.messages
+                    : [historyItem.__runs?.[variantId]?.message]
 
-                if (variantResponse) {
-                    llmResponse = checkValidity(variantResponse, messageMetadata)
-                        ? llmResponse
-                        : undefined
+                for (const variantResponse of variantResponses) {
+                    if (variantResponse?.__id === messageId && !includeLastMessage) {
+                        break
+                    }
+                    let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
 
-                    constructedHistory.push(llmResponse)
+                    if (variantResponse) {
+                        llmResponse = checkValidity(variantResponse, messageMetadata)
+                            ? llmResponse
+                            : undefined
+
+                        constructedHistory.push(llmResponse)
+                    }
                 }
             }
         }
     }
 
     constructedHistory = constructedHistory.filter(Boolean)
+
+    if (includeResults) {
+        return results.filter(Boolean)
+    }
 
     return constructedHistory
 }

@@ -111,7 +111,7 @@ async def add_testset_to_app_variant(
                 await session.refresh(testset_db)
 
         except Exception as e:
-            print(f"An error occurred in adding the default testset: {e}")
+            log.error(f"An error occurred in adding the default testset: {e}")
 
 
 async def fetch_app_by_id(app_id: str) -> AppDB:
@@ -1742,14 +1742,12 @@ async def mark_app_variant_as_hidden(app_variant_id: str):
     if app_variant_db is None:
         raise NoResultFound("App variant not found")
 
-    print(app_variant_db.hidden)
     async with engine.session() as session:
         app_variant_db = await session.merge(
             app_variant_db
         )  # Attach the object to the session
         app_variant_db.hidden = True
         await session.commit()
-    print(app_variant_db.hidden)
 
 
 async def mark_app_variant_as_visible(app_variant_id: str):

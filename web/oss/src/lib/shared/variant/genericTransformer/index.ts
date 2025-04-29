@@ -30,7 +30,7 @@ function transformObjectValue<T extends Record<string, any>>(
 
             // If parent metadata exists and is an object type, get property metadata from it
             const propertyMetadata =
-                parentMetadata?.type === "object"
+                typeof parentMetadata?.type === "string" && parentMetadata?.type === "object"
                     ? (parentMetadata as ObjectMetadata).properties?.[key]
                     : undefined
 
@@ -77,27 +77,87 @@ function metadataToSchema(metadata: ConfigMetadata): SchemaProperty {
 
 function transformArray<T>(value: T[], metadata: ConfigMetadata & {type: "array"}) {
     const metadataHash = hashMetadata(metadata)
-
     return {
         __id: generateId(),
         __metadata: metadataHash,
         value: value.map((item): Enhanced<T> => {
+            if (!metadata || !metadata.itemMetadata) {
+                if (metadata && metadata.title === "Tools" && !metadata.itemMetadata) {
+                    metadata.itemMetadata = {
+                        type: "object",
+                        name: "ToolConfiguration",
+                        description: "Tool configuration",
+                        properties: {
+                            type: {
+                                type: "string",
+                                description: "Type of the tool",
+                                title: "Type",
+                                nullable: false,
+                                allowFreeform: true,
+                            },
+                            function: {
+                                type: "function",
+                                properties: {
+                                    name: {
+                                        type: "string",
+                                        title: "Name",
+                                        description: "Name of the tool",
+                                        nullable: false,
+                                        allowFreeform: true,
+                                    },
+                                    description: {
+                                        type: "string",
+                                        title: "Description",
+                                        description: "Description of the tool",
+                                        nullable: false,
+                                        allowFreeform: true,
+                                    },
+                                    parameters: {
+                                        type: "object",
+                                        title: "Parameters",
+                                        properties: {
+                                            type: {
+                                                type: "string",
+                                                nullable: false,
+                                                allowFreeform: true,
+                                                title: "Type",
+                                                enum: ["object", "function"],
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                        required: ["name", "description", "parameters"],
+                    }
+                }
+            }
+
             const itemMetadataHash = hashMetadata(metadata.itemMetadata)
 
             if (metadata.itemMetadata.type === "object" && typeof item === "object") {
                 const schema = metadataToSchema(metadata.itemMetadata)
                 const properties = isSchema.object(schema) ? schema.properties || {} : {}
-                const transformedObject = transformObjectValue(
+
+                let transformedObject = transformObjectValue(
                     item as Record<string, any>,
                     properties,
                     metadata.itemMetadata, // Pass the item metadata to preserve options
                 )
 
-                return {
+                if (metadata.title === "Tools") {
+                    transformedObject = {
+                        value: item,
+                    }
+                }
+
+                const returnData = {
                     __id: generateId(),
                     __metadata: itemMetadataHash,
                     ...transformedObject,
                 } as Enhanced<T>
+
+                return returnData
             }
 
             return {
@@ -117,7 +177,6 @@ function transformValue<T>(
 ): Enhanced<T> {
     // Use parent property metadata if available, otherwise create new
     const metadata = parentPropertyMetadata || createMetadata(schema, key)
-
     // Handle arrays
     if (metadata.type === "array" && Array.isArray(value)) {
         return transformArray(value, metadata) as Enhanced<T>

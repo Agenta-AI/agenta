@@ -33,12 +33,6 @@ const PromptMessageContent = ({
             onChange={(value) => {
                 handleLocalValueChange(value.textContent)
             }}
-            // className={clsx([
-            // "border-0",
-            // "focus:ring-0",
-            // {"bg-[#f5f7fa] focus:bg-[#f5f7fa] hover:bg-[#f5f7fa]": isGenerationChatView},
-            // className,
-            // ])}
             disabled={disabled}
             showBorder={false}
         />

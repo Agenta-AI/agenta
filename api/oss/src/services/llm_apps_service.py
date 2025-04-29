@@ -27,7 +27,7 @@ def get_nested_value(d: dict, keys: list, default=None):
                 return default
         return d
     except Exception as e:
-        print(f"Error accessing nested value: {e}")
+        log.error(f"Error accessing nested value: {e}")
         return default
 
 
@@ -94,22 +94,22 @@ def extract_result_from_response(response: dict):
         kind = "text" if isinstance(value, str) else "object"
 
     except ValueError as ve:
-        print(f"Input validation error: {ve}")
+        log.error(f"Input validation error: {ve}")
         value = {"error": str(ve)}
         kind = "error"
 
     except KeyError as ke:
-        print(f"Missing key: {ke}")
+        log.error(f"Missing key: {ke}")
         value = {"error": f"Missing key: {ke}"}
         kind = "error"
 
     except TypeError as te:
-        print(f"Type error: {te}")
+        log.error(f"Type error: {te}")
         value = {"error": f"Type error: {te}"}
         kind = "error"
 
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        log.error(f"Unexpected error: {e}")
         value = {"error": f"Unexpected error: {e}"}
         kind = "error"
 
@@ -240,13 +240,11 @@ async def invoke_app(
         headers = {"Authorization": f"Secret {secret_token}"}
     headers["ngrok-skip-browser-warning"] = "1"
 
-    log.info(f"Invoking app {uri} with headers {headers}")
-
     async with aiohttp.ClientSession() as client:
         app_response = {}
 
         try:
-            log.info(f"Invoking app {uri} with payload {payload}")
+            log.info("Invoking workflow...", url=url)
             response = await client.post(
                 url,
                 json=payload,
@@ -349,18 +347,18 @@ async def run_with_retry(
             return result
         except aiohttp.ClientError as e:
             last_exception = e
-            print(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
+            log.error(f"Error in evaluation. Retrying in {retry_delay} seconds:", e)
             await asyncio.sleep(retry_delay)
             retries += 1
         except Exception as e:
             last_exception = e
-            log.warning(f"Error processing datapoint: {input_data}. {str(e)}")
-            log.warning("".join(traceback.format_exception_only(type(e), e)))
+            log.warn(f"Error processing datapoint: {input_data}. {str(e)}")
+            log.warn("".join(traceback.format_exception_only(type(e), e)))
             retries += 1
 
     # If max retries is reached or an exception that isn't in the second block,
     # update & return the last exception
-    log.warning("Max retries reached")
+    log.warn("Max retries reached")
     exception_message = (
         "Max retries reached"
         if retries == max_retry_count
@@ -463,7 +461,6 @@ async def batch_invoke(
 
     # 🆕 Rewritten loop instead of recursion
     for start_idx in range(0, len(testset_data), batch_size):
-        print(f"Preparing batch starting at index {start_idx}...")
         tasks = []
 
         end_idx = min(start_idx + batch_size, len(testset_data))
@@ -487,7 +484,6 @@ async def batch_invoke(
 
         for result in results:
             list_of_app_outputs.append(result)
-            print(f"Added output for testset index {start_idx}")
 
         # Delay between batches if more to come
         if end_idx < len(testset_data):

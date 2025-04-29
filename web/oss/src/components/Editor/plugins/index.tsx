@@ -78,7 +78,7 @@ const EditorPlugins = ({
             />
             <HistoryPlugin />
             {autoFocus ? <AutoFocusPlugin /> : null}
-            <OnChangePlugin onChange={handleUpdate} />
+            <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
             {enableTokens && <TokenPlugin />}
             {singleLine && <SingleLinePlugin />}

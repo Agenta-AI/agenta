@@ -236,15 +236,6 @@ export function AutoCloseBracketsPlugin() {
                         newCursorPosition,
                         isAlreadyWrapped,
                     })
-                    // editor.update(
-                    //     () => {
-
-                    //     },
-                    //     {
-                    //         onUpdate: () => unlockPlugin(PLUGIN_NAME),
-                    //     },
-                    // )
-
                     return true
                 }
 
@@ -379,13 +370,21 @@ export function AutoCloseBracketsPlugin() {
                 event.preventDefault()
                 const close = OPEN_TO_CLOSE[key as keyof typeof OPEN_TO_CLOSE]
                 const newText = text.slice(0, offset) + key + close + text.slice(offset)
-                anchorNode.setTextContent(newText)
+                if ($isCodeHighlightNode(anchorNode)) {
+                    anchorNode.setTextContent(newText)
+                } else {
+                    log("[AutoCloseBrackets] invalid node:", {anchorNode, newText})
+                    const nextSibling = anchorNode.getNextSibling()
+                    if (nextSibling && $isCodeHighlightNode(nextSibling)) {
+                        nextSibling.setTextContent(newText.trim())
+                        anchorNode = nextSibling
+                        offset = 0
+                    }
+                }
 
                 log("[AutoCloseBrackets] Inserted pair:", key + close)
                 log("[AutoCloseBrackets] Before:", text.slice(0, offset))
                 log("[AutoCloseBrackets] After:", text.slice(offset))
-
-                // lockPlugin(PLUGIN_NAME)
 
                 const updated = $getNodeByKey(anchorNode.getKey())
                 if (updated && $isCodeHighlightNode(updated)) {
@@ -397,14 +396,6 @@ export function AutoCloseBracketsPlugin() {
                 } else {
                     log("[AutoCloseBrackets] Could not find updated node to select")
                 }
-                // editor.update(
-                //     () => {
-                //     },
-                //     {
-                //         onUpdate: () => unlockPlugin(PLUGIN_NAME),
-                //     },
-                // )
-
                 return true
             },
             COMMAND_PRIORITY_HIGH,

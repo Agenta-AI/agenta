@@ -1,9 +1,11 @@
 // Editor.tsx
-import {memo, useEffect, useRef} from "react"
+import {memo, useEffect} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
+import isEqual from "fast-deep-equal"
 import {createStore, atom} from "jotai"
+import JSON5 from "json5"
 import {
     $getRoot,
     $createTabNode,
@@ -11,27 +13,25 @@ import {
     createCommand,
     BLUR_COMMAND,
     FOCUS_COMMAND,
+    $setSelection,
 } from "lexical"
 
 const store = createStore()
 
-import {ON_HYDRATE_FROM_REMOTE_CONTENT} from "../../Editor"
-// import {editorStateAtom} from "../../state/assets/atoms"
-
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
-import {$createCodeHighlightNode, $isCodeHighlightNode} from "./nodes/CodeHighlightNode"
-import {$createCodeLineNode, $isCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
+import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
+import {$createCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
 import {AutoCloseBracketsPlugin} from "./plugins/AutoCloseBracketsPlugin"
 import {AutoFormatAndValidateOnPastePlugin} from "./plugins/AutoFormatAndValidateOnPastePlugin"
 import {CodeBlockFoldingPlugin} from "./plugins/CodeBlockFoldingPlugin"
-import {CodeGutterPlugin} from "./plugins/CodeGutterPlugin"
 import {EmptyNodeTransformPlugin} from "./plugins/EmptyNodeTransformPlugin"
 import {HorizontalNavigationPlugin} from "./plugins/HorizontalNavigationPlugin"
 import {IndentationPlugin} from "./plugins/IndentationPlugin"
-import {RealTimeValidationPlugin} from "./plugins/RealTimeValidationPlugin"
+import {$getEditorCodeAsString, RealTimeValidationPlugin} from "./plugins/RealTimeValidationPlugin"
 import {SyntaxHighlightPlugin} from "./plugins/SyntaxHighlightPlugin"
 import {VerticalNavigationPlugin} from "./plugins/VerticalNavigationPlugin"
-import {$handleInvalidContent} from "./utils/pasteUtils"
+import {tryParsePartialJson} from "./tryParsePartialJson"
+import {createLogger} from "./utils/createLogger"
 import {tokenizeCodeLine} from "./utils/tokenizer"
 
 export const ON_CHANGE_LANGUAGE = createCommand<{
@@ -44,6 +44,7 @@ const editorStateAtom = atom({
 
 store.set(editorStateAtom, {focused: false})
 
+const log = createLogger("Code Editor")
 /**
  * Creates an array of highlighted code line nodes from a given text and language.
  *
@@ -129,9 +130,10 @@ function InsertInitialCodeBlockPlugin({
 }) {
     const [editor] = useLexicalComposerContext()
 
-    const isInitRef = useRef(false)
+    // const isInitRef = useRef(false)
 
     useEffect(() => {
+        log("INITIAL VALUE CHANGED", {initialValue})
         editor.update(
             () => {
                 const hasFocus = store.get(editorStateAtom)?.focused
@@ -148,63 +150,91 @@ function InsertInitialCodeBlockPlugin({
                     existingCodeBlock.append(line)
 
                     root.append(existingCodeBlock)
+                } else if (hasFocus) {
+                    return
                 }
-                // return false
 
-                if (editor.isEditable() && hasFocus) {
-                    if (existingCodeBlock) {
-                        const lines = existingCodeBlock.getChildren().filter($isCodeLineNode)
-                        const line = lines[0]
-                        if (!line) {
-                            const newLine = $createCodeLineNode()
-                            const highlightNode = $createCodeHighlightNode(
-                                "\u200B",
-                                "plain",
-                                false,
-                                null,
-                            )
-                            newLine.append(highlightNode)
-                            existingCodeBlock.append(newLine)
-                            highlightNode.selectEnd()
+                // isInitRef.current = true
+                const currentTextValue = $getEditorCodeAsString()
+                root.getTextContent()
+                if (currentTextValue) {
+                    try {
+                        const currentObjectValue = JSON5.parse(currentTextValue)
+                        const incomingObjectValue =
+                            typeof initialValue === "string"
+                                ? JSON5.parse(initialValue)
+                                : initialValue
+                        if (isEqual(currentObjectValue, incomingObjectValue)) {
+                            log("DO NOT CLEAR AND RECONSTRUCT 1", {initialValue, currentTextValue})
                             return
                         }
+                    } catch (e) {
+                        try {
+                            const currentObject = tryParsePartialJson(currentTextValue)
+                            const incomingObject =
+                                typeof initialValue === "string"
+                                    ? JSON5.parse(initialValue)
+                                    : initialValue
 
-                        return
+                            if (isEqual(currentObject, incomingObject)) {
+                                log("DO NOT CLEAR AND RECONSTRUCT 2")
+                                return
+                            } else {
+                                const trimmedIncoming =
+                                    typeof initialValue === "string"
+                                        ? initialValue.trim()
+                                        : JSON5.stringify(initialValue).trim()
+
+                                if (currentTextValue.trim() === trimmedIncoming) {
+                                    log("DO NOT CLEAR AND RECONSTRUCT 3")
+                                    return
+                                }
+                            }
+                        } catch (e) {
+                            log("there was an error parsing to json", {
+                                e,
+                                initialValue,
+                                currentTextValue,
+                            })
+                        }
                     }
                 }
 
-                isInitRef.current = true
-                existingCodeBlock.clear()
-                editor.setEditable(false)
+                if (currentTextValue) {
+                    editor.setEditable(false)
+                }
+                // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
                 try {
                     const objectValue =
-                        typeof initialValue === "string" ? JSON.parse(initialValue) : initialValue
+                        typeof initialValue === "string" ? JSON5.parse(initialValue) : initialValue
                     const value = JSON.stringify(objectValue, null, 2)
+                    existingCodeBlock.clear()
+                    log("CLEAR AND RECONSTRUCT", {initialValue, currentTextValue})
                     const highlightedNodes = createHighlightedNodes(value, language)
                     highlightedNodes.forEach((node) => {
                         existingCodeBlock.append(node)
                     })
+
+                    const hasFocus = store.get(editorStateAtom)?.focused
+
+                    if (!hasFocus) {
+                        editor.setEditable(true)
+                        $setSelection(null)
+                    }
                 } catch (err) {
-                    console.error("Failed to parse initial value", initialValue, err)
-                    console.error("failed values", {
+                    log("failed values", {
                         existingCodeBlock,
                         initialValue,
                         type: typeof initialValue,
                         err,
                     })
+
+                    if (!editor.isEditable()) {
+                        editor.setEditable(true)
+                    }
                 }
             },
             {
-                onUpdate: () => {
-                    editor.update(
-                        () => {
-                            editor.setEditable(true)
-                        },
-                        {
-                            skipTransforms: true,
-                        },
-                    )
-                },
                 skipTransforms: true,
             },
         )
@@ -215,11 +245,9 @@ function InsertInitialCodeBlockPlugin({
             editor.registerCommand(
                 ON_CHANGE_LANGUAGE,
                 (payload) => {
-                    editor.update(() => {
-                        const root = $getRoot()
-                        const existingCodeBlock = root.getChildren().filter($isCodeBlockNode)[0]
-                        existingCodeBlock.setLanguage(payload.language as "json" | "yaml")
-                    })
+                    const root = $getRoot()
+                    const existingCodeBlock = root.getChildren().filter($isCodeBlockNode)[0]
+                    existingCodeBlock.setLanguage(payload.language as "json" | "yaml")
                     return true
                 },
                 COMMAND_PRIORITY_LOW,
@@ -256,7 +284,6 @@ function InsertInitialCodeBlockPlugin({
                 <RealTimeValidationPlugin debug={debug} schema={validationSchema} />
             ) : null}
             <CodeBlockFoldingPlugin />
-            <CodeGutterPlugin />
         </>
     )
 }

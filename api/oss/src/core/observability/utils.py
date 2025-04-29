@@ -17,6 +17,10 @@ from oss.src.core.observability.dtos import (
     ExistenceOperator,
 )
 
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 _C_OPS = list(ComparisonOperator)
 _N_OPS = list(NumericOperator)
 _S_OPS = list(StringOperator)
@@ -156,7 +160,12 @@ def parse_ingest_value(
         attributes[key] = to_type(attributes[key])
     except ValueError:
         print_exc()
-        print(f"key='{key}' attribute='{attributes[key]}' type='{to_type}'")
+        log.warn(
+            "Failed to parse attributes:",
+            key=key,
+            attribute=attributes[key],
+            type=to_type,
+        )
 
         del attributes[key]
 
@@ -416,7 +425,9 @@ def calculate_costs(span_idx: Dict[str, SpanDTO]):
                 span.metrics["unit.costs.total"] = total_cost
 
             except:  # pylint: disable=bare-except
-                print("Failed to calculate costs:")
-                print(
-                    f"model={model}, prompt_tokens={prompt_tokens}, completion_tokens={completion_tokens}"
+                log.warn(
+                    "Failed to calculate costs",
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
                 )

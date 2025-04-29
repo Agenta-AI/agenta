@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import JSON5 from "json5"
 import type {Key, SWRHook} from "swr"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -207,7 +208,33 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 __id: generateId(),
                             }
 
-                            if (targetMessageIndex === targetRow.history.value.length - 1) {
+                            let hasToolCall = false
+                            if (
+                                incomingMessage &&
+                                incomingMessage.role?.value === "assistant" &&
+                                incomingMessage.toolCalls?.value?.length
+                            ) {
+                                hasToolCall = true
+                                const toolMessage = createMessageFromSchema(metadata, {
+                                    role: "tool",
+                                    name: incomingMessage.toolCalls.value[0]?.function.name,
+                                    toolCallId: incomingMessage.toolCalls.value[0]?.id,
+                                    content: "",
+                                })
+                                targetMessage.__runs[variantId] = {
+                                    __result: responseHash,
+                                    message: incomingMessage,
+                                    messages: [incomingMessage, toolMessage],
+                                    __isRunning: "",
+                                    __id: generateId(),
+                                }
+                            }
+
+                            if (
+                                !hasToolCall &&
+                                !message?.payload?.result?.error &&
+                                targetMessageIndex === targetRow.history.value.length - 1
+                            ) {
                                 const emptyMessage = createMessageFromSchema(metadata, {
                                     role: "user",
                                 })
@@ -252,10 +279,49 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 )
                                     return clonedState
 
-                                const responseHash = hashResponse(message.payload.result)
-                                inputTestRow.__runs[variantId] = {
-                                    __result: responseHash,
-                                    __isRunning: "",
+                                try {
+                                    const parsed = JSON5.parse(
+                                        message.payload.result?.response?.data,
+                                    )
+                                    if (parsed && Array.isArray(parsed)) {
+                                        const toolCalls = parsed
+                                            .filter((item) => {
+                                                return (
+                                                    item &&
+                                                    typeof item === "object" &&
+                                                    item.type === "function"
+                                                )
+                                            })
+                                            .map((toolCall) => {
+                                                return {
+                                                    role: "assistant",
+                                                    content: JSON.stringify(toolCall, null, 2),
+                                                }
+                                            })
+                                        const responseHash = hashResponse({
+                                            response: toolCalls,
+                                        })
+                                        inputTestRow.__runs[variantId] = {
+                                            __id: generateId(),
+                                            __toolCall: true,
+                                            __result: responseHash,
+                                            __isRunning: "",
+                                        }
+                                    } else {
+                                        const responseHash = hashResponse(message.payload.result)
+
+                                        inputTestRow.__runs[variantId] = {
+                                            __result: responseHash,
+                                            __isRunning: "",
+                                        }
+                                    }
+                                } catch (err) {
+                                    const responseHash = hashResponse(message.payload.result)
+
+                                    inputTestRow.__runs[variantId] = {
+                                        __result: responseHash,
+                                        __isRunning: "",
+                                    }
                                 }
 
                                 return clonedState
@@ -337,10 +403,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                                 if (selectedRevision) {
                                                     // Replace variants with just the selected one from our atom
                                                     state.variants = [selectedRevision]
-                                                    console.log(
-                                                        "Retrieved variant from atom store:",
-                                                        variantId,
-                                                    )
                                                 } else {
                                                     console.warn(
                                                         "Selected variant not found in atom store:",
@@ -578,9 +640,6 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                                             id === variant.id ||
                                                             id === variant.variantId
                                                         ) {
-                                                            console.log(
-                                                                `Updating selected ID from ${id} to ${newRevision.id}`,
-                                                            )
                                                             return newRevision.id
                                                         }
                                                         return id

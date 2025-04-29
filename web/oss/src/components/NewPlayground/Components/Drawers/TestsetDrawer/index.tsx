@@ -1,13 +1,13 @@
 import {cloneElement, isValidElement, useMemo, useState} from "react"
 
 import {Database} from "@phosphor-icons/react"
-import {Button} from "antd"
 import dynamic from "next/dynamic"
 
 import {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {TestsetDrawerButtonProps} from "./types"
+import EnhancedButton from "../../../assets/EnhancedButton"
 const TestsetDrawer = dynamic(
     () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
 )
@@ -18,6 +18,8 @@ const TestsetDrawerButton = ({
     children,
     resultHashes,
     results,
+    onClickTestsetDrawer,
+    messageId,
     ...props
 }: TestsetDrawerButtonProps) => {
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
@@ -60,20 +62,21 @@ const TestsetDrawerButton = ({
                     }>,
                     {
                         onClick: () => {
+                            onClickTestsetDrawer?.(messageId)
                             setIsTestsetDrawerOpen(true)
                         },
                     },
                 )
             ) : (
-                <Button
+                <EnhancedButton
+                    label={label}
                     icon={icon && <Database size={14} />}
                     onClick={() => {
+                        onClickTestsetDrawer?.(messageId)
                         setIsTestsetDrawerOpen(true)
                     }}
                     {...props}
-                >
-                    {label}
-                </Button>
+                />
             )}
 
             <TestsetDrawer

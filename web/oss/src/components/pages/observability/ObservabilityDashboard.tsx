@@ -15,7 +15,6 @@ import {
     Typography,
 } from "antd"
 import {ColumnsType} from "antd/es/table"
-import dayjs from "dayjs"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -49,6 +48,7 @@ import TraceContent from "./drawer/TraceContent"
 import TraceHeader from "./drawer/TraceHeader"
 import TraceTree from "./drawer/TraceTree"
 import TruncatedTooltipTag from "../../TruncatedTooltipTag"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
 
@@ -224,9 +224,7 @@ const ObservabilityDashboard = () => {
             }),
             render: (_, record) => {
                 return (
-                    <div>
-                        {dayjs(record.lifecycle?.created_at).local().format("HH:mm:ss DD MMM YYYY")}
-                    </div>
+                    <div>{formatDay({date: record.lifecycle?.created_at, outputFormat: "HH:mm:ss DD MMM YYYY"})}</div>
                 )
             },
         },
@@ -377,7 +375,10 @@ const ObservabilityDashboard = () => {
                     Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
                     Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
                     Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total),
-                    Timestamp: dayjs(trace.time.start).local().format("HH:mm:ss DD MMM YYYY"),
+                    Timestamp: formatDay({
+                        date: trace.time.start,
+                        outputFormat: "HH:mm:ss DD MMM YYYY",
+                    }),
                     Status: trace.status.code === "failed" ? "ERROR" : "SUCCESS",
                 })
 

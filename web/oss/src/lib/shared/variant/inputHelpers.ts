@@ -33,7 +33,7 @@ export const extractInputKeysFromSchema = (spec: OpenAPISpec, routePath = "") =>
  * @returns Array of variable names found in the string
  */
 export function extractVariables(input: string): string[] {
-    const variablePattern = /\{\{\s*((?:\\.|[^}])*)\s*\}\}/g
+    const variablePattern = /\{\{\s*((?:\\.|[^\}\\])*)\s*\}\}/g
 
     const variables: string[] = []
 
@@ -159,7 +159,7 @@ export function updatePromptInputKeys(prompt: EnhancedVariant["prompts"][number]
  * @returns Updated variant
  */
 export function updateVariantPromptKeys(variant: EnhancedVariant) {
-    variant.prompts?.forEach((prompt) => updatePromptInputKeys(prompt))
+    ;(variant.prompts || []).forEach((prompt) => updatePromptInputKeys(prompt))
     return variant
 }
 
@@ -317,7 +317,7 @@ export function syncVariantInputs(
  */
 export function getVariantInputKeys(variant: EnhancedVariant): string[] {
     const inputKeys = new Set(
-        variant.prompts?.flatMap((prompt) => prompt.inputKeys?.value || []) || [],
+        (variant.prompts || []).flatMap((prompt) => prompt.inputKeys?.value || []) || [],
     )
     return Array.from(new Set(Array.from(inputKeys).map((key) => key.value)))
 }

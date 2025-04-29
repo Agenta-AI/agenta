@@ -22,8 +22,6 @@ import {$isCodeBlockNode, CodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {createLogger} from "../utils/createLogger"
 
-import {updateGutter} from "./CodeGutterPlugin"
-
 const log = createLogger("CodeBlockFoldingPlugin", {
     disabled: true,
 })
@@ -128,19 +126,6 @@ function handleFoldClick(editor: any, line: CodeLineNode) {
             processedLines++
 
             currentLine = currentLine.getNextSibling()
-        }
-
-        /**
-         * Update gutter display:
-         * 1. Get root and code block nodes
-         * 2. Verify we have a valid code block
-         * 3. Update gutter numbers to match visibility
-         */
-        const root = $getRoot()
-        const codeBlock = root.getFirstChild()
-        if ($isCodeBlockNode(codeBlock)) {
-            log("Updating gutter")
-            updateGutter(editor, codeBlock)
         }
 
         /**

@@ -250,7 +250,9 @@ async def auto_field_match_test(
         correct_answer = get_correct_answer(data_point, settings_values)
         inputs = {"ground_truth": correct_answer, "prediction": output}
         response = await field_match_test(
-            input=EvaluatorInputInterface(**{"inputs": inputs})
+            input=EvaluatorInputInterface(
+                **{"inputs": inputs, "settings": settings_values}
+            )
         )
         return Result(type="bool", value=response["outputs"]["success"])
     except Exception:
@@ -266,9 +268,14 @@ async def auto_field_match_test(
 
 async def field_match_test(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     try:
+        json_field = input.settings["json_field"]
+    except KeyError:
+        log.error("No json_field provided as part of the settings")
+        raise ValueError("No json_field provided as part of the settings")
+
+    try:
         prediction_json = json.loads(input.inputs["prediction"])
-        ground_truth_json = json.loads(input.inputs["ground_truth"])
-        result = prediction_json == ground_truth_json
+        result = prediction_json[json_field] == input.inputs["ground_truth"]
     except ValueError:
         result = False
     return {"outputs": {"success": result}}

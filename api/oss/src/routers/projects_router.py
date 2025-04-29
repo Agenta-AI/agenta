@@ -13,6 +13,11 @@ if is_ee():
     from ee.src.services import db_manager_ee
 
 
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
+
 class ProjectsResponse(BaseModel):
     organization_id: Optional[UUID] = None
     organization_name: Optional[str] = None
@@ -89,7 +94,7 @@ async def get_projects(
             )
 
     except Exception as exc:  # pylint: disable=bare-except
-        print(exc)
+        log.error(exc)
 
         return JSONResponse(
             status_code=404,

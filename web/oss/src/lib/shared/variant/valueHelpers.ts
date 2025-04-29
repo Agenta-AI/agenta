@@ -93,6 +93,9 @@ export function extractValueByMetadata(
     }
 
     switch (metadata.type) {
+        case "function": {
+            return undefined
+        }
         case "array": {
             if (!Array.isArray(enhanced.value)) return undefined
             const arr = enhanced.value
@@ -101,6 +104,7 @@ export function extractValueByMetadata(
                 })
                 .filter(shouldIncludeValue)
                 .filter(Boolean)
+
             return arr.length > 0 ? arr : undefined
         }
         case "object": {
@@ -108,15 +112,45 @@ export function extractValueByMetadata(
                 .filter(([key]) => !key.startsWith("__"))
                 .reduce(
                     (acc, [key, val]) => {
-                        const extracted = extractValueByMetadata(val, allMetadata)
-                        if (shouldIncludeValue(extracted)) {
-                            acc[toSnakeCase(key)] = extracted
+                        if (key === "tools") {
+                            acc[key] = val.value
+                        } else if (key === "toolCalls" && val.value) {
+                            const cloned = (structuredClone(val.value) || []).map(
+                                (call: Record<string, any>) => {
+                                    call.id = call.id
+                                    delete call.__id
+                                    delete call.__metadata
+
+                                    call.function.parameters = JSON.stringify(
+                                        call.function.parameters,
+                                    )
+                                    return call
+                                },
+                            )
+                            delete cloned.__id
+                            delete cloned.__metadata
+                            acc[toSnakeCase(key)] = cloned
+                        } else {
+                            const extracted = extractValueByMetadata(val, allMetadata)
+                            if (shouldIncludeValue(extracted)) {
+                                acc[toSnakeCase(key)] = extracted
+                            }
+                        }
+                        if (key === "tools") {
+                            acc[key] = (acc[key] || []).map((tool) => {
+                                return tool.value
+                            })
                         }
                         return acc
                     },
                     {} as Record<string, unknown>,
                 )
 
+            if (obj.role === "tool") {
+                if (!obj.content) {
+                    obj.content = ""
+                }
+            }
             return Object.keys(obj).length > 0 &&
                 checkValidity(obj, allMetadata[enhanced.__metadata])
                 ? obj

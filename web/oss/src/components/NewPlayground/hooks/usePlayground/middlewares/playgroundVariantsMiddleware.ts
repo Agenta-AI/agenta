@@ -14,6 +14,7 @@ import {
     atomStore,
     allRevisionsAtom,
     specAtom,
+    getMetadataLazy,
 } from "@/oss/lib/hooks/useStatelessVariants/state"
 import {LightweightRevision} from "@/oss/lib/hooks/useStatelessVariants/state/types"
 import {transformVariant, fetchAndProcessRevisions} from "@/oss/lib/shared/variant"
@@ -30,7 +31,7 @@ import {
     findParentOfPropertyInObject,
     findItemInHistoryValueById,
 } from "../assets/helpers"
-import {constructChatHistory} from "../assets/messageHelpers"
+import {constructChatHistory, createMessageFromSchema} from "../assets/messageHelpers"
 import type {
     PlaygroundStateData,
     PlaygroundMiddleware,
@@ -504,11 +505,13 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
 
                                 const variableRows = clonedState.generationData.inputs.value
 
-                                const messageRow = clonedState.generationData.messages.value.find(
-                                    (m) => {
+                                const messageRowIndex =
+                                    clonedState.generationData.messages.value.findIndex((m) => {
                                         return m.history.__id === messageRowHistory.__id
-                                    },
-                                )
+                                    })
+
+                                const messageRow =
+                                    clonedState.generationData.messages.value[messageRowIndex]
 
                                 if (variantId) {
                                     const variant = variantId
@@ -550,16 +553,33 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                     )
                                 } else {
                                     for (const variantId of clonedState.selected) {
+                                        const historyIndex = messageRow.history.value.findIndex(
+                                            (h) => h.__id === outputHistoryItem.__id,
+                                        )
+
+                                        if (historyIndex === -1) {
+                                            continue
+                                        }
+
                                         // Find the variant object that matches this ID
                                         const variant = variantId
                                             ? clonedState.variants.find((v) => v.id === variantId)
                                             : undefined
 
+                                        if (outputHistoryItem.__runs?.[variantId]) {
+                                            delete outputHistoryItem.__runs[variantId]
+                                        }
+
+                                        messageRow.history.value = messageRow.history.value.slice(
+                                            0,
+                                            historyIndex + 1,
+                                        )
+
                                         const chatHistory = constructChatHistory({
                                             messageRow,
                                             messageId,
                                             variantId,
-                                            includeLastMessage: true,
+                                            includeLastMessage: false,
                                         })
 
                                         const runId = generateId()
@@ -572,6 +592,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                                 // Use the variant we already found instead of searching again
                                                 variant: variant,
                                                 runId,
+                                                appType: config.appType,
                                                 messageRow,
                                                 chatHistory,
                                                 messageId: outputHistoryItem.__id,
@@ -621,8 +642,23 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                             for (const messageRow of messageRows) {
                                 const messagesInRow = messageRow.history.value
 
-                                const lastMessage = messagesInRow[messagesInRow.length - 1]
+                                let lastMessage = messagesInRow[messagesInRow.length - 1]
+
                                 for (const variantId of visibleVariants) {
+                                    const variantRuns = lastMessage.__runs?.[variantId]
+                                    if (
+                                        variantRuns &&
+                                        (variantRuns.message ||
+                                            (variantRuns.messages && variantRuns.messages?.length))
+                                    ) {
+                                        const metadata = getMetadataLazy(lastMessage.__metadata)
+                                        const emptyMessage = createMessageFromSchema(metadata, {
+                                            role: "user",
+                                        })
+                                        emptyMessage.__hidden = true
+                                        messageRow.history.value.push(emptyMessage)
+                                        lastMessage = emptyMessage
+                                    }
                                     const variant = clonedState.variants.find(
                                         (v) => v.id === variantId,
                                     )
@@ -631,13 +667,33 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
 
                                     const runId = generateId()
 
+                                    let messageId = lastMessage.__id
+                                    if (lastMessage.__runs?.[variantId]) {
+                                        const variantResponses = lastMessage.__runs?.[variantId]
+                                            ?.messages
+                                            ? lastMessage.__runs?.[variantId]?.messages
+                                            : [lastMessage.__runs?.[variantId]?.message]
+
+                                        messageId =
+                                            variantResponses[variantResponses.length - 1]?.__id
+                                    }
+
                                     handleInputRowTestStart(lastMessage, variantId, runId)
+
+                                    const chatHistory = constructChatHistory({
+                                        messageRow,
+                                        messageId,
+                                        variantId,
+                                        includeLastMessage: true,
+                                    })
 
                                     postMessageToWorker(
                                         createWorkerMessage("runVariantInputRow", {
                                             variant,
                                             runId,
                                             messageRow,
+                                            chatHistory: chatHistory,
+                                            appType: config.appType,
                                             messageId: lastMessage.__id,
                                             inputRow: variableRow,
                                             rowId: messageRow.__id,
@@ -659,7 +715,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                             }
                         }
                     }
-                    const generateGenerationTestParams = (
+                    const runGenerationTests = (
                         clonedState: PlaygroundStateData,
                         rowId?: string,
                         jwt?: string | undefined,
@@ -720,12 +776,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                 if (isChat) {
                                     runChatTests(clonedState, jwt, visibleVariants)
                                 } else {
-                                    generateGenerationTestParams(
-                                        clonedState,
-                                        rowId,
-                                        jwt,
-                                        visibleVariants,
-                                    )
+                                    runGenerationTests(clonedState, rowId, jwt, visibleVariants)
                                 }
 
                                 return clonedState
