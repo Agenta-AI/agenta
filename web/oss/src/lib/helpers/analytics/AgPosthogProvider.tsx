@@ -5,6 +5,7 @@ import {useRouter} from "next/router"
 
 import {isDemo} from "../utils"
 
+import {getEnv} from "../dynamicEnv"
 import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"
@@ -17,16 +18,16 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const initPosthog = useCallback(async () => {
         if (posthogClient) return
         if (loadingPosthog) return
-        if (!process.env.NEXT_PUBLIC_POSTHOG_API_KEY) return
+        if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return
 
         setLoadingPosthog(true)
 
         try {
             const posthog = (await import("posthog-js")).default
 
-            if (!process.env.NEXT_PUBLIC_POSTHOG_API_KEY) return
+            if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return
 
-            posthog.init(process.env.NEXT_PUBLIC_POSTHOG_API_KEY!, {
+            posthog.init(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"), {
                 api_host: "https://app.posthog.com",
                 // Enable debug mode in development
                 loaded: (posthog) => {
@@ -61,7 +62,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
 }
 
 const CustomPosthogProviderWrapper: CustomPosthogProviderType = ({children, config}) => {
-    if (process.env.NEXT_PUBLIC_POSTHOG_API_KEY) {
+    if (getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) {
         return <CustomPosthogProvider config={config}>{children}</CustomPosthogProvider>
     } else {
         return <>{children}</>

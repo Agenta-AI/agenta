@@ -2,7 +2,7 @@ from typing import List
 from datetime import datetime
 import gzip
 import zlib
-
+import posthog
 
 from google.protobuf.json_format import MessageToDict
 
@@ -62,12 +62,42 @@ def _decompress_data(data: bytes) -> bytes:
         return data
 
 
-def _parse_attribute(attribute):
-    raw_value = attribute.value
-    value_type = list(MessageToDict(raw_value).keys())[0].replace("V", "_v")
-    clean_value = getattr(raw_value, value_type)
+def _decode_value(any_value):
+    """Decode an AnyValue protobuf object to its Python equivalent."""
+    which = any_value.WhichOneof("value")
 
-    return (attribute.key, clean_value)
+    if which == "string_value":
+        return any_value.string_value
+    elif which == "bool_value":
+        return any_value.bool_value
+    elif which == "int_value":
+        return any_value.int_value
+    elif which == "double_value":
+        return any_value.double_value
+    elif which == "array_value":
+        return [_decode_value(value) for value in any_value.array_value.values]
+    elif which == "kvlist_value":
+        return {kv.key: _decode_value(kv.value) for kv in any_value.kvlist_value.values}
+    elif which == "bytes_value":
+        return any_value.bytes_value
+    elif which is None:
+        return None
+    else:
+        log.warning(f"Unknown value type at _decode_value: {which}")
+        return str(any_value)
+
+
+def _parse_attribute(attribute):
+    """Parse an attribute key-value pair, properly handling all protobuf value types."""
+    is_fix_protobuff_handling = posthog.feature_enabled('fix-protobuff-handling', 'user distinct id')
+    if is_fix_protobuff_handling:
+        return (attribute.key, _decode_value(attribute.value))
+    else:
+        raw_value = attribute.value
+        value_type = list(MessageToDict(raw_value).keys())[0].replace("V", "_v")
+        clean_value = getattr(raw_value, value_type)
+        return (attribute.key, clean_value)
+
 
 
 def _parse_timestamp(timestamp_ns: int) -> str:

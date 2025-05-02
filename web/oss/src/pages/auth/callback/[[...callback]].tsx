@@ -8,6 +8,7 @@ import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {useLocalStorage} from "usehooks-ts"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
@@ -28,7 +29,7 @@ const Callback = () => {
             if (response.status === "OK") {
                 setMessage({message: "Verification successful", type: "success"})
                 const isNewUser =
-                    process.env.NEXT_PUBLIC_FF === "cloud" &&
+                    isDemo() &&
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
 
@@ -74,7 +75,7 @@ const Callback = () => {
             if (response.status === "OK") {
                 setMessage({message: "Verification successful", type: "success"})
                 const isNewUser =
-                    process.env.NEXT_PUBLIC_FF === "cloud" &&
+                    isDemo() &&
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
 

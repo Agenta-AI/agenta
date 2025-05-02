@@ -1,0 +1,307 @@
+---
+title: "Quick Start"
+description: "Create a prompt, deploy it to an environment, and integrate it with your codebase using the Agenta SDK in minutes."
+sidebar_position: 1
+---
+```mdx-code-block
+import Image from "@theme/IdealImage";
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import DocCard from '@theme/DocCard';
+```
+
+In this tutorial, we'll walk through three simple steps to get started with Agenta:
+1. Create a prompt in the web UI
+2. Deploy it to an environment
+3. Integrate it with your codebase using the Agenta SDK
+
+<iframe
+  width="850"
+  height="450"
+  src="https://www.youtube.com/embed/UQkAHgEGA2U?si=JVYgVlAkNr3FuDbE"
+  title="YouTube video player"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  allowFullScreen
+  style={{ display: "block", margin: "0 auto" }}
+></iframe>
+
+## 1. Create a prompt
+
+Go to the app overview and click on **Create a Prompt**. You can choose between:
+
+- **Completion Prompt**: For single-turn LLM applications (question answering, text generation, classification)
+- **Chat Application**: For multi-turn applications like chatbots
+
+<Image
+  style={{ width: "100%", display: "block", margin: "0 auto" }}
+  img={require("/images/prompt_management/create-prompt-modal.png")}
+  alt="Create prompt modal showing completion and chat application options"
+/>
+
+## 2. Commit your changes
+
+After making changes to your prompt configuration:
+1. Click the **Commit** button
+2. Choose to commit to the default **variant** or create a new one
+
+:::info
+Variants are like Git branches, allowing you to experiment with different configurations. Each variant is versioned, with each version having its own commit number and being immutable.
+:::
+
+<Image
+  style={{ width: "100%", display: "block", margin: "0 auto" }}
+  img={require("/images/prompt_management/commit-changes-modal.png")}
+  alt="Commit changes modal showing commit message field and variant selection"
+/>
+
+## 3. Deploy to an environment
+
+When you're satisfied with your prompt:
+
+1. Navigate to the **Registry** page
+2. Select the revision you want to deploy
+3. Click the **Deploy** button
+4. Choose the environment (`production`, `development`, or `staging`)
+5. Add optional deployment notes
+
+:::tip
+You can deploy a variant from the **Playground**, the **Registry**, or from the **Deployments** page directly.
+:::
+
+:::note
+Most changes made while iterating on a variant are experimental and not immediately deployed to production. This separation allows you to experiment freely before pushing changes to live environments. Environments are versioned separately from variants, enabling rollbacks if needed.
+:::
+
+<Image
+  style={{ display: "block", margin: "0 auto" }}
+  img={require("/images/prompt_management/deploy.gif")}
+  alt="Animation showing the deployment process in Agenta"
+/>
+
+## 4. Integrate with your code
+
+Access your deployed prompt using either the Agenta Python SDK or the API directly.
+
+<Tabs>
+<TabItem value="sdk" label="Using Python SDK">
+
+First, import and initialize the Agenta SDK:
+
+```python
+import agenta as ag
+# os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+# os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # only needed when self-hosting
+ag.init()
+```
+
+Fetch your prompt configuration from the registry:
+
+```python
+config = ag.ConfigManager.get_from_registry(
+    app_slug="your-app-slug",
+    environment_slug="production"       
+)
+```
+
+:::tip
+For asynchronous applications, use `aget_from_registry` instead.
+:::
+
+The response is a JSON object containing your complete prompt configuration:
+
+```json
+{
+  "prompt": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are an expert in geography"
+      },
+      {
+        "role": "user",
+        "content": "What is the capital of {{country}}? "
+      }
+    ],
+    "input_keys": [
+      "country"
+    ],
+    "llm_config": {
+      "model": "gpt-3.5-turbo",
+      "tools": [],
+      "top_p": 0.2,
+      "max_tokens": 257,
+      "temperature": 0.2,
+      "presence_penalty": -1.7,
+      "frequency_penalty": -1.5,
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "name": "MySchema",
+          "schema": {
+            "type": "object",
+            "properties": {}
+          },
+          "strict": false,
+          "description": "A description of the schema"
+        }
+      }
+    },
+    "template_format": "curly"
+  }
+}
+```
+
+Use the helper class `PromptTemplate` to format your prompt and convert it to OpenAI-compatible parameters:
+
+```python
+prompt = PromptTemplate(**config["prompt"]).format(country="France")
+client = openai.OpenAI()
+response = client.chat.completions.create(
+    **prompt.to_openai_kwargs()
+)
+```
+</TabItem>
+<TabItem value="api" label="Using API (JavaScript)">
+
+```javascript
+const fetchConfigs = async () => {
+  const url = 'https://cloud.agenta.ai/api/variants/configs/fetch';
+
+  const headers = {
+    'Accept': 'application/json',
+    'Authorization': 'YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  };
+
+  const requestData = {
+    environment_ref: {
+      slug: 'production',
+      id: null
+    },
+    application_ref: {
+      slug: 'testprompt',
+      id: null
+    }
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestData)
+    });
+
+    const data = await response.json();
+    console.log('Response:', JSON.stringify(data, null, 2));
+
+  } catch (error) {
+    console.error('Error:', error);
+  }
+};
+
+fetchConfigs();
+```
+
+The response will contain your prompt configuration under `params.prompt`:
+
+```json
+{
+  "params": {
+      "prompt": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are an expert in geography"
+          },
+          {
+            "role": "user",
+            "content": "What is the capital of {{country}}?"
+          }
+        ],
+        "input_keys": ["country"],
+        "llm_config": {
+          "model": "gpt-3.5-turbo",
+          "tools": []
+        },
+        "user_prompt": "What is the capital of {{country}}?",
+        "system_prompt": "You are an expert in geography",
+        "template_format": "curly"
+      }
+    }
+  },
+  "url": "https://cloud.agenta.ai/services/completion",
+  "application_ref": {
+    "slug": "we",
+    "version": null,
+    "commit_message": null,
+    "id": "0196869b-2337-7d51-8a24-fc3893191b5b"
+  },
+  "service_ref": null,
+  "variant_ref": {
+    "slug": "key",
+    "version": 1,
+    "commit_message": "variant commit message",
+    "id": "0196869b-259c-7e11-ba08-ac316a2d41fa"
+  },
+  "environment_ref": {
+    "slug": "production",
+    "version": 1,
+    "commit_message": "test commit message",
+    "id": "0196869c-bd67-7f41-b7bb-d1196f87d4e9"
+  },
+  "variant_lifecycle": {
+    "created_at": "2025-04-30T12:10:36.828905+00:00",
+    "updated_at": "2025-04-30T12:10:36.315388+00:00",
+    "updated_by_id": "01966e0a-9094-7562-8d47-87002335e22b",
+    "updated_by": "me@gmail.com"
+  },
+  "environment_lifecycle": {
+    "created_at": "2025-04-30T12:12:21.223715+00:00",
+    "updated_at": "2025-04-30T12:12:21.223715+00:00",
+    "updated_by_id": "01966e0a-9094-7562-8d47-87002335e22b",
+    "updated_by": "me@gmail.com"
+  }
+}
+```
+</TabItem>
+</Tabs>
+
+:::info
+Model names follow LiteLLM naming conventions: `provider/model` (e.g., `cohere/command-light`), `provider/type/model` (e.g., `openrouter/google/palm-2-chat-bison`), or just `model` for OpenAI models (e.g., `gpt-3.5-turbo`). Custom models use the format `your_custom_provider_name/adapter/model` (e.g., `my_bedrock/bedrock/llama-3.1-8b-instant`).
+:::
+
+:::info
+For simpler observability and cost tracking, Agenta also offers an endpoint to directly call LLMs with your prompt configuration. Learn more in the [proxy LLM calls](/prompt-engineering/prompt-management/proxy-calls) section.
+:::
+
+## Next Steps
+
+Congratulations! You've created a prompt, deployed it to an environment, and integrated it with your codebase. 
+
+To continue your journey with Agenta:
+
+<section className='row'>
+<article key="1" className="col col--6 margin-bottom--lg">
+<DocCard
+    item={{
+      type: "link",
+      href: "/evaluation/no-code-evaluation",
+      label: "Explore the Prompt Management SDK",
+      description: "Learn advanced features of the prompt management SDK"
+    }}
+  />
+</article>
+
+<article key='2' className="col col--6 margin-bottom--lg">
+<DocCard
+    item={{
+      type: "link",
+      href: "/evaluation/sdk-evaluation",
+      label: "Explore the Playground",
+      description: "Learn how to use the playground"
+    }}
+  />
+</article>
+</section>
+

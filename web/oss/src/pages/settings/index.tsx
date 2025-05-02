@@ -1,4 +1,4 @@
-import {useEffect} from "react"
+import {useEffect, useMemo} from "react"
 
 import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
 import {Receipt, Sparkle} from "@phosphor-icons/react"
@@ -48,52 +48,54 @@ const Settings: React.FC = () => {
         }
     }, [project, router])
 
-    const items = [
-        {
-            label: (
-                <Space>
-                    <ApartmentOutlined />
-                    Workspace
-                </Space>
-            ),
-            key: "workspace",
-            children: <WorkspaceManage />,
-        },
-        {
-            label: (
-                <Space>
-                    <Sparkle size={14} className="mt-1" />
-                    Model Hub
-                </Space>
-            ),
-            key: "secrets",
-            children: <Secrets />,
-        },
-        {
-            label: (
-                <Space>
-                    <KeyOutlined />
-                    API Keys
-                </Space>
-            ),
-            key: "apiKeys",
-            children: <APIKeys />,
-        },
-        ...(isDemo()
-            ? [
-                  {
-                      label: (
-                          <Space>
-                              <Receipt size={14} className="mt-1" />
-                              Usage & Billing
-                          </Space>
-                      ),
-                      key: "billing",
-                      children: <Billing />,
-                  },
-              ]
-            : []),
-    ]
+    const items = useMemo(() => {
+        return [
+            {
+                label: (
+                    <Space>
+                        <ApartmentOutlined />
+                        Workspace
+                    </Space>
+                ),
+                key: "workspace",
+                children: <WorkspaceManage />,
+            },
+            {
+                label: (
+                    <Space>
+                        <Sparkle size={14} className="mt-1" />
+                        Model Hub
+                    </Space>
+                ),
+                key: "secrets",
+                children: <Secrets />,
+            },
+            {
+                label: (
+                    <Space>
+                        <KeyOutlined />
+                        API Keys
+                    </Space>
+                ),
+                key: "apiKeys",
+                children: <APIKeys />,
+            },
+            ...(isDemo()
+                ? [
+                      {
+                          label: (
+                              <Space>
+                                  <Receipt size={14} className="mt-1" />
+                                  Usage & Billing
+                              </Space>
+                          ),
+                          key: "billing",
+                          children: <Billing />,
+                      },
+                  ]
+                : []),
+        ]
+    }, [])
 
     return (
         <main className="flex flex-col gap-4">

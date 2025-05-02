@@ -8,15 +8,11 @@ services:
         build:
             context: ../../../web
             dockerfile: oss/docker/Dockerfile.dev
-            args:
-                - NEXT_PUBLIC_AGENTA_API_URL=${DOMAIN_NAME:-http://localhost}:${AGENTA_PORT:-80}
-                - NEXT_PUBLIC_FF=oss
-                - NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED=${TELEMETRY_ENABLED:-true}
-                - NEXT_PUBLIC_POSTHOG_API_KEY=${POSTHOG_API_KEY}
-
+         
         volumes:
             - ../../../web:/app
-
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
         ports:
             - "3000:3000"
         networks:

@@ -13,7 +13,7 @@ const VariantDetailsWithStatus = ({
     hideName = false,
     className,
 }: {
-    variant?: Pick<Variant, "deployedIn" | "isLatestRevision">
+    variant?: Pick<Variant, "deployedIn" | "isLatestRevision"> & {isDraft?: boolean}
     hideName?: boolean
     showBadges?: boolean
     variantName?: string

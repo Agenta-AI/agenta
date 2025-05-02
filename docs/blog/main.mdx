@@ -8,7 +8,51 @@ import Image from "@theme/IdealImage";
 ```
 
 <section class="changelog">
+### Documentation Overhaul, New Models, and Platform Improvements
 
+_2 May 2025_
+
+**v0.43.1**
+
+We've made significant improvements across Agenta with a major documentation overhaul, new model support, self-hosting enhancements, and UI improvements.
+
+**Revamped Prompt Engineering Documentation**:
+
+We've completely rewritten our prompt management and prompt engineering documentation.
+
+Start exploring the new documentation in our updated [Quick Start Guide](/prompt-engineering/quick-start).
+
+**New Model Support**:
+
+Our platform now supports several new LLM models:
+
+- Google's Gemini 2.5 Pro and Flash
+- Alibaba Cloud's Qwen 3
+- OpenAI's GPT-4.1
+
+These models are available in both the playground and through the API.
+
+**Playground Enhancements**:
+
+We've added a draft state to the playground, providing a better editing experience. Changes are now clearly marked as drafts until committed.
+
+**Self-Hosting Improvements**:
+
+We've significantly simplified the self-hosting experience by changing how environment variables are handled in the frontend:
+
+- No more rebuilding images to change ports or domains
+- Dynamic configuration through environment variables at runtime
+
+Check out our updated [self-hosting documentation](/self-host/host-locally) for details.
+
+**Bug Fixes and Optimizations**:
+
+- Fixed OpenTelemetry integration edge cases
+- Resolved edge cases in the API that affected certain workflow configurations
+- Improved UI responsiveness and fixed minor visual inconsistencies
+- Added chat support in cloud
+
+---
 ### OpenTelemetry Compliance and Custom workflows from API
 
 _11 March 2025_
@@ -250,7 +294,7 @@ We’ll publish a full blog post soon, but here’s a quick look at what the new
 
 **Next: Prompt Management**
 
-We’ve completely rewritten the [prompt management SDK](/prompt-management/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
+We’ve completely rewritten the [prompt management SDK](/prompt-engineering/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
 
 **And finally: LLM-as-a-Judge Overhaul**
 
@@ -573,7 +617,7 @@ config = agenta.get_config(base_id="xxxxx", environment="production", cache_time
 
 ```
 
-You can find additional documentation [here](/prompt-management/integration/how-to-integrate-with-agenta).
+You can find additional documentation [here](/prompt-engineering/prompt-management/how-to-integrate-with-agenta).
 
 **Improvements**
 

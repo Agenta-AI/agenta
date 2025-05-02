@@ -22,6 +22,7 @@ import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
 import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useStyles, type StyleProps} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
@@ -236,56 +237,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
             setHasCapturedTheme(true)
         }
     }, [hasCapturedTheme])
-
-    useEffect(() => {
-        if (user && isDemo()) {
-            ;(window as any).intercomSettings = {
-                api_base: "https://api-iam.intercom.io",
-                app_id: process.env.NEXT_PUBLIC_INTERCOM_APP_ID,
-                name: user.username,
-                email: user.email,
-            }
-            ;(function () {
-                const w: any = window
-                const ic = w.Intercom
-                if (typeof ic === "function") {
-                    ic("reattach_activator")
-                    ic("update", (window as any).intercomSettings)
-                } else {
-                    const d = document
-                    const i: any = function () {
-                        // @ts-ignore
-                        i.c(arguments)
-                    }
-                    i.q = []
-                    i.c = function (args: any) {
-                        i.q.push(args)
-                    }
-                    w.Intercom = i
-                    const l = function () {
-                        const s = d.createElement("script")
-                        s.type = "text/javascript"
-                        s.async = true
-                        s.src = `https://widget.intercom.io/widget/${process.env.NEXT_PUBLIC_INTERCOM_APP_ID}`
-                        const x: any = d.getElementsByTagName("script")[0]
-                        x.parentNode.insertBefore(s, x)
-                    }
-                    if (document.readyState === "complete") {
-                        l()
-                    } else if (w.attachEvent) {
-                        w.attachEvent("onload", l)
-                    } else {
-                        w.addEventListener("load", l, false)
-                    }
-                }
-            })()
-        } else {
-            if ((window as any).Intercom) {
-                ;(window as any).Intercom("shutdown")
-                delete (window as any).intercomSettings
-            }
-        }
-    }, [user])
 
     useEffect(() => {
         if (typeof window === "undefined") return

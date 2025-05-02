@@ -246,6 +246,88 @@ Asynchronously deploys a variant to a specified environment.
 
 - **Returns:** A deployment object containing details of the deployment.
 
+## Data Formats
+
+### Configuration Overview
+
+Configurations in Agenta store application parameters. An application can be:
+- A simple prompt (`completion` or `chat` application)
+- A more complex custom workflow application
+
+For custom workflows, users define the configuration schema. For `completion` or `chat` applications, Agenta provides the schema.
+
+:::warning
+The variant creation and update endpoints currently don't validate configuration schemas. Invalid configurations can be created but won't work in the playground.
+:::
+
+### Prompt Configuration Schema
+
+For `completion` or `chat` applications, configurations follow this schema:
+
+:::info
+This schema extends OpenAI's ChatCompletion API schema. See the implementation in [agenta.sdk.types](https://github.com/agenta-ai/agenta/blob/main/sdk/agenta/sdk/types.py).
+:::
+
+:::warning
+All configuration data must be nested under the `prompt` key.
+:::
+
+| Field | Type | Description |
+|-------|------|-------------|
+| prompt.messages | array | List of message objects with role and content |
+| prompt.messages[].role | string | Message role: `system`, `user`, `assistant`, `function`, or `tool` |
+| prompt.messages[].content | string | Message content |
+| prompt.template_format | string | Template variable format: `fstring` \{var\}, `jinja2` \{\{ var \}\}, or `curly` \{\{var\}\} |
+| prompt.input_keys | array or null | Optional input key validation list. If omitted, accepts any inputs |
+| prompt.llm_config | object | Model configuration parameters |
+| prompt.llm_config.model | string | Model identifier in LiteLLM naming format |
+| prompt.llm_config.temperature | number or null | Sampling temperature (0-2). Higher values increase randomness |
+| prompt.llm_config.max_tokens | integer or null | Maximum tokens in the response |
+| prompt.llm_config.top_p | number or null | Nucleus sampling parameter (alternative to temperature) |
+| prompt.llm_config.frequency_penalty | number or null | Penalty for token frequency (-2.0 to 2.0) |
+| prompt.llm_config.presence_penalty | number or null | Penalty for token presence (-2.0 to 2.0) |
+| prompt.llm_config.response_format | object or null | Output format specification |
+| prompt.llm_config.response_format.type | string | Format type: `text`, `json_object`, or `json_schema` |
+| prompt.llm_config.response_format.json_schema | object | Schema definition (required when type is `json_schema`) |
+| prompt.llm_config.response_format.json_schema.name | string | Schema name |
+| prompt.llm_config.response_format.json_schema.description | string or null | Optional schema description |
+| prompt.llm_config.response_format.json_schema.schema | object | JSON Schema object defining the structure |
+| prompt.llm_config.response_format.json_schema.strict | boolean or null | Enable strict schema adherence |
+| prompt.llm_config.stream | boolean or null | Enable partial message streaming |
+| prompt.llm_config.tools | array or null | List of available tools (currently only functions supported) |
+
+### Example Prompt Configuration
+
+```json
+{
+  "prompt": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are an assistant that provides concise answers"
+      },
+      {
+        "role": "user",
+        "content": "Explain {{topic}} in simple terms"
+      }
+    ],
+    "llm_config": {
+      "model": "gpt-3.5-turbo",
+      "temperature": 0.7,
+      "max_tokens": 150,
+      "top_p": 1.0,
+      "frequency_penalty": 0.0,
+      "presence_penalty": 0.0
+    },
+    "template_format": "curly"
+  }
+}
+```
+
+:::note
+You can use the `PromptTemplate` class in the SDK to create and validate a prompt configuration. See [how to commit a variant](/prompt-engineering/prompt-management/prompt-management-sdk#create-a-new-variant).
+:::
+
 ## Available Environments
 
 A list of available environment slugs.

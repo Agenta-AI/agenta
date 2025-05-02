@@ -101,12 +101,11 @@ const PlaygroundVariantConfigHeader = ({
                     variant={{
                         deployedIn: deployedIn,
                         isLatestRevision: isLatestRevision ?? false,
+                        isDraft: isDirty ?? false,
                     }}
                     showBadges
                     hideName
                 />
-
-                {/* <Version revision={variantRevision as number} /> */}
             </div>
             <div className="flex items-center gap-2">
                 <DeployVariantButton revisionId={variantId} />

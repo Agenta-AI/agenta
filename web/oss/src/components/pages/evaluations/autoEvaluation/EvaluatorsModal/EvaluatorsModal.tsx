@@ -1,9 +1,8 @@
 // @ts-nocheck
 import {useEffect, useMemo, useState} from "react"
 
-import {Modal} from "antd"
+import {ModalProps} from "antd"
 import {useAtom} from "jotai"
-import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 
 import {useAppsData} from "@/oss/contexts/app.context"
@@ -18,33 +17,13 @@ import ConfigureEvaluator from "./ConfigureEvaluator"
 import Evaluators from "./Evaluators"
 import NewEvaluator from "./NewEvaluator"
 import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
-type EvaluatorsModalProps = {
+interface EvaluatorsModalProps extends ModalProps {
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     openedFromNewEvaluation?: boolean
-} & React.ComponentProps<typeof Modal>
-
-const useStyles = createUseStyles(() => ({
-    modalWrapper: ({current, debugEvaluator}: {current: number; debugEvaluator: boolean}) => ({
-        height: "95vh",
-        width: `${current === 2 && !debugEvaluator ? "600px" : "90vw"} !important`,
-        maxWidth: "1800px",
-        maxHeight: "1100px",
-        minWidth: current === 2 && !debugEvaluator ? "600px" : "1000px",
-        minHeight: "800px",
-        transition: "width 0.3s ease",
-        "& > div": {
-            height: "100%",
-        },
-        "& .ant-modal-content": {
-            height: "100%",
-            "& .ant-modal-body": {
-                height: "100%",
-            },
-        },
-    }),
-}))
+}
 
 const EvaluatorsModal = ({
     current,
@@ -54,7 +33,7 @@ const EvaluatorsModal = ({
 }: EvaluatorsModalProps) => {
     const appId = useAppId()
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
-    const classes = useStyles({current, debugEvaluator})
+
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
@@ -182,17 +161,19 @@ const EvaluatorsModal = ({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             footer={null}
             closeIcon={null}
             title={null}
-            className={classes.modalWrapper}
+            height={800}
+            width={current === 2 && !debugEvaluator ? "600px" : "90vw"}
+            className="[&_>div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden transition-width duration-300 ease-in-out min-w-[800px] max-w-[1800px]"
+            classNames={{body: "!h-full !overflow-auto"}}
             maskClosable={false}
-            centered
             {...props}
         >
             {steps[current]?.content}
-        </Modal>
+        </EnhancedModal>
     )
 }
 

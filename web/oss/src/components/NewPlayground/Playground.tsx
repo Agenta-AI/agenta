@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, type JSX, type FC} from "react"
+import {useCallback, useEffect, useMemo, useRef, type FC, type JSX} from "react"
 
 import {Typography} from "antd"
 import dynamic from "next/dynamic"

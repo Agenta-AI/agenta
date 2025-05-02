@@ -1,14 +1,15 @@
-import {Modal} from "antd"
+import {ModalProps} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {JSSTheme, testset, TestsetCreationMode} from "@/oss/lib/Types"
+import {testset, TestsetCreationMode} from "@/oss/lib/Types"
 
 import CreateTestset from "./CreateTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
 import UploadTestset from "./UploadTestset"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
+const useStyles = createUseStyles(() => ({
     modal: {
         transition: "width 0.3s ease",
         "& .ant-modal-content": {
@@ -21,14 +22,14 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-type Props = {
+interface Props extends ModalProps {
     testsetCreationMode: TestsetCreationMode
     setTestsetCreationMode: React.Dispatch<React.SetStateAction<TestsetCreationMode>>
     editTestsetValues: testset | null
     setEditTestsetValues: React.Dispatch<React.SetStateAction<testset | null>>
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
-} & React.ComponentProps<typeof Modal>
+}
 
 const TestsetModal: React.FC<Props> = ({
     testsetCreationMode,
@@ -74,18 +75,16 @@ const TestsetModal: React.FC<Props> = ({
     ]
 
     return (
-        <Modal
-            afterClose={onCloseModal}
+        <EnhancedModal
             footer={null}
             title={null}
+            width={480}
+            afterClose={onCloseModal}
             className={classes.modal}
             {...props}
-            width={480}
-            centered
-            destroyOnClose
         >
             {steps[current]?.content}
-        </Modal>
+        </EnhancedModal>
     )
 }
 

@@ -1,0 +1,35 @@
+---
+title: Distributed Tracing with OpenTelemetry
+sidebar_label: Distributed Tracing in Otel
+description: "Learn how to use OpenTelemetry to instrument your LLM application with Agenta for enhanced observability."
+---
+
+:::note
+This document describes how Agenta uses OpenTelemetry to instrument your LLM application. This is an advanced deep dive into our implementation of OpenTelemetry. In most cases, you do not need to read this document, you can just use the how tos and quickstarts to instrument your application. 
+:::
+
+
+## Overview
+Agenta uses OpenTelemetry (OTel) to instrument your LLM application. OTel is a vendor-neutral standard for application observability, and Agenta provides built-in support for it.
+OTel specifies a set of standard attributes and events that can be used to instrument your application. However, it still does not provide complete and agreed on convention on how to name the attributes, neither ways how to save the data. 
+
+Agenta uses its own convention for naming the attributes and saving the data. This is a set of conventions that Agenta uses to instrument your application. Additionally, we provide adapters to convert the attributes from most known attributes to Agenta's convention.
+
+In this document, we will introduce the main relevant concepts of opentelemetry to set the context (can be skipped if you are already familiar with opentelemetry), describes the challenges when instrumenting an LLM application, provide the attributes that Agenta uses, how the Agenta architecture works and the data model Agenta uses to save the data, then finally what does it mean for you.
+
+
+## OpenTelemetry Concepts
+
+## OpenTelemetry for LLM Applications
+
+- what information do you want to instrument for llm applications
+- challenges for instruementing llm applications
+-- surfacing information in llm observability platform -> context vs. raw
+-- cost computation
+-- referencing other entities
+-- multi-modality
+
+## Agenta semantic conventions
+
+## Agenta Architecture
+
