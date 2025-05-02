@@ -52,17 +52,13 @@ DOMAIN_NAME=http://192.168.1.100
 BARE_DOMAIN_NAME=192.168.1.100
 ```
 
-## Step 3: Build and Deploy
+## Step 3: Deploy
 
-Run the following command to build and deploy Agenta:
+Run the following command to deploy Agenta:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d --build
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
 ```
-
-:::info
-At the moment, you need to rebuild the web image because the domain name is hardcoded at build time in Next.js. Other services can use the pre-built images from Docker Hub.
-:::
 
 ## Step 4: Verify Your Deployment
 

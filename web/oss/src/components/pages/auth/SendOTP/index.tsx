@@ -1,7 +1,7 @@
 import {useRef, useState} from "react"
 
 import {ArrowLeft} from "@phosphor-icons/react"
-import {Input, Button, Form, Typography, FormProps} from "antd"
+import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
 import {useRouter} from "next/router"
 import {
@@ -15,6 +15,7 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 const {Text, Title} = Typography
 
@@ -83,7 +84,7 @@ const SendOTP = ({
                 setMessage({message: "Verification successful", type: "success"})
 
                 if (
-                    process.env.NEXT_PUBLIC_FF === "cloud" &&
+                    isDemo() &&
                     response.createdNewRecipeUser &&
                     response.user.loginMethods.length === 1
                 ) {

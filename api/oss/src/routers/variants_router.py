@@ -1,4 +1,5 @@
 from typing import Any, Optional, Union, List
+from uuid import UUID
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, Body, status
@@ -73,9 +74,7 @@ async def add_variant_from_base_and_config(
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
-        else payload.new_config_name
-        if payload.new_config_name
-        else base_db.base_name
+        else payload.new_config_name if payload.new_config_name else base_db.base_name
     )
     db_app_variant = await db_manager.add_variant_from_base_and_config(
         base_db=base_db,
@@ -447,7 +446,7 @@ class ConfigRequest(BaseModel):
 
 
 class ReferenceRequestModel(ReferenceDTO):
-    pass
+    id: Optional[UUID] = None
 
 
 class ConfigRequestModel(ConfigDTO):
@@ -509,6 +508,23 @@ async def configs_fetch(
     environment_ref: Optional[ReferenceRequestModel] = None,
     application_ref: Optional[ReferenceRequestModel] = None,
 ):
+    """Fetch configuration for a variant or environment.
+
+    Either variant_ref OR environment_ref must be provided (if neither is provided,
+    a default environment_ref with slug="production" will be used).
+
+    For each reference object (variant_ref, environment_ref, application_ref):
+    - Provide either 'slug' or 'id' field
+    - 'version' is optional and can be set to null
+    - If 'id' is provided, it will be used directly to fetch the resource
+    - Otherwise, 'slug' will be used along with application_ref
+
+    Returns:
+        ConfigResponseModel: The configuration for the requested variant or environment.
+
+    Raises:
+        HTTPException: If the configuration is not found.
+    """
     config = None
     if variant_ref:
         config = await fetch_config_by_variant_ref(

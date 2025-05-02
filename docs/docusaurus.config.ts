@@ -301,6 +301,38 @@ const config: Config = {
         from: "/reference/sdk/quick_start",
         to: "/reference/sdk/configuration-management",
       },
+      {
+        from: "/prompt-management/overview",
+        to: "/prompt-engineering/overview",
+      },
+      {
+        from: "/prompt-management/quick-start",
+        to: "/prompt-engineering/quick-start",
+      },
+      {
+        from: "/prompt-management/prompt-management-sdk",
+        to: "/prompt-engineering/prompt-management/prompt-management-sdk",
+      },
+      {
+        from: "/prompt-management/adding-custom-providers",
+        to: "/prompt-engineering/playground/adding-custom-providers",
+      },
+      {
+        from: "/prompt-management/using-the-playground",
+        to: "/prompt-engineering/playground/using-the-playground",
+      },
+      {
+        from: "/prompt-management/integration/how-to-integrate-with-agenta",
+        to: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
+      },
+      {
+        from: "/prompt-management/integration/fetch-prompts",
+        to: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
+      },
+      {
+        from: "/prompt-management/integration/proxy-calls",
+        to: "/prompt-engineering/prompt-management/proxy-calls",
+      }
       ],
         createRedirects(existingPath) {
           if (existingPath.includes('/reference/sdk/core_functions')) {

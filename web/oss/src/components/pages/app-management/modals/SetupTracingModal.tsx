@@ -2,14 +2,16 @@ import {useState} from "react"
 
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
 import {CodeBlock, FileTs, Play} from "@phosphor-icons/react"
-import {Button, Flex, Modal, Space, Tabs, TabsProps, Typography} from "antd"
+import {Button, Flex, ModalProps, Space, Tabs, TabsProps, Typography} from "antd"
 import dynamic from "next/dynamic"
 import {IBM_Plex_Mono} from "next/font/google"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 const ApiKeyInput: any = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -17,7 +19,7 @@ const ApiKeyInput: any = dynamic(
 
 const ibm_plex_mono = IBM_Plex_Mono({weight: "400", subsets: ["latin"]})
 
-type SetupTracingModalProps = {} & React.ComponentProps<typeof Modal>
+interface SetupTracingModalProps extends ModalProps {}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     modalContainer: {
@@ -141,7 +143,7 @@ import agenta as ag
 import openai
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 
-os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
+os.environ["AGENTA_HOST"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"
 ${isDemo() ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""}
 
 ag.init()
@@ -169,8 +171,8 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 
-os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
-${isDemo() ? `os.environ["AGENTA_API_KEY"] = ${apiKeyValue || "{API_KEY}"}` : ""}
+os.environ["AGENTA_HOST"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""}
 
 ag.init()
 LangchainInstrumentor().instrument()
@@ -195,8 +197,8 @@ import agenta as ag
 import litellm
 import asyncio
 
-os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
-${isDemo() ? `os.environ["AGENTA_API_KEY"] = ${apiKeyValue || "{API_KEY}"}` : ""}
+os.environ["AGENTA_HOST"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"
+${isDemo() ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""}
 
 ag.init()
 litellm.callbacks = [ag.callbacks.litellm_handler()]
@@ -225,7 +227,7 @@ import openai
 import instructor
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 
-os.environ["AGENTA_HOST"] = "${process.env.NEXT_PUBLIC_AGENTA_API_URL}"
+os.environ["AGENTA_HOST"] = "${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}"
 ${isDemo() ? `os.environ["AGENTA_API_KEY"] = "${apiKeyValue || "{API_KEY}"}"` : ""}
 
 ag.init()
@@ -302,14 +304,12 @@ print(response["choices"][0]["message"]["content"])`,
     ]
 
     return (
-        <Modal
-            destroyOnClose
+        <EnhancedModal
             footer={null}
             title={null}
             className={classes.modalContainer}
             width={720}
             height={832}
-            centered
             closeIcon={null}
             {...props}
         >
@@ -340,7 +340,7 @@ print(response["choices"][0]["message"]["content"])`,
                     <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />
                 </div>
             </div>
-        </Modal>
+        </EnhancedModal>
     )
 }
 

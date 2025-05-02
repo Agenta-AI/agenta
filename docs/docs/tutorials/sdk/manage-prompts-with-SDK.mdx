@@ -28,6 +28,7 @@ The workflow for deploying a change to production that we'll follow in this tuto
 Before using the SDK, we need to initialize it using the `ag.init()` method, which takes the host (default `cloud.agenta.ai`) and the API key (not required for community editions):
 
 ```python
+import os
 import agenta as ag
 
 # Initialize the SDK with your API key
@@ -49,24 +50,36 @@ We're going to create a new completion prompt called `topic-explainer`.
 Variants are similar to branches in **git**. Any change to the prompt must first be committed to a variant. Here, we'll create a new variant and make our first commit to it using the `VariantManager.create` method:
 
 ```python
+from agenta.sdk.types import PromptTemplate, Message, ModelConfig
+from pydantic import BaseModel
 
-from agenta import Prompt
+# We need to create a Pydantic Model with a `prompt` field of type `PromptTemplate`
+class Config(BaseModel):
+    prompt: PromptTemplate
 
-# Prompt is a pydantic BaseModel, for additional validation
-my_prompt = Prompt(temperature=0.6,
-       model="gpt-3.5-turbo",
-       max_tokens=150,
-        prompt_system="You are an assistant that provides concise answers",
-        prompt_user="Explain {topic} in simple terms",
-       top_p=1.0,
-       frequency_penalty=0.0,
-       presence_penalty=0.0 )
+config = Config(
+    prompt=PromptTemplate(
+        messages=[
+            Message(role="system", content="You are an assistant that provides concise answers"),
+            Message(role="user", content="Explain {{topic}} in simple terms"),
+        ],
+        llm_config=ModelConfig(
+            model="gpt-3.5-turbo",
+            max_tokens=150,
+            temperature=0.6,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+        ),
+        template_format="curly"
+    )
+)
 
 # Create a new variant
 variant = ag.VariantManager.create(
+    parameters=config.model_dump(),
     app_slug="topic-explainer",
-    variant_slug="new-variant",
-    config_parameters=my_prompt.dict()
+    variant_slug="new-variant"
 )
 
 print("Created variant:")
@@ -78,31 +91,63 @@ This command will create a new variant and initialize it with the first commit c
 - **Parameters:**
   - `app_slug`: The unique slug of your application.
   - `variant_slug`: The unique slug of the new variant.
-  - `config_parameters`: A dictionary containing the initial configuration parameters.
+  - `parameters`: A dictionary containing the initial configuration parameters.
 
 **Sample Output:**
 
 ```python
 Created variant:
 {
-    'parameters': {
-        'temperature': 0.6,
-        'model': 'gpt-3.5-turbo',
-        'max_tokens': 150,
-        'prompt_system': 'You are an assistant that provides concise answers.',
-        'prompt_user': 'Explain {topic} in simple terms.',
-        'top_p': 1.0,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0
-    },
-    'app_id': 'my-app-id',
-    'app_slug': 'my-app-slug',
-    'variant_id': 'new-variant-id',
-    'variant_slug': 'my-variant-slug',
-    'variant_version': 1,
-    'committed_at': 'current-datetime',
-    'committed_by': 'my-email-address',
-    'committed_by_id': 'my-user-id',
+    "app_id": "01963413-3d39-7650-80ce-3ad5d688da6c",
+    "app_slug": "topic-explainer",
+    "variant_id": "01968c11-6f7c-7773-b273-922c5807be7b",
+    "variant_slug": "new-variant",
+    "variant_version": 1,
+    "environment_id": null,
+    "environment_slug": null,
+    "environment_version": null,
+    "committed_at": "2025-05-01T07:26:08.935406+00:00",
+    "committed_by": "user@agenta.ai",
+    "committed_by_id": "0196247a-ec9d-7051-8880-d58279570aa1",
+    "deployed_at": null,
+    "deployed_by": null,
+    "deployed_by_id": null,
+    "params": {
+        "prompt": {
+            "messages": [
+                {
+                    "name": null,
+                    "role": "system",
+                    "content": "You are an assistant that provides concise answers",
+                    "tool_calls": null,
+                    "tool_call_id": null
+                },
+                {
+                    "name": null,
+                    "role": "user",
+                    "content": "Explain {{topic}} in simple terms",
+                    "tool_calls": null,
+                    "tool_call_id": null
+                }
+            ],
+            "input_keys": null,
+            "llm_config": {
+                "model": "gpt-3.5-turbo",
+                "tools": null,
+                "top_p": 1.0,
+                "stream": null,
+                "max_tokens": 150,
+                "temperature": 0.6,
+                "tool_choice": null,
+                "response_format": null,
+                "presence_penalty": 0.0,
+                "frequency_penalty": 0.0
+            },
+            "user_prompt": null,
+            "system_prompt": null,
+            "template_format": "curly"
+        }
+    }
 }
 ```
 
@@ -136,27 +181,56 @@ print(deployment)
 ```python
 Deployed variant to environment:
 {
-    'parameters': {
-        'temperature': 0.7,
-        'model': 'gpt-3.5-turbo',
-        'max_tokens': 150,
-        'prompt_system': 'You are an assistant that provides concise answers.',
-        'prompt_user': 'Explain {topic} in simple terms.',
-        'top_p': 1.0,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0
-    },
-    'app_id': 'my-app-id',
-    'app_slug': 'topic-explainer',
-    'variant_id': 'new-variant-id',
-    'variant_slug': 'my-variant-slug',
-    'variant_version': 1,
-    'environment_id': 'production-enviroment-id',
-    'environment_slug': 'production',
-    'environment_version': 1,
-    'deployed_at': 'current-datetime',
-    'deployed_by': 'my-email-address',
-    'deployed_by_id': 'my-user-id',
+    "app_id": "01963413-3d39-7650-80ce-3ad5d688da6c",
+    "app_slug": "topic-explainer",
+    "variant_id": "01968c11-6f7c-7773-b273-922c5807be7b",
+    "variant_slug": "new-variant",
+    "variant_version": 1,
+    "environment_id": "01968c14-c35d-7440-bcc8-9def594f017f",
+    "environment_slug": "production",
+    "environment_version": 1,
+    "committed_at": "2025-05-01T07:26:08.935406+00:00",
+    "committed_by": "user@agenta.ai",
+    "committed_by_id": "0196247a-ec9d-7051-8880-d58279570aa1",
+    "deployed_at": "2025-05-01T13:41:33.149595+00:00",
+    "deployed_by": "user@agenta.ai",
+    "deployed_by_id": "0196247a-ec9d-7051-8880-d58279570aa1",
+    "params": {
+        "prompt": {
+            "messages": [
+                {
+                    "name": null,
+                    "role": "system",
+                    "content": "You are an assistant that provides concise answers",
+                    "tool_calls": null,
+                    "tool_call_id": null
+                },
+                {
+                    "name": null,
+                    "role": "user",
+                    "content": "Explain {{topic}} in simple terms",
+                    "tool_calls": null,
+                    "tool_call_id": null
+                }
+            ],
+            "input_keys": null,
+            "llm_config": {
+                "model": "gpt-3.5-turbo",
+                "tools": null,
+                "top_p": 1.0,
+                "stream": null,
+                "max_tokens": 150,
+                "temperature": 0.6,
+                "tool_choice": null,
+                "response_format": null,
+                "presence_penalty": 0.0,
+                "frequency_penalty": 0.0
+            },
+            "user_prompt": null,
+            "system_prompt": null,
+            "template_format": "curly"
+        }
+    }
 }
 ```
 
@@ -166,25 +240,32 @@ Deployed variant to environment:
 
 We're now going to commit changes to our variant. Note that this will not modify the version in deployment!
 
-To save changes to a variant (creating a new version), we are goin to use the `VariantManager.commit` method with explicit parameters.
+To save changes to a variant (creating a new version), we are going to use the `VariantManager.commit` method with explicit parameters.
 
 ```python
-my_prompt2 = Prompt(
-    temperature=0.9,
-    model="gpt-3.5-turbo",
-    max_tokens=150,
-    prompt_system="You are an assistant that provides concise answers",
-    prompt_user="Use Paul Graham style to explain {topic} in simple terms.",
-    top_p=1.0,
-    frequency_penalty=0.0,
-    presence_penalty=0.0 )
-
+config2 = Config(
+    prompt=PromptTemplate(
+        messages=[
+            Message(role="system", content="You are an assistant that provides concise answers"),
+            Message(role="user", content="Use Paul Graham style to explain {{topic}} in simple terms."),
+        ],
+        llm_config=ModelConfig(
+            model="gpt-3.5-turbo",
+            max_tokens=150,
+            temperature=0.9,
+            top_p=1.0,
+            frequency_penalty=0.0,
+            presence_penalty=0.0,
+        ),
+        template_format="curly"
+    )
+)
 
 # Commit the new version
 variant = ag.VariantManager.commit(
+    parameters=config2.model_dump(),
     app_slug="topic-explainer",
-    variant_slug="new-variant",
-    config_parameters=my_prompt2.dict()
+    variant_slug="new-variant"
 )
 
 print("Committed new version of variant:")
@@ -200,24 +281,56 @@ Each commit creates a new version of the variant. Versions are immutable once cr
 ```python
 Committed new version of variant:
 {
-    'parameters': {
-        'temperature': 0.9,
-        'model': 'gpt-3.5-turbo',
-        'max_tokens': 150,
-        'prompt_system': 'You are an assistant that provides concise answers.',
-        'prompt_user': 'Use Paul Graham style to explain {topic} in simple terms.',
-        'top_p': 1.0,
-        'frequency_penalty': 0.0,
-        'presence_penalty': 0.0
-    },
-    'app_id': 'my-app-id',
-    'app_slug': 'topic-explainer',
-    'variant_id': 'new-variant-id',
-    'variant_slug': 'new-variant-slug',
-    'variant_version': 2,
-    'committed_at': 'current-datetime',
-    'committed_by': 'my-email-address',
-    'committed_by_id': 'my-user-id',
+    "app_id": "01963413-3d39-7650-80ce-3ad5d688da6c",
+    "app_slug": "topic-explainer",
+    "variant_id": "01968c11-6f7c-7773-b273-922c5807be7b",
+    "variant_slug": "new-variant",
+    "variant_version": 2,
+    "environment_id": null,
+    "environment_slug": null,
+    "environment_version": null,
+    "committed_at": "2025-05-01T07:26:08.935406+00:00",
+    "committed_by": "user@agenta.ai",
+    "committed_by_id": "0196247a-ec9d-7051-8880-d58279570aa1",
+    "deployed_at": null,
+    "deployed_by": null,
+    "deployed_by_id": null,
+    "params": {
+        "prompt": {
+            "messages": [
+                {
+                    "name": null,
+                    "role": "system",
+                    "content": "You are an assistant that provides concise answers",
+                    "tool_calls": null,
+                    "tool_call_id": null
+                },
+                {
+                    "name": null,
+                    "role": "user",
+                    "content": "Use Paul Graham style to explain {{topic}} in simple terms.",
+                    "tool_calls": null,
+                    "tool_call_id": null
+                }
+            ],
+            "input_keys": null,
+            "llm_config": {
+                "model": "gpt-3.5-turbo",
+                "tools": null,
+                "top_p": 1.0,
+                "stream": null,
+                "max_tokens": 150,
+                "temperature": 0.9,
+                "tool_choice": null,
+                "response_format": null,
+                "presence_penalty": 0.0,
+                "frequency_penalty": 0.0
+            },
+            "user_prompt": null,
+            "system_prompt": null,
+            "template_format": "curly"
+        }
+    }
 }
 ```
 
@@ -226,24 +339,28 @@ Committed new version of variant:
 Now we'll fetch and use the prompt that's in production. Keep in mind that the production environment still references the first version of our variant. If we want it to reflect the latest changes, we'll need to deploy it again.
 
 ```python
-# Fetch configuration from the staging environment
+# Fetch configuration from the production environment
 config = ag.ConfigManager.get_from_registry(
     app_slug="topic-explainer",
     environment_slug="production"
 )
-myprompt = Prompt(config)
+
 print("Fetched configuration from production:")
 print(config)
 
-client.completion(
-    model=myprompt.model,
-    messages=format_prompt(myprompt.prompt, topic),
-    temperature=myprompt.temperature,
-    max_tokens=myprompt.max_tokens,
-    top_p=myprompt.top_p,
-    frequency_penalty=myprompt.frequency_penalty,
-    presence_penalty=myprompt.presence_penalty,
+# Using the configuration with OpenAI client
+from openai import OpenAI
+
+# Format the prompt with your topic
+topic = "artificial intelligence"
+prompt = PromptTemplate(**config["prompt"]).format(topic=topic)
+client = OpenAI()
+
+response = client.chat.completions.create(
+    **prompt.to_openai_kwargs()
 )
+
+print(response.choices[0].message.content)
 ```
 
 ## Next Steps

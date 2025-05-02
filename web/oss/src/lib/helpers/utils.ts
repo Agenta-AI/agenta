@@ -13,6 +13,7 @@ import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
+import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
 
 if (typeof window !== "undefined") {
@@ -112,8 +113,8 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
 }
 
 export const isDemo = () => {
-    if (process.env.NEXT_PUBLIC_FF) {
-        return ["cloud", "ee", "cloud-dev"].includes(process.env.NEXT_PUBLIC_FF)
+    if (getEnv("NEXT_PUBLIC_FF")) {
+        return ["cloud", "ee", "cloud-dev"].includes(getEnv("NEXT_PUBLIC_FF"))
     }
     return false
 }
@@ -193,7 +194,7 @@ const formatMessages = (messages: any) => {
 }
 
 export const getAgentaApiUrl = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_AGENTA_API_URL
+    const apiUrl = getEnv("NEXT_PUBLIC_AGENTA_API_URL")
 
     if (!apiUrl && typeof window !== "undefined") {
         return `${window.location.protocol}//${window.location.hostname}`

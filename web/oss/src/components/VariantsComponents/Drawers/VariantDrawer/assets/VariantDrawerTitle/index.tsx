@@ -142,7 +142,11 @@ const VariantDrawerTitle = ({
                     <VariantDetailsWithStatus
                         variantName={selectedVariant?.variantName}
                         revision={selectedVariant?.revision}
-                        variant={selectedVariant}
+                        variant={{
+                            deployedIn: selectedVariant?.deployedIn,
+                            isLatestRevision: selectedVariant?.isLatestRevision ?? false,
+                            isDraft: isDirty ?? false,
+                        }}
                     />
                 </div>
             </div>

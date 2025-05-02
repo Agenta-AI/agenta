@@ -5,8 +5,9 @@ import {type PostHog} from "posthog-js"
 
 import {useProfileData} from "@/oss/contexts/profile.context"
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
-import {isDemo, generateOrRetrieveDistinctId} from "@/oss/lib/helpers/utils"
+import {generateOrRetrieveDistinctId, isDemo} from "@/oss/lib/helpers/utils"
 
+import {getEnv} from "../../dynamicEnv"
 import {posthogAtom} from "../store/atoms"
 
 interface ExtendedPostHog extends PostHog {
@@ -15,7 +16,7 @@ interface ExtendedPostHog extends PostHog {
 }
 
 export const usePostHogAg = (): ExtendedPostHog | null => {
-    const trackingEnabled = process.env.NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED === "true"
+    const trackingEnabled = getEnv("NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED") === "true"
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
 

@@ -83,11 +83,11 @@ Agenta is a platform for building production-grade LLM applications. It helps **
 Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make sure nothing breaks in production.
 
 - **Interactive Playground**: Compare prompts side by side against your test cases
-- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://docs.agenta.ai/prompt-management/adding-custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
 - **Version Control**: Version prompts and configurations with branching and environments
 - **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://docs.agenta.ai/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
 
-[Explore prompt management →](https://docs.agenta.ai/prompt-management/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
+[Explore prompt management →](https://docs.agenta.ai/prompt-engineering/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 ### 📊 Evaluation & Testing
 Evaluate your LLM applications systematically with both human and automated feedback.
