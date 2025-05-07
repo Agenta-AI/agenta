@@ -1,4 +1,4 @@
-import {GenerationInputRow} from "@/oss/components/NewPlayground/state/types"
+import {GenerationInputRow} from "@/oss/components/Playground/state/types"
 import {hashMetadata} from "@/oss/lib/hooks/useStatelessVariants/assets/hash"
 
 import {getSpecLazy} from "../../hooks/useStatelessVariants/state"

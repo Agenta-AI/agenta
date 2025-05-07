@@ -13,7 +13,7 @@ from agenta.client.backend.types.reference_request_model import ReferenceRequest
 
 import agenta as ag
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class SharedManager:

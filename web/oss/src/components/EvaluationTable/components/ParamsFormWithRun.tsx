@@ -2,10 +2,10 @@
 import {CaretRightOutlined} from "@ant-design/icons"
 import {Button, Form} from "antd"
 
+import ParamsForm from "@/oss/components/ParamsForm"
 import {useLegacyVariants} from "@/oss/lib/hooks/useLegacyVariant"
 import type {Evaluation} from "@/oss/lib/Types"
 
-import ParamsForm from "../../OldPlayground/ParamsForm/ParamsForm"
 import {useSingleModelEvaluationTableStyles} from "../assets/styles"
 import type {SingleModelEvaluationRow} from "../types"
 

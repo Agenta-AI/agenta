@@ -55,7 +55,8 @@ export function transformToRequestBody({
     // Fallback: if ag_config is empty,
     // but variant.parameters exists, use that
     if (Object.keys(ag_config).length === 0 && variant.parameters) {
-        ag_config = variant.parameters.ag_config || variant.parameters.agConfig || {}
+        ag_config =
+            variant.parameters.ag_config || variant.parameters.agConfig || variant.parameters || {}
     }
 
     data.ag_config = ag_config

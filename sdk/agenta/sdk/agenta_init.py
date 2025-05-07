@@ -11,7 +11,7 @@ from agenta.sdk.tracing import Tracing
 from agenta.sdk.context.routing import routing_context
 
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class AgentaSingleton:

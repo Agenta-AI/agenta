@@ -7,7 +7,7 @@ from agenta.sdk.tracing.spans import CustomSpan
 from agenta.sdk.utils.exceptions import suppress  # TODO: use it !
 from agenta.sdk.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def litellm_handler():

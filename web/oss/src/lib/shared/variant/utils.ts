@@ -291,7 +291,7 @@ export async function fetchPriorityRevisions({
                             modifiedBy: rev.modified_by,
                             commitMessage: rev.commit_message || null,
                             parameters: rev.config.parameters,
-                            createdAt: formatDay({date:rev.created_at}),
+                            createdAt: formatDay({date: rev.created_at}),
                             createdAtTimestamp: dayjs(
                                 rev.created_at,
                                 "YYYY/MM/DD H:mm:ssAZ",
@@ -1006,29 +1006,22 @@ export const adaptRevisionToVariant = (
     }
 }
 
-/**
- * Set variant with URI information
- */
-// TODO: DEPRECATE
-export const setVariant = (
-    variant: any,
-    uri: {
-        runtimePrefix: string
-        routePath?: string
-    },
-): EnhancedVariant => {
+// TODO: DEPRECATE @ardaerzin
+export const setVariant = (variant: any): EnhancedVariant => {
     // TEMPORARY FIX FOR PREVIOUSLY CREATED AGENTA_CONFIG
     // TODO: REMOVE THIS BEFORE RELEASE.
-    if (variant.parameters.agenta_config) {
-        variant.parameters.ag_config = variant.parameters.agenta_config
+    if (variant.parameters?.agenta_config) {
+        variant.parameters = variant.parameters.agenta_config
         delete variant.parameters.agenta_config
     }
+
+    const parameters =
+        variant.parameters?.ag_config || variant.parameters?.agConfig || variant.parameters
 
     if (variant.variantId) {
         variant.id = variant.variantId
         variant.parameters = {
-            ...variant.parameters,
-            agConfig: variant.parameters.agConfig || variant.parameters.ag_config || {},
+            parameters,
         }
 
         return variant
@@ -1047,12 +1040,10 @@ export const setVariant = (
         projectId: variant.project_id,
         appName: variant.app_name,
         parameters: {
-            agConfig: variant.parameters.ag_config || {},
+            ...parameters,
         },
         isChat: false,
-        inputs: {} as EnhancedVariant["inputs"],
-        messages: {} as EnhancedVariant["messages"],
         name: "",
-        uriObject: uri,
+        updatedAt: variant.updated_at,
     } as EnhancedVariant
 }

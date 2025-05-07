@@ -160,7 +160,6 @@ async def make_payload(
                 item = datapoint.get(input_name, "")
                 inputs[input_name] = item
                 # ---
-
         elif param["type"] == "messages":
             # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
             # ---
@@ -179,15 +178,15 @@ async def make_payload(
                 payload[param["name"]] = item
                 # ---
 
-    if "ag_config" in parameters:
+    try:
         input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
         inputs = {key: datapoint.get(key, None) for key in input_keys}
         messages = json.loads(datapoint.get("messages", "[]"))
         payload["messages"] = messages
-        payload["inputs"] = inputs
-    elif inputs:
-        # append inputs for old services only if "inputs" exist
-        payload["inputs"] = inputs
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.warn(f"Error making payload: {e}")
+
+    payload["inputs"] = inputs
 
     return payload
 

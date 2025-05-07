@@ -1,13 +1,13 @@
-import dynamic from "next/dynamic"
+import {GearSix} from "@phosphor-icons/react"
+import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
+import dynamic from "next/dynamic"
 
+import Avatar from "@/oss/components/Avatar/Avatar"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {filterVariantParameters, isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {GearSix} from "@phosphor-icons/react"
-import {Tag} from "antd"
-import Avatar from "@/oss/components/Avatar/Avatar"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
 
@@ -57,10 +57,8 @@ export const getColumns = ({
             }),
             render: (_, record) => {
                 const parameters =
-                    (
-                        (record.parameters?.ag_config as unknown as Record<string, unknown>)
-                            ?.prompt as Record<string, unknown>
-                    )?.llm_config || record.parameters
+                    (record.parameters?.prompt as Record<string, unknown>)?.llm_config ||
+                    record.parameters
                 return parameters && Object.keys(parameters).length
                     ? Object.values(
                           filterVariantParameters({record: parameters, key: "model"}),

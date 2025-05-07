@@ -1,4 +1,4 @@
-import {PlaygroundStateData} from "@/oss/components/NewPlayground/hooks/usePlayground/types"
+import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
 import {OpenAPISpec} from "@/oss/lib/shared/variant/types/openapi"
 import {type Variant} from "@/oss/lib/Types"
 

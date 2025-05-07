@@ -106,7 +106,6 @@ class AppVariantResponse(BaseModel):
     variant_id: str
     variant_name: str
     project_id: str
-    parameters: Optional[Dict[str, Any]] = None
     base_name: str
     base_id: str
     config_name: str

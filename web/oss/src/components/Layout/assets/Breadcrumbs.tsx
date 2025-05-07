@@ -2,7 +2,6 @@ import {memo, useMemo} from "react"
 
 import {Lightning} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
-import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -22,11 +21,9 @@ export const BreadcrumbRoot = memo(() => (
 export const BreadcrumbContainer = memo(
     ({
         appTheme,
-        isNewPlayground,
         appName,
     }: {
         appTheme: string
-        isNewPlayground: boolean
         appName: string
     }) => {
         const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -66,11 +63,7 @@ export const BreadcrumbContainer = memo(
         }, [pathSegments, appName])
 
         return (
-            <div
-                className={clsx(classes.breadcrumbContainer, {
-                    "[&&]:!mb-0": isNewPlayground,
-                })}
-            >
+            <div className={classes.breadcrumbContainer}>
                 <Breadcrumb items={breadcrumbItems} />
                 <div className={classes.topRightBar}>
                     <Text>agenta v{packageJsonData.version}</Text>

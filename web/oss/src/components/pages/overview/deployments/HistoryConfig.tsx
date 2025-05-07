@@ -3,10 +3,7 @@ import {useMemo} from "react"
 import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {
-    NewVariantParametersView,
-    VariantParametersView,
-} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
+import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {filterVariantParameters} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
@@ -84,13 +81,11 @@ const HistoryConfig = ({depRevisionConfig, variant: propsVariant}: HistoryConfig
             {Object.keys(depRevisionConfig.parameters).length ? (
                 <div className="flex flex-col gap-6 grow">
                     <div className="flex flex-col gap-2 grow">
-                        {!isLoading && !!variant && depRevisionConfig.parameters?.ag_config ? (
+                        {!isLoading && !!variant ? (
                             <NewVariantParametersView
                                 selectedVariant={variant}
                                 parameters={depRevisionConfig.parameters}
                             />
-                        ) : !isLoading && !!variant ? (
-                            <VariantParametersView selectedVariant={variant} />
                         ) : null}
                     </div>
 

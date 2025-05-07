@@ -1,8 +1,12 @@
 // @ts-nocheck
+import {useMemo} from "react"
+
 import {type ICellRendererParams} from "@ag-grid-community/core"
 import {EditOutlined} from "@ant-design/icons"
 import {Tooltip} from "antd"
 import {createUseStyles} from "react-jss"
+
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
 
 const useStylesCell = createUseStyles({
     cellContainer: {
@@ -29,7 +33,21 @@ const useStylesCell = createUseStyles({
 
 const TableCellsRenderer = (props: ICellRendererParams) => {
     const classes = useStylesCell()
-    const cellValue = props.valueFormatted ? props.valueFormatted : props.value
+
+    const regularDisplay = props.valueFormatted ? props.valueFormatted : props.value
+
+    const cellValue = useMemo(() => {
+        const key = props.colDef?.field
+        if (typeof props.data?.[key] === "object" && props.data?.[key] !== null && Object.keys(props.data[key]).length > 0) {
+            try {
+                return getStringOrJson(props.data[key])
+            } catch (error) {
+                console.error("Table cell renderer error", error)
+                return regularDisplay
+            }
+        }
+        return regularDisplay
+    }, [])
 
     return props.colDef?.field ? (
         <span

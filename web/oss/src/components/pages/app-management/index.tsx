@@ -50,6 +50,19 @@ const DemoApplicationsSection: any = dynamic(
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
+    const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
+        status: "",
+        details: undefined,
+        appId: undefined,
+    })
+    const [statusModalOpen, setStatusModalOpen] = useState(false)
+    const [fetchingTemplate, setFetchingTemplate] = useState(false)
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        setFetchingTemplate,
+        setStatusData,
+        setStatusModalOpen,
+        configureWorkflow: false,
+    })
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
@@ -58,27 +71,13 @@ const AppManagement: React.FC = () => {
     const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
-    const [statusModalOpen, setStatusModalOpen] = useState(false)
-    const [fetchingTemplate, setFetchingTemplate] = useState(false)
     const [newApp, setNewApp] = useState("")
     const [searchTerm, setSearchTerm] = useState("")
     const {apps, error, isLoading, mutate} = useAppsData()
 
-    const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
-        status: "",
-        details: undefined,
-        appId: undefined,
-    })
     const {secrets} = useVaultSecret()
     const {project} = useProjectData()
     const {selectedOrg} = useOrgData()
-
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
-        setFetchingTemplate,
-        setStatusData,
-        setStatusModalOpen,
-        configureWorkflow: false,
-    })
 
     const [{data: templates = []}, noTemplateMessage] = useTemplates()
 

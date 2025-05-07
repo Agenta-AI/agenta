@@ -2,7 +2,6 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {ArrowClockwise, PencilSimple} from "@phosphor-icons/react"
 import {Alert, Button, message, Space} from "antd"
-import clsx from "clsx"
 
 import {useAppsData} from "@/oss/contexts/app.context"
 import {findCustomWorkflowPath} from "@/oss/lib/shared/variant"
@@ -10,7 +9,6 @@ import {findCustomWorkflowPath} from "@/oss/lib/shared/variant"
 import {CustomWorkflowBannerProps} from "./types"
 
 const CustomWorkflowBanner = ({
-    isNewPlayground,
     setIsCustomWorkflowModalOpen,
     variant,
 }: CustomWorkflowBannerProps) => {
@@ -101,7 +99,7 @@ const CustomWorkflowBanner = ({
     if (currentApp?.app_type === "custom" && isDown) {
         return (
             <Alert
-                className={clsx(!isNewPlayground ? "m-6" : "m-2")}
+                className="m-2"
                 message={
                     isConnectionRestored ? "Connection restored" : "Unable to establish connection"
                 }

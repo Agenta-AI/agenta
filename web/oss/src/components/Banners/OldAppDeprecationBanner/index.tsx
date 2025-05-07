@@ -15,7 +15,7 @@ import {CustomWorkflowBannerProps} from "./types"
 
 const {Text} = Typography
 
-const OldAppDeprecationBanner = ({isNewPlayground, children}: CustomWorkflowBannerProps) => {
+const OldAppDeprecationBanner = ({children}: CustomWorkflowBannerProps) => {
     const {currentApp} = useAppsData()
     const router = useRouter()
     const isPlaygroundPage = useMemo(
@@ -28,10 +28,6 @@ const OldAppDeprecationBanner = ({isNewPlayground, children}: CustomWorkflowBann
     const isLegacyApp = useMemo(() => currentApp?.app_type?.includes("(old)"), [currentApp])
 
     const getDeprecationMessage = () => {
-        const versionText = isDeprecated
-            ? `has been deprecated since v${DEPRECATION_VERSION}`
-            : `is scheduled for deprecation in v${DEPRECATION_VERSION}`
-
         const migrationLink = (
             <Link
                 href="/apps"
@@ -45,17 +41,36 @@ const OldAppDeprecationBanner = ({isNewPlayground, children}: CustomWorkflowBann
             <>
                 <Text>
                     The application you are viewing, <b>{currentApp?.app_name}</b>, is a legacy
-                    application that {versionText}.
+                    application that has been deprecated since v{DEPRECATION_VERSION}.
                 </Text>
                 <br />
                 <Text>
                     {isPlaygroundPage ? (
                         <>
-                            This playground is not accessible for legacy applications. Please{" "}
-                            {migrationLink} to continue using the playground.
+                            The playground is not accessible for legacy applications. To continue
+                            using the playground, please {migrationLink} and set up a new
+                            application.
+                            <br />
+                            To view variant details:
+                            <ul className="list-disc ml-4">
+                                <li>
+                                    Navigate to the <b>Overview</b> page of your application.
+                                </li>
+                                <li>
+                                    Scroll down to the <b>Variant Table</b>.
+                                </li>
+                                <li>
+                                    Select the variant you need, open its details, and configure a
+                                    new app in the playground using those values
+                                </li>
+                            </ul>
                         </>
                     ) : (
-                        <>Please {migrationLink} to ensure continued functionality.</>
+                        <>
+                            {" "}
+                            Please {migrationLink} to ensure uninterrupted access and continued
+                            functionality.
+                        </>
                     )}
                 </Text>
             </>
@@ -67,7 +82,7 @@ const OldAppDeprecationBanner = ({isNewPlayground, children}: CustomWorkflowBann
     return (
         <>
             <Alert
-                className={clsx(!isNewPlayground ? "m-6" : "m-2", "[&_.anticon]:mt-1")}
+                className={clsx("m-2", "[&_.anticon]:mt-1")}
                 message="Legacy Application Detected"
                 description={getDeprecationMessage()}
                 showIcon

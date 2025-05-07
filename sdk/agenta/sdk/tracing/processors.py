@@ -16,7 +16,7 @@ from opentelemetry.sdk.trace.export import (
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.tracing.conventions import Reference
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class TraceProcessor(BatchSpanProcessor):

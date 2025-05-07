@@ -8,7 +8,7 @@ import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/tran
 import {Environment, JSSTheme} from "@/oss/lib/Types"
 
 import EnvironmentTagLabel, {deploymentStatusColors} from "../EnvironmentTagLabel"
-import Version from "../NewPlayground/assets/Version"
+import Version from "../Playground/assets/Version"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     deploymentCard: {

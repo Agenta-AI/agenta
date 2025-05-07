@@ -13,7 +13,7 @@ import debounce from "lodash/debounce"
 import {useLocalStorage} from "usehooks-ts"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import ParamsForm from "@/oss/components/OldPlayground/ParamsForm/ParamsForm"
+import ParamsForm from "@/oss/components/ParamsForm"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {EvaluationType} from "@/oss/lib/enums"
 import {testsetRowToChatMessages} from "@/oss/lib/helpers/testset"

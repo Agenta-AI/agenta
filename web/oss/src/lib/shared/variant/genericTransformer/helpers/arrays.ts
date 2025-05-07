@@ -1,4 +1,4 @@
-import {hashMetadata} from "../../../../../components/NewPlayground/assets/hash"
+import {hashMetadata} from "../../../../../components/Playground/assets/hash"
 import {generateId} from "../../stringUtils"
 import type {ArraySchema, ArrayMetadata, ConfigMetadata} from "../types"
 
