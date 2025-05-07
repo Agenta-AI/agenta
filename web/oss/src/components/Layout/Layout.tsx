@@ -43,11 +43,9 @@ interface LayoutProps {
 
 const WithVariants = ({
     children,
-    isNewPlayground,
     handleBackToWorkspaceSwitch,
 }: {
     children: ReactNode
-    isNewPlayground?: boolean
     handleBackToWorkspaceSwitch: () => void
 }) => {
     const {currentApp} = useAppsData()
@@ -70,11 +68,10 @@ const WithVariants = ({
 
     return (
         <>
-            <OldAppDeprecationBanner isNewPlayground={isNewPlayground}>
+            <OldAppDeprecationBanner>
                 {variant && (
                     <CustomWorkflowBanner
                         setIsCustomWorkflowModalOpen={openModal}
-                        isNewPlayground={isNewPlayground ?? false}
                         variant={variant}
                     />
                 )}
@@ -90,7 +87,7 @@ const AppWithVariants = memo(
         children,
         isAppRoute,
         classes,
-        isNewPlayground,
+        isPlayground,
         appTheme,
         ...props
     }: {
@@ -98,7 +95,7 @@ const AppWithVariants = memo(
         isAppRoute: boolean
         classes: StyleClasses
         appTheme: string
-        isNewPlayground: boolean
+        isPlayground?: boolean
     }) => {
         const {currentApp} = useAppsData()
         const {project, projects} = useProjectData()
@@ -129,21 +126,19 @@ const AppWithVariants = memo(
                             <BreadcrumbContainer
                                 appTheme={appTheme}
                                 appName={currentApp?.app_name || ""}
-                                isNewPlayground={isNewPlayground ?? false}
                             />
                             {isAppRoute &&
                             (!currentApp ||
                                 getCurrentProject().projectId ===
                                     DEFAULT_UUID) ? null : isAppRoute ? (
                                 <WithVariants
-                                    isNewPlayground={isNewPlayground}
                                     handleBackToWorkspaceSwitch={handleBackToWorkspaceSwitch}
                                     {...props}
                                 >
                                     <Content
                                         className={clsx(classes.content, {
                                             "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isNewPlayground,
+                                                isPlayground,
                                         })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -164,7 +159,7 @@ const AppWithVariants = memo(
                                 <Content
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isNewPlayground,
+                                            isPlayground,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -250,16 +245,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
-    const {isNewPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
+    const {isPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
         return {
             isAuthRoute:
                 router.pathname.includes("/auth") ||
                 router.pathname.includes("/post-signup") ||
                 router.pathname.includes("/workspaces"),
             isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
-            isNewPlayground:
-                router.pathname.includes("/playground") &&
-                router.query.playground === "new-playground",
+            isPlayground: router.pathname.includes("/playground"),
         }
     }, [router.pathname, router.query])
 
@@ -294,8 +287,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         <AppWithVariants
                             isAppRoute={isAppRoute}
                             classes={classes}
-                            isNewPlayground={isNewPlayground}
                             appTheme={appTheme}
+                            isPlayground={isPlayground}
                         >
                             <div>
                                 {children}

@@ -190,9 +190,6 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
         setColumnDefs(newColumnDefs)
 
         setRowData(newRowData)
-        if (gridRef) {
-            gridRef.setColumnDefs(newColumnDefs)
-        }
     }
 
     const onAddRow = () => {
@@ -268,9 +265,6 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
         setColumnDefs(newColumnDefs)
         setRowData(newRowData)
         setIsDataChanged(true)
-        if (gridRef) {
-            gridRef.setColumnDefs(newColumnDefs)
-        }
     }
 
     const handleTestsetNameChange = (e: ChangeEvent<HTMLInputElement>) => {

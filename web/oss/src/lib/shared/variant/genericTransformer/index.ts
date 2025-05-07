@@ -1,6 +1,6 @@
 import {generateId, toCamelCase} from "@/oss/lib/shared/variant/stringUtils"
 
-import {hashMetadata} from "../../../../components/NewPlayground/assets/hash"
+import {hashMetadata} from "../../../../components/Playground/assets/hash"
 import {constructPlaygroundTestUrl} from "../stringUtils"
 
 import {createMetadata} from "./helpers/metadata"

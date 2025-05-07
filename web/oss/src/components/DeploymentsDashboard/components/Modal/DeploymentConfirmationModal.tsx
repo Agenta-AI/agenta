@@ -5,7 +5,7 @@ import {Button, Modal, Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import CommitNote from "@/oss/components/NewPlayground/assets/CommitNote"
+import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {JSSTheme} from "@/oss/lib/Types"

@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
@@ -139,9 +139,13 @@ const useCustomWorkflowConfig = ({
         afterConfigSave,
     ])
 
+    const openModal = useCallback(() => {
+        setIsCustomWorkflowModalOpen(true)
+    }, [])
+
     return {
         CustomWorkflowModal: Modal,
-        openModal: () => setIsCustomWorkflowModalOpen(true),
+        openModal,
     }
 }
 

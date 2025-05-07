@@ -10,7 +10,7 @@ import {createUseStyles} from "react-jss"
 import {useSWRConfig} from "swr"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import {getPlaygroundKey} from "@/oss/components/NewPlayground/hooks/usePlayground/assets/helpers"
+import {getPlaygroundKey} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
@@ -22,7 +22,7 @@ import VariantComparisonModal from "../../../VariantsComponents/Modals/VariantCo
 import VariantDrawer from "../../../VariantsComponents/Drawers/VariantDrawer"
 
 const DeployVariantModal = dynamic(
-    () => import("@/oss/components/NewPlayground/Components/Modals/DeployVariantModal"),
+    () => import("@/oss/components/Playground/Components/Modals/DeployVariantModal"),
     {ssr: false},
 )
 const {Title} = Typography

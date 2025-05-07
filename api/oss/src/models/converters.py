@@ -59,7 +59,7 @@ from oss.src.models.shared_models import (
 log = get_module_logger(__file__)
 
 
-def app_variant_db_to_pydantic(
+def app_variant_db_to_pydantic( # TODO: remove me. nobody's using me.
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
     app_variant = AppVariant(
@@ -67,7 +67,6 @@ def app_variant_db_to_pydantic(
         app_name=app_variant_db.app.app_name,
         project_id=str(app_variant_db.project_id),
         variant_name=app_variant_db.variant_name,
-        parameters=app_variant_db.config.parameters,
         previous_variant_name=app_variant_db.previous_variant_name,
         base_name=app_variant_db.base_name,
         config_name=app_variant_db.config_name,
@@ -89,7 +88,6 @@ async def app_variant_db_to_output(app_variant_db: AppVariantDB) -> AppVariantRe
         project_id=str(app_variant_db.project_id),
         variant_name=app_variant_db.variant_name,  # type: ignore
         variant_id=str(app_variant_db.id),
-        parameters=app_variant_db.config_parameters,  # type: ignore
         base_name=app_variant_db.base_name,  # type: ignore
         base_id=str(app_variant_db.base_id),
         config_name=app_variant_db.config_name,  # type: ignore

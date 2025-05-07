@@ -1,5 +1,5 @@
-import Playground from "@/oss/components/Playground"
+import PlaygroundRouter from "@/oss/components/PlaygroundRouter"
 
 export default function Logs() {
-    return <Playground />
+    return <PlaygroundRouter />
 }

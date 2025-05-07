@@ -7,9 +7,9 @@ import {useRouter} from "next/router"
 
 import Avatar from "@/oss/components/Avatar/Avatar"
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
-import PlaygroundVariantConfigPrompt from "@/oss/components/NewPlayground/Components/PlaygroundVariantConfigPrompt"
-import PlaygroundVariantCustomProperties from "@/oss/components/NewPlayground/Components/PlaygroundVariantCustomProperties"
-import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
+import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
 
@@ -49,6 +49,8 @@ const VariantDrawerContent = ({
         return selectedVariant?.deployedIn || []
     }, [type, variants, selectedVariant])
 
+    console.log("selectedVariant", selectedVariant)
+
     const tabItems = useMemo(() => {
         return [
             appStatus
@@ -79,12 +81,9 @@ const VariantDrawerContent = ({
                 key: "json",
                 label: "JSON",
                 className: "h-full flex flex-col px-4",
-                children: !selectedVariant ? null : selectedVariant?.isCustom ||
-                  selectedVariant?.parameters?.ag_config ? (
+                children: selectedVariant ? (
                     <NewVariantParametersView selectedVariant={selectedVariant} />
-                ) : (
-                    <VariantParametersView selectedVariant={selectedVariant} />
-                ),
+                ) : null,
             },
         ].filter(Boolean) as ComponentProps<typeof Tabs>["items"]
     }, [selectedVariant, promptIds, type])

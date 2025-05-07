@@ -11,7 +11,7 @@ from agenta.sdk.context.routing import routing_context
 
 T = TypeVar("T", bound=BaseModel)
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 AVAILABLE_ENVIRONMENTS = ["development", "production", "staging"]
 
@@ -51,10 +51,10 @@ class ConfigManager:
 
         if not parameters:
             return None
-        if "ag_config" in parameters:
-            parameters = parameters["ag_config"]
+
         if not schema:
             return parameters
+
         return schema(**parameters)
 
     @staticmethod
@@ -97,10 +97,9 @@ class ConfigManager:
             environment_slug=environment_slug,
             environment_version=environment_version,
         )
-        if "ag_config" in config.params:
-            params = config.params["ag_config"]
-        else:
-            params = config.params
+
+        params = config.params
+
         if schema:
             return schema(**params)
 
@@ -146,10 +145,8 @@ class ConfigManager:
             environment_slug=environment_slug,
             environment_version=environment_version,
         )
-        if "ag_config" in config.params:
-            params = config.params["ag_config"]
-        else:
-            params = config.params
+
+        params = config.params
 
         if schema:
             return schema(**params)

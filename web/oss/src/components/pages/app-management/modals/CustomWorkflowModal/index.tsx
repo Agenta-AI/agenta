@@ -4,7 +4,7 @@ import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
 import {Typography, Space, Button, Modal} from "antd"
 
-import SharedEditor from "@/oss/components/NewPlayground/Components/SharedEditor"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import {findCustomWorkflowPath, removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {updateVariant} from "@/oss/services/app-selector/api"

@@ -27,7 +27,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "space-between",
         width: "100%",
         padding: "8px 1.5rem",
-        marginBottom: 24,
         borderBottom: "1px solid #eaeff5",
     },
     footer: {

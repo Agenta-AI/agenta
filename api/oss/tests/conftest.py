@@ -712,28 +712,26 @@ async def update_variant_parameters(
         f"variants/{variant_id}/parameters",
         json={
             "parameters": {
-                "ag_config": {
-                    "prompt": {
-                        "input_keys": ["country"],
-                        "llm_config": {
-                            "frequency_penalty": 0,
-                            "model": "gpt-3.5-turbo",
-                            "presence_penalty": 0,
-                            "temperature": 0.2,
-                            "top_p": 0.5,
+                "prompt": {
+                    "input_keys": ["country"],
+                    "llm_config": {
+                        "frequency_penalty": 0,
+                        "model": "gpt-3.5-turbo",
+                        "presence_penalty": 0,
+                        "temperature": 0.2,
+                        "top_p": 0.5,
+                    },
+                    "messages": [
+                        {
+                            "content": "You are an expert in geographyfc",
+                            "role": "system",
                         },
-                        "messages": [
-                            {
-                                "content": "You are an expert in geographyfc",
-                                "role": "system",
-                            },
-                            {
-                                "content": "What is the capital of {country}?",
-                                "role": "user",
-                            },
-                        ],
-                        "template_format": "fstring",
-                    }
+                        {
+                            "content": "What is the capital of {country}?",
+                            "role": "user",
+                        },
+                    ],
+                    "template_format": "fstring",
                 }
             }
         },

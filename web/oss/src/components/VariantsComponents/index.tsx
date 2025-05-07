@@ -18,7 +18,7 @@ import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {deleteSingleVariant, deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
-import {getPlaygroundKey} from "../NewPlayground/hooks/usePlayground/assets/helpers"
+import {getPlaygroundKey} from "../Playground/hooks/usePlayground/assets/helpers"
 
 import {useStyles} from "./assets/styles"
 import VariantsTable from "./Table"
@@ -32,7 +32,7 @@ const VariantComparisonModal = dynamic(() => import("./Modals/VariantComparisonM
     ssr: false,
 })
 const DeployVariantModal = dynamic(
-    () => import("@/oss/components/NewPlayground/Components/Modals/DeployVariantModal"),
+    () => import("@/oss/components/Playground/Components/Modals/DeployVariantModal"),
     {ssr: false},
 )
 

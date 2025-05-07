@@ -2415,12 +2415,6 @@ async def update_variant_parameters(
         if not app_variant_db:
             raise NoResultFound(f"App variant with id {app_variant_id} not found")
 
-        # Update associated ConfigDB parameters
-        if parameters == {}:
-            app_variant_db.config_parameters = {}
-        else:
-            app_variant_db.config_parameters.update(parameters)
-
         # ...and variant versioning
         app_variant_db.revision += 1  # type: ignore
         app_variant_db.modified_by_id = user.id
@@ -2437,7 +2431,7 @@ async def update_variant_parameters(
             project_id=uuid.UUID(project_id),
             base_id=app_variant_db.base_id,
             config_name=app_variant_db.config_name,
-            config_parameters=app_variant_db.config_parameters,
+            config_parameters=parameters,
         )
 
         session.add(variant_revision)

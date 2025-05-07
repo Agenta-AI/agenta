@@ -38,7 +38,7 @@ from agenta.sdk.types import (
 
 import agenta as ag
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 AGENTA_RUNTIME_PREFIX = environ.get("AGENTA_RUNTIME_PREFIX", "")
 

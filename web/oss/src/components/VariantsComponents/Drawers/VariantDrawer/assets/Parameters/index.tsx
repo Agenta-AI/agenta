@@ -10,10 +10,9 @@ import {EnhancedVariant, VariantParameters} from "@/oss/lib/shared/variant/trans
 import {useStyles} from "../styles"
 import {DrawerVariant} from "../types"
 
-const SharedEditor = dynamic(
-    () => import("@/oss/components/NewPlayground/Components/SharedEditor"),
-    {ssr: false},
-)
+const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
+    ssr: false,
+})
 
 export const NewVariantParametersView = ({
     selectedVariant,
@@ -26,12 +25,16 @@ export const NewVariantParametersView = ({
             agConfig?: VariantParameters["agConfig"]
         }
         const parameters = structuredClone(selectedVariant.parameters) as OptionalParameters
-        if (parameters && parameters.agConfig) {
+        if (parameters) {
             delete parameters.agConfig
+            delete parameters.ag_config
+
             return getYamlOrJson("JSON", parameters)
         }
         return ""
     }, [selectedVariant?.id])
+
+    console.log("configJsonString:", {selectedVariant, configJsonString})
 
     return (
         <div className="w-full h-full self-stretch grow" key={selectedVariant?.id}>

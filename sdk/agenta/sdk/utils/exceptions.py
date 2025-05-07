@@ -5,7 +5,7 @@ from inspect import iscoroutinefunction
 
 from agenta.sdk.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def display_exception(message: str):

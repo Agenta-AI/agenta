@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.43.1"
+version = "0.44.0"
 description = "Agenta API"
 authors = [{ name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" }]
 
@@ -43,7 +43,7 @@ tqdm = "^4.66.6"
 alembic = "^1.13.2"
 numpy = "1.26.3"
 autoevals = "^0.0.83"
-supertokens-python = "^0.26.1"
+supertokens-python = "^0.29.0"
 opentelemetry-proto = ">=1.27.0,<2.0.0"
 litellm = "^1.61.15"
 jinja2 = "^3.1.6"
@@ -51,14 +51,18 @@ click = "^8.1.8"
 posthog = "^3.23.0"
 stripe = "^11.6.0"
 structlog= "^25.2.0"
+httpx = ">=0.28.0"
+
 # opentelemetry-api = ">=1.27.0,<2.0.0"
 # opentelemetry-sdk = ">=1.27.0,<2.0.0"
 # opentelemetry-exporter-otlp-proto-http =">=1.27.0,<2.0.0"
 # protobuf = "<5.0.0"
 
+# audit fixes
+h11 = ">=0.16.0"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
-httpx = "^0.24.0"
 pytest-asyncio = "^0.21.1"
 faker = "^23.2.0"
 pexpect = "^4.9.0"

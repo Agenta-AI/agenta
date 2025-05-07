@@ -24,7 +24,7 @@ from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class Tracing(metaclass=Singleton):

@@ -26,7 +26,9 @@ function mergeWithSavedConfig(
     // TODO: FIX THIS TYPE
     const defaultConfig = schema.default || {}
     const savedConfig = schema.key
-        ? variant.parameters?.agConfig?.[schema.key] || variant.parameters?.ag_config?.[schema.key]
+        ? variant.parameters?.agConfig?.[schema.key] ||
+          variant.parameters?.ag_config?.[schema.key] ||
+          variant.parameters?.[schema.key]
         : undefined
 
     // Validate and convert saved config to match AgentaConfigSchema["default"]["prompt"]
@@ -54,13 +56,10 @@ export function transformToEnhancedVariant(
     routePath?: string,
 ): EnhancedVariant {
     try {
-        // Normalize parameters structure to handle both ag_config and agConfig naming conventions
         if (variant.parameters) {
-            if (variant.parameters.ag_config && !variant.parameters.agConfig) {
-                variant.parameters.agConfig = variant.parameters.ag_config
-            } else if (variant.parameters.agConfig && !variant.parameters.ag_config) {
-                variant.parameters.ag_config = variant.parameters.agConfig
-            }
+            console.log("variant.parameters", variant.parameters)
+            variant.parameters =
+                variant.parameters.ag_config || variant.parameters.agConfig || variant.parameters
         }
 
         const path = constructPlaygroundTestUrl(
@@ -126,7 +125,10 @@ export function transformToEnhancedVariant(
 
         const customProperties = customPropertyKeys.reduce(
             (acc, key) => {
-                const savedValue = variant.parameters?.agConfig?.[key] as any
+                const savedValue = (variant.parameters?.agConfig ||
+                    variant.parameters?.ag_config ||
+                    variant.parameters ||
+                    {})?.[key] as any
 
                 acc[key] = createEnhancedConfig(
                     savedValue || agConfig.default[key] || "",

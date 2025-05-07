@@ -4,7 +4,7 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import usePlayground from "@/oss/components/NewPlayground/hooks/usePlayground"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
