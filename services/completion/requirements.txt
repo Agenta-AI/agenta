@@ -1,5 +1,6 @@
 agenta
 uvicorn
 boto3
-litellm==1.63.12
+litellm
 structlog
+huggingface-hub<0.31.0
