@@ -89,14 +89,14 @@ def _decode_value(any_value):
 
 def _parse_attribute(attribute):
     """Parse an attribute key-value pair, properly handling all protobuf value types."""
-    is_fix_protobuff_handling = posthog.feature_enabled('fix-protobuff-handling', 'user distinct id')
-    if is_fix_protobuff_handling:
-        return (attribute.key, _decode_value(attribute.value))
-    else:
-        raw_value = attribute.value
-        value_type = list(MessageToDict(raw_value).keys())[0].replace("V", "_v")
-        clean_value = getattr(raw_value, value_type)
-        return (attribute.key, clean_value)
+    # is_fix_protobuff_handling = posthog.feature_enabled('fix-protobuff-handling', 'user distinct id')
+    # if is_fix_protobuff_handling:
+    return (attribute.key, _decode_value(attribute.value))
+    # else:
+    #     raw_value = attribute.value
+    #     value_type = list(MessageToDict(raw_value).keys())[0].replace("V", "_v")
+    #     clean_value = getattr(raw_value, value_type)
+    #     return (attribute.key, clean_value)
 
 
 

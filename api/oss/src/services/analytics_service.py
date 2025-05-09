@@ -29,9 +29,15 @@ _BEARER_TOKEN_PREFIX = "Bearer "
 _APIKEY_TOKEN_PREFIX = "ApiKey "
 _SECRET_TOKEN_PREFIX = "Secret "
 
-# Trace ingestion tracking
-# Structure: {"YYYY-MM-DD": {user_id1, user_id2, ...}}
-_trace_ingestion_tracking: Dict[str, Any] = {}
+# Events subject to per-auth-method daily limits
+LIMITED_EVENTS_PER_AUTH = {
+    "app_revision_fetched": 3,
+    "spans_created": 3,
+}
+
+# Structure: {"YYYY-MM-DD": {user_id1: {"event_name:auth_method": count}, user_id2: {...}}}
+_daily_event_auth_counts_by_user: Dict[str, Dict[str, Dict[str, int]]] = {}
+
 
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
@@ -122,28 +128,6 @@ async def _track_analytics_event(
         if not user:
             return
 
-        # For trace ingestion endpoint, only track once per user per day
-        if event_name == "spans_created":
-            global _trace_ingestion_tracking
-            today = datetime.now().strftime("%Y-%m-%d")
-
-            # If we have old dates in the tracking dict, reset it
-            if not _trace_ingestion_tracking or today not in _trace_ingestion_tracking:
-                _trace_ingestion_tracking = {today: set()}
-
-            # If user already tracked today, skip
-            if request.state.user_id in _trace_ingestion_tracking[today]:
-                return
-
-            # Add user to today's tracking set
-            _trace_ingestion_tracking[today].add(request.state.user_id)
-
-        properties = {
-            "path": path,
-            "method": method,
-            "status_code": status_code,
-        }
-
         # Determine authentication method
         auth_header = (
             request.headers.get("Authorization")
@@ -160,6 +144,46 @@ async def _track_analytics_event(
             auth_method = "Session"
         else:  # We use API key without any prefix too.
             auth_method = "ApiKey"
+
+        # Check daily limits if the event is one of those to be limited per auth method
+        if event_name in LIMITED_EVENTS_PER_AUTH:
+            try:
+                global _daily_event_auth_counts_by_user
+                today = datetime.now().strftime("%Y-%m-%d")
+                user_id = request.state.user_id
+
+                # Clean up old tracking data to prevent memory growth
+                if today not in _daily_event_auth_counts_by_user:
+                    # Keep only today's data (which is empty at this point)
+                    _daily_event_auth_counts_by_user = {today: {}}
+
+                # Initialize user's tracking dictionary if not present
+                if not _daily_event_auth_counts_by_user[today].get(user_id):
+                    _daily_event_auth_counts_by_user[today][user_id] = {}
+
+                # Create a combined key for event+auth method tracking
+                event_auth_key = f"{event_name}:{auth_method}"
+                limit = LIMITED_EVENTS_PER_AUTH[event_name]
+
+                # Check event+auth method limit
+                current_count = _daily_event_auth_counts_by_user[today][user_id].get(
+                    event_auth_key, 0
+                )
+                if current_count >= limit:
+                    return
+
+                _daily_event_auth_counts_by_user[today][user_id][event_auth_key] = (
+                    current_count + 1
+                )
+            except Exception as e:
+                log.error(f"Error in daily event limit tracking: {e}")
+                return
+
+        properties = {
+            "path": path,
+            "method": method,
+            "status_code": status_code,
+        }
 
         properties["auth_method"] = auth_method
 
