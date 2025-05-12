@@ -82,7 +82,10 @@ const HumanEvaluationModal = ({
                     const isCustom = variants.some((v) => v.isCustom)
 
                     if (isCustom) {
-                        results = variants.map((variant) => {
+                        results = variants.map((_variant) => {
+                            const variant = _variant.revisions.sort(
+                                (a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp,
+                            )[0]
                             return {
                                 variantName: variant.variantName,
                                 inputs: (variant.inputParams || []).map(
@@ -91,7 +94,10 @@ const HumanEvaluationModal = ({
                             }
                         })
                     } else if (isNewVariant) {
-                        results = variants.map((variant) => {
+                        results = variants.map((_variant) => {
+                            const variant = _variant.revisions.sort(
+                                (a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp,
+                            )[0]
                             return {
                                 variantName: variant.variantName,
                                 inputs: (variant.inputParams || []).map((input) => input.name),
@@ -181,8 +187,10 @@ const HumanEvaluationModal = ({
             }
 
             data.variants[dropdownIndex] = key
-            const selectedVariant = variants.find((variant) => variant.variantName === key)
-
+            const _selectedVariant = variants.find((variant) => variant.variantName === key)
+            const selectedVariant = (_selectedVariant?.revisions || []).sort(
+                (a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp,
+            )[0]
             if (!selectedVariant) {
                 console.error("Error: No variant found")
             }
@@ -195,7 +203,9 @@ const HumanEvaluationModal = ({
         }
 
     const getVariantsDropdownMenu = (index: number): MenuProps => {
-        const selectedVariantsNames = selectedVariants.map((variant) => variant.variantName)
+        const selectedVariantsNames = selectedVariants.map(
+            (revision) => revision.__parentVariant?.variantName,
+        )
 
         const items = variants.reduce((filteredVariants, variant, idx) => {
             const label = variant.variantName
@@ -244,11 +254,12 @@ const HumanEvaluationModal = ({
     }
 
     const onStartEvaluation = async () => {
+        const selectedVariant = selectedVariants[0]
         // 1. We check all data is provided
         if (selectedTestset === undefined || selectedTestset.name === "Select a Test set") {
             message.error("Please select a Testset")
             return
-        } else if (selectedVariants[0].variantName === "Select a variant") {
+        } else if (selectedVariant?.variantName === "Select a variant") {
             message.error("Please select a variant")
             return
         } else if (
@@ -263,7 +274,7 @@ const HumanEvaluationModal = ({
         const evaluationTableId = await createNewEvaluation({
             variant_ids: selectedVariants.map((variant) => variant.variantId || variant.id),
             appId,
-            inputs: variantsInputs[selectedVariants[0].variantName],
+            inputs: variantsInputs[selectedVariant.variantName],
             evaluationType: EvaluationType[evaluationType as keyof typeof EvaluationType],
             evaluationTypeSettings: {},
             llmAppPromptTemplate: "",

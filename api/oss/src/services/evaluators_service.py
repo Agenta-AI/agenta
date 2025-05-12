@@ -7,6 +7,7 @@ import litellm
 import httpx
 import numpy as np
 from openai import AsyncOpenAI
+from fastapi import HTTPException
 from numpy._core._multiarray_umath import array
 from autoevals.ragas import Faithfulness, ContextRelevancy
 
@@ -1294,8 +1295,9 @@ async def semantic_similarity(
 
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     if not openai_api_key:
-        raise Exception(
-            "No OpenAI key was found. Semantic evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+        raise HTTPException(
+            status_code=422,
+            detail="No OpenAI key was found. Semantic evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
 
     openai = AsyncOpenAI(api_key=openai_api_key)

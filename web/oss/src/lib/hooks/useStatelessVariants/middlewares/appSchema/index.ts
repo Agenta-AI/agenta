@@ -161,10 +161,10 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 let transformedBatchResults = batchResults
                                 if (spec) {
                                     try {
-                                        transformedBatchResults = await transformVariants(
+                                        transformedBatchResults = transformVariants(
                                             batchResults,
                                             spec,
-                                            config.appType
+                                            config.appType,
                                         )
                                     } catch (error) {
                                         console.error(
@@ -230,7 +230,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                         // This ensures consistency with the final result
                                         const flattenedRevisions: EnhancedVariant[] =
                                             transformedBatchResults.flatMap((variant) => {
-                                                const revs = structuredClone(variant.revisions)
+                                                const revs = transformVariants(
+                                                    structuredClone(variant.revisions),
+                                                    spec,
+                                                    config.appType,
+                                                )
                                                 const _revisions =
                                                     revs
                                                         ?.filter((rev) => rev.revision > 0)
