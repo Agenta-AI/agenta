@@ -149,14 +149,14 @@ export const transformVariant = (
 /**
  * Transform multiple variants using OpenAPI schema
  */
-export const transformVariants = async (
+export const transformVariants = (
     variants: EnhancedVariant[],
     schema: OpenAPISpec,
     appType?: string,
-): Promise<EnhancedVariant[]> => {
+): EnhancedVariant[] => {
     try {
         // @ts-ignore
-        return variants.map((variant) => transformVariant(variant, schema, appType))
+        return (variants || []).map((variant) => transformVariant(variant, schema, appType))
     } catch (error) {
         console.error("Error transforming variants:", error)
         throw error

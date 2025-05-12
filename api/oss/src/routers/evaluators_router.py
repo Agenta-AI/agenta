@@ -20,6 +20,7 @@ from oss.src.models.api.evaluation_model import (
     EvaluatorMappingInputInterface,
     EvaluatorMappingOutputInterface,
 )
+from oss.src.core.secrets.utils import get_llm_providers_secrets
 
 if is_ee():
     from ee.src.models.shared_models import Permission
@@ -80,6 +81,12 @@ async def evaluator_run(
     Returns:
         result: EvaluatorOutputInterface object containing the outputs.
     """
+
+    providers_keys_from_vault = await get_llm_providers_secrets(
+        provider_id=request.state.project_id
+    )
+
+    payload.credentials = providers_keys_from_vault
 
     result = await evaluators_service.run(
         evaluator_key=evaluator_key, evaluator_input=payload

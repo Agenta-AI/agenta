@@ -286,6 +286,7 @@ export async function fetchPriorityRevisions({
                 .map((rev) => {
                     const adapted = adaptRevisionToVariant(
                         {
+                            ...rev,
                             id: rev.id,
                             revision: rev.revision,
                             modifiedBy: rev.modified_by,
@@ -944,7 +945,7 @@ export const adaptRevisionToVariant = (
         uri: parentVariant.uri,
         uriObject: parentVariant.uriObject,
         inputs: parentVariant.inputs,
-        inputParams: parentVariant.inputParams,
+        inputParams: revision.inputParams || [],
 
         // Copy variant essential properties for UI components
         isChat: parentVariant.isChat,
@@ -955,7 +956,7 @@ export const adaptRevisionToVariant = (
         // These are the fields we want to prioritize from the revision, NOT from parent variant
         // Each revision has its own unique configuration values
         parameters: revision.parameters || revision.config?.parameters,
-        prompts: revision.prompts || parentVariant.prompts || [],
+        prompts: revision.prompts || [],
         customProperties: revision.customProperties || parentVariant.customProperties,
 
         // Variant ID for backwards compatibility with APIs

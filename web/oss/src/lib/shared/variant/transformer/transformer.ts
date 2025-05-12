@@ -28,7 +28,8 @@ function mergeWithSavedConfig(
     const savedConfig = schema.key
         ? variant.parameters?.agConfig?.[schema.key] ||
           variant.parameters?.ag_config?.[schema.key] ||
-          variant.parameters?.[schema.key]
+          variant.parameters?.[schema.key] ||
+          variant.config?.parameters?.[schema.key]
         : undefined
 
     // Validate and convert saved config to match AgentaConfigSchema["default"]["prompt"]
@@ -128,6 +129,7 @@ export function transformToEnhancedVariant(
                 const savedValue = (variant.parameters?.agConfig ||
                     variant.parameters?.ag_config ||
                     variant.parameters ||
+                    variant.config?.parameters ||
                     {})?.[key] as any
 
                 acc[key] = createEnhancedConfig(

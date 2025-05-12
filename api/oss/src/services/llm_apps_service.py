@@ -130,20 +130,19 @@ async def make_payload(
     Returns:
         Dict: The constructed payload for the app.
     """
-    # ---
     payload = {}
     inputs = {}
     messages = []
-    # ---
 
     for param in openapi_parameters:
-        if param["type"] == "input":
-            # ---
+        if param["name"] == "ag_config":
+            payload["ag_config"] = parameters
+        elif param["type"] == "input":
             item = datapoint.get(param["name"], parameters.get(param["name"], ""))
-
-            if item or param["name"] != "ag_config":
-                payload[param["name"]] = item
-            # ---
+            assert (
+                param["name"] != "ag_config"
+            ), "ag_config should be handled separately"
+            payload[param["name"]] = item
 
         # in case of dynamic inputs (as in our templates)
         elif param["type"] == "dict":
@@ -156,35 +155,34 @@ async def make_payload(
                 input_names = param["default"]
 
             for input_name in input_names:
-                # ---
                 item = datapoint.get(input_name, "")
                 inputs[input_name] = item
-                # ---
         elif param["type"] == "messages":
             # TODO: Right now the FE is saving chats always under the column name chats. The whole logic for handling chats and dynamic inputs is convoluted and needs rework in time.
-            # ---
-            item = json.loads(datapoint.get("chat", ""))
+            chat_data = datapoint.get("chat", "")
+            item = json.loads(chat_data)
             payload[param["name"]] = item
-            # ---
         elif param["type"] == "file_url":
-            # ---
             item = datapoint.get(param["name"], "")
             payload[param["name"]] = item
-            # ---
         else:
             if param["name"] in parameters:  # hotfix
-                # ---
+                log.warn(
+                    f"Processing other param type '{param['type']}': {param['name']}"
+                )
                 item = parameters[param["name"]]
                 payload[param["name"]] = item
-                # ---
 
     try:
         input_keys = helpers.find_key_occurrences(parameters, "input_keys") or []
         inputs = {key: datapoint.get(key, None) for key in input_keys}
-        messages = json.loads(datapoint.get("messages", "[]"))
+
+        messages_data = datapoint.get("messages", "[]")
+        messages = json.loads(messages_data)
         payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(f"Error making payload: {e}")
+        log.debug(f"Exception details: {traceback.format_exc()}")
 
     payload["inputs"] = inputs
 
