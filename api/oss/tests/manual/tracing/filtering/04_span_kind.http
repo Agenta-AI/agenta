@@ -1,0 +1,333 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/tracing
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+POST {{base_url}}/spans/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "spans": [
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000000", "span_kind": "SPAN_KIND_UNSPECIFIED" },
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000001", "span_kind": "SPAN_KIND_INTERNAL" },
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000002", "span_kind": "SPAN_KIND_SERVER" },
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000003", "span_kind": "SPAN_KIND_CLIENT" },
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000004", "span_kind": "SPAN_KIND_PRODUCER" },
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000005", "span_kind": "SPAN_KIND_CONSUMER" },
+    { "trace_id": "10000000000000000000000000000000", "span_id": "1000000000000006", "span_name": "implicit_unspecified" }
+  ]
+}
+
+###
+# test once in query params
+GET {{base_url}}/spans/?filter={"conditions":[{"field":"span_kind","value":"SPAN_KIND_UNSPECIFIED"}]}
+Authorization: {{authorization}}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_INTERNAL" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_SERVER" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_CLIENT" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_PRODUCER" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_CONSUMER" }
+    ]
+  }
+}
+
+###
+# Negative test: typo in field
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kin", "value": "SPAN_KIND_UNSPECIFIED" }
+    ]
+  }
+}
+
+###
+# Negative test: typo in value
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIEDD" }
+    ]
+  }
+}
+
+###
+# test: value is null
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": null }
+    ]
+  }
+}
+
+###
+# test: operator not supported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "operator": "eq", "value": "SPAN_KIND_UNSPECIFIEDD" }
+    ]
+  }
+}
+
+###
+# Logical operator: AND
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "and",
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED" },
+      { "field": "span_name", "value": "implicit_unspecified" }
+    ]
+  }
+}
+
+###
+# Logical operator: OR
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "or",
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED" },
+      { "field": "span_kind", "value": "SPAN_KIND_INTERNAL" }
+    ]
+  }
+}
+
+###
+# Logical operator: NOT
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "not",
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED" }
+    ]
+  }
+}
+
+###
+# Logical operator: NAND
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "nand",
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED" },
+      { "field": "span_name", "value": "implicit_unspecified" }
+    ]
+  }
+}
+
+###
+# Logical operator: NOR
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "nor",
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED" },
+      { "field": "span_kind", "value": "SPAN_KIND_INTERNAL" }
+    ]
+  }
+}
+
+###
+# Comparison operator: IS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED", "operator": "is" }
+    ]
+  }
+}
+
+###
+# Comparison operator: IS_NOT [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED", "operator": "is_not" }
+    ]
+  }
+}
+
+###
+# List operator: IN [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": [ "SPAN_KIND_UNSPECIFIED", "SPAN_KIND_INTERNAL" ], "operator": "in" }
+    ]
+  }
+}
+
+###
+# List operator: NOT_IN [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": [ "SPAN_KIND_UNSPECIFIED", "SPAN_KIND_INTERNAL" ], "operator": "not_in" }
+    ]
+  }
+}
+
+###
+# List operator: HAS [...] -- unsupported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED", "operator": "has" }
+    ]
+  }
+}
+
+###
+# List operator: HAS_NOT [...] -- unsupported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_kind", "value": "SPAN_KIND_UNSPECIFIED", "operator": "has_not" }
+    ]
+  }
+}
+

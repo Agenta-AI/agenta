@@ -1,6 +1,11 @@
 export interface _AgentaRootsResponse extends AgentaNodeDTO {
     children: _AgentaRootsResponse[]
     key: string
+    // Added annotation here to make the clean up version of the annotations feature
+    invocationIds: {
+        trace_id: string
+        span_id: string
+    }
 }
 
 export interface AgentaRootsResponse {

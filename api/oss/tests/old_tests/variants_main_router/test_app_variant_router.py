@@ -28,7 +28,7 @@ timeout = httpx.Timeout(timeout=5, read=None, write=5)
 # Generate a new ObjectId
 new_object_id = ObjectId()
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
@@ -66,7 +66,7 @@ async def test_create_app_for_renaming():
 
 @pytest.mark.asyncio
 async def test_update_app():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name="app_test"))
         app = result.scalars().first()
 
@@ -106,7 +106,7 @@ async def test_update_app():
 
 @pytest.mark.asyncio
 async def test_list_app_variants():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -120,7 +120,7 @@ async def test_list_app_variants():
 
 @pytest.mark.asyncio
 async def test_list_environments():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )

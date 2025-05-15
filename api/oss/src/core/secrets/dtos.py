@@ -8,8 +8,8 @@ from oss.src.core.secrets.enums import (
     CustomProviderKind,
 )
 from oss.src.core.shared.dtos import (
-    IdentifierDTO,
-    HeaderDTO,
+    Identifier,
+    Header,
     LifecycleDTO,
 )
 
@@ -84,7 +84,7 @@ class SecretDTO(BaseModel):
 
 
 class CreateSecretDTO(BaseModel):
-    header: HeaderDTO
+    header: Header
     secret: SecretDTO
 
     @model_validator(mode="before")
@@ -117,7 +117,7 @@ class CreateSecretDTO(BaseModel):
 
 
 class UpdateSecretDTO(BaseModel):
-    header: Optional[HeaderDTO] = None
+    header: Optional[Header] = None
     secret: Optional[SecretDTO] = None
 
     @model_validator(mode="before")
@@ -130,8 +130,8 @@ class UpdateSecretDTO(BaseModel):
         return values
 
 
-class SecretResponseDTO(IdentifierDTO, SecretDTO):
-    header: HeaderDTO
+class SecretResponseDTO(Identifier, SecretDTO):
+    header: Header
     lifecycle: Optional[LifecycleDTO] = None
 
     @model_validator(mode="before")

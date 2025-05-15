@@ -23,7 +23,7 @@ from oss.src.apis.fastapi.observability.opentelemetry.otlp import (
     parse_otlp_stream,
 )
 from oss.src.apis.fastapi.observability.utils import (
-    parse_query_dto,
+    parse_query_request,
     parse_analytics_dto,
     parse_from_otel_span_dto,
     parse_to_otel_span_dto,
@@ -33,7 +33,7 @@ from oss.src.apis.fastapi.observability.utils import (
 )
 from oss.src.apis.fastapi.observability.models import (
     CollectStatusResponse,
-    OTelSpansResponse,
+    OTelTracingResponse,
     AgentaNodesResponse,
     AgentaTreesResponse,
     AgentaRootsResponse,
@@ -54,7 +54,7 @@ if is_ee():
         NOT_ENTITLED_RESPONSE,
     )
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class ObservabilityRouter:
@@ -114,7 +114,7 @@ class ObservabilityRouter:
             summary="Query traces, with optional grouping, windowing, filtering, and pagination.",
             status_code=status.HTTP_200_OK,
             response_model=Union[
-                OTelSpansResponse,
+                OTelTracingResponse,
                 AgentaNodesResponse,
                 AgentaTreesResponse,
                 AgentaRootsResponse,
@@ -144,7 +144,7 @@ class ObservabilityRouter:
             summary="Fetch trace by ID.",
             status_code=status.HTTP_200_OK,
             response_model=Union[
-                OTelSpansResponse,
+                OTelTracingResponse,
                 AgentaNodesResponse,
                 AgentaTreesResponse,
                 AgentaRootsResponse,
@@ -289,7 +289,7 @@ class ObservabilityRouter:
     async def query_traces(
         self,
         request: Request,
-        query_dto: QueryDTO = Depends(parse_query_dto),
+        query_dto: QueryDTO = Depends(parse_query_request),
         format: Literal[  # pylint: disable=W0622
             "opentelemetry",
             "agenta",
@@ -319,7 +319,7 @@ class ObservabilityRouter:
         if format == "opentelemetry":
             spans = [parse_to_otel_span_dto(span_dto) for span_dto in span_dtos]
 
-            return OTelSpansResponse(
+            return OTelTracingResponse(
                 version=self.VERSION,
                 count=count,
                 spans=spans,

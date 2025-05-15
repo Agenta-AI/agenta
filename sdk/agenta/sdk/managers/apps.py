@@ -12,11 +12,6 @@ AppType = Literal["SERVICE:completion", "SERVICE:chat", "CUSTOM"]
 DEFAULT_APP_TYPE = "SERVICE:completion"
 
 
-AppType = Literal["SERVICE:completion", "SERVICE:chat", "CUSTOM"]
-
-DEFAULT_APP_TYPE = "SERVICE:completion"
-
-
 class AppManager:
     @classmethod
     @handle_exceptions()

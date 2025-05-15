@@ -15,9 +15,9 @@ from oss.src.models.db_models import AppVariantDB, AppDB
 if is_ee():
     from ee.src.services import db_manager_ee
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
-SERVICE_URL_TEMPLATE = os.environ.get("SERVICE_URL_TEMPLATE")
+AGENTA_SERVICES_URL = os.environ.get("AGENTA_SERVICES_URL")
 
 
 async def update_last_modified_by(
@@ -342,7 +342,7 @@ def get_service_url_from_template_key(
     if key not in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
         return None
 
-    if not SERVICE_URL_TEMPLATE:
+    if not AGENTA_SERVICES_URL:
         raise NotImplementedError("Service URL could be generated.")
 
     # We need to map a `template_key` to a `service_path`.
@@ -351,6 +351,6 @@ def get_service_url_from_template_key(
     # This may evolve over time if and when we change `app_type` values.
     path = key.replace("SERVICE:", "")
 
-    url = SERVICE_URL_TEMPLATE.format(path=path)
+    url = AGENTA_SERVICES_URL + "/" + path
 
     return url

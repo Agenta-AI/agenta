@@ -16,7 +16,7 @@ from oss.src.models.db_models import APIKeyDB
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.utils.redis_utils import redis_connection
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 async def _generate_unique_prefix():
@@ -37,7 +37,7 @@ async def _generate_unique_prefix():
     # Define the characters to use for the prefix
     alphabet = string.ascii_letters + string.digits
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         while True:
             # Generate a random 8-character prefix
             prefix = "".join(secrets.choice(alphabet) for _ in range(8))
@@ -84,7 +84,7 @@ async def create_api_key(
     else:
         rate_limit = int(0)
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         # Create an APIKeyDB instance with the prefix, hashed API key, and user_id
         api_key = APIKeyDB(
             prefix=prefix,
@@ -116,7 +116,7 @@ async def is_valid_api_key(key: str):
     - The API Key object if the API key is valid, False otherwise.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         # Check if the API key is valid (not blacklisted and not expired)
         result = await session.execute(select(APIKeyDB).filter_by(hashed_key=key))
 
@@ -231,7 +231,7 @@ async def list_api_keys(user_id: str, project_id: str) -> List[APIKeyDB]:
         List[APIKeyDB]: A list of APIKeyDB objects associated with the user, sorted by most recently created first.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(APIKeyDB)
             .filter_by(
@@ -257,7 +257,7 @@ async def delete_api_key(user_id: str, key_prefix: str):
         KeyError: If the API key does not exist or does not belong to the user.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(APIKeyDB).filter_by(
                 created_by_id=uuid.UUID(user_id), prefix=key_prefix

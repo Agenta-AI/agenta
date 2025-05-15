@@ -56,7 +56,7 @@ async def test_create_testset():
 
 @pytest.mark.asyncio
 async def test_update_testset():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -104,7 +104,7 @@ async def test_get_testsets():
 
 @pytest.mark.asyncio()
 async def test_get_testset():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )
@@ -126,7 +126,7 @@ async def test_get_testset():
 
 @pytest.mark.asyncio
 async def test_delete_testsets():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="app_variant_test")
         )

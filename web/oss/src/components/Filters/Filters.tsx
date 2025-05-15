@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
-import {Button, Divider, Input, Popover, Select, Space, Typography} from "antd"
+import {Button, Divider, Input, Popover, Select, Space, Typography, ButtonProps} from "antd"
 import isEqual from "lodash/isEqual"
 import {createUseStyles} from "react-jss"
 
@@ -36,9 +36,10 @@ interface Props {
     columns: {value: string; label: string; type?: string}[]
     onApplyFilter: (filters: Filter[]) => void
     onClearFilter: (filters: Filter[]) => void
+    buttonProps?: ButtonProps
 }
 
-const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFilter}) => {
+const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFilter, buttonProps}) => {
     const classes = useStyles()
     const emptyFilter = [{key: "", operator: "", value: "", isPermanent: false}] as Filter[]
 
@@ -271,6 +272,7 @@ const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFi
                 icon={<Funnel size={14} />}
                 onClick={() => setIsFilterOpen(true)}
                 className="flex items-center gap-2"
+                {...buttonProps}
             >
                 Filters {filter[0]?.operator && <X size={14} />}
             </Button>

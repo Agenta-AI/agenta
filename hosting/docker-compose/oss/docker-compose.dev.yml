@@ -119,7 +119,7 @@ services:
         networks:
             - agenta-network
 
-        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import run_alembic_migration; run_alembic_migration()'"
+        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
 
     completion:
         build: 
@@ -193,7 +193,7 @@ services:
             - postgres-data:/var/lib/postgresql/data/
             - ../../../api/oss/databases/postgres/init-db-oss.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss_core"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -244,6 +244,9 @@ services:
         
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+
+        environment:
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
 
         networks:
             - agenta-network

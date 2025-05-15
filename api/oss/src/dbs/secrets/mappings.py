@@ -3,7 +3,7 @@ import json
 
 from oss.src.dbs.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
-    HeaderDTO,
+    Header,
     SecretKind,
     LifecycleDTO,
     CreateSecretDTO,
@@ -50,7 +50,7 @@ def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
         id=secrets_dbe.id,  # type: ignore
         kind=SecretKind(secrets_dbe.kind).value,
         data=json.loads(secrets_dbe.data),  # type: ignore
-        header=HeaderDTO(name=secrets_dbe.name, description=secrets_dbe.description),
+        header=Header(name=secrets_dbe.name, description=secrets_dbe.description),
         lifecycle=LifecycleDTO(
             created_at=secrets_dbe.created_at,
             updated_at=secrets_dbe.updated_at,  # type: ignore

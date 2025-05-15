@@ -1,0 +1,175 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/tracing
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+POST {{base_url}}/spans/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "spans": [
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000", "links": [{ "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000003" }] },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000001", "links": [{ "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000", "attributes": {"key_bool": true, "key_int": 42, "key_float": 3.14, "key_string": "aloha"} }, { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000003" }] },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002", "links": [{ "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000", "attributes": {"key_bool": false, "key_int": 43, "key_string": "mahalo"} }] },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000003" }
+  ]
+}
+
+###
+# test: IN [...] any
+POST {{base_url}}/spans/query?filter={"conditions":[{"field":"links","operator":"in","options":{"all":false},"value":[{"trace_id":"20000000000000000000000000000000","span_id":"2000000000000003"},{"trace_id":"20000000000000000000000000000000","span_id":"2000000000000000"}]}]}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# test: IN [...] any
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "in", "options": {"all": false}, "value": [
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002" },
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000" }
+      ] }
+    ]
+  }
+}
+
+
+###
+# test: IN [...] all
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "in", "options": {"all": true}, "value": [
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000003" },
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000" }
+      ] }
+    ]
+  }
+}
+
+###
+# test: NOT_IN [...] any
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "not_in", "options": {"all": false}, "value": [
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002" },
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000" }
+      ] }
+    ]
+  }
+}
+
+###
+# test: NOT_IN [...] all
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "not_in", "options": {"all": true}, "value": [
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002" },
+          { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000" }
+      ] }
+    ]
+  }
+}
+
+
+###
+# test: HAS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "has", "key": "attributes.key_bool", "value": true }
+    ]
+  }
+}
+
+
+###
+# test: HAS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "has", "key": "attributes.key_int", "value": 42 }
+    ]
+  }
+}
+
+###
+# test: HAS_NOT [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "has_not", "key": "attributes.key_int", "value": 42 }
+    ]
+  }
+}
+
+
+###
+# test: EXISTS
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "exists" }
+    ]
+  }
+}
+
+###
+# test: NOT_EXISTS
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "links", "operator": "not_exists" }
+    ]
+  }
+}

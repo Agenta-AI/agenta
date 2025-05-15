@@ -18,7 +18,7 @@ class CollectStatusResponse(VersionedModel):
     status: str
 
 
-class OTelSpansResponse(VersionedModel):
+class OTelTracingResponse(VersionedModel):
     count: Optional[int] = None
     spans: List[OTelSpanDTO]
 

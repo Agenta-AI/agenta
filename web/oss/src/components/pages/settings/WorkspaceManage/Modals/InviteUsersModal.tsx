@@ -1,7 +1,7 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
 import {MinusCircleOutlined} from "@ant-design/icons"
-import {Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
+import {Alert, Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
 import {useAtom} from "jotai"
 
 import {useOrgData} from "@/oss/contexts/org.context"
@@ -9,10 +9,13 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
-
+import {useSubscriptionData} from "@/agenta-oss-common/services/billing"
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
+import Link from "next/link"
+import {Plan} from "@/oss/lib/Types"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
+    const {subscription} = useSubscriptionData()
     const {selectedOrg, refetch} = useOrgData()
     const [roles] = useAtom(workspaceRolesAtom)
     const {token} = theme.useToken()
@@ -107,31 +110,56 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 )}
             </Form.List>
             {isDemo() ? (
-                <Form.Item
-                    name="role"
-                    rules={[{required: true, message: "Please select a role"}]}
-                    initialValue="editor"
-                >
-                    <Select
-                        allowClear
-                        className="w-full"
-                        placeholder="Select role"
-                        options={filteredRoles.map((role) => ({
-                            label: snakeToTitle(role.role_name || ""),
-                            value: role.role_name,
-                            desc: role.role_description,
-                        }))}
-                        optionRender={(option) => (
-                            <Space direction="vertical" size="small">
-                                <Typography.Text>{option.label}</Typography.Text>
-                                <Typography.Text className="text-wrap" type="secondary">
-                                    {option.data.desc}
-                                </Typography.Text>
-                            </Space>
-                        )}
-                        optionLabelProp="label"
-                    />
-                </Form.Item>
+                <>
+                    <Form.Item
+                        name="role"
+                        rules={[{required: true, message: "Please select a role"}]}
+                        initialValue="editor"
+                        className="mb-1"
+                    >
+                        <Select
+                            allowClear
+                            className="w-full"
+                            placeholder="Select role"
+                            options={filteredRoles.map((role) => ({
+                                label: snakeToTitle(role.role_name || ""),
+                                value: role.role_name,
+                                desc: role.role_description,
+                            }))}
+                            disabled={subscription?.plan !== Plan.Business}
+                            optionRender={(option) => (
+                                <Space direction="vertical" size="small">
+                                    <Typography.Text>{option.label}</Typography.Text>
+                                    <Typography.Text className="text-wrap" type="secondary">
+                                        {option.data.desc}
+                                    </Typography.Text>
+                                </Space>
+                            )}
+                            optionLabelProp="label"
+                        />
+                    </Form.Item>
+                    {subscription?.plan !== Plan.Business ? (
+                        <Alert
+                            message={
+                                <div className="flex flex-col">
+                                    <Typography.Text>
+                                        Role selection is only available for Business Plans.
+                                    </Typography.Text>
+
+                                    <Link
+                                        href={"https://agenta.ai/pricing"}
+                                        target="_blank"
+                                        className="font-medium"
+                                    >
+                                        Click here to learn more
+                                    </Link>
+                                </div>
+                            }
+                            type="warning"
+                            showIcon
+                        />
+                    ) : null}
+                </>
             ) : null}
         </Form>
     )
@@ -162,7 +190,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             onOk={form.submit}
             okText="Invite"
             okButtonProps={{loading}}
-            width={400}
+            width={450}
             onCancel={onCancel}
             destroyOnClose
         >

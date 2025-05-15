@@ -33,7 +33,7 @@ from oss.src.models.api.api_models import (
 
 router = APIRouter()
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 @router.post("/from-base/", operation_id="add_variant_from_base_and_config")

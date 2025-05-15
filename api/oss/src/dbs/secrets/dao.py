@@ -27,7 +27,7 @@ class SecretsDAO(SecretsDAOInterface):
             project_id=project_id,
             secret_dto=create_secret_dto,
         )
-        async with engine.get_session() as session:
+        async with engine.get_core_session() as session:
             session.add(secrets_dbe)
             await session.commit()
 
@@ -39,7 +39,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID,
         secret_id: UUID,
     ):
-        async with engine.get_session() as session:
+        async with engine.get_core_session() as session:
             query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
@@ -54,7 +54,7 @@ class SecretsDAO(SecretsDAOInterface):
             return secrets_dto
 
     async def list(self, project_id: UUID):
-        async with engine.get_session() as session:
+        async with engine.get_core_session() as session:
             query = select(SecretsDBE).filter_by(project_id=project_id)
 
             results = await session.execute(query)  # type: ignore
@@ -71,7 +71,7 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
         update_secret_dto: UpdateSecretDTO,
     ):
-        async with engine.get_session() as session:
+        async with engine.get_core_session() as session:
             query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
@@ -97,7 +97,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID,
         secret_id: UUID,
     ):
-        async with engine.get_session() as session:
+        async with engine.get_core_session() as session:
             query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,

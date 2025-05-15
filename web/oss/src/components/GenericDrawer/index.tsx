@@ -1,14 +1,16 @@
 import {ReactNode, useState} from "react"
 
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Drawer, Flex} from "antd"
+import {Button, Drawer, Flex, Splitter} from "antd"
 
 type GenericDrawerProps = {
     expandable?: boolean
     headerExtra?: ReactNode
     mainContent: ReactNode
+    extraContent?: ReactNode
     sideContent?: ReactNode
     initialWidth?: number
+    externalKey?: string
 } & React.ComponentProps<typeof Drawer>
 
 const GenericDrawer = ({...props}: GenericDrawerProps) => {
@@ -53,12 +55,19 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
             }
             {...props}
         >
-            <div className="flex h-full">
+            <Splitter className="h-full" key={props.externalKey}>
                 {props.sideContent && (
-                    <div className="w-[320px] h-full flex flex-col">{props.sideContent}</div>
+                    <Splitter.Panel defaultSize={320} collapsible>
+                        {props.sideContent}
+                    </Splitter.Panel>
                 )}
-                {props.mainContent}
-            </div>
+                <Splitter.Panel>{props.mainContent}</Splitter.Panel>
+                {props.extraContent && (
+                    <Splitter.Panel defaultSize={320} collapsible>
+                        {props.extraContent}
+                    </Splitter.Panel>
+                )}
+            </Splitter>
         </Drawer>
     )
 }

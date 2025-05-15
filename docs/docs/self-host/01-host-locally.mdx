@@ -34,7 +34,7 @@ Change the following variables in the environment file `/hosting/docker-compose/
 ```bash
 AGENTA_PORT=81
 AGENTA_HOST=http://host.docker.internal:81
-SERVICE_URL_TEMPLATE=http://localhost:81/services/{path}
+AGENTA_SERVICES_URL=http://localhost:81/services
 ```
 
 ## Upgrading to the Latest Version of Agenta
@@ -48,7 +48,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 
 2. Run migrations if needed:
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations agenta-oss-gh-api-1 alembic -c alembic.oss.ini upgrade head
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core agenta-oss-gh-api-1 alembic -c alembic.ini upgrade head
 ```
 
 Consult the [migration guide](/self-host/applying-schema-migration) for more details.

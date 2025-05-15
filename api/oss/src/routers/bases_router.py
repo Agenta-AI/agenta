@@ -17,7 +17,7 @@ if is_ee():
 
 router = APIRouter()
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 @router.get("/", response_model=List[BaseOutput], operation_id="list_bases")

@@ -1,8 +1,9 @@
 from typing import Optional, Dict, List
+from threading import Lock
 
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
-from opentelemetry.sdk.trace import Span
+from opentelemetry.sdk.trace import Span, SpanProcessor
 from opentelemetry.sdk.trace.export import (
     SpanExporter,
     ReadableSpan,
@@ -154,3 +155,26 @@ class TraceProcessor(BatchSpanProcessor):
         # --- INLINE
 
         return trace
+
+
+invocation_link = {}
+invocation_link_lock = Lock()
+
+
+class InvocationLinkHook(SpanProcessor):
+    def on_end(self, span):
+        # Only capture root spans if you want
+        if span.parent is None:
+            ctx = span.get_span_context()
+
+            with invocation_link_lock:
+                invocation_link["trace_id"] = ctx.trace_id
+                invocation_link["span_id"] = ctx.span_id
+
+
+def use_invocation_link() -> Optional[Dict[str, str]]:
+    with invocation_link_lock:
+        if invocation_link:
+            return invocation_link.copy()
+        else:
+            return None

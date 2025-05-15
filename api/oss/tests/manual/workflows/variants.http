@@ -1,0 +1,367 @@
+@host = http://localhost/api
+@api_key = xxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxx
+@token = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+@base_url = {{host}}/api/preview/workflows
+
+###
+# @name create_account
+POST {{host}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+### 
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# @name add_workflow_artifact
+POST {{base_url}}/artifacts/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact": {
+    "name": "artifact {{$guid}}",
+    "description": "artifact description",
+    "slug": "artifact-{{$guid}}",
+    "metadata": {
+      "key1": "value",
+      "key2": "value",
+      "key3": "value"
+    },
+    "flags": {
+      "is_executable": false,
+      "is_custom": false,
+      "is_application": false,
+      "is_evaluator": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    }
+  }
+}
+
+###
+@artifact_id = {{add_workflow_artifact.response.body.artifact.id}}
+@artifact_slug = {{add_workflow_artifact.response.body.artifact.slug}}
+
+###
+
+# @name add_workflow_variant
+POST {{base_url}}/variants/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "variant": {
+    "name": "variant {{$guid}}",
+    "description": "variant description 1",
+    "slug": "variant-{{$guid}}",
+    "metadata": {
+      "tag1": "true",
+      "tag2": "true"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "artifact_id": "{{artifact_id}}"
+  }
+}
+
+###
+
+# @name fetch_variant
+GET {{base_url}}/variants/{{add_workflow_variant.response.body.variant.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name edit_workflow_variant
+PUT {{base_url}}/variants/{{add_workflow_variant.response.body.variant.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "variant": {
+    "id": "{{add_workflow_variant.response.body.variant.id}}",
+    "name": "variant 1 (updated)",
+    "description": "variant description 1 (updated)",
+    "metadata": {
+      "tag1": "true",
+      "tag2": "true"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "artifact_id": "{{artifact_id}}"
+  }
+}
+
+###
+
+# @name archive_workflow_variant
+POST {{base_url}}/variants/{{add_workflow_variant.response.body.variant.id}}/archive
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name unarchive_workflow_variant
+POST {{base_url}}/variants/{{add_workflow_variant.response.body.variant.id}}/unarchive
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name commit_workflow_revision_by_variant_id_rpc
+POST {{base_url}}/variants/{{add_workflow_variant.response.body.variant.id}}/commit
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "revision": {
+    "message": "second commit",
+    "name": "revision {{$guid}}",
+    "description": "revision description",
+    "slug": "revision-{{$guid}}",
+    "metadata": {
+      "tag1": "true",
+      "tag2": "true"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "data": {
+      "parameters": {
+        "ag_config": {
+          "prompt": {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are an expert in geography"
+              },
+              {
+                "role": "user",
+                "content": "What is the capital of {{country}}?"
+              }
+            ],
+            "input_keys": [
+              "country"
+            ],
+            "llm_config": {
+              "model": "gpt-4o-mini"
+            },
+            "user_prompt": "What is the capital of {{country}}?",
+            "system_prompt": "You are an expert in geography. Answer in French.",
+            "template_format": "curly"
+          }
+        }
+      },
+      "struct": {
+        "additionalProp1": {}
+      },
+      "url": "http://localhost:3454/api/services/rag"
+    },
+    "variant_id": "{{add_workflow_variant.response.body.variant.id}}",
+    "variant": {
+      "name": "variant-{{$guid}}",
+      "description": "variant description",
+      "slug": "variant-{{$guid}}",
+      "metadata": {
+        "tag1": "true",
+        "tag2": "true"
+      },
+      "flags": {
+        "is_application": false,
+        "is_evaluator": false,
+        "is_executable": false,
+        "is_custom": false,
+        "is_auto": false,
+        "is_human": false,
+        "is_for_members": false,
+        "is_for_endusers": false
+      }
+    }
+  }
+}
+
+###
+
+# @name fork_workflow_variant
+POST {{base_url}}/variants/{{add_workflow_variant.response.body.variant.id}}/fork
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "revision": {
+    "message": "initial commit",
+    "name": "revision (forked)",
+    "description": "revision (forked) description",
+    "slug": "revision-{{$guid}}",
+    "metadata": {
+      "tag1": "true",
+      "tag2": "true"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "data": {
+      "parameters": {
+        "ag_config": {
+          "prompt": {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are an expert in geography"
+              },
+              {
+                "role": "user",
+                "content": "What is the capital of {{country}}?"
+              }
+            ],
+            "input_keys": [
+              "country"
+            ],
+            "llm_config": {
+              "model": "gpt-4o-mini"
+            },
+            "user_prompt": "What is the capital of {{country}}?",
+            "system_prompt": "You are an expert in geography. Answer in Korean.",
+            "template_format": "curly"
+          }
+        }
+      },
+      "struct": {
+        "additionalProp1": {}
+      },
+      "url": "http://localhost:3454/api/services/rag"
+    },
+    "variant_id": "{{add_workflow_variant.response.body.variant.id}}",
+    "variant": {
+      "id": "{{add_workflow_variant.response.body.variant.id}}",
+      "name": "variant 1 (forked-{{$guid}})",
+      "description": "variant description (forked)",
+      "slug": "variant-{{$guid}}",
+      "metadata": {
+        "tag1": "true",
+        "tag2": "true"
+      },
+      "flags": {
+        "is_application": false,
+        "is_evaluator": false,
+        "is_executable": false,
+        "is_custom": false,
+        "is_auto": false,
+        "is_human": false,
+        "is_for_members": false,
+        "is_for_endusers": false
+      }
+    }
+  }
+}
+
+###
+
+### query by artifact reference (id)
+GET {{base_url}}/variants/?artifact_ref={"id"="{{artifact_id}"}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### query by artifact reference (id)
+POST {{base_url}}/variants/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_ref": {
+    "id": "{{artifact_id}}"
+  }
+}
+
+### query by artifact reference (slug)
+GET {{base_url}}/variants/?artifact_ref={"slug"="{{artifact_slug}}"}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### query by artifact reference (slug)
+POST {{base_url}}/variants/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_ref": {
+    "slug": "{{artifact_slug}}"
+  }
+}
+
+### query by artifact metadata
+POST {{base_url}}/variants/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_metadata": {
+    "key3": "value"
+  }
+}
+
+### query by artifact flags
+POST {{base_url}}/variants/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_flags": {
+    "is_evaluator": true
+  }
+}
+
+### query all (excluding archived)
+POST {{base_url}}/variants/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "include_archived": false
+}
+
+### query all including archived
+POST {{base_url}}/variants/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "include_archived": true
+}
+
+###

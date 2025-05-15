@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Key, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
 import {useAtom} from "jotai"
 
@@ -9,7 +9,7 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
-import {User} from "@/oss/lib/Types"
+import {Plan, User} from "@/oss/lib/Types"
 import {WorkspaceMember, WorkspaceRole} from "@/oss/lib/Types"
 import {
     assignWorkspaceRole,
@@ -17,6 +17,7 @@ import {
     resendInviteToWorkspace,
     unAssignWorkspaceRole,
 } from "@/oss/services/workspace/api"
+import {useSubscriptionData} from "@/agenta-oss-common/services/billing"
 
 export const Actions: React.FC<{
     member: WorkspaceMember
@@ -123,6 +124,7 @@ export const Roles: React.FC<{
     const [loading, setLoading] = useState(false)
     const [roles] = useAtom(workspaceRolesAtom)
     const {selectedOrg, setSelectedOrg} = useOrgData()
+    const {subscription} = useSubscriptionData()
 
     const {user} = member
     const isOwner = user.id === selectedOrg?.owner
@@ -184,7 +186,7 @@ export const Roles: React.FC<{
                     </Tag>
                 </Tooltip>
             )}
-            {!readOnly && !loading && isDemo() && (
+            {!readOnly && !loading && isDemo() && subscription?.plan === Plan.Business && (
                 <Dropdown
                     trigger={["click"]}
                     menu={{

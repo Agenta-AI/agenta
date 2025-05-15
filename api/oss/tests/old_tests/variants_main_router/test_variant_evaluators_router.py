@@ -47,7 +47,7 @@ async def test_get_evaluators_endpoint():
 async def test_create_auto_exact_match_evaluator_config(
     auto_exact_match_evaluator_config,
 ):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -67,7 +67,7 @@ async def test_create_auto_exact_match_evaluator_config(
 async def test_create_auto_similarity_match_evaluator_config(
     auto_similarity_match_evaluator_config,
 ):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -87,7 +87,7 @@ async def test_create_auto_similarity_match_evaluator_config(
 async def test_create_auto_regex_test_evaluator_config(
     auto_regex_test_evaluator_config,
 ):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -108,7 +108,7 @@ async def test_create_auto_regex_test_evaluator_config(
 async def test_create_auto_webhook_test_evaluator_config(
     auto_webhook_test_evaluator_config,
 ):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -128,7 +128,7 @@ async def test_create_auto_webhook_test_evaluator_config(
 async def test_create_auto_ai_critique_evaluator_config(
     auto_ai_critique_evaluator_config,
 ):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -146,7 +146,7 @@ async def test_create_auto_ai_critique_evaluator_config(
 
 @pytest.mark.asyncio
 async def test_get_evaluator_configs():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -190,7 +190,7 @@ async def wait_for_evaluation_to_finish(evaluation_id):
 
 async def create_evaluation_with_evaluator(evaluator_config_name):
     # Fetch app, app_variant and testset
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = app_result.scalars().first()
 
@@ -257,7 +257,7 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
 
 # @pytest.mark.asyncio
 # async def test_create_evaluation_with_no_llm_keys(evaluators_requiring_llm_keys):
-#     async with engine.session() as session:
+#     async with engine.core_session() as session:
 #         app_result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
 #         app = app_result.scalars().first()
 
@@ -339,7 +339,7 @@ async def test_create_evaluation_auto_ai_critique():
 
 @pytest.mark.asyncio
 async def test_delete_evaluator_config():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(app_name=APP_NAME))
         app = result.scalars().first()
 
@@ -362,7 +362,7 @@ async def test_delete_evaluator_config():
 
 @pytest.mark.asyncio
 async def test_evaluation_scenario_match_evaluation_testset_length():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(EvaluationDB).options(joinedload(EvaluationDB.testset))
         )

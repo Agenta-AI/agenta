@@ -17,7 +17,7 @@ from oss.src.core.observability.dtos import (
     OTelLinkDTO,
 )
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 SPAN_KINDS = [
     "SPAN_KIND_UNSPECIFIED",

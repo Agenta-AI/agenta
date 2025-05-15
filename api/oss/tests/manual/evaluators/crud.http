@@ -1,0 +1,125 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/evaluators
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# CREATE EVALUATOR
+# @name add_evaluator
+POST {{base_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "slug": "{{$guid}}",
+        "name": "Evaluator Name",
+        "description": "Evaluator description",
+        "tags": {
+            "tag1": "tag1",
+            "tag2": "tag2"
+        },
+        "format": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "id": { "type": "integer" },
+                "score": { "type": "number" },
+                "name": { "type": "string" },
+                "active": { "type": "boolean" },
+                "metadata": {
+                    "type": "object",
+                    "properties": {
+                        "version": { "type": "integer" },
+                        "notes": { "type": "string" }
+                    },
+                    "required": ["version"]
+                }
+            },
+            "required": ["id", "name"]
+        }
+    }
+}
+
+###
+
+@evaluator_id={{add_evaluator.response.body.evaluator.id}}
+
+###
+# fetch EVALUATOR
+# @name get_evaluator
+GET {{base_url}}/{{evaluator_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# EDIT EVALUATOR
+# @name edit_evaluator
+PUT {{base_url}}/{{evaluator_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "id": "{{evaluator_id}}",
+        "slug": "{{$guid}}",
+        "name": "Updated Evaluator Name",
+        "description": "Updated Evaluator description",
+        "tags": {
+            "tag1": "tag1",
+            "tag2": "tag2",
+            "tag3": "tag3"
+        },
+        "format": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+                "id": { "type": "integer" },
+                "score": { "type": "number" },
+                "name": { "type": "string" },
+                "active": { "type": "boolean" },
+                "another": { "type": "boolean" },
+                "metadata": {
+                    "type": "object",
+                    "properties": {
+                        "version": { "type": "integer" },
+                        "notes": { "type": "string" }
+                    },
+                    "required": ["version"]
+                }
+            },
+            "required": ["id", "name"]
+        }
+    }
+}
+
+###
+# archive EVALUATOR
+# @name archive_evaluator
+POST {{base_url}}/{{evaluator_id}}/archive
+Content-Type: application/json
+Authorization: {{authorization}}
+
+
+###
+# unarchive EVALUATOR
+# @name unarchive_evaluator
+POST {{base_url}}/{{evaluator_id}}/unarchive
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# query EVALUATORS
+# @name query_evaluators
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}

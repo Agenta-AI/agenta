@@ -1,0 +1,306 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/tracing
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+POST {{base_url}}/spans/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "spans": [
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000", "start_time": "2025-04-20T10:00:00+00:00" },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000001", "start_time": "2025-04-20T11:00:00+00:00" },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002", "start_time": "2025-04-20T12:00:00+00:00" }
+  ]
+}
+
+###
+# test: filter by start_time = 2025-04-20T10:00:00+00:00 (IMPLICIT IS)
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "value": "2025-04-20T10:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time = 1745143200
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "value": 1745143200 }
+    ]
+  }
+}
+
+###
+# test: filter by start_time IS 2025-04-20T10:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "is", "value": "2025-04-20T10:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time IS_NOT 2025-04-20T10:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "is_not", "value": "2025-04-20T10:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time EQ 2025-04-20T11:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "eq", "value": "2025-04-20T11:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time NEQ 2025-04-20T11:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "neq", "value": "2025-04-20T11:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time GT 2025-04-20T10:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "gt", "value": "2025-04-20T10:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time LT 2025-04-20T12:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "lt", "value": "2025-04-20T12:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time GTE 2025-04-20T11:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "gte", "value": "2025-04-20T11:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time LTE 2025-04-20T11:00:00+00:00
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "lte", "value": "2025-04-20T11:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time BETWEEN [2025-04-20T10:00:00+00:00, 2025-04-20T11:00:00+00:00]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "btwn", "value": ["2025-04-20T10:00:00+00:00", "2025-04-20T11:00:00+00:00"] }
+    ]
+  }
+}
+
+###
+# test: filter by start_time STARTSWITH [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "startswith", "value": "2025-04-20 10" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time ENDSWITH [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "endswith", "value": "10:00:00+00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time CONTAINS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "contains", "value": "11:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time MATCHES [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "matches", "value": "04-20 12" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time LIKE [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "like", "value": "%11:00%" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time IN [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "in", "value": ["2025-04-20T10:00:00+00:00", "2025-04-20T12:00:00+00:00"] }
+    ]
+  }
+}
+
+###
+# test: filter by start_time NOT_IN [2025-04-20T10:00:00+00:00, 2025-04-20T12:00:00+00:00]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "not_in", "value": ["2025-04-20T10:00:00+00:00", "2025-04-20T12:00:00+00:00"] }
+    ]
+  }
+}
+
+###
+# test: filter by start_time HAS [...] -- unsupported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "has", "value": "2025-04-20T10:00:00+00:00" }
+    ]
+  }
+}
+
+###
+# test: filter by start_time HAS_NOT [...] -- unsupported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "start_time", "operator": "has_not", "value": "2025-04-20T10:00:00+00:00" }
+    ]
+  }
+}

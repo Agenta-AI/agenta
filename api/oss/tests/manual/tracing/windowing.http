@@ -1,0 +1,111 @@
+@host = http://localhost
+@base_url = {{host}}/api/preview/tracing
+@api_key = UGZaImq8.a94d2c99eab827b1cd27678358016a61f2e92c2cdea8f33b1cf3cc2afb7065e8
+
+
+###
+
+# FLAT SPANS
+# @name add_trace
+POST {{base_url}}/traces/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "spans": [
+        {
+            "trace_id": "10000000000000000000000000000000",
+            "span_id": "1000000000000000",
+
+            "span_kind": "SPAN_KIND_SERVER",
+            "span_name": "parent_span",
+            
+
+            "start_time": 1670000000,
+            "end_time": 1680000000, 
+
+            "status_code": "STATUS_CODE_OK"
+        },
+        {
+            "trace_id": "10000000000000000000000000000000",
+            "span_id": "1000000000000001",
+            "parent_id": "1000000000000000",
+
+            "span_name": "child_span",
+            "span_kind": "SPAN_KIND_INTERNAL",
+
+            "start_time": 1672500000,
+            "end_time": 1677500000,
+
+            "status_code": "STATUS_CODE_ERROR"
+        },
+        {
+            "trace_id": "10000000000000000000000000000000",
+            "span_id": "1000000000000002",
+            "parent_id": "1000000000000000",
+
+            "span_name": "child_span",
+            "span_kind": "SPAN_KIND_INTERNAL",
+
+            "start_time": 1677500000,
+            "end_time": 1677600000,
+
+            "status_code": "STATUS_CODE_ERROR"
+        }
+    ]
+}
+
+### ALL
+
+GET {{base_url}}/spans/?focus=span&format=agenta
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING
+
+### WINDOWING: it should include all three, as datetime
+
+GET {{base_url}}/spans/?focus=span&format=agenta&oldest=2022-12-02T16:53:20&newest=2023-03-28T10:40:00
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: it should include all three, as int
+
+GET {{base_url}}/spans/?focus=span&format=agenta&oldest=1670000000&newest=1680000000
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: it should include only the first one, since newest is excluded
+
+GET {{base_url}}/spans/?focus=span&format=agenta&oldest=1670000000&newest=1672500000
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: it should include only the third one, since limit is 1
+
+GET {{base_url}}/spans/?focus=span&format=agenta&oldest=1670000000&newest=1680000000&limit=1
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: it should include none, since newest is before the beginning of the first span
+
+GET {{base_url}}/spans/?focus=span&format=agenta&newest=1670000000
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: it should include none, since oldest is after the end of the last span
+GET {{base_url}}/spans/?focus=span&format=agenta&oldest=1680000000
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: scrolls
+# @name scroll
+GET {{base_url}}/spans/?focus=span&format=agenta&limit=1
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### WINDOWING: scrolls
+# @name scroll
+GET {{base_url}}/spans/?focus=span&format=agenta&newest={{scroll.response.body.oldest}}&limit=1
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}

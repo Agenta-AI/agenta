@@ -1,0 +1,182 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/annotations
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# CFREATE ANNOTATION
+# @name create_annotation
+POST {{base_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "data": {
+            "outputs": {
+                "integer": 42,
+                "float": 3.14,
+                "string": "Hello, world!",
+                "boolean": true,
+                "array": [1],
+                "object": {
+                    "aloha": "mahalo"
+                }
+            }
+        },
+        "metadata": {
+            "name": "Test Annotation",
+            "description": "This is a test annotation.",
+            "tags": ["test", "annotation"]
+        },
+        "references": {
+            "evaluator": {
+                "slug": "evaluator_slug"
+            }
+        },
+        "links": {
+            "invocation": {
+                "trace_id": "019688a5e2097b80ad12e2907b83e9fc",
+                "span_id": "25a8e0b9bbf37d30"
+            }
+        }
+    }
+}
+
+###
+@trace_id={{create_annotation.response.body.annotation.trace_id}}
+@span_id={{create_annotation.response.body.annotation.span_id}}
+@evaluator_id={{create_annotation.response.body.annotation.references.evaluator.id}}
+@evaluator_slug={{create_annotation.response.body.annotation.references.evaluator.slug}}
+@invocation_trace_id={{create_annotation.response.body.annotation.links.invocation.trace_id}}
+@invocation_span_id={{create_annotation.response.body.annotation.links.invocation.span_id}}
+
+###
+# FETCH ANNOTATION
+# @name fetch_annotation
+GET {{base_url}}/{{trace_id}}/{{span_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# DELETE ANNOTATION
+# @name delete_annotation
+DELETE {{base_url}}/{{trace_id}}/{{span_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "trace_id": "{{trace_id}}",
+        "span_id": "{{span_id}}"
+        
+    }
+}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "references": {
+            "evaluator": {
+                "id": "{{evaluator_id}}",
+                "slug": "{{evaluator_slug}}"
+            }
+        }
+    }
+}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "references": {
+            "evaluator": {
+                "id": "{{evaluator_id}}"
+            }
+        }
+    }
+}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "references": {
+            "evaluator": {
+                "slug": "{{evaluator_slug}}"
+            }
+        }
+    }
+}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "links": {
+            "invocation": {
+                "trace_id": "{{invocation_trace_id}}",
+                "span_id": "{{invocation_span_id}}"
+            }
+        }
+    }
+}
+
+###
+# QUERY ANNOTATIONS
+# @name query_annotations
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "metadata": {
+            "name": "Test Annotation"
+        }
+    }
+}

@@ -6,12 +6,12 @@ import {createUseStyles} from "react-jss"
 
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
-import {_AgentaRootsResponse, NodeStatusCode} from "@/oss/services/observability/types"
-
+import {NodeStatusCode} from "@/oss/services/observability/types"
 import AvatarTreeContent from "../components/AvatarTreeContent"
+import {TracesWithAnnotations} from "../ObservabilityDashboard"
 
 interface TraceTreeProps {
-    activeTrace: _AgentaRootsResponse
+    activeTrace: TracesWithAnnotations
     selected: string
     setSelected: React.Dispatch<React.SetStateAction<string>>
 }

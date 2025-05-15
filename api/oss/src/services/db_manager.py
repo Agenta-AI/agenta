@@ -50,7 +50,7 @@ from oss.src.models.shared_models import (
 )
 
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 # Define parent directory
 PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
@@ -59,7 +59,7 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 async def fetch_project_by_id(
     project_id: str,
 ) -> ProjectDB:
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         project = (
             (
                 await session.execute(
@@ -86,7 +86,7 @@ async def add_testset_to_app_variant(
         project_id (str): The ID of the project
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         try:
             json_path = os.path.join(
                 PARENT_DIRECTORY,
@@ -123,7 +123,7 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
 
     assert app_id is not None, "app_id cannot be None"
     app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         base_query = select(AppDB).filter_by(id=uuid.UUID(app_uuid))
         result = await session.execute(base_query)
         app = result.unique().scalars().first()
@@ -144,7 +144,7 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
     """
 
     assert app_variant_id is not None, "app_variant_id cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(AppVariantDB).options(
             joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
             joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
@@ -171,7 +171,7 @@ async def fetch_app_variant_by_base_id(base_id: str) -> Optional[AppVariantDB]:
     """
 
     assert base_id is not None, "base_id cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(base_id=uuid.UUID(base_id))
         )
@@ -195,7 +195,7 @@ async def fetch_app_variant_by_base_id_and_config_name(
 
     assert base_id is not None, "base_id cannot be None"
     assert config_name is not None, "config_name cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 base_id=uuid.UUID(base_id), config_name=config_name
@@ -221,7 +221,7 @@ async def fetch_app_variant_revision_by_variant(
     assert app_variant_id is not None, "app_variant_id cannot be None"
     assert revision is not None, "revision cannot be None"
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB)
             .filter_by(
@@ -259,7 +259,7 @@ async def fetch_app_environment_revision_by_environment(
     assert app_environment_id is not None, "app_environment_id cannot be None"
     assert revision is not None, "revision cannot be None"
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppEnvironmentRevisionDB).filter_by(
                 environment_id=uuid.UUID(app_environment_id),
@@ -294,7 +294,7 @@ async def fetch_app_environment_revision_by_version(
         raise Exception("version cannot be negative")
 
     elif version and version > 0:
-        async with engine.session() as session:
+        async with engine.core_session() as session:
             result = await session.execute(
                 select(AppEnvironmentRevisionDB)
                 .filter_by(
@@ -314,7 +314,7 @@ async def fetch_app_environment_revision_by_version(
             return app_environment_revision, version
 
     else:
-        async with engine.session() as session:
+        async with engine.core_session() as session:
             result = await session.execute(
                 select(AppEnvironmentRevisionDB)
                 .filter_by(
@@ -357,7 +357,7 @@ async def fetch_base_by_id(base_id: str) -> Optional[VariantBaseDB]:
 
     assert base_id is not None, "no base_id provided"
     base_uuid = await get_object_uuid(object_id=base_id, table_name="bases")
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(VariantBaseDB)
             .options(joinedload(VariantBaseDB.deployment))
@@ -382,7 +382,7 @@ async def fetch_app_variant_by_name_and_appid(
         AppVariantDB: the instance of the app variant
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 variant_name=variant_name, app_id=uuid.UUID(app_id)
@@ -405,7 +405,7 @@ async def fetch_app_variant_by_config_name_and_appid(
         AppVariantDB: the instance of the app variant
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 config_name=config_name, app_id=uuid.UUID(app_id)
@@ -429,7 +429,7 @@ async def create_new_variant_base(
         VariantBaseDB: The created base.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         base = VariantBaseDB(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
@@ -491,7 +491,7 @@ async def create_new_app_variant(
         config.parameters == {}
     ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         variant = AppVariantDB(
             app_id=app.id,
             project_id=uuid.UUID(project_id),
@@ -549,7 +549,7 @@ async def create_deployment(
         DeploymentDB: The created deployment.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         try:
             deployment = DeploymentDB(
                 app_id=uuid.UUID(app_id),
@@ -625,7 +625,7 @@ async def create_app_and_envs(
         template_key=template_key,
     )
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         app = AppDB(
             app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
         )
@@ -646,7 +646,7 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
         values_to_update (dict): The values to update in the app
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
         app = result.scalars().first()
         if not app:
@@ -688,7 +688,7 @@ async def get_deployment_by_id(deployment_id: str) -> DeploymentDB:
         DeploymentDB: instance of deployment object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
@@ -706,7 +706,7 @@ async def get_deployment_by_appid(app_id: str) -> DeploymentDB:
         DeploymentDB: instance of deployment object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(app_id=uuid.UUID(app_id))
         )
@@ -729,7 +729,7 @@ async def list_app_variants_for_app_id(
     """
 
     assert app_id is not None, "app_id cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .where(AppVariantDB.hidden.is_not(True))
@@ -760,7 +760,7 @@ async def list_app_variants_by_app_slug(
     if app_db is None:
         raise NoResultFound(f"App with name {app_slug} not found.")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .where(AppVariantDB.hidden.is_not(True))
@@ -789,7 +789,7 @@ async def fetch_app_variant_by_slug(variant_slug: str, app_id: str) -> AppVarian
         AppVariantDB: the instance of the app variant
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .where(AppVariantDB.hidden.is_not(True))
@@ -811,7 +811,7 @@ async def list_bases_for_app_id(app_id: str, base_name: Optional[str] = None):
     """
 
     assert app_id is not None, "app_id cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(VariantBaseDB).filter_by(app_id=uuid.UUID(app_id))
         if base_name:
             query = query.filter_by(base_name=base_name)
@@ -833,7 +833,7 @@ async def list_variants_for_base(base: VariantBaseDB):
     """
 
     assert base is not None, "base cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .where(AppVariantDB.hidden.is_not(True))
@@ -854,7 +854,7 @@ async def get_user(user_uid: str) -> UserDB:
         UserDB: instance of user
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         # NOTE: Backward Compatibility
         # ---------------------------
         # Previously, the user_id field in the api_keys collection in MongoDB used the
@@ -875,7 +875,7 @@ async def get_user(user_uid: str) -> UserDB:
 async def check_if_user_exists_and_create_organization(user_email: str):
     """Check if a user with the given email exists and if not, create a new organization for them."""
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         user_query = await session.execute(select(UserDB).filter_by(email=user_email))
         user = user_query.scalars().first()
 
@@ -911,7 +911,7 @@ async def check_if_user_invitation_exists(email: str, organization_id: str):
     if not project_db:
         raise NoResultFound("Project not found for user invitation in organization.")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(
                 email=email,
@@ -986,7 +986,7 @@ async def create_organization(name: str):
         OrganizationDB: instance of organization
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         organization_db = OrganizationDB(name=name)
         session.add(organization_db)
         await session.commit()
@@ -1004,7 +1004,7 @@ async def create_workspace(name: str, organization_id: str):
         WorkspaceDB: instance of workspace
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         workspace_db = WorkspaceDB(
             name=name,
             organization_id=uuid.UUID(organization_id),
@@ -1025,7 +1025,7 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         values_to_update (Dict[str, Any]): The values to update in the organization
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
@@ -1048,7 +1048,7 @@ async def update_default_project(values_to_update: Dict[str, Any]):
         values_to_update (Dict[str, Any]): The values to update in the project
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(ProjectDB).filter_by(is_default=True))
         project = result.scalar()
         if project is None:
@@ -1070,7 +1070,7 @@ async def get_organizations() -> List[OrganizationDB]:
         List: A list of organizations.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(OrganizationDB))
         organizations = result.scalars().all()
         return organizations
@@ -1087,7 +1087,7 @@ async def get_organization_by_id(organization_id: str) -> OrganizationDB:
         OrganizationDB: The organization object if found, None otherwise.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
@@ -1106,7 +1106,7 @@ async def get_organization_owner(organization_id: str):
         UserDB: The owner of the organization if found, None otherwise.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
@@ -1128,7 +1128,7 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
         Workspace: The retrieved workspace.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(WorkspaceDB).filter_by(id=uuid.UUID(workspace_id))
         if is_ee():
             query = query.options(joinedload(WorkspaceDB.members))
@@ -1146,7 +1146,7 @@ async def get_workspaces() -> List[WorkspaceDB]:
         List: A list of workspaces.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(WorkspaceDB))
         workspaces = result.scalars().all()
         return workspaces
@@ -1165,7 +1165,7 @@ async def remove_user_from_workspace(project_id: str, email: str):
         project_id=project_id, email=email
     )
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         if user:
             await session.delete(user)
 
@@ -1212,7 +1212,7 @@ async def get_user_with_id(user_id: str) -> UserDB:
         Exception: If an error occurs while getting the user from the database.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(id=uuid.UUID(user_id)))
         user = result.scalars().first()
         if user is None:
@@ -1242,7 +1242,7 @@ async def get_user_with_email(email: str):
     if "@" not in email:
         raise Exception("Please provide a valid email address")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(email=email))
         user = result.scalars().first()
         return user
@@ -1256,7 +1256,7 @@ async def get_users_by_ids(user_ids: List):
         user_ids (List): A list of user IDs to retrieve.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         user_uids = [uuid.UUID(user_id) for user_id in user_ids]
         result = await session.execute(select(UserDB).where(UserDB.id.in_(user_uids)))
         users = result.scalars().all()
@@ -1271,7 +1271,7 @@ async def get_users() -> List[UserDB]:
         List: A list of users.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB))
         users = result.scalars().all()
         return users
@@ -1300,7 +1300,7 @@ async def create_user_invitation_to_organization(
         Exception: If there is an error updating the user's roles.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         invitation = InvitationDB(
             token=token,
             email=email,
@@ -1326,7 +1326,7 @@ async def get_project_by_id(project_id: str) -> ProjectDB:
         str: The retrieve project or None
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         project_query = await session.execute(
             select(ProjectDB).where(ProjectDB.id == uuid.UUID(project_id))
         )
@@ -1349,7 +1349,7 @@ async def get_default_project_id_from_workspace(
         Union[str, Exception]: The default project ID or an exception error message.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         project_query = await session.execute(
             select(ProjectDB)
             .where(
@@ -1377,7 +1377,7 @@ async def get_project_invitation_by_email(project_id: str, email: str) -> Invita
         InvitationDB: invitation object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(
                 project_id=uuid.UUID(project_id), email=email
@@ -1397,7 +1397,7 @@ async def get_project_invitations(project_id: str) -> InvitationDB:
         List[InvitationDB]: invitation objects
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(project_id=uuid.UUID(project_id))
         )
@@ -1417,7 +1417,7 @@ async def update_invitation(invitation_id: str, values_to_update: dict) -> bool:
         bool: True if the invitation was successfully updated, False otherwise.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(id=uuid.UUID(invitation_id))
         )
@@ -1455,7 +1455,7 @@ async def delete_invitation(invitation_id: str) -> bool:
         bool: True if the invitation was successfully deleted, False otherwise.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(id=uuid.UUID(invitation_id))
         )
@@ -1489,7 +1489,7 @@ async def get_project_by_organization_id(organization_id: str):
         ProjectDB: project object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(ProjectDB).filter_by(organization_id=uuid.UUID(organization_id))
         )
@@ -1511,7 +1511,7 @@ async def get_project_invitation_by_token_and_email(
         InvitationDB: invitation object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(InvitationDB).filter_by(
                 project_id=uuid.UUID(project_id), token=token, email=email
@@ -1531,7 +1531,7 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
         AppDB: instance of app object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
         app = result.scalars().first()
         return app
@@ -1576,7 +1576,7 @@ async def add_variant_from_base_and_config(
         raise ValueError("App variant with the same name already exists")
 
     user_db = await get_user_with_id(user_id=user_uid)
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         db_app_variant = AppVariantDB(
             app_id=previous_app_variant_db.app_id,
             variant_name=new_config_name,
@@ -1632,7 +1632,7 @@ async def list_apps(
         return [converters.app_db_to_pydantic(app_db)]
 
     else:
-        async with engine.session() as session:
+        async with engine.core_session() as session:
             result = await session.execute(
                 select(AppDB).filter_by(project_id=uuid.UUID(project_id))
             )
@@ -1653,7 +1653,7 @@ async def list_app_variants(app_id: str):
     """
 
     app_uuid = await get_object_uuid(object_id=app_id, table_name="app_db")
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .options(
@@ -1676,7 +1676,7 @@ async def remove_deployment(deployment_id: str):
 
     assert deployment_id is not None, "deployment_id is missing"
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
         )
@@ -1698,7 +1698,7 @@ async def list_deployments(app_id: str):
         a list/sequence of all the deployments that were retrieved
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(DeploymentDB).filter_by(app_id=uuid.UUID(app_id))
         )
@@ -1720,7 +1720,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
         app_variant_db, project_id
     )
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         # Delete all the revisions associated with the variant
         for app_variant_revision in app_variant_revisions:
             await session.delete(app_variant_revision)
@@ -1742,7 +1742,7 @@ async def mark_app_variant_as_hidden(app_variant_id: str):
     if app_variant_db is None:
         raise NoResultFound("App variant not found")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         app_variant_db = await session.merge(
             app_variant_db
         )  # Attach the object to the session
@@ -1762,7 +1762,7 @@ async def mark_app_variant_as_visible(app_variant_id: str):
     if app_variant_db is None:
         raise NoResultFound("App variant not found")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         app_variant_db = await session.merge(
             app_variant_db
         )  # Attach the object to the session
@@ -1784,7 +1784,7 @@ async def mark_app_variant_revision_as_hidden(variant_revision_id: str):
     if variant_revision_db is None:
         raise NoResultFound("App variant not found")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         variant_revision_db = await session.merge(
             variant_revision_db
         )  # Attach the object to the session
@@ -1806,7 +1806,7 @@ async def mark_app_variant_revision_as_visible(variant_revision_id: str):
     if variant_revision_db is None:
         raise NoResultFound("App variant not found")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         variant_revision_db = await session.merge(
             variant_revision_db
         )  # Attach the object to the session
@@ -1857,7 +1857,7 @@ async def deploy_to_environment(
     assert "user_uid" in user_org_data, "User uid is required"
     user = await get_user_with_id(user_id=user_org_data["user_uid"])
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         # Find the environment for the given app name and user
         result = await session.execute(
             select(AppEnvironmentDB).filter_by(
@@ -1905,7 +1905,7 @@ async def fetch_app_environment_by_name_and_appid(
         AppEnvironmentDB: app environment object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(AppEnvironmentDB).filter_by(
             app_id=uuid.UUID(app_id), name=environment_name
         )
@@ -1930,7 +1930,7 @@ async def fetch_app_environment_by_id(
         AppEnvironmentDB: app environment object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppEnvironmentDB).filter_by(id=uuid.UUID(environment_id))
         )
@@ -1950,7 +1950,7 @@ async def fetch_app_environment_revision_by_app_variant_revision_id(
         AppEnvironmentRevisionDB: app environment object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(AppEnvironmentRevisionDB).filter_by(
             deployed_app_variant_revision_id=uuid.UUID(app_variant_revision_id),
         )
@@ -1975,7 +1975,7 @@ async def fetch_app_variant_revision_by_id(
         AppVariantRevisionsDB: app variant revision object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB)
             .options(
@@ -1997,7 +1997,7 @@ async def fetch_environment_revisions_for_environment(environment: AppEnvironmen
         List[AppEnvironmentRevisionDB]: A list of AppEnvironmentRevisionDB objects.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(AppEnvironmentRevisionDB).filter_by(
             environment_id=environment.id
         )
@@ -2032,7 +2032,7 @@ async def fetch_app_environment_revision(revision_id: str) -> AppEnvironmentRevi
         revision_id (str): The ID of the revision
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppEnvironmentRevisionDB).filter_by(id=uuid.UUID(revision_id))
         )
@@ -2050,7 +2050,7 @@ async def update_app_environment(
         values_to_update (dict): the values to update with
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         for key, value in values_to_update.items():
             if hasattr(app_environment, key):
                 setattr(app_environment, key, value)
@@ -2069,7 +2069,7 @@ async def update_app_environment_deployed_variant_revision(
         deployed_variant_revision (str): the ID of the deployed variant revision
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantRevisionsDB).filter_by(
                 id=uuid.UUID(deployed_variant_revision)
@@ -2107,7 +2107,7 @@ async def list_environments(app_id: str, **kwargs: dict):
         log.error(f"App with id {app_id} not found")
         raise ValueError("App not found")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppEnvironmentDB)
             .options(
@@ -2236,7 +2236,7 @@ async def list_app_variant_revisions_by_variant(
     Returns:
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         base_query = (
             select(AppVariantRevisionsDB)
             .where(AppVariantRevisionsDB.hidden.is_not(True))
@@ -2266,7 +2266,7 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
         List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         base_query = (
             select(AppVariantRevisionsDB)
             .where(AppVariantRevisionsDB.hidden.is_not(True))
@@ -2304,7 +2304,7 @@ async def remove_environment(environment_db: AppEnvironmentDB):
     """
 
     assert environment_db is not None, "environment_db is missing"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         await session.delete(environment_db)
         await session.commit()
 
@@ -2317,7 +2317,7 @@ async def remove_testsets(testset_ids: List[str]):
         testset_ids (List[str]):  The testset identifiers
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
         result = await session.execute(query)
         testsets = result.scalars().all()
@@ -2341,7 +2341,7 @@ async def remove_base_from_db(base_id: str):
     """
 
     assert base_id is None, "base_id is required"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
         )
@@ -2369,7 +2369,7 @@ async def remove_app_by_id(app_id: str, project_id: str):
     """
 
     assert app_id is not None, "app_id cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(
                 id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
@@ -2405,7 +2405,7 @@ async def update_variant_parameters(
     """
 
     user = await get_user_with_id(user_id=user_uid)
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(
                 id=uuid.UUID(app_variant_id), project_id=uuid.UUID(project_id)
@@ -2453,7 +2453,7 @@ async def get_app_variant_instance_by_id(
         AppVariantDB: instance of app variant object
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .options(
@@ -2482,7 +2482,7 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     except ValueError as e:
         raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
         testset = result.scalars().first()
         if not testset:
@@ -2503,7 +2503,7 @@ async def create_testset(project_id: str, testset_data: Dict[str, Any]):
         returns the newly created TestsetDB
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
         log.info(
@@ -2529,7 +2529,7 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
         values_to_update (dict):  The values to update
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
         )
@@ -2562,7 +2562,7 @@ async def fetch_testsets_by_project_id(project_id: str):
         List[TestSetDB]: The fetched testsets.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
         )
@@ -2584,7 +2584,7 @@ async def find_previous_variant_from_base_id(
     """
 
     assert base_id is not None, "base_id cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB)
             .filter_by(base_id=uuid.UUID(base_id), project_id=uuid.UUID(project_id))
@@ -2606,7 +2606,7 @@ async def update_base(
         base (VariantBaseDB): The base object to update.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(VariantBaseDB).filter_by(id=uuid.UUID(base_id))
         )
@@ -2628,7 +2628,7 @@ async def remove_base(base_db: VariantBaseDB):
         base (VariantBaseDB): The base object to update.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         await session.delete(base_db)
         await session.commit()
 
@@ -2643,7 +2643,7 @@ async def update_app_variant(
         app_variant_id (str): The app variant oIDbject to update.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppVariantDB).filter_by(id=uuid.UUID(app_variant_id))
         )
@@ -2683,7 +2683,7 @@ async def fetch_app_by_name_and_parameters(
     if project_id is None:
         raise ValueError("project_id must be provided.")
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         query = select(AppDB).filter_by(
             app_name=app_name, project_id=uuid.UUID(project_id)
         )
@@ -2699,7 +2699,7 @@ async def fetch_evaluators_configs(project_id: str):
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(project_id=uuid.UUID(project_id))
         )
@@ -2717,7 +2717,7 @@ async def fetch_evaluator_config(evaluator_config_id: str):
         EvaluatorConfigDB: the evaluator configuration object.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
@@ -2738,7 +2738,7 @@ async def check_if_evaluators_exist_in_list_of_evaluators_configs(
         bool: True if all evaluators exist, False otherwise.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         evaluator_config_uuids = [
             uuid.UUID(evaluator_config_id)
             for evaluator_config_id in evaluators_configs_ids
@@ -2771,7 +2771,7 @@ async def fetch_evaluator_config_by_appId(
         EvaluatorConfigDB: the evaluator configuration object.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(
                 app_id=uuid.UUID(app_id), evaluator_key=evaluator_name
@@ -2790,7 +2790,7 @@ async def create_evaluator_config(
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         name_suffix = f" ({app_name})" if app_name else ""
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
@@ -2820,7 +2820,7 @@ async def update_evaluator_config(
         EvaluatorConfigDB: The updated evaluator configuration object.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
@@ -2845,7 +2845,7 @@ async def delete_evaluator_config(evaluator_config_id: str) -> bool:
     """Delete an evaluator configuration from the database."""
 
     assert evaluator_config_id is not None, "Evaluator Config ID cannot be None"
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(EvaluatorConfigDB).filter_by(id=uuid.UUID(evaluator_config_id))
         )
@@ -2904,7 +2904,7 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
         The corresponding object uuid as string.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(IDsMappingDB).filter_by(table_name=table_name, objectid=object_id)
         )
@@ -2919,7 +2919,7 @@ async def fetch_default_project() -> ProjectDB:
         ProjectDB: The default project instance.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(ProjectDB).filter_by(is_default=True))
         default_project = result.scalars().first()
         return default_project
@@ -2937,7 +2937,7 @@ async def get_user_api_key_by_prefix(api_key_prefix: str, user_id: str) -> APIKe
         The user api key by prefix.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(APIKeyDB).filter_by(
                 prefix=api_key_prefix, created_by_id=uuid.UUID(user_id)
@@ -2959,7 +2959,7 @@ async def update_api_key_timestamp(api_key_id: str) -> None:
         NoResultFound: API Key with id xxxx not found
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(APIKeyDB).filter_by(id=uuid.UUID(api_key_id))  # type: ignore
         )

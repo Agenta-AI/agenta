@@ -16,7 +16,7 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAut
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
                 thirdPartyId: "google",
                 frontendRedirectURI: `${
-                    getEnv("NEXT_PUBLIC_WEBSITE_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
+                    getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
                 }/auth/callback/google`,
             })
 
@@ -35,7 +35,7 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAut
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
                 thirdPartyId: "github",
                 frontendRedirectURI: `${
-                    getEnv("NEXT_PUBLIC_WEBSITE_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
+                    getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
                 }/auth/callback/github`,
             })
 

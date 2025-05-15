@@ -4,12 +4,16 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
+    AsyncEngine,
     create_async_engine,
     async_sessionmaker,
     async_scoped_session,
 )
 
-from oss.src.models.db.config import POSTGRES_URI
+from oss.src.models.db.config import (
+    POSTGRES_URI_CORE,
+    POSTGRES_URI_TRACING,
+)
 
 
 class DBEngine:
@@ -18,13 +22,34 @@ class DBEngine:
     """
 
     def __init__(self) -> None:
-        self.postgres_uri = POSTGRES_URI
-        self.engine = create_async_engine(url=self.postgres_uri)  # type: ignore
-        self.async_session_maker = async_sessionmaker(
-            bind=self.engine, class_=AsyncSession, expire_on_commit=False
+        self.postgres_uri_core = POSTGRES_URI_CORE
+
+        self.core_engine: AsyncEngine = create_async_engine(
+            url=self.postgres_uri_core,
+        )  # type: ignore
+        self.async_core_session_maker = async_sessionmaker(
+            bind=self.core_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
         )
-        self.async_session = async_scoped_session(
-            session_factory=self.async_session_maker, scopefunc=current_task
+        self.async_core_session = async_scoped_session(
+            session_factory=self.async_core_session_maker,
+            scopefunc=current_task,
+        )
+
+        self.postgres_uri_tracing = POSTGRES_URI_TRACING
+
+        self.tracing_engine: AsyncEngine = create_async_engine(
+            url=self.postgres_uri_tracing,
+        )  # type: ignore
+        self.async_tracing_session_maker = async_sessionmaker(
+            bind=self.tracing_engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+        self.async_tracing_session = async_scoped_session(
+            session_factory=self.async_tracing_session_maker,
+            scopefunc=current_task,
         )
 
     async def init_db(self):
@@ -35,7 +60,7 @@ class DBEngine:
         raise NotImplementedError()
 
     @asynccontextmanager
-    async def get_session(self) -> AsyncGenerator[AsyncSession, None]:
+    async def get_core_session(self) -> AsyncGenerator[AsyncSession, None]:
         """
         Async context manager to yield a database session.
 
@@ -51,7 +76,18 @@ class DBEngine:
             re-raised after the session rollback.
         """
 
-        session = self.async_session()
+        session = self.async_core_session()
+        try:
+            yield session
+        except Exception as e:
+            await session.rollback()
+            raise e
+        finally:
+            await session.close()
+
+    @asynccontextmanager
+    async def get_tracing_session(self) -> AsyncGenerator[AsyncSession, None]:
+        session = self.async_tracing_session()
         try:
             yield session
         except Exception as e:

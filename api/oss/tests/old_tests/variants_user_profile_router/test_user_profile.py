@@ -25,7 +25,7 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_fetch_user_profile_without_user_id():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user_db = result.scalars().first()
         if not user_db:
@@ -51,7 +51,7 @@ async def test_fetch_user_profile_without_user_id():
 
 @pytest.mark.asyncio
 async def test_fetch_user_profile_with_valid_user_id():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user_db = result.scalars().first()
         if not user_db:

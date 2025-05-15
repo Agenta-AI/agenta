@@ -26,7 +26,7 @@ from oss.src.utils.traces import (
     get_field_value_from_trace_tree,
 )
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def validate_string_output(

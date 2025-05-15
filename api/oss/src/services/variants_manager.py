@@ -36,7 +36,7 @@ from oss.src.services.db_manager import (
 )
 
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 ### POSTGRES ASSUMPTIONS
 # UNIQUE: (project_id, {entity}_id) -- PK
@@ -776,7 +776,7 @@ async def fork_config_by_variant_ref(
         slug=(
             variant_ref.slug
             if variant_ref.slug
-            else app_variant.config_name + "_" + uuid4().hex[:8]
+            else app_variant.config_name + "_" + uuid4().hex[20:]
         ),
         params=app_variant_revision.config_parameters,
         base_id=app_variant.base_id,

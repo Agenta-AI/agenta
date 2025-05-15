@@ -1,0 +1,325 @@
+@host = http://localhost
+@base_url = {{host}}/api/preview/tracing
+@api_key = UGZaImq8.a94d2c99eab827b1cd27678358016a61f2e92c2cdea8f33b1cf3cc2afb7065e8
+
+
+###
+
+# TRACE TREE
+# @name add_trace
+POST {{base_url}}/traces/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "traces": {
+        "12345678-90ab-cdef-1234-567890abcdef": {
+            "spans": {
+                "parent_span": {
+                    "trace_id": "1234567890abcdef1234567890abcdef",
+                    "span_id": "abcdef1234567890",
+
+                    "span_name": "parent_span",
+                    "span_kind": "SPAN_KIND_SERVER",
+
+                    "start_time": 1670000000,
+                    "end_time": 1680000000, 
+
+                    "status_code": "STATUS_CODE_OK",
+                    "status_message": "This went well",
+
+                    "attributes": {
+                        "some.string": "some-string",
+                        "some.number": 123,
+                        "some.boolean": true,
+                        "some.array": [1, 2, 3],
+                        "some.object": {
+                            "key1": "value1",
+                            "key2": "value2"
+                        },
+                        "some.more.array.0": "array-value-0",
+                        "some.more.array.1": "array-value-1",
+                        "some.more.array.2": "array-value-2"
+                        
+                    },
+                    "events": [
+                        {
+                            "name": "some-event",
+                            "timestamp": 1675000000,
+                            "attributes": {
+                                "some.attribute": "some-value"
+                            }
+                        }
+                    ],
+
+                    "spans": {
+                        "child_span": {
+                            "trace_id": "1234567890abcdef1234567890abcdef",
+                            "span_id": "1234567890abcdef",
+                            "parent_id": "abcdef1234567890",
+
+                            "span_name": "child_span",
+                            "span_kind": "SPAN_KIND_INTERNAL",
+
+                            "start_time": 1672500000,
+                            "end_time": 1677500000,
+
+                            "status_code": "STATUS_CODE_ERROR",
+                            "status_message": "This did not go well",
+
+                            "events": [
+                                {
+                                    "name": "exception",
+                                    "timestamp": 1675000000,
+                                    "attributes": {
+                                        "some.attribute": "some-value"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# HTTP/1.1 202 Accepted
+# ...
+# {
+#   "version": "1.0.0",
+#   "count": 2,
+#   "links": [
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "abcdef1234567890"
+#     },
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "1234567890abcdef"
+#     }
+#   ]
+# }
+
+###
+
+# FLAT SPANS
+# @name add_trace
+POST {{base_url}}/traces/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "spans": [
+        {
+            "trace_id": "1234567890abcdef1234567890abcdef",
+            "span_id": "abcdef1234567890",
+
+            "span_name": "parent_span",
+            "span_kind": "SPAN_KIND_SERVER",
+
+            "start_time": 1670000000,
+            "end_time": 1680000000, 
+
+            "status_code": "STATUS_CODE_OK",
+            "status_message": "This went well",
+
+            "attributes": {
+                "some.string": "some-string",
+                "some.number": 123,
+                "some.boolean": true,
+                "some.array": [1, 2, 3],
+                "some.object": {
+                    "key1": "value1",
+                    "key2": "value2"
+                },
+                "some.more.array.0": "array-value-0",
+                "some.more.array.1": "array-value-1",
+                "some.more.array.2": "array-value-2"
+                
+            },
+            "events": [
+                {
+                    "name": "some-event",
+                    "timestamp": 1675000000,
+                    "attributes": {
+                        "some.attribute": "some-value"
+                    }
+                }
+            ]
+        },
+        {
+            "trace_id": "1234567890abcdef1234567890abcdef",
+            "span_id": "1234567890abcdef",
+            "parent_id": "abcdef1234567890",
+
+            "span_name": "child_span",
+            "span_kind": "SPAN_KIND_INTERNAL",
+
+            "start_time": 1672500000,
+            "end_time": 1677500000,
+
+            "status_code": "STATUS_CODE_ERROR",
+            "status_message": "This did not go well",
+
+            "events": [
+                {
+                    "name": "exception",
+                    "timestamp": 1675000000,
+                    "attributes": {
+                        "some.attribute": "some-value"
+                    }
+                }
+            ]
+        }
+    ]
+}
+
+# HTTP/1.1 202 Accepted
+# ...
+# {
+#   "version": "1.0.0",
+#   "count": 2,
+#   "links": [
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "abcdef1234567890"
+#     },
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "1234567890abcdef"
+#     }
+#   ]
+# }
+
+###
+
+# @name fetch_trace
+GET {{base_url}}/traces/{{add_trace.response.body.links[0].trace_id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+# HTTP/1.1 200 OK
+# SAME AS ADD TRACE
+
+###
+
+# TRACE TREE
+# @name edit_trace
+PUT {{base_url}}/traces/{{add_trace.response.body.links[0].trace_id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "traces": {
+        "12345678-90ab-cdef-1234-567890abcdef": {
+            "spans": {
+                "parent_span": {
+                    "trace_id": "1234567890abcdef1234567890abcdef",
+                    "span_id": "abcdef1234567890",
+
+                    "span_name": "parent_span",
+                    "span_kind": "SPAN_KIND_CONSUMER",
+
+                    "start_time": 1670000000,
+                    "end_time": 1680000000, 
+
+                    "status_code": "STATUS_CODE_OK",
+                    "status_message": "This went well",
+
+                    "attributes": {
+                        "some.string": "some-string",
+                        "some.number": 123,
+                        "some.boolean": true,
+                        "some.array": [1, 2, 3],
+                        "some.object": {
+                            "key1": "value1",
+                            "key2": "value2"
+                        },
+                        "some.more.array.0": "array-value-0",
+                        "some.more.array.1": "array-value-1",
+                        "some.more.array.2": "array-value-2"
+                        
+                    },
+                    "events": [
+                        {
+                            "name": "some-event",
+                            "timestamp": 1675000000,
+                            "attributes": {
+                                "some.attribute": "some-value"
+                            }
+                        }
+                    ],
+
+                    "spans": {
+                        "child_span": {
+                            "trace_id": "1234567890abcdef1234567890abcdef",
+                            "span_id": "1234567890abcdef",
+                            "parent_id": "abcdef1234567890",
+
+                            "span_name": "child_span",
+                            "span_kind": "SPAN_KIND_INTERNAL",
+
+                            "start_time": 1672500000,
+                            "end_time": 1677500000,
+
+                            "status_code": "STATUS_CODE_ERROR",
+                            "status_message": "This did not go well",
+
+                            "events": [
+                                {
+                                    "name": "exception",
+                                    "timestamp": 1675000000,
+                                    "attributes": {
+                                        "some.attribute": "some-value"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+# HTTP/1.1 202 Accepted
+# ...
+# {
+#   "version": "1.0.0",
+#   "count": 2,
+#   "links": [
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "abcdef1234567890"
+#     },
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "1234567890abcdef"
+#     }
+#   ]
+# }
+
+###
+
+# @name delete_trace
+DELETE {{base_url}}/traces/{{add_trace.response.body.links[0].trace_id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+# HTTP/1.1 202 Accepted
+# ...
+# {
+#   "version": "1.0.0",
+#   "count": 2,
+#   "links": [
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "abcdef1234567890"
+#     },
+#     {
+#       "trace_id": "1234567890abcdef1234567890abcdef",
+#       "span_id": "1234567890abcdef"
+#     }
+#   ]
+# }
