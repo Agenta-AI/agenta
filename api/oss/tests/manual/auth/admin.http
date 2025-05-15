@@ -1,0 +1,20 @@
+@host = http://localhost
+@base_url = {{host}}/api
+@access_token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+
+###
+
+# @name create_account
+POST {{base_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{access_token}}
+
+{
+  "user": {
+    "name": "test_user",
+    "email": "test@agenta.ai"
+  },
+  "scope": {
+    "name": "Agenta (test)"
+  }
+}

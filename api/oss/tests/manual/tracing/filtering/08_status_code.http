@@ -1,0 +1,216 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/tracing
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# Add spans with status_code
+POST {{base_url}}/spans/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "spans": [
+    { "trace_id": "40000000000000000000000000000000", "span_id": "4000000000000000", "status_code": "STATUS_CODE_OK" },
+    { "trace_id": "40000000000000000000000000000000", "span_id": "4000000000000001", "status_code": "STATUS_CODE_ERROR" },
+    { "trace_id": "40000000000000000000000000000000", "span_id": "4000000000000002", "status_code": "STATUS_CODE_UNSET" },
+    { "trace_id": "40000000000000000000000000000000", "span_id": "4000000000000003", "status_message": "implicit_status_code" }
+  ]
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_OK" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_ERROR" }
+    ]
+  }
+}
+
+###
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSET" }
+    ]
+  }
+}
+
+###
+# Negative test: typo in field
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_cod", "value": "STATUS_CODE_UNSET" }
+    ]
+  }
+}
+
+###
+# Negative test: typo in value
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSETT" }
+    ]
+  }
+}
+
+###
+# Logical operator: AND
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "and",
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSET" },
+      { "field": "status_message", "value": "implicit_status_code" }
+    ]
+  }
+}
+
+###
+# Logical operator: OR
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "or",
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSET" },
+      { "field": "status_code", "value": "STATUS_CODE_ERROR" }
+    ]
+  }
+}
+
+###
+# Logical operator: NOT
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "not",
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSET" }
+    ]
+  }
+}
+
+###
+# Logical operator: NAND
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "nand",
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSET" },
+      { "field": "status_message", "value": "implicit_status_code" }
+    ]
+  }
+}
+
+###
+# Logical operator: NOR
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "operator": "nor",
+    "conditions": [
+      { "field": "status_code", "value": "STATUS_CODE_UNSET" },
+      { "field": "status_code", "value": "STATUS_CODE_ERROR" }
+    ]
+  }
+}
+
+###
+# Comparison operator: IS
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "operator": "is", "value": "STATUS_CODE_UNSET" }
+    ]
+  }
+}
+
+###
+# Comparison operator: IS_NOT
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "operator": "is_not", "value": "STATUS_CODE_UNSET" }
+    ]
+  }
+}
+
+###
+# Comparison operator: IN
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "status_code", "operator": "in", "value": ["STATUS_CODE_UNSET", "STATUS_CODE_ERROR"] }
+    ]
+  }
+}

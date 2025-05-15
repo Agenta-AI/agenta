@@ -25,7 +25,7 @@ from oss.src.services.exceptions import (
 if is_ee():
     from ee.src.services import db_manager_ee
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 _BEARER_TOKEN_PREFIX = "Bearer "

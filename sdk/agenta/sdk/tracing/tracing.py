@@ -1,7 +1,10 @@
 from typing import Optional, Any, Dict, Callable
 from enum import Enum
+from uuid import UUID
 
+from pydantic import BaseModel
 from httpx import get as check
+
 
 from opentelemetry.trace import (
     get_current_span,
@@ -10,13 +13,19 @@ from opentelemetry.trace import (
     Status,
     StatusCode,
 )
+from opentelemetry.sdk import trace
 from opentelemetry.sdk.trace import Span, Tracer, TracerProvider
 from opentelemetry.sdk.resources import Resource
+
 
 from agenta.sdk.utils.singleton import Singleton
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
-from agenta.sdk.tracing.processors import TraceProcessor
+from agenta.sdk.tracing.processors import (
+    TraceProcessor,
+    InvocationLinkHook,
+    use_invocation_link,
+)
 from agenta.sdk.tracing.exporters import InlineExporter, OTLPExporter
 from agenta.sdk.tracing.spans import CustomSpan
 from agenta.sdk.tracing.inline import parse_inline_trace
@@ -24,7 +33,25 @@ from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
+from agenta.sdk.context.tracing import tracing_context
+
 log = get_module_logger(__name__)
+
+
+_original_init = trace.TracerProvider.__init__
+
+
+def patched_init(self, *args, **kwargs):
+    _original_init(self, *args, **kwargs)
+    self.add_span_processor(InvocationLinkHook())
+
+
+trace.TracerProvider.__init__ = patched_init
+
+
+class Link(BaseModel):
+    trace_id: str
+    span_id: str
 
 
 class Tracing(metaclass=Singleton):
@@ -241,6 +268,40 @@ class Tracing(metaclass=Singleton):
         **kwargs,
     ):
         return inject(*args, **kwargs)
+
+    def get_invocation_link(self) -> Optional[Link]:
+        with suppress():
+            link = tracing_context.get().link
+
+            trace_id = None
+            span_id = None
+
+            if link:
+                trace_id = UUID(int=link.get("trace_id")).hex if link else None
+                span_id = UUID(int=link.get("span_id")).hex[16:] if link else None
+
+            if trace_id and span_id:
+                return Link(
+                    trace_id=trace_id,
+                    span_id=span_id,
+                )
+                
+            link = use_invocation_link()
+
+            trace_id = None
+            span_id = None
+
+            if link:
+                trace_id = UUID(int=link.get("trace_id")).hex if link else None
+                span_id = UUID(int=link.get("span_id")).hex[16:] if link else None
+
+                if trace_id and span_id:
+                    return Link(
+                        trace_id=trace_id,
+                        span_id=span_id,
+                    )
+
+        return None
 
 
 def get_tracer(

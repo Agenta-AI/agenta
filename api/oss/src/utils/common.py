@@ -47,8 +47,8 @@ class APIRouter(FastAPIRouter):
 
 
 def is_ee():
-    return os.environ["FEATURE_FLAG"] in ["ee", "cloud", "cloud-dev"]
+    return os.environ["AGENTA_LICENSE"] == "ee"
 
 
 def is_oss():
-    return os.environ["FEATURE_FLAG"] == "oss"
+    return os.environ["AGENTA_LICENSE"] == "oss"

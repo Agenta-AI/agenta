@@ -5,24 +5,33 @@
 SELECT 'CREATE ROLE username WITH LOGIN PASSWORD ''password'''
 WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'username')\gexec
 
--- Create the 'agenta_oss' database if it doesn't exist
-SELECT 'CREATE DATABASE agenta_oss'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss')\gexec
+-- Create the 'agenta_oss_core' database if it doesn't exist
+SELECT 'CREATE DATABASE agenta_oss_core'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_core')\gexec
 
--- Create the 'supertokens_oss' database if it doesn't exist
-SELECT 'CREATE DATABASE supertokens_oss'
-WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'supertokens_oss')\gexec
+-- Create the 'agenta_oss_tracing' database if it doesn't exist
+SELECT 'CREATE DATABASE agenta_oss_tracing'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_tracing')\gexec
+
+-- Create the 'agenta_oss_supertokens' database if it doesn't exist
+SELECT 'CREATE DATABASE agenta_oss_supertokens'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'agenta_oss_supertokens')\gexec
 
 -- Grant necessary permissions to 'username' for both databases
-GRANT ALL PRIVILEGES ON DATABASE agenta_oss TO username;
-GRANT ALL PRIVILEGES ON DATABASE supertokens_oss TO username;
+GRANT ALL PRIVILEGES ON DATABASE agenta_oss_core TO username;
+GRANT ALL PRIVILEGES ON DATABASE agenta_oss_tracing TO username;
+GRANT ALL PRIVILEGES ON DATABASE agenta_oss_supertokens TO username;
 
--- Switch to 'agenta_oss' and grant schema permissions
-\c agenta_oss
+-- Switch to 'agenta_oss_core' and grant schema permissions
+\c agenta_oss_core
 GRANT ALL ON SCHEMA public TO username;
 
--- Switch to 'supertokens_oss' and grant schema permissions
-\c supertokens_oss
+-- Switch to 'agenta_oss_tracing' and grant schema permissions
+\c agenta_oss_tracing
+GRANT ALL ON SCHEMA public TO username;
+
+-- Switch to 'agenta_oss_supertokens' and grant schema permissions
+\c agenta_oss_supertokens
 GRANT ALL ON SCHEMA public TO username;
 
 -- Return to postgres

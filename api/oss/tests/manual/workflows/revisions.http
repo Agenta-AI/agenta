@@ -1,0 +1,448 @@
+@host = http://localhost
+@api_key = xxxxxxx.xxxxxxxxxxxxxxxxxxxxxx
+@token = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+@base_url = {{host}}/api/preview/workflows
+
+###
+# @name create_account
+POST {{host}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# @name add_workflow_artifact
+POST {{base_url}}/artifacts/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact": {
+    "name": "artifact {{$guid}}",
+    "description": "artifact description",
+    "slug": "artifact-{{$guid}}",
+    "metadata": {
+      "key1": "value",
+      "key2": "value",
+      "key3": "value"
+    },
+    "flags": {
+      "is_executable": false,
+      "is_custom": false,
+      "is_application": false,
+      "is_evaluator": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    }
+  }
+}
+
+###
+@artifact_id = {{add_workflow_artifact.response.body.artifact.id}}
+@artifact_slug = {{add_workflow_artifact.response.body.artifact.slug}}
+
+###
+# @name add_workflow_variant
+POST {{base_url}}/variants/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "variant": {
+    "name": "variant {{$guid}}",
+    "description": "variant description 1",
+    "slug": "variant-{{$guid}}",
+    "metadata": {
+      "tag1": "true",
+      "tag2": "true"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "artifact_id": "{{artifact_id}}"
+  }
+}
+
+###
+
+@variant_id = {{add_workflow_variant.response.body.variant.id}}
+@variant_slug = {{add_workflow_variant.response.body.variant.slug}}
+
+###
+
+# @name add_workflow_revision
+POST {{base_url}}/revisions/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "revision": {
+    "message": "initial commit",
+    "name": "revision {{$guid}}",
+    "description": "revision 1 description",
+    "slug": "revision-{{$guid}}",
+    "metadata": {
+      "tag1": "true",
+      "tag2": "true"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "variant_id": "{{variant_id}}"
+  }
+}
+
+###
+
+@revision_id = {{add_workflow_revision.response.body.revision.id}}
+@revision_slug = {{add_workflow_revision.response.body.revision.slug}}
+@revision_version = {{add_workflow_revision.response.body.revision.version}}
+
+###
+
+# @name fetch_revision (with variant ref id)
+GET {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "id": "{{variant_id}}"
+    }
+}
+
+###
+
+# @name fetch_revision (with variant ref slug)
+GET {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "slug": "{{variant_slug}}"
+    }
+}
+
+###
+
+# @name fetch_revision (with revision ref id)
+GET {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "revision_ref": {
+        "id": "{{revision_id}}"
+    }
+}
+
+###
+
+# @name fetch_revision (with revision ref slug)
+GET {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "revision_ref": {
+        "slug": "{{revision_slug}}"
+    }
+}
+
+###
+
+# @name fetch_revision (with variant ref id and revision ref version)
+GET {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "id": "{{variant_id}}"
+    },
+    "revision_ref": {
+        "version": "{{revision_version}}"
+    }
+}
+
+###
+
+# @name edit_workflow_revision
+PUT {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "revision": {
+    "message": "second message",
+    "name": "revision {{$guid}}",
+    "description": "revision description {{$guid}}",
+    "id": "{{add_workflow_revision.response.body.revision.id}}",
+    "metadata": {
+      "tag1": "string",
+      "tag2": "string"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "data": {},
+    "variant_id": "01968be9-6809-7242-add9-3de51a269339"
+  }
+}
+
+###
+
+# @name archive_workflow_revision
+POST {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}/archive
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name unarchive_workflow_revision
+POST {{base_url}}/revisions/{{add_workflow_revision.response.body.revision.id}}/unarchive
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name query_workflow_revisions (with variant ref id)
+GET {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "id": "{{variant_id}}"
+    }
+}
+
+###
+
+# @name query_workflow_revisions (with variant ref slug)
+GET {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "slug": "{{variant_slug}}"
+    }
+}
+
+###
+
+# @name query_workflow_revisions (with revision ref id)
+GET {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "revision_ref": {
+        "id": "{{revision_id}}"
+    }
+}
+
+###
+
+# @name query_workflow_revisions (with revision ref slug)
+GET {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "revision_ref": {
+        "slug": "{{revision_slug}}"
+    }
+}
+
+###
+
+# @name query_workflow_revisions (with variant ref id and revision ref version)
+GET {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "id": "{{variant_id}}"
+    },
+    "revision_ref": {
+        "version": "{{revision_version}}"
+    }
+}
+
+###
+
+# @name query_workflow_revisions (with variant ref id and including archived)
+POST {{base_url}}/revisions/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "variant_ref": {
+    "id": "{{variant_id}}"
+  },
+  "include_archived": true
+}
+
+###
+
+# @name commit_workflow_revision
+POST {{base_url}}/revisions/commit
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "revision": {
+    "message": "nth commit",
+    "name": "revision {{$guid}}",
+    "slug": "revision-{{$guid}}",
+    "description": "revision description {{$guid}}",
+    "id": "{{add_workflow_revision.response.body.revision.id}}",
+    "metadata": {
+      "tag1": "string",
+      "tag2": "string"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    },
+    "data": {
+      "parameters": {
+        "ag_config": {
+          "prompt": {
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are an expert in geography"
+              },
+              {
+                "role": "user",
+                "content": "What is the capital of {{country}}?"
+              }
+            ],
+            "input_keys": [
+              "country"
+            ],
+            "llm_config": {
+              "model": "gpt-4o"
+            },
+            "user_prompt": "What is the capital of {{country}}?",
+            "system_prompt": "You are an expert in geography. Answer in one word.",
+            "template_format": "curly"
+          }
+        }
+      },
+      "struct": {
+        "additionalProp1": {}
+      },
+      "url": "http://localhost:3454/api/services/xname"
+    },
+    "variant_id": "{{variant_id}}"
+  }
+}
+
+###
+
+
+# @name log_workflow_revisions (with variant ref id and depth)
+POST {{base_url}}/revisions/log?depth=3
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "id": "{{variant_id}}"
+    }
+}
+
+###
+
+# @name log_workflow_revisions (with variant ref slug and depth)
+GET {{base_url}}/revisions/log?depth=3
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "slug": "{{variant_slug}}"
+    }
+}
+
+###
+
+# @name log_workflow_revisions (with revision ref id and depth)
+GET {{base_url}}/revisions/log?depth=3
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "revision_ref": {
+        "id": "{{revision_id}}"
+    }
+}
+
+###
+
+# @name log_workflow_revisions (with revision ref slug and depth)
+GET {{base_url}}/revisions/log?depth=3
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "revision_ref": {
+        "slug": "{{revision_slug}}"
+    }
+}
+
+###
+
+# @name log_workflow_revisions (with variant ref id and revision ref version and depth)
+GET {{base_url}}/revisions/log?depth=3
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "variant_ref": {
+        "id": "{{variant_id}}"
+    },
+    "revision_ref": {
+        "version": "{{revision_version}}"
+    }
+}
+
+###

@@ -1,0 +1,175 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/tracing
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+POST {{base_url}}/spans/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "spans": [
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000", "attributes": {"agenta": {"references": [{"id": "30000000000000000000000000000000"}, {"slug": "my-slug-2"}] }}},
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000001", "attributes": {"agenta": {"references": [{"slug": "my-slug"}] }}},
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002",  "attributes": {"agenta": {"references": [{"id": "30000000000000000000000000000000"}, {"slug": "my-slug"}, {"id": "30000000000000000000000000000001", "slug": "my-slug-2"}] }}},
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000003",  "attributes": {"agenta": {"references": [{"id": "30000000000000000000000000000000",  "attributes": {"key_bool": true, "key_int": 42, "key_float": 3.14, "key_string": "aloha"}}] }}},
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000004" }
+  ]
+}
+
+###
+# test: IN [...] any
+POST {{base_url}}/spans/query?filter={"conditions":[{"field":"references","operator":"in","options":{"all":false},"value":[{"id": "30000000000000000000000000000000"},{"id":"30000000000000000000000000000001"}]}]}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# test: IN [...] any
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "in", "options": {"all": false}, "value": [
+          { "id": "30000000000000000000000000000000" },
+          { "id": "30000000000000000000000000000001" }
+      ] }
+    ]
+  }
+}
+
+
+###
+# test: IN [...] all
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "in", "options": {"all": true}, "value": [
+          { "id": "30000000000000000000000000000000" },
+          { "id": "30000000000000000000000000000001" }
+      ] }
+    ]
+  }
+}
+
+###
+# test: NOT_IN [...] any
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "not_in", "options": {"all": false}, "value": [
+          { "id": "30000000000000000000000000000000" },
+          { "id": "30000000000000000000000000000001" }
+      ] }
+    ]
+  }
+}
+
+###
+# test: NOT_IN [...] all
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "not_in", "options": {"all": true}, "value": [
+          { "id": "30000000000000000000000000000000" },
+          { "id": "30000000000000000000000000000001" }
+      ] }
+    ]
+  }
+}
+
+###
+# test: HAS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "has", "key": "attributes.key_bool", "value": true }
+    ]
+  }
+}
+
+
+###
+# test: HAS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "has", "key": "attributes.key_int", "value": 42 }
+    ]
+  }
+}
+
+###
+# test: HAS_NOT [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "has_not", "key": "attributes.key_int", "value": 42 }
+    ]
+  }
+}
+
+
+###
+# test: EXISTS
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "exists" }
+    ]
+  }
+}
+
+###
+# test: NOT_EXISTS
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "references", "operator": "not_exists" }
+    ]
+  }
+}

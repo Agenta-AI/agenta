@@ -15,14 +15,12 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
 import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useStyles, type StyleProps} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
@@ -122,7 +120,7 @@ const AppWithVariants = memo(
                 <Layout hasSider className={classes.layout}>
                     <Sidebar />
                     <Layout className={classes.layout}>
-                        <div>
+                        <div className="mb-3">
                             <BreadcrumbContainer
                                 appTheme={appTheme}
                                 appName={currentApp?.app_name || ""}

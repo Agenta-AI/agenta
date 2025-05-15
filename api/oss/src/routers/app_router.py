@@ -54,7 +54,7 @@ from oss.src.models.shared_models import AppType
 
 router = APIRouter()
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
 

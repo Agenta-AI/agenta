@@ -39,6 +39,8 @@ class BaseResponse(BaseModel):
     content_type: Optional[str] = "string"
     tree: Optional[AgentaNodesResponse] = None
     tree_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
 
     model_config = ConfigDict(use_enum_values=True, exclude_none=True)
 

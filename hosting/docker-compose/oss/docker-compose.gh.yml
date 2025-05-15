@@ -5,7 +5,7 @@ services:
         profiles:
             - with-web
 
-        image: ghcr.io/agenta-ai/agenta-web
+        image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
@@ -26,7 +26,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-api
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -75,7 +75,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-api
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -102,7 +102,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/agenta-api
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -113,7 +113,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
-        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import run_alembic_migration; run_alembic_migration()'"
+        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
         
         depends_on:
             postgres:
@@ -190,7 +190,7 @@ services:
             - "5432:5432"
 
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss"]
+            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss_core"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -248,8 +248,12 @@ services:
                 condition: service_healthy
         ports:
             - 3567:3567
+            
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+
+        environment:
+            POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
 
         networks:
             - agenta-network

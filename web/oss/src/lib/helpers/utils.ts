@@ -113,8 +113,8 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
 }
 
 export const isDemo = () => {
-    if (getEnv("NEXT_PUBLIC_FF")) {
-        return ["cloud", "ee", "cloud-dev"].includes(getEnv("NEXT_PUBLIC_FF"))
+    if (getEnv("NEXT_PUBLIC_AGENTA_LICENSE")) {
+        return ["cloud", "ee", "cloud-dev"].includes(getEnv("NEXT_PUBLIC_AGENTA_LICENSE"))
     }
     return false
 }

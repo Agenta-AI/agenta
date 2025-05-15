@@ -48,6 +48,7 @@ class DeprecatedAppDB(DeprecatedBase):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+
 class DeprecatedAppVariantDB(DeprecatedBase):
     __tablename__ = "app_variants"
     __table_args__ = {"extend_existing": True}
@@ -81,10 +82,11 @@ class DeprecatedAppVariantDB(DeprecatedBase):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+
 class DeprecatedAppVariantRevisionsDB(DeprecatedBase):
     __tablename__ = "app_variant_revisions"
     __table_args__ = {"extend_existing": True}
-    
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -114,10 +116,11 @@ class DeprecatedAppVariantRevisionsDB(DeprecatedBase):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+
 class DeprecatedAppEnvironmentRevisionDB(DeprecatedBase):
     __tablename__ = "environments_revisions"
     __table_args__ = {"extend_existing": True}
-    
+
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -142,7 +145,7 @@ class DeprecatedAppEnvironmentRevisionDB(DeprecatedBase):
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    
+
 
 class DeprecatedEvaluatorConfigDB(DeprecatedBase):
     __tablename__ = "evaluators_configs"

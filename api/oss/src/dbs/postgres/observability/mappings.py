@@ -1,6 +1,7 @@
 from typing import List, Tuple, Optional
 from json import dumps, loads
 from datetime import datetime
+from uuid import UUID
 
 from oss.src.core.shared.dtos import LifecycleDTO
 from oss.src.core.observability.dtos import (
@@ -20,8 +21,13 @@ from oss.src.core.observability.dtos import (
 from oss.src.dbs.postgres.observability.dbes import NodesDBE
 
 
-def map_span_dbe_to_dto(span: NodesDBE) -> SpanDTO:
+def map_span_dbe_to_span_dto(span: NodesDBE) -> SpanDTO:
+    trace_id = UUID(str(span.tree_id)).hex
+    span_id = UUID(str(span.node_id)).hex[16:]
+
     return SpanDTO(
+        trace_id=trace_id,
+        span_id=span_id,
         lifecycle=LifecycleDTO(
             created_at=span.created_at,
             updated_at=span.updated_at,
@@ -78,7 +84,7 @@ def map_span_dbe_to_dto(span: NodesDBE) -> SpanDTO:
     )
 
 
-def map_span_dto_to_dbe(
+def map_span_dto_to_span_dbe(
     project_id: str,
     span_dto: SpanDTO,
 ) -> NodesDBE:

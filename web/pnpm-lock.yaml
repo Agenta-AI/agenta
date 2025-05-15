@@ -506,6 +506,9 @@ importers:
       uuid:
         specifier: ^9.0.1
         version: 9.0.1
+      uuidjs:
+        specifier: ^5.1.0
+        version: 5.1.0
     devDependencies:
       '@types/node':
         specifier: ^20.8.10
@@ -4382,6 +4385,10 @@ packages:
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    hasBin: true
+
+  uuidjs@5.1.0:
+    resolution: {integrity: sha512-HAQPtUkr7t5Ud3uCwRcqtBRNagu/2aerrrBQE6PzgSluGijvFF75UaOq22Xw545GGviRjSLhc4c8CaSMI5h4Ng==}
     hasBin: true
 
   v8-compile-cache-lib@3.0.1:
@@ -8875,6 +8882,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   uuid@9.0.1: {}
+
+  uuidjs@5.1.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
 

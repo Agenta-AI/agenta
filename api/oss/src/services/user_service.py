@@ -21,7 +21,7 @@ async def create_new_user(payload: dict) -> UserDB:
         UserDB: The created user object.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         user = UserDB(**payload)
 
         session.add(user)
@@ -46,7 +46,7 @@ async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
         NoResultFound: User with session id xxxx not found.
     """
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid=user_uid))
         user = result.scalars().first()
 

@@ -12,7 +12,7 @@ from oss.src.services.auth_helper import sign_secret_token
 from oss.src.models.shared_models import InvokationResult, Result, Error
 from oss.src.services.db_manager import get_project_by_id
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def get_nested_value(d: dict, keys: list, default=None):

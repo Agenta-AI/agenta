@@ -1,23 +1,35 @@
-import {type ComponentProps} from "react"
+import {memo} from "react"
+import {Tag, TagProps, Tooltip, TooltipProps} from "antd"
+import {Inter} from "next/font/google"
 
-import {Tag, Tooltip} from "antd"
+const inter = Inter({
+    subsets: ["latin"],
+    variable: "--font-inter",
+})
 
 const TruncatedTooltipTag = ({
     children,
     width = 400,
+    tagProps,
     ...props
-}: {children: string; width?: number} & ComponentProps<typeof Tooltip>) => {
+}: {children: string; width?: number; tagProps?: TagProps} & TooltipProps) => {
     return (
         <Tooltip
-            title={children}
-            overlayClassName={`max-w-[${width}px] w-fit`}
+            title={
+                <pre className="text-wrap" style={{fontFamily: inter.style.fontFamily}}>
+                    {children}
+                </pre>
+            }
+            overlayClassName={`max-w-[${width}px] w-fit text-wrap`}
             className={`overflow-hidden text-ellipsis whitespace-nowrap max-w-[${width}px]`}
             placement="bottomLeft"
             {...props}
         >
-            <Tag>{children}</Tag>
+            <Tag className="max-w-[400px]" {...tagProps}>
+                {children}
+            </Tag>
         </Tooltip>
     )
 }
 
-export default TruncatedTooltipTag
+export default memo(TruncatedTooltipTag)

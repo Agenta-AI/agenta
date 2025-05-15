@@ -363,20 +363,44 @@ class entrypoint:
         tree = None
         content_type = "text/plain"
         tree_id = None
+        trace_id = None
+        span_id = None
 
         with suppress():
             if isinstance(result, (dict, list)):
                 content_type = "application/json"
             data = self.patch_result(result)
 
-            tree, tree_id = await self.fetch_inline_trace(inline)
+            (
+                tree,
+                tree_id,
+                trace_id,
+                span_id,
+            ) = await self.fetch_inline_trace(inline)
 
         try:
             return BaseResponse(
-                data=data, tree=tree, content_type=content_type, tree_id=tree_id
+                data=data,
+                tree=tree,
+                content_type=content_type,
+                tree_id=tree_id,
+                trace_id=trace_id,
+                span_id=span_id,
             )
         except:  # pylint: disable=bare-except
-            return BaseResponse(data=data, content_type=content_type)
+            try:
+                return BaseResponse(
+                    data=data,
+                    content_type=content_type,
+                    tree_id=tree_id,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                )
+            except:  # pylint: disable=bare-except
+                return BaseResponse(
+                    data=data,
+                    content_type=content_type,
+                )
 
     def handle_failure(
         self,
@@ -444,8 +468,10 @@ class entrypoint:
 
         link = context.link
 
-        _tree_id = link.get("tree_id") if link else None  # in int format
-        tree_id = str(UUID(int=_tree_id)) if _tree_id else None  # in uuid_as_str format
+        _trace_id = link.get("trace_id") if link else None  # in int format
+        tree_id = (
+            str(UUID(int=_trace_id)) if _trace_id else None
+        )  # in uuid_as_str format
 
         return tree_id
 
@@ -461,24 +487,28 @@ class entrypoint:
 
         link = context.link
 
-        tree = None
-        _tree_id = link.get("tree_id") if link else None  # in int format
-        tree_id = str(UUID(int=_tree_id)) if _tree_id else None  # in uuid_as_str format
+        _trace_id = link.get("trace_id") if link else None  # in int format
+        _span_id = link.get("span_id") if link else None  # in int format
 
-        if _tree_id is not None:
+        tree = None
+        tree_id = str(UUID(int=_trace_id)) if _trace_id else None
+        trace_id = UUID(int=_trace_id).hex if _trace_id else None
+        span_id = UUID(int=_span_id).hex[16:] if _span_id else None
+
+        if _trace_id is not None:
             if inline:
                 remaining_steps = NOFSTEPS
                 while (
-                    not ag.tracing.is_inline_trace_ready(_tree_id)
+                    not ag.tracing.is_inline_trace_ready(_trace_id)
                     and remaining_steps > 0
                 ):
                     await sleep(TIMESTEP)
 
                     remaining_steps -= 1
 
-                tree = ag.tracing.get_inline_trace(_tree_id)
+                tree = ag.tracing.get_inline_trace(_trace_id)
 
-        return tree, tree_id
+        return tree, tree_id, trace_id, span_id
 
     # --- OpenAPI --- #
 

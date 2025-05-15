@@ -12,7 +12,7 @@ from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
 
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY", "")

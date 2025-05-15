@@ -160,6 +160,9 @@ class OTelExtraDTO(BaseModel):
 
 
 class SpanDTO(BaseModel):
+    trace_id: str
+    span_id: str
+
     scope: Optional[ProjectScopeDTO] = None
 
     lifecycle: Optional[LifecycleDTO] = None
@@ -792,6 +795,9 @@ def _parse_from_attributes(
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
 ) -> SpanDTO:
+    trace_id = str(otel_span_dto.context.trace_id[2:])
+    span_id = str(otel_span_dto.context.span_id[2:])
+
     lifecyle = LifecycleDTO(
         created_at=datetime.now(),
     )
@@ -800,7 +806,7 @@ def parse_from_otel_span_dto(
 
     types = _parse_from_types(otel_span_dto)
 
-    tree_id = UUID(otel_span_dto.context.trace_id[2:])
+    tree_id = UUID(trace_id)
 
     tree_type: str = types.get("tree")
 
@@ -809,7 +815,7 @@ def parse_from_otel_span_dto(
         type=tree_type.lower() if tree_type else None,
     )
 
-    node_id = UUID(tree_id.hex[16:] + otel_span_dto.context.span_id[2:])
+    node_id = UUID(trace_id[16:] + span_id)
 
     node_type = NodeType.TASK
     try:
@@ -871,6 +877,8 @@ def parse_from_otel_span_dto(
     )
 
     span_dto = SpanDTO(
+        trace_id=trace_id,
+        span_id=span_id,
         lifecycle=lifecyle,
         root=root,
         tree=tree,

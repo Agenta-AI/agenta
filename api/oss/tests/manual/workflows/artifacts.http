@@ -1,0 +1,167 @@
+@host = http://localhost/api
+@api_key = xxxxxxx.xxxxxxxxxxxxxxxxxxxxxx
+@token = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+@base_url = {{host}}/api/preview/workflows
+
+###
+# @name create_account
+POST {{host}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+### 
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# @name add_workflow_artifact
+POST {{base_url}}/artifacts/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact": {
+    "name": "artifact {{$guid}}",
+    "description": "artifact description",
+    "slug": "artifact-{{$guid}}",
+    "metadata": {
+      "key1": "value",
+      "key2": "value",
+      "key3": "value"
+    },
+    "flags": {
+      "is_executable": false,
+      "is_custom": false,
+      "is_application": false,
+      "is_evaluator": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    }
+  }
+}
+
+###
+@artifact_id = {{add_workflow_artifact.response.body.artifact.id}}
+@artifact_slug = {{add_workflow_artifact.response.body.artifact.slug}}
+
+###
+# @name fetch_artifact
+GET {{base_url}}/artifacts/{{artifact_id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+# @name edit_workflow_artifact
+PUT {{base_url}}/artifacts/{{artifact_id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact": {
+    "id": "{{artifact_id}}",
+    "slug": "artifact-slug-{{$guid}}",
+    "name": "artifact 1 (updated)",
+    "description": "artifact description (updated)",
+    "metadata": {
+      "key1": "tag 1",
+      "key2": "tag 2",
+      "key3": "tag 3"
+    },
+    "flags": {
+      "is_application": false,
+      "is_evaluator": false,
+      "is_executable": false,
+      "is_custom": false,
+      "is_auto": false,
+      "is_human": false,
+      "is_for_members": false,
+      "is_for_endusers": false
+    }
+  }
+}
+
+###
+# @name archive_workflow_artifact
+POST {{base_url}}/artifacts/{{artifact_id}}/archive
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+# @name unarchive_workflow_artifact
+POST {{base_url}}/artifacts/{{artifact_id}}/unarchive
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### query by artifact reference (id)
+GET {{base_url}}/artifacts/?artifact_ref={"id"="{{artifact_id}"}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### query by artifact reference (id)
+POST {{base_url}}/artifacts/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_ref": {
+    "id": "{{artifact_id}}"
+  }
+}
+
+### query by artifact reference (slug)
+GET {{base_url}}/artifacts/?artifact_ref={"slug"="{{artifact_slug}}"}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+### query by artifact reference (slug)
+POST {{base_url}}/artifacts/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_ref": {
+    "slug": "{{artifact_slug}}"
+  }
+}
+
+### query by artifact metadata
+POST {{base_url}}/artifacts/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_metadata": {
+    "key3": "value"
+  }
+}
+
+### query by artifact flags
+POST {{base_url}}/artifacts/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "artifact_flags": {
+    "is_evaluator": true
+  }
+}
+
+### query all (excluding archived)
+POST {{base_url}}/artifacts/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "include_archived": false
+}
+
+### query all including archived
+POST {{base_url}}/artifacts/query
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+  "include_archived": true
+}

@@ -23,7 +23,7 @@ from oss.src.resources.evaluators.evaluators import get_all_evaluators
 
 from oss.src.dbs.postgres.shared.engine import engine
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 # Set global variables
 ENVIRONMENT = os.environ.get("ENVIRONMENT")
@@ -38,7 +38,7 @@ elif ENVIRONMENT == "github":
 async def get_first_user_object():
     """Get the user object from the database or create a new one if not found."""
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         if user is None:
@@ -54,7 +54,7 @@ async def get_first_user_object():
 async def get_second_user_object():
     """Create a second user object."""
 
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="1"))
         user = result.scalars().first()
         if user is None:
@@ -70,7 +70,7 @@ async def get_second_user_object():
 
 @pytest.fixture()
 async def get_or_create_project_from_db():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(ProjectDB).filter_by(project_name="default", is_default=True)
         )
@@ -86,7 +86,7 @@ async def get_or_create_project_from_db():
 
 @pytest.fixture(scope="session")
 async def fetch_user():
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(select(UserDB).filter_by(uid="0"))
         user = result.scalars().first()
         return user

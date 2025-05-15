@@ -1,189 +1,284 @@
 import os
-import asyncio
-import logging
-import traceback
+import subprocess
+import tempfile
 
-import click
-import asyncpg
-from alembic import command
-from sqlalchemy import Engine
-from alembic.config import Config
-from sqlalchemy import inspect, text
-from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+
+# Config (can override via env)
+POSTGRES_URI = (
+    os.getenv("POSTGRES_URI")
+    or os.getenv("POSTGRES_URI_CORE")
+    or os.getenv("POSTGRES_URI_TRACING")
+    or "postgresql://username:password@localhost:5432/postgres"
+)
+DB_PROTOCOL = POSTGRES_URI.split("://")[0].replace("+asyncpg", "")
+DB_USER = POSTGRES_URI.split("://")[1].split(":")[0]
+DB_PASS = POSTGRES_URI.split("://")[1].split(":")[1].split("@")[0]
+DB_HOST = POSTGRES_URI.split("@")[1].split(":")[0]
+DB_PORT = POSTGRES_URI.split(":")[-1].split("/")[0]
+ADMIN_DB = "postgres"
+
+POSTGRES_URI_POSTGRES = (
+    f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{ADMIN_DB}"
+)
+
+# Rename/create map: {'old_name': 'new_name'}
+RENAME_MAP = {
+    "agenta_oss": "agenta_oss_core",
+    "supertokens_oss": "agenta_oss_supertokens",
+    "agenta_oss_tracing": "agenta_oss_tracing",
+}
+
+NODES_TF = {
+    "agenta_oss_core": "agenta_oss_tracing",
+}
 
 
-# Initializer logger
-logger = logging.getLogger("alembic.env")
-
-# Initialize alembic config
-alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH"])
-script = ScriptDirectory.from_config(alembic_cfg)
-
-
-def is_initial_setup(engine) -> bool:
-    """
-    Check if the database is in its initial state by verifying the existence of required tables.
-
-    This function inspects the current state of the database and determines if it needs initial setup by checking for the presence of a predefined set of required tables.
-
-    Args:
-        engine (sqlalchemy.engine.base.Engine): The SQLAlchemy engine used to connect to the database.
-
-    Returns:
-        bool: True if the database is in its initial state (i.e., not all required tables exist), False otherwise.
-    """
-
-    inspector = inspect(engine)
-    required_tables = [
-        "users",
-        "app_db",
-        "deployments",
-        "bases",
-        "app_variants",
-        "ids_mapping",
-    ]  # NOTE: The tables here were picked at random. Having all the tables in the database in the list \
-    # will not change the behaviour of this function, so best to leave things as it is!
-    existing_tables = inspector.get_table_names()
-
-    # Check if all required tables exist in the database
-    all_tables_exist = all(table in existing_tables for table in required_tables)
-
-    return not all_tables_exist
-
-
-async def get_current_migration_head_from_db(engine: AsyncEngine):
-    """
-    Checks the alembic_version table to get the current migration head that has been applied.
-
-    Args:
-        engine (Engine): The engine that connects to an sqlalchemy pool
-
-    Returns:
-        the current migration head (where 'head' is the revision stored in the migration script)
-    """
-
-    async with engine.connect() as connection:
-        try:
-            result = await connection.execute(text("SELECT version_num FROM alembic_version"))  # type: ignore
-        except (asyncpg.exceptions.UndefinedTableError, ProgrammingError):
-            # Note: If the alembic_version table does not exist, it will result in raising an UndefinedTableError exception.
-            # We need to suppress the error and return a list with the alembic_version table name to inform the user that there is a pending migration \
-            # to make Alembic start tracking the migration changes.
-            # --------------------------------------------------------------------------------------
-            # This effect (the exception raising) happens for both users (first-time and returning)
-            return "alembic_version"
-
-        migration_heads = [row[0] for row in result.fetchall()]
-        assert (
-            len(migration_heads) == 1
-        ), "There can only be one migration head stored in the database."
-        return migration_heads[0]
-
-
-async def get_pending_migration_head():
-    """
-    Gets the migration head that have not been applied.
-
-    Returns:
-        the pending migration head
-    """
-
-    engine = create_async_engine(url=os.environ["POSTGRES_URI"])
-    try:
-        current_migration_script_head = script.get_current_head()
-        migration_head_from_db = await get_current_migration_head_from_db(engine=engine)
-
-        pending_migration_head = []
-        if current_migration_script_head != migration_head_from_db:
-            pending_migration_head.append(current_migration_script_head)
-        if "alembic_version" == migration_head_from_db:
-            pending_migration_head.append("alembic_version")
-    finally:
-        await engine.dispose()
-
-    return pending_migration_head
-
-
-def run_alembic_migration():
-    """
-    Applies migration for first-time users and also checks the environment variable "AGENTA_AUTO_MIGRATIONS" to determine whether to apply migrations for returning users.
-    """
-
-    try:
-        pending_migration_head = asyncio.run(get_pending_migration_head())
-        APPLY_AUTO_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
-        FIRST_TIME_USER = True if "alembic_version" in pending_migration_head else False
-
-        if FIRST_TIME_USER or APPLY_AUTO_MIGRATIONS == "true":
-            command.upgrade(alembic_cfg, "head")
-            click.echo(
-                click.style(
-                    "\nMigration applied successfully. The container will now exit.",
-                    fg="green",
-                ),
-                color=True,
-            )
-        else:
-            click.echo(
-                click.style(
-                    "\nAll migrations are up-to-date. The container will now exit.",
-                    fg="yellow",
-                ),
-                color=True,
-            )
-    except Exception as e:
-        click.echo(
-            click.style(
-                f"\nAn ERROR occurred while applying migration: {traceback.format_exc()}\nThe container will now exit.",
-                fg="red",
-            ),
-            color=True,
-        )
-        raise e
-
-
-async def check_for_new_migrations():
-    """
-    Checks for new migrations and notify the user.
-    """
-
-    pending_migration_head = await get_pending_migration_head()
-    if len(pending_migration_head) >= 1 and isinstance(pending_migration_head[0], str):
-        click.echo(
-            click.style(
-                f"\nWe have detected that there are pending database migrations {pending_migration_head} that need to be applied to keep the application up to date. To ensure the application functions correctly with the latest updates, please follow the guide here => https://docs.agenta.ai/self-host/migration/applying-schema-migration\n",
-                fg="yellow",
-            ),
-            color=True,
-        )
-    return
-
-
-def unique_constraint_exists(
-    engine: Engine, table_name: str, constraint_name: str
-) -> bool:
-    """
-    The function checks if a unique constraint with a specific name exists on a table in a PostgreSQL
-    database.
-
-    Args:
-        - engine (Engine): instance of a database engine that represents a connection to a database.
-        - table_name (str): name of the table to check the existence of the unique constraint.
-        - constraint_name (str): name of the unique constraint to check for existence.
-
-    Returns:
-        - returns a boolean value indicating whether a unique constraint with the specified `constraint_name` exists in the table.
-    """
+def copy_nodes_from_core_to_tracing():
+    engine = create_engine(
+        POSTGRES_URI_POSTGRES,
+        isolation_level="AUTOCOMMIT",
+    )
 
     with engine.connect() as conn:
-        result = conn.execute(
-            text(
-                f"""
-        SELECT conname FROM pg_constraint
-        WHERE conname = '{constraint_name}' AND conrelid = '{table_name}'::regclass;
-        """
-            )
-        )
-        return result.fetchone() is not None
+        for old_name, new_name in NODES_TF.items():
+            old_exists = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": old_name},
+            ).scalar()
+
+            new_exists = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": new_name},
+            ).scalar()
+
+            if old_exists and new_exists:
+                # Check if the nodes table exists in old_name database
+                check_url = f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{old_name}"
+                check_engine = create_engine(check_url)
+                with check_engine.connect() as conn:
+                    result = conn.execute(
+                        text("SELECT to_regclass('public.nodes')")
+                    ).scalar()
+                    if result is None:
+                        print(
+                            f"⚠️ Table 'nodes' does not exist in '{old_name}'. Skipping copy."
+                        )
+                        return
+
+                    count = conn.execute(
+                        text("SELECT COUNT(*) FROM public.nodes")
+                    ).scalar()
+
+                    if count == 0:
+                        print(
+                            f"⚠️ Table 'nodes' is empty in '{old_name}'. Skipping copy."
+                        )
+                        return
+
+                check_url = f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
+                check_engine = create_engine(check_url)
+
+                with check_engine.connect() as conn:
+                    count = conn.execute(
+                        text("SELECT COUNT(*) FROM public.nodes")
+                    ).scalar()
+
+                    if count > 0:
+                        print(
+                            f"⚠️ Table 'nodes' already exists in '{new_name}' with {count} rows. Skipping copy."
+                        )
+                        return
+
+                with tempfile.NamedTemporaryFile(suffix=".sql", delete=False) as tmp:
+                    dump_file = tmp.name
+
+                try:
+                    # Step 1: Dump the 'nodes' table to file
+                    subprocess.run(
+                        [
+                            "pg_dump",
+                            "-h",
+                            DB_HOST,
+                            "-p",
+                            str(DB_PORT),
+                            "-U",
+                            DB_USER,
+                            "-d",
+                            old_name,
+                            "-t",
+                            "nodes",
+                            "--format=custom",  # requires -f, not stdout redirection
+                            "--no-owner",
+                            "--no-privileges",
+                            "-f",
+                            dump_file,
+                        ],
+                        check=True,
+                        env={**os.environ, "PGPASSWORD": DB_PASS},
+                    )
+
+                    print(f"✔ Dumped 'nodes' table to '{dump_file}'")
+
+                    # Step 2: Restore the dump into the new database
+                    subprocess.run(
+                        [
+                            "pg_restore",
+                            "--data-only",
+                            "--no-owner",
+                            "--no-privileges",
+                            "-h",
+                            DB_HOST,
+                            "-p",
+                            str(DB_PORT),
+                            "-U",
+                            DB_USER,
+                            "-d",
+                            new_name,
+                            dump_file,
+                        ],
+                        check=True,
+                        env={**os.environ, "PGPASSWORD": DB_PASS},
+                    )
+
+                    print(f"✔ Restored 'nodes' table into '{new_name}'")
+
+                    # Step 3: Verify 'nodes' exists in both DBs, then drop from old
+                    source_engine = create_engine(
+                        f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{old_name}"
+                    )
+                    dest_engine = create_engine(
+                        f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
+                    )
+
+                    with source_engine.connect().execution_options(
+                        autocommit=True
+                    ) as src, dest_engine.connect() as dst:
+                        src_exists = src.execute(
+                            text("SELECT to_regclass('public.nodes')")
+                        ).scalar()
+                        dst_exists = dst.execute(
+                            text("SELECT to_regclass('public.nodes')")
+                        ).scalar()
+
+                        if src_exists and dst_exists:
+                            subprocess.run(
+                                [
+                                    "psql",
+                                    "-h",
+                                    DB_HOST,
+                                    "-p",
+                                    str(DB_PORT),
+                                    "-U",
+                                    DB_USER,
+                                    "-d",
+                                    old_name,
+                                    "-c",
+                                    "TRUNCATE TABLE public.nodes CASCADE",
+                                ],
+                                check=True,
+                                env={**os.environ, "PGPASSWORD": DB_PASS},
+                            )
+
+                            count = src.execute(
+                                text("SELECT COUNT(*) FROM public.nodes")
+                            ).scalar()
+
+                            print(f"✅ Remaining rows: {count}")
+
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ pg_dump/psql failed: {e}")
+                finally:
+                    if os.path.exists(dump_file):
+                        os.remove(dump_file)
+
+
+def split_core_and_tracing():
+    engine = create_engine(
+        POSTGRES_URI_POSTGRES,
+        isolation_level="AUTOCOMMIT",
+    )
+
+    with engine.connect() as conn:
+        for old_name, new_name in RENAME_MAP.items():
+            old_exists = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": old_name},
+            ).scalar()
+
+            new_exists = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": new_name},
+            ).scalar()
+
+            if old_exists and not new_exists:
+                print(f"Renaming database '{old_name}' → '{new_name}'...")
+                try:
+                    conn.execute(
+                        text(f"ALTER DATABASE {old_name} RENAME TO {new_name}")
+                    )
+                    print(f"✔ Renamed '{old_name}' to '{new_name}'")
+                except ProgrammingError as e:
+                    print(f"❌ Failed to rename '{old_name}': {e}")
+
+            elif not old_exists and new_exists:
+                print(
+                    f"'{old_name}' does not exist, but '{new_name}' already exists. No action taken."
+                )
+
+            elif not old_exists and not new_exists:
+                print(
+                    f"Neither '{old_name}' nor '{new_name}' exists. Creating '{new_name}'..."
+                )
+                try:
+                    # Ensure the role exists
+                    conn.execute(
+                        text(
+                            f"""
+                            DO $$
+                            BEGIN
+                                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{DB_USER}') THEN
+                                    EXECUTE format('CREATE ROLE %I WITH LOGIN PASSWORD %L', '{DB_USER}', '{DB_PASS}');
+                                END IF;
+                            END
+                            $$;
+                            """
+                        )
+                    )
+                    print(f"✔ Ensured role '{DB_USER}' exists")
+
+                    # Create the new database
+                    conn.execute(text(f"CREATE DATABASE {new_name}"))
+                    print(f"✔ Created database '{new_name}'")
+
+                    # Grant privileges on the database to the role
+                    conn.execute(
+                        text(
+                            f"GRANT ALL PRIVILEGES ON DATABASE {new_name} TO {DB_USER}"
+                        )
+                    )
+                    print(
+                        f"✔ Granted privileges on database '{new_name}' to '{DB_USER}'"
+                    )
+
+                    # Connect to the new database to grant schema permissions
+                    new_db_url = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
+
+                    with create_engine(
+                        new_db_url, isolation_level="AUTOCOMMIT"
+                    ).connect() as new_db_conn:
+                        new_db_conn.execute(
+                            text(f"GRANT ALL ON SCHEMA public TO {DB_USER}")
+                        )
+                        print(
+                            f"✔ Granted privileges on schema 'public' in '{new_name}' to '{DB_USER}'"
+                        )
+
+                except ProgrammingError as e:
+                    print(
+                        f"❌ Failed during creation or configuration of '{new_name}': {e}"
+                    )
+
+            else:
+                print(f"Both '{old_name}' and '{new_name}' exist. No action taken.")

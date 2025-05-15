@@ -131,8 +131,8 @@ class instrument:  # pylint: disable=invalid-name
 
         if not context.link:
             context.link = {
-                "tree_id": span.get_span_context().trace_id,
-                "node_id": span.get_span_context().span_id,
+                "trace_id": span.get_span_context().trace_id,
+                "span_id": span.get_span_context().span_id,
             }
 
             tracing_context.set(context)
@@ -297,9 +297,7 @@ class instrument:  # pylint: disable=invalid-name
             not in (
                 ignore
                 if isinstance(ignore, list)
-                else io.keys()
-                if ignore is True
-                else []
+                else io.keys() if ignore is True else []
             )
         }
 

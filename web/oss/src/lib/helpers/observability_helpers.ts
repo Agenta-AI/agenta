@@ -1,8 +1,11 @@
+import {TracesWithAnnotations} from "@/oss/components/pages/observability/ObservabilityDashboard"
 import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
 } from "@/oss/services/observability/types"
+
+import {uuidToSpanId, uuidToTraceId} from "../hooks/useAnnotations/assets/helpers"
 
 export const observabilityTransformer = (
     item: AgentaTreeDTO | AgentaNodeDTO,
@@ -14,6 +17,11 @@ export const observabilityTransformer = (
         return {
             ...node,
             key,
+            // Added annotation here to make the clean up version of the annotations feature
+            invocationIds: {
+                trace_id: uuidToTraceId(node.root.id),
+                span_id: uuidToSpanId(node.node.id),
+            },
             ...(hasChildren ? {children: observabilityTransformer(node)} : undefined),
         }
     }
@@ -44,9 +52,9 @@ export const buildNodeTree = ({parent, ...node}: AgentaNodeDTO) => ({
 })
 
 export const getNodeById = (
-    nodes: _AgentaRootsResponse[] | _AgentaRootsResponse,
+    nodes: TracesWithAnnotations[] | TracesWithAnnotations,
     id: string,
-): _AgentaRootsResponse | null => {
+): TracesWithAnnotations | null => {
     if (nodes && !Array.isArray(nodes) && nodes.key === id) {
         return nodes
     }

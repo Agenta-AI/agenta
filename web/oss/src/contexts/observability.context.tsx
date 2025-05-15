@@ -6,10 +6,10 @@ import {useRouter} from "next/router"
 import {SortResult} from "@/oss/components/Filters/Sort"
 import {Filter} from "@/oss/lib/Types"
 import {useTraces} from "@/oss/services/observability/hooks/useTraces"
-import type {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {TracesWithAnnotations} from "../components/pages/observability/ObservabilityDashboard"
 
 interface ObservabilityContextType {
-    traces: _AgentaRootsResponse[]
+    traces: TracesWithAnnotations[]
     count: number
     isLoading: boolean
     fetchTraces: () => void

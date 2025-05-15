@@ -1,0 +1,156 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/testsets
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+# ADD TESTSET
+# @name add_testset
+POST {{base_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset": {
+        "slug": "{{$guid}}",
+        "name": "Testset Name",
+        "description": "Testset Description",
+        "testcases": [
+            {
+                "testcase_id": "{{$guid}}",
+                "country": "Germany",
+                "correct_answer": "The capital of Germany is Berlin."
+            },
+            {
+                "country": "France",
+                "correct_answer": "The capital of France is Pariz."
+            }
+        ],
+        "tags": {
+            "tag1": "value1",
+            "tag2": "value2"
+        }
+    }
+}
+
+###
+
+@testset_id = {{add_testset.response.body.testset.id}}
+@testcase_id = {{add_testset.response.body.testset.testcases.0.testcase_id}}
+@add_testcase_id_0 = {{add_testset.response.body.testset.testcases.0.testcase_id}}
+@add_testcase_id_1 = {{add_testset.response.body.testset.testcases.1.testcase_id}}
+
+###
+# FETCH TESTSET
+# @name fetch_testset
+GET {{base_url}}/{{testset_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# EDIT TESTSET
+# @name edit_testset
+PUT {{base_url}}/{{testset_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "testset": {
+        "id": "{{testset_id}}",
+        "name": "Testset Name",
+        "description": "Testset Description",
+        "testcases": [
+            {
+                "testcase_id": "{{$guid}}",
+                "country": "Germany",
+                "correct_answer": "The capital of Germany is Berlin."
+            },
+            {
+                "country": "France",
+                "correct_answer": "The capital of France is Paris."
+            },
+            {
+                "country": "Argentina",
+                "correct_answer": "The capital of France is Buenos Aires."
+            }
+        ],
+        "tags": {
+            "tag1": "value1",
+            "tag2": "value2"
+        }
+    }
+}
+
+###
+
+@edit_testcase_id_0 = {{edit_testset.response.body.testset.testcases.0.testcase_id}}
+@edit_testcase_id_1 = {{edit_testset.response.body.testset.testcases.1.testcase_id}}
+@edit_testcase_id_2 = {{edit_testset.response.body.testset.testcases.2.testcase_id}}
+
+###
+# ARCHIVE TESTSET
+# @name archive_testset
+POST {{base_url}}/{{testset_id}}/archive
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# UNARCHIVE TESTSET
+# @name unarchive_testset
+POST {{base_url}}/{{testset_id}}/unarchive
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# QUERY TESTSET
+# @name query_testset
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# FETCH TESTCASE
+GET {{base_url}}/{{testset_id}}/testcases/{{add_testcase_id_0}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# FETCH TESTCASE
+GET {{base_url}}/{{testset_id}}/testcases/{{add_testcase_id_1}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# FETCH TESTCASE
+GET {{base_url}}/{{testset_id}}/testcases/{{edit_testcase_id_0}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# FETCH TESTCASE
+GET {{base_url}}/{{testset_id}}/testcases/{{edit_testcase_id_1}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# FETCH TESTCASE
+GET {{base_url}}/{{testset_id}}/testcases/{{edit_testcase_id_2}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# TODO:
+# - UPLOAD FILE
+# - ADD TESTSET_ID AS PACK_ID
+# - ADD DEDUPLICATION OPTION
+# - ADD TESTCASE_ID_KEY OPTION
+# - TEST TAGS

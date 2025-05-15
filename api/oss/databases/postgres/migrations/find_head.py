@@ -1,8 +1,11 @@
 import os
 import re
 from typing import Union, Dict, Set
+import sys
 
-MIGRATIONS_DIR = "./versions/"  # change this to your Alembic versions folder
+database = sys.argv[1]
+
+MIGRATIONS_DIR = f"./{database}/versions/"
 
 revision_pattern = re.compile(r'revision\s*:\s*str\s*=\s*"([a-f0-9]+)"')
 down_revision_pattern = re.compile(

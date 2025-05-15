@@ -169,7 +169,7 @@ const AccordionTreePanel = ({
                         </div>
                     ),
                     extra: (
-                        <Space size={12}>
+                        <Space size={12} onClick={(e) => e.stopPropagation()}>
                             {enableFormatSwitcher && typeof value !== "string" && (
                                 <Radio.Group
                                     value={segmentedValue}

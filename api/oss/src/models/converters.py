@@ -56,7 +56,7 @@ from oss.src.models.shared_models import (
     EvaluationScenarioResult,
 )
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def app_variant_db_to_pydantic( # TODO: remove me. nobody's using me.

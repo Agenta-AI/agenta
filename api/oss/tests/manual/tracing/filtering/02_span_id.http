@@ -1,0 +1,157 @@
+@host = http://localhost
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
+@base_url = {{host}}/api/preview/tracing
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+###
+POST {{base_url}}/spans/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "spans": [
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000000" },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000001" },
+    { "trace_id": "20000000000000000000000000000000", "span_id": "2000000000000002" }
+  ]
+}
+
+###
+# test: filter by span_id = 2000000000000000 (query param)
+GET {{base_url}}/spans/?filter={"conditions":[{"field":"span_id","value":"2000000000000000"}]}
+Authorization: {{authorization}}
+
+###
+# test: filter by span_id = 2000000000000001 (POST)
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "value": "2000000000000001" }
+    ]
+  }
+}
+
+###
+# test: value is null
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "value": null, "operator": "is" }
+    ]
+  }
+}
+
+###
+# test: operator not supported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "operator": "eq", "value": "2000000000000001" }
+    ]
+  }
+}
+
+###
+# test: filter by span_id IS [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "operator": "is", "value": "2000000000000001" }
+    ]
+  }
+}
+
+###
+# test: filter by span_id IS_NOT [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "operator": "is_not", "value": "2000000000000001" }
+    ]
+  }
+}
+
+###
+# test: filter by span_id IN [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "value": ["2000000000000000", "2000000000000001"], "operator": "in" }
+    ]
+  }
+}
+
+###
+# test: filter by span_id NOT_IN [...]
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "value": ["2000000000000000", "2000000000000001"], "operator": "not_in" }
+    ]
+  }
+}
+
+###
+# test: filter by span_id HAS [...] -- unsupported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "value": "2000000000000000", "operator": "has" }
+    ]
+  }
+}
+
+###
+# test: filter by span_id HAS_NOT [...] -- unsupported
+POST {{base_url}}/spans/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "filter": {
+    "conditions": [
+      { "field": "span_id", "value": "2000000000000000", "operator": "has_not" }
+    ]
+  }
+}

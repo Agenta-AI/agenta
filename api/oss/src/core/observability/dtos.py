@@ -156,6 +156,9 @@ class OTelExtraDTO(BaseModel):
 
 
 class SpanDTO(BaseModel):
+    trace_id: str
+    span_id: str
+
     lifecycle: Optional[LifecycleDTO] = None
 
     root: RootDTO

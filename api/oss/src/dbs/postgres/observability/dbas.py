@@ -2,7 +2,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import Column, UUID, TIMESTAMP, Enum as SQLEnum, String
 
 from oss.src.core.observability.dtos import TreeType, NodeType
-from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
+from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LegacyLifecycleDBA
 
 
 class RootDBA:
@@ -80,7 +80,7 @@ class OTelDBA:
 
 class SpanDBA(
     ProjectScopeDBA,
-    LifecycleDBA,
+    LegacyLifecycleDBA,
     RootDBA,
     TreeDBA,
     NodeDBA,

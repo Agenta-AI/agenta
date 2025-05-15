@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.44.4",
+    "version": "0.45.0",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -113,7 +113,8 @@
         "typescript": "5.7.3",
         "use-animation-frame": "^0.2.1",
         "usehooks-ts": "^3.1.1",
-        "uuid": "^9.0.1"
+        "uuid": "^9.0.1",
+        "uuidjs": "^5.1.0"
     },
     "devDependencies": {
         "@types/node": "^20.8.10",

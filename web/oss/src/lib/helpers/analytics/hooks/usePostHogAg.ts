@@ -16,7 +16,7 @@ interface ExtendedPostHog extends PostHog {
 }
 
 export const usePostHogAg = (): ExtendedPostHog | null => {
-    const trackingEnabled = getEnv("NEXT_PUBLIC_TELEMETRY_TRACKING_ENABLED") === "true"
+    const trackingEnabled = getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") !== ""
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
 

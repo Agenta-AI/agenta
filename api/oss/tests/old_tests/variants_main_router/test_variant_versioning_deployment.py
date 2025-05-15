@@ -29,7 +29,7 @@ elif ENVIRONMENT == "github":
 
 @pytest.mark.asyncio
 async def test_update_app_variant_parameters(app_variant_parameters_updated):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="evaluation_in_backend")
         )
@@ -56,7 +56,7 @@ async def test_update_app_variant_parameters(app_variant_parameters_updated):
 
 @pytest.mark.asyncio
 async def test_deploy_to_environment(deploy_to_environment_payload):
-    async with engine.session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(AppDB).filter_by(app_name="evaluation_in_backend")
         )

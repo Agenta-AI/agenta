@@ -64,7 +64,7 @@ API_KEYS_MAPPING = {
 session = boto3.Session(profile_name=AGENTA_AWS_PROFILE_NAME)
 sm_client = session.client("secretsmanager")
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def pytest_collection_modifyitems(items):

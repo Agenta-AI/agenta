@@ -1,7 +1,7 @@
-import {useState} from "react"
+import {Dispatch, SetStateAction, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
-import {CaretDown, CaretUp} from "@phosphor-icons/react"
+import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
@@ -9,14 +9,17 @@ import {JSSTheme} from "@/oss/lib/Types"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 
 import DeleteTraceModal from "../components/DeleteTraceModal"
+import {TracesWithAnnotations} from "../ObservabilityDashboard"
 
 interface TraceHeaderProps {
-    activeTrace: _AgentaRootsResponse
+    activeTrace: TracesWithAnnotations
     traces: _AgentaRootsResponse[]
     setSelectedTraceId: (val: string) => void
     activeTraceIndex?: number
     handleNextTrace?: () => void
     handlePrevTrace?: () => void
+    setIsAnnotationsSectionOpen: Dispatch<SetStateAction<boolean>>
+    isAnnotationsSectionOpen: boolean
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -34,6 +37,8 @@ const TraceHeader = ({
     activeTraceIndex,
     handleNextTrace,
     handlePrevTrace,
+    setIsAnnotationsSectionOpen,
+    isAnnotationsSectionOpen,
 }: TraceHeaderProps) => {
     const classes = useStyles()
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -61,7 +66,15 @@ const TraceHeader = ({
                     <Tag className="font-normal"># {activeTrace.root.id}</Tag>
                 </Space>
 
-                <Button icon={<DeleteOutlined />} onClick={() => setIsDeleteModalOpen(true)} />
+                <Space>
+                    <Button icon={<DeleteOutlined />} onClick={() => setIsDeleteModalOpen(true)} />
+                    <Button
+                        icon={<SidebarSimple size={14} />}
+                        type={isAnnotationsSectionOpen ? "default" : "primary"}
+                        className="shrink-0 flex items-center justify-center"
+                        onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
+                    />
+                </Space>
             </div>
 
             <DeleteTraceModal

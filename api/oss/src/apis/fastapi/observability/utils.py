@@ -127,7 +127,7 @@ def _parse_pagination(
     return _pagination
 
 
-def parse_query_dto(
+def parse_query_request(
     # GROUPING
     # - Option 2: Flat query parameters
     focus: Optional[str] = Query(None),
@@ -479,6 +479,9 @@ def _parse_from_events(
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
 ) -> SpanDTO:
+    trace_id = otel_span_dto.context.trace_id[2:]
+    span_id = otel_span_dto.context.span_id[2:]
+
     try:
         _parse_from_semconv(otel_span_dto.attributes)
     except:  # pylint: disable=bare-except
@@ -490,8 +493,7 @@ def parse_from_otel_span_dto(
     except:  # pylint: disable=bare-except
         pass
 
-    tree_id = UUID(otel_span_dto.context.trace_id[2:])
-
+    tree_id = UUID(trace_id)
     tree_type = None
     try:
         tree_type: str = types.get("tree")
@@ -504,7 +506,7 @@ def parse_from_otel_span_dto(
         type=tree_type,
     )
 
-    node_id = UUID(tree_id.hex[16:] + otel_span_dto.context.span_id[2:])
+    node_id = UUID(trace_id[16:] + span_id)
 
     node_type = NodeType.TASK
     try:
@@ -581,6 +583,8 @@ def parse_from_otel_span_dto(
     )
 
     span_dto = SpanDTO(
+        trace_id=trace_id,
+        span_id=span_id,
         root=root,
         tree=tree,
         node=node,

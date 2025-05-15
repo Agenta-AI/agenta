@@ -12,8 +12,8 @@ from sqlalchemy.dialects import postgresql
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.observability.dbes import NodesDBE
 from oss.src.dbs.postgres.observability.mappings import (
-    map_span_dto_to_dbe,
-    map_span_dbe_to_dto,
+    map_span_dto_to_span_dbe,
+    map_span_dbe_to_span_dto,
     map_bucket_dbes_to_dtos,
 )
 
@@ -71,7 +71,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         query_dto: QueryDTO,
     ) -> Tuple[List[SpanDTO], Optional[int]]:
         try:
-            async with engine.session() as session:
+            async with engine.tracing_session() as session:
                 # BASE (SUB-)QUERY
                 query = select(NodesDBE)
                 # ----------------
@@ -187,7 +187,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 spans = (await session.execute(query)).scalars().all()
                 # ---------------
 
-            return [map_span_dbe_to_dto(span) for span in spans], count
+            return [map_span_dbe_to_span_dto(span) for span in spans], count
 
         except AttributeError as e:
             print_exc()
@@ -203,7 +203,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         analytics_dto: AnalyticsDTO,
     ) -> Tuple[List[BucketDTO], Optional[int]]:
         try:
-            async with engine.session() as session:
+            async with engine.tracing_session() as session:
                 # WINDOWING
                 today = datetime.now()
                 start_of_next_day = datetime.combine(
@@ -462,12 +462,12 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         span_dto: SpanDTO,
     ) -> None:
-        span_dbe = map_span_dto_to_dbe(
+        span_dbe = map_span_dto_to_span_dbe(
             project_id=project_id,
             span_dto=span_dto,
         )
 
-        async with engine.session() as session:
+        async with engine.tracing_session() as session:
             session.add(span_dbe)
             await session.commit()
 
@@ -478,14 +478,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         span_dtos: List[SpanDTO],
     ) -> None:
         span_dbes = [
-            map_span_dto_to_dbe(
+            map_span_dto_to_span_dbe(
                 project_id=project_id,
                 span_dto=span_dto,
             )
             for span_dto in span_dtos
         ]
 
-        async with engine.session() as session:
+        async with engine.tracing_session() as session:
             for span_dbe in span_dbes:
                 session.add(span_dbe)
 
@@ -499,7 +499,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         to_dto: bool = True,
     ) -> Union[Optional[SpanDTO], Optional[NodesDBE]]:
         span_dbe = None
-        async with engine.session() as session:
+        async with engine.tracing_session() as session:
             query = select(NodesDBE)
 
             query = query.filter_by(
@@ -511,7 +511,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         span_dto = None
         if span_dbe and to_dto:
-            span_dto = map_span_dbe_to_dto(span_dbe)
+            span_dto = map_span_dbe_to_span_dto(span_dbe)
 
             return span_dto
 
@@ -525,7 +525,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         to_dto: bool = True,
     ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
-        async with engine.session() as session:
+        async with engine.tracing_session() as session:
             query = select(NodesDBE)
 
             query = query.filter_by(project_id=project_id)
@@ -536,7 +536,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         span_dtos = []
         if span_dbes and to_dto:
-            span_dtos = [map_span_dbe_to_dto(span_dbe) for span_dbe in span_dbes]
+            span_dtos = [map_span_dbe_to_span_dto(span_dbe) for span_dbe in span_dbes]
 
             return span_dtos
 
@@ -550,7 +550,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         to_dto: bool = True,
     ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
-        async with engine.session() as session:
+        async with engine.tracing_session() as session:
             query = select(NodesDBE)
 
             query = query.filter_by(project_id=project_id)
@@ -561,7 +561,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
         span_dtos = []
         if span_dbes and to_dto:
-            span_dtos = [map_span_dbe_to_dto(span_dbe) for span_dbe in span_dbes]
+            span_dtos = [map_span_dbe_to_span_dto(span_dbe) for span_dbe in span_dbes]
 
             return span_dtos
 
@@ -594,7 +594,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 )
             # --------------------------------
 
-            async with engine.session() as session:
+            async with engine.tracing_session() as session:
                 await session.delete(span_dbe)
                 await session.commit()
 
@@ -626,7 +626,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     )
                 # --------------------------------
 
-                async with engine.session() as session:
+                async with engine.tracing_session() as session:
                     await session.delete(span_dbe)
                     await session.commit()
 

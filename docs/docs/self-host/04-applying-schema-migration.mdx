@@ -10,15 +10,15 @@ This guide provides step-by-step instructions for applying schema migration to u
 To apply schema migrations, first determine the name of the API container (e.g. `agenta-oss-gh-api-1`) then run the following command:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations <api-container-name> alembic -c alembic.oss.ini upgrade head
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core <api-container-name> alembic -c alembic.ini upgrade head
 ```
 
 **Explanation:**
 - `docker exec`: Runs the command in an existing container.
 - `-e PYTHONPATH=/app`: Export the /app directory to the python path.
-- `-w /app/oss/databases/postgres/migrations`: Sets the working directory inside the container to the migrations directory.
+- `-w /app/oss/databases/postgres/migrations/core`: Sets the working directory inside the container to the migrations directory.
 - `<api-container-name>`: The name of the Docker container running the backend.
-- `alembic -c alembic.oss.ini upgrade head`: Applies all new migrations up to the latest available version (`head`), using Alembic configuration file `alembic.oss.ini`.
+- `alembic -c alembic.ini upgrade head`: Applies all new migrations up to the latest available version (`head`), using Alembic configuration file `alembic.ini`.
 
 This ensures that Alembic correctly identifies the migration scripts and settings located in the migrations directory of your backend container.
 
@@ -26,7 +26,7 @@ This ensures that Alembic correctly identifies the migration scripts and setting
 
 After completing the migration, ensure you check the data integrity in PostgreSQL by accessing Agenta on the web and verifying that your data is intact and everything works fine.
 
-In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic -c alembic.oss.ini downgrade head`. Afterwards, create a GitHub issue describing the problem you encountered.
+In the event that you encounter issues and need to revert the schema migration, you can revert by running `alembic -c alembic.ini downgrade head`. Afterwards, create a GitHub issue describing the problem you encountered.
 
 ## Automatic Migration Configuration
 :::warning

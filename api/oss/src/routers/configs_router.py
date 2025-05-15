@@ -16,7 +16,7 @@ from oss.src.routers.variants_router import configs_deploy, ReferenceRequestMode
 
 router = APIRouter()
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 @router.get("/", response_model=GetConfigResponse, operation_id="get_config")
