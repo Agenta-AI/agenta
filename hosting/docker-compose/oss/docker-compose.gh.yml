@@ -5,7 +5,7 @@ services:
         profiles:
             - with-web
 
-        image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
@@ -26,7 +26,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -75,7 +75,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
@@ -102,7 +102,7 @@ services:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
-        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
