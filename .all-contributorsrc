@@ -466,6 +466,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "ikazoy",
+      "name": "Yoshiki Ozaki",
+      "avatar_url": "https://avatars.githubusercontent.com/u/385109?v=4",
+      "profile": "https://ikazoy.me/",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,
