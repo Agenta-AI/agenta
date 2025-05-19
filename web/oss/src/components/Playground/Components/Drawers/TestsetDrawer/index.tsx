@@ -6,8 +6,9 @@ import dynamic from "next/dynamic"
 import {TestsetTraceData} from "@/oss/components/pages/observability/drawer/TestsetDrawer/assets/types"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
-import {TestsetDrawerButtonProps} from "./types"
 import EnhancedButton from "../../../assets/EnhancedButton"
+
+import {TestsetDrawerButtonProps} from "./types"
 const TestsetDrawer = dynamic(
     () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
 )

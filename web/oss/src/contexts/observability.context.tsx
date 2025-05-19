@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 import {SortResult} from "@/oss/components/Filters/Sort"
 import {Filter} from "@/oss/lib/Types"
 import {useTraces} from "@/oss/services/observability/hooks/useTraces"
+
 import {TracesWithAnnotations} from "../components/pages/observability/ObservabilityDashboard"
 
 interface ObservabilityContextType {
@@ -72,7 +73,6 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         data,
         isLoading,
         mutate: fetchTraces,
-        error,
     } = useTraces(
         {
             pagination,

@@ -230,7 +230,6 @@ class BlobDAO(BlobDAOInterface):
         #
         limit: Optional[int] = None,
     ) -> List[Blob]:
-
         async with engine.core_session() as session:
             query = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore

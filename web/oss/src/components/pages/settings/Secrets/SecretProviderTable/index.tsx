@@ -2,16 +2,15 @@ import {useMemo, useState} from "react"
 
 import {GearSix, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tag, Typography} from "antd"
-
-import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
-import DeleteProviderModal from "@/oss/components/ModelRegistry/Modals/DeleteProviderModal"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {ColumnsType} from "antd/es/table"
-import dayjs from "dayjs"
+
 import LLMIcons from "@/oss/components/LLMIcons"
+import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
 import ConfigureProviderModal from "@/oss/components/ModelRegistry/Modals/ConfigureProviderModal"
+import DeleteProviderModal from "@/oss/components/ModelRegistry/Modals/DeleteProviderModal"
+import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
     const {customRowSecrets, secrets, loading} = useVaultSecret()

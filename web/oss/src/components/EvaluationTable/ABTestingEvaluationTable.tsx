@@ -195,7 +195,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
 
     const runEvaluation = useCallback(
         async (id: string, count = 1, showNotification = true) => {
-            const variantData = data?.variants || []
+            const _variantData = data?.variants || []
             const rowIndex = rows.findIndex((row) => row.id === id)
             const inputParamsDict = rows[rowIndex].inputs.reduce(
                 (acc: Record<string, any>, item) => {

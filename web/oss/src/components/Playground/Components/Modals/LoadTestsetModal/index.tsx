@@ -42,12 +42,12 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     )
 
     useEffect(() => {
-        if (testsets.length > 0 && !selectedTestset.trim()) {
-            const firstTestsetId = testsets[0]?._id
-            setSelectedTestset(firstTestsetId)
-            testsetFetcher(firstTestsetId)
+        if (props.open && testsets.length > 0) {
+            const testsetId = selectedTestset || testsets[0]?._id
+            setSelectedTestset(testsetId)
+            testsetFetcher(testsetId)
         }
-    }, [testsets])
+    }, [testsets, props.open])
 
     const filteredTestset = useMemo(() => {
         if (!searchTerm) return testsets
@@ -153,6 +153,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                             }))}
                             onSelect={onChangeTestset}
                             defaultSelectedKeys={[selectedTestset]}
+                            selectedKeys={[selectedTestset]}
                             className={classes.menu}
                         />
                     </div>

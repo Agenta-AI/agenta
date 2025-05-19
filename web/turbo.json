@@ -5,11 +5,9 @@
             "cache": false
         },
         "lint": {
-            "dependsOn": ["^build"],
             "cache": false
         },
         "lint:fix": {
-            "dependsOn": ["^build"],
             "cache": false
         },
         "@agenta/ee#build": {

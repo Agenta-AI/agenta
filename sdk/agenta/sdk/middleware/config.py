@@ -92,15 +92,21 @@ class ConfigMiddleware(BaseHTTPMiddleware):
                 return parameters, references
 
         config = {}
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.host}/api/variants/configs/fetch",
-                headers=headers,
-                json=refs,
-            )
 
-            if response.status_code == 200:
-                config = response.json()
+        is_test_path = request.url.path.endswith("/test")
+        are_refs_missing = not variant_ref and not environment_ref
+        should_fetch = not is_test_path or not are_refs_missing
+
+        if should_fetch:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.host}/api/variants/configs/fetch",
+                    headers=headers,
+                    json=refs,
+                )
+
+                if response.status_code == 200:
+                    config = response.json()
 
         if not config:
             config["application_ref"] = refs[

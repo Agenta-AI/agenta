@@ -381,22 +381,23 @@ const GenerationChatRow = ({
                             onClick={() => cancelRunTests?.()}
                             size="small"
                             className="flex"
-                            disabled={disableRun}
+                            disabled={Boolean(disableRun)}
                         />
                     ) : (
                         <RunButton
                             size="small"
-                            disabled={!!historyItem?.__isRunning || isRunning}
+                            disabled={
+                                !!historyItem?.__isRunning || isRunning || Boolean(disableRun)
+                            }
                             onClick={() => runTests?.()}
                             className="flex"
-                            disabled={disableRun}
                         />
                     )}
                     <AddButton
                         size="small"
                         label="Message"
                         onClick={addNewMessageToRowHistory}
-                        disabled={disableRun}
+                        disabled={Boolean(disableRun)}
                     />
                 </div>
             ) : null}

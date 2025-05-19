@@ -7,6 +7,7 @@ import {createUseStyles} from "react-jss"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
 import {NodeStatusCode} from "@/oss/services/observability/types"
+
 import AvatarTreeContent from "../components/AvatarTreeContent"
 import {TracesWithAnnotations} from "../ObservabilityDashboard"
 

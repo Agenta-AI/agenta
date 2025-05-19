@@ -12,6 +12,8 @@ from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
+
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
 from oss.src.services import api_key_service
@@ -247,28 +249,93 @@ async def verify_bearer_token(
     try:
         session = await get_session(request)  # type: ignore
 
-        user_session_id = session.get_user_id()  # type: ignore
+        session_user_id = session.get_user_id()  # type: ignore
 
-        if not user_session_id:
+        if not session_user_id:
             raise UnauthorizedException()
 
-        user_info = await get_supertokens_user_by_id(user_id=user_session_id)
+        cache_key = {}
 
-        if not user_info:
-            raise UnauthorizedException()
+        user_id = await get_cache(
+            project_id=query_project_id,
+            user_id=session_user_id,
+            namespace="get_supertokens_user_by_id",
+            key=cache_key,
+        )
 
-        user = await db_manager.get_user_with_email(user_info.emails[0])
+        if user_id is not None:
+            if user_id.get("deny"):
+                raise UnauthorizedException()
 
-        if not user:
-            raise UnauthorizedException()
+            user_id = user_id.get("user_id")
 
-        user_id = str(user.id)
+        else:
+            user_info = await get_supertokens_user_by_id(user_id=session_user_id)
 
-        if not user_id:
-            raise UnauthorizedException()
+            if not user_info:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=session_user_id,
+                    namespace="get_supertokens_user_by_id",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
+                raise UnauthorizedException()
+
+            user = await db_manager.get_user_with_email(user_info.emails[0])
+
+            if not user:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=session_user_id,
+                    namespace="get_supertokens_user_by_id",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
+                raise UnauthorizedException()
+
+            user_id = str(user.id)
+
+            await set_cache(
+                project_id=query_project_id,
+                user_id=session_user_id,
+                namespace="get_supertokens_user_by_id",
+                key=cache_key,
+                value={"user_id": user_id},
+                ttl=5 * 60,  # seconds
+            )
 
         project_id = None
         workspace_id = None
+
+        cache_key = {
+            "user_id": user_id,
+            "query_project_id": query_project_id,
+            "query_workspace_id": query_workspace_id,
+        }
+
+        state = await get_cache(
+            project_id=query_project_id,
+            user_id=user_id,
+            namespace="verify_bearer_token",
+            key=cache_key,
+        )
+
+        if state is not None:
+            if state.get("deny"):
+                raise UnauthorizedException()
+
+            request.state.user_id = state.get("user_id")
+            request.state.project_id = state.get("project_id")
+            request.state.workspace_id = state.get("workspace_id")
+            request.state.organization_id = state.get("organization_id")
+            request.state.credentials = state.get("credentials")
+
+            return
 
         if query_project_id and query_workspace_id:
             project = await db_manager.get_project_by_id(
@@ -276,6 +343,15 @@ async def verify_bearer_token(
             )
 
             if not project:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=user_id,
+                    namespace="verify_bearer_token",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
                 raise UnauthorizedException()
 
             workspace = await db_manager.get_workspace(
@@ -283,9 +359,27 @@ async def verify_bearer_token(
             )
 
             if not workspace:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=user_id,
+                    namespace="verify_bearer_token",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
                 raise UnauthorizedException()
 
             if project.workspace_id != workspace.id:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=user_id,
+                    namespace="verify_bearer_token",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
                 raise UnauthorizedException()
 
             project_id = query_project_id
@@ -298,6 +392,15 @@ async def verify_bearer_token(
             )
 
             if not project:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=user_id,
+                    namespace="verify_bearer_token",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
                 raise UnauthorizedException()
 
             project_id = query_project_id
@@ -310,6 +413,15 @@ async def verify_bearer_token(
             )
 
             if not workspace:
+                await set_cache(
+                    project_id=query_project_id,
+                    user_id=user_id,
+                    namespace="verify_bearer_token",
+                    key=cache_key,
+                    value={"deny": True},
+                    ttl=15 * 60,  # seconds
+                )
+
                 raise UnauthorizedException()
 
             workspace_id = query_workspace_id
@@ -346,6 +458,15 @@ async def verify_bearer_token(
         organization_id = str(organization_id)
 
         if not (project_id and workspace_id):
+            await set_cache(
+                project_id=query_project_id,
+                user_id=user_id,
+                namespace="verify_bearer_token",
+                key=cache_key,
+                value={"deny": True},
+                ttl=15 * 60,  # seconds
+            )
+
             raise UnauthorizedException()
 
         secret_token = await sign_secret_token(
@@ -355,16 +476,51 @@ async def verify_bearer_token(
             organization_id=organization_id,
         )
 
-        request.state.user_id = user_id
-        request.state.project_id = project_id
-        request.state.workspace_id = workspace_id
-        request.state.organization_id = organization_id
-        request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
+        state = {
+            "user_id": user_id,
+            "project_id": project_id,
+            "workspace_id": workspace_id,
+            "organization_id": organization_id,
+            "credentials": f"{_SECRET_TOKEN_PREFIX}{secret_token}",
+        }
+
+        await set_cache(
+            project_id=query_project_id,
+            user_id=user_id,
+            namespace="verify_bearer_token",
+            key=cache_key,
+            value=state,
+            ttl=5 * 60,  # seconds
+        )
+
+        request.state.user_id = state.get("user_id")
+        request.state.project_id = state.get("project_id")
+        request.state.workspace_id = state.get("workspace_id")
+        request.state.organization_id = state.get("organization_id")
+        request.state.credentials = state.get("credentials")
 
     except UnauthorizedException as exc:
+        await set_cache(
+            project_id=query_project_id,
+            user_id=user_id,
+            namespace="verify_bearer_token",
+            key=cache_key,
+            value={"deny": True},
+            ttl=15 * 60,  # seconds
+        )
+
         raise exc
 
     except Exception as exc:  # pylint: disable=bare-except
+        await set_cache(
+            project_id=query_project_id,
+            user_id=user_id,
+            namespace="verify_bearer_token",
+            key=cache_key,
+            value={"deny": True},
+            ttl=15 * 60,  # seconds
+        )
+
         raise UnauthorizedException() from exc
 
 
@@ -372,36 +528,71 @@ async def verify_apikey_token(
     request: Request,
     apikey_token: str,
 ):
+    cache_key = {
+        "apikey_token": apikey_token,
+    }
+
+    state = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="verify_apikey_token",
+        key=cache_key,
+    )
+
+    if state is not None:
+        if state.get("deny"):
+            raise UnauthorizedException()
+
+        request.state.user_id = state.get("user_id")
+        request.state.project_id = state.get("project_id")
+        request.state.workspace_id = state.get("workspace_id")
+        request.state.organization_id = state.get("organization_id")
+        request.state.credentials = state.get("credentials")
+
+        return
+
     api_key_obj = await api_key_service.use_api_key(
         key=apikey_token,
     )
+
     if not api_key_obj:
+        await set_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="verify_apikey_token",
+            key=cache_key,
+            value={"deny": True},
+            ttl=15 * 60,  # seconds
+        )
+
         raise UnauthorizedException()
 
-    # Check rate limiting
-    cache_key = f"apikey_rate_limit:{apikey_token}"
-    rate_limit_exceeded = await api_key_service.check_rate_limit(
-        api_key_obj=api_key_obj,
-        cache_key=cache_key,
-    )
-
-    if rate_limit_exceeded:
-        raise TooManyRequestsException()
-
-    # Update the last usage timestamp
-    await db_manager.update_api_key_timestamp(
-        api_key_id=str(api_key_obj.id),
-    )
-
     apikey_project_db = await db_manager.get_project_by_id(
-        project_id=str(api_key_obj.project_id)
+        project_id=str(api_key_obj.project_id),
     )
 
-    request.state.user_id = str(api_key_obj.created_by_id)
-    request.state.project_id = str(api_key_obj.project_id)
-    request.state.workspace_id = str(apikey_project_db.workspace_id)
-    request.state.organization_id = str(apikey_project_db.organization_id)
-    request.state.credentials = f"{_APIKEY_TOKEN_PREFIX}{apikey_token}"
+    state = {
+        "user_id": str(api_key_obj.created_by_id),
+        "project_id": str(api_key_obj.project_id),
+        "workspace_id": str(apikey_project_db.workspace_id),
+        "organization_id": str(apikey_project_db.organization_id),
+        "credentials": f"{_APIKEY_TOKEN_PREFIX}{apikey_token}",
+    }
+
+    await set_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="verify_apikey_token",
+        key=cache_key,
+        value=state,
+        ttl=5 * 60,  # seconds
+    )
+
+    request.state.user_id = state.get("user_id")
+    request.state.project_id = state.get("project_id")
+    request.state.workspace_id = state.get("workspace_id")
+    request.state.organization_id = state.get("organization_id")
+    request.state.credentials = state.get("credentials")
 
 
 async def verify_secret_token(

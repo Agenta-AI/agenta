@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, Body, status
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
+
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import app_manager, db_manager
@@ -301,12 +303,26 @@ async def get_variant_revisions(
     variant_id: str,
     request: Request,
 ):
-    app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
+    cache_key = {
+        "variant_id": variant_id,
+    }
+
+    app_variant_revisions = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="get_variant_revisions",
+        key=cache_key,
+        model=AppVariantRevision,
+        is_list=True,
+    )
+
+    if app_variant_revisions is not None:
+        return app_variant_revisions
 
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app_variant.project_id),
+            project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
@@ -318,9 +334,23 @@ async def get_variant_revisions(
             )
 
     app_variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
-        app_variant=app_variant, project_id=str(app_variant.project_id)
+        variant_id=variant_id, project_id=request.state.project_id
     )
-    return await converters.app_variant_db_revisions_to_output(app_variant_revisions)
+
+    app_variant_revisions = await converters.app_variant_db_revisions_to_output(
+        app_variant_revisions
+    )
+
+    await set_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="get_variant_revisions",
+        key=cache_key,
+        value=app_variant_revisions,
+        ttl=15,  # seconds
+    )
+
+    return app_variant_revisions
 
 
 @router.get(
@@ -525,7 +555,23 @@ async def configs_fetch(
     Raises:
         HTTPException: If the configuration is not found.
     """
-    config = None
+    cache_key = {
+        "variant_ref": (variant_ref.model_dump() if variant_ref else None),
+        "environment_ref": (environment_ref.model_dump() if environment_ref else None),
+        "application_ref": (application_ref.model_dump() if application_ref else None),
+    }
+
+    config = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="configs_fetch",
+        key=cache_key,
+        model=ConfigDTO,
+    )
+
+    if config is not None:
+        return config
+
     if variant_ref:
         config = await fetch_config_by_variant_ref(
             project_id=request.state.project_id,
@@ -533,6 +579,7 @@ async def configs_fetch(
             application_ref=application_ref,
             user_id=request.state.user_id,
         )
+
     elif environment_ref:
         config = await fetch_config_by_environment_ref(
             project_id=request.state.project_id,
@@ -540,6 +587,7 @@ async def configs_fetch(
             application_ref=application_ref,
             user_id=request.state.user_id,
         )
+
     else:
         environment_ref = ReferenceRequestModel(
             slug="production", id=None, version=None
@@ -550,6 +598,15 @@ async def configs_fetch(
             application_ref=application_ref,
             user_id=request.state.user_id,
         )
+
+    await set_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="configs_fetch",
+        key=cache_key,
+        value=config,
+        ttl=15,  # seconds
+    )
 
     if not config:
         raise HTTPException(

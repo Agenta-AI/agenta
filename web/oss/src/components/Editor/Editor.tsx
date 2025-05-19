@@ -1,11 +1,11 @@
-import {forwardRef, useCallback, useEffect, useRef, ReactNode, useState, memo} from "react"
+import {forwardRef, useCallback, useEffect, useRef, ReactNode, memo} from "react"
 
 import {$convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS} from "@lexical/markdown"
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
-import {$getRoot, COMMAND_PRIORITY_LOW, EditorState, LexicalEditor, createCommand} from "lexical"
+import {COMMAND_PRIORITY_LOW, EditorState, LexicalEditor, createCommand} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
 import useEditorConfig from "./hooks/useEditorConfig"

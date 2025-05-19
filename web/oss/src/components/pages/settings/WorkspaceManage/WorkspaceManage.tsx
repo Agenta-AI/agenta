@@ -10,13 +10,13 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const InvitedUserLinkModal = dynamic(() => import("./Modals/InvitedUserLinkModal"), {ssr: false})
 const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr: false})
@@ -116,7 +116,9 @@ const WorkspaceManage: FC = () => {
                             }
                             return (
                                 <Space direction="vertical">
-                                    <Typography.Text>{formatDay({date: user.created_at})}</Typography.Text>
+                                    <Typography.Text>
+                                        {formatDay({date: user.created_at})}
+                                    </Typography.Text>
                                     {!isMember && <Tag color={color}>{text}</Tag>}
                                 </Space>
                             )

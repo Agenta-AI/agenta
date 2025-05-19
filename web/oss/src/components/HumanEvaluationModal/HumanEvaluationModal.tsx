@@ -51,7 +51,7 @@ const HumanEvaluationModal = ({
         new Array(1).fill({variantName: "Select a variant"}),
     )
 
-    const [selectedCustomEvaluationID, setSelectedCustomEvaluationID] = useState("")
+    const [_selectedCustomEvaluationID, _setSelectedCustomEvaluationID] = useState("")
 
     const appId = router.query.app_id?.toString() || ""
 
@@ -278,7 +278,7 @@ const HumanEvaluationModal = ({
             evaluationType: EvaluationType[evaluationType as keyof typeof EvaluationType],
             evaluationTypeSettings: {},
             llmAppPromptTemplate: "",
-            selectedCustomEvaluationID,
+            selectedCustomEvaluationID: _selectedCustomEvaluationID,
             testsetId: selectedTestset._id!,
         }).catch((err) => {
             if (err.message !== PERMISSION_ERR_MSG) {

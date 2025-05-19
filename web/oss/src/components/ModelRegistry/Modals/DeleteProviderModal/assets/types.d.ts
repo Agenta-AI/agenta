@@ -1,5 +1,6 @@
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {ModalProps} from "antd"
+
+import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 export interface DeleteProviderModalProps extends ModalProps {
     selectedProvider: LlmProvider | null

@@ -1,8 +1,9 @@
 import {memo, useMemo} from "react"
 
+import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown} from "antd"
-import {MoreOutlined} from "@ant-design/icons"
+
 import {VariantDrawerTitleMenuProps} from "../types"
 
 const VariantDrawerTitleMenu = ({onClose, onRename, onReset}: VariantDrawerTitleMenuProps) => {

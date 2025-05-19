@@ -1,5 +1,6 @@
-import { LlmProvider } from "@/oss/lib/helpers/llmProviders"
 import {InputProps, ModalProps} from "antd"
+
+import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 export interface ConfigureProviderModalProps extends ModalProps {
     selectedProvider: LlmProvider | null

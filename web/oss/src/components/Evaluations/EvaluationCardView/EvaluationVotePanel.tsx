@@ -1,10 +1,10 @@
+import {StarFilled} from "@ant-design/icons"
 import {Button, ConfigProvider, InputNumber, Rate, Spin, Typography, theme} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {Variant} from "@/oss/lib/Types"
 
 import {VARIANT_COLORS} from "./assets/styles"
-import {StarFilled} from "@ant-design/icons"
 
 const useStyles = createUseStyles({
     root: {

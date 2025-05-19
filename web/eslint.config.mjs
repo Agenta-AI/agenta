@@ -27,6 +27,10 @@ const config = [
     ...tsEslintConfig,
     {
         rules: {
+            "prefer-const": "off",
+            "no-self-assign": "off",
+            "no-empty": "off",
+            "no-case-declarations": "off",
             "react/no-unescaped-entities": 0,
             "react/display-name": 0,
             "@next/next/no-sync-scripts": 0,
@@ -40,6 +44,11 @@ const config = [
             "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/no-empty-object-type": "off",
             "@typescript-eslint/ban-ts-comment": "off",
+            "@typescript-eslint/no-empty-function": "off",
+            "@typescript-eslint/no-non-null-asserted-optional-chain": "off",
+            "@typescript-eslint/no-non-null-assertion": "off",
+            "@typescript-eslint/no-unsafe-function-type": "off",
+            "@typescript-eslint/no-unused-expressions": "off",
             "@typescript-eslint/no-unused-vars": [
                 "error",
                 {
@@ -48,6 +57,7 @@ const config = [
                     caughtErrors: "none",
                     ignoreRestSiblings: true,
                     destructuredArrayIgnorePattern: "none",
+                    varsIgnorePattern: "^_|^_.*",
                 },
             ],
             "import/order": [

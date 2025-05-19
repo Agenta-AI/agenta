@@ -22,8 +22,7 @@ const PromptMessageContentOptions = ({
     resultHashes,
 }: PromptMessageContentOptionsProps) => {
     const {propertyGetter} = usePlayground()
-    const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer, executeEditorCommand} =
-        actions || {}
+    const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer} = actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 

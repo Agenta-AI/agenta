@@ -1,16 +1,20 @@
 import {useEffect, useMemo, useState} from "react"
+
+import {Plus, WarningCircle} from "@phosphor-icons/react"
+import {Button, Form, Typography} from "antd"
+import {useWatch} from "antd/lib/form/Form"
+
 import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {Plus, WarningCircle} from "@phosphor-icons/react"
-import {Button, Form, Typography} from "antd"
+import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
+import {SecretDTOProvider} from "@/oss/lib/Types"
+
 import LabelInput from "../../../assets/LabelInput"
+
 import {PROVIDER_FIELDS} from "./constants"
 import ModelNameInput from "./ModelNameInput"
 import {ConfigureProviderDrawerContentProps} from "./types"
-import {useWatch} from "antd/lib/form/Form"
-import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {SecretDTOProvider} from "@/oss/lib/Types"
 
 const {Text} = Typography
 

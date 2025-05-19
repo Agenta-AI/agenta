@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 from fastapi import Request, Query, HTTPException
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
+
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 
 if is_ee():
@@ -51,12 +53,33 @@ async def verify_permissions(
     resource_type: Optional[str] = Query(None),
     resource_id: Optional[UUID] = Query(None),
 ):
+    cache_key = {
+        "action": action,
+        "scope_type": scope_type,
+        "scope_id": scope_id,
+        "resource_type": resource_type,
+        "resource_id": resource_id,
+    }
+
     try:
         if is_oss():
             return Allow(request.state.credentials)
 
         if not action or not resource_type:
-            log.error("Missing required parameters: action, resource_type")
+            log.warn("Missing required parameters: action, resource_type")
+            raise Deny()
+
+        allow = await get_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="verify_permissions",
+            key=cache_key,
+        )
+
+        if allow == "allow":
+            return Allow(request.state.credentials)
+        if allow == "deny":
+            log.warn("Permission denied")
             raise Deny()
 
         # CHECK PERMISSION 1/3: SCOPE
@@ -69,7 +92,15 @@ async def verify_permissions(
         )
 
         if not allow_scope:
-            log.error("Scope access denied")
+            log.warn("Scope access denied")
+            await set_cache(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                namespace="verify_permissions",
+                key=cache_key,
+                value="deny",
+                ttl=15 * 60,  # seconds
+            )
             raise Deny()
 
         if is_ee():
@@ -81,7 +112,15 @@ async def verify_permissions(
             )
 
             if not allow_action:
-                log.error("Action access denied")
+                log.warn("Action access denied")
+                await set_cache(
+                    project_id=request.state.project_id,
+                    user_id=request.state.user_id,
+                    namespace="verify_permissions",
+                    key=cache_key,
+                    value="deny",
+                    ttl=15 * 60,  # seconds
+                )
                 raise Deny()
 
         # CHECK PERMISSION 3/3: RESOURCE
@@ -90,13 +129,37 @@ async def verify_permissions(
         )
 
         if not allow_resource:
-            log.error("Resource access denied")
+            log.warn("Resource access denied")
+            await set_cache(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                namespace="verify_permissions",
+                key=cache_key,
+                value="deny",
+                ttl=15 * 60,  # seconds
+            )
             raise Deny()
 
+        await set_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="verify_permissions",
+            key=cache_key,
+            value="allow",
+            ttl=5 * 60,  # seconds
+        )
         return Allow(request.state.credentials)
 
     except Exception as exc:  # pylint: disable=bare-except
-        log.error(exc)
+        log.warn(exc)
+        await set_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="verify_permissions",
+            key=cache_key,
+            value="deny",
+            ttl=15 * 60,  # seconds
+        )
         raise Deny() from exc
 
 

@@ -4,10 +4,13 @@ from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from supertokens_python.recipe.emailpassword.asyncio import create_reset_password_link
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import UserDB
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, email_service
+
+log = get_module_logger(__name__)
 
 
 async def create_new_user(payload: dict) -> UserDB:
@@ -25,7 +28,14 @@ async def create_new_user(payload: dict) -> UserDB:
         user = UserDB(**payload)
 
         session.add(user)
+
+        log.info(
+            "[scopes] user created",
+            user_id=user.id,
+        )
+
         await session.commit()
+
         await session.refresh(user)
 
         return user

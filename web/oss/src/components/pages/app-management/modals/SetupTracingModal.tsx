@@ -8,10 +8,10 @@ import {IBM_Plex_Mono} from "next/font/google"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 const ApiKeyInput: any = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),

@@ -308,7 +308,7 @@ const playgroundUIMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     )
 
                                     console.log("set displayed variants 2:", {
-                                        revisionToAdd
+                                        revisionToAdd,
                                     })
 
                                     if (revisionToAdd) {

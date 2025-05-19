@@ -26,7 +26,6 @@ def map_dbe_to_dto(
     *,
     DTO: Type[DTO_T],
     dbe: DBE_T,
-    
 ) -> DTO_T:
     """Map a SQLAlchemy DBE instance to a Pydantic DTO."""
 

@@ -4,7 +4,6 @@ import {Code, Info, Rocket, TreeView} from "@phosphor-icons/react"
 import {Card, Tooltip, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 
 interface GetStartedSectionProps {

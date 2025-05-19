@@ -2,26 +2,34 @@ FROM node:20.18-slim
 
 ENV TURBO_TELEMETRY_DISABLED=1
 
-WORKDIR /app/
+WORKDIR /app
 
 # Install jq for JSON parsing
 RUN apt-get update && apt-get install -y jq
-
-# Copy package.json first to extract PNPM version
-COPY ./package.json /app/
+    
+# Install dependencies based on the preferred package manager
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
 COPY ./entrypoint.sh /app/entrypoint.sh   
 
 # Extract PNPM version and install it
 RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
     npm install -g pnpm@${PNPM_VERSION}
 
-COPY ./oss/ /app/oss/
-COPY ./pnpm-lock.yaml ./pnpm-workspace.yaml ./tsconfig.json /app/
+COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
+COPY ./pnpm-workspace.yaml ./turbo.json ./
+RUN pnpm i
 
-RUN pnpm install --frozen-lockfile
+COPY tsconfig.json .
 
-RUN npx next telemetry disable
-RUN pnpm turbo telemetry disable
+COPY oss/src ./oss/src
+COPY oss/public ./oss/public
+COPY oss/tsconfig.json ./oss
+
+COPY oss/postcss.config.mjs ./oss/postcss.config.mjs
+
+COPY oss/next.config.ts ./oss/next.config.ts
+
+COPY oss/tailwind.config.ts ./oss/tailwind.config.ts
 
 ENTRYPOINT ["./entrypoint.sh"]
 EXPOSE 3000

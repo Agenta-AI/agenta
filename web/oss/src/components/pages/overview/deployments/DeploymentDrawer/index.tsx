@@ -26,7 +26,6 @@ import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopo
 import {useAppsData} from "@/oss/contexts/app.context"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
-import type {Variant} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"

@@ -157,24 +157,30 @@ class TraceProcessor(BatchSpanProcessor):
         return trace
 
 
-invocation_link = {}
-invocation_link_lock = Lock()
+# Internal storage for the last ended span context
+_last_ended_span_context = None
+_lock = Lock()
 
 
-class InvocationLinkHook(SpanProcessor):
+def _set_last_ended(span_ctx) -> None:
+    """Set the last ended span context"""
+    with _lock:
+        global _last_ended_span_context
+        _last_ended_span_context = span_ctx
+
+
+def _get_last_ended():
+    """Get the last ended span context"""
+    with _lock:
+        return _last_ended_span_context
+
+
+class EndedSpanRecorder(SpanProcessor):
+    """Records the last ended span context for later reference.
+
+    This allows accessing span information even after the span has been ended,
+    which is useful for linking annotations to auto-instrumented spans.
+    """
+
     def on_end(self, span):
-        # Only capture root spans if you want
-        if span.parent is None:
-            ctx = span.get_span_context()
-
-            with invocation_link_lock:
-                invocation_link["trace_id"] = ctx.trace_id
-                invocation_link["span_id"] = ctx.span_id
-
-
-def use_invocation_link() -> Optional[Dict[str, str]]:
-    with invocation_link_lock:
-        if invocation_link:
-            return invocation_link.copy()
-        else:
-            return None
+        _set_last_ended(span.get_span_context())

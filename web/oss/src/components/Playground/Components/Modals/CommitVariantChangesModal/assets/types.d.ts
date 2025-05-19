@@ -1,5 +1,18 @@
-import {Variant} from "@/oss/lib/Types"
 import {ButtonProps} from "antd"
+import {ModalProps} from "antd"
+
+type CommitType = "prompt" | "parameters"
+
+export interface CommitVariantChangesModalProps extends ModalProps {
+    variantId: string
+    onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
+    commitType?: CommitType
+}
+
+export interface SelectedCommitType {
+    type: "version" | "variant" | null
+    name?: string
+}
 
 export interface CommitVariantChangesButtonProps extends ButtonProps {
     variantId: string
@@ -7,6 +20,7 @@ export interface CommitVariantChangesButtonProps extends ButtonProps {
     icon?: boolean
     children?: React.ReactNode
     onSuccess?: (props: {revisionId?: string; variantId?: string}) => void
+    commitType?: CommitType
 }
 
 export interface CommitVariantChangesModalContentProps {

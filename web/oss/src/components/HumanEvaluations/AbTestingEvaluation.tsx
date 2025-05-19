@@ -22,6 +22,7 @@ import {
     fetchAllLoadEvaluations,
     fetchEvaluationResults,
 } from "@/oss/services/human-evaluations/api"
+
 import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
 
 const {Title} = Typography

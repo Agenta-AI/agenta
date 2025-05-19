@@ -104,11 +104,13 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                     baseVariantName,
                     newVariantName,
                     note,
+                    commitType,
                     callback,
                 }: {
                     baseVariantName: string
                     newVariantName: string
                     note?: string
+                    commitType?: "prompt" | "parameters"
                     callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
                 }) => {
                     swr.mutate(
@@ -157,6 +159,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                 allMetadata: getAllMetadata(),
                                 spec,
                                 routePath: state.uri?.routePath,
+                                commitType,
                             })
 
                             const newVariantBody: Partial<Variant> &

@@ -1,15 +1,17 @@
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {Space, Tooltip, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {nodeTypeStyles} from "../components/AvatarTreeContent"
+
+import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import StatusRenderer from "../components/StatusRenderer"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {TracesWithAnnotations} from "../ObservabilityDashboard"
 import LabelValuePill from "@/oss/components/ui/LabelValuePill"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+
+import {nodeTypeStyles} from "../components/AvatarTreeContent"
+import StatusRenderer from "../components/StatusRenderer"
+import {TracesWithAnnotations} from "../ObservabilityDashboard"
 
 interface ObservabilityColumnsProps {
     annotations: AnnotationDto[]

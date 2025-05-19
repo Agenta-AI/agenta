@@ -221,7 +221,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         {uploadType === "CSV" ? (
                                             <>
                                                 <Text>
-                                                    The test set should be in CSV format with the
+                                                    The test set should be in CSV format with the
                                                     following requirements:
                                                 </Text>
                                                 <div className="flex flex-col">

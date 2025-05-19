@@ -59,7 +59,7 @@ from oss.src.models.shared_models import (
 log = get_module_logger(__name__)
 
 
-def app_variant_db_to_pydantic( # TODO: remove me. nobody's using me.
+def app_variant_db_to_pydantic(  # TODO: remove me. nobody's using me.
     app_variant_db: AppVariantDB, previous_variant_name: str = None
 ) -> AppVariant:
     app_variant = AppVariant(

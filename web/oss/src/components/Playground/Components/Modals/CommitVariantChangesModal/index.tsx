@@ -8,7 +8,7 @@ import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import {getAllRevisionsLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
-import {CommitVariantChangesModalProps, SelectedCommitType} from "./types"
+import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
 const CommitVariantChangesModalContent = dynamic(
     () => import("./assets/CommitVariantChangesModalContent"),
     {ssr: false},
@@ -17,6 +17,7 @@ const CommitVariantChangesModalContent = dynamic(
 const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     variantId,
     onSuccess,
+    commitType,
     ...props
 }) => {
     const {saveVariant, addVariant, baseRevisionId, isMutating, variantName} = usePlayground({
@@ -49,12 +50,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
 
     const onSaveVariantChanges = useCallback(async () => {
         if (selectedCommitType?.type === "version") {
-            await saveVariant?.(note, (variant) => {
+            await saveVariant?.(note, commitType, (variant) => {
                 onSuccess?.({revisionId: variant?._revisionId})
             })
         } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
             addVariant?.({
                 note,
+                commitType,
                 baseVariantName: variantName,
                 newVariantName: selectedCommitType?.name as string,
                 callback: (variant, state) => {

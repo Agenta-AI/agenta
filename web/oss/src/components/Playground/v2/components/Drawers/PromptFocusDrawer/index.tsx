@@ -2,10 +2,10 @@ import {useCallback} from "react"
 
 import {Drawer} from "antd"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import useDrawerWidth from "@/oss/components/Playground/hooks/useDrawerWidth"
 import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 import PromptFocusDrawerHeader from "./assets/PromptFocusDrawerHeader"
 import {PromptFocusDrawerProps} from "./types"

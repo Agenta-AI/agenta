@@ -1,15 +1,17 @@
+import {DrawerProps} from "antd"
+
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {Variant, Environment} from "@/oss/lib/Types"
-import {Drawer, DrawerProps} from "antd"
 
 type DrawerType = "variant" | "deployment"
 type DrawerVariant = EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
-type Revert = {
+interface Revert {
     isDisabled?: boolean
     onClick: () => void
     isLoading: boolean
 }
+
+export type ViewType = "prompt" | "parameters"
 
 export interface VariantDrawerProps extends DrawerProps {
     onClose?: (arg: any) => void
@@ -25,6 +27,7 @@ export interface VariantDrawerTitleProps {
     isDirty: boolean
     isLoading: boolean
     selectedDrawerVariant?: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
+    viewAs: ViewType
 }
 
 export interface VariantDrawerContentProps {
@@ -33,6 +36,7 @@ export interface VariantDrawerContentProps {
     isLoading: boolean
     variants: DrawerVariant[]
     type: DrawerType
+    onChangeViewAs: (view: ViewType) => void
 }
 
 export interface DeploymentDrawerTitleProps {

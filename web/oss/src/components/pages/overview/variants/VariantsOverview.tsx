@@ -18,8 +18,8 @@ import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
-import VariantComparisonModal from "../../../VariantsComponents/Modals/VariantComparisonModal"
 import VariantDrawer from "../../../VariantsComponents/Drawers/VariantDrawer"
+import VariantComparisonModal from "../../../VariantsComponents/Modals/VariantComparisonModal"
 
 const DeployVariantModal = dynamic(
     () => import("@/oss/components/Playground/Components/Modals/DeployVariantModal"),

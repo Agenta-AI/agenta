@@ -19,13 +19,7 @@ export const BreadcrumbRoot = memo(() => (
 ))
 
 export const BreadcrumbContainer = memo(
-    ({
-        appTheme,
-        appName,
-    }: {
-        appTheme: string
-        appName: string
-    }) => {
+    ({appTheme, appName}: {appTheme: string; appName: string}) => {
         const classes = useStyles({themeMode: appTheme} as StyleProps)
         const router = useRouter()
 

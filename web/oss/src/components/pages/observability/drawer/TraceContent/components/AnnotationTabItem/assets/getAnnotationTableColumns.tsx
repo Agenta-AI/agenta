@@ -1,9 +1,9 @@
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {ColumnsType} from "antd/es/table"
 import {Typography} from "antd"
+import {ColumnsType} from "antd/es/table"
 
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 export const getAnnotationTableColumns = (
     reference: string,

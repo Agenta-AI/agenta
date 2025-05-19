@@ -1,10 +1,10 @@
 import {ReactNode} from "react"
 
 import {Button, Empty, Space, Tooltip, Typography} from "antd"
+import {BaseButtonProps} from "antd/es/button/button"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
-import {BaseButtonProps} from "antd/es/button/button"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     empty: {

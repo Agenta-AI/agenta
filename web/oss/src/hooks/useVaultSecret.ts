@@ -17,8 +17,8 @@ import {
     deleteVaultSecret,
 } from "@/oss/services/vault/api"
 
-import {removeEmptyFromObjects} from "../lib/helpers/utils"
 import {useProfileData} from "../contexts/profile.context"
+import {removeEmptyFromObjects} from "../lib/helpers/utils"
 
 /**
  * Global state atom for tracking vault key migration status.
@@ -185,7 +185,7 @@ export const useVaultSecret = () => {
                     ...secret,
                     key: match.key,
                     id: match.id,
-                    created_at: match.created_at
+                    created_at: match.created_at,
                 }
             } else {
                 return secret

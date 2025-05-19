@@ -5,13 +5,13 @@ import clsx from "clsx"
 
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
 
 import PlaygroundVariantHistoryHeader from "./assets/PlaygroundVariantHistoryHeader"
 import {useStyles} from "./styles"
 import {PlaygroundVariantHistoryProps} from "./types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({variantId}) => {
     const {promptIds = []} = usePlayground({

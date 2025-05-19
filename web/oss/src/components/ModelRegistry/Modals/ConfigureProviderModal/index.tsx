@@ -1,11 +1,12 @@
+import {useEffect, useState} from "react"
+
+import {message} from "antd"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 
 import {ConfigureProviderModalProps} from "./assets/types"
-import {useEffect, useState} from "react"
-import {message} from "antd"
-import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 
 const ConfigureProviderModalContent = dynamic(
     () => import("./assets/ConfigureProviderModalContent"),

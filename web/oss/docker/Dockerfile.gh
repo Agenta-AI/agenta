@@ -1,7 +1,6 @@
-FROM node:20.18.0-slim as base
+FROM node:20.18.0-slim AS base
 
 ENV TURBO_TELEMETRY_DISABLED=1
-
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
@@ -21,6 +20,7 @@ FROM base AS builder
 WORKDIR /app
 
 COPY --from=base ./out/json/ .
+COPY ./.husky /app/.husky
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile --filter=@agenta/oss
 COPY --from=base /out/full/ .

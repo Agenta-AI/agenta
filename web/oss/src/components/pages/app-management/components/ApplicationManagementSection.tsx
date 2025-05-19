@@ -9,7 +9,6 @@ import {useLocalStorage} from "usehooks-ts"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
 import usePagination from "@/oss/hooks/usePagination"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 
 import AppCard from "./AppCard"

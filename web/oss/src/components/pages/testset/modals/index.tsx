@@ -1,13 +1,13 @@
 import {ModalProps} from "antd"
 import {createUseStyles} from "react-jss"
 
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {testset, TestsetCreationMode} from "@/oss/lib/Types"
 
 import CreateTestset from "./CreateTestset"
 import CreateTestsetFromApi from "./CreateTestsetFromApi"
 import CreateTestsetFromScratch from "./CreateTestsetFromScratch"
 import UploadTestset from "./UploadTestset"
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 const useStyles = createUseStyles(() => ({
     modal: {

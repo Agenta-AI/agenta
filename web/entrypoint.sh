@@ -1,6 +1,10 @@
 #!/bin/sh
 
-cat <<EOF > /app/${AGENTA_LICENSE:-oss}/public/__env.js
+if [ "$AGENTA_LICENSE" != "ee" ]; then
+  AGENTA_LICENSE="oss"
+fi
+
+cat <<EOF > /app/${AGENTA_LICENSE}/public/__env.js
 window.__env = {
   NEXT_PUBLIC_AGENTA_LICENSE: "${AGENTA_LICENSE:-oss}",
   NEXT_PUBLIC_AGENTA_WEB_URL: "${WEBSITE_DOMAIN_NAME:-${DOMAIN_NAME:-http://localhost}}",

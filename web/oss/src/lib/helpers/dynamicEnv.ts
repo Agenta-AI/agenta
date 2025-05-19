@@ -7,7 +7,7 @@ export const processEnv = {
 }
 
 export const getEnv = (envKey: string) => {
-    let envSource: string = ""
+    let envSource = ""
     // Check for window.__env if in browser
     if (
         typeof window !== "undefined" &&

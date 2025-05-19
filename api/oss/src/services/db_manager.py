@@ -988,8 +988,16 @@ async def create_organization(name: str):
 
     async with engine.core_session() as session:
         organization_db = OrganizationDB(name=name)
+
         session.add(organization_db)
+
+        log.info(
+            "[scopes] organization created",
+            organization_id=organization_db.id,
+        )
+
         await session.commit()
+
         return organization_db
 
 
@@ -1011,8 +1019,17 @@ async def create_workspace(name: str, organization_id: str):
             description="My Default Workspace",
             type="default",
         )
+
         session.add(workspace_db)
+
+        log.info(
+            "[scopes] workspace created",
+            organization_id=organization_id,
+            workspace_id=workspace_db.id,
+        )
+
         await session.commit()
+
         return workspace_db
 
 
@@ -1165,9 +1182,21 @@ async def remove_user_from_workspace(project_id: str, email: str):
         project_id=project_id, email=email
     )
 
+    user_id = user.id if user else None
+
+    project = await fetch_project_by_id(project_id=project_id)
+
+    if not project:
+        raise NoResultFound(f"Project with ID {project_id} not found")
+
     async with engine.core_session() as session:
         if user:
             await session.delete(user)
+
+            log.info(
+                "[scopes] user deleted",
+                user_id=user_id,
+            )
 
         if user_invitation:
             user_info_from_supertokens = await list_users_by_account_info(
@@ -1179,6 +1208,15 @@ async def remove_user_from_workspace(project_id: str, email: str):
                 )
 
             await session.delete(user_invitation)
+
+            log.info(
+                "[scopes] invitation deleted",
+                organization_id=project.organization_id,
+                workspace_id=project.workspace_id,
+                project_id=project_id,
+                user_id=user_id,
+                invitation_id=user_invitation.id,
+            )
 
         await session.commit()
 
@@ -1300,6 +1338,15 @@ async def create_user_invitation_to_organization(
         Exception: If there is an error updating the user's roles.
     """
 
+    user = await get_user_with_email(email=email)
+
+    user_id = user.id if user else None
+
+    project = await fetch_project_by_id(project_id=project_id)
+
+    if not project:
+        raise NoResultFound(f"Project with ID {project_id} not found")
+
     async with engine.core_session() as session:
         invitation = InvitationDB(
             token=token,
@@ -1310,6 +1357,16 @@ async def create_user_invitation_to_organization(
         )
 
         session.add(invitation)
+
+        log.info(
+            "[scopes] invitation created",
+            organization_id=project.organization_id,
+            workspace_id=project.workspace_id,
+            project_id=project_id,
+            user_id=user_id,
+            invitation_id=invitation.id,
+        )
+
         await session.commit()
 
         return invitation
@@ -1473,7 +1530,22 @@ async def delete_invitation(invitation_id: str) -> bool:
                 },
             )
 
+        project = await fetch_project_by_id(project_id=invitation.project_id)
+
+        if not project:
+            raise NoResultFound(f"Project with ID {invitation.project_id} not found")
+
         await session.delete(invitation)
+
+        log.info(
+            "[scopes] invitation deleted",
+            organization_id=project.organization_id,
+            workspace_id=project.workspace_id,
+            project_id=invitation.project_id,
+            user_id=invitation.user_id,
+            invitation_id=invitation.id,
+        )
+
         await session.commit()
 
         return True
@@ -1521,7 +1593,10 @@ async def get_project_invitation_by_token_and_email(
         return invitation
 
 
-async def get_app_instance_by_id(app_id: str) -> AppDB:
+async def get_app_instance_by_id(
+    project_id: str,
+    app_id: str,
+) -> AppDB:
     """Get the app object from the database with the provided id.
 
     Arguments:
@@ -1532,7 +1607,12 @@ async def get_app_instance_by_id(app_id: str) -> AppDB:
     """
 
     async with engine.core_session() as session:
-        result = await session.execute(select(AppDB).filter_by(id=uuid.UUID(app_id)))
+        result = await session.execute(
+            select(AppDB).filter_by(
+                project_id=project_id,
+                id=uuid.UUID(app_id),
+            )
+        )
         app = result.scalars().first()
         return app
 
@@ -1717,7 +1797,7 @@ async def remove_app_variant_from_db(app_variant_db: AppVariantDB, project_id: s
     assert app_variant_db is not None, "app_variant_db is missing"
 
     app_variant_revisions = await list_app_variant_revisions_by_variant(
-        app_variant_db, project_id
+        variant_id=str(app_variant_db.id), project_id=project_id
     )
 
     async with engine.core_session() as session:
@@ -2091,7 +2171,7 @@ async def update_app_environment_deployed_variant_revision(
         await session.refresh(app_environment)
 
 
-async def list_environments(app_id: str, **kwargs: dict):
+async def list_environments(app_id: str):
     """
     List all environments for a given app ID.
 
@@ -2225,7 +2305,7 @@ async def create_environment_revision(
 
 
 async def list_app_variant_revisions_by_variant(
-    app_variant: AppVariantDB, project_id: str
+    variant_id: str, project_id: str
 ) -> List[AppVariantRevisionsDB]:
     """Returns list of app variant revisions for the given app variant.
 
@@ -2240,7 +2320,9 @@ async def list_app_variant_revisions_by_variant(
         base_query = (
             select(AppVariantRevisionsDB)
             .where(AppVariantRevisionsDB.hidden.is_not(True))
-            .filter_by(variant_id=app_variant.id, project_id=uuid.UUID(project_id))
+            .filter_by(
+                variant_id=uuid.UUID(variant_id), project_id=uuid.UUID(project_id)
+            )
             .options(
                 joinedload(AppVariantRevisionsDB.variant_revision.of_type(AppVariantDB))
                 .joinedload(AppVariantDB.app.of_type(AppDB))

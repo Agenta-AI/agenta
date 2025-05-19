@@ -4,6 +4,7 @@ import {useRouter} from "next/router"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+
 import {SocialAuthProps} from "../assets/types"
 
 const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAuthProps) => {

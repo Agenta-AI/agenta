@@ -23,8 +23,8 @@ from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.tracing.processors import (
     TraceProcessor,
-    InvocationLinkHook,
-    use_invocation_link,
+    EndedSpanRecorder,
+    _get_last_ended,
 )
 from agenta.sdk.tracing.exporters import InlineExporter, OTLPExporter
 from agenta.sdk.tracing.spans import CustomSpan
@@ -43,7 +43,7 @@ _original_init = trace.TracerProvider.__init__
 
 def patched_init(self, *args, **kwargs):
     _original_init(self, *args, **kwargs)
-    self.add_span_processor(InvocationLinkHook())
+    self.add_span_processor(EndedSpanRecorder())
 
 
 trace.TracerProvider.__init__ = patched_init
@@ -269,37 +269,58 @@ class Tracing(metaclass=Singleton):
     ):
         return inject(*args, **kwargs)
 
-    def get_invocation_link(self) -> Optional[Link]:
-        with suppress():
-            link = tracing_context.get().link
+    def get_current_span_context(self):
+        """Get the current active span context if available.
 
-            trace_id = None
-            span_id = None
+        Returns:
+            SpanContext or None if no active span
+        """
+        span = get_current_span()
+        ctx = span.get_span_context()
+        return ctx if ctx and ctx.is_valid else None
 
-            if link:
-                trace_id = UUID(int=link.get("trace_id")).hex if link else None
-                span_id = UUID(int=link.get("span_id")).hex[16:] if link else None
+    def get_last_span_context(self):
+        """Get the last closed span context if available.
 
-            if trace_id and span_id:
-                return Link(
-                    trace_id=trace_id,
-                    span_id=span_id,
-                )
-                
-            link = use_invocation_link()
+        This is useful for accessing span information after a span has closed,
+        particularly with auto-instrumentation libraries.
 
-            trace_id = None
-            span_id = None
+        Returns:
+            SpanContext or None if no spans have been closed
+        """
+        return _get_last_ended()
 
-            if link:
-                trace_id = UUID(int=link.get("trace_id")).hex if link else None
-                span_id = UUID(int=link.get("span_id")).hex[16:] if link else None
+    def get_span_context(self):
+        """Get the most relevant span context.
 
-                if trace_id and span_id:
-                    return Link(
-                        trace_id=trace_id,
-                        span_id=span_id,
-                    )
+        First tries to get the current active span context.
+        If no active span exists, falls back to the last closed span.
+
+        Returns:
+            SpanContext or None if no relevant span context is available
+        """
+        return self.get_current_span_context() or self.get_last_span_context()
+
+    def build_invocation_link(self, span_ctx=None) -> Optional[Link]:
+        """
+        Builds a Link object containing the hex-formatted trace_id and span_id
+        from the current (or fallback last ended) span context.
+        Useful to link annotations to spans.
+
+        Args:
+            span_ctx: Optional SpanContext to convert to a Link
+
+        Returns:
+            Link object with trace_id and span_id or None if no valid context
+        """
+        if span_ctx is None:
+            span_ctx = self.get_span_context()
+
+        if span_ctx and span_ctx.is_valid:
+            return Link(
+                trace_id=f"{span_ctx.trace_id:032x}",
+                span_id=f"{span_ctx.span_id:016x}",
+            )
 
         return None
 

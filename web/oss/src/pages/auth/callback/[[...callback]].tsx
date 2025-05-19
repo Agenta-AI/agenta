@@ -4,11 +4,11 @@ import {Alert, Spin} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
+import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {AuthErrorMsgType} from "@/oss/lib/Types"
-import {useLocalStorage} from "usehooks-ts"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {AuthErrorMsgType} from "@/oss/lib/Types"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 

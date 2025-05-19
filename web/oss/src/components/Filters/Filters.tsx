@@ -39,7 +39,13 @@ interface Props {
     buttonProps?: ButtonProps
 }
 
-const Filters: React.FC<Props> = ({filterData, columns, onApplyFilter, onClearFilter, buttonProps}) => {
+const Filters: React.FC<Props> = ({
+    filterData,
+    columns,
+    onApplyFilter,
+    onClearFilter,
+    buttonProps,
+}) => {
     const classes = useStyles()
     const emptyFilter = [{key: "", operator: "", value: "", isPermanent: false}] as Filter[]
 

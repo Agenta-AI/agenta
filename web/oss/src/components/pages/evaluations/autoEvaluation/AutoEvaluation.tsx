@@ -23,9 +23,9 @@ import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import NewEvaluationModal from "@/oss/components/pages/evaluations/NewEvaluation/NewEvaluationModal"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {getAppValues} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {formatDate24, formatDay} from "@/oss/lib/helpers/dateTimeHelper"
@@ -49,7 +49,6 @@ import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopov
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import EditColumns, {generateEditItems} from "./Filters/EditColumns"
 import {getFilterParams} from "./Filters/SearchFilter"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 const useStyles = createUseStyles(() => ({
     button: {
@@ -75,7 +74,6 @@ const AutoEvaluation = () => {
     const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
     const [editColumns, setEditColumns] = useState<string[]>([])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
-    const [isEditEvalConfigOpen, setIsEditEvalConfigOpen] = useState(false)
     const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
         "configureEvaluatorModal",
         "",
@@ -88,10 +86,10 @@ const AutoEvaluation = () => {
             evaluationList
                 .filter((item) => runningStatuses.includes(item.status.value))
                 .map((item) => item.id),
-        [evaluationList],
+        [evaluationList, runningStatuses],
     )
 
-    useLazyEffect(() => {
+    useEffect(() => {
         stoppers.current?.()
 
         if (runningEvaluationIds.length) {
@@ -110,13 +108,14 @@ const AutoEvaluation = () => {
                                 })
                                 if (
                                     res.some((item) => !runningStatuses.includes(item.status.value))
-                                )
+                                ) {
                                     fetchEvaluations()
+                                }
                                 return newEvals
                             })
                         })
                         .catch(console.error),
-                {delayMs: 2000, timeoutMs: Infinity},
+                {delayMs: 5000, timeoutMs: Infinity},
             ).stopper
         }
 

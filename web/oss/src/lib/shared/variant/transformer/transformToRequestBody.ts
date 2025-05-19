@@ -18,6 +18,7 @@ export function transformToRequestBody({
     chatHistory,
     spec: _spec,
     routePath = "",
+    commitType,
 }: {
     variant: EnhancedVariant
     inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
@@ -26,6 +27,7 @@ export function transformToRequestBody({
     chatHistory?: Message[]
     spec?: OpenAPISpec
     routePath?: string
+    commitType?: "prompt" | "parameters"
 }): Record<string, any> &
     VariantParameters & {
         ag_config: Record<string, any>
@@ -54,9 +56,15 @@ export function transformToRequestBody({
 
     // Fallback: if ag_config is empty,
     // but variant.parameters exists, use that
-    if (Object.keys(ag_config).length === 0 && variant.parameters) {
+    if (
+        (Object.keys(ag_config).length === 0 && variant.parameters) ||
+        commitType === "parameters"
+    ) {
         ag_config =
-            variant.parameters.ag_config || variant.parameters.agConfig || variant.parameters || {}
+            variant.parameters?.ag_config ||
+            variant.parameters?.agConfig ||
+            variant.parameters ||
+            {}
     }
 
     data.ag_config = ag_config

@@ -5,9 +5,9 @@ import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
+import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 import {DeleteProviderModalProps} from "./assets/types"
-import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 
 const DeleteProviderModalContent = dynamic(() => import("./assets/DeleteProviderModalContent"), {
     ssr: false,

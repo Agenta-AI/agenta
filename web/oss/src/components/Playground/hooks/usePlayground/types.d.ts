@@ -8,7 +8,7 @@ import {InitialStateType} from "../../state/types"
 import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
 
 /** Base hook configuration types */
-interface BaseHookConfig<T = unknown, Selected = unknown>
+interface BaseHookConfig<T = unknown, _Selected = unknown>
     extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
     hookId?: string
     projectId?: string
@@ -64,6 +64,7 @@ export interface PlaygroundVariantsResponse extends PlaygroundResponse {
         baseVariantName: string
         newVariantName: string
         note?: string
+        commitType?: "prompt" | "parameters"
         callback?: (variant: EnhancedVariant, state: PlaygroundStateData) => void
     }) => void
     runTests?: (rowId?: string, variantId?: string) => void
@@ -76,13 +77,17 @@ export type VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> =
 ) => Partial<EnhancedVariant> | undefined
 
 // Single variant middleware extensions
-export interface PlaygroundVariantResponse<T extends PlaygroundStateData = PlaygroundStateData>
+export interface PlaygroundVariantResponse<_T extends PlaygroundStateData = PlaygroundStateData>
     extends PlaygroundVariantsResponse {
     variant?: EnhancedVariant
     displayedVariants?: string[]
     deleteVariant?: () => Promise<void>
     mutateVariant?: (updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>
-    saveVariant?: (note?: string, callback?: (variant: EnhancedVariant) => void) => Promise<void>
+    saveVariant?: (
+        note?: string,
+        commitType?: "prompt" | "parameters",
+        callback?: (variant: EnhancedVariant) => void,
+    ) => Promise<void>
     setSelectedVariant?: (variantId: string) => void
     handleParamUpdate?: (value: any, propertyId: string, variantId?: string) => void
     variantConfig?: Enhanced<any>
@@ -91,9 +96,9 @@ export interface PlaygroundVariantResponse<T extends PlaygroundStateData = Playg
 
 // Hook options extending SWR config
 export interface UsePlaygroundStateOptions<
-    T extends PlaygroundStateData = PlaygroundStateData,
+    _T extends PlaygroundStateData = PlaygroundStateData,
     Selected = unknown,
-> extends PlaygroundSWRConfig<T, Selected> {
+> extends PlaygroundSWRConfig<_T, Selected> {
     appId?: string
     appType?: string
     hookId?: string

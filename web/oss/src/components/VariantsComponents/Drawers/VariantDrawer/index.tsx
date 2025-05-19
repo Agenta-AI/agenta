@@ -1,16 +1,16 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
-import type {VariantDrawerProps} from "./assets/types"
+import type {VariantDrawerProps, ViewType} from "./assets/types"
 import {findVariantById} from "./utils"
 
 const VariantDrawerContent = dynamic(() => import("./assets/VariantDrawerContent"), {ssr: false})
@@ -23,6 +23,8 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
     const router = useRouter()
     const {environments} = useEnvironments({appId})
 
+    const [viewAs, setViewAs] = useState<ViewType>("prompt")
+
     const selectedDrawerVariant = useMemo(() => {
         if (!queryVariant) return undefined
 
@@ -33,6 +35,11 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
     const onClose = useCallback(() => {
         props.onClose?.({} as any)
         setQueryVariant("")
+        setViewAs("prompt")
+    }, [])
+
+    const onChangeViewAs = useCallback((view: ViewType) => {
+        setViewAs(view)
     }, [])
 
     const routerRevisions = useMemo(() => {
@@ -127,6 +134,7 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
                             isDirty={isDirty}
                             selectedDrawerVariant={selectedDrawerVariant}
                             isLoading={isLoading === undefined || isLoading}
+                            viewAs={viewAs}
                         />
                     ) : (
                         <DeploymentDrawerTitle
@@ -144,6 +152,7 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
                     isLoading={isLoading === undefined || isLoading}
                     type={type}
                     variants={variants || []}
+                    onChangeViewAs={onChangeViewAs}
                 />
             </EnhancedDrawer>
         </>

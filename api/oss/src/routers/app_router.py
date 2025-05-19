@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
+
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import db_manager, app_manager
@@ -78,25 +80,52 @@ async def list_app_variants(
         List[AppVariantResponse]: A list of app variants for the given app ID.
     """
 
-    app = await db_manager.get_app_instance_by_id(app_id=app_id)
+    cache_key = {
+        "app_id": app_id,
+    }
+
+    app_variants = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="list_app_variants",
+        key=cache_key,
+        model=AppVariantResponse,
+        is_list=True,
+    )
+
+    if app_variants is not None:
+        return app_variants
+
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app.project_id),
+            project_id=request.state.project_id,
             permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
-            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
 
     app_variants = await db_manager.list_app_variants(app_id=app_id)
-    return [
+
+    app_variants = [
         await converters.app_variant_db_to_output(app_variant)
         for app_variant in app_variants
     ]
+
+    await set_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="list_app_variants",
+        key=cache_key,
+        value=app_variants,
+        ttl=15,  # seconds
+    )
+
+    return app_variants
 
 
 @router.get(
@@ -123,7 +152,10 @@ async def get_variant_by_env(
         AppVariantResponse: The retrieved app variant.
     """
     try:
-        app = await db_manager.get_app_instance_by_id(app_id=app_id)
+        app = await db_manager.get_app_instance_by_id(
+            project_id=request.state.project_id,
+            app_id=app_id,
+        )
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
@@ -131,7 +163,7 @@ async def get_variant_by_env(
                 permission=Permission.VIEW_APPLICATION,
             )
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -197,7 +229,7 @@ async def create_app(
                 permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -272,7 +304,7 @@ async def update_app(
             permission=Permission.EDIT_APPLICATION,
         )
         if not has_permission:
-            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -353,7 +385,7 @@ async def add_variant_from_url(
                 permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -459,7 +491,7 @@ async def remove_app(
             permission=Permission.DELETE_APPLICATION,
         )
         if not has_permission:
-            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
@@ -493,6 +525,22 @@ async def list_environments(
         List[EnvironmentOutput]: A list of environment objects.
     """
 
+    cache_key = {
+        "app_id": app_id,
+    }
+
+    environments = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="list_environments",
+        key=cache_key,
+        model=EnvironmentOutput,
+        is_list=True,
+    )
+
+    if environments is not None:
+        return environments
+
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -500,15 +548,13 @@ async def list_environments(
             permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
-            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
 
-    environments_db = await db_manager.list_environments(
-        app_id=app_id, project_id=request.state.project_id
-    )
+    environments_db = await db_manager.list_environments(app_id=app_id)
 
     fixed_order = ["development", "staging", "production"]
 
@@ -516,9 +562,20 @@ async def list_environments(
         environments_db, key=lambda env: (fixed_order + [env.name]).index(env.name)
     )
 
-    return [
+    environments = [
         await converters.environment_db_to_output(env) for env in sorted_environments
     ]
+
+    await set_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="list_environments",
+        key=cache_key,
+        value=environments,
+        ttl=15,  # seconds
+    )
+
+    return environments
 
 
 @router.get(
@@ -538,7 +595,7 @@ async def list_app_environment_revisions(
             permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
-            error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,

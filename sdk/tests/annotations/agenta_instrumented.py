@@ -141,7 +141,7 @@ if __name__ == "__main__":
     async def main():
         res = await generate(query="What is the capital of France?")
 
-        invocation_link = ag.tracing.get_invocation_link()
+        invocation_link = ag.tracing.build_invocation_link()
 
         print()
         print("invocation link:", invocation_link)

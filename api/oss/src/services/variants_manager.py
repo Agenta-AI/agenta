@@ -50,6 +50,24 @@ class ReferenceDTO(BaseModel):
     # ---
     id: Optional[UUID]  # unique per version
 
+    class Config:
+        json_encoders = {UUID: str}
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        kwargs.setdefault("exclude_none", True)
+
+        return self.encode(super().model_dump(*args, **kwargs))
+
 
 class LifecycleDTO(BaseModel):
     created_at: Optional[str] = None
@@ -257,7 +275,7 @@ async def _fetch_variant_versions(
             return None
 
         variant_revisions = await db_manager.list_app_variant_revisions_by_variant(
-            app_variant=app_variant, project_id=project_id
+            variant_id=str(app_variant.id), project_id=project_id
         )
 
     return variant_revisions

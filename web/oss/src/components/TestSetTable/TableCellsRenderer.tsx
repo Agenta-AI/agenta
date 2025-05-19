@@ -38,7 +38,11 @@ const TableCellsRenderer = (props: ICellRendererParams) => {
 
     const cellValue = useMemo(() => {
         const key = props.colDef?.field
-        if (typeof props.data?.[key] === "object" && props.data?.[key] !== null && Object.keys(props.data[key]).length > 0) {
+        if (
+            typeof props.data?.[key] === "object" &&
+            props.data?.[key] !== null &&
+            Object.keys(props.data[key]).length > 0
+        ) {
             try {
                 return getStringOrJson(props.data[key])
             } catch (error) {

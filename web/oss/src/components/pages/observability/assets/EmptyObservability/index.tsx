@@ -1,7 +1,9 @@
 import {memo} from "react"
-import EmptyComponent from "@/oss/components/EmptyComponent"
+
 import {SwapOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
+
+import EmptyComponent from "@/oss/components/EmptyComponent"
 import {useAppId} from "@/oss/hooks/useAppId"
 
 const EmptyObservability = () => {

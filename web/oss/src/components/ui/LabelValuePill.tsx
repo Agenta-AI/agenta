@@ -1,8 +1,10 @@
+import React from "react"
+
+import clsx from "clsx"
+import {createUseStyles} from "react-jss"
+
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
-import clsx from "clsx"
-import React from "react"
-import {createUseStyles} from "react-jss"
 
 interface LabelValuePillProps {
     label: string

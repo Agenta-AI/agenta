@@ -7,10 +7,10 @@ import {useAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {Evaluator, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
 
 import DeleteModal from "./DeleteModal"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 interface EvaluatorCardProps {
     evaluatorConfigs: EvaluatorConfig[]
