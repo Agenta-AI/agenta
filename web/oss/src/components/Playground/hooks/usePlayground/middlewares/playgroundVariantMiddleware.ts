@@ -299,7 +299,10 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                                 }
                                             })
                                         const responseHash = hashResponse({
-                                            response: toolCalls,
+                                            response: {
+                                                data: toolCalls,
+                                                tree: message.payload.result?.response?.tree,
+                                            },
                                         })
                                         inputTestRow.__runs[variantId] = {
                                             __id: generateId(),
@@ -434,7 +437,11 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
             }, [swr, variantId, fetcher, projectId])
 
             const saveVariant = useCallback(
-                async (note?: string, callback?: (variant: EnhancedVariant) => void) => {
+                async (
+                    note?: string,
+                    commitType?: "prompt" | "parameters",
+                    callback?: (variant: EnhancedVariant) => void,
+                ) => {
                     try {
                         // first set the mutation state of the variant to true
                         swr.mutate(
@@ -467,6 +474,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                             allMetadata: getAllMetadata(),
                                             spec,
                                             routePath: state.uri?.routePath,
+                                            commitType,
                                         })
                                         // Attempt to save the variant parameters with a commit message
                                         await fetcher?.(

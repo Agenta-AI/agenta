@@ -5,7 +5,6 @@ import {getCurrentProject} from "@/oss/contexts/project.context"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 
 import {annotationsTransformer} from "./assets/transformer"
-import {AnnotationsResponse} from "./types"
 
 const useAnnotations = () => {
     const {selectedOrg} = useOrgData()

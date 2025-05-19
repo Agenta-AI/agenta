@@ -1,7 +1,7 @@
-import {ComponentProps, useMemo} from "react"
+import {useMemo} from "react"
 
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button, Space, Spin, Tabs, Tag, Typography} from "antd"
+import {Button, Space, Spin, Tabs, Tag, Typography, TabsProps} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
@@ -13,7 +13,7 @@ import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
 
-import {NewVariantParametersView, VariantParametersView} from "../Parameters"
+import {NewVariantParametersView} from "../Parameters"
 import {VariantDrawerContentProps} from "../types"
 
 const {Text} = Typography
@@ -24,11 +24,13 @@ const VariantDrawerContent = ({
     isLoading,
     type,
     variants,
+    onChangeViewAs,
 }: VariantDrawerContentProps) => {
     const router = useRouter()
     const appId = useAppId()
 
-    const {appStatus} = usePlayground({
+    const {appStatus, mutateVariant} = usePlayground({
+        variantId: selectedVariant?.id,
         stateSelector: (state) => {
             return {
                 appStatus: state.appStatus,
@@ -49,15 +51,18 @@ const VariantDrawerContent = ({
         return selectedVariant?.deployedIn || []
     }, [type, variants, selectedVariant])
 
-    console.log("selectedVariant", selectedVariant)
-
     const tabItems = useMemo(() => {
         return [
             appStatus
                 ? {
                       key: type === "variant" ? "overview" : "variant",
-                      label: type === "variant" ? "Overview" : "Variant",
+                      label: (
+                          <div onClick={() => onChangeViewAs("prompt")}>
+                              {type === "variant" ? "Overview" : "Variant"}
+                          </div>
+                      ),
                       className: "w-full h-full flex flex-col px-4",
+
                       children: (
                           <>
                               {(promptIds || [])?.map((promptId: string) => (
@@ -79,14 +84,17 @@ const VariantDrawerContent = ({
                 : undefined,
             {
                 key: "json",
-                label: "JSON",
+                label: <div onClick={() => onChangeViewAs("parameters")}>JSON</div>,
                 className: "h-full flex flex-col px-4",
                 children: selectedVariant ? (
-                    <NewVariantParametersView selectedVariant={selectedVariant} />
+                    <NewVariantParametersView
+                        selectedVariant={selectedVariant}
+                        mutateVariant={mutateVariant}
+                    />
                 ) : null,
             },
-        ].filter(Boolean) as ComponentProps<typeof Tabs>["items"]
-    }, [selectedVariant, promptIds, type])
+        ].filter(Boolean) as TabsProps["items"]
+    }, [selectedVariant, promptIds, type, onChangeViewAs])
 
     if (isLoading) {
         return (
@@ -144,7 +152,7 @@ const VariantDrawerContent = ({
                                         query: {
                                             playground: "new-playground",
                                             revisions: JSON.stringify([
-                                                selectedVariant?._revisionId,
+                                                (selectedVariant as any)?._revisionId,
                                             ]),
                                         },
                                     })

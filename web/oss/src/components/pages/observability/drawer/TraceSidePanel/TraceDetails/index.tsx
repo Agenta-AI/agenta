@@ -1,13 +1,17 @@
-import {Flex, Space, Typography} from "antd"
 import React from "react"
-import StatusRenderer from "../../../components/StatusRenderer"
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {PlusCircle, Timer} from "lucide-react"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+
+import {Flex, Space, Typography} from "antd"
 import dayjs from "dayjs"
+import {PlusCircle, Timer} from "lucide-react"
+
+import ResultTag from "@/oss/components/ResultTag/ResultTag"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
+
 import {statusMapper} from "../../../components/AvatarTreeContent"
-import {useStyles} from "./assets/styles"
+import StatusRenderer from "../../../components/StatusRenderer"
 import {TracesWithAnnotations} from "../../../ObservabilityDashboard"
+
+import {useStyles} from "./assets/styles"
 
 const TraceDetails = ({activeTrace}: {activeTrace: TracesWithAnnotations}) => {
     const classes = useStyles()

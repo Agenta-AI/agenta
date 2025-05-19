@@ -175,7 +175,10 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
 
-    app_db = await db_manager.get_app_instance_by_id(app_id=payload.app_id)
+    app_db = await db_manager.get_app_instance_by_id(
+        project_id=request.state.project_id,
+        app_id=payload.app_id,
+    )
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,

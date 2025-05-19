@@ -1,28 +1,28 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
-import dynamic from "next/dynamic"
 
 import {Table, TableColumnType, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
+import dynamic from "next/dynamic"
 
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import ObservabilityContextProvider, {
     useObservabilityData,
 } from "@/oss/contexts/observability.context"
-
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import useAnnotations from "@/oss/lib/hooks/useAnnotations"
+import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+
 import ResizableTitle from "../../ResizableTitle"
+
+import {getObservabilityColumns} from "./assets/getObservabilityColumns"
 import {TestsetTraceData} from "./drawer/TestsetDrawer/assets/types"
 import TraceContent from "./drawer/TraceContent"
 import TraceHeader from "./drawer/TraceHeader"
-import TraceTree from "./drawer/TraceTree"
-import {getObservabilityColumns} from "./assets/getObservabilityColumns"
-
-import useAnnotations from "@/oss/lib/hooks/useAnnotations"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import TraceSidePanel from "./drawer/TraceSidePanel"
-import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
-import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import TraceTree from "./drawer/TraceTree"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
@@ -40,7 +40,7 @@ const ObservabilityDashboard = () => {
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage", "tag"])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
-    const {data: annotations, isLoading: isAnnotationsLoading} = useAnnotations()
+    const {data: annotations} = useAnnotations()
 
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
 

@@ -145,6 +145,10 @@ if ! $WITH_WEB ; then
         error_exit "$LICENSE directory not found inside web!"
     fi
 
+    echo "Starting development server for $LICENSE..."
+
+    sh -c "AGENTA_LICENSE=${LICENSE} sh ./entrypoint.sh"
+    
     cd $LICENSE
     pnpm dev || error_exit "Failed to start development server."
 fi

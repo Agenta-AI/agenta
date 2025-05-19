@@ -18,6 +18,7 @@ import TreeSelectItemRenderer from "./assets/TreeSelectItemRenderer"
 import {SelectVariantProps} from "./types"
 
 const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) => {
+    const [searchTerm, setSearchTerm] = useState("")
     const {revisionParents} = usePlayground({
         stateSelector: useCallback((state: PlaygroundStateData) => {
             const parents = groupBy(state.availableRevisions || [], "variantId")
@@ -29,7 +30,7 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
     })
 
     const variantOptions = useMemo(() => {
-        return Object.values(revisionParents).map((variantRevisions) => {
+        const options = Object.values(revisionParents).map((variantRevisions) => {
             const deployedIn = uniqBy(
                 variantRevisions.reduce((acc, rev) => {
                     return [...acc, ...(rev.deployedIn || [])]
@@ -41,7 +42,6 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                 title: (
                     <div className="flex items-center justify-between pr-0 grow">
                         <Typography.Text ellipsis={{tooltip: variantRevisions[0].variantName}}>
-                            {" "}
                             {variantRevisions[0].variantName}
                         </Typography.Text>
                         <EnvironmentStatus
@@ -57,10 +57,10 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                 value: variantRevisions[0].variantId,
                 children: variantRevisions
                     .sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
-                    .map((revision, idx) => {
+                    .map((revision) => {
                         return {
                             title: (
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between h-[32px] pl-1.5 pr-0">
                                     <VariantDetailsWithStatus
                                         className="w-full [&_.environment-badges]:mr-2"
                                         variantName={revision.variantName}
@@ -72,12 +72,32 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                                 </div>
                             ),
                             label: revision.variantName,
+                            revisionNumber: revision.revisionNumber,
                             value: revision.id,
                         }
                     }),
             }
         })
-    }, [revisionParents])
+
+        if (searchTerm) {
+            const lower = searchTerm.toLowerCase()
+
+            return options
+                .map((opt) => {
+                    const parentMatches = opt.label.toLowerCase().includes(lower)
+                    const children = parentMatches
+                        ? opt.children
+                        : opt.children.filter((child) =>
+                              child.revisionNumber.toString().includes(lower),
+                          )
+
+                    return {...opt, children}
+                })
+                .filter((opt) => opt.label.toLowerCase().includes(lower) || opt.children.length > 0)
+        }
+
+        return options
+    }, [revisionParents, searchTerm])
 
     const [isOpenCompareSelect, setIsOpenCompareSelect] = useState(false)
     const [isOpenSelect, setIsOpenSelect] = useState(false)
@@ -105,22 +125,23 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                             "[&_.ant-select-tree-switcher-noop]:!hidden",
                             "[&_.ant-select-tree-treenode-leaf_.ant-select-tree-node-content-wrapper]:!pl-0",
                             "[&_span.ant-select-tree-node-content-wrapper]:w-[calc(100%-24px)]",
+                            "[&_.ant-select-tree-node-content-wrapper]:!pl-2 [&_.ant-select-tree-node-content-wrapper]:flex [&_.ant-select-tree-node-content-wrapper]:items-center [&_.ant-select-tree-node-content-wrapper]:!justify-between [&_.ant-select-tree-node-content-wrapper]:!rounded-md",
+                            "[&_.ant-select-tree-switcher]:flex [&_.ant-select-tree-switcher]:items-center [&_.ant-select-tree-switcher]:justify-center",
+                            "[&_.ant-select-tree-title]:w-full",
                         ])}
                         className="w-full opacity-0 relative z-[2]"
                         dropdownStyle={{maxHeight: 400, overflow: "auto"}}
                         size="small"
                         treeData={variantOptions}
                         tagRender={() => <div></div>}
-                        filterTreeNode={(input, option) =>
-                            ((option?.title as string) ?? "")
-                                .toLowerCase()
-                                .includes(input.toLowerCase())
-                        }
                         dropdownRender={(menu) => (
                             <TreeSelectItemRenderer
                                 close={handleClose}
                                 isOpen={isOpenCompareSelect}
                                 menu={menu}
+                                showAsCompare={showAsCompare}
+                                searchTerm={searchTerm}
+                                setSearchTerm={setSearchTerm}
                             />
                         )}
                         treeDefaultExpandAll
@@ -145,16 +166,14 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                     placeholder="Select variant"
                     treeData={variantOptions}
                     treeNodeLabelProp="label"
-                    filterTreeNode={(input, option) =>
-                        ((option?.title as string) ?? "")
-                            .toLowerCase()
-                            .includes(input.toLowerCase())
-                    }
                     dropdownRender={(menu) => (
                         <TreeSelectItemRenderer
                             close={handleClose}
                             isOpen={isOpenSelect}
                             menu={menu}
+                            showAsCompare={showAsCompare}
+                            searchTerm={searchTerm}
+                            setSearchTerm={setSearchTerm}
                         />
                     )}
                     treeDefaultExpandAll
@@ -166,6 +185,9 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                         "[&_.ant-select-tree-treenode-leaf_.ant-select-tree-node-content-wrapper]:!pl-0",
                         "[&_span.ant-select-tree-node-content-wrapper]:w-[calc(100%-24px)]",
                         "[&_.ant-select-tree-switcher]:!me-0",
+                        "[&_.ant-select-tree-node-content-wrapper]:!pl-2 [&_.ant-select-tree-node-content-wrapper]:flex [&_.ant-select-tree-node-content-wrapper]:items-center [&_.ant-select-tree-node-content-wrapper]:!justify-between [&_.ant-select-tree-node-content-wrapper]:!rounded-md",
+                        "[&_.ant-select-tree-switcher]:flex [&_.ant-select-tree-switcher]:items-center [&_.ant-select-tree-switcher]:justify-center",
+                        "[&_.ant-select-tree-title]:w-full",
                     ])}
                 />
             )}

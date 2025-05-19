@@ -55,7 +55,7 @@ export function $insertLinesWithSelectionAndIndent({
     const beforeInLine: any[] = []
     const afterInLine: any[] = []
     let found = false
-    let cursorCount = 0
+    let _cursorCount = 0
 
     // --- NEW: Compute base indentation from current line ---
     // Count leading tabs (or 2-space groups) in current line
@@ -109,7 +109,7 @@ export function $insertLinesWithSelectionAndIndent({
                 beforeInLine.pop()
             }
             found = true
-            cursorCount++
+            _cursorCount++
         } else if (!found) {
             if (node && typeof node.clone === "function") {
                 beforeInLine.push(node.clone())

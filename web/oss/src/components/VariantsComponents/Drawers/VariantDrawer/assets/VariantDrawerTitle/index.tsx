@@ -23,6 +23,7 @@ const VariantDrawerTitle = ({
     isDirty,
     selectedDrawerVariant,
     isLoading,
+    viewAs,
 }: VariantDrawerTitleProps) => {
     const {appStatus} = usePlayground({
         stateSelector: (state) => ({
@@ -190,6 +191,7 @@ const VariantDrawerTitle = ({
                     type="default"
                     size="small"
                     disabled={!isDirty || isLoading}
+                    commitType={viewAs}
                     onSuccess={({revisionId, variantId}) => {
                         fetchAllVariants()
 

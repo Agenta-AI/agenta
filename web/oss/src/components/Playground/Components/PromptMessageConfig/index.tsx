@@ -7,9 +7,9 @@ import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
 
 import {useLexicalComposerContext, EditorProvider} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
 import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
 import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {getMetadataLazy, getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {
@@ -23,7 +23,6 @@ import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/a
 import {constructChatHistory} from "../../hooks/usePlayground/assets/messageHelpers"
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
-import {TooltipWithCopyAction} from "../PlaygroundGenerations/assets/GenerationCompletionRow"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import SharedEditor from "../SharedEditor"
 
@@ -181,9 +180,9 @@ const PromptMessageConfig = ({
                       )
                       if (!message) return clonedState
                       try {
-                          const obj = typeof e === "string" ? JSON.parse(e) : e
+                          const _obj = typeof e === "string" ? JSON.parse(e) : e
                       } catch (error) {
-                          const obj = tryParsePartialJson(e)
+                          const _obj = tryParsePartialJson(e)
                       }
                   })
               }
@@ -258,7 +257,7 @@ const PromptMessageConfig = ({
     // Try to access the Lexical editor instance from context
     // This will work if this component is a child of LexicalComposer
     const [editor] = useLexicalComposerContext()
-    const [language, setLanguage] = useState("json")
+    const [_language, _setLanguage] = useState("json")
     useEffect(() => {
         return mergeRegister(
             editor.registerUpdateListener(({editorState}) => {
@@ -267,7 +266,7 @@ const PromptMessageConfig = ({
                     const codeBlock = root.getChildren().find($isCodeBlockNode)
                     if (codeBlock) {
                         const language = codeBlock.getLanguage()
-                        setLanguage((currentLanguage) => {
+                        _setLanguage((currentLanguage) => {
                             if (currentLanguage === language) return currentLanguage
                             return language
                         })
@@ -276,31 +275,6 @@ const PromptMessageConfig = ({
             }),
         )
     }, [editor])
-
-    // Function to execute a command on the Lexical editor
-    const executeEditorCommand = useCallback(
-        (newLanguage: "json" | "yaml") => {
-            if (editor) {
-                editor.dispatchCommand(ON_CHANGE_LANGUAGE, {
-                    language: newLanguage,
-                })
-            } else {
-                // Fallback: Try using the global window registry
-                if (typeof window !== "undefined") {
-                    // @ts-ignore - Accessing custom property
-                    const globalEditor = window._lexicalEditor
-                    if (globalEditor) {
-                        globalEditor.dispatchCommand(ON_CHANGE_LANGUAGE, {
-                            language: "yaml",
-                        })
-                    } else {
-                        console.log("Could not find editor instance through any approach")
-                    }
-                }
-            }
-        },
-        [editor],
-    )
 
     const _resultHashes = useMemo(() => {
         if (!messageRow?.history?.value) return []
@@ -562,7 +536,7 @@ const checkIsJSON = (_value) => {
 }
 
 const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
-    const {message, messages, isFunction, isJSON} = usePlayground({
+    const {message, isFunction, isJSON} = usePlayground({
         variantId: props.variantId,
         hookId: "PromptMessageConfig",
         stateSelector: useCallback(

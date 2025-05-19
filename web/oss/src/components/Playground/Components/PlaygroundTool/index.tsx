@@ -3,7 +3,6 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {Input, Tooltip} from "antd"
 import clsx from "clsx"
 import JSON5 from "json5"
-import {parse} from "jsonc-parser"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
 

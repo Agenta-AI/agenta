@@ -1,16 +1,17 @@
-import type {TableProps} from "antd/es/table"
-import {Badge, Button, Flex, Space, Table, Typography} from "antd"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {ChatText} from "@phosphor-icons/react"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
-import {createUseStyles} from "react-jss"
-import {JSSTheme} from "@/oss/lib/Types"
-import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
-import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
-import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
-import {v4 as uuidv4} from "uuid"
+import {ChatText} from "@phosphor-icons/react"
+import {Badge, Button, Flex, Space, Table, Typography} from "antd"
+import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
+import {createUseStyles} from "react-jss"
+import {v4 as uuidv4} from "uuid"
+
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {JSSTheme} from "@/oss/lib/Types"
+
 import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
+
+import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     expandableTable: {

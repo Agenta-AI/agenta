@@ -1,12 +1,13 @@
 import {type FC, type Key, useMemo, useState} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {Button, Flex, Input, Space, Typography, message, notification} from "antd"
+import {Button, Flex, Input, Space, Typography, message} from "antd"
 import posthog from "posthog-js"
 import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {DeploymentRevision, DeploymentRevisionConfig, DeploymentRevisions} from "@/oss/lib/Types"
@@ -21,7 +22,6 @@ import DeploymentsDrawer from "./components/Drawer"
 import DeploymentConfirmationModal from "./components/Modal/DeploymentConfirmationModal"
 import SelectDeployVariantModal from "./components/Modal/SelectDeployVariantModal"
 import DeploymentTable from "./components/Table"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -62,12 +62,12 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
     const [queryVariant, setQueryVariant] = useQueryParam("revisions")
 
     const [isUseApiDrawerOpen, setIsUseApiDrawerOpen] = useState(false)
-    const [isRevisionsDetailsDrawerOpen, setIsRevisionsDetailsDrawerOpen] = useState(false)
+    const [_isRevisionsDetailsDrawerOpen, setIsRevisionsDetailsDrawerOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
     const [note, setNote] = useState("")
     const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
     const [isDeployVariantLoading, setIsDeployVariantLoading] = useState(false)
-    const [revisionConfig, setRevisionConfig] = useState<DeploymentRevisionConfig | null>(null)
+    const [_revisionConfig, setRevisionConfig] = useState<DeploymentRevisionConfig | null>(null)
     const [isSelectDeployVariantModalOpen, setIsSelectDeployVariantModalOpen] = useState(false)
     const [selectedRevisionRow, setSelectedRevisionRow] = useState<DeploymentRevisionWithVariant>()
 

@@ -4,10 +4,9 @@ import {Skeleton, Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import DeploymentCard from "@/oss/components/DeploymentCard"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
-
-import DeploymentCard from "@/oss/components/DeploymentCard"
 
 const {Title} = Typography
 

@@ -242,6 +242,11 @@ class AnnotationsRouter:
         project_id = UUID(request.state.project_id)
         user_id = UUID(request.state.user_id)
 
+        cache_key = {
+            "project_id": project_id,
+            "evaluator_slug": annotation_request.annotation.references.evaluator.slug,
+        }
+
         evaluator_flags = WorkflowFlags(
             is_evaluator=True,
             is_custom=annotation_request.annotation.kind == AnnotationKind.CUSTOM,
@@ -464,16 +469,16 @@ class AnnotationsRouter:
             )
         )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.create_artifact(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                artifact_slug=evaluator_slug,
-                #
-                artifact_flags=evaluator_flags,
-                artifact_metadata=evaluator_metadata,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.create_artifact(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_slug=evaluator_slug,
+            #
+            artifact_flags=evaluator_flags,
+            artifact_metadata=evaluator_metadata,
         )
 
         if workflow_artifact is None:
@@ -481,18 +486,18 @@ class AnnotationsRouter:
 
         workflow_variant_slug = uuid4().hex
 
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.create_variant(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                artifact_id=workflow_artifact.id,
-                #
-                variant_slug=workflow_variant_slug,
-                #
-                variant_flags=evaluator_flags,
-                variant_metadata=evaluator_metadata,
-            )
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.create_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_id=workflow_artifact.id,
+            #
+            variant_slug=workflow_variant_slug,
+            #
+            variant_flags=evaluator_flags,
+            variant_metadata=evaluator_metadata,
         )
 
         if workflow_variant is None:
@@ -500,19 +505,19 @@ class AnnotationsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.create_revision(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                artifact_id=workflow_artifact.id,
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=evaluator_flags,
-                revision_metadata=evaluator_metadata,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.create_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_id=workflow_artifact.id,
+            variant_id=workflow_variant.id,
+            #
+            revision_slug=workflow_revision_slug,
+            #
+            revision_flags=evaluator_flags,
+            revision_metadata=evaluator_metadata,
         )
 
         if workflow_revision is None:
@@ -520,19 +525,19 @@ class AnnotationsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.commit_revision(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=evaluator_flags,
-                revision_metadata=evaluator_metadata,
-                revision_data=workflow_revision_data,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.commit_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            variant_id=workflow_variant.id,
+            #
+            revision_slug=workflow_revision_slug,
+            #
+            revision_flags=evaluator_flags,
+            revision_metadata=evaluator_metadata,
+            revision_data=workflow_revision_data,
         )
 
         if workflow_revision is None:
@@ -572,12 +577,12 @@ class AnnotationsRouter:
             slug=evaluator_slug,
         )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.fetch_artifact(
-                project_id=project_id,
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.fetch_artifact(
+            project_id=project_id,
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_artifact is None:
@@ -587,12 +592,12 @@ class AnnotationsRouter:
             id=workflow_artifact.id,
         )
 
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.fetch_variant(
-                project_id=project_id,
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_variant(
+            project_id=project_id,
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_variant is None:
@@ -602,12 +607,12 @@ class AnnotationsRouter:
             id=workflow_variant.id,
         )
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.fetch_revision(
-                project_id=project_id,
-                #
-                variant_ref=workflow_variant_ref,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.fetch_revision(
+            project_id=project_id,
+            #
+            variant_ref=workflow_variant_ref,
         )
 
         if workflow_revision is None:

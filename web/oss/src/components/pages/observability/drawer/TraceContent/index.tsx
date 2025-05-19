@@ -1,14 +1,18 @@
 import {useState} from "react"
+
 import {Database} from "@phosphor-icons/react"
 import {Button, Divider, Space, Tabs, TabsProps, Typography} from "antd"
 import dynamic from "next/dynamic"
+
 import {KeyValuePair} from "@/oss/lib/Types"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
-import {useStyles} from "./assets/styles"
+
 import AccordionTreePanel from "../../components/AccordionTreePanel"
-import OverviewTabItem from "./components/OverviewTabItem"
-import AnnotationTabItem from "./components/AnnotationTabItem"
 import {TracesWithAnnotations} from "../../ObservabilityDashboard"
+
+import {useStyles} from "./assets/styles"
+import AnnotationTabItem from "./components/AnnotationTabItem"
+import OverviewTabItem from "./components/OverviewTabItem"
 
 const TestsetDrawer = dynamic(() => import("../TestsetDrawer/TestsetDrawer"), {ssr: false})
 

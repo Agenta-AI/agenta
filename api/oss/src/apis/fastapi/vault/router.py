@@ -4,6 +4,9 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
+
 from oss.src.utils.common import is_ee
 from oss.src.core.secrets.services import VaultService
 from oss.src.apis.fastapi.shared.utils import handle_exceptions
@@ -16,6 +19,9 @@ from oss.src.core.secrets.dtos import (
 if is_ee():
     from ee.src.models.db_models import Permission
     from ee.src.utils.permissions import check_action_access
+
+
+log = get_module_logger(__name__)
 
 
 class VaultRouter:
@@ -74,7 +80,7 @@ class VaultRouter:
             )
 
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -88,6 +94,20 @@ class VaultRouter:
 
     @handle_exceptions()
     async def list_secrets(self, request: Request):
+        cache_key = {}
+
+        secrets_dtos = await get_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="list_secrets",
+            key=cache_key,
+            model=SecretResponseDTO,
+            is_list=True,
+        )
+
+        if secrets_dtos is not None:
+            return secrets_dtos
+
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=str(request.state.user_id),
@@ -96,7 +116,7 @@ class VaultRouter:
             )
 
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -105,6 +125,16 @@ class VaultRouter:
         secrets_dtos = await self.service.list_secrets(
             project_id=UUID(request.state.project_id),
         )
+
+        await set_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="list_secrets",
+            key=cache_key,
+            value=secrets_dtos,
+            ttl=15,  # seconds
+        )
+
         return secrets_dtos
 
     @handle_exceptions()
@@ -117,7 +147,7 @@ class VaultRouter:
             )
 
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -145,7 +175,7 @@ class VaultRouter:
             )
 
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,
@@ -172,7 +202,7 @@ class VaultRouter:
             )
 
             if not has_permission:
-                error_msg = f"You do not have access to perform this action. Please contact your organization admin."
+                error_msg = "You do not have access to perform this action. Please contact your organization admin."
                 return JSONResponse(
                     {"detail": error_msg},
                     status_code=403,

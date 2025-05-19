@@ -99,7 +99,7 @@ const SharedEditor = ({
                     disabled={disabled}
                     {...editorProps}
                 />
-            ) : true ? (
+            ) : (
                 <EditorWrapper
                     placeholder={placeholder}
                     showToolbar={false}
@@ -117,7 +117,7 @@ const SharedEditor = ({
                     id={editorId}
                     {...editorProps}
                 />
-            ) : null}
+            )}
 
             {footer}
         </div>

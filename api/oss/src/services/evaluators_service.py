@@ -1297,7 +1297,7 @@ async def semantic_similarity(
     if not openai_api_key:
         raise HTTPException(
             status_code=422,
-            detail="No OpenAI key was found. Semantic evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
+            detail="No OpenAI key was found. Semantic evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again.",
         )
 
     openai = AsyncOpenAI(api_key=openai_api_key)

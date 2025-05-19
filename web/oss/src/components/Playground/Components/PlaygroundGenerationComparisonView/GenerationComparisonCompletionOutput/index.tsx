@@ -6,11 +6,11 @@ import dynamic from "next/dynamic"
 
 import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
-import {TooltipWithCopyAction} from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
 import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 import SharedEditor from "../../SharedEditor"
 
@@ -119,8 +119,8 @@ const GenerationComparisonCompletionOutput = ({
                                     }
                                 />
                             ) : result.response ? (
-                                Array.isArray(result.response) ? (
-                                    result.response.map((message, index) => {
+                                Array.isArray(result.response?.data) ? (
+                                    result.response.data.map((message, index) => {
                                         let _json = false
                                         try {
                                             const parsed = JSON5.parse(message.content)

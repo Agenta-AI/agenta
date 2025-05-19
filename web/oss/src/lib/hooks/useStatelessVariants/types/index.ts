@@ -8,7 +8,7 @@ import {type Variant} from "@/oss/lib/shared/variant/types"
 import {InitialStateType} from "../state/types"
 export * from "./playground"
 /** Base hook configuration types */
-interface BaseHookConfig<T = unknown, Selected = unknown>
+interface BaseHookConfig<T = unknown, _Selected = unknown>
     extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {
     compare?: (a: T | undefined, b: T | undefined) => boolean
     fetcher?: AgentaFetcher
@@ -19,7 +19,7 @@ interface BaseHookConfig<T = unknown, Selected = unknown>
 }
 
 /** Base hook response extending SWR */
-interface BaseHookResponse<T = unknown, Selected = unknown> extends SWRResponse<T, Error> {
+interface _BaseHookResponse<T = unknown, Selected = unknown> extends SWRResponse<T, Error> {
     isDirty?: boolean
     selectedData?: Selected
 }
@@ -71,7 +71,7 @@ export type VariantUpdateFunction<T extends EnhancedVariant = EnhancedVariant> =
 ) => Partial<EnhancedVariant> | undefined
 
 // Single variant middleware extensions
-export interface PlaygroundVariantResponse<T extends PlaygroundStateData = PlaygroundStateData>
+export interface PlaygroundVariantResponse<_T extends PlaygroundStateData = PlaygroundStateData>
     extends PlaygroundVariantsResponse {
     variant?: EnhancedVariant
     displayedVariants?: string[]

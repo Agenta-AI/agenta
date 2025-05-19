@@ -1,14 +1,18 @@
 import {useCallback, useMemo} from "react"
-import {getColumns} from "./assets/getDeploymentColumns"
-import {Table, Typography} from "antd"
-import {DeploymentRevisionWithVariant} from "../.."
-import {DeploymentRevisions} from "@/oss/lib/Types"
-import {useRouter} from "next/router"
-import {useAppId} from "@/oss/hooks/useAppId"
-import Image from "next/image"
-import EmptyComponent from "@/oss/components/EmptyComponent"
+
 import {CloudArrowUp} from "@phosphor-icons/react"
+import {Table, Typography} from "antd"
+import Image from "next/image"
+import {useRouter} from "next/router"
+
+import EmptyComponent from "@/oss/components/EmptyComponent"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {DeploymentRevisions} from "@/oss/lib/Types"
+
+import {DeploymentRevisionWithVariant} from "../.."
+
+import {getColumns} from "./assets/getDeploymentColumns"
 
 interface DeploymentTableProps {
     handleFetchRevisionConfig: (revisionId: string) => Promise<void>

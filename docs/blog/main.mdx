@@ -8,11 +8,76 @@ import Image from "@theme/IdealImage";
 ```
 
 <section class="changelog">
+
+### Annotate Your LLM Response (preview)
+_15 May 2025_
+**v0.45.0**
+
+One of the major feature requests we had was the ability to capture user feedback and annotations (e.g. scores) to LLM responses traced in Agenta. 
+
+Today we're previewing one of a family of features around this topic. 
+
+As of today you can use the annotation API to add annotations to LLM responses traced in Agenta. 
+
+This is useful to:
+- Collect user feedback on LLM responses
+- Run custom evaluation workflows
+- Measure application performance in real-time
+
+Check out the how to [annotate traces from API](/evaluation/annotate-api) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
+
+<Image
+  style={{
+    display: "block",
+    margin: "20px",
+    textAlign: "center",
+  }}
+  img={require("/images/evaluation/evaluation-screenshot-jupyter.png")}
+  alt="Screenshot showing annotations in the Agenta UI" 
+  loading="lazy"
+/>
+
+Other stuff: 
+- We have cut our migration process to take a couple of minutes instead of an hour.
+
+---
+
+### Tool Support in the Playground
+_10 May 2025_
+**v0.43.1**
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px"}}>
+  <iframe
+    width="1030"
+    height="500"
+    src="https://www.youtube.com/embed/SGqHOJf7tb8"
+    title="YouTube video player"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+
+We released tool usage in the Agenta playground - a key feature for anyone building agents with LLMs.
+
+Agents need tools to access external data, perform calculations, or call APIs. 
+
+Now you can:
+- Define tools directly in the playground using JSON schema
+- Test how your prompt generates tool calls in real-time
+- Preview how your agent handles tool responses
+- Verify tool call correctness with custom evaluators
+
+The tool schema is saved with your prompt configuration, making integration easy when you fetch configs through the API.
+
+---
+
 ### Documentation Overhaul, New Models, and Platform Improvements
 
 _2 May 2025_
 
-**v0.43.1**
+**v0.43.0**
 
 We've made significant improvements across Agenta with a major documentation overhaul, new model support, self-hosting enhancements, and UI improvements.
 
@@ -53,6 +118,96 @@ Check out our updated [self-hosting documentation](/self-host/host-locally) for 
 - Added chat support in cloud
 
 ---
+### We are SOC 2 Type 2 Certified
+_18 April 2025_
+**v0.42.1**
+
+We are SOC 2 Type 2 Certified. This means that our platform is audited and certified by an independent third party to meet the highest standards of security and compliance.
+
+---
+### Structured Output Support in the Playground
+_15 April 2025_
+
+**v0.42.0**
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px"}}>
+  <iframe
+    width="1030"
+    height="500"
+    src="https://www.youtube.com/embed/08r4g5mO9lw"
+    title="YouTube video player"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+
+We now support structured output support in the playground. You can define the expected output format and validate the output against it.
+
+With Agenta's playground, implementing structured outputs is straightforward:
+
+- Open any prompt
+
+- Switch the Response format dropdown from text to JSON mode or JSON Schema
+
+- Paste or write your schema (Agenta supports the full JSON Schema specification)
+
+- Run the prompt - the response panel will show the response beautified
+
+- Commit the changes - the schema will be saved with your prompt, so when your SDK fetches the prompt, it will include the schema information
+
+Check out the blog post for more detail https://agenta.ai/blog/structured-outputs-playground
+
+---
+### New Feature: Prompt and Deployment Registry
+_7 April 2025_
+
+**v0.38.0**
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px"}}>
+  <iframe
+    width="1030"
+    height="500"
+    src="https://www.youtube.com/embed/ZwpHuXp2WiI"
+    title="YouTube video player"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+We've introduced the Prompt and Deployment Registry, giving you a centralized place to manage all variants and versions of your prompts and deployments.
+
+**Key capabilities:**
+- View all variants and revisions in a single table
+- Access all commits made to a variant
+- Use older versions of variants directly in the playground
+
+Learn more in our [blog post](https://agenta.ai/blog/introducing-prompt-registry).
+
+**Bug Fixes**
+- Fixed minor UI issues with dots in sidebar menu 
+- Fixed minor playground UI issues
+- Fixed playground reset default model name
+- Fixed project_id issue on testset detail page
+- Fixed breaking issues with old variants encountered during QA
+- Fixed variant naming logic
+
+---
+
+### Improvements to the Playground and Custom Workflows
+_19 March 2025_
+**v0.36.0**
+
+We've made several improvements to the playground, including:
+- Improved scrolling behavior
+- Increased discoverability of variants creation and comparison
+- Implemented stop functionality in the playground
+
+As for custom workflows, now they work with sub-routes. This means you can have multiple routes in one file and create multiple custom workflows from the same file.
+
+---
+
 ### OpenTelemetry Compliance and Custom workflows from API
 
 _11 March 2025_

@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.45.0",
+    "version": "0.45.1",
     "workspaces": [
         "ee",
         "oss",
@@ -36,6 +36,8 @@
     "scripts": {
         "build-oss": "turbo run build --filter=@agenta/oss",
         "build-ee": "turbo run build --filter=@agenta/ee",
+        "dev-ee": "turbo run dev --filter=@agenta/ee",
+        "dev-oss": "turbo run dev --filter=@agenta/oss",
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",

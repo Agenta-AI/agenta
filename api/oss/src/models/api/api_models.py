@@ -145,10 +145,10 @@ class EnvironmentOutput(BaseModel):
     name: str
     app_id: str
     project_id: str
-    deployed_app_variant_id: Optional[str]
-    deployed_variant_name: Optional[str]
-    deployed_app_variant_revision_id: Optional[str]
-    revision: Optional[int]
+    deployed_app_variant_id: Optional[str] = None
+    deployed_variant_name: Optional[str] = None
+    deployed_app_variant_revision_id: Optional[str] = None
+    revision: Optional[int] = None
 
 
 class EnvironmentRevision(BaseModel):

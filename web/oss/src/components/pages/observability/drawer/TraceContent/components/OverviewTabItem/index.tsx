@@ -1,11 +1,14 @@
+import React from "react"
+
+import {Space, Typography} from "antd"
+
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {Space, Typography} from "antd"
-import React from "react"
-import AccordionTreePanel from "../../../../components/AccordionTreePanel"
-import {transformDataInputs} from "../../utils"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+
+import AccordionTreePanel from "../../../../components/AccordionTreePanel"
 import {useStyles} from "../../assets/styles"
+import {transformDataInputs} from "../../utils"
 
 const OverviewTabItem = ({activeTrace}: {activeTrace: _AgentaRootsResponse}) => {
     const classes = useStyles()
@@ -40,8 +43,15 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: _AgentaRootsResponse}) => 
                                               <AccordionTreePanel
                                                   key={index}
                                                   label={param.role}
-                                                  value={param.content}
-                                                  enableFormatSwitcher={param.role === "tool"}
+                                                  value={
+                                                      "tool_calls" in param
+                                                          ? param?.tool_calls
+                                                          : param?.content
+                                                  }
+                                                  enableFormatSwitcher={
+                                                      param.role === "assistant" ||
+                                                      param.role === "tool"
+                                                  }
                                               />
                                           ))
                                         : null
@@ -84,7 +94,11 @@ const OverviewTabItem = ({activeTrace}: {activeTrace: _AgentaRootsResponse}) => 
                                           <AccordionTreePanel
                                               key={index}
                                               label={"assistant"}
-                                              value={param}
+                                              value={
+                                                  "tool_calls" in param
+                                                      ? param?.tool_calls
+                                                      : param?.content
+                                              }
                                               enableFormatSwitcher
                                           />
                                       ),

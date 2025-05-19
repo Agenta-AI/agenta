@@ -1,16 +1,16 @@
 import {SetStateAction, useMemo, useState} from "react"
 
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Modal, Table, Tag, theme, Typography} from "antd"
+import {Input, Modal, Table, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
 
 import DeploymentModal from "./DeploymentModal"
-import EnvironmentStatus from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 
 const {Search} = Input
 
@@ -20,8 +20,6 @@ type ChangeVariantModalProps = {
     setOpenChangeVariantModal: (value: SetStateAction<boolean>) => void
     loadEnvironments: () => Promise<void>
 } & React.ComponentProps<typeof Modal>
-
-const {useToken} = theme
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -48,7 +46,6 @@ const ChangeVariantModal = ({
     loadEnvironments,
     ...props
 }: ChangeVariantModalProps) => {
-    const {token} = useToken()
     const classes = useStyles()
     const [searchTerm, setSearchTerm] = useState<string>("")
     const [isDeploymentModalOpen, setIsDeploymentModalOpen] = useState(false)

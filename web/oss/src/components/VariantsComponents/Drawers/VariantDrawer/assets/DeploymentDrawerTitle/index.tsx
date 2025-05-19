@@ -1,13 +1,20 @@
 import {memo} from "react"
+
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
-
-import {DeploymentDrawerTitleProps} from "../types"
-import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import {useRouter} from "next/router"
 
-const DeploymentDrawerTitle = ({selectedVariant, onClose, revert, isLoading}: DeploymentDrawerTitleProps) => {
+import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
+
+import {DeploymentDrawerTitleProps} from "../types"
+
+const DeploymentDrawerTitle = ({
+    selectedVariant,
+    onClose,
+    revert,
+    isLoading,
+}: DeploymentDrawerTitleProps) => {
     const router = useRouter()
 
     return (

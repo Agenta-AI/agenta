@@ -2,11 +2,11 @@ import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 import {useRouter} from "next/router"
 
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment} from "@/oss/lib/Types"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 type VariantPopoverProps = {
     env: Environment

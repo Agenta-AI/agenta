@@ -1,6 +1,8 @@
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {AnnotationDto} from "../types"
 import {WorkspaceMember} from "@/oss/lib/Types"
+
+import {AnnotationDto} from "../types"
+
 import {groupOutputValues} from "./helpers"
 
 export const annotationsTransformer = (annotations: AnnotationDto, members: WorkspaceMember[]) => {

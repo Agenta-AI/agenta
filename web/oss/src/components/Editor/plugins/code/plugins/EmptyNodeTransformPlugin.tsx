@@ -310,7 +310,7 @@ function $processLine(codeLine: LexicalNode, selection: RangeSelection) {
     let redundantNodesRemoved = false
 
     // Limit the number of operations to prevent infinite loops
-    const MAX_OPERATIONS = 10
+    const _MAX_OPERATIONS = 10
     let operationCount = 0
 
     // Count non-tab nodes and content nodes (nodes with actual text content)

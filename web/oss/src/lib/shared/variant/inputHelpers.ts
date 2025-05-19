@@ -192,7 +192,7 @@ export function initializeVariantInputs(variant: EnhancedVariant, spec: OpenAPIS
     const inputSchema = createInputSchema(inputStrings)
     const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
 
-    const metadataHash = hashMetadata(inputSchema)
+    const _metadataHash = hashMetadata(inputSchema)
 
     // @ts-ignore
     variant.inputs = {

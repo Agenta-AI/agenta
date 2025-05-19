@@ -592,6 +592,3 @@ const EvaluationCompareMode: FC<Props> = () => {
 }
 
 export default EvaluationCompareMode
-function formatCost(cost: any) {
-    throw new Error("Function not implemented.")
-}

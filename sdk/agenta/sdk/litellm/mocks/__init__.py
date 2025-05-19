@@ -1,4 +1,5 @@
 from typing import Callable
+from asyncio import sleep
 
 from pydantic import BaseModel
 
@@ -30,7 +31,26 @@ def hello_mock_response(*args, **kwargs) -> MockResponseModel:
 def chat_mock_response(*args, **kwargs) -> MockResponseModel:
     return MockResponseModel(
         choices=[
-            MockChoiceModel(message=MockMessageModel(content="world", role="assistant"))
+            MockChoiceModel(
+                message=MockMessageModel(
+                    content="world",
+                    role="assistant",
+                )
+            )
+        ],
+    )
+
+
+def delay_mock_response(*args, **kwargs) -> MockResponseModel:
+    sleep(2)
+
+    return MockResponseModel(
+        choices=[
+            MockChoiceModel(
+                message=MockMessageModel(
+                    content="delay",
+                )
+            )
         ],
     )
 
@@ -38,4 +58,5 @@ def chat_mock_response(*args, **kwargs) -> MockResponseModel:
 MOCKS: dict[str, Callable[..., MockResponseModel]] = {
     "hello": hello_mock_response,
     "chat": chat_mock_response,
+    "delay": delay_mock_response,
 }

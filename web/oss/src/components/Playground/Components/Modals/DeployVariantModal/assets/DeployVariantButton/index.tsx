@@ -6,10 +6,10 @@ import dynamic from "next/dynamic"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
+import {findRevisionDeployment} from "@/oss/lib/shared/variant/utils"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
-import {findRevisionDeployment} from "@/oss/lib/shared/variant/utils"
 
 const DeployVariantModal = dynamic(() => import("../.."), {ssr: false})
 

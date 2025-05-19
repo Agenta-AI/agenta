@@ -91,10 +91,10 @@ export class CodeHighlightNode extends TextNode {
     createDOM(config: EditorConfig): HTMLElement {
         const latest = this.getLatest()
         const dom = super.createDOM(config)
-        
+
         // Apply token class based on highlight type
         dom.className = `editor-code-highlight token token-${latest.__highlightType}`
-        
+
         // Ensure empty nodes have a minimum width for caret visibility
         if (latest.getTextContent() === "") {
             dom.classList.add("token-empty")
@@ -124,18 +124,23 @@ export class CodeHighlightNode extends TextNode {
      */
     updateDOM(prevNode: CodeHighlightNode, dom: HTMLElement, config: EditorConfig): boolean {
         const latest = this.getLatest()
-        
+
         // Check if any properties have changed that would require DOM update
         const needsTokenTypeUpdate = latest.__highlightType !== prevNode.__highlightType
         const needsErrorUpdate = latest.__hasValidationError !== prevNode.__hasValidationError
         const needsValidationMessageUpdate =
             latest.__validationMessage !== prevNode.__validationMessage
-        const needsEmptyUpdate = 
+        const needsEmptyUpdate =
             (latest.getTextContent() === "" && prevNode.getTextContent() !== "") ||
             (latest.getTextContent() !== "" && prevNode.getTextContent() === "")
 
         // If any properties changed that affect rendering, return true to trigger DOM recreation
-        if (needsTokenTypeUpdate || needsErrorUpdate || needsValidationMessageUpdate || needsEmptyUpdate) {
+        if (
+            needsTokenTypeUpdate ||
+            needsErrorUpdate ||
+            needsValidationMessageUpdate ||
+            needsEmptyUpdate
+        ) {
             return true
         }
 

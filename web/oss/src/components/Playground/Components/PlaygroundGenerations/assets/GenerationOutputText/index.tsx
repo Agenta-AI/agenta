@@ -1,7 +1,7 @@
 import {Typography} from "antd"
+import clsx from "clsx"
 
 import {GenerationOutputTextProps} from "./types"
-import clsx from "clsx"
 
 const GenerationOutputText: React.FC<GenerationOutputTextProps> = ({
     text,

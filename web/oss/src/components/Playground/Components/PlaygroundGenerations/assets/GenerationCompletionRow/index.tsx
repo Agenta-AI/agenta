@@ -1,7 +1,6 @@
-import {useRef, cloneElement, ReactNode, useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo} from "react"
 
-import {CheckCircleFilled} from "@ant-design/icons"
-import {Tooltip, Typography} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 import JSON5 from "json5"
 import dynamic from "next/dynamic"
@@ -9,6 +8,7 @@ import dynamic from "next/dynamic"
 import RunButton from "@/oss/components/Playground/assets/RunButton"
 import {autoScrollToBottom} from "@/oss/components/Playground/assets/utilities/utilityFunctions"
 import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {getEnhancedProperties} from "@/oss/lib/shared/variant"
@@ -30,35 +30,6 @@ const GenerationVariableOptions = dynamic(() => import("../GenerationVariableOpt
 
 const handleChange = () => undefined
 
-export const TooltipWithCopyAction = ({children, title}: {children: ReactNode; title: string}) => {
-    const [tooltipDisplay, setTooltipDisplay] = useState(title)
-    const timeoutRef = useRef<NodeJS.Timeout>()
-    const handleClick = useCallback(() => {
-        setTooltipDisplay(() => {
-            return (
-                <div className="flex items-center gap-1">
-                    <CheckCircleFilled style={{color: "green"}} />
-                    <span>Copied to clipboard</span>
-                </div>
-            )
-        })
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current)
-        }
-        timeoutRef.current = setTimeout(() => {
-            setTooltipDisplay(title)
-        }, 2000)
-    }, [])
-    return (
-        <Tooltip title={tooltipDisplay} placement="top">
-            {cloneElement(children, {
-                className: "cursor-pointer",
-                onClick: handleClick,
-            })}
-        </Tooltip>
-    )
-}
-
 const GenerationCompletionRow = ({
     variantId,
     rowId,
@@ -69,43 +40,33 @@ const GenerationCompletionRow = ({
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
-    const {
-        resultId,
-        resultHash,
-        variableIds,
-        isRunning,
-        viewType,
-        isChat,
-        runTests,
-        cancelRunTests,
-    } = usePlayground({
-        variantId,
-        rowId,
-        registerToWebWorker: true,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const inputRow = state.generationData.inputs.value.find((inputRow) => {
-                    return inputRow.__id === rowId
-                })
+    const {resultHash, variableIds, isRunning, viewType, isChat, runTests, cancelRunTests} =
+        usePlayground({
+            variantId,
+            rowId,
+            registerToWebWorker: true,
+            stateSelector: useCallback(
+                (state: PlaygroundStateData) => {
+                    const inputRow = state.generationData.inputs.value.find((inputRow) => {
+                        return inputRow.__id === rowId
+                    })
 
-                const variables = getEnhancedProperties(inputRow)
-                const variableIds = variables.map((p) => p.__id)
+                    const variables = getEnhancedProperties(inputRow)
+                    const variableIds = variables.map((p) => p.__id)
 
-                const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
-                const resultId = variantId ? inputRow?.__runs?.[variantId]?.__id : null
-                const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
-                return {
-                    isChat: state.variants[0]?.isChat,
-                    variableIds,
-                    resultHash,
-                    isRunning,
-                    inputText: variables?.[0]?.value, // Temporary implementation
-                    resultId,
-                }
-            },
-            [rowId, variantId],
-        ),
-    })
+                    const resultHash = variantId ? inputRow?.__runs?.[variantId]?.__result : null
+                    const isRunning = variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false
+                    return {
+                        isChat: state.variants[0]?.isChat,
+                        variableIds,
+                        resultHash,
+                        isRunning,
+                        inputText: variables?.[0]?.value, // Temporary implementation
+                    }
+                },
+                [rowId, variantId],
+            ),
+        })
 
     useLazyEffect(() => {
         const timer = autoScrollToBottom()
@@ -234,8 +195,8 @@ const GenerationCompletionRow = ({
                                     handleChange={handleChange}
                                 />
                             ) : result.response ? (
-                                Array.isArray(result.response) ? (
-                                    result.response.map((message, index) => {
+                                Array.isArray(result.response?.data) ? (
+                                    result.response.data.map((message, index) => {
                                         let _json = false
                                         try {
                                             const parsed = JSON5.parse(message.content)

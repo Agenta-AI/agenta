@@ -3,8 +3,8 @@ import {useMemo, useState} from "react"
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Collapse, Input, Space, Tag} from "antd"
 
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 type SelectVariantSectionProps = {
     isVariantLoading: boolean

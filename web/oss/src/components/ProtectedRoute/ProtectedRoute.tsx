@@ -2,9 +2,9 @@ import {PropsWithChildren, useEffect, useRef, useState} from "react"
 
 import {useRouter} from "next/router"
 
+import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {useSession} from "@/oss/hooks/useSession"
-import {useProfileData} from "@/oss/contexts/profile.context"
 
 const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()

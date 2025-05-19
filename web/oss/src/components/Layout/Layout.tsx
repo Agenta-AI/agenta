@@ -12,7 +12,6 @@ import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
 import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
@@ -200,7 +199,6 @@ const AppWithVariants = memo(
 )
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    const {user} = useProfileData()
     const {appTheme} = useAppTheme()
     const {currentApp, isLoading, error} = useAppsData()
     const ref = useRef<HTMLElement | null>(null)

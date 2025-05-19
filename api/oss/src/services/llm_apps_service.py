@@ -405,9 +405,9 @@ async def batch_invoke(
         "delay_between_batches"
     ]  # Delay between batches (in seconds)
 
-    list_of_app_outputs: List[InvokationResult] = (
-        []
-    )  # Outputs after running all batches
+    list_of_app_outputs: List[
+        InvokationResult
+    ] = []  # Outputs after running all batches
 
     project = await get_project_by_id(
         project_id=project_id,

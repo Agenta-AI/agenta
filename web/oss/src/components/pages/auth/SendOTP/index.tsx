@@ -12,10 +12,10 @@ import {
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
-import {isDemo} from "@/oss/lib/helpers/utils"
 
 const {Text, Title} = Typography
 

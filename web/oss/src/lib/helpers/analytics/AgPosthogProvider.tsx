@@ -3,9 +3,9 @@ import {useCallback, useEffect, useState} from "react"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {getEnv} from "../dynamicEnv"
 import {isDemo} from "../utils"
 
-import {getEnv} from "../dynamicEnv"
 import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"

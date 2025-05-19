@@ -6,7 +6,6 @@
 
 import {$createRangeSelection, $isTabNode, $setSelection} from "lexical"
 
-import {$isCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {CodeLineNode} from "../nodes/CodeLineNode"
 
 /**
@@ -30,20 +29,20 @@ import {CodeLineNode} from "../nodes/CodeLineNode"
  */
 export function $moveCaretToStart(lineNode: CodeLineNode) {
     const children = lineNode.getChildren()
-    
+
     // Get all tab nodes (indentation) at the start of the line
     const tabNodes = children.filter($isTabNode)
-    
+
     // Find the first non-tab node (actual content)
-    const firstContentNode = children.find(node => !$isTabNode(node))
-    
+    const firstContentNode = children.find((node) => !$isTabNode(node))
+
     console.log("moveCaretToStart:", {
         childrenCount: children.length,
         tabNodesCount: tabNodes.length,
         hasContentNode: !!firstContentNode,
-        childrenTypes: children.map(c => c.getType())
+        childrenTypes: children.map((c) => c.getType()),
     })
-    
+
     // Case 1: We have content after tabs - position cursor at start of content
     if (firstContentNode) {
         const sel = $createRangeSelection()
@@ -52,7 +51,7 @@ export function $moveCaretToStart(lineNode: CodeLineNode) {
         $setSelection(sel)
         return
     }
-    
+
     // Case 2: We only have tab nodes - position cursor after the last tab
     if (tabNodes.length > 0) {
         const lastTabNode = tabNodes[tabNodes.length - 1]
@@ -60,7 +59,7 @@ export function $moveCaretToStart(lineNode: CodeLineNode) {
         $setSelection(sel)
         return
     }
-    
+
     // Case 3: Empty line - position cursor at the line itself
     const sel = lineNode.selectStart()
     $setSelection(sel)

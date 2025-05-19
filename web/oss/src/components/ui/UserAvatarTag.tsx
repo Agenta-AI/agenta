@@ -1,5 +1,7 @@
-import {Tag} from "antd"
 import React from "react"
+
+import {Tag} from "antd"
+
 import Avatar from "../Avatar/Avatar"
 
 interface UserAvatarTagProps {

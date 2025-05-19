@@ -5,13 +5,13 @@ import {Alert, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import Image from "next/image"
+import {useRouter} from "next/router"
 import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
-import {useRouter} from "next/router"
-import {useLocalStorage} from "usehooks-ts"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))

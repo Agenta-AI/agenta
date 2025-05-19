@@ -14,7 +14,8 @@ from sqlalchemy.exc import NoResultFound
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import APIKeyDB
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.utils.redis_utils import redis_connection
+
+# from oss.src.utils.redis_utils import redis_connection
 
 log = get_module_logger(__name__)
 
@@ -133,35 +134,35 @@ async def is_valid_api_key(key: str):
         return api_key
 
 
-async def check_rate_limit(api_key_obj: APIKeyDB, cache_key: str):
-    """
-    Checks if an API key has exceeded its rate limit.
+# async def check_rate_limit(api_key_obj: APIKeyDB, cache_key: str):
+#     """
+#     Checks if an API key has exceeded its rate limit.
 
-    Args:
-    - key: The API key to be checked.
+#     Args:
+#     - key: The API key to be checked.
 
-    Returns:
-    - True if the API key has exceeded its rate limit, False otherwise.
-    """
+#     Returns:
+#     - True if the API key has exceeded its rate limit, False otherwise.
+#     """
 
-    if api_key_obj.rate_limit > 0:
-        # Check rate limiting in Redis
-        r = redis_connection()
-        if r is not None:
-            api_requests_within_minute = r.get(cache_key)
-            if api_requests_within_minute is None:
-                # Initialize the count in Redis with an initial value of 1 and a one-minute TTL
-                r.setex(cache_key, 60, 1)
-            else:
-                # Check if requests made within the last minute exceed the rate limit
-                count_within_minute = int(api_requests_within_minute.decode("utf-8"))
-                if count_within_minute > api_key_obj.rate_limit:
-                    return True
+#     if api_key_obj.rate_limit > 0:
+#         # Check rate limiting in Redis
+#         r = redis_connection()
+#         if r is not None:
+#             api_requests_within_minute = r.get(cache_key)
+#             if api_requests_within_minute is None:
+#                 # Initialize the count in Redis with an initial value of 1 and a one-minute TTL
+#                 r.setex(cache_key, 60, 1)
+#             else:
+#                 # Check if requests made within the last minute exceed the rate limit
+#                 count_within_minute = int(api_requests_within_minute.decode("utf-8"))
+#                 if count_within_minute > api_key_obj.rate_limit:
+#                     return True
 
-        # increment the apikey usage count in redis
-        r.incr(cache_key)
+#         # increment the apikey usage count in redis
+#         r.incr(cache_key)
 
-    return False
+#     return False
 
 
 async def use_api_key(key: str) -> Union[APIKeyDB, bool]:

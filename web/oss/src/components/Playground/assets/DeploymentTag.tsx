@@ -1,6 +1,7 @@
-import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {Tag, type TagProps} from "antd"
 import clsx from "clsx"
+
+import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 
 interface Props extends TagProps {
     revision?: number | string

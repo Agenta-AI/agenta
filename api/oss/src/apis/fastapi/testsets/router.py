@@ -236,18 +236,18 @@ class TestsetsRouter:
                 detail=format_validation_error(e, testset_request.model_dump()),
             ) from e
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.create_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_slug=testset_request.testset.slug,
-                #
-                artifact_flags=self.TESTCASES_FLAGS,
-                artifact_metadata=testset_request.testset.metadata,
-                artifact_name=testset_request.testset.name,
-                artifact_description=testset_request.testset.description,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.create_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_slug=testset_request.testset.slug,
+            #
+            artifact_flags=self.TESTCASES_FLAGS,
+            artifact_metadata=testset_request.testset.metadata,
+            artifact_name=testset_request.testset.name,
+            artifact_description=testset_request.testset.description,
         )
 
         if testset_artifact is None:
@@ -258,18 +258,18 @@ class TestsetsRouter:
 
         testset_variant_slug = uuid4().hex
 
-        testset_variant: Optional[TestsetVariant] = (
-            await self.testsets_service.create_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=testset_artifact.id,
-                #
-                variant_slug=testset_variant_slug,
-                #
-                variant_flags=self.TESTCASES_FLAGS,
-                variant_metadata=testset_request.testset.metadata,
-            )
+        testset_variant: Optional[
+            TestsetVariant
+        ] = await self.testsets_service.create_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=testset_artifact.id,
+            #
+            variant_slug=testset_variant_slug,
+            #
+            variant_flags=self.TESTCASES_FLAGS,
+            variant_metadata=testset_request.testset.metadata,
         )
 
         if testset_variant is None:
@@ -280,18 +280,18 @@ class TestsetsRouter:
 
         testset_revision_slug = uuid4().hex
 
-        testset_revision: Optional[TestsetRevision] = (
-            await self.testsets_service.create_revision(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=testset_variant.id,
-                #
-                revision_slug=testset_revision_slug,
-                #
-                revision_flags=self.TESTCASES_FLAGS,
-                revision_metadata=testset_request.testset.metadata,
-            )
+        testset_revision: Optional[
+            TestsetRevision
+        ] = await self.testsets_service.create_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=testset_variant.id,
+            #
+            revision_slug=testset_revision_slug,
+            #
+            revision_flags=self.TESTCASES_FLAGS,
+            revision_metadata=testset_request.testset.metadata,
         )
 
         if testset_revision is None:
@@ -302,19 +302,19 @@ class TestsetsRouter:
 
         testset_revision_slug = uuid4().hex
 
-        testset_revision: Optional[TestsetRevision] = (
-            await self.testsets_service.commit_revision(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=testset_variant.id,
-                #
-                revision_slug=testset_revision_slug,
-                #
-                revision_flags=self.TESTCASES_FLAGS,
-                revision_metadata=testset_request.testset.metadata,
-                revision_data=testset_revision_data,
-            )
+        testset_revision: Optional[
+            TestsetRevision
+        ] = await self.testsets_service.commit_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=testset_variant.id,
+            #
+            revision_slug=testset_revision_slug,
+            #
+            revision_flags=self.TESTCASES_FLAGS,
+            revision_metadata=testset_request.testset.metadata,
+            revision_data=testset_revision_data,
         )
 
         if testset_revision is None:
@@ -366,12 +366,12 @@ class TestsetsRouter:
             id=testset_id,
         )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_artifact is None:
@@ -380,12 +380,12 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_variant: Optional[TestsetVariant] = (
-            await self.testsets_service.fetch_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_variant: Optional[
+            TestsetVariant
+        ] = await self.testsets_service.fetch_variant(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_variant is None:
@@ -398,12 +398,12 @@ class TestsetsRouter:
             id=testset_variant.id,
         )
 
-        testset_revision: Optional[TestsetRevision] = (
-            await self.testsets_service.fetch_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_ref=testset_variant_ref,
-            )
+        testset_revision: Optional[
+            TestsetRevision
+        ] = await self.testsets_service.fetch_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            variant_ref=testset_variant_ref,
         )
 
         if testset_revision is None:
@@ -486,12 +486,12 @@ class TestsetsRouter:
             id=testset_request.testset.id,
         )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_artifact is None:
@@ -500,18 +500,18 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.edit_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=testset_request.testset.id,
-                #
-                artifact_flags=self.TESTCASES_FLAGS,
-                artifact_metadata=testset_request.testset.metadata,
-                artifact_name=testset_request.testset.name,
-                artifact_description=testset_request.testset.description,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.edit_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=testset_request.testset.id,
+            #
+            artifact_flags=self.TESTCASES_FLAGS,
+            artifact_metadata=testset_request.testset.metadata,
+            artifact_name=testset_request.testset.name,
+            artifact_description=testset_request.testset.description,
         )
 
         if testset_artifact is None:
@@ -520,12 +520,12 @@ class TestsetsRouter:
                 detail="Failed to edit testset. Please try again or contact support.",
             )
 
-        testset_variant: Optional[TestsetVariant] = (
-            await self.testsets_service.fetch_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_variant: Optional[
+            TestsetVariant
+        ] = await self.testsets_service.fetch_variant(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_variant is None:
@@ -534,16 +534,16 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_variant: Optional[TestsetVariant] = (
-            await self.testsets_service.edit_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=testset_variant.id,
-                #
-                variant_flags=self.TESTCASES_FLAGS,
-                variant_metadata=testset_request.testset.metadata,
-            )
+        testset_variant: Optional[
+            TestsetVariant
+        ] = await self.testsets_service.edit_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=testset_variant.id,
+            #
+            variant_flags=self.TESTCASES_FLAGS,
+            variant_metadata=testset_request.testset.metadata,
         )
 
         if testset_variant is None:
@@ -556,12 +556,12 @@ class TestsetsRouter:
             id=testset_variant.id,
         )
 
-        testset_revision: Optional[TestsetRevision] = (
-            await self.testsets_service.fetch_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_ref=testset_variant_ref,
-            )
+        testset_revision: Optional[
+            TestsetRevision
+        ] = await self.testsets_service.fetch_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            variant_ref=testset_variant_ref,
         )
 
         if testset_revision is None:
@@ -570,19 +570,19 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_revision: Optional[TestsetRevision] = (
-            await self.testsets_service.commit_revision(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=testset_variant.id,
-                #
-                revision_slug=testset_revision.slug,
-                #
-                revision_flags=self.TESTCASES_FLAGS,
-                revision_metadata=testset_request.testset.metadata,
-                revision_data=testset_revision_data,
-            )
+        testset_revision: Optional[
+            TestsetRevision
+        ] = await self.testsets_service.commit_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=testset_variant.id,
+            #
+            revision_slug=testset_revision.slug,
+            #
+            revision_flags=self.TESTCASES_FLAGS,
+            revision_metadata=testset_request.testset.metadata,
+            revision_data=testset_revision_data,
         )
 
         if testset_revision is None:
@@ -634,12 +634,12 @@ class TestsetsRouter:
             id=testset_id,
         )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_artifact is None:
@@ -648,13 +648,13 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.archive_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=testset_id,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.archive_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=testset_id,
         )
 
         if testset_artifact is None:
@@ -705,12 +705,12 @@ class TestsetsRouter:
             id=testset_id,
         )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_artifact is None:
@@ -719,13 +719,13 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.unarchive_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=testset_id,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.unarchive_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=testset_id,
         )
 
         if testset_artifact is None:
@@ -776,13 +776,13 @@ class TestsetsRouter:
 
         metadata = metadata_request.metadata if metadata_request else None
 
-        testset_artifacts: List[TestsetArtifact] = (
-            await self.testsets_service.query_artifacts(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_flags=self.TESTCASES_FLAGS,
-                artifact_metadata=metadata,
-            )
+        testset_artifacts: List[
+            TestsetArtifact
+        ] = await self.testsets_service.query_artifacts(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_flags=self.TESTCASES_FLAGS,
+            artifact_metadata=metadata,
         )
 
         if testset_artifacts is None:
@@ -796,12 +796,12 @@ class TestsetsRouter:
                 id=testset_artifact.id,
             )
 
-            testset_variant: Optional[TestsetVariant] = (
-                await self.testsets_service.fetch_variant(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    artifact_ref=testset_artifact_ref,
-                )
+            testset_variant: Optional[
+                TestsetVariant
+            ] = await self.testsets_service.fetch_variant(
+                project_id=UUID(request.state.project_id),
+                #
+                artifact_ref=testset_artifact_ref,
             )
 
             if testset_variant is None:
@@ -811,12 +811,12 @@ class TestsetsRouter:
                 id=testset_variant.id,
             )
 
-            testset_revision: Optional[TestsetRevision] = (
-                await self.testsets_service.fetch_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    variant_ref=testset_variant_ref,
-                )
+            testset_revision: Optional[
+                TestsetRevision
+            ] = await self.testsets_service.fetch_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                variant_ref=testset_variant_ref,
             )
 
             if testset_revision is None:
@@ -1029,12 +1029,12 @@ class TestsetsRouter:
             id=testset_id,
         )
 
-        testset_artifact: Optional[TestsetArtifact] = (
-            await self.testsets_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_artifact: Optional[
+            TestsetArtifact
+        ] = await self.testsets_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_artifact is None:
@@ -1043,12 +1043,12 @@ class TestsetsRouter:
                 detail="Basic testset not found. Please check the ID and try again.",
             )
 
-        testset_variant: Optional[TestsetVariant] = (
-            await self.testsets_service.fetch_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=testset_artifact_ref,
-            )
+        testset_variant: Optional[
+            TestsetVariant
+        ] = await self.testsets_service.fetch_variant(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=testset_artifact_ref,
         )
 
         if testset_variant is None:
@@ -1061,12 +1061,12 @@ class TestsetsRouter:
             id=testset_variant.id,
         )
 
-        testset_revision: Optional[TestsetRevision] = (
-            await self.testsets_service.fetch_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_ref=testset_variant_ref,
-            )
+        testset_revision: Optional[
+            TestsetRevision
+        ] = await self.testsets_service.fetch_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            variant_ref=testset_variant_ref,
         )
 
         if testset_revision is None:

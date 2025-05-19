@@ -99,7 +99,6 @@ def _parse_attribute(attribute):
     #     return (attribute.key, clean_value)
 
 
-
 def _parse_timestamp(timestamp_ns: int) -> str:
     timestamp = timestamp_ns / 1_000_000_000
 

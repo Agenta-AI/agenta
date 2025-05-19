@@ -5,9 +5,11 @@ import {ModalProps} from "antd"
 import {useAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {Evaluator, EvaluatorConfig, testset, Variant} from "@/oss/lib/Types"
 import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/oss/services/evaluations/api"
@@ -16,8 +18,6 @@ import {fetchTestsets} from "@/oss/services/testsets/api"
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import Evaluators from "./Evaluators"
 import NewEvaluator from "./NewEvaluator"
-import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 interface EvaluatorsModalProps extends ModalProps {
     current: number

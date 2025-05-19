@@ -164,20 +164,25 @@ export function HorizontalNavigationPlugin() {
                     const tokenIdx = children.findIndex((child) => child.getKey() === node.getKey())
                     const offset = selection.focus.offset
                     // Helper: is at start or end of token
-                    const nodeTextLength = typeof node.getTextContentSize === "function"
-                        ? node.getTextContentSize()
-                        : typeof node.getTextContent === "function"
-                            ? node.getTextContent().length
-                            : 0
+                    const nodeTextLength =
+                        typeof node.getTextContentSize === "function"
+                            ? node.getTextContentSize()
+                            : typeof node.getTextContent === "function"
+                              ? node.getTextContent().length
+                              : 0
                     let isAtTokenStart = offset === 0
                     let isAtTokenEnd = offset === nodeTextLength
 
                     // Special handling for string tokens
                     let isStringToken = false
                     if ($isCodeHighlightNode(node)) {
-                        const tokenType = typeof node.getType === "function" ? node.getType() : undefined
+                        const tokenType =
+                            typeof node.getType === "function" ? node.getType() : undefined
                         const text = node.getTextContent()
-                        isStringToken = tokenType === "string" || (text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))
+                        isStringToken =
+                            tokenType === "string" ||
+                            (text.startsWith('"') && text.endsWith('"')) ||
+                            (text.startsWith("'") && text.endsWith("'"))
                         if (isStringToken && text.length > 1) {
                             // If caret is just after opening quote, treat as start
                             if (offset === 1) isAtTokenStart = true

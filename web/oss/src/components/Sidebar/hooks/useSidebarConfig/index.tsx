@@ -3,7 +3,6 @@ import {
     ChartDonut,
     ChartLineUp,
     Desktop,
-    GithubLogo,
     PaperPlane,
     Phone,
     Question,
@@ -108,7 +107,7 @@ export const useSidebarConfig = () => {
             link: "/settings?tab=workspace&inviteModal=open",
             icon: <PaperPlane size={16} />,
             isBottom: true,
-            isHidden: !doesSessionExist || (true && !selectedOrg),
+            isHidden: !doesSessionExist || !selectedOrg,
         },
         {
             key: "settings-link",

@@ -223,6 +223,39 @@ services:
 
         restart: always
 
+    cache:
+        image: redis:latest
+
+        command: >
+            redis-server
+            --port 6378
+            --appendonly no
+            --appendfsync no
+            --save ""
+            --maxmemory 128mb
+            --maxmemory-policy allkeys-lru
+
+        ports:
+            - "6378:6378"
+
+        volumes:
+            - cache-data:/data
+
+        networks:
+            - agenta-network
+
+        labels:
+            - "traefik.enable=false"
+
+        restart: always
+
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6378", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
     traefik:
         image: traefik:v2.10
 
@@ -272,3 +305,4 @@ volumes:
     postgres-data:
     rabbitmq-data:
     redis-data:
+    cache-data:

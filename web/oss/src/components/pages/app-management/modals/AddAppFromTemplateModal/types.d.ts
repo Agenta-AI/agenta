@@ -1,4 +1,4 @@
-import {Modal, ModalProps} from "antd"
+import {ModalProps} from "antd"
 
 import type {Template} from "@/oss/lib/Types"
 import {ServiceType} from "@/oss/services/app-selector/api"

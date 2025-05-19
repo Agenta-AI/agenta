@@ -1,5 +1,6 @@
 import {DeleteOutlined} from "@ant-design/icons"
 import {ModalProps, Typography} from "antd"
+
 import EnhancedModal from "../EnhancedUIs/Modal"
 
 interface DeleteAutoEvalModalProps extends ModalProps {

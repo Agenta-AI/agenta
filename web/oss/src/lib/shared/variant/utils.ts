@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {formatDay, formatDate} from "@/oss/lib/helpers/dateTimeHelper"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {getIsFetching, startFetch, endFetch} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {User} from "@/oss/lib/Types"

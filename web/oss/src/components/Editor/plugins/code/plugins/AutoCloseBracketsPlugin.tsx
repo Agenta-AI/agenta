@@ -45,7 +45,7 @@ const OPEN_TO_CLOSE = {
 const BRACKETS = ["(", "[", "{"]
 
 /** Plugin identifier for logging and lock management */
-const PLUGIN_NAME = "AutoCloseBracketsPlugin"
+const _PLUGIN_NAME = "AutoCloseBracketsPlugin"
 
 /**
  * Determines if the current position is inside a string literal.

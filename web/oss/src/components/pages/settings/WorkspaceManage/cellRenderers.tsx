@@ -1,5 +1,6 @@
 import {useState} from "react"
 
+import {useSubscriptionData} from "@/agenta-oss-common/services/billing"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
@@ -17,7 +18,6 @@ import {
     resendInviteToWorkspace,
     unAssignWorkspaceRole,
 } from "@/oss/services/workspace/api"
-import {useSubscriptionData} from "@/agenta-oss-common/services/billing"
 
 export const Actions: React.FC<{
     member: WorkspaceMember

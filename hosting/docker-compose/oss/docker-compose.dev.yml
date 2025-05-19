@@ -10,9 +10,12 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
          
         volumes:
-            - ../../../web:/app
+            - ../../../web/oss/src:/app/oss/src
+            - ../../../web/oss/public:/app/oss/public
+
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
+            
         ports:
             - "3000:3000"
         networks:
@@ -22,7 +25,7 @@ services:
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
         
-        command: sh -c "cd oss && pnpm install --frozen-lockfile && pnpm dev"
+        command: sh -c "pnpm dev-oss"
         
         restart: always
 
@@ -220,6 +223,39 @@ services:
             - redis-data:/data
         restart: always
 
+    cache:
+        image: redis:latest
+
+        command: >
+            redis-server
+            --port 6378
+            --appendonly no
+            --appendfsync no
+            --save ""
+            --maxmemory 128mb
+            --maxmemory-policy allkeys-lru
+
+        ports:
+            - "6378:6378"
+
+        volumes:
+            - cache-data:/data
+
+        networks:
+            - agenta-network
+
+        labels:
+            - "traefik.enable=false"
+
+        restart: always
+
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6378", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
     traefik:
         image: traefik:v2.10
         
@@ -265,4 +301,5 @@ volumes:
     postgres-data:
     rabbitmq-data:
     redis-data:
+    cache-data:
     nextjs_cache:

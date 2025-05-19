@@ -1,13 +1,15 @@
+import {useEffect, useRef, type FC} from "react"
+
+import {message} from "antd"
+import {useRouter} from "next/router"
+import {useLocalStorage} from "usehooks-ts"
+
 import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
-import {message} from "antd"
-import {useRouter} from "next/router"
-import {useEffect, useRef, type FC} from "react"
-import {useLocalStorage} from "usehooks-ts"
 
 const Accept: FC = () => {
     const [invite, , removeInvite] = useLocalStorage<any>("invite", {})

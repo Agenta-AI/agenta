@@ -43,7 +43,7 @@ const getAppTheme = (themeMode: ThemeMode) =>
 
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.Light)
-    const [appTheme, setAppTheme] = useState<ThemeType>(getAppTheme(themeMode))
+    const [_, setAppTheme] = useState<ThemeType>(getAppTheme(themeMode))
 
     useEffect(() => {
         const handleSystemThemeChange = ({matches}: MediaQueryListEvent) => {

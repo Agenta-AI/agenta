@@ -10,12 +10,11 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {calcEvalDuration, getTypedValue} from "@/oss/lib/helpers/evaluate"
 import {shortPoll} from "@/oss/lib/helpers/utils"
-import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {_Evaluation, EvaluationStatus, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
 import {
     deleteEvaluations,
@@ -29,7 +28,6 @@ import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import StatusRenderer from "../../evaluations/cellRenderers/StatusRenderer"
 import EvaluationErrorPopover from "../../evaluations/EvaluationErrorProps/EvaluationErrorPopover"
 import NewEvaluationModal from "../../evaluations/NewEvaluation/NewEvaluationModal"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 
 const {Title} = Typography
 
@@ -73,8 +71,8 @@ const AutomaticEvalOverview = () => {
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
-    const [selectedConfigEdit, setSelectedConfigEdit] = useState<EvaluatorConfig>()
-    const [isEditEvalConfigOpen, setIsEditEvalConfigOpen] = useState(false)
+    const [_selectedConfigEdit, _setSelectedConfigEdit] = useState<EvaluatorConfig>()
+    const [_isEditEvalConfigOpen, _setIsEditEvalConfigOpen] = useState(false)
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [selectedEvalRecord, setSelectedEvalRecord] = useState<_Evaluation>()
     const stoppers = useRef<Function>()
@@ -84,10 +82,10 @@ const AutomaticEvalOverview = () => {
             evaluationList
                 .filter((item) => runningStatuses.includes(item.status.value))
                 .map((item) => item.id),
-        [evaluationList],
+        [evaluationList, runningStatuses],
     )
 
-    useLazyEffect(() => {
+    useEffect(() => {
         stoppers.current?.()
 
         if (runningEvaluationIds.length) {
@@ -112,7 +110,7 @@ const AutomaticEvalOverview = () => {
                             })
                         })
                         .catch(console.error),
-                {delayMs: 2000, timeoutMs: Infinity},
+                {delayMs: 5000, timeoutMs: Infinity},
             ).stopper
         }
 
@@ -277,8 +275,8 @@ const AutomaticEvalOverview = () => {
                                                 size="small"
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    setSelectedConfigEdit(result.evaluator_config)
-                                                    setIsEditEvalConfigOpen(true)
+                                                    _setSelectedConfigEdit(result.evaluator_config)
+                                                    _setIsEditEvalConfigOpen(true)
                                                 }}
                                             />
                                         </div>

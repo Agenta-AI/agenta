@@ -1,14 +1,10 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
-import {Typography} from "antd"
 import dynamic from "next/dynamic"
 
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {filterVariantParameters, getStringOrJson, getYamlOrJson} from "@/oss/lib/helpers/utils"
+import {getYamlOrJson} from "@/oss/lib/helpers/utils"
+import {VariantUpdateFunction} from "@/oss/lib/hooks/useStatelessVariants/types"
 import {EnhancedVariant, VariantParameters} from "@/oss/lib/shared/variant/transformer/types"
-
-import {useStyles} from "../styles"
-import {DrawerVariant} from "../types"
 
 const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
     ssr: false,
@@ -16,9 +12,13 @@ const SharedEditor = dynamic(() => import("@/oss/components/Playground/Component
 
 export const NewVariantParametersView = ({
     selectedVariant,
+    mutateVariant,
 }: {
     selectedVariant: EnhancedVariant
     parameters?: Record<string, unknown>
+    mutateVariant?:
+        | ((updates: Partial<EnhancedVariant> | VariantUpdateFunction) => Promise<void>)
+        | undefined
 }) => {
     const configJsonString = useMemo(() => {
         interface OptionalParameters extends Omit<VariantParameters, "agConfig"> {
@@ -34,70 +34,43 @@ export const NewVariantParametersView = ({
         return ""
     }, [selectedVariant?.id])
 
-    console.log("configJsonString:", {selectedVariant, configJsonString})
+    const onChange = useCallback(
+        (value: string) => {
+            if (!mutateVariant || !value || !selectedVariant?.id) return
+
+            try {
+                mutateVariant?.((variant) => {
+                    if (!variant) return
+
+                    const newParameters = structuredClone(JSON.parse(value || "{}"))
+
+                    if (Object.keys(newParameters || {}).length) {
+                        variant.parameters = newParameters
+                    }
+
+                    return variant
+                })
+            } catch (error) {}
+        },
+        [mutateVariant],
+    )
 
     return (
         <div className="w-full h-full self-stretch grow" key={selectedVariant?.id}>
             <SharedEditor
-                readOnly
                 editorProps={{
                     codeOnly: true,
+                    validationSchema: {
+                        type: "object",
+                        properties: {},
+                    },
                 }}
                 editorType="border"
                 initialValue={configJsonString}
-                handleChange={() => {}}
+                value={configJsonString}
+                handleChange={onChange}
                 className="!w-[97%] *:font-mono"
             />
-        </div>
-    )
-}
-
-export const VariantParametersView = ({selectedVariant}: {selectedVariant: DrawerVariant}) => {
-    const classes = useStyles()
-    return (
-        <div>
-            {selectedVariant.parameters && Object.keys(selectedVariant.parameters).length ? (
-                <div className="flex flex-col gap-6">
-                    <div className="flex flex-col gap-2">
-                        <Typography.Text className={classes.subTitle}>Parameters</Typography.Text>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            {selectedVariant?.parameters &&
-                                Object.entries(
-                                    filterVariantParameters({
-                                        record: selectedVariant?.parameters,
-                                        key: "prompt",
-                                        include: false,
-                                    }),
-                                ).map(([key, value], index) => (
-                                    <ResultTag
-                                        key={index}
-                                        value1={key}
-                                        value2={getStringOrJson(value)}
-                                    />
-                                ))}
-                        </div>
-                    </div>
-
-                    {selectedVariant.parameters &&
-                        Object.entries(
-                            filterVariantParameters({
-                                record: selectedVariant.parameters,
-                                key: "prompt",
-                            }),
-                        ).map(([key, value], index) => (
-                            <div className="flex flex-col gap-2" key={index}>
-                                <Typography.Text className={classes.subTitle}>
-                                    {key}
-                                </Typography.Text>
-                                <div className={classes.promptTextField}>
-                                    {JSON.stringify(value)}
-                                </div>
-                            </div>
-                        ))}
-                </div>
-            ) : (
-                <Typography.Text className={classes.noParams}>No Parameters</Typography.Text>
-            )}
         </div>
     )
 }

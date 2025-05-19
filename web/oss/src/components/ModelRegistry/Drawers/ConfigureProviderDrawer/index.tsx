@@ -1,9 +1,9 @@
+import {Button, Form} from "antd"
 import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 
 import {ConfigureProviderDrawerProps} from "./assets/types"
-import {Button, Form} from "antd"
 
 const ConfigureProviderDrawerContent = dynamic(
     () => import("./assets/ConfigureProviderDrawerContent"),

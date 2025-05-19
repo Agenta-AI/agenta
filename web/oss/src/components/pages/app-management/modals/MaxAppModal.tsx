@@ -54,11 +54,11 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
                         Hey, it seems like you have reached your free limit.{" "}
                     </Typography.Title>
                     <Typography.Text>
-                        To create more applications, please schedule a call to get full access to
+                        To create more applications, please schedule a call to get full access to
                         the platform.
                     </Typography.Text>
                     <Typography.Text>
-                        Got any questions? Feel free to reach out to our support in Slack.
+                        Got any questions? Feel free to reach out to our support in Slack.
                     </Typography.Text>
                 </div>
 

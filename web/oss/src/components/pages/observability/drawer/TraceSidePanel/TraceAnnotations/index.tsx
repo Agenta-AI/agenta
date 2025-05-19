@@ -1,14 +1,17 @@
 import React, {useState} from "react"
-import {useStyles} from "./assets/styles"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import NoTraceAnnotations from "./components/NoTraceAnnotations"
-import {Button, Popover, Space, Typography} from "antd"
-import LabelValuePill from "@/oss/components/ui/LabelValuePill"
-import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
+
 import {CloseOutlined} from "@ant-design/icons"
+import {Button, Popover, Space, Typography} from "antd"
+
+import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
+import LabelValuePill from "@/oss/components/ui/LabelValuePill"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+
+import {useStyles} from "./assets/styles"
+import NoTraceAnnotations from "./components/NoTraceAnnotations"
 
 interface TraceAnnotationsProps {
     annotations: AnnotationDto[]

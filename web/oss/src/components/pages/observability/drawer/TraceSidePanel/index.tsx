@@ -1,10 +1,14 @@
-import {JSSTheme} from "@/oss/lib/Types"
-import {Collapse, CollapseProps, Typography} from "antd"
 import React from "react"
+
+import {Collapse, CollapseProps, Typography} from "antd"
 import {createUseStyles} from "react-jss"
-import TraceDetails from "./TraceDetails"
+
+import {JSSTheme} from "@/oss/lib/Types"
+
 import {TracesWithAnnotations} from "../../ObservabilityDashboard"
+
 import TraceAnnotations from "./TraceAnnotations"
+import TraceDetails from "./TraceDetails"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {

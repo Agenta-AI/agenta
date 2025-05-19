@@ -3,7 +3,7 @@ import Router from "next/router"
 
 import {getAppValues} from "@/oss/contexts/app.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
-import {setVariant, uriFixer} from "@/oss/lib/shared/variant"
+import {setVariant} from "@/oss/lib/shared/variant"
 
 import type {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
 import type {InitialStateType} from "../../../state/types"

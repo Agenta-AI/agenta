@@ -1,14 +1,14 @@
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {SecretDTOProvider} from "@/oss/lib/Types"
 
-export const PROVIDER_FIELDS: Array<{
+export const PROVIDER_FIELDS: {
     key: keyof LlmProvider
     label: string
     placeholder: string
     note?: string
     required?: boolean
     model?: string[]
-}> = [
+}[] = [
     {key: "name", label: "Name", placeholder: "Enter unique name", required: true},
     {
         key: "apiKey",

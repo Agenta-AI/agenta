@@ -6,12 +6,12 @@ import clsx from "clsx"
 import RunButton from "../../../assets/RunButton"
 import usePlayground from "../../../hooks/usePlayground"
 import {clearRuns} from "../../../hooks/usePlayground/assets/generationHelpers"
+import {PlaygroundStateData} from "../../../hooks/usePlayground/types"
+import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
 import {useStyles} from "./styles"
 import type {GenerationComparisonHeaderProps} from "./types"
-import {PlaygroundStateData} from "../../../hooks/usePlayground/types"
-import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 
 const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps) => {
     const classes = useStyles()

@@ -4,7 +4,7 @@ interface AnnotationLink {
     attributes?: Record<string, any>
 }
 
-type AnnotationReference = {
+interface AnnotationReference {
     id?: string
     slug?: string
     version?: number
@@ -29,7 +29,7 @@ export interface AnnotationDto {
     span_id?: string
     link?: AnnotationLink
     data: {
-        outputs?: {[key: string]: FullJson}
+        outputs?: Record<string, FullJson>
     }
     references?: AnnotationReferences
     links?: AnnotationLinks

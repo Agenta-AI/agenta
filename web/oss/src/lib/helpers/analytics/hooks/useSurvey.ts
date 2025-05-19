@@ -1,8 +1,11 @@
 import {useEffect, useMemo, useState, useCallback} from "react"
-import {usePostHogAg} from "./usePostHogAg"
-import {Survey} from "posthog-js"
-import {shortPoll} from "../../utils"
+
 import {useRouter} from "next/router"
+import {Survey} from "posthog-js"
+
+import {shortPoll} from "../../utils"
+
+import {usePostHogAg} from "./usePostHogAg"
 
 export const useSurvey = (surveyName: string) => {
     const [survey, setSurvey] = useState<Survey | null>(null)
