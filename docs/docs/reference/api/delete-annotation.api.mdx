@@ -1,11 +1,11 @@
 ---
-id: remove-variant
-title: "Remove Variant"
-description: "Remove a variant from the registry."
-sidebar_label: "Remove Variant"
+id: delete-annotation
+title: "Delete Annotation"
+description: "Delete Annotation"
+sidebar_label: "Delete Annotation"
 hide_title: true
 hide_table_of_contents: true
-api: eJzVVE1v00AQ/SurOYG0JKXi5BMBIhEBoiqllzSqpvbEXrB3l91xRbD839Gs7Xy0FIkjpzg78+bjzZvpgLGMkK3hGoNByxE2GgqKeTCejbOQwSU17p4UqvvBRW2DaxRXpAKVJnLYzW7sjV2Esm3IcsxurFJKofe3E+LFC7Xwfkyh2KmQYgrsEk2kCfP+6upi+TOnlDpTq62kCaRMVKh8cHc1NQPW2DKVgN5PdYEG5ymgYFcFZDAkuT2YPQZsiClIxx1YbAgyGO23pgANRjr2yBVoCPSjNYEKyDi0pCHmFTUIWQe884KMHIwtQQMbruVh6nBVQN9vJEL0zkaKAjo/O5OfU3K/tHlOMW7bWl2OzqAhd5bJsrij97XJU1Pzb1Ew3aGQvu97Da/Ozx8HvsbaFAmmliG48A9RwQchks1Qd0GMppYvw9TExw61y0+saHeft4nhU556vX8xlqmkAP2m19MbhoC7IzI/uqFA6DU0sfwb758oRiwJ9sGedk1kqCux9ofc7u4b5Xwy83Xqa0g9+m2OJz3RO7D7dBvvBvr+lGxyEdk/CjjMtiGunIi5oJqYkoi5ggzmo2zjvDsIuAcNkcL9pPA21JBBxexjNp/ntWuLGZZkGWdo5ugNPFz2RbKqt+IKIuFIeRsM71K8xcXqA+3eExYUIFtvjh2+iHwGQZy67WeB3nwgoWZcvEXLlQvm1zDlcfeqASW9G7t1CT7SNNb2BvPvZGVZpc+h7LPZy9nZU82MALW4WI1bgHnagqmO5Ab6AV17okADNWkFgAmb1weDVOld5AbtUbzxYF7v785JVd1hD/+n0zrOkOknz32NJq1lIqwbJbmeLmkEDdnRVd1oqFxk8ei6O4z0NdR9L88/WgqirI0esHcy53UHhYnyXUC2xTrSXxh8djku7HP1VJGT+qxI7x7rVv6Bhu+0O73+6RhVk7i70WGRC2lH0Ee3U7Zgv6fvlh+XV0vo+98jV4aw
+api: eJy9VU1v2zAM/SsBTxsg1Fmxk0/L1gAt2mFFm+0SBAVrs7FaW1YlOltm+L8PlD/iNO1WDMNOcSzyiXyPfK6Bce0hXsJ8g7mHlYLSkkPWpTlLIYaUcmK6QWNKDm9BgUWHBTE5SazBYEEQAztM6EanoEAbiMEiZ6DA0WOlHaUQs6tIgU8yKhDiGnhrJc+z02YNClhzLi8WAjQ5S6Fp1IDuLZp/AX5t0bTYK0n3tjSevGQcT6fyk5JPnLah1RiuqyQh7++qfHLVBYOCpDRMhiUcrc11EpiJ7r3k1KMqrBM2Wbc3jEg8OOv7e03pasf1K2nsg8rbe0p4j7jliNoBdrWDmQ1FX2jz8EewUY8vggxMNo3AvT8+PiT+G+Y6DRmTuXOl+3vWU2LUuTxppsIfBuRlsneKZvvlLkz2PrUyjd0bbZjW5KBZ7ehA53A74v+ibAsUvQq//p1Un8l7XBMMYC+HBjImCzn9kxTSV3t1FzcSZEdvy+7LbZy09D13WR9yulhcHgC22u6LehLMZDIbm0lBnJU7pwn2whnEEFlHG03fo91I+ajuR7SJ6m5uG1DgyW16O6pcDjFkzNbHUZTkZZUe4ZoM4xHqCK2Gp2XNwunkk4SC+IKnpHKatwFvdnl2TttTwpQcxMvVOOBaZq6dov2wQUC0+pyEz87HZhVnpdM/+/aDm2VtlhCmzV0Z0vvNaWv7iMkDGdlR6bMte3r07mj6UjNdwmR2edatDiZhdfo6QhioJ3QNRIECKsLeABMWH3YHUqUtPRdoRnjPSbtX2MAI0w+ObI46bEa4vu40X0KnOaiRkXhQ4u/D1yXuDWulICs9S15d36Knry5vGnn9WJET9VYKNug03gqXyxpS7eU5hfgOc08HJQ4WA2+uuk16OwH1fOm9wkbk3WBeyT9Q8EDb8edQbOM/3tuTE6wp66e27k5nSUKWR3kHTirjPezkyfxivphD0/wCkinHgQ==
 sidebar_class_name: "delete api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -28,21 +28,15 @@ import TabItem from "@theme/TabItem";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Remove Variant"}
+  children={"Delete Annotation"}
 ></Heading>
 
 <MethodEndpoint
   method={"delete"}
-  path={"/variants/{variant_id}"}
+  path={"/preview/annotations/{trace_id}/{span_id}"}
 ></MethodEndpoint>
 
-Remove a variant from the registry.
-
-Arguments:
-app_variant -- AppVariant to remove
-
-Raises:
-HTTPException: If there is a problem removing the app variant
+Delete Annotation
 
 <Heading
   id={"request"}
@@ -67,10 +61,19 @@ HTTPException: If there is a problem removing the app variant
       <ParamsItem
         className={"paramsItem"}
         param={{
-          name: "variant_id",
+          name: "trace_id",
           in: "path",
           required: true,
-          schema: { type: "string", title: "Variant Id" },
+          schema: { type: "string", title: "Trace Id" },
+        }}
+      ></ParamsItem>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "span_id",
+          in: "path",
+          required: true,
+          schema: { type: "string", title: "Span Id" },
         }}
       ></ParamsItem>
     </ul>
@@ -101,8 +104,61 @@ HTTPException: If there is a problem removing the app variant
                     <div
                       style={{ textAlign: "left", marginLeft: "1rem" }}
                     ></div>
-                    <ul style={{ marginLeft: "1rem" }}>any</ul>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary style={{}}>
+                            <span className={"openapi-schema__container"}>
+                              <strong className={"openapi-schema__property"}>
+                                annotation
+                              </strong>
+                              <span className={"openapi-schema__name"}>
+                                object
+                              </span>
+                              <span
+                                className={"openapi-schema__divider"}
+                              ></span>
+                              <span className={"openapi-schema__required"}>
+                                required
+                              </span>
+                            </span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}>
+                            <SchemaItem
+                              collapsible={false}
+                              name={"span_id"}
+                              required={true}
+                              schemaName={"Span Id (string)"}
+                              qualifierMessage={undefined}
+                              schema={{ type: "string", title: "Span Id" }}
+                            ></SchemaItem>
+                            <SchemaItem
+                              collapsible={false}
+                              name={"trace_id"}
+                              required={true}
+                              schemaName={"Trace Id (string)"}
+                              qualifierMessage={undefined}
+                              schema={{ type: "string", title: "Trace Id" }}
+                            ></SchemaItem>
+                          </div>
+                        </details>
+                      </SchemaItem>
+                    </ul>
                   </details>
+                </TabItem>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={
+                      '{\n  "annotation": {\n    "span_id": "string",\n    "trace_id": "string"\n  }\n}'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
                 </TabItem>
               </SchemaTabs>
             </TabItem>

@@ -1,11 +1,11 @@
 ---
-id: save-config
-title: "Save Config"
-description: "Save Config"
-sidebar_label: "Save Config"
+id: switch-plans
+title: "Switch Plans User Route"
+description: "Switch Plans User Route"
+sidebar_label: "Switch Plans User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJyVVcFymzAQ/RXPnqmdZnriVCfNTDxpG0/i9sJ4MmuxBiWAiCScUIZ/76yEDdhN2vpikN7uSu/tPhqwmBgII7hUxVYmBtYBqJI0WqmKRQwhGNzRg3C7EICm54qMvVBxDWHjXqWmGEKrKwpAqMJSYXkLyzKTwuWZPRpV8JoRKeXIT6XmKlaS4bcNGnqQMT/auiSuarUsuKCVNuOFCzQ0WcTQuiJbmTwUmNN7Ef5Gk+8MawMoUWNOlrQZBKnNIwk7CFr2qDYAtSP9oqUd1tkolREWg5jbA6ptg5PMPUXR4Z7jO4zONiy67mvc4478hZZYZwpjaFuupsmUqjCexvOzM/6LyQgtS2aeIyshyJhtlU3uOjD8u1C+yqfz89PEPzGTsQubXGmt9H9kPZI/Josy4ydpKTengEyJ0S4W9e0WwuhY/DY4rMjCUkIa2nWvCWqN9UC4r8ofkKXOTfJeM30jYzBxjeQhb0MdGZMV7/6tH/hevnSHGyje0+vZffsaXzx9fyq2h1yvVsuThF7bo27BHU0u99Oek00Vm0CpjHV9alMIYSY6swjAkN65kYoaqHQGIaTWliaczUSmqniKCRUWpyhnWEo4rjZ3u5NLhkK75nSi0tLWLt98ubih+powJg1htB4C7rmVfHOMYQddsJQ3xDR5n4B5ZVOl5S+veACSD5D6KOaBm/Sud7erV8zLjEbu1Gs9sqB+eeQxY/9gf2y56la5Q3bCdAxcoHiigo2B2fTknE0/Ts/eoqwLmMyXi27uULi529/WwSA4EuUgBwRAuRs6sIT5536DuWC5cywG+cZ9MTrSgXFLr3ZWZijdQLnCTdcyEYj++5JyM4URNA0z+0NnbcvLzxVpFn4dwA61xA0TFPH4pvsWaOCJam/t7DMf3JAxPKu85Eeew37gI+ZCUGnfxa4H/b68vV9BAJvuM5ermGM0vvAA4wuEwEbtCHA96NYayLBIKraJEHxO/v0GWoaIKw==
+api: eJyVVE1vGjEQ/SurObWSBTTqaU+lH1KitApKSC8IoWF3YJ147Y3tpaHI/70ae1kghENPLPZ8PM97b3bgce0gn8FXqZTUa5gLMA1Z9NLomxJycH+kL6pFo1A7ENCgxZo8Wc7agcaaIAe+BQFSQw4vLdktCLD00kpLJeTetiTAFRXVCPkO/LbhJOctdxRAuq0ZQ6FMWy42o0Vllksu0R801hz/rdoatfTbhcKlO754PTvBNWmPC5T8Mi+94s4ThhvCnEG6xmhHjnFdjUb8U5IrrGx4ApDDQ1sU5NyqVdl9F8z1jfakPYdj0yhZxIENnxzn7A5vDSEEAZ+vrs4L/0Yly5iW/bDW2P+oCo1lkrxMuEvyKBV/SU+1Ow9Qpji5Rb29W0X+TqkIoj+R2tOaLIR5EPsztBaZlv0Yf5oEEIKA2q3fo3Yf+oucwzVBX+xyaBxGNuXbcOhtlk9U+BNZzeK7Uusu7ojjw3jTdC8/43sa33vN9iHX0+nkrGDi9o1aolsyFpjLHh3Z7N60nhVTk68MG6oxzkcj+QpyGC6T8YbRYMPkNhDgyG72Jmutghwq7xuXD4dR2oOk6wHKITYS3sIYx9vsG4cC69xR0Vrpt7HeeHJzS9trwpIs5LP5ccADayyp5jSsJwwbeUs8v87749ZXxsq/SQrdEqhSFg9I6pWJ6d0sO2xfsXgmXYIAfmeCPRp8GowuPaZLyMaTm84qWESr7HHEMBBvxtUPihdNHX0CnrD+crhglMxKjfqo3mUqT+D1c/H06plFGf0QQew6lmfQscy8d4u0Y3ouoGJB5DPY7Zbo6NGqEPg47VHmq5QOl4olv0Ll6AxAvzbgw33njo8ZiPeBPdP2sLA3qFoOiRrZoJXcJ0pC7ClkAClnXBTU+KOssx3FVXqdT+4ephDCPyc0LeI=
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -28,12 +28,12 @@ import TabItem from "@theme/TabItem";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Save Config"}
+  children={"Switch Plans User Route"}
 ></Heading>
 
-<MethodEndpoint method={"post"} path={"/configs"}></MethodEndpoint>
+<MethodEndpoint method={"post"} path={"/billing/plans/switch"}></MethodEndpoint>
 
-Save Config
+Switch Plans User Route
 
 <Heading
   id={"request"}
@@ -42,58 +42,41 @@ Save Config
   children={"Request"}
 ></Heading>
 
-<MimeTabs className={"openapi-tabs__mime"}>
-  <TabItem label={"application/json"} value={"application/json-schema"}>
-    <details
-      style={{}}
-      className={"openapi-markdown__details mime"}
-      data-collapsed={false}
-      open={true}
-    >
-      <summary style={{}} className={"openapi-markdown__details-summary-mime"}>
-        <h3 className={"openapi-markdown__details-summary-header-body"}>
-          Body
-        </h3>
-        <strong className={"openapi-schema__required"}>required</strong>
-      </summary>
-      <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
-      <ul style={{ marginLeft: "1rem" }}>
-        <SchemaItem
-          collapsible={false}
-          name={"base_id"}
-          required={true}
-          schemaName={"Base Id (string)"}
-          qualifierMessage={undefined}
-          schema={{ type: "string", title: "Base Id" }}
-        ></SchemaItem>
-        <SchemaItem
-          collapsible={false}
-          name={"config_name"}
-          required={true}
-          schemaName={"Config Name (string)"}
-          qualifierMessage={undefined}
-          schema={{ type: "string", title: "Config Name" }}
-        ></SchemaItem>
-        <SchemaItem
-          collapsible={false}
-          name={"parameters"}
-          required={true}
-          schemaName={"object"}
-          qualifierMessage={undefined}
-          schema={{ type: "object", title: "Parameters" }}
-        ></SchemaItem>
-        <SchemaItem
-          collapsible={false}
-          name={"overwrite"}
-          required={true}
-          schemaName={"Overwrite (boolean)"}
-          qualifierMessage={undefined}
-          schema={{ type: "boolean", title: "Overwrite" }}
-        ></SchemaItem>
-      </ul>
-    </details>
-  </TabItem>
-</MimeTabs>
+<details
+  style={{ marginBottom: "1rem" }}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
+>
+  <summary style={{}}>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>
+      Query Parameters
+    </h3>
+  </summary>
+  <div>
+    <ul>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "plan",
+          in: "query",
+          required: true,
+          schema: {
+            type: "string",
+            enum: [
+              "cloud_v0_hobby",
+              "cloud_v0_pro",
+              "cloud_v0_humanity_labs",
+              "cloud_v0_x_labs",
+              "cloud_v0_agenta_ai",
+            ],
+            title: "Plan",
+          },
+        }}
+      ></ParamsItem>
+    </ul>
+  </div>
+</details>
 <div>
   <div>
     <ApiTabs label={undefined} id={undefined}>

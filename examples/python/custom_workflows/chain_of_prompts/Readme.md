@@ -16,6 +16,7 @@ uv pip install -r requirements.txt
 
 ```bash
 export OPENAI_API_KEY=<your-openai-api-key>
+export AGENTA_API_KEY=<your-agenta-api-key>
 ```
 
 3. Run the application:

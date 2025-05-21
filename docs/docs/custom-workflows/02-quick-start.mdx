@@ -34,10 +34,13 @@ Custom workflows are Python applications connected to Agenta via API endpoints. 
 We will build an app that summarizes a blog post and generates a tweet based on the summary. The highlighted lines indicate integration with Agenta.
 
 ```python
+import os
 from openai import OpenAI
 from pydantic import BaseModel, Field
 # highlight-start
 import agenta as ag
+
+os.environ["AGENTA_API_KEY"] = "your_api_key"
 
 ag.init()
 # highlight-end
@@ -80,8 +83,10 @@ Let's explore each section:
 ### Initialization
 
 ```python
+import os
 import agenta as ag
 
+os.environ["AGENTA_API_KEY"] = "your_api_key"
 ag.init()
 ```
 
@@ -163,6 +168,7 @@ Initially, your workflow isn't automatically instrumented. To enable observabili
 2. Update your code:
 
 ```python cop.py
+import os
 from openai import OpenAI
 import agenta as ag
 from pydantic import BaseModel, Field
@@ -170,6 +176,7 @@ from pydantic import BaseModel, Field
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 # highlight-end
 
+os.environ["AGENTA_API_KEY"] = "your_api_key"
 ag.init()
 
 client = OpenAI()

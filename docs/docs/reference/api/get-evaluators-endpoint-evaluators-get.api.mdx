@@ -5,7 +5,7 @@ description: "Endpoint to fetch a list of evaluators."
 sidebar_label: "Get Evaluators Endpoint"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9Vctu2zAQ/BViz4Sd9qhT3TZIAwdNkMfJMYy1tLaYUCRDroK6gv69ICXLspvk0EN1kbCcHc4+1QDjNkC2gPNX1DWy9QGWEgoKuVeOlTWQwbkpnFWGBVuxIc5LgUKrwMJuBA1+k0fzaG6Ja29C9miEEOJKBV4MzMtMzP72E3b9RDmHCUiwjjzGSy8LyGBLvDrQr6hXMbZtiUGCp+CsCRQga+Dz2Vl8HUdwV+c5hbCptbjtwSAht4bJcISjc1rl6e7pU4g+DYS8pArjl2KqErnzUSKr7iqDFcU37xxBBoG9MluQwIp1NPyM562EZ9p9BJvTLqIK5SnnVR3GnGtrNaEZob8nmHgIiToQszLbsGKqnEYe+3aJHbne9WBxvwe3J6VuAM3uegPZ4lRuKweLqbWGdjmSNKJoJdgQ3mTax/IR1XUIEDVtsNYM2QZ1oDZW+KVWnsJK62qFTq2eaffvl9z2bOJKV2LmlJhHtjeu7YZjVP/TnOwN6D3uRpm+j47t4XwoRR9IEUcutU/XHUfVf6uqvZZREMNYfSBj3+viglgcJlwMAz2yXRBDGx8JFXFp+wkECQ65hAymh7lLEv0r+ZBSX3sNGZTMLmTTaa5tXUxwS4ZxgmqKTsHpRpmlU/EtQlNpAuW1V7xLfLObyzntfhAW5CFbLMeAuziU3fgdw4bioFPzlNJuPGFWc2m9+p2GGySoKKDsvGK0ymxscu+T1mv7ivkzmQIkxDg72WeTT5Oz94LpHcTs5rLfLZjzYU30MJAn6RoSBRKoQhXPmLD6cjiIKp0NXKEZ8b1T01N5zWHN/b9F3peC6RdPnUaV9kKKu+nbaQF09McpbeBobZo1Bnrwum2j+aUmH5tiKeEVvcJ1LNFi2cp9BWO/pP0KszwnF8OPvF0jnOz02EdDb1+c30Pb/gGZ+Wq3
+api: eJy9VU1v2zAM/SsCz0LS7ejTsq3oihRr0XanNAgYm4nVypIq0cUyw/99kOw4Tvpx2GG+2KDIp8ePRzfAuA2QLeD8BXWNbH2ApYSCQu6VY2UNZHBuCmeVYcFWbIjzUqDQKrCwG0FD3OTBPJhb4tqbkD0YIYS4UoEXA/IyE7PXccKuHynnMAEJ1pHHeOllARlsiVcH+BX1LMa2LTFI8BScNYECZA18PjuLr+MM7uo8pxA2tRa3vTNIyK1hMhzd0Tmt8nT39DHEmAZCXlKF8UsxVQnc+UiRVXeVwYrim3eOIIPAXpktSGDFOhp+xvNWwhPtPnKb0y56FcpTzqs6jDHX1mpCM/L+ntzEr5CgAzErsw0rpspp5BSLRaFiJqhvRnzZ1yT3uF3RR7B3PZC43wO1J2PQAJrd9QayxWkqrRwsptYa2uWI7giilWBDeBNpn+dHUNchQOS0wVozZBvUgdrY/edaeQorrasVOrV6ot2/X3Lbo4krXYmZU2Ie0d64thPOaDZOa7I3oPe4G1X6Pga27etW9IkUUY5ptLrJOZqMtzrecxklMUjuAxp7HYgLYnFQvxjEPrJdEEMbHwkVcWl7dYIEh1xCBtODJhNF/0I+pNLXXkMGJbML2XSaa1sXE9ySYZygmqJTcLptZulUfIuuqTWB8tor3iW82c3lnHY/CAvykC2WY4e7KNhOmsduQ3PQqXkqaSddmNVcWq/+JOGDBBUJlF1UzFaZjU3hfdF6bl8xfyJTgISYZ0f7bPJpcvZeMn2AmN1c9nsHcz6skN4N5Em5hkKBBKpQxTMmrL4cDiJLZwNXaEZ47/T0lF5zWIH/b8n3rWD6zVOnUaW9kPJu+nFaAB39jUobOFqbZo2BfnndttH8XJOPQ7GU8IJe4Tq2aLFs5b6DcV7S7oVZnpOL6UfcbhBO9n2co2G2L87voW3/AqNKdWc=
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -100,14 +100,44 @@ List[Evaluator]: A list of evaluator objects.
                         qualifierMessage={undefined}
                         schema={{ type: "boolean", title: "Direct Use" }}
                       ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"settings_template"}
-                        required={true}
-                        schemaName={"object"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "object", title: "Settings Template" }}
-                      ></SchemaItem>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary style={{}}>
+                            <span className={"openapi-schema__container"}>
+                              <strong className={"openapi-schema__property"}>
+                                settings_template
+                              </strong>
+                              <span className={"openapi-schema__name"}>
+                                object
+                              </span>
+                              <span
+                                className={"openapi-schema__divider"}
+                              ></span>
+                              <span className={"openapi-schema__required"}>
+                                required
+                              </span>
+                            </span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}>
+                            <SchemaItem
+                              name={"property name*"}
+                              required={false}
+                              schemaName={"any"}
+                              qualifierMessage={undefined}
+                              schema={{
+                                additionalProperties: true,
+                                type: "object",
+                                title: "Settings Template",
+                              }}
+                              collapsible={false}
+                              discriminator={false}
+                            ></SchemaItem>
+                          </div>
+                        </details>
+                      </SchemaItem>
                       <SchemaItem collapsible={true} className={"schemaItem"}>
                         <details
                           style={{}}
