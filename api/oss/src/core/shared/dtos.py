@@ -44,6 +44,27 @@ class LifecycleDTO(BaseModel):
 
     updated_by_id: Optional[UUID] = None
 
+    class Config:
+        json_encoders = {
+            UUID: str,
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        kwargs.setdefault("exclude_none", True)
+
+        return self.encode(super().model_dump(*args, **kwargs))
+
 
 class Lifecycle(BaseModel):
     created_at: Optional[datetime] = None
@@ -54,9 +75,48 @@ class Lifecycle(BaseModel):
     updated_by_id: Optional[UUID] = None
     deleted_by_id: Optional[UUID] = None
 
+    class Config:
+        json_encoders = {
+            UUID: str,
+            datetime: lambda v: v.isoformat() if v else None,
+        }
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        kwargs.setdefault("exclude_none", True)
+
+        return self.encode(super().model_dump(*args, **kwargs))
+
 
 class Identifier(BaseModel):
     id: Optional[UUID] = None
+
+    class Config:
+        json_encoders = {UUID: str}
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        kwargs.setdefault("exclude_none", True)
+
+        return self.encode(super().model_dump(*args, **kwargs))
 
 
 class Slug(BaseModel):

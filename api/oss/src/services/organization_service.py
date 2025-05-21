@@ -95,7 +95,7 @@ async def send_invitation_email(
         bool: True if the email was sent successfully, False otherwise.
     """
 
-    invitation_link = f"""{os.environ["DOMAIN_NAME"]}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}"""
+    invitation_link = f"""{os.environ.get("DOMAIN_NAME")}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}"""
     if not os.getenv("SENDGRID_API_KEY", None):
         return invitation_link
 
@@ -104,7 +104,7 @@ async def send_invitation_email(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
         workspace_placeholder="their organization",
-        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{os.environ["DOMAIN_NAME"]}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
+        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{os.environ.get("DOMAIN_NAME")}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
     )
 
     if not os.getenv("SEND_EMAIL_FROM_ADDRESS", None):

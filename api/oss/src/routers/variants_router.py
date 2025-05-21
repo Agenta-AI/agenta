@@ -347,7 +347,7 @@ async def get_variant_revisions(
         namespace="get_variant_revisions",
         key=cache_key,
         value=app_variant_revisions,
-        ttl=15,  # seconds
+        ttl=0.05,  # seconds
     )
 
     return app_variant_revisions
@@ -605,7 +605,7 @@ async def configs_fetch(
         namespace="configs_fetch",
         key=cache_key,
         value=config,
-        ttl=15,  # seconds
+        ttl=0.05,  # seconds
     )
 
     if not config:

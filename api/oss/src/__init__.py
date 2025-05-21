@@ -261,9 +261,9 @@ init(
     # debug=True,
     app_info=InputAppInfo(
         app_name="agenta",
-        api_domain=os.environ["DOMAIN_NAME"],
+        api_domain=os.environ.get("DOMAIN_NAME"),
         website_domain=(
-            os.environ.get("WEBSITE_DOMAIN_NAME", os.environ["DOMAIN_NAME"])
+            os.environ.get("WEBSITE_DOMAIN_NAME", os.environ.get("DOMAIN_NAME"))
         ),
         # the fact that both are localhost is causing problems with
         # displaying the dashboard to manage users
@@ -272,8 +272,8 @@ init(
         website_base_path="/auth",
     ),
     supertokens_config=SupertokensConfig(
-        connection_uri=os.environ["SUPERTOKENS_CONNECTION_URI"],
-        api_key=os.environ["SUPERTOKENS_API_KEY"],
+        connection_uri=os.environ.get("SUPERTOKENS_CONNECTION_URI"),
+        api_key=os.environ.get("SUPERTOKENS_API_KEY"),
     ),
     framework="fastapi",
     recipe_list=[
@@ -285,10 +285,10 @@ init(
                             third_party_id="google",
                             clients=[
                                 ProviderClientConfig(
-                                    client_id=os.environ["GOOGLE_OAUTH_CLIENT_ID"],
-                                    client_secret=os.environ[
+                                    client_id=os.environ.get("GOOGLE_OAUTH_CLIENT_ID"),
+                                    client_secret=os.environ.get(
                                         "GOOGLE_OAUTH_CLIENT_SECRET"
-                                    ],
+                                    ),
                                 ),
                             ],
                         ),
@@ -298,10 +298,10 @@ init(
                             third_party_id="github",
                             clients=[
                                 ProviderClientConfig(
-                                    client_id=os.environ["GITHUB_OAUTH_CLIENT_ID"],
-                                    client_secret=os.environ[
+                                    client_id=os.environ.get("GITHUB_OAUTH_CLIENT_ID"),
+                                    client_secret=os.environ.get(
                                         "GITHUB_OAUTH_CLIENT_SECRET"
-                                    ],
+                                    ),
                                 )
                             ],
                         ),

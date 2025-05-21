@@ -132,7 +132,7 @@ class VaultRouter:
             namespace="list_secrets",
             key=cache_key,
             value=secrets_dtos,
-            ttl=15,  # seconds
+            ttl=0.05,  # seconds
         )
 
         return secrets_dtos
