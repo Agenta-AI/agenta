@@ -47,8 +47,8 @@ class APIRouter(FastAPIRouter):
 
 
 def is_ee():
-    return os.environ["AGENTA_LICENSE"] == "ee"
+    return os.environ.get("AGENTA_LICENSE", "oss") == "ee"
 
 
 def is_oss():
-    return os.environ["AGENTA_LICENSE"] == "oss"
+    return os.environ.get("AGENTA_LICENSE", "oss") == "oss"

@@ -10,7 +10,7 @@ log = get_module_logger(__name__)
 
 
 class suppress(AbstractContextManager):
-    def __init__(self, verbose: bool = True):
+    def __init__(self, verbose: bool = False):
         self.verbose = verbose
 
     def __enter__(self):

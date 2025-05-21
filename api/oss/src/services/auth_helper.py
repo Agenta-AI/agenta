@@ -528,71 +528,75 @@ async def verify_apikey_token(
     request: Request,
     apikey_token: str,
 ):
-    cache_key = {
-        "apikey_token": apikey_token,
-    }
+    try:
+        cache_key = {
+            "apikey_token": apikey_token,
+        }
 
-    state = await get_cache(
-        project_id=request.state.project_id,
-        user_id=request.state.user_id,
-        namespace="verify_apikey_token",
-        key=cache_key,
-    )
+        state = await get_cache(
+            project_id=None,
+            user_id=None,
+            namespace="verify_apikey_token",
+            key=cache_key,
+        )
 
-    if state is not None:
-        if state.get("deny"):
+        if state is not None:
+            if state.get("deny"):
+                raise UnauthorizedException()
+
+            request.state.user_id = state.get("user_id")
+            request.state.project_id = state.get("project_id")
+            request.state.workspace_id = state.get("workspace_id")
+            request.state.organization_id = state.get("organization_id")
+            request.state.credentials = state.get("credentials")
+
+            return
+
+        api_key_obj = await api_key_service.use_api_key(
+            key=apikey_token,
+        )
+
+        if not api_key_obj:
+            await set_cache(
+                project_id=None,
+                user_id=None,
+                namespace="verify_apikey_token",
+                key=cache_key,
+                value={"deny": True},
+                ttl=15 * 60,  # seconds
+            )
+
             raise UnauthorizedException()
+
+        apikey_project_db = await db_manager.get_project_by_id(
+            project_id=str(api_key_obj.project_id),
+        )
+
+        state = {
+            "user_id": str(api_key_obj.created_by_id),
+            "project_id": str(api_key_obj.project_id),
+            "workspace_id": str(apikey_project_db.workspace_id),
+            "organization_id": str(apikey_project_db.organization_id),
+            "credentials": f"{_APIKEY_TOKEN_PREFIX}{apikey_token}",
+        }
+
+        await set_cache(
+            project_id=None,
+            user_id=None,
+            namespace="verify_apikey_token",
+            key=cache_key,
+            value=state,
+            ttl=5 * 60,  # seconds
+        )
 
         request.state.user_id = state.get("user_id")
         request.state.project_id = state.get("project_id")
         request.state.workspace_id = state.get("workspace_id")
         request.state.organization_id = state.get("organization_id")
         request.state.credentials = state.get("credentials")
-
-        return
-
-    api_key_obj = await api_key_service.use_api_key(
-        key=apikey_token,
-    )
-
-    if not api_key_obj:
-        await set_cache(
-            project_id=request.state.project_id,
-            user_id=request.state.user_id,
-            namespace="verify_apikey_token",
-            key=cache_key,
-            value={"deny": True},
-            ttl=15 * 60,  # seconds
-        )
-
-        raise UnauthorizedException()
-
-    apikey_project_db = await db_manager.get_project_by_id(
-        project_id=str(api_key_obj.project_id),
-    )
-
-    state = {
-        "user_id": str(api_key_obj.created_by_id),
-        "project_id": str(api_key_obj.project_id),
-        "workspace_id": str(apikey_project_db.workspace_id),
-        "organization_id": str(apikey_project_db.organization_id),
-        "credentials": f"{_APIKEY_TOKEN_PREFIX}{apikey_token}",
-    }
-
-    await set_cache(
-        project_id=request.state.project_id,
-        user_id=request.state.user_id,
-        namespace="verify_apikey_token",
-        key=cache_key,
-        value=state,
-        ttl=5 * 60,  # seconds
-    )
-
-    request.state.user_id = state.get("user_id")
-    request.state.project_id = state.get("project_id")
-    request.state.workspace_id = state.get("workspace_id")
-    request.state.organization_id = state.get("organization_id")
-    request.state.credentials = state.get("credentials")
+    except Exception as exc:
+        log.error(exc)
+        raise exc
 
 
 async def verify_secret_token(

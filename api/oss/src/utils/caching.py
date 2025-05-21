@@ -56,10 +56,10 @@ def _serialize(
         return "__NULL__"
 
     if isinstance(value, BaseModel):
-        return dumps(value.model_dump(exclude_none=True))
+        return dumps(value.model_dump(mode="json", exclude_none=True))
 
     elif isinstance(value, list) and all(isinstance(v, BaseModel) for v in value):
-        return dumps([v.model_dump(exclude_none=True) for v in value])
+        return dumps([v.model_dump(mode="json", exclude_none=True) for v in value])
 
     return dumps(value)
 
@@ -99,13 +99,13 @@ async def set_cache(
     try:
         cache_name = _pack(project_id, user_id, namespace, key)
         cache_value = _serialize(value)
-        cache_ex = ttl
+        cache_px = int(ttl * 1000)
 
-        await r.set(cache_name, cache_value, ex=cache_ex)
+        await r.set(cache_name, cache_value, px=cache_px)
 
         return True
 
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(
             "[cache] SET",
             project_id=project_id,
@@ -115,6 +115,7 @@ async def set_cache(
             # value=value,
             ttl=ttl,
         )
+        log.warn(e)
         return None
 
 
@@ -137,7 +138,7 @@ async def get_cache(
 
         return _deserialize(raw, model=model, is_list=is_list)
 
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(
             "[cache] GET",
             project_id=project_id,
@@ -147,4 +148,5 @@ async def get_cache(
             model=model,
             is_list=is_list,
         )
+        log.warn(e)
         return None

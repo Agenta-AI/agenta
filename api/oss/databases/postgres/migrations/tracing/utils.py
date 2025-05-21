@@ -18,12 +18,12 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-alembic_cfg = Config(os.environ["ALEMBIC_CFG_PATH_TRACING"])
+alembic_cfg = Config(os.environ.get("ALEMBIC_CFG_PATH_TRACING"))
 script = ScriptDirectory.from_config(alembic_cfg)
 
 logger.info("license: oss")
 logger.info("migrations: tracing")
-logger.info("ALEMBIC_CFG_PATH_TRACING: %s", os.environ["ALEMBIC_CFG_PATH_TRACING"])
+logger.info("ALEMBIC_CFG_PATH_TRACING: %s", os.environ.get("ALEMBIC_CFG_PATH_TRACING"))
 logger.info("alembic_cfg: %s", alembic_cfg)
 logger.info("script: %s", script)
 
@@ -88,7 +88,7 @@ async def get_pending_migration_head():
         the pending migration head
     """
 
-    engine = create_async_engine(url=os.environ["POSTGRES_URI_TRACING"])
+    engine = create_async_engine(url=os.environ.get("POSTGRES_URI_TRACING"))
     try:
         current_migration_script_head = script.get_current_head()
         migration_head_from_db = await get_current_migration_head_from_db(engine=engine)

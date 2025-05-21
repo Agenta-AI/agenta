@@ -346,7 +346,7 @@ async def _fetch_environment(
             # as opposed to the latest version of a variant which is indicated by a version number
             # coming from the app_variant revision.
 
-            with suppress(verbose=False):
+            with suppress():
                 (
                     app_environment_revision,
                     version,
@@ -549,8 +549,6 @@ async def fetch_configs_by_application_ref(
         return configs_list
 
     for variant in variants:
-        log.warn(f"[FETCH]: Fetching latest version of variant {variant.id}")
-
         variant_latest_version = await db_manager.fetch_app_variant_revision_by_variant(
             app_variant_id=variant.id.hex,
             project_id=project_id,
@@ -641,8 +639,6 @@ async def fetch_config_by_variant_ref(
     application_ref: Optional[ReferenceDTO] = None,
     user_id: Optional[str] = None,
 ) -> Optional[ConfigDTO]:
-    log.warn("[FETCH]   Fetching: variant")
-
     app_variant, app_variant_revision = await _fetch_variant(
         project_id=project_id,
         variant_ref=variant_ref,
@@ -652,8 +648,6 @@ async def fetch_config_by_variant_ref(
     if not (app_variant and app_variant_revision):
         return None
 
-    log.warn("[FETCH]   Fetching: deployment")
-
     deployment = await _fetch_deployment(
         project_id=project_id,
         base_id=app_variant.base_id,
@@ -661,8 +655,6 @@ async def fetch_config_by_variant_ref(
 
     if not deployment:
         return None
-
-    log.warn("[FETCH]   Fetching: app")
 
     app = await _fetch_app(
         project_id=project_id,
