@@ -5,7 +5,7 @@ description: "Get Config"
 sidebar_label: "Get Config"
 hide_title: true
 hide_table_of_contents: true
-api: eJy9VU1v2zAM/SsGTxtgJFmxk0/LuqINuo+g7XopgkKVmUStLbkSHSwL/N8HSv5Mmq7YYafE0iMf9R5F7YDEykFyB6dGL9XKwSIGU6AVpIyepZDACule+k2IoRBW5EhoOWYHWuQICTwIh/cqhRiUhgSeS7RbiMHic6ksppCQLTEGJ9eYC0h2QNuC4xxZpTktKcp44bNwGM1SqKq4TR647/3XUYKlyNyAQejtj6WvccjFiesVXWYZVIuOPUgQfWemfgWoN8oanaOm/1HGWUfX1LJgElcY7dBx2pPJhH9SdNKqgq2CBK5LKdG5ZZlFVzUYYpaPUJMvpigyJb2z40fHMbteqYVl30kFhr7qrxg2kCwGWVrLKm3QOhUI6kilCVdo+6EBG93W2GrYXW2keXhESb3AeYeqqvgA1rlxt9c7+9UNCHsGnCOFc7UyVhUzfTw5OVT9VmQq9ZpGZ9Ya+++Sp0hCZfxPEebuEJAZOdh9Q3M1sleLTilhrdj29PxqQoHsQO5Wr9n9DZ0TK291gByHejGiG979m0t8rkBd43pedPIGdY8f40uQ7yWyBnJxczM/SBi8HZp6jhSdNjMvR1qbehL6nqE1JDCW9cCMwaHdNBOxtBkksCYqXDIey8yU6UisUJMYCTUWhYJ9rqnfjU4Z6ueAQ1laRVufbzqfXeL2AkWKFpK7RR9wzY0UWmMIa10RhbpEFqmeZNOS1saq38HveoytQxSroPTS+PBasLq2z0I+oeb53l5smIw+jCbHDlMHRNP5rL4PQvr70NThYRDvydUKBTFg7i8DEIr8U7fBVRbGUS50L9/Ar0FFrRSEv2hcZEL5Pve8u9rLZk74IbA2jnhpt+NX7afNqoqXw6xnR1LlxEPWm/Z7fO3th3dXdZO/jyB+uY4n3A7ez43ISkb5O3zAFNDDofaWiBcesC5swR9WcZxvsLhpCD5siJ9KiQX1og7GGmdp78n52Q1U1R8GZdj7
+api: eJy9VU1v2zAM/SsGTxtgJFmxk0/LuqINuo+g7XopgkKVmUStLLsSHSwL/N8HSv5Mmq7YYafEEsn39B5F7YDEykFyB6e5WaqVg0UMeYFWkMrNLIUEVkj30m9CDIWwIkNCyzk7MCJDSOBBOLxXKcSgDCTwXKLdQgwWn0tlMYWEbIkxOLnGTECyA9oWnOfIKsNlSZHmhc/CYTRLoaritnjAvvdfRwGWQrsBgjDbH0vPcYjFhesVU2oN1aJDDxJE3xmpzwDNRtncZGjof9A46+AaLgsGcUVuHDouezKZ8E+KTlpVsFWQwHUpJTq3LHV0VQdDzPIRGvJkikIr6Z0dPzrO2fWoFpZ9JxUQ+qq/YthAshhkaS2rtEHrVACoM5UhXKHtp4bY6LaOrYbdtQORpoq5Cj3vUQutVFfNHx5RUq/ovKtQVYdhnVN3e321z3xApmfOOVI4cytxVTHSx5OTQ0duhVap1zs6sza3/25HiiSU5n+KMHOHATqXg903NF5jSbXolBLWim1Pz695IMjuZG71Wit8Q+fEyrdBCDke6sWIbnj3by7xuQJ0HdfzopM3qHv8GF+CfC+BNSEXNzfzg4LB26Gp50jRaTMPM6R1Xk9J3zO0hgTGsh6mMTi0m2ZallZDAmuiwiXjsdR5mY7ECg2JkVBjUSjYx5r63eiUQ/2McChLq2jr603ns0vcXqBI0UJyt+gHXHMjhdYYhrWuiEJdIotUT7lpSevcqt/B73rErUMWq6DMMvfptWA1t89CPqHh2d9eepiMPowmxw5TJ0TT+ay+D0L6+9Dw8GEQ78nVCgUxYOYvAxCK7FO3wSyL3FEmTK/ewK8Bo1YKwl80LrRQvs897q72spkTfgisc0e8tNvxi/fT6qri5fAOsCOpcuJB916CPbz29sO7q7rJ30cQv8zjCbeDt3UjdMlR/g4fIIXo4VB7S8YLj1uXtuAPqzjPN1jcNAQfNuRPpcSCelkHY42rtPfk/OwGquoPPCXjqw==
 sidebar_class_name: "get api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -133,14 +133,44 @@ Get Config
                         qualifierMessage={undefined}
                         schema={{ type: "integer", title: "Current Version" }}
                       ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"parameters"}
-                        required={true}
-                        schemaName={"object"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "object", title: "Parameters" }}
-                      ></SchemaItem>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary style={{}}>
+                            <span className={"openapi-schema__container"}>
+                              <strong className={"openapi-schema__property"}>
+                                parameters
+                              </strong>
+                              <span className={"openapi-schema__name"}>
+                                object
+                              </span>
+                              <span
+                                className={"openapi-schema__divider"}
+                              ></span>
+                              <span className={"openapi-schema__required"}>
+                                required
+                              </span>
+                            </span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}>
+                            <SchemaItem
+                              name={"property name*"}
+                              required={false}
+                              schemaName={"any"}
+                              qualifierMessage={undefined}
+                              schema={{
+                                additionalProperties: true,
+                                type: "object",
+                                title: "Parameters",
+                              }}
+                              collapsible={false}
+                              discriminator={false}
+                            ></SchemaItem>
+                          </div>
+                        </details>
+                      </SchemaItem>
                     </ul>
                   </details>
                 </TabItem>

@@ -1,8 +1,10 @@
+import os
 from openai import OpenAI
 import agenta as ag
 from pydantic import BaseModel, Field
 from opentelemetry.instrumentation.openai import OpenAIInstrumentor
 
+# os.environ["AGENTA_API_KEY"] = "your_api_key"
 ag.init()
 
 client = OpenAI()

@@ -160,6 +160,7 @@ We'll add a few lines of code to create an LLM playground for our application. T
 Here's the modified code:
 
 ```python
+import os
 import requests
 import re
 import sys
@@ -170,6 +171,7 @@ import litellm
 from agenta.sdk.assets import supported_llm_models
 from agenta.sdk.types import MCField
 
+#os.environ["AGENTA_API_KEY"] = "your_api_key"
 ag.init()
 
 litellm.drop_params = True

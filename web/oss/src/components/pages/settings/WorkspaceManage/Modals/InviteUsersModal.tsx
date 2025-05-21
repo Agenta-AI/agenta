@@ -1,6 +1,5 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
-import {useSubscriptionData} from "@/agenta-oss-common/services/billing"
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {Alert, Form, Input, Modal, Select, Space, Typography, message, theme} from "antd"
 import {useAtom} from "jotai"
@@ -9,6 +8,7 @@ import Link from "next/link"
 import {useOrgData} from "@/oss/contexts/org.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
+import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
@@ -16,7 +16,10 @@ import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 
 const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoading}) => {
-    const {subscription} = useSubscriptionData()
+    const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
+        subscription: undefined,
+    }
+
     const {selectedOrg, refetch} = useOrgData()
     const [roles] = useAtom(workspaceRolesAtom)
     const {token} = theme.useToken()

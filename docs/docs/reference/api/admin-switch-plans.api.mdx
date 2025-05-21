@@ -1,11 +1,11 @@
 ---
-id: create-organization
-title: "Create Organization"
-description: "Create Organization"
-sidebar_label: "Create Organization"
+id: admin-switch-plans
+title: "Switch Plans Admin Route"
+description: "Switch Plans Admin Route"
+sidebar_label: "Switch Plans Admin Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJydVU1v2zAM/SsBz16SFTv5tPQDaNFtCdpslyAYGJmN1dqSKsltM8P/faDkxE7SFt1yiUM/UuJ7j0wN2pBFL7W6yiAFYQk9/dZ2jUr+CXFIwNJjRc6f6mwDaQ1CK0/K8yMaU0gRcKN7pxXHnMipRH4ylqt7SY5/KSyJv/3GEKTgvJVqDQl46QsO/OD3TQL6WZF9DzgNgCaBjJyw0oRb8mXUZnoH6eIws0l2EVUVBTTLrtZ5r0STtLD/KzXneLMrAnp1T8K39ElLGaSLSMK2x17yWSB+2ue94VpdrrcVhYAzWrlI6cl4zF97PMBtJQQ5d1cVg5sWDMmHRWvCsV9OTo4L/8JCZiFtcGGttv9Q9cAKGXmUBT9JT6U7BhRa7L39gB5SeVqzL5adBGgtbnrO+aYFbqUu3fo9k30n53BNfVO8BQ1kDD4kP/cVj25xPQt09EZ2327jPNL32mFbyOV8PjsqGLXdFzUabzDdn/iSfK55IRjtuKxBn0MKo/5icJCAI/tE1gVlKltACrn3xqWjkSh0lQ1xTcrjEOUIjYTDsyfh7eCMoWGUHInKSr8J9Sazq2vaXBJmvA4Wyz7glo0VrbIP26mERl4TkxbXDkwqn2vbdSj5AnnMYlbYsjfdnrt4wdIU1O2tTvZ2P3WB/aY6exw4FaS60+GGrUZt+6coHkhlkABTGYuMh5+H47f4ahMGk9lVO4IofO+mEQbJgSI7LSABKsP8gScsv3YvmAhWvETVq/e6RQ6Wb9utpxc/MgXKMGPhAnXrngXsu2eZQM7uShdQ1yt09NMWTcPhx4ose2CZwBNaiSuma8FznW/dUMMDbfhucQF9CtPH8KKK6h8sI14UMWMiBBn/LnbZG4DZ9HYOCaza/75SZ5xj8ZknG58hBbaEiS2ldYzVUKBaV7w/Uog1+fMX0oiM4g==
+api: eJy1VU1v2zAM/SsGTxsgxFmxk09LtwENuqFBm+0SBAFjs7FaWXIluasX6L8PlB0nadoCG7CTbYkfj+R79BY8bhxkC5gUldQg4FwqJfUGlgJMTRa9NHpaQAbIBiv3S/q8XNUKtQMBNVqsyJPlGFvQWBFkYOwGtfwdfVeyAAFSQwYPDdkWBFh6aKSlAjJvGxLg8pIqhGwLvq3Z33nLEAR46RUfXB0ETKYFhCCGZAzl3zOQbiouP1emKVaP41Vp1msOMRzU1hx+lk2FWvp2pXDtDi+eTk5wQ9rjCiU3c1fKjOGGsGSQrjbakWNcZ+MxPwpyuZU11wkZ3DR5Ts7dNiq57o05vtGetGdzrGsl89iW9M6xz3ZfawghCPh4dnYa+CcqWXTd/GqtsX8RFWrLvPCyw12QR6n4TXqq3KmBMvnRLer26jaS5XgUPNH+RGpPG7IQlkHsztBabA8Y8c10ACEIqNzmLfJ8J+dwQzAEe900NiOZ823Y5zbrO8r9Ea0Wsa4udW93MON9e7vuvl7Gl659LyXbmVzM57OTgN1sn7ElSjNhgrkkyjm5No1nylTkS8Miro3zUba+hAzSqOl03Uk+jaJOO4WDAEf2cSfsxirIoPS+dlmaRoaPOnqPUKZYS3iOZhJvk89sCkx3R3ljpW9jvMlsekntBWFBFrLF8tDghqnWkefYbJgb1vKSuI39Cpg0vjS23w+7XVB2XtwnqW9NdO9b2mM7x/yeNK8nrrODPR59GI1fK6Z3SCazaa8YzKNidjiiGYhn7RoaxfuminIBT1h92l8wSp5Nhfog3hsTPcI3NMbTk+cxyqiLiGLbD3vRLXAQ0I+badBv8X7kSwEl8yNbwHa7Rkc/rAqBj7u9yoMrpMO1YgnconJ0AmRYI/DuulfL+wTEywDvqX3xb/GIqmHruBT+Q8b+l7FPs+QPKzlPZKPYsYdL7nwmeU61P/A62ZIcZRDa7OpmDiH8Aa0BhEs=
 sidebar_class_name: "post api-method"
 info_path: reference/api/agenta-backend
 custom_edit_url: null
@@ -28,12 +28,15 @@ import TabItem from "@theme/TabItem";
 <Heading
   as={"h1"}
   className={"openapi__heading"}
-  children={"Create Organization"}
+  children={"Switch Plans Admin Route"}
 ></Heading>
 
-<MethodEndpoint method={"post"} path={"/organizations"}></MethodEndpoint>
+<MethodEndpoint
+  method={"post"}
+  path={"/admin/billing/plans/switch"}
+></MethodEndpoint>
 
-Create Organization
+Switch Plans Admin Route
 
 <Heading
   id={"request"}
@@ -42,80 +45,50 @@ Create Organization
   children={"Request"}
 ></Heading>
 
-<MimeTabs className={"openapi-tabs__mime"}>
-  <TabItem label={"application/json"} value={"application/json-schema"}>
-    <details
-      style={{}}
-      className={"openapi-markdown__details mime"}
-      data-collapsed={false}
-      open={true}
-    >
-      <summary style={{}} className={"openapi-markdown__details-summary-mime"}>
-        <h3 className={"openapi-markdown__details-summary-header-body"}>
-          Body
-        </h3>
-        <strong className={"openapi-schema__required"}>required</strong>
-      </summary>
-      <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
-      <ul style={{ marginLeft: "1rem" }}>
-        <SchemaItem
-          collapsible={false}
-          name={"name"}
-          required={true}
-          schemaName={"Name (string)"}
-          qualifierMessage={undefined}
-          schema={{ type: "string", title: "Name" }}
-        ></SchemaItem>
-        <SchemaItem
-          collapsible={false}
-          name={"owner"}
-          required={true}
-          schemaName={"Owner (string)"}
-          qualifierMessage={undefined}
-          schema={{ type: "string", title: "Owner" }}
-        ></SchemaItem>
-        <SchemaItem collapsible={true} className={"schemaItem"}>
-          <details style={{}} className={"openapi-markdown__details"}>
-            <summary style={{}}>
-              <strong>description</strong>
-              <span style={{ opacity: "0.6" }}>object</span>
-            </summary>
-            <div style={{ marginLeft: "1rem" }}></div>
-            <div>
-              <span className={"badge badge--info"}>anyOf</span>
-              <SchemaTabs>
-                <TabItem label={"MOD1"} value={"0-item-properties"}>
-                  <div style={{ marginTop: ".5rem", marginBottom: ".5rem" }}>
-                    string
-                  </div>
-                </TabItem>
-              </SchemaTabs>
-            </div>
-          </details>
-        </SchemaItem>
-        <SchemaItem collapsible={true} className={"schemaItem"}>
-          <details style={{}} className={"openapi-markdown__details"}>
-            <summary style={{}}>
-              <strong>type</strong>
-              <span style={{ opacity: "0.6" }}>object</span>
-            </summary>
-            <div style={{ marginLeft: "1rem" }}></div>
-            <div>
-              <span className={"badge badge--info"}>anyOf</span>
-              <SchemaTabs>
-                <TabItem label={"MOD1"} value={"0-item-properties"}>
-                  <div style={{ marginTop: ".5rem", marginBottom: ".5rem" }}>
-                    string
-                  </div>
-                </TabItem>
-              </SchemaTabs>
-            </div>
-          </details>
-        </SchemaItem>
-      </ul>
-    </details>
-  </TabItem>
-</MimeTabs>
+<details
+  style={{ marginBottom: "1rem" }}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
+>
+  <summary style={{}}>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>
+      Query Parameters
+    </h3>
+  </summary>
+  <div>
+    <ul>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "organization_id",
+          in: "query",
+          required: true,
+          schema: { type: "string", title: "Organization Id" },
+        }}
+      ></ParamsItem>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "plan",
+          in: "query",
+          required: true,
+          schema: {
+            type: "string",
+            enum: [
+              "cloud_v0_hobby",
+              "cloud_v0_pro",
+              "cloud_v0_humanity_labs",
+              "cloud_v0_x_labs",
+              "cloud_v0_agenta_ai",
+            ],
+            title: "Plan",
+          },
+        }}
+      ></ParamsItem>
+    </ul>
+  </div>
+</details>
 <div>
   <div>
     <ApiTabs label={undefined} id={undefined}>

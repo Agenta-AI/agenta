@@ -1,0 +1,76 @@
+---
+id: admin-report-usage
+title: "Report Usage"
+description: "Report Usage"
+sidebar_label: "Report Usage"
+hide_title: true
+hide_table_of_contents: true
+api: eJx1kkFvnDAQhf/K6p2tZdsjp5Jeusqhq2xzQiiaNZPFDRjXNqtSxH+vxpBNslK4IPCb8TfvzYRI54C8RFF3xkLhzrStsWdUCr1jT9H0dl8jB4ngybPrfXwaAp0ZCp6D623ggHzC191OXjUH7Y2TQuQ4DlpzCM9Du3lYxVDQvY1so8jJudbodE/2O0jNhKAb7gj5NMujblo+JIbN48rQcWx6IXR9iFBwFBvkyBJwdlrmyRJxtuBDIbC/sJfJJwy+RY4mRhfyLNNtP9RbOrONtCWTkTO4JSjS6ea7SDFX0k4P3sQx9SsO+3sefzDV7JGX1XvBUSZb7PoomxBHx+KzM/c8QsFSJ9/FEJvem3/JISgYAWiWKvHG2Oc+lZvY8hvbHekXtjUUZM4Fe7f9st19NsxasCkO+zUg0imgV44kg7qx62oUFLgjI2eRqfv2diCUkk1H9l2/mxQ/MF3NiPw3Zq4lYzGvN09rwOWykVBYIxa061qmmCuFRnYiLzFNJwr86Nt5lt9/BvYSVqVwIW/oJNaV1axenZUcX3iUubVmJytzoXZYArpZWMn3uoSHn8dfmOf/GkgjyA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-backend
+custom_edit_url: null
+---
+
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Report Usage"}
+></Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/admin/billing/usage/report"}
+></MethodEndpoint>
+
+Report Usage
+
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>any</ul>
+                  </details>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>
