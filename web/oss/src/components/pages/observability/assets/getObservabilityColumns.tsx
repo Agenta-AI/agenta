@@ -134,18 +134,13 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
 
                             <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
                                 {Object.entries(metrics).map(([metricName, rawData]) => {
-                                    const data = rawData as {average?: number; latest?: boolean}
-
-                                    const isAverage = typeof data.average === "number"
-                                    const value = isAverage
-                                        ? `μ ${data.average}`
-                                        : String(data.latest)
+                                    const data = rawData as {average?: number}
 
                                     return (
                                         <LabelValuePill
                                             key={metricName}
                                             label={metricName}
-                                            value={value}
+                                            value={`μ ${data.average}`}
                                             className="!min-w-fit"
                                         />
                                     )

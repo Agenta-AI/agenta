@@ -2,9 +2,9 @@ import React, {useState} from "react"
 
 import {CloseOutlined} from "@ant-design/icons"
 import {Button, Popover, Space, Typography} from "antd"
+import clsx from "clsx"
 
 import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
-import LabelValuePill from "@/oss/components/ui/LabelValuePill"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
@@ -27,7 +27,7 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
         <div className="flex flex-col gap-3">
             {Object.entries(grouped).map(([refId, metricsArr], index) => {
                 const filteredMetrics = Object.entries(metricsArr).filter(
-                    ([, metric]) => metric.average !== undefined || metric.latest !== undefined,
+                    ([, metric]) => metric.average !== undefined,
                 )
 
                 if (filteredMetrics.length === 0) return null
@@ -54,9 +54,9 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                     title={
                                         <div className="flex items-center justify-between">
                                             <Space className="truncate overflow-hidden">
-                                                <Typography.Text>{key}</Typography.Text>
+                                                <Typography.Text>Total mean:</Typography.Text>
                                                 <CustomAntdTag
-                                                    value={`μ ${metric.average ?? metric.latest}`}
+                                                    value={`μ ${metric.average}`}
                                                     bordered={false}
                                                 />
                                             </Space>
@@ -71,26 +71,34 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                         <div className="flex flex-col gap-2">
                                             {metric.annotations?.map(
                                                 (annotation: any, i: number) => (
-                                                    <Space key={i}>
-                                                        <Typography.Text>
-                                                            {getStringOrJson(annotation.value)}
-                                                        </Typography.Text>
+                                                    <Space
+                                                        className="items-center justify-between"
+                                                        key={i}
+                                                    >
                                                         <UserAvatarTag
                                                             modifiedBy={annotation.user || ""}
                                                         />
+                                                        <Typography.Text type="secondary">
+                                                            {getStringOrJson(annotation.value)}
+                                                        </Typography.Text>
                                                     </Space>
                                                 ),
                                             )}
                                         </div>
                                     }
                                 >
-                                    <span className="cursor-pointer inline-block">
-                                        <LabelValuePill
-                                            label={key}
-                                            value={`μ ${metric.average ?? metric.latest}`}
-                                            className="w-fit"
-                                        />
-                                    </span>
+                                    <div
+                                        className={clsx(
+                                            "flex items-center justify-between",
+                                            "py-1 px-3 cursor-pointer",
+                                            "rounded-lg border border-[#BDC7D1] border-solid",
+                                        )}
+                                    >
+                                        <Typography.Text className="truncate overflow-hidden text-ellipsis w-[200px]">
+                                            {key}
+                                        </Typography.Text>
+                                        <Typography.Text type="secondary">{`μ ${metric.average}`}</Typography.Text>
+                                    </div>
                                 </Popover>
                             </div>
                         ))}

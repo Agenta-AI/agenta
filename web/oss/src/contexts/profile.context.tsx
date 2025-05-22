@@ -49,7 +49,6 @@ const ProfileContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     }, [])
 
     useEffect(() => {
-        // fetch profile only if user is logged in
         if (doesSessionExist) {
             fetcher()
         }

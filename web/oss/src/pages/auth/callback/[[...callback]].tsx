@@ -6,6 +6,10 @@ import {useRouter} from "next/router"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
+import {LS_ORG_KEY} from "@/oss/contexts/org.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
@@ -13,6 +17,9 @@ import {AuthErrorMsgType} from "@/oss/lib/Types"
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
 const Callback = () => {
+    const {reset: resetProfileData} = useProfileData()
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
 
@@ -27,6 +34,10 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
+                localStorage.setItem(LS_ORG_KEY, "")
                 setMessage({message: "Verification successful", type: "success"})
                 const isNewUser =
                     isDemo() &&
@@ -73,6 +84,9 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
                 setMessage({message: "Verification successful", type: "success"})
                 const isNewUser =
                     isDemo() &&

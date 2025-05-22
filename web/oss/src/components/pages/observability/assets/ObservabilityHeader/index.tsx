@@ -14,6 +14,7 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 
 import {TestsetTraceData} from "../../drawer/TestsetDrawer/assets/types"
@@ -50,6 +51,8 @@ const ObservabilityHeader = ({
         setPagination,
         fetchTraces,
     } = useObservabilityData()
+
+    const {mutate: fetchAnnotations} = useAnnotations()
 
     useEffect(() => {
         const handleScroll = () => {
@@ -244,7 +247,10 @@ const ObservabilityHeader = ({
                                         className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
                                     />
                                 }
-                                onClick={() => fetchTraces()}
+                                onClick={() => {
+                                    fetchAnnotations()
+                                    fetchTraces()
+                                }}
                                 tooltipProps={{title: "Refresh data"}}
                             />
                         )}

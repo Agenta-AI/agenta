@@ -11,6 +11,10 @@ import {
 } from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
+import {LS_ORG_KEY} from "@/oss/contexts/org.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
@@ -27,6 +31,9 @@ const SendOTP = ({
     setIsLoginCodeVisible,
     isInvitedUser,
 }: SendOTPProps) => {
+    const {reset: resetProfileData} = useProfileData()
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
     const classes = useStyles()
     const router = useRouter()
 
@@ -80,9 +87,12 @@ const SendOTP = ({
             const response = await consumeCode({userInputCode: values.otp})
 
             if (response.status === "OK") {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
-
+                localStorage.setItem(LS_ORG_KEY, "")
                 if (
                     isDemo() &&
                     response.createdNewRecipeUser &&

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Table, TableColumnType, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
@@ -35,7 +35,6 @@ export type TracesWithAnnotations = _AgentaRootsResponse & {
 
 const ObservabilityDashboard = () => {
     const {traces, isLoading, traceTabs, fetchTraces} = useObservabilityData()
-
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage", "tag"])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -132,30 +131,6 @@ const ObservabilityDashboard = () => {
         }
     }, [selected, tracesWithAnnotations, traces, annotations])
 
-    const handleNextTrace = useCallback(() => {
-        if (activeTraceIndex !== undefined && activeTraceIndex < traces.length - 1) {
-            const nextTrace = traces[activeTraceIndex + 1]
-            if (traceTabs === "node") {
-                setSelectedTraceId(nextTrace.node.id)
-            } else {
-                setSelectedTraceId(nextTrace.root.id)
-            }
-            setSelected(nextTrace.node.id)
-        }
-    }, [activeTraceIndex, traces, traceTabs, setSelectedTraceId])
-
-    const handlePrevTrace = useCallback(() => {
-        if (activeTraceIndex !== undefined && activeTraceIndex > 0) {
-            const prevTrace = traces[activeTraceIndex - 1]
-            if (traceTabs === "node") {
-                setSelectedTraceId(prevTrace.node.id)
-            } else {
-                setSelectedTraceId(prevTrace.root.id)
-            }
-            setSelected(prevTrace.node.id)
-        }
-    }, [activeTraceIndex, traces, traceTabs, setSelectedTraceId])
-
     const handleResize =
         (key: string) =>
         (_: any, {size}: {size: {width: number}}) => {
@@ -249,10 +224,9 @@ const ObservabilityDashboard = () => {
                             traces={traces}
                             setSelectedTraceId={setSelectedTraceId}
                             activeTraceIndex={activeTraceIndex}
-                            handleNextTrace={handleNextTrace}
-                            handlePrevTrace={handlePrevTrace}
                             setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
                             isAnnotationsSectionOpen={isAnnotationsSectionOpen}
+                            setSelected={setSelected}
                         />
                     }
                     mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}

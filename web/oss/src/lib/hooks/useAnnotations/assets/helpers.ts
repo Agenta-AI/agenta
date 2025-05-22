@@ -142,17 +142,15 @@ export const groupAnnotationsByReferenceId = (
             const allNumbers = values.every((v) => typeof v.value === "number")
             const allBooleans = values.every((v) => typeof v.value === "boolean")
 
-            if (allNumbers) {
-                const total = values.reduce((sum, v) => sum + (v.value as number), 0)
+            if (allNumbers || allBooleans) {
+                // Handle both numbers and booleans the same way
+                const total = values.reduce(
+                    (sum, v) => sum + (typeof v.value === "boolean" ? (v.value ? 1 : 0) : v.value),
+                    0,
+                )
                 const average = total / values.length
                 result[evaluatorSlot][metricName] = {
                     average: parseFloat(average.toFixed(2)),
-                    annotations: values,
-                }
-            } else if (allBooleans) {
-                const latest = values[values.length - 1].value as boolean
-                result[evaluatorSlot][metricName] = {
-                    latest,
                     annotations: values,
                 }
             } else {
