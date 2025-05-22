@@ -25,6 +25,7 @@ interface ObservabilityContextType {
     setSort: React.Dispatch<React.SetStateAction<SortResult>>
     pagination: {page: number; size: number}
     setPagination: React.Dispatch<React.SetStateAction<{page: number; size: number}>>
+    navigateToPage: (newPage: number) => Promise<void>
 }
 
 type TraceTabTypes = "tree" | "node" | "chat"
@@ -45,6 +46,7 @@ const initialValues: ObservabilityContextType = {
     setSort: () => {},
     pagination: {page: 1, size: 10},
     setPagination: () => {},
+    navigateToPage: () => {},
 }
 
 export const ObservabilityContext = createContext<ObservabilityContextType>(initialValues)
@@ -79,9 +81,13 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
             sort,
             filters,
             traceTabs,
+            autoPrefetch: true,
         },
         appId,
     )
+    const navigateToPage = (newPage: number) => {
+        setPagination((prev) => ({...prev, page: newPage}))
+    }
     const {traces, traceCount} = data || {}
 
     const clearQueryStates = () => {
@@ -96,6 +102,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     observabilityContextValues.isLoading = isLoading
     observabilityContextValues.fetchTraces = fetchTraces
     observabilityContextValues.count = traceCount
+    observabilityContextValues.navigateToPage = navigateToPage
 
     return (
         <ObservabilityContext.Provider
@@ -115,6 +122,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
                 setSort,
                 pagination,
                 setPagination,
+                navigateToPage,
             }}
         >
             {children}

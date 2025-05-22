@@ -1,6 +1,6 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
-import useSWR from "swr"
+import useSWR, {preload} from "swr"
 
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
 
@@ -13,11 +13,13 @@ export const useTraces = (
         sort,
         filters,
         traceTabs,
+        autoPrefetch,
     }: {
         pagination: {size: number; page: number}
         sort: {type: string; sorted: string; customRange?: {startTime: string; endTime: string}}
         filters: any[]
         traceTabs: string
+        autoPrefetch?: boolean
     },
     appId: string,
 ) => {
@@ -83,6 +85,21 @@ export const useTraces = (
             traceCount: data?.count,
         }
     }
+
+    const prefetchPage = async (pageNumber: number) => {
+        const nextParams = {
+            ...queryParams,
+            page: pageNumber,
+        }
+        const key = ["traces", appId, JSON.stringify(nextParams)]
+        await preload(key, () => fetcher())
+    }
+
+    useEffect(() => {
+        if (autoPrefetch) {
+            prefetchPage(pagination.page + 1)
+        }
+    }, [autoPrefetch, pagination.page, JSON.stringify(queryParams), appId])
 
     const swrKey = ["traces", appId, JSON.stringify(queryParams)]
     const swr = useSWR(swrKey, fetcher, {

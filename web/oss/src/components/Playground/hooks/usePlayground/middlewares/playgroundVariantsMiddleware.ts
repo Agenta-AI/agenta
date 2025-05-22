@@ -194,6 +194,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                 setVariant(createVariantResponse),
                                 spec,
                             )
+                            newVariant.variantId = newVariant.id
 
                             // Fetch and process revisions to ensure we have the latest data
                             message.loading("Updating playground with new variant...")
@@ -206,7 +207,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                     appId: config.appId || "",
                                     appType: config.appType || "",
                                     projectId: projectId || "",
-                                    forceRefresh: true, // Force refresh to get the new revision
+                                    // forceRefresh: true, // Force refresh to get the new revision
                                     logger: console.log,
                                     // @ts-ignore
                                     initialVariants: [newVariant, baseVariant],
@@ -339,7 +340,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                     try {
                                         // Fetch the variant directly to get its latest revision
                                         const variantData = await fetcher?.(
-                                            `/api/variants/${newVariant.variantId}?project_id=${projectId}`,
+                                            `/api/variants/${newVariant.id}?project_id=${projectId}`,
                                             {method: "GET"},
                                         )
 

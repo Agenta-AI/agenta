@@ -14,7 +14,6 @@ import {useRouter} from "next/router"
 import useSWR from "swr"
 import {useLocalStorage} from "usehooks-ts"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {ListAppsItem} from "@/oss/lib/Types"
 
 import {useOrgData} from "./org.context"
@@ -49,9 +48,10 @@ export const useApps = (options = {}) => {
     const isMockProjectId = projectId === DEFAULT_UUID
 
     const {selectedOrg, loading} = useOrgData()
-    const shouldFetch = !!user && (!isDemo() || !!selectedOrg?.id)
     const {data, error, isLoading, mutate} = useSWR(
-        shouldFetch ? `/api/apps?` + (!isMockProjectId ? `project_id=${projectId}&` : "") : null,
+        !user || isMockProjectId || !selectedOrg?.id || !projectId
+            ? null
+            : `/api/apps?` + (!isMockProjectId ? `project_id=${projectId}&` : ""),
         {
             ...options,
             shouldRetryOnError: false,

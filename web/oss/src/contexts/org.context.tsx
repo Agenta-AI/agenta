@@ -3,13 +3,12 @@ import {PropsWithChildren, createContext, useCallback, useContext, useEffect, us
 import {useRouter} from "next/router"
 
 import {useProfileData} from "@/oss/contexts/profile.context"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useSession} from "@/oss/hooks/useSession"
 import useStateCallback from "@/oss/hooks/useStateCallback"
 import {Org, OrgDetails} from "@/oss/lib/Types"
 import {fetchAllOrgsList, fetchSingleOrg} from "@/oss/services/organization/api"
 
-const LS_ORG_KEY = "selectedOrg"
+export const LS_ORG_KEY = "selectedOrg"
 
 interface OrgContextType {
     orgs: Org[]
@@ -61,14 +60,14 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             .finally(() => setLoadingOrgs(false))
     }, [])
 
-    useLazyEffect(() => {
+    useEffect(() => {
         if (user?.id && orgs.length > 0) {
             setLoadingOrgDetails(true)
             const org =
                 orgs.find((org: Org) => org.id === localStorage.getItem(LS_ORG_KEY)) ||
                 orgs.find((org: Org) => org.owner === user.id) ||
                 orgs[0]
-            if (org) {
+            if (org?.id) {
                 fetchSingleOrg({orgId: org.id})
                     .then(setSelectedOrg)
                     .catch(console.error)
@@ -80,7 +79,7 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
         }
     }, [user?.id, orgs])
 
-    useLazyEffect(() => {
+    useEffect(() => {
         localStorage.setItem(LS_ORG_KEY, selectedOrg?.id || "")
     }, [selectedOrg?.id])
 
@@ -94,6 +93,7 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const changeSelectedOrg: OrgContextType["changeSelectedOrg"] = (orgId, onSuccess) => {
         setLoadingOrgDetails(true)
         const org = orgs.find((org) => org.id === orgId) || selectedOrg
+        if (!org?.id) return
         fetchSingleOrg({orgId: org?.id!})
             .then((data) => {
                 setSelectedOrg(data)

@@ -147,7 +147,7 @@ if ! $WITH_WEB ; then
 
     echo "Starting development server for $LICENSE..."
 
-    sh -c "AGENTA_LICENSE=${LICENSE} sh ./entrypoint.sh"
+    sh -c "AGENTA_LICENSE=${LICENSE} ENTRYPOINT_DIR=. sh ./entrypoint.sh"
     
     cd $LICENSE
     pnpm dev || error_exit "Failed to start development server."

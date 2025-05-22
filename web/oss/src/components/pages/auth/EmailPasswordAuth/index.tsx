@@ -3,10 +3,17 @@ import {useState} from "react"
 import {Button, Form, FormProps, Input} from "antd"
 import {signUp} from "supertokens-auth-react/recipe/emailpassword"
 
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
+
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
 
 const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAuthProps) => {
+    const {reset: resetProfileData} = useProfileData()
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
     const [form, setForm] = useState({email: "", password: ""})
     const [isLoading, setIsLoading] = useState(false)
 
@@ -38,6 +45,9 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
                     setMessage({message: res.error, type: "error"})
                 })
             } else {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
                 setMessage({
                     message: "Sign in successfully!",
                     type: "success",
