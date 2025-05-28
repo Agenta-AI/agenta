@@ -1,10 +1,10 @@
-import os
 import uuid
 import traceback
 from typing import Optional
 
 
 import click
+from oss.src.utils.env import env
 from sqlalchemy.future import select
 from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker, Session
@@ -24,7 +24,7 @@ def get_app_db(session: Session, app_id: str) -> Optional[DeprecatedAppDB]:
 
 
 def update_evaluators_with_app_name():
-    engine = create_engine(os.getenv("POSTGRES_URI_CORE"))
+    engine = create_engine(env.POSTGRES_URI_CORE)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:

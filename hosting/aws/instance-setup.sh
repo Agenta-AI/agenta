@@ -27,16 +27,16 @@ cd $TARGET_DIR/agenta
 
 # set env vars
 # Get the ip of the instance within the instance in aws
-DOMAIN_NAME=${DOMAIN_NAME}
+AGENTA_API_URL=${AGENTA_API_URL}
 
-if [[ -z "${DOMAIN_NAME}" ]]; then
-  DOMAIN_NAME=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
+if [[ -z "${AGENTA_API_URL}" ]]; then
+  AGENTA_API_URL=$(curl http://169.254.169.254/latest/meta-data/public-ipv4)
 fi
 
-echo "IP/DOMAIN_NAME: $DOMAIN_NAME"
+echo "IP/AGENTA_API_URL: $AGENTA_API_URL"
 
-echo "BARE_DOMAIN_NAME=$DOMAIN_NAME" >> .env
-echo "DOMAIN_NAME=http://$DOMAIN_NAME" >> .env
+echo "TRAEFIK_DOMAIN=$AGENTA_API_URL" >> .env
+echo "AGENTA_API_URL=http://$AGENTA_API_URL" >> .env
 
 
 # start agenta

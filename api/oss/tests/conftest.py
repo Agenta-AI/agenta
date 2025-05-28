@@ -42,7 +42,6 @@ def sample_testset_endpoint_json():
 
 
 # Set global variables
-AGENTA_AWS_PROFILE_NAME = os.getenv("AWS_PROFILE_NAME", "staging")
 AGENTA_HOST = os.getenv("AGENTA_HOST", "http://localhost")
 API_BASE_URL = f"{AGENTA_HOST}/api/"
 API_KEYS_MAPPING = {
@@ -60,9 +59,6 @@ API_KEYS_MAPPING = {
     "GEMINI_API_KEY": "gemini",
 }
 
-
-session = boto3.Session(profile_name=AGENTA_AWS_PROFILE_NAME)
-sm_client = session.client("secretsmanager")
 
 log = get_module_logger(__name__)
 

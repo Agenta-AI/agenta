@@ -1,10 +1,9 @@
-import os
 import secrets
-from typing import List
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
 
+from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
 from oss.src.services import db_manager, email_service
 from oss.src.models.api.workspace_models import InviteRequest, ResendInviteRequest
@@ -95,8 +94,8 @@ async def send_invitation_email(
         bool: True if the email was sent successfully, False otherwise.
     """
 
-    invitation_link = f"""{os.environ.get("DOMAIN_NAME")}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}"""
-    if not os.getenv("SENDGRID_API_KEY", None):
+    invitation_link = f"""{env.AGENTA_WEB_URL}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}"""
+    if not env.SENDGRID_API_KEY:
         return invitation_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
@@ -104,14 +103,14 @@ async def send_invitation_email(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
         workspace_placeholder="their organization",
-        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{os.environ.get("DOMAIN_NAME")}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
+        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.AGENTA_WEB_URL}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
     )
 
-    if not os.getenv("SEND_EMAIL_FROM_ADDRESS", None):
+    if not env.AGENTA_SEND_EMAIL_FROM_ADDRESS:
         raise ValueError("Sendgrid requires a sender email address to work.")
 
     await email_service.send_email(
-        from_email=os.getenv("SEND_EMAIL_FROM_ADDRESS"),
+        from_email=env.AGENTA_SEND_EMAIL_FROM_ADDRESS,
         to_email=email,
         subject=f"{user.username} invited you to join their organization",
         html_content=html_content,

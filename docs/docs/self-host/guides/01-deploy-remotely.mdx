@@ -1,0 +1,181 @@
+---
+title: Deploying Agenta on a Remote Server
+sidebar_label: Deploying Remotely
+description: 'Learn how to deploy Agenta on a remote server with Docker. Step-by-step guide covers environment setup, installation, and configuration for cloud or dedicated hosting environments.'
+---
+
+This guide shows you how to deploy Agenta on a remote server, whether that's a cloud instance (like AWS EC2, Google Cloud, or DigitalOcean) or your own dedicated machine. By the end, you'll have Agenta running and accessible from anywhere on the internet.
+
+## What You'll Need
+
+Before starting, make sure your remote server has:
+
+**Server Requirements:**
+- Docker and Docker Compose installed
+- Root access or sudo privileges
+- Git installed
+
+**Network Requirements:**
+- Open ports for web traffic (typically port 80 for HTTP)
+- A domain name pointed to your server (optional but recommended)
+
+## Understanding the Deployment Options
+
+Agenta offers two reverse proxy options for remote deployment:
+
+- **Traefik (Default)**: Modern reverse proxy with automatic service discovery and built-in SSL certificate management
+- **Nginx**: Traditional web server and reverse proxy, useful if you already use Nginx in your infrastructure
+
+Choose Traefik unless you have specific requirements for Nginx.
+
+## Step 1: Get the Agenta Code
+
+Clone the Agenta repository to your server:
+
+```bash
+git clone https://github.com/agenta-ai/agenta
+cd agenta
+```
+
+## Step 2: Configure Your Deployment
+
+### Understanding Environment Variables
+
+Agenta uses environment variables to configure how it runs on your server. The main settings control:
+
+- **Domain/IP**: Where users will access Agenta
+- **Ports**: Which network ports to use
+- **URLs**: How different services communicate with each other
+
+### Edit the Configuration File
+
+Open the environment configuration file:
+
+```bash
+nano hosting/docker-compose/oss/.env.oss.gh
+```
+
+Update these key variables based on your setup:
+
+**For Domain-Based Setup:**
+```bash
+# Replace with your actual domain
+TRAEFIK_PORT=80                           # Port for web access
+TRAEFIK_DOMAIN=yourdomain.com             # Your domain without http://
+AGENTA_API_URL=http://yourdomain.com/api      # Full URL with protocol
+AGENTA_WEB_URL=http://yourdomain.com      # Same as API URL in most cases
+AGENTA_SERVICES_URL=http://yourdomain.com:80/services  # URL for internal services
+```
+
+**For IP Address Setup:**
+If you don't have a domain name, you can use your server's IP address:
+
+```bash
+TRAEFIK_PORT=80
+TRAEFIK_DOMAIN=192.168.1.100              # Replace with your server's IP
+AGENTA_API_URL=http://192.168.1.100/api
+AGENTA_WEB_URL=http://192.168.1.100
+AGENTA_SERVICES_URL=http://192.168.1.100:80/services
+```
+
+### Additional Configuration Options
+
+For more advanced settings like SSL, authentication, or custom ports, see our [complete configuration guide](/self-host/configuration).
+
+## Step 3: Deploy Agenta
+
+### Option 1: Deploy with Traefik (Recommended)
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+```
+
+**What this command does:**
+- `-f hosting/docker-compose/oss/docker-compose.gh.yml`: Uses the production Docker Compose configuration
+- `--env-file=hosting/docker-compose/oss/.env.oss.gh`: Loads your environment variables
+- `--profile with-web`: Includes the web interface in the deployment
+- `up -d`: Starts all services in the background
+
+### Option 2: Deploy with Nginx
+
+If you prefer Nginx or need to integrate with existing Nginx configurations:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile nginx up -d
+```
+
+## Step 4: Verify Your Deployment
+
+### Check Service Status
+
+Monitor the startup process by checking container status:
+
+```bash
+# View all containers and their status
+docker compose ps
+
+# Watch the startup logs (useful for troubleshooting)
+docker compose logs -f
+```
+
+You should see all services show "Up" status. The initial startup may take a few minutes as Docker downloads images and initializes services.
+
+### Test Web Access
+
+Once all services are running, test access through your web browser:
+
+**With domain name:**
+```
+http://yourdomain.com
+```
+
+**With IP address:**
+```
+http://192.168.1.100
+```
+
+You should see the Agenta login page. If you can access it, your deployment is successful!
+
+## Troubleshooting Common Issues
+
+### Services Won't Start
+
+**Check container logs:**
+```bash
+docker compose logs
+```
+
+**Common solutions:**
+- Ensure environment variables are set correctly
+- Check that ports aren't already in use
+
+
+**Common solutions:**
+- Verify firewall settings allow traffic on port 80
+- Check that your domain DNS is pointing to the server
+- Ensure AGENTA_WEB_URL matches how you're accessing the site
+
+
+### Nginx-Specific Issues
+
+If you chose the Nginx deployment option:
+
+**Test Nginx configuration:**
+```bash
+# Check Nginx configuration syntax
+docker compose exec nginx nginx -t
+
+# View Nginx logs
+docker compose logs nginx
+```
+
+
+:::info
+This guide uses HTTP for initial setup. For production environments, configure HTTPS using our [SSL setup guide](/self-host/guides/using-ssl) for automatic certificate management.
+:::
+
+## Getting Help
+
+If you need assistance, you can:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ) for direct support

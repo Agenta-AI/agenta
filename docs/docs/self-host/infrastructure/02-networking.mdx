@@ -1,0 +1,253 @@
+---
+title: Networking Configuration
+description: "Understanding Agenta's network topology, container communication patterns, and networking environment variables"
+sidebar_position: 2
+---
+
+
+This guide explains Agenta's network topology, how containers communicate with each other, and the environment variables that control networking behavior and connectivity.
+
+## Network Topology
+
+Agenta uses a Docker-based network architecture with a dedicated bridge network for container communication and Traefik as the reverse proxy for external access.
+
+```
+                                    ┌─────────────────────────────────────┐
+                                    │            External Users           │
+                                    └─────────────────┬───────────────────┘
+                                                      │ HTTPS/HTTP
+                                    ┌─────────────────▼───────────────────┐
+                                    │        Host Server (80/443)         │
+                                    │  ┌─────────────────────────────────┐│
+                                    │  │     agenta-network (bridge)     ││
+                                    │  │                                 ││
+┌───────────────────────────────────┼──┼─────────────────────────────────┼┼─┐
+│                                   │  │                                 ││ │
+│  ┌─────────────────────────────────────────────────────────────────────┐│ │
+│  │              Traefik (Reverse Proxy)                                ││ │
+│  │         HTTP: 80 → HTTPS: 443 → Dashboard: 8080                     ││ │
+│  │              SSL Termination & Routing                              ││ │
+│  └─┬─────────────────────┬─────────────────────┬─────────────────────┬─┘│ │
+│    │                     │                     │                     │  │ │
+│    │ /:3000              │ /api:8000           │ /services:80        │  │ │
+│    ▼                     ▼                     ▼                     ▼  │ │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐     │ │
+│  │     Web     │  │     API     │  │ Completion  │  │    Chat     │     │ │
+│  │   :3000     │──►   :8000     │  │    :80      │  │    :80      │     │ │
+│  │             │  │             │  │             │  │             │     │ │
+│  └─────────────┘  └──────┬──────┘  └─────────────┘  └─────────────┘     │ │
+│                          │                                              │ │
+│                          │ Delegates Tasks                              │ │
+│                          ▼                                              │ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │ │
+│  │                        Worker :celery                              │ │ │
+│  │                    (Background Tasks)                              │ │ │
+│  │              Calls AI Services for Evaluation                      │ │ │
+│  └─────────────────────────┬──────────────────────────────────────────┘ │ │
+│                            │                                            │ │
+│                            ▼                                            │ │
+│  ┌────────────────────────────────────────────────────────────────────┐ │ │
+│  │                  Infrastructure Layer                              │ │ │
+│  │                                                                    │ │ │
+│  │ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌────────────────────┐   │ │ │
+│  │ │PostgreSQL │ │ RabbitMQ  │ │   Redis   │ │     SuperTokens    │   │ │ │
+│  │ │   :5432   │ │ :5672     │ │ :6379     │ │       :3567        │   │ │ │
+│  │ │           │ │ UI:15672  │ │Cache:6378 │ │                    │   │ │ │
+│  │ │           │ │           │ │           │ │                    │   │ │ │
+│  │ │◄─── API   │ │◄──Worker──┤ │◄──API─────┤ │◄─── API            │   │ │ │
+│  │ │     Worker│ │   API     │ │   Worker  │ │                    │   │ │ │
+│  │ └───────────┘ └───────────┘ └───────────┘ └────────────────────┘   │ │ │
+│  └────────────────────────────────────────────────────────────────────┘ │ │
+└─────────────────────────────────────────────────────────────────────────┘ │
+                                    │                                     │ │
+                                    └───────────────────────────────────┘ │ │
+                                                                          │ │
+                                    └─────────────────────────────────────┘ │
+                                                                            │
+                                    └───────────────────────────────────────┘
+
+```
+
+## Container Communication Patterns
+
+### External Access Flow
+```
+Internet → Traefik (80/443) → Internal Services
+├── / → web:3000 (Frontend)
+├── /api/ → api:8000 (Backend API)
+├── /services/completion/ → completion:80
+└── /services/chat/ → chat:80
+```
+
+### Internal Service Communication
+```
+Web Container:
+├── → api:8000 (Backend API calls)
+└── → completion:80, chat:80 (Direct playground calls)
+
+API Container:
+├── → postgres:5432 (Database operations)
+├── → redis:6379 (Caching)
+├── → supertokens:3567 (Authentication)
+├── → rabbitmq:5672 (Task publishing)
+└── → worker (Task delegation)
+
+Worker Container:
+├── ← rabbitmq:5672 (Task consumption)
+├── → redis:6379 (Result storage)
+├── → postgres:5432 (Data access)
+└── → completion:80, chat:80 (AI operations)
+```
+
+## Network Environment Variables
+
+### External Access Configuration
+
+These variables control how external users access Agenta:
+
+| Variable | Purpose | Example | Description |
+|----------|---------|---------|-------------|
+| `TRAEFIK_DOMAIN` | Domain routing | `localhost`, `agenta.mydomain.com` | Primary domain for routing |
+| `TRAEFIK_PORT` | HTTP port | `80` | External HTTP port |
+| `TRAEFIK_HTTPS_PORT` | HTTPS port | `443` | External HTTPS port |
+| `AGENTA_API_URL` | API endpoint | `http://localhost/api` | External API URL |
+| `AGENTA_WEB_URL` | Frontend URL | `http://localhost` | External frontend URL |
+| `AGENTA_SERVICES_URL` | Services URL | `http://localhost/services` | External services URL template |
+| `AGENTA_API_INTERNAL_URL` | Internal API URL between services and backend | `http://host.docker.internal/api` | Internal API URL |
+
+### Internal Service Communication
+
+These variables configure how containers communicate internally:
+
+| Variable | Purpose | Example | Description |
+|----------|---------|---------|-------------|
+| `POSTGRES_URI_CORE` | Core database | `postgresql+asyncpg://user:pass@postgres:5432/agenta_core` | Core database connection |
+| `POSTGRES_URI_TRACING` | Tracing database | `postgresql+asyncpg://user:pass@postgres:5432/agenta_tracing` | Tracing database connection |
+| `POSTGRES_URI_SUPERTOKENS` | Auth database | `postgresql://user:pass@postgres:5432/agenta_supertokens` | SuperTokens database connection |
+| `REDIS_URL` | Primary cache | `redis://redis:6379/0` | Main Redis instance |
+| `CELERY_BROKER_URL` | Task queue | `amqp://guest@rabbitmq//` | RabbitMQ broker for Celery |
+| `CELERY_RESULT_BACKEND` | Task results | `redis://redis:6379/0` | Redis for task results |
+| `SUPERTOKENS_CONNECTION_URI` | Auth service | `http://supertokens:3567` | SuperTokens service URL |
+
+### Port Mapping (Optional)
+
+These variables control external port exposure for direct access:
+
+| Variable | Default | Purpose | Description |
+|----------|---------|---------|-------------|
+| `POSTGRES_PORT` | `5432` | Database access | External PostgreSQL port (development) |
+| `RABBITMQ_PORT` | `5672` | Message queue | External RabbitMQ AMQP port |
+| `RABBITMQ_UI_PORT` | `15672` | Queue management | RabbitMQ management interface |
+| `REDIS_CACHE_PORT` | `6378` | Cache access | External Redis cache port |
+| `SUPERTOKENS_PORT` | `3567` | Auth service | External SuperTokens port |
+| `NGINX_PORT` | `80` | Alternative proxy | Nginx port (when using Nginx) |
+
+## Traffic Routing Rules
+
+### Traefik Routing Configuration
+
+#### Frontend Routing
+```yaml
+# Route: / → web:3000
+Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/`)
+Target: web:3000
+Processing: Direct forwarding
+SSL: Automatic (production)
+```
+
+#### API Routing
+```yaml
+# Route: /api/ → api:8000
+Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/api/`)
+Target: api:8000
+Processing: Strip `/api` prefix
+Middleware: Path prefix stripping
+```
+
+#### AI Services Routing
+```yaml
+# Completion Service
+Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/completion/`)
+Target: completion:80
+Processing: Strip `/services/completion` prefix
+
+# Chat Service
+Rule: Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/chat/`)
+Target: chat:80
+Processing: Strip `/services/chat` prefix
+```
+
+## SSL/TLS Configuration
+
+### Development (HTTP)
+```bash
+TRAEFIK_PORT=80
+AGENTA_API_URL=http://localhost/api
+AGENTA_WEB_URL=http://localhost
+```
+
+### Production (HTTPS)
+```bash
+TRAEFIK_PORT=80
+TRAEFIK_HTTPS_PORT=443
+AGENTA_SSL_DIR=/path/to/certificates
+AGENTA_API_URL=https://agenta.mydomain.com/api
+AGENTA_WEB_URL=https://agenta.mydomain.com
+```
+
+### SSL Certificate Management
+- **Automatic**: Let's Encrypt via Traefik (HTTP challenge)
+- **Storage**: `${AGENTA_SSL_DIR}/acme.json`
+- **Renewal**: Automatic every 60-90 days
+- **Redirect**: HTTP → HTTPS automatic
+
+::: info Network Security
+The services are isolated within Docker bridge network. None of the services are exposed to the host network (except Traefik)
+:::
+
+## Troubleshooting Network Issues
+
+### Connection Testing
+```bash
+# Test database connectivity
+docker exec :container-name: nc -zv postgres 5432
+
+# Test Redis connectivity
+docker exec :container-name: redis-cli -h redis ping
+
+# Test RabbitMQ connectivity
+docker exec :container-name: nc -zv rabbitmq 5672
+```
+
+### Port Conflicts
+```bash
+# Check port usage
+sudo netstat -tulpn | grep :80
+sudo lsof -i :443
+
+# View container port mappings
+docker ps --format "table {{.Names}}\t{{.Ports}}"
+```
+
+### Traefik Routing Issues
+```bash
+# Access Traefik dashboard
+http://localhost:8080
+
+# Check Traefik logs
+docker logs :container-name:
+
+# Verify service registration
+curl -s http://localhost:8080/api/http/services
+```
+
+### DNS Resolution
+```bash
+# Test external domain resolution
+nslookup agenta.mydomain.com
+dig agenta.mydomain.com +short
+
+# Test from multiple DNS servers
+nslookup agenta.mydomain.com 8.8.8.8
+nslookup agenta.mydomain.com 1.1.1.1
+```

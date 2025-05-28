@@ -20,7 +20,7 @@ export const useEnvironments = ({appId: propsAppId, ...rest}: UseEnvironmentOpti
 
     const {data, error, mutate, isLoading} = useSWR(
         appId && projectId
-            ? `${getAgentaApiUrl()}/api/apps/${appId}/environments?project_id=${projectId}`
+            ? `${getAgentaApiUrl()}/apps/${appId}/environments?project_id=${projectId}`
             : null,
         {
             ...rest,

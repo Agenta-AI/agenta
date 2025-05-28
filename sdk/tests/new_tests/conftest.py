@@ -42,7 +42,6 @@ def sample_testset_endpoint_json():
 
 # Set global variables
 AGENTA_SECRET_KEY = os.getenv("_SECRET_KEY", "AGENTA_AUTH_KEY")
-AGENTA_AWS_PROFILE_NAME = os.getenv("AWS_PROFILE_NAME", "staging")
 AGENTA_SECRET_ARN = os.getenv("AGENTA_AUTH_KEY_SECRET_ARN", None)
 AGENTA_HOST = os.getenv("AGENTA_HOST", "http://localhost")
 API_BASE_URL = f"{AGENTA_HOST}/api/"
@@ -62,9 +61,6 @@ API_KEYS_MAPPING = {
 }
 
 
-session = boto3.Session(profile_name=AGENTA_AWS_PROFILE_NAME)
-sm_client = session.client("secretsmanager")
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -82,33 +78,9 @@ def pytest_collection_modifyitems(items):
         async_test.add_marker(session_scope_marker, append=False)
 
 
-def fetch_secret(
-    secret_arn: str,
-    secret_key: Optional[str] = None,
-) -> Optional[Any]:
+def fetch_secret() -> Optional[Any]:
     try:
-        response = sm_client.get_secret_value(SecretId=secret_arn)
-
-        secrets = None
-
-        if "SecretString" in response:
-            secrets = response["SecretString"]
-        elif "SecretBinary" in response:
-            secrets = response["SecretBinary"].decode("utf-8")
-
-        if not secrets:
-            return None
-
-        secrets = loads(secrets)
-
-        if not secret_key:
-            return secrets
-
-        secret = None
-
-        if secret_key:
-            secret = secrets.get(secret_key, None)
-
+        secret = os.getenv("AWS_SECRET_KEY")
         return secret
 
     except:  # pylint: disable=bare-except
@@ -117,9 +89,7 @@ def fetch_secret(
 
 
 async def ahttp_client():
-    access_key = fetch_secret(
-        secret_arn=AGENTA_SECRET_ARN, secret_key=AGENTA_SECRET_KEY
-    )
+    access_key = fetch_secret()
     async with AsyncClient(
         base_url=API_BASE_URL,
         timeout=httpx.Timeout(timeout=6, read=None, write=5),

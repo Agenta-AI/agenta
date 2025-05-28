@@ -7,7 +7,7 @@ Thanks for your interest in contributing to Agenta! We appreciate your effort an
 
 ## Getting Started
 
-1. **Local Installation:** First, set up the project on your local machine. Follow the steps in our [Local Installation Guide](https://docs.agenta.ai/self-host/host-locally). 
+1. **Local Installation:** First, set up the project on your local machine. Follow the steps in our [Local Installation Guide](https://docs.agenta.ai/self-host/quick-start). 
 
 2. **Understand the Project:** Familiarize yourself with our architecture and concepts by reading our [Conceptual Guide](https://docs.agenta.ai/guides/how_does_agenta_work) and [Architecture Guide](https://docs.agenta.ai/guides/how_does_agenta_work#agenta-architecture).
 

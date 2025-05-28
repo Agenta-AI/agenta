@@ -1,12 +1,14 @@
 import {useMemo, useState} from "react"
 
-import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash, X} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, CaretDown, Funnel, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Select, Space, Typography, ButtonProps} from "antd"
 import isEqual from "lodash/isEqual"
 import {createUseStyles} from "react-jss"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {Filter, JSSTheme} from "@/oss/lib/Types"
+
+import CustomAntdBadge from "../ui/CustomAntdBadge"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     popover: {
@@ -280,7 +282,8 @@ const Filters: React.FC<Props> = ({
                 className="flex items-center gap-2"
                 {...buttonProps}
             >
-                Filters {filter[0]?.operator && <X size={14} />}
+                Filters
+                {filter.length > 0 && <CustomAntdBadge count={filter.length} />}
             </Button>
         </Popover>
     )

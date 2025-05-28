@@ -6,10 +6,11 @@ from urllib.parse import urlparse
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
 from oss.src.models.shared_models import AppType
+from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import AppVariantDB, AppDB
 
 if is_ee():
@@ -17,7 +18,7 @@ if is_ee():
 
 log = get_module_logger(__name__)
 
-AGENTA_SERVICES_URL = os.environ.get("AGENTA_SERVICES_URL")
+AGENTA_SERVICES_URL = env.AGENTA_SERVICES_URL
 
 
 async def update_last_modified_by(
@@ -341,7 +342,7 @@ async def add_variant_from_url(
 
 def get_service_url_from_template_key(
     key: str,
-) -> str:
+) -> Optional[str]:
     if key not in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
         return None
 
@@ -355,5 +356,4 @@ def get_service_url_from_template_key(
     path = key.replace("SERVICE:", "")
 
     url = AGENTA_SERVICES_URL + "/" + path
-
     return url

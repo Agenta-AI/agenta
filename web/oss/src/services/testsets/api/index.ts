@@ -30,7 +30,7 @@ export const useLoadTestsetsList = () => {
 export const fetchTestsets = async () => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(`${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`)
+    const response = await axios.get(`${getAgentaApiUrl()}/testsets?project_id=${projectId}`)
 
     return response.data
 }
@@ -38,7 +38,7 @@ export const fetchTestsets = async () => {
 export async function createNewTestset(testsetName: string, testsetData: any) {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.post(`${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`, {
+    const response = await axios.post(`${getAgentaApiUrl()}/testsets?project_id=${projectId}`, {
         name: testsetName,
         csvdata: testsetData || [{input: null, correct_answer: null}],
     })
@@ -50,7 +50,7 @@ export async function updateTestset(testsetId: string, testsetName: string, test
     const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/testsets/${testsetId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`,
         {
             name: testsetName,
             csvdata: testsetData,
@@ -72,7 +72,7 @@ export const fetchTestset = async (testsetId: string | null) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/testsets/${testsetId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`,
     )
     return response.data
 }
@@ -81,7 +81,7 @@ export const uploadTestsets = async (formData: FormData) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets/upload?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/upload?project_id=${projectId}`,
         formData,
         {
             headers: {
@@ -98,7 +98,7 @@ export const importTestsetsViaEndpoint = async (formData: FormData) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/testsets/endpoint?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/testsets/endpoint?project_id=${projectId}`,
         formData,
         {
             headers: {"Content-Type": "multipart/form-data"},
@@ -112,7 +112,7 @@ export const deleteTestsets = async (ids: string[]) => {
 
     const response = await axios({
         method: "delete",
-        url: `${getAgentaApiUrl()}/api/testsets?project_id=${projectId}`,
+        url: `${getAgentaApiUrl()}/testsets?project_id=${projectId}`,
         data: {testset_ids: ids},
     })
     return response.data

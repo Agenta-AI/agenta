@@ -13,7 +13,7 @@ export const fetchAllListApiKeys = (workspaceId: string, ignoreAxiosError = fals
     const {projectId} = getCurrentProject()
 
     return axios.get(
-        `${getAgentaApiUrl()}/api/keys/?workspace_id=${workspaceId}&project_id=${projectId}`,
+        `${getAgentaApiUrl()}/keys/?workspace_id=${workspaceId}&project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -24,7 +24,7 @@ export const createApiKey = (workspaceId: string, ignoreAxiosError = false) => {
     const {projectId} = getCurrentProject()
 
     return axios.post(
-        `${getAgentaApiUrl()}/api/keys?workspace_id=${workspaceId}&project_id=${projectId}`,
+        `${getAgentaApiUrl()}/keys?workspace_id=${workspaceId}&project_id=${projectId}`,
         undefined,
         {
             _ignoreError: ignoreAxiosError,
@@ -35,7 +35,7 @@ export const createApiKey = (workspaceId: string, ignoreAxiosError = false) => {
 export const deleteApiKey = (prefix: string, ignoreAxiosError = false) => {
     const {projectId} = getCurrentProject()
 
-    return axios.delete(`${getAgentaApiUrl()}/api/keys/${prefix}?project_id=${projectId}`, {
+    return axios.delete(`${getAgentaApiUrl()}/keys/${prefix}?project_id=${projectId}`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }

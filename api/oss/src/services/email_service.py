@@ -5,9 +5,11 @@ from sendgrid.helpers.mail import Mail
 
 from fastapi import HTTPException
 
+from oss.src.utils.env import env
+
 
 # initialize sendgrid api client
-sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
+sg = sendgrid.SendGridAPIClient(api_key=env.SENDGRID_API_KEY)
 
 
 def read_email_template(template_file_path):

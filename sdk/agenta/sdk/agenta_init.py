@@ -3,8 +3,9 @@ from os import getenv
 from typing import Optional, Callable, Any
 from importlib.metadata import version
 
-from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.helpers import parse_url
 from agenta.sdk.utils.globals import set_global
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.client.client import AgentaApi, AsyncAgentaApi
 
 from agenta.sdk.tracing import Tracing
@@ -73,13 +74,25 @@ class AgentaSingleton:
         if config_fname:
             config = toml.load(config_fname)
 
-        self.host = (
+        _host = (
             host
             or getenv("AGENTA_HOST")
             or config.get("backend_host")
             or config.get("host")
-            or "https://cloud.agenta.ai"
+            or getenv("AGENTA_API_URL", "https://cloud.agenta.ai")
         )
+
+        try:
+            assert _host and isinstance(
+                _host, str
+            ), "Host is required. Please provide a valid host or set AGENTA_HOST environment variable."
+            self.host = parse_url(url=_host)
+        except AssertionError as e:
+            log.error(str(e))
+            raise
+        except Exception as e:
+            log.error(f"Failed to parse host URL '{_host}': {e}")
+            raise
 
         log.info("Agenta - Host: %s", self.host)
 

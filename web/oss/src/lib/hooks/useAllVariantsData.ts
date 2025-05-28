@@ -27,7 +27,7 @@ export const useAllVariantsData = ({appId, ...rest}: UseEvaluationResultsOptions
 
     const {data, isLoading, error, mutate} = useSWR(
         appId && projectId
-            ? `${getAgentaApiUrl()}/api/apps/${appId}/variants?project_id=${projectId}`
+            ? `${getAgentaApiUrl()}/apps/${appId}/variants?project_id=${projectId}`
             : null,
         fetcher,
         {

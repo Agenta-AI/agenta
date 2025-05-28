@@ -11,6 +11,6 @@ import {ProjectsResponse} from "./types"
 //  - delete: DELETE data from server
 
 export const fetchAllProjects = async (): Promise<ProjectsResponse[]> => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/projects`)
+    const response = await axios.get(`${getAgentaApiUrl()}/projects`)
     return response.data
 }

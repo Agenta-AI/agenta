@@ -1,5 +1,5 @@
 ---
-title: Deploy Locally
+title: Quick Start
 description: "Learn how to deploy Agenta locally using Docker, either on port 80 or a custom port. Step-by-step guide covering installation, configuration, troubleshooting, and version updates"
 sidebar_position: 1
 ---
@@ -17,7 +17,7 @@ This guide explains how to set up Agenta on your local machine, either using the
 git clone https://github.com/Agenta-AI/agenta && cd agenta
 ```
 
-2. Edit `hosting/docker-compose/oss/.env.oss.gh` and add your LLM provider API keys.
+2. Copy `hosting/docker-compose/oss/.env.oss.gh.example` to `hosting/docker-compose/oss/.env.oss.gh` and edit the configuration.
 
 3. Start Agenta services:
 ```bash
@@ -28,13 +28,14 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 
 ## Using a Custom Port
 
-To use a different port (e.g., 81):
+To use a different port (e.g., 90):
 
-Change the following variables in the environment file `/hosting/docker-compose/oss/.env.oss.gh`:
+Change the following variables in the environment file `/hosting/docker-compose/oss/.env.oss.gh` then restart the services:
 ```bash
-AGENTA_PORT=81
-AGENTA_HOST=http://host.docker.internal:81
-AGENTA_SERVICES_URL=http://localhost:81/services
+TRAEFIK_PORT=90
+AGENTA_SERVICES_URL=http://localhost:90/services
+AGENTA_API_URL=http://localhost:90/api
+AGENTA_WEB_URL=http://localhost:90
 ```
 
 ## Upgrading to the Latest Version of Agenta
@@ -51,7 +52,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core agenta-oss-gh-api-1 alembic -c alembic.ini upgrade head
 ```
 
-Consult the [migration guide](/self-host/applying-schema-migration) for more details.
+Consult the [upgrading guide](/self-host/upgrading) for more details.
 
 ## Troubleshooting
 

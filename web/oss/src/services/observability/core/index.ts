@@ -13,7 +13,7 @@ export const fetchAllTraces = async (params = {}, appId: string) => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/observability/v1/traces?project_id=${projectId}&application_id=${appId}`,
+        `${getAgentaApiUrl()}/observability/v1/traces?project_id=${projectId}&application_id=${appId}`,
         {params},
     )
     return response.data
@@ -23,6 +23,6 @@ export const deleteTrace = async (nodeId: string) => {
     const {projectId} = getCurrentProject()
 
     return axios.delete(
-        `${getAgentaApiUrl()}/api/observability/v1/traces?project_id=${projectId}&node_id=${nodeId}`,
+        `${getAgentaApiUrl()}/observability/v1/traces?project_id=${projectId}&node_id=${nodeId}`,
     )
 }

@@ -1,0 +1,175 @@
+---
+title: Using SSL with Agenta Self-Hosted
+sidebar_label: Using SSL
+---
+This guide explains how to configure SSL for your self-hosted Agenta deployment using Traefik as a reverse proxy with automatic Let's Encrypt certificates.
+
+## Prerequisites
+
+- A domain name that you own and can configure
+- The ability to modify DNS records for your domain
+- Docker and Docker Compose installed on your server
+- Ports 80 and 443 accessible from the internet
+
+## Step 1: Configure Your Domain
+
+First, point your subdomain to your server's IP address by creating an A record in your DNS settings.
+
+:::warning
+If you are using Cloudflare, make sure to **Turn OFF the orange cloud** (Proxy status should be "DNS only")
+This prevents conflicts between Cloudflare's SSL and Traefik's SSL
+:::
+
+## Step 2: Create SSL Certificate Storage Directory
+
+Create the directory and file where SSL certificates will be stored:
+
+```bash
+# Create the SSL certificates directory
+mkdir -p /home/$(whoami)/ssl_certificates
+
+# Create empty certificate storage file
+touch /home/$(whoami)/ssl_certificates/acme.json
+
+# Set correct permissions (CRITICAL!)
+chmod 600 /home/$(whoami)/ssl_certificates/acme.json
+```
+
+**Important:** The `acme.json` file must have `600` permissions or Traefik will refuse to use it. You can place this directory anywhere you prefer, just update the `AGENTA_SSL_DIR` environment variable accordingly.
+
+## Step 3: Configure Environment Variables
+
+Create or update your `.env.oss.gh` file with the following variables:
+
+```bash
+# URLs must use HTTPS
+AGENTA_API_URL=https://agenta.mydomain.com/api
+AGENTA_WEB_URL=https://agenta.mydomain.com
+AGENTA_SERVICES_URL=https://agenta.mydomain.com/services
+
+# Domain Configuration
+TRAEFIK_DOMAIN=agenta.yourdomain.com
+
+# SSL Directory (adjust path as needed)
+AGENTA_SSL_DIR=/home/{username}/ssl_certificates
+
+# Port Configuration (optional, defaults shown)
+TRAEFIK_PORT=80
+TRAEFIK_UI_PORT=8080
+```
+
+## Step 4: Use the SSL Docker Compose Configuration
+
+Use the SSL-enabled Docker Compose file (`docker-compose.gh.ssl.yml`) which includes:
+
+### Traefik Service Configuration:
+```yaml
+traefik:
+  image: traefik:v2.10
+  volumes:
+    - ./ssl/traefik.yml:/traefik.yml
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ${AGENTA_SSL_DIR:-/home/ubuntu/ssl_certificates}/acme.json:/acme.json
+  networks:
+    - agenta-gh-ssl-network
+  ports:
+    - "${TRAEFIK_PORT:-80}:80"
+    - "${TRAEFIK_UI_PORT:-8080}:8080"
+    - "${TRAEFIK_HTTPS_PORT:-443}:443"
+  restart: always
+```
+
+### Service Labels for SSL:
+All web services include proper Traefik labels:
+```yaml
+web:
+  labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.web.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/`)"
+    - "traefik.http.routers.web.entrypoints=web,web-secure"
+    - "traefik.http.services.web.loadbalancer.server.port=3000"
+    - "traefik.http.routers.web.tls=true"
+    - "traefik.http.routers.web.tls.certresolver=myResolver"
+```
+
+## Step 5: Deploy Your SSL Configuration
+
+### Start the SSL-enabled services:
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+```
+
+### Monitor certificate generation:
+```bash
+docker compose -f docker-compose.gh.ssl.yml logs -f traefik
+```
+
+Look for messages indicating successful certificate generation:
+```
+[INFO] [agenta.yourdomain.com] acme: Obtaining bundled SAN certificate
+[INFO] [agenta.yourdomain.com] acme: Certificate obtained successfully
+```
+
+## Step 6: Access Your Application
+
+Once SSL certificates are generated, you can access your application at:
+
+- **Frontend**: `https://agenta.yourdomain.com`
+- **API**: `https://agenta.yourdomain.com/api/`
+- **Completion Service**: `https://agenta.yourdomain.com/services/completion/`
+- **Chat Service**: `https://agenta.yourdomain.com/services/chat/`
+- **Traefik Dashboard**: `http://agenta.yourdomain.com:8080`
+
+**HTTP to HTTPS Redirect:**
+- All HTTP traffic (`http://agenta.yourdomain.com`) automatically redirects to HTTPS
+
+## Troubleshooting
+
+### DNS Issues:
+```bash
+# Check if DNS resolves correctly
+nslookup agenta.yourdomain.com
+dig agenta.yourdomain.com +short
+
+# Should return your server's IP address
+```
+
+### Certificate Generation Failures:
+```bash
+# Check Traefik logs for ACME errors
+docker-compose -f docker-compose.gh.ssl.yml logs traefik | grep -i acme
+
+# Common issues:
+# - DNS not propagated yet
+# - Port 80 not accessible
+# - Wrong domain configuration
+```
+
+### SSL Certificate Issues:
+```bash
+# Verify certificate storage permissions
+ls -la ${AGENTA_SSL_DIR}/acme.json
+# Should show: -rw------- (600 permissions)
+
+# Reset certificates if needed
+docker-compose -f docker-compose.gh.ssl.yml down
+rm /home/$(whoami)/ssl_certificates/acme.json
+touch /home/$(whoami)/ssl_certificates/acme.json
+chmod 600 /home/$(whoami)/ssl_certificates/acme.json
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+```
+
+### Cloudflare-Specific Issues:
+- **Orange cloud enabled**: Turn off Cloudflare proxy (gray cloud)
+- **SSL mode conflicts**: Set Cloudflare SSL to "Full" or "Full (strict)"
+- **Always Use HTTPS**: Disable in Cloudflare, let Traefik handle redirects
+
+### Port Conflicts:
+```bash
+# Check what's using port 443
+sudo lsof -i :443
+sudo netstat -tlnp | grep :443
+
+# Stop conflicting services if needed
+sudo systemctl stop nginx  # example
+```

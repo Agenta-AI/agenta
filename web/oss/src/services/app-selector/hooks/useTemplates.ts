@@ -7,7 +7,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 
 const useTemplates = (config?: SWRConfiguration) => {
     const [noTemplateMessage, setNoTemplateMessage] = useState("")
-    const swr = useSWR(`${getAgentaApiUrl()}/api/containers/templates`, {
+    const swr = useSWR(`${getAgentaApiUrl()}/containers/templates`, {
         ...config,
         compare(a, b) {
             if (!!a && !!b && a.length === b.length) {

@@ -82,7 +82,7 @@ const EditColumns: React.FC<EditColumnsProps> = ({
                                     checked={!selectedKeys.includes(child.key as string)}
                                     onChange={() => onChange(child.key as string)}
                                 />
-                                {child.title as string}
+                                {(child.title || child.key) as string}
                             </Space>
                         ),
                     }))) ||

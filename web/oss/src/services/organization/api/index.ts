@@ -10,14 +10,14 @@ import {Org, OrgDetails} from "@/oss/lib/Types"
 //  - delete: DELETE data from server
 
 export const fetchAllOrgsList = async (ignoreAxiosError = false) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/organizations/`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
     return response.data as Org[]
 }
 
 export const fetchSingleOrg = async ({orgId}: {orgId: string}, ignoreAxiosError = false) => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/organizations/${orgId}/`, {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/${orgId}/`, {
         _ignoreError: ignoreAxiosError,
     } as any)
     return response.data as OrgDetails

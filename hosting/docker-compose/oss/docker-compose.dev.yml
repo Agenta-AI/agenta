@@ -35,7 +35,6 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
 
@@ -82,7 +81,6 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
 
@@ -109,7 +107,6 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
 
@@ -205,8 +202,8 @@ services:
         image: rabbitmq:3-management
         
         ports:
-            - "5672:5672"
-            - "15672:15672"
+            - "${RABBITMQ_PORT:-5672}:5672"
+            - "${RABBITMQ_UI_PORT:-15672}:15672"
         volumes:
             - rabbitmq-data:/var/lib/rabbitmq
         env_file:
@@ -259,10 +256,10 @@ services:
     traefik:
         image: traefik:v2.10
         
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
+        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${TRAEFIK_PORT:-80}
         ports:
-            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
-            - "8080:8080"
+            - "${TRAEFIK_PORT:-80}:80"
+            - "${TRAEFIK_UI_PORT:-8080}:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
         networks:
