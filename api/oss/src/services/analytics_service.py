@@ -8,6 +8,7 @@ import asyncio
 import posthog
 from fastapi import Request
 
+from oss.src.utils.env import env
 from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
 
@@ -15,8 +16,8 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY", "")
-POSTHOG_HOST = os.environ.get("POSTHOG_HOST", "https://app.posthog.com")
+POSTHOG_API_KEY = env.POSTHOG_API_KEY
+POSTHOG_HOST = env.POSTHOG_HOST
 
 _EXCLUDED_PATHS = [
     r"^/health",

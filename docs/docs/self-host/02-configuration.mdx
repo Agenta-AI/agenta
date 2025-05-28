@@ -1,0 +1,238 @@
+---
+title: Configuration of Environment Variables
+sidebar_label: Configuring Environment
+description: Learn how to configure the environment variables to self-host Agenta through Docker Compose
+---
+
+This guide covers all environment variables used to configure Agenta. These variables control various aspects of the platform, from core functionality to third-party integrations.
+
+## Configuration File Location
+
+The default environment variables are specified in `hosting/docker-compose/oss/.env.oss.gh` (or `hosting/docker-compose/oss/.env.oss.dev` for development).
+
+You can specify your own environment file using the `--env-file` flag when running `docker compose`:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file .my-env-file --profile with-web up -d
+```
+
+## Variable Categories
+
+### First-party (Required)
+
+These variables are essential for Agenta to function properly:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AGENTA_LICENSE` | License type (oss for open source) | `oss` |
+| `AGENTA_API_URL` | Base URL for the API backend | `http://localhost/api` |
+| `AGENTA_WEB_URL` | Base URL for the web frontend | `http://localhost` |
+| `AGENTA_SERVICES_URL` | URL prefix for Agenta services | `http://localhost/services` |
+| `AGENTA_AUTH_KEY` | Authentication key for internal services | `replace-me` |
+| `AGENTA_CRYPT_KEY` | Encryption key for sensitive data | `replace-me` |
+
+### First-party (Registry & Service)
+
+Configuration for Docker and database connections:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DOCKER_NETWORK_MODE` | Docker networking mode | `bridge` |
+| `POSTGRES_PASSWORD` | PostgreSQL database password | `password` |
+| `POSTGRES_USERNAME` | PostgreSQL database username | `username` |
+
+### First-party (Optional)
+
+Optional Agenta-specific configurations:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AGENTA_AUTO_MIGRATIONS` | Enable automatic database migrations | `true` |
+| `AGENTA_PRICING` | Enable pricing features | _(empty)_ |
+| `AGENTA_DEMOS` | Enable demo applications | _(empty)_ |
+| `AGENTA_RUNTIME_PREFIX` | Prefix for runtime containers | _(empty)_ |
+| `AGENTA_TELEMETRY_ENABLED` | Enable telemetry collection | `true` |
+| `AGENTA_SEND_EMAIL_FROM_ADDRESS` | From address for system emails | `mail@example.com` |
+| `AGENTA_API_INTERNAL_URL` | Internal API URL for services | _(empty)_ |
+
+### Third-party (Required)
+
+Essential third-party service configurations:
+
+#### Traefik (Reverse Proxy)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TRAEFIK_DOMAIN` | Domain for Traefik routing | `localhost` |
+| `TRAEFIK_PORT` | HTTP port for Traefik | `80` |
+| `TRAEFIK_UI_PORT` | Port for Traefik dashboard | `8080` |
+| `TRAEFIK_HTTPS_PORT` | HTTPS port for Traefik | `443` |
+
+#### Redis (Caching)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REDIS_URL` | Redis connection URL | `redis://redis:6379/0` |
+
+#### RabbitMQ (Message Queue)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `RABBITMQ_DEFAULT_USER` | RabbitMQ username | `guest` |
+| `RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `guest` |
+
+#### Celery (Task Queue)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CELERY_BROKER_URL` | Celery broker URL | `amqp://guest@rabbitmq//` |
+| `CELERY_RESULT_BACKEND` | Celery result backend | `redis://redis:6379/0` |
+
+#### PostgreSQL (Database)
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `POSTGRES_URI_SUPERTOKENS` | SuperTokens database connection | `postgresql://username:password@postgres:5432/agenta_oss_supertokens` |
+| `POSTGRES_URI_CORE` | Core database connection | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_core` |
+| `POSTGRES_URI_TRACING` | Tracing database connection | `postgresql+asyncpg://username:password@postgres:5432/agenta_oss_tracing` |
+
+#### Database Migrations
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ALEMBIC_CFG_PATH_CORE` | Core database migration config | `/app/oss/databases/postgres/migrations/core/alembic.ini` |
+| `ALEMBIC_CFG_PATH_TRACING` | Tracing database migration config | `/app/oss/databases/postgres/migrations/tracing/alembic.ini` |
+
+#### SuperTokens (Authentication)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SUPERTOKENS_API_KEY` | SuperTokens API key | _(empty)_ |
+| `SUPERTOKENS_CONNECTION_URI` | SuperTokens service URL | `http://supertokens:3567` |
+
+#### Analytics
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `POSTHOG_API_KEY` | PostHog analytics key | `phc_xxxxxxxx` |
+
+### Third-party (TLS/SSL)
+
+Required for HTTPS/SSL configuration:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `AGENTA_SSL_DIR` | Directory for SSL certificates | `/home/user/ssl_certificates` |
+
+### Third-party (Optional)
+
+Optional port and service configurations:
+
+#### Port Overrides
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NGINX_PORT` | Nginx port (when using Nginx) | `80` |
+| `RABBITMQ_PORT` | RabbitMQ AMQP port | `5672` |
+| `RABBITMQ_UI_PORT` | RabbitMQ management UI port | `15672` |
+| `REDIS_CACHE_PORT` | Redis cache port | `6378` |
+| `POSTGRES_PORT` | PostgreSQL port | `5432` |
+| `SUPERTOKENS_PORT` | SuperTokens port | `3567` |
+
+#### OAuth providers
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth client secret |
+| `GITHUB_OAUTH_CLIENT_ID` | GitHub OAuth client ID |
+| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub OAuth client secret |
+
+#### Email & Communication
+| Variable | Description |
+|----------|-------------|
+| `SENDGRID_API_KEY` | SendGrid email service API key |
+
+
+## Deprecated Variables
+
+⚠️ **Warning**: The following variables are deprecated and will be removed in future releases. I'd recommend migrating them to the new variables listed below:
+
+| Deprecated Variable | New Variable(s) | Migration Note |
+|-------------------|-----------------|----------------|
+| `AGENTA_PORT` | `TRAEFIK_PORT` | Port configuration moved to Traefik |
+| `BARE_DOMAIN_NAME` | `TRAEFIK_DOMAIN` | Domain configuration moved to Traefik |
+| `DOMAIN_NAME` | `AGENTA_API_URL` | More specific API URL configuration |
+| `WEBSITE_DOMAIN_NAME` | `AGENTA_WEB_URL` | More specific web URL configuration |
+| `SERVICE_URL_TEMPLATE` | `AGENTA_SERVICES_URL` | Simplified service URL template |
+| `POSTGRES_DB` | _(removed)_ | Database names now hardcoded |
+| `POSTGRES_URI` | `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, `POSTGRES_URI_SUPERTOKENS` | Split into separate database connections |
+| `ALEMBIC_CFG_PATH` | `ALEMBIC_CFG_PATH_CORE`, `ALEMBIC_CFG_PATH_TRACING` | Split migration configs |
+| `AGENTA_HOST` | _(removed)_ | No longer needed |
+
+### Migration of Deprecated Environment Variables
+
+When you start Agenta with deprecated variables, you'll see a warning message. To migrate:
+
+1. **Update your environment file** with the new variable names
+2. **Remove the deprecated variables** from your configuration
+3. **Restart Agenta** to apply the changes
+
+Example migration:
+```bash
+# Old (deprecated)
+AGENTA_PORT=80
+BARE_DOMAIN_NAME=mydomain.com
+DOMAIN_NAME=http://mydomain.com
+SERVICE_URL_TEMPLATE=http://localhost:80/services/{path}
+
+# New (current)
+TRAEFIK_PORT=80
+TRAEFIK_DOMAIN=mydomain.com
+AGENTA_API_URL=http://mydomain.com/api
+AGENTA_WEB_URL=http://mydomain.com
+AGENTA_SERVICES_URL=http://mydomain.com/services
+```
+
+## Configuration Examples
+
+### Local Development
+```bash
+AGENTA_LICENSE=oss
+AGENTA_API_URL=http://localhost/api
+AGENTA_WEB_URL=http://localhost
+TRAEFIK_DOMAIN=localhost
+TRAEFIK_PORT=80
+```
+
+### Production with Custom Domain
+```bash
+AGENTA_LICENSE=oss
+AGENTA_API_URL=https://agenta.mydomain.com/api
+AGENTA_WEB_URL=https://agenta.mydomain.com
+TRAEFIK_DOMAIN=agenta.mydomain.com
+TRAEFIK_PORT=80
+TRAEFIK_HTTPS_PORT=443
+AGENTA_SSL_DIR=/home/user/ssl_certificates
+```
+
+### Production with IP Address
+```bash
+AGENTA_LICENSE=oss
+AGENTA_API_URL=http://192.168.1.100/api
+AGENTA_WEB_URL=http://192.168.1.100
+TRAEFIK_DOMAIN=192.168.1.100
+TRAEFIK_PORT=80
+```
+
+## Security Considerations
+
+- **Replace default secrets**: Always change `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, and `SUPERTOKENS_API_KEY` in production
+- **Secure database credentials**: Use strong passwords for `POSTGRES_PASSWORD` and `RABBITMQ_DEFAULT_PASS`
+- **Use HTTPS in production**: Configure SSL/TLS for production deployments
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Services can't connect**: Verify database URIs and service URLs are correct
+2. **Authentication failures**: Check that auth keys match across services
+3. **SSL certificate issues**: Ensure `AGENTA_SSL_DIR` points to a directory with proper permissions
+4. **Deprecated variable warnings**: Follow the migration guide to update your configuration
+
+### Getting Help
+
+For configuration assistance:
+- Check the [GitHub issues](https://github.com/Agenta-AI/agenta/issues)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ)
+- Review the deployment documentation for your specific setup

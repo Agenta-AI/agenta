@@ -8,9 +8,9 @@
     cursor: help;
     z-index: 20;
     background: orange;
-  }
-  
-  .code-block-error-tooltip {
+}
+
+.code-block-error-tooltip {
     position: absolute;
     top: 1.5rem;
     right: 0;
@@ -24,11 +24,10 @@
     max-width: 300px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     z-index: 30;
-  }
-  
-  .code-block-error-tooltip-inner {
+}
+
+.code-block-error-tooltip-inner {
     & > div + div {
         margin-top: 0.25rem;
     }
-  }
-  
+}

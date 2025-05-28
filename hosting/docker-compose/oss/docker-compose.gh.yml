@@ -9,10 +9,9 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        ports:
-            - "3000:3000"
+
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
         labels:
             - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
@@ -22,17 +21,14 @@ services:
         restart: always
 
     api:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
@@ -43,25 +39,11 @@ services:
             - "traefik.http.routers.api.middlewares=api-strip"
             - "traefik.http.services.api.loadbalancer.server.port=8000"
             - "traefik.http.routers.api.service=api"
-            # - "traefik.http.routers.api.tls=true"
-            # - "traefik.http.routers.api.tls.certresolver=myResolver"
-            # - "traefik.http.routers.api.entrypoints=web-secure"
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
-        command:
-            [
-                "uvicorn",
-                "entrypoint:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-                "--root-path",
-                "/api",
-            ]
+        command: [ "uvicorn", "entrypoint:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--root-path", "/api" ]
 
         depends_on:
             postgres:
@@ -71,23 +53,20 @@ services:
         restart: always
 
     worker:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        
+
         command: >
             celery -A entrypoint.celery_app worker --concurrency=1
 
@@ -98,56 +77,53 @@ services:
         restart: always
 
     alembic:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
-
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
         command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
-        
+
         depends_on:
             postgres:
                 condition: service_healthy
 
     completion:
-        build: 
+        build:
             context: ../../../services/completion
             dockerfile: oss/docker/Dockerfile.gh
 
         image: ghcr.io/agenta-ai/agenta-completion
 
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
-            - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
+            - "traefik.http.routers.completion.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/completion/`)"
             - "traefik.http.routers.completion.entrypoints=web"
             - "traefik.http.middlewares.completion-strip.stripprefix.prefixes=/services/completion"
             - "traefik.http.middlewares.completion-strip.stripprefix.forceslash=true"
             - "traefik.http.routers.completion.middlewares=completion-strip"
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
-        
+
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
-        command: ["python", "oss/src/main.py"]
+        command: [ "python", "oss/src/main.py" ]
 
         restart: always
-        
+
     chat:
-        build: 
+        build:
             context: ../../../services/chat
             dockerfile: oss/docker/Dockerfile.gh
 
@@ -158,7 +134,7 @@ services:
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
-            - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
+            - "traefik.http.routers.chat.rule=Host(`${TRAEFIK_DOMAIN}`) && PathPrefix(`/services/chat/`)"
             - "traefik.http.routers.chat.entrypoints=web"
             - "traefik.http.middlewares.chat-strip.stripprefix.prefixes=/services/chat"
             - "traefik.http.middlewares.chat-strip.stripprefix.forceslash=true"
@@ -166,9 +142,9 @@ services:
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
 
-        command: ["python", "oss/src/main.py"]
+        command: [ "python", "oss/src/main.py" ]
 
         restart: always
 
@@ -181,16 +157,16 @@ services:
 
         restart: always
         networks:
-            - agenta-network
-        
+            - agenta-oss-gh-network
+
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
         ports:
-            - "5432:5432"
+            - "${POSTGRES_PORT:-5432}:5432"
 
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U username -d agenta_oss_core"]
+            test: [ "CMD-SHELL", "pg_isready -U username -d agenta_oss_core" ]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -202,24 +178,25 @@ services:
             - rabbitmq-data:/var/lib/rabbitmq
 
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
-        
+
         ports:
-            - "5672:5672"
-            - "15672:15672"
+            - "${RABBITMQ_PORT:-5672}:5672"
+            - "${RABBITMQ_UI_PORT:-15672}:15672"
+
         restart: always
 
     redis:
         image: redis:latest
-            
+
         volumes:
             - redis-data:/data
 
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
 
         restart: always
 
@@ -227,13 +204,7 @@ services:
         image: redis:latest
 
         command: >
-            redis-server
-            --port 6378
-            --appendonly no
-            --appendfsync no
-            --save ""
-            --maxmemory 128mb
-            --maxmemory-policy allkeys-lru
+            redis-server --port 6378 --appendonly no --appendfsync no --save "" --maxmemory 128mb --maxmemory-policy allkeys-lru
 
         ports:
             - "6378:6378"
@@ -242,7 +213,7 @@ services:
             - cache-data:/data
 
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
 
         labels:
             - "traefik.enable=false"
@@ -250,7 +221,7 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6378", "ping"]
+            test: [ "CMD", "redis-cli", "-p", "6378", "ping" ]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -258,20 +229,46 @@ services:
 
     traefik:
         image: traefik:v2.10
-
+        profiles:
+            - with-traefik
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+        networks:
+            - agenta-oss-gh-network
+
+        command:
+            - --api.dashboard=true
+            - --providers.docker
+            - --entrypoints.web.address=:80
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+
+        ports:
+            - "${TRAEFIK_PORT:-80}:80"
+            - "${TRAEFIK_UI_PORT:-8080}:8080"
+
+        restart: always
+
+    nginx:
+        image: nginx:latest
+        profiles:
+            - with-nginx
+        volumes:
+            - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
 
         networks:
-            - agenta-network
-        
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
-        
+            - agenta-oss-gh-network
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+
         ports:
-            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
-            - "8080:8080"
-        
+            - "${NGINX_PORT:-80}:80"
         restart: always
+
+        depends_on:
+            - api
+            - web
 
     supertokens:
         image: registry.supertokens.io/supertokens/supertokens-postgresql
@@ -280,8 +277,8 @@ services:
             postgres:
                 condition: service_healthy
         ports:
-            - 3567:3567
-            
+            - "${SUPERTOKENS_PORT:-3567}:3567"
+
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
@@ -289,7 +286,7 @@ services:
             POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
 
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
         healthcheck:
             test: >
                 bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
@@ -299,8 +296,8 @@ services:
         restart: always
 
 networks:
-    agenta-network:
-    
+    agenta-oss-gh-network:
+
 volumes:
     postgres-data:
     rabbitmq-data:

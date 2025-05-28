@@ -24,20 +24,12 @@ if (missingEnvVars.length > 0) {
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
-  testDir: `../${process.env.TEST_PROJECT}/tests`,
-  fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI
-    ? 2
-    : process.env.RETRIES
-    ? parseInt(process.env.RETRIES)
-    : 0,
-  workers: process.env.CI
-    ? 1
-    : process.env.MAX_WORKERS
-    ? parseInt(process.env.MAX_WORKERS)
-    : 2, // Allow 2 parallel environments by default
-  reporter: "html",
+    testDir: `../${process.env.TEST_PROJECT}/tests`,
+    fullyParallel: true,
+    forbidOnly: !!process.env.CI,
+    retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
+    workers: process.env.CI ? 1 : process.env.MAX_WORKERS ? parseInt(process.env.MAX_WORKERS) : 2, // Allow 2 parallel environments by default
+    reporter: "html",
 
     // Global test timeout
     timeout: 60000,

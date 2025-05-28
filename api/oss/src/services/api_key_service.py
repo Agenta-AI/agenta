@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 
-from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 from oss.src.models.db_models import APIKeyDB
+from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import engine
 
 # from oss.src.utils.redis_utils import redis_connection
@@ -80,10 +81,7 @@ async def create_api_key(
     prefix_hashed_api_key = f"{prefix}.{hashed_api_key}"
 
     # get rate limit from env
-    if not hidden:
-        rate_limit = int(os.environ.get("API_KEY_RATE_LIMIT", 0))
-    else:
-        rate_limit = int(0)
+    rate_limit = 0
 
     async with engine.core_session() as session:
         # Create an APIKeyDB instance with the prefix, hashed API key, and user_id
@@ -92,9 +90,10 @@ async def create_api_key(
             hashed_key=prefix_hashed_api_key,
             created_by_id=uuid.UUID(user_id),
             project_id=uuid.UUID(project_id),
-            rate_limit=rate_limit if rate_limit > 0 else 0,
-            expiration_date=expiration_date,
-            hidden=hidden,
+            rate_limit=max(0, rate_limit),
+            expiration_date=expiration_date if expiration_date else None,
+            hidden=bool(hidden),
+            created_at=datetime.now(timezone.utc),
         )
 
         session.add(api_key)

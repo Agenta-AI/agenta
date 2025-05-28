@@ -73,8 +73,8 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [uploadType, setUploadType] = useState<"csv" | "json">("csv")
     const [selectedLang, setSelectedLang] = useState("python")
 
-    const uploadURI = `${getAgentaApiUrl()}/api/testsets/upload`
-    const jsonURI = `${getAgentaApiUrl()}/api/testsets`
+    const uploadURI = `${getAgentaApiUrl()}/testsets/upload`
+    const jsonURI = `${getAgentaApiUrl()}/testsets`
 
     const params = `{
     "name": "testset_name",}`

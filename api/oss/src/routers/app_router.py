@@ -58,8 +58,6 @@ router = APIRouter()
 
 log = get_module_logger(__name__)
 
-registry_repo_name = os.environ.get("REGISTRY_REPO_NAME")
-
 
 @router.get(
     "/{app_id}/variants/",

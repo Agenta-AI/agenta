@@ -1,21 +1,23 @@
-from typing import Any, Optional
-
 import os
 import re
 import sys
 import logging
-
-import structlog
-from structlog.typing import EventDict, WrappedLogger, Processor
+from typing import Any, Optional
 
 # from datetime import datetime
 # from logging.handlers import RotatingFileHandler
+
+import structlog
+from structlog.typing import EventDict, WrappedLogger, Processor
 
 # from opentelemetry.trace import get_current_span
 # from opentelemetry._logs import set_logger_provider
 # from opentelemetry.sdk._logs import LoggingHandler, LoggerProvider
 # from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 # from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+
+from oss.src.utils.env import env
+
 
 TRACE_LEVEL = 1
 logging.TRACE = TRACE_LEVEL
@@ -37,17 +39,17 @@ def bound_logger_trace(self, *args, **kwargs):
 structlog.stdlib.BoundLogger.trace = bound_logger_trace
 
 # ENV VARS
-LOG_CONSOLE_ENABLED = os.getenv("LOG_CONSOLE_ENABLED", "true") == "true"
-LOG_CONSOLE_LEVEL = os.getenv("LOG_CONSOLE_LEVEL", "TRACE").upper()
+AGENTA_LOG_CONSOLE_ENABLED = env.AGENTA_LOG_CONSOLE_ENABLED
+AGENTA_LOG_CONSOLE_LEVEL = env.AGENTA_LOG_CONSOLE_LEVEL
 
-# LOG_OTLP_ENABLED = os.getenv("LOG_OTLP_ENABLED", "false") == "true"
-# LOG_OTLP_LEVEL = os.getenv("LOG_OTLP_LEVEL", "INFO").upper()
+# AGENTA_LOG_OTLP_ENABLED = env.AGENTA_LOG_OTLP_ENABLED
+# AGENTA_LOG_OTLP_LEVEL = env.AGENTA_LOG_OTLP_LEVEL
 
-# LOG_FILE_ENABLED = os.getenv("LOG_FILE_ENABLED", "true") == "true"
-# LOG_FILE_LEVEL = os.getenv("LOG_FILE_LEVEL", "WARNING").upper()
-# LOG_FILE_BASE = os.getenv("LOG_FILE_PATH", "error")
+# AGENTA_LOG_FILE_ENABLED = env.AGENTA_LOG_FILE_ENABLED
+# AGENTA_LOG_FILE_LEVEL = env.AGENTA_LOG_FILE_LEVEL
+# AGENTA_LOG_FILE_BASE = env.AGENTA_LOG_FILE_PATH
 # LOG_FILE_DATE = datetime.utcnow().strftime("%Y-%m-%d")
-# LOG_FILE_PATH = f"{LOG_FILE_BASE}-{LOG_FILE_DATE}.log"
+# AGENTA_LOG_FILE_PATH = f"{AGENTA_LOG_FILE_BASE}-{LOG_FILE_DATE}.log"
 
 # COLORS
 LEVEL_COLORS = {
@@ -197,27 +199,27 @@ def create_struct_logger(
 handlers = []
 loggers = []
 
-if LOG_CONSOLE_ENABLED:
+if AGENTA_LOG_CONSOLE_ENABLED:
     h = logging.StreamHandler(sys.stdout)
-    h.setLevel(getattr(logging, LOG_CONSOLE_LEVEL, TRACE_LEVEL))
+    h.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
     h.setFormatter(logging.Formatter("%(message)s"))
     logging.getLogger("console").addHandler(h)
     loggers.append(create_struct_logger([colored_console_renderer()], "console"))
 
-# if LOG_FILE_ENABLED:
-#     h = RotatingFileHandler(LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)
-#     h.setLevel(getattr(logging, LOG_FILE_LEVEL, logging.WARNING))
+# if AGENTA_LOG_FILE_ENABLED:
+#     h = RotatingFileHandler(AGENTA_LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)
+#     h.setLevel(getattr(logging, AGENTA_LOG_FILE_LEVEL, logging.WARNING))
 #     h.setFormatter(logging.Formatter("%(message)s"))
 #     logging.getLogger("file").addHandler(h)
 #     loggers.append(create_struct_logger([plain_renderer()], "file"))
 
-# if LOG_OTLP_ENABLED:
+# if AGENTA_LOG_OTLP_ENABLED:
 #     provider = LoggerProvider()
 #     exporter = OTLPLogExporter()
 #     provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
 #     set_logger_provider(provider)
 #     h = LoggingHandler(
-#         level=getattr(logging, LOG_OTLP_LEVEL, logging.INFO), logger_provider=provider
+#         level=getattr(logging, AGENTA_LOG_OTLP_LEVEL, logging.INFO), logger_provider=provider
 #     )
 #     h.setFormatter(logging.Formatter("%(message)s"))
 #     logging.getLogger("otel").addHandler(h)

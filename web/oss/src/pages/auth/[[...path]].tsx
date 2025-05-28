@@ -120,6 +120,28 @@ const Auth = () => {
                         </div>
                     )}
 
+                    {!isDemo() && (
+                        <Alert
+                            message={
+                                <div className="space-y-1 italic">
+                                    <p className="m-0">
+                                        If you are the first member to log in, your account will
+                                        become the organization{" "}
+                                        <span className="font-bold">owner</span>. As an{" "}
+                                        <span className="font-bold">owner</span>, you will have
+                                        exclusive rights to invite other members to your
+                                        organization.
+                                    </p>
+                                    <p className="m-0">
+                                        If you are not the first member to join, please contact the{" "}
+                                        <span className="font-bold">owner</span> and request an
+                                        invitation.
+                                    </p>
+                                </div>
+                            }
+                        />
+                    )}
+
                     {!isDemo() ? (
                         <EmailPasswordAuth
                             message={message}
@@ -157,7 +179,7 @@ const Auth = () => {
                         />
                     )}
 
-                    {!isLoginCodeVisible && (
+                    {isDemo() && !isLoginCodeVisible && (
                         <Text>
                             By clicking on next, you agree to the Agenta AI’s{" "}
                             <a

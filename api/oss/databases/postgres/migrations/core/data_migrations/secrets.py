@@ -1,4 +1,3 @@
-import os
 import json
 import traceback
 
@@ -6,6 +5,7 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import Connection, update, func
 
+from oss.src.utils.env import env
 from oss.src.dbs.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
     StandardProviderDTO,
@@ -27,7 +27,7 @@ def rename_and_update_secrets_data_schema(session: Connection):
         TOTAL_SECRETS = result or 0
         print(f"Total rows in {SecretsDBE.__tablename__}: {TOTAL_SECRETS}")
 
-        encryption_key = os.getenv("AGENTA_CRYPT_KEY")
+        encryption_key = env.AGENTA_CRYPT_KEY
         if not encryption_key:
             raise RuntimeError(
                 "Encryption key not found. Stopping migration to rename and update secrets data column."
@@ -113,7 +113,7 @@ def revert_rename_and_update_secrets_data_schema(session: Connection):
         TOTAL_SECRETS = session.execute(total_query).scalar() or 0
         print(f"Total rows in {SecretsDBE.__tablename__}: {TOTAL_SECRETS}")
 
-        encryption_key = os.getenv("AGENTA_CRYPT_KEY")
+        encryption_key = env.AGENTA_CRYPT_KEY
         if not encryption_key:
             raise RuntimeError(
                 "Encryption key not found. Stopping migration to revert rename and update secrets data column."

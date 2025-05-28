@@ -1,8 +1,9 @@
-import os
 from typing import Any, Callable
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
+
+from oss.src.utils.env import env
 
 
 class APIRouter(FastAPIRouter):
@@ -47,8 +48,8 @@ class APIRouter(FastAPIRouter):
 
 
 def is_ee():
-    return os.environ.get("AGENTA_LICENSE", "oss") == "ee"
+    return env.AGENTA_LICENSE == "ee"
 
 
 def is_oss():
-    return os.environ.get("AGENTA_LICENSE", "oss") == "oss"
+    return env.AGENTA_LICENSE == "oss"

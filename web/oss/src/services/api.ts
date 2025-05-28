@@ -43,7 +43,7 @@ export async function fetchVariants(appId: string, ignoreAxiosError = false): Pr
     }
 
     const response = await axios.get(
-        `${getAgentaApiUrl()}/api/apps/${appId}/variants?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/apps/${appId}/variants?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -346,7 +346,7 @@ export const fetchAppContainerURL = async (
 
         // Retrieve container URL from backend
         const {data} = await axios.get(
-            `${getAgentaApiUrl()}/api/variants/${variantId}?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/variants/${variantId}?project_id=${projectId}`,
         )
         const uriObject = await findCustomWorkflowPath(data.uri)
         if (uriObject) {
@@ -361,7 +361,7 @@ export const fetchAppContainerURL = async (
 }
 
 export const fetchProfile = async (ignoreAxiosError = false) => {
-    return axios.get(`${getAgentaApiUrl()}/api/profile`, {
+    return axios.get(`${getAgentaApiUrl()}/profile`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 }
@@ -370,7 +370,7 @@ export const fetchSingleProfile = async (
     userId: string,
     ignoreAxiosError = false,
 ): Promise<User> => {
-    const {data} = await axios.get(`${getAgentaApiUrl()}/api/profile?user_id=${userId}`, {
+    const {data} = await axios.get(`${getAgentaApiUrl()}/profile?user_id=${userId}`, {
         _ignoreError: ignoreAxiosError,
     } as any)
 

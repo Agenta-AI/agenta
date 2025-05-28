@@ -16,7 +16,7 @@ export const fetchEnvironments = async (appId: string): Promise<Environment[]> =
         const {projectId} = getCurrentProject()
 
         const response = await axios.get(
-            `${getAgentaApiUrl()}/api/apps/${appId}/environments?project_id=${projectId}`,
+            `${getAgentaApiUrl()}/apps/${appId}/environments?project_id=${projectId}`,
         )
         return response.data
     } catch (error) {
@@ -32,7 +32,7 @@ export const createPublishVariant = async (payload: {
 }) => {
     const {projectId} = getCurrentProject()
     const {note, revision_id, ..._payload} = payload
-    await axios.post(`${getAgentaApiUrl()}/api/environments/deploy?project_id=${projectId}`, {
+    await axios.post(`${getAgentaApiUrl()}/environments/deploy?project_id=${projectId}`, {
         ..._payload,
         commit_message: note,
     })
@@ -48,7 +48,7 @@ export const createPublishRevision = async (payload: {
     const {projectId} = getCurrentProject()
     const {currentApp} = getAppValues()
 
-    await axios.post(`${getAgentaApiUrl()}/api/variants/configs/deploy?project_id=${projectId}`, {
+    await axios.post(`${getAgentaApiUrl()}/variants/configs/deploy?project_id=${projectId}`, {
         application_ref: {
             id: payload.application_id || currentApp?.app_id,
             version: null,

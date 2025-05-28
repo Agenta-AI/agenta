@@ -287,15 +287,15 @@ const config: Config = {
       },
       {
         from: "/self-host/deploy_remotely/host-remotely",
-        to: "/self-host/host-remotely",
+        to: "/self-host/guides/deploy-remotely",
       },
       {
         from: "/self-host/deploy_remotely/host-on-kubernetes",
-        to: "/self-host/host-on-kubernetes",
+        to: "/self-host/guides/deploy-to-kubernetes",
       },
       {
         from: "/self-host/migration/applying-schema-migration",
-        to: "/self-host/applying-schema-migration",
+        to: "/self-host/upgrading",
       },
       {
         from: "/reference/sdk/quick_start",
@@ -332,6 +332,22 @@ const config: Config = {
       {
         from: "/prompt-management/integration/proxy-calls",
         to: "/prompt-engineering/prompt-management/proxy-calls",
+      },
+      {
+        from: "/self-host/host-locally",
+        to: "/self-host/quick-start",
+      },
+      {
+        from: "/self-host/host-remotely",
+        to: "/self-host/guides/deploy-remotely",
+      },
+      {
+        from: "/self-host/host-on-kubernetes",
+        to: "/self-host/guides/deploy-to-kubernetes",
+      },
+      {
+        from: "/self-host/applying-schema-migration",
+        to: "/self-host/upgrading",
       }
       ],
         createRedirects(existingPath) {

@@ -5,15 +5,12 @@ from datetime import datetime, timezone
 import httpx
 from sqlalchemy.future import select
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.shared_models import ConfigDB
 from oss.src.models.db_models import (
     ProjectDB,
-    AppDB,
     UserDB,
-    DeploymentDB,
-    VariantBaseDB,
-    AppVariantDB,
 )
 from oss.src.tests.unit.test_traces import (
     simple_rag_trace,
@@ -26,12 +23,8 @@ from oss.src.dbs.postgres.shared.engine import engine
 log = get_module_logger(__name__)
 
 # Set global variables
-ENVIRONMENT = os.environ.get("ENVIRONMENT")
-OPEN_AI_KEY = os.environ.get("OPENAI_API_KEY")
-if ENVIRONMENT == "development":
-    BACKEND_API_HOST = "http://host.docker.internal/api"
-elif ENVIRONMENT == "github":
-    BACKEND_API_HOST = "http://agenta-backend-test:8000"
+OPEN_AI_KEY = env.OPENAI_API_KEY
+BACKEND_API_HOST = env.AGENTA_HOST + "/api"
 
 
 @pytest.fixture()
@@ -309,7 +302,7 @@ def evaluators_payload_data(custom_code_snippet):
                 "prompt_template": prompt_template,
                 "correct_answer_key": "correct_answer",
             },
-            "credentials": {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
+            "credentials": {"OPENAI_API_KEY": env.OPENAI_API_KEY},
         },
         "auto_starts_with": {
             "inputs": {
@@ -385,6 +378,6 @@ def evaluators_payload_data(custom_code_snippet):
                 "ground_truth": "The correct answer is 42",
                 "prediction": "The answer is 42",
             },
-            "credentials": {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
+            "credentials": {"OPENAI_API_KEY": env.OPENAI_API_KEY},
         },
     }

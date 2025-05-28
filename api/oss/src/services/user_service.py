@@ -1,11 +1,10 @@
-import os
-
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
 from supertokens_python.recipe.emailpassword.asyncio import create_reset_password_link
 
-from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 from oss.src.models.db_models import UserDB
+from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager, email_service
@@ -94,7 +93,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         email=user.email,
     )
 
-    if not os.getenv("SENDGRID_API_KEY", None):
+    if not env.SENDGRID_API_KEY:
         return password_reset_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
@@ -105,11 +104,11 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
     )
 
-    if not os.getenv("SEND_EMAIL_FROM_ADDRESS", None):
+    if not env.AGENTA_SEND_EMAIL_FROM_ADDRESS:
         raise ValueError("Sendgrid requires a sender email address to work.")
 
     await email_service.send_email(
-        from_email=os.getenv("SEND_EMAIL_FROM_ADDRESS"),
+        from_email=env.AGENTA_SEND_EMAIL_FROM_ADDRESS,
         to_email=user.email,
         subject=f"{admin_user.username} requested a password reset for you in their workspace",
         html_content=html_content,

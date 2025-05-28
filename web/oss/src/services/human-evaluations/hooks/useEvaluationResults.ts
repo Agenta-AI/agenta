@@ -13,7 +13,7 @@ export const useEvaluationResults = ({evaluationId, ...rest}: UseEvaluationResul
 
     const swr = useSWR(
         evaluationId && projectId
-            ? `${getAgentaApiUrl()}/api/human-evaluations/${evaluationId}/results?project_id=${projectId}`
+            ? `${getAgentaApiUrl()}/human-evaluations/${evaluationId}/results?project_id=${projectId}`
             : null,
         {
             ...rest,

@@ -9,6 +9,7 @@ from sqlalchemy.future import select
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
+from oss.src.utils.env import env
 from oss.src.services import db_manager, evaluator_manager
 from oss.src.models.deprecated_models import (
     ProjectScopedAppDB as AppDB,
@@ -64,7 +65,7 @@ def check_for_multiple_default_projects(session: Session) -> Sequence[ProjectDB]
 
 def create_default_project():
     PROJECT_NAME = "Default Project"
-    engine = create_engine(os.getenv("POSTGRES_URI_CORE"))
+    engine = create_engine(env.POSTGRES_URI_CORE)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -154,7 +155,7 @@ def add_default_evaluators_to_project(session: Session, project_id: str):
 
 
 def remove_default_project():
-    engine = create_engine(os.getenv("POSTGRES_URI_CORE"))
+    engine = create_engine(env.POSTGRES_URI_CORE)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -179,7 +180,7 @@ def remove_default_project():
 
 
 def add_project_id_to_db_entities():
-    engine = create_engine(os.getenv("POSTGRES_URI_CORE"))
+    engine = create_engine(env.POSTGRES_URI_CORE)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:
@@ -228,7 +229,7 @@ def add_project_id_to_db_entities():
 
 
 def remove_project_id_from_db_entities():
-    engine = create_engine(os.getenv("POSTGRES_URI_CORE"))
+    engine = create_engine(env.POSTGRES_URI_CORE)
     sync_session = sessionmaker(engine, expire_on_commit=False)
 
     with sync_session() as session:

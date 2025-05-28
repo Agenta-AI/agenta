@@ -22,14 +22,14 @@ import {AppTemplate} from "@/oss/lib/Types"
 //  - delete: DELETE data from server
 
 export const fetchAllTemplates = async () => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/containers/templates`)
+    const response = await axios.get(`${getAgentaApiUrl()}/containers/templates`)
     return response.data
 }
 
 export async function deleteApp(appId: string) {
     const {projectId} = getCurrentProject()
 
-    await axios.delete(`${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`, {
+    await axios.delete(`${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`, {
         data: {app_id: appId},
     })
 }
@@ -55,7 +55,7 @@ export const createApp = async ({
 }) => {
     const {selectedOrg} = getOrgValues()
     const {projectId} = getCurrentProject()
-    const response = await axios.post(`${getAgentaApiUrl()}/api/apps?project_id=${projectId}`, {
+    const response = await axios.post(`${getAgentaApiUrl()}/apps?project_id=${projectId}`, {
         app_name: appName,
         template_key: templateKey,
         organization_id: selectedOrg?.id,
@@ -96,7 +96,7 @@ export const createVariant = async ({
         throw new Error("Either serviceUrl or templateKey should be provided")
     }
 
-    const endpoint = `${getAgentaApiUrl()}/api/apps/${appId}/variant/${
+    const endpoint = `${getAgentaApiUrl()}/apps/${appId}/variant/${
         serviceUrl ? "from-service" : "from-template"
     }`
 
@@ -125,7 +125,7 @@ export const updateVariant = async (
     ignoreAxiosError = false,
 ) => {
     const response = await axios.put(
-        `${getAgentaApiUrl()}/api/variants/${variantId}/service`,
+        `${getAgentaApiUrl()}/variants/${variantId}/service`,
         {
             url: serviceUrl,
             variant_id: variantId,
@@ -140,7 +140,7 @@ export const createAppFromTemplate = async (templateObj: AppTemplate, ignoreAxio
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/apps/app_and_variant_from_template?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/apps/app_and_variant_from_template?project_id=${projectId}`,
         templateObj,
         {_ignoreError: ignoreAxiosError} as any,
     )
@@ -151,7 +151,7 @@ export const updateAppName = async (appId: string, appName: string, ignoreAxiosE
     const {projectId} = getCurrentProject()
 
     const response = await axios.patch(
-        `${getAgentaApiUrl()}/api/apps/${appId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
         {app_name: appName},
         {_ignoreError: ignoreAxiosError} as any,
     )

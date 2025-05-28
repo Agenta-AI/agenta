@@ -11,13 +11,9 @@ from dotenv import load_dotenv
 load_dotenv("../.env")
 
 # Set global variables
-AGENTA_AWS_PROFILE_NAME = os.environ.get("AWS_PROFILE_NAME", "staging")
 AGENTA_SECRET_ARN = os.environ.get("AGENTA_AUTH_KEY_SECRET_ARN", None)
 AGENTA_HOST = os.environ.get("AGENTA_HOST", "http://localhost")
 API_BASE_URL = f"{AGENTA_HOST}/api/"
-
-session = boto3.Session(profile_name=AGENTA_AWS_PROFILE_NAME)
-sm_client = session.client("secretsmanager")
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)

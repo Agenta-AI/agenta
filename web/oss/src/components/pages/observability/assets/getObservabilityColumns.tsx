@@ -107,9 +107,9 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             align: "start",
             children: Array.from(
                 new Set(annotations.map((a) => a.references?.evaluator?.slug).filter(Boolean)),
-            ).map((evaluatorSlug, index) => ({
+            ).map((evaluatorSlug) => ({
                 title: "",
-                key: `evaluator‑${index}`,
+                key: evaluatorSlug,
                 onHeaderCell: () => ({
                     style: {display: "none"},
                 }),

@@ -145,7 +145,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 
 3. Access Agenta at `http://localhost`.
 
-For deploying on a remote host, or using different ports refers to our [self-hosting](https://docs.agenta.ai/self-host/host-locally?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://docs.agenta.ai/self-host/host-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
+For deploying on a remote host, or using different ports refers to our [self-hosting](https://docs.agenta.ai/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://docs.agenta.ai/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ## 💬 Community
 
@@ -266,4 +266,4 @@ This project follows the [all-contributors](https://github.com/all-contributors/
 
 ## Disabling Anonymized Tracking
 
-By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry set `TELEMETRY_ENABLED` to `false` in your `.env` file.
+By default, Agenta automatically reports anonymized basic usage statistics. This helps us understand how Agenta is used and track its overall usage and growth. This data does not include any sensitive information. To disable anonymized telemetry set `AGENTA_TELEMETRY_ENABLED` to `false` in your `.env` file.

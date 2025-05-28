@@ -1,4 +1,3 @@
-import os
 import traceback
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -11,17 +10,18 @@ from jwt import encode, decode, DecodeError, ExpiredSignatureError
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.utils.common import is_ee
 from oss.src.services import db_manager
+from oss.src.utils.logging import get_module_logger
 from oss.src.services import api_key_service
 from oss.src.services.exceptions import (
     UnauthorizedException,
     TooManyRequestsException,
     InternalServerErrorException,
-    code_to_phrase,
 )
 
 if is_ee():
@@ -58,7 +58,7 @@ _PUBLIC_ENDPOINTS = (
 
 _ADMIN_ENDPOINT_PREFIX = "/admin/"
 
-_SECRET_KEY = os.getenv("AGENTA_AUTH_KEY")
+_SECRET_KEY = env.AGENTA_AUTH_KEY
 _SECRET_EXP = 15 * 60  # 15 minutes
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"

@@ -18,7 +18,7 @@ export const fetchAllDeploymentRevisionConfig = async (
     const {projectId} = getCurrentProject()
 
     const {data} = await axios(
-        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/configs/deployment/${deploymentRevisionId}?project_id=${projectId}`,
         {signal, _ignoreError: ignoreAxiosError} as any,
     )
 
@@ -33,7 +33,7 @@ export const fetchAllDeploymentRevisions = async (
     const {projectId} = getCurrentProject()
 
     const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/apps/${appId}/revisions/${environmentName}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/apps/${appId}/revisions/${environmentName}?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -48,7 +48,7 @@ export const createRevertDeploymentRevision = async (
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/configs/deployment/${deploymentRevisionId}/revert?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/configs/deployment/${deploymentRevisionId}/revert?project_id=${projectId}`,
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response

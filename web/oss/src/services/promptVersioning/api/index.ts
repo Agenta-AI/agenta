@@ -15,7 +15,7 @@ export const fetchAllPromptVersioning = async (variantId: string, ignoreAxiosErr
     console.log("fetchAllPromptVersioning", projectId)
 
     const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/variants/${variantId}/revisions?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/variants/${variantId}/revisions?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -31,7 +31,7 @@ export const fetchPromptRevision = async (
     const {projectId} = getCurrentProject()
 
     const {data} = await axios.get(
-        `${getAgentaApiUrl()}/api/variants/${variantId}/revisions/${revisionNumber}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/variants/${variantId}/revisions/${revisionNumber}?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
         } as any,

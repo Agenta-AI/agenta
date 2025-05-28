@@ -142,11 +142,28 @@ const ObservabilityDashboard = () => {
             })
         }
 
+    const filterColumns = (cols: ColumnsType<any>, hiddenKeys: string[]): ColumnsType<any> => {
+        return cols
+            .filter((col) => !hiddenKeys.includes(col.key as string))
+            .map((col) => {
+                if ("children" in col && Array.isArray(col.children)) {
+                    const filteredChildren = filterColumns(col.children, hiddenKeys)
+                    // Only keep parent if it has visible children
+                    if (filteredChildren.length > 0) {
+                        return {...col, children: filteredChildren}
+                    }
+                    // If all children are hidden, remove parent
+                    return null
+                }
+                return col
+            })
+            .filter(Boolean) as ColumnsType<any>
+    }
+
     const mergedColumns = useMemo(() => {
-        return columns.map((col) => ({
+        return filterColumns(columns, editColumns).map((col) => ({
             ...col,
             width: col.width || 200,
-            hidden: editColumns.includes(col.key as string),
             onHeaderCell: (column: TableColumnType<TracesWithAnnotations[]>) => ({
                 width: column.width,
                 onResize: handleResize(column.key?.toString()!),

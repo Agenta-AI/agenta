@@ -1,4 +1,4 @@
-import os
+from urllib.parse import urlparse
 from typing import Optional, Any, Dict, Union, List
 
 from supertokens_python.types import AccountInfo
@@ -42,6 +42,7 @@ from supertokens_python.recipe.emailpassword.interfaces import (
     SignUpPostOkResult as EmailPasswordSignUpPostOkResult,
 )
 
+from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.services.exceptions import SuperTokensNotAllowedException
 from oss.src.services.db_manager import (
@@ -257,23 +258,33 @@ def override_password_apis(original: EmailPasswordAPIInterface):
     return original
 
 
+# Parse AGENTA_API_URL to extract domain and path
+try:
+    parsed_api_url = urlparse(env.AGENTA_API_URL)
+    if not parsed_api_url.scheme or not parsed_api_url.netloc:
+        raise ValueError("Invalid AGENTA_API_URL: missing scheme or netloc")
+
+    api_domain = f"{parsed_api_url.scheme}://{parsed_api_url.netloc}"
+    api_gateway_path = parsed_api_url.path or "/"
+except Exception as e:
+    print(f"[ERROR] Failed to parse AGENTA_API_URL ('{env.AGENTA_API_URL}'): {e}")
+    api_domain = ""
+    api_gateway_path = "/"
+
+
 init(
     # debug=True,
     app_info=InputAppInfo(
         app_name="agenta",
-        api_domain=os.environ.get("DOMAIN_NAME"),
-        website_domain=(
-            os.environ.get("WEBSITE_DOMAIN_NAME", os.environ.get("DOMAIN_NAME"))
-        ),
-        # the fact that both are localhost is causing problems with
-        # displaying the dashboard to manage users
-        api_gateway_path="/api/",
+        api_domain=api_domain,
+        website_domain=env.AGENTA_WEB_URL,
+        api_gateway_path=api_gateway_path,
         api_base_path="/auth/",
         website_base_path="/auth",
     ),
     supertokens_config=SupertokensConfig(
-        connection_uri=os.environ.get("SUPERTOKENS_CONNECTION_URI"),
-        api_key=os.environ.get("SUPERTOKENS_API_KEY"),
+        connection_uri=env.SUPERTOKENS_CONNECTION_URI,
+        api_key=env.SUPERTOKENS_API_KEY,
     ),
     framework="fastapi",
     recipe_list=[
@@ -285,10 +296,8 @@ init(
                             third_party_id="google",
                             clients=[
                                 ProviderClientConfig(
-                                    client_id=os.environ.get("GOOGLE_OAUTH_CLIENT_ID"),
-                                    client_secret=os.environ.get(
-                                        "GOOGLE_OAUTH_CLIENT_SECRET"
-                                    ),
+                                    client_id=env.GOOGLE_OAUTH_CLIENT_ID,
+                                    client_secret=env.GOOGLE_OAUTH_CLIENT_SECRET,
                                 ),
                             ],
                         ),
@@ -298,10 +307,8 @@ init(
                             third_party_id="github",
                             clients=[
                                 ProviderClientConfig(
-                                    client_id=os.environ.get("GITHUB_OAUTH_CLIENT_ID"),
-                                    client_secret=os.environ.get(
-                                        "GITHUB_OAUTH_CLIENT_SECRET"
-                                    ),
+                                    client_id=env.GITHUB_OAUTH_CLIENT_ID,
+                                    client_secret=env.GITHUB_OAUTH_CLIENT_SECRET,
                                 )
                             ],
                         ),

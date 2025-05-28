@@ -1,16 +1,13 @@
-import { expect } from "@playwright/test";
+import {expect} from "@playwright/test"
+import {test as baseTest, createAuthTest} from "../fixtures/user.fixture"
 import {
-  test as baseTest,
-  createAuthTest,
-} from "../fixtures/user.fixture";
-import {
-  TestScope,
-  TestCoverage,
-  TestPath,
-  TestFeatureScope,
-  createTagString,
-} from "../../playwright/config/testTags";
-import type { AppFixtures, AppActions, CreateAppResponse } from "./types";
+    TestScope,
+    TestCoverage,
+    TestPath,
+    TestFeatureScope,
+    createTagString,
+} from "../../playwright/config/testTags"
+import type {AppFixtures, AppActions, CreateAppResponse} from "./types"
 
 /**
  * App-specific test fixtures extending the base test fixture.
@@ -89,10 +86,10 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
 // Then create auth-enabled test
 // export const test = testWithAppFixtures
 // createAuthTest<AppFixtures>(testWithAppFixtures);
-export { expect, createAuthTest, testWithAppFixtures as test };
+export {expect, createAuthTest, testWithAppFixtures as test}
 export const tags = [
-  createTagString("scope", TestScope.APPS),
-  createTagString("coverage", TestCoverage.SMOKE),
-  createTagString("path", TestPath.HAPPY),
-  createTagString("feature-scope", TestFeatureScope.COMMON),
+    createTagString("scope", TestScope.APPS),
+    createTagString("coverage", TestCoverage.SMOKE),
+    createTagString("path", TestPath.HAPPY),
+    createTagString("feature-scope", TestFeatureScope.COMMON),
 ]

@@ -11,12 +11,12 @@ import {StandardSecretDTO, CustomSecretDTO} from "@/oss/lib/Types"
 //  - delete: DELETE data from server
 
 export const fetchVaultSecret = async () => {
-    const response = await axios.get(`${getAgentaApiUrl()}/api/vault/v1/secrets`)
+    const response = await axios.get(`${getAgentaApiUrl()}/vault/v1/secrets`)
     return transformSecret(response.data as StandardSecretDTO[] | CustomSecretDTO[])
 }
 
 export const createVaultSecret = async <T>({payload}: {payload: T}) => {
-    const response = await axios.post(`${getAgentaApiUrl()}/api/vault/v1/secrets`, payload)
+    const response = await axios.post(`${getAgentaApiUrl()}/vault/v1/secrets`, payload)
     return response.data as T
 }
 
@@ -27,13 +27,10 @@ export const updateVaultSecret = async <T>({
     secret_id: string
     payload: T
 }) => {
-    const response = await axios.put(
-        `${getAgentaApiUrl()}/api/vault/v1/secrets/${secret_id}`,
-        payload,
-    )
+    const response = await axios.put(`${getAgentaApiUrl()}/vault/v1/secrets/${secret_id}`, payload)
     return response.data as T
 }
 
 export const deleteVaultSecret = async ({secret_id}: {secret_id: string}) => {
-    return await axios.delete(`${getAgentaApiUrl()}/api/vault/v1/secrets/${secret_id}`)
+    return await axios.delete(`${getAgentaApiUrl()}/vault/v1/secrets/${secret_id}`)
 }

@@ -1,4 +1,4 @@
-import type { BaseFixture } from "../fixtures/base.fixture/types";
+import type {BaseFixture} from "../fixtures/base.fixture/types"
 
 export interface CreateAppResponse {
     app_id: string

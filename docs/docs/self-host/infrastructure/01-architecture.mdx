@@ -1,0 +1,196 @@
+---
+title: System Architecture
+description: "Complete overview of Agenta's system architecture, components, and service relationships"
+sidebar_position: 1
+---
+
+# System Architecture
+
+This guide provides a comprehensive overview of Agenta's system architecture, explaining each component's role, responsibilities, and how they work together to deliver AI application evaluation and management capabilities.
+
+## System Overview
+
+Agenta follows a modern microservices architecture with clear separation of concerns. The system is designed for scalability, maintainability, and ease of deployment using Docker containers.
+
+```
+                                    ┌─────────────────────────────────────┐
+                                    │              Users                  │
+                                    │    (Developers, AI Engineers)       │
+                                    └─────────────────┬───────────────────┘
+                                                      │
+                                    ┌─────────────────▼───────────────────┐
+                                    │        Load Balancer/Proxy          │
+                                    │         (Traefik/Nginx)             │
+                                    │      Handles SSL, Routing           │
+                                    └─────────────┬───────────────────────┘
+                                                  │
+                    ┌─────────────────────────────┼─────────────────────────────┐
+                    │                             │                             │
+                    ▼                             ▼                             ▼
+          ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
+          │   Frontend      │         │    Backend      │         │   AI Services   │
+          │   (Web UI)      │◄────────►    (API)        │◄────────►  (Completion)   │
+          │                 │         │                 │         │  (Chat)         │
+          │ • React App     │         │ • FastAPI       │         │ • LLM Providers │
+          │ • User Interface│         │ • Business Logic│         │ • Model Serving │
+          │ • Playground    │         │                 │         │                 │
+          └─────────────────┘         └─────────┬───────┘         └─────────────────┘
+                    │                           │
+                    │                           ▼
+                    │                 ┌─────────────────┐
+                    │                 │     Worker      │
+                    │                 │  (Background)   │
+                    │                 │                 │
+                    │                 │ • Celery Tasks  │
+                    │                 │ • Async Jobs    │
+                    │                 │ • Evaluations   │
+                    │                 └─────────┬───────┘
+                    │                           │
+                    ▼                           ▼
+          ┌─────────────────────────────────────────────────────────────────┐
+          │                       Infrastructure Layer                      │
+          │                                                                 │
+          │ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
+          │ │ PostgreSQL  │ │  RabbitMQ   │ │    Redis    │ │ SuperTokens │ │
+          │ │             │ │             │ │             │ │             │ │
+          │ │• Core DB    │ │• Task Queue │ │• Caching    │ │• Auth       │ │
+          │ │• Tracing DB │ │• Job Mgmt   │ │• Sessions   │ │             │ │
+          │ │             │ │• Workers    │ │• Results    │ │             │ │
+          │ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ │
+          └─────────────────────────────────────────────────────────────────┘
+```
+
+## Frontend Components
+
+### Web UI (NextJS Application)
+- **Technology**: React, TypeScript, Next.js
+- **Port**: 3000 (internal)
+- **Purpose**: Primary user interface for Agenta platform
+
+**Key Responsibilities**:
+- **User Interface**: Provides intuitive web interface for application management
+- **Playground**: Interactive environment for testing and evaluating LLM applications
+- **Evaluation Dashboard**: Visualizations and metrics for application performance
+- **Application Management**: Create, configure, and deploy AI applications
+- **User Authentication**: Login, registration, and session management
+
+## Backend Components
+
+### API Service (FastAPI)
+- **Technology**: Python, FastAPI, SQLAlchemy
+- **Port**: 8000 (internal)
+- **Purpose**: Core business logic and API endpoints
+
+**Key Responsibilities**:
+- **REST API**: Provides RESTful endpoints for frontend and external integrations
+- **Business Logic**: Implements core platform functionality
+- **Data Management**: Handles CRUD operations for applications, evaluations, experiments, etc
+- **Authentication**: Integrates with SuperTokens for user authentication
+- **Application Orchestration**: Manages application lifecycle and deployment
+- **Evaluation Management**: Coordinates evaluation runs and result collection
+
+### Worker Service (Celery)
+- **Technology**: Python, Celery, Redis/RabbitMQ
+- **Purpose**: Background task processing and async operations
+
+**Key Responsibilities**:
+- **Evaluation Execution**: Runs AI model evaluations asynchronously
+- **Data Processing**: Batch processing of evaluation results
+- **Scheduled Tasks**: Periodic maintenance and cleanup operations
+- **Resource Management**: Manages compute resources for evaluations
+- **Job Monitoring**: Tracks task progress and handles failures
+
+## AI Services
+
+**Key Responsibilities**:
+- **LLM Integration**: Connects to various LLM providers (OpenAI, Anthropic, etc.)
+- **Prompt Processing**: Handles prompt templates and variable substitution
+- **Response Generation**: Manages LLM API calls and response handling
+- **Provider Abstraction**: Unified interface across different LLM providers
+- **Error Handling**: Robust error handling for LLM API failures
+
+### Completion Service
+- **Technology**: Python, FastAPI
+- **Port**: 80 (internal)
+- **Purpose**: LLM completion and text generation
+
+### Chat Service
+- **Technology**: Python, FastAPI
+- **Port**: 80 (internal)
+- **Purpose**: Conversational AI and chat-based interactions
+
+## Infrastructure Services
+
+### PostgreSQL (Database)
+- **Technology**: PostgreSQL 16
+- **Port**: 5432
+- **Purpose**: Primary data storage
+
+**Databases**:
+- **Core Database**: Application data, Datasets, Evaluations, Users & Profiles, etc.
+- **Tracing Database**: Execution traces and performance metrics
+- **SuperTokens Database**: Authentication and user management data
+
+### Redis (Caching & Sessions)
+- **Technology**: Redis
+- **Ports**: 6379 (primary), 6378 (cache)
+- **Purpose**: Caching and session management
+
+**Use Cases**:
+- **Application Caching**: Frequently accessed data
+- **Session Storage**: User sessions and temporary data
+- **Task Results**: Celery task results and status
+- **Real-time Data**: Live updates and notifications
+- **Rate Limiting**: API rate limit counters
+
+### RabbitMQ (Message Queue)
+- **Technology**: RabbitMQ
+- **Ports**: 5672 (AMQP), 15672 (Management UI)
+- **Purpose**: Asynchronous task queue and message broker
+
+**Key Functions**:
+- **Task Queue**: Celery task distribution
+- **Job Scheduling**: Delayed and scheduled tasks
+- **Event Broadcasting**: System-wide event notifications
+- **Worker Coordination**: Load balancing across worker instances
+- **Reliability**: Message persistence and delivery guarantees
+
+### SuperTokens (Authentication)
+- **Technology**: SuperTokens
+- **Port**: 3567
+- **Purpose**: Authentication and user management
+
+**Features**:
+- **User Authentication**: Login/logout, password management
+- **Session Management**: Secure session handling with JWT
+- **OAuth Integration**: Google, and GitHub
+- **User Management**: User registration, profile management
+
+## Service Dependencies
+
+### Frontend Dependencies
+```
+Web UI depends on:
+├── API Service (primary backend)
+├── AI Services (direct calls for playground)
+└── Authentication (SuperTokens via API)
+```
+
+### Backend Dependencies
+```
+API Service depends on:
+├── PostgreSQL (data persistence)
+├── Redis (caching and sessions)
+├── SuperTokens (authentication)
+├── RabbitMQ (task queuing)
+└── Worker (async task execution)
+```
+
+### Worker Dependencies
+```
+Worker depends on:
+├── RabbitMQ (task queue)
+├── Redis (task results)
+├── PostgreSQL (data access)
+└── AI Services (evaluation execution)
+```

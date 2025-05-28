@@ -1,4 +1,3 @@
-import os
 import asyncio
 import logging
 import traceback
@@ -13,17 +12,19 @@ from alembic.script import ScriptDirectory
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
+from oss.src.utils.env import env
+
 
 # Initializer logger
 logger = logging.getLogger("alembic.env")
 
 # Initialize alembic config
-alembic_cfg = Config(os.environ.get("ALEMBIC_CFG_PATH_TRACING"))
+alembic_cfg = Config(env.ALEMBIC_CFG_PATH_TRACING)
 script = ScriptDirectory.from_config(alembic_cfg)
 
 logger.info("license: oss")
 logger.info("migrations: tracing")
-logger.info("ALEMBIC_CFG_PATH_TRACING: %s", os.environ.get("ALEMBIC_CFG_PATH_TRACING"))
+logger.info("ALEMBIC_CFG_PATH_TRACING: %s", env.ALEMBIC_CFG_PATH_TRACING)
 logger.info("alembic_cfg: %s", alembic_cfg)
 logger.info("script: %s", script)
 
@@ -88,7 +89,7 @@ async def get_pending_migration_head():
         the pending migration head
     """
 
-    engine = create_async_engine(url=os.environ.get("POSTGRES_URI_TRACING"))
+    engine = create_async_engine(url=env.POSTGRES_URI_TRACING)
     try:
         current_migration_script_head = script.get_current_head()
         migration_head_from_db = await get_current_migration_head_from_db(engine=engine)
@@ -111,10 +112,9 @@ def run_alembic_migration():
 
     try:
         pending_migration_head = asyncio.run(get_pending_migration_head())
-        APPLY_AUTO_MIGRATIONS = os.environ.get("AGENTA_AUTO_MIGRATIONS")
         FIRST_TIME_USER = True if "alembic_version" in pending_migration_head else False
 
-        if FIRST_TIME_USER or APPLY_AUTO_MIGRATIONS == "true":
+        if FIRST_TIME_USER or env.AGENTA_AUTO_MIGRATIONS:
             command.upgrade(alembic_cfg, "head")
             click.echo(
                 click.style(

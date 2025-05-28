@@ -8,7 +8,6 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.routers import (
     app_router,
@@ -35,6 +34,7 @@ from oss.databases.postgres.migrations.core.utils import (
 from oss.databases.postgres.migrations.tracing.utils import (
     check_for_new_migrations as check_for_new_tracing_migrations,
 )
+from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.dbs.secrets.dao import SecretsDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.apis.fastapi.vault.router import VaultRouter
@@ -101,8 +101,12 @@ async def lifespan(application: FastAPI, cache=True):
         application: FastAPI application.
         cache: A boolean value that indicates whether to use the cached data or not.
     """
+
     await check_for_new_entities_migratons()
     await check_for_new_tracing_migrations()
+
+    warn_deprecated_env_vars()
+    validate_required_env_vars()
 
     yield
 
