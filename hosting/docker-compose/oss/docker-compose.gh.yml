@@ -13,9 +13,9 @@ services:
         networks:
             - agenta-oss-gh-network
         labels:
-            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
-            - "traefik.http.routers.agenta-web.entrypoints=web"
-            - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
+            - "traefik.http.routers.web.rule=PathPrefix(`/`)"
+            - "traefik.http.routers.web.entrypoints=web"
+            - "traefik.http.services.web.loadbalancer.server.port=3000"
 
         command: sh -c "node ./oss/server.js"
         restart: always
@@ -239,7 +239,7 @@ services:
         command:
             - --api.dashboard=true
             - --providers.docker
-            - --entrypoints.web.address=:80
+            - --entrypoints.web.address=:${TRAEFIK_PORT:-80}
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 

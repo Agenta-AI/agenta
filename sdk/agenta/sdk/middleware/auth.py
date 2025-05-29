@@ -193,7 +193,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         )
                         raise DenyException(
                             status_code=500,
-                            content=f"Could no verify credentials: {self.host} returned unexpected status code {response.status_code}. Please try again later or contact support if the issue persists.",
+                            content=f"Could not verify credentials: {self.host} returned unexpected status code {response.status_code}. Please try again later or contact support if the issue persists.",
                         )
 
                     try:
@@ -202,7 +202,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         log.debug(f"Agenta returned invalid JSON response: {exc}")
                         raise DenyException(
                             status_code=500,
-                            content=f"Could no verify credentials: {self.host} returned unexpected invalid JSON response. Please try again later or contact support if the issue persists.",
+                            content=f"Could not verify credentials: {self.host} returned unexpected invalid JSON response. Please try again later or contact support if the issue persists.",
                         ) from exc
 
                     if not isinstance(auth, dict):
@@ -211,7 +211,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         )
                         raise DenyException(
                             status_code=500,
-                            content=f"Could no verify credentials: {self.host} returned unexpected invalid response format. Please try again later or contact support if the issue persists.",
+                            content=f"Could not verify credentials: {self.host} returned unexpected invalid response format. Please try again later or contact support if the issue persists.",
                         )
 
                     effect = auth.get("effect")
@@ -239,7 +239,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 )
                 raise DenyException(
                     status_code=500,
-                    content=f"Could no verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
+                    content=f"Could not verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
                 ) from exc
 
         except DenyException as deny:
@@ -248,5 +248,5 @@ class AuthMiddleware(BaseHTTPMiddleware):
             log.debug(f"Unexpected error while verifying credentials (local): {exc}")
             raise DenyException(
                 status_code=500,
-                content=f"Could no verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
+                content=f"Could not verify credentials: unexpected error - {str(exc)}. Please try again later or contact support if the issue persists.",
             ) from exc
