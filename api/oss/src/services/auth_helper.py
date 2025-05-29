@@ -279,7 +279,7 @@ async def verify_bearer_token(
                     namespace="get_supertokens_user_by_id",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -293,7 +293,7 @@ async def verify_bearer_token(
                     namespace="get_supertokens_user_by_id",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -349,7 +349,7 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -365,7 +365,7 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -377,7 +377,7 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -398,7 +398,7 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -419,7 +419,7 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=15 * 60,  # seconds
+                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -464,7 +464,7 @@ async def verify_bearer_token(
                 namespace="verify_bearer_token",
                 key=cache_key,
                 value={"deny": True},
-                ttl=15 * 60,  # seconds
+                ttl=5 * 60,  # seconds
             )
 
             raise UnauthorizedException()
@@ -506,7 +506,7 @@ async def verify_bearer_token(
             namespace="verify_bearer_token",
             key=cache_key,
             value={"deny": True},
-            ttl=15 * 60,  # seconds
+            ttl=5 * 60,  # seconds
         )
 
         raise exc
@@ -518,7 +518,7 @@ async def verify_bearer_token(
             namespace="verify_bearer_token",
             key=cache_key,
             value={"deny": True},
-            ttl=15 * 60,  # seconds
+            ttl=5 * 60,  # seconds
         )
 
         raise UnauthorizedException() from exc
@@ -563,7 +563,7 @@ async def verify_apikey_token(
                 namespace="verify_apikey_token",
                 key=cache_key,
                 value={"deny": True},
-                ttl=15 * 60,  # seconds
+                ttl=5 * 60,  # seconds
             )
 
             raise UnauthorizedException()
