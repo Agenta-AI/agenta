@@ -139,7 +139,7 @@ export default function VariantEndpoint() {
     useEffect(() => {
         if (!selectedEnvironment) return
         const variant = (variants || []).find(
-            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_id,
+            (variant) => variant.variantId === selectedEnvironment.deployed_app_variant_revision_id,
         )
         if (!variant) return
 

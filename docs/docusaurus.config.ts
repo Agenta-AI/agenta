@@ -382,4 +382,3 @@ const config: Config = {
 export default async function createConfig() {
   return config;
 }
-

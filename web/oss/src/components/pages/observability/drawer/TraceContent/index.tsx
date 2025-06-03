@@ -21,7 +21,7 @@ interface TraceContentProps {
 }
 
 const TraceContent = ({activeTrace}: TraceContentProps) => {
-    const {key, children, ...filteredTrace} = activeTrace || {}
+    const {key, children, nodes, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)

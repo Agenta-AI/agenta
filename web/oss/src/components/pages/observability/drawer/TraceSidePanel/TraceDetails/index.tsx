@@ -100,22 +100,22 @@ const TraceDetails = ({activeTrace}: {activeTrace: TracesWithAnnotations}) => {
                     value1={
                         <div className={classes.resultTag}>
                             <PlusCircle size={14} />
-                            {formatTokenUsage(activeTrace?.metrics?.acc?.tokens?.total)} /{" "}
-                            {formatCurrency(activeTrace?.metrics?.acc?.costs?.total)}
+                            {formatTokenUsage(activeTrace?.metrics?.unit?.tokens?.total || activeTrace?.metrics?.acc?.tokens?.total)} /{" "}
+                            {formatCurrency(activeTrace?.metrics?.unit?.costs?.total || activeTrace?.metrics?.acc?.costs?.total)}
                         </div>
                     }
                     popoverContent={
                         <Space direction="vertical">
                             <Space className={classes.tokenContainer}>
                                 <div>
-                                    {formatTokenUsage(activeTrace?.metrics?.acc?.tokens?.prompt)}
+                                    {formatTokenUsage(activeTrace?.metrics?.unit?.tokens?.prompt || activeTrace?.metrics?.acc?.tokens?.prompt)}
                                 </div>
                                 <div>Prompt tokens</div>
                             </Space>
                             <Space className={classes.tokenContainer}>
                                 <div>
                                     {formatTokenUsage(
-                                        activeTrace?.metrics?.acc?.tokens?.completion,
+                                        activeTrace?.metrics?.unit?.tokens?.completion || activeTrace?.metrics?.acc?.tokens?.completion
                                     )}
                                 </div>
                                 <div>Completion tokens</div>

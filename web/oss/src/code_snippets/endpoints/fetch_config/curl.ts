@@ -1,9 +1,10 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 export default function cURLCode(appName: string, env_name: string): string {
-    return `curl -L '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/api/variants/configs/fetch' \\
+    return `# Add your API key when using cloud
+curl -L '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/api/variants/configs/fetch' \\
 -H 'Content-Type: application/json' \\
--H "Authorization: ApiKey x.xxxxxxxx" \\ # Add your API key here, when using cloud
+-H "Authorization: ApiKey x.xxxxxxxx" \\
 -d '{
     "environment_ref": {
         "slug": "${env_name}",

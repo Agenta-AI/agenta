@@ -68,7 +68,7 @@ const DeploymentDrawer = ({
         const _variant = (data?.variants || []).find(
             (item) =>
                 (item?.variant?.id || item?.variant?.variantId) ===
-                selectedEnvironment.deployed_app_variant_id,
+                selectedEnvironment.deployed_app_variant_revision_id,
         )
         const {inputParams, isChatVariant} = _variant || {}
 
@@ -84,7 +84,7 @@ const DeploymentDrawer = ({
     }, [
         data?.variants,
         currentApp,
-        selectedEnvironment.deployed_app_variant_id,
+        selectedEnvironment.deployed_app_variant_revision_id,
         selectedEnvironment?.name,
     ])
 
