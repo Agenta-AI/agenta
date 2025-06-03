@@ -1,7 +1,11 @@
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
-import {AnnotationDto, AnnotationsResponse} from "@/oss/lib/hooks/useAnnotations/types"
+import {
+    AnnotationDto,
+    AnnotationEditPayloadDto,
+    AnnotationsResponse,
+} from "@/oss/lib/hooks/useAnnotations/types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -10,18 +14,20 @@ import {AnnotationDto, AnnotationsResponse} from "@/oss/lib/hooks/useAnnotations
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const queryAllAnnotations = async (): Promise<AnnotationsResponse> => {
+export const queryAllAnnotations = async (queries?: {
+    annotation: Record<string, any>
+}): Promise<AnnotationsResponse> => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/preview/annotations/query?project_id=${projectId}`,
-        {},
+        `${getAgentaApiUrl()}/api/preview/annotations/query?project_id=${projectId}`,
+        Object.keys(queries?.annotation || {}).length > 0 ? queries : {},
     )
 
     return response.data
 }
 
-export const createAnnotation = async (annotationPayload: AnnotationDto[]) => {
+export const createAnnotation = async (annotationPayload: AnnotationDto) => {
     const {projectId} = getCurrentProject()
 
     return await axios.post(
@@ -30,12 +36,20 @@ export const createAnnotation = async (annotationPayload: AnnotationDto[]) => {
     )
 }
 
-export const updateAnnotation = async (annotationPayload: AnnotationDto[]) => {
+export const updateAnnotation = async ({
+    payload,
+    traceId,
+    spanId,
+}: {
+    payload: AnnotationEditPayloadDto
+    traceId: string
+    spanId: string
+}) => {
     const {projectId} = getCurrentProject()
 
-    return await axios.put(
-        `${getAgentaApiUrl()}/preview/annotations/?project_id=${projectId}`,
-        annotationPayload,
+    return await axios.patch(
+        `${getAgentaApiUrl()}/api/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
+        payload,
     )
 }
 

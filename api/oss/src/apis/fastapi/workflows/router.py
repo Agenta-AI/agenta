@@ -345,7 +345,7 @@ class WorkflowsRouter:
             artifact_slug=workflow_request.workflow.slug,
             #
             artifact_flags=workflow_request.workflow.flags,
-            artifact_metadata=workflow_request.workflow.metadata,
+            artifact_meta=workflow_request.workflow.meta,
             artifact_name=workflow_request.workflow.name,
             artifact_description=workflow_request.workflow.description,
         )
@@ -414,7 +414,7 @@ class WorkflowsRouter:
             artifact_id=workflow_request.workflow.id,
             #
             artifact_flags=workflow_request.workflow.flags,
-            artifact_metadata=workflow_request.workflow.metadata,
+            artifact_meta=workflow_request.workflow.meta,
             artifact_name=workflow_request.workflow.name,
             artifact_description=workflow_request.workflow.description,
         )
@@ -529,7 +529,7 @@ class WorkflowsRouter:
                 project_id=UUID(request.state.project_id),
                 #
                 artifact_flags=_query.flags,
-                artifact_metadata=_query.metadata,
+                artifact_meta=_query.meta,
                 #
                 include_archived=_query.include_archived,
             )
@@ -569,7 +569,7 @@ class WorkflowsRouter:
             variant_slug=variant_request.variant.slug,
             #
             variant_flags=variant_request.variant.flags,
-            variant_metadata=variant_request.variant.metadata,
+            variant_meta=variant_request.variant.meta,
             variant_name=variant_request.variant.name,
             variant_description=variant_request.variant.description,
         )
@@ -638,7 +638,7 @@ class WorkflowsRouter:
             variant_id=variant_request.variant.id,
             #
             variant_flags=variant_request.variant.flags,
-            variant_metadata=variant_request.variant.metadata,
+            variant_meta=variant_request.variant.meta,
             variant_name=variant_request.variant.name,
             variant_description=variant_request.variant.description,
         )
@@ -754,7 +754,7 @@ class WorkflowsRouter:
                 project_id=UUID(request.state.project_id),
                 #
                 variant_flags=_query.flags,
-                variant_metadata=_query.metadata,
+                variant_meta=_query.meta,
                 #
                 include_archived=_query.include_archived,
             )
@@ -827,12 +827,12 @@ class WorkflowsRouter:
             # depth=depth,
             #
             variant_flags=revision_request.revision.variant.flags,
-            variant_metadata=revision_request.revision.variant.metadata,
+            variant_meta=revision_request.revision.variant.meta,
             variant_name=revision_request.revision.variant.name,
             variant_description=revision_request.revision.variant.description,
             #
             revision_flags=revision_request.revision.flags,
-            revision_metadata=revision_request.revision.metadata,
+            revision_meta=revision_request.revision.meta,
             revision_name=revision_request.revision.name,
             revision_description=revision_request.revision.description,
             revision_message=revision_request.revision.message,
@@ -874,7 +874,7 @@ class WorkflowsRouter:
             revision_slug=revision_request.revision.slug,
             #
             revision_flags=revision_request.revision.flags,
-            revision_metadata=revision_request.revision.metadata,
+            revision_meta=revision_request.revision.meta,
             revision_name=revision_request.revision.name,
             revision_description=revision_request.revision.description,
         )
@@ -945,7 +945,7 @@ class WorkflowsRouter:
             revision_id=revision_request.revision.id,
             #
             revision_flags=revision_request.revision.flags,
-            revision_metadata=revision_request.revision.metadata,
+            revision_meta=revision_request.revision.meta,
             revision_name=revision_request.revision.name,
             revision_description=revision_request.revision.description,
         )
@@ -1060,7 +1060,7 @@ class WorkflowsRouter:
                 project_id=UUID(request.state.project_id),
                 #
                 revision_flags=_query.flags,
-                revision_metadata=_query.metadata,
+                revision_meta=_query.meta,
                 #
                 include_archived=_query.include_archived,
             )
@@ -1104,7 +1104,7 @@ class WorkflowsRouter:
             variant_id=revision_request.revision.variant_id,
             #
             revision_flags=revision_request.revision.flags,
-            revision_metadata=revision_request.revision.metadata,
+            revision_meta=revision_request.revision.meta,
             revision_name=revision_request.revision.name,
             revision_description=revision_request.revision.description,
             revision_message=revision_request.revision.message,

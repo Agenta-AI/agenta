@@ -1,14 +1,16 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
 import {Database} from "@phosphor-icons/react"
-import {Button, Divider, Space, Tabs, TabsProps, Typography} from "antd"
+import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography} from "antd"
 import dynamic from "next/dynamic"
 
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {KeyValuePair} from "@/oss/lib/Types"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
 import {TracesWithAnnotations} from "../../ObservabilityDashboard"
+import AnnotateDrawerButton from "../AnnotateDrawer/assets/AnnotateDrawerButton"
 
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
@@ -26,39 +28,51 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
     const [tab, setTab] = useState("overview")
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
 
-    const items: TabsProps["items"] = [
-        {
-            key: "overview",
-            label: "Overview",
-            children: <OverviewTabItem activeTrace={activeTrace} />,
-        },
-        {
-            key: "raw_data",
-            label: "Raw Data",
-            children: (
-                <AccordionTreePanel
-                    label={"Raw Data"}
-                    value={{...filteredTrace}}
-                    enableFormatSwitcher
-                    fullEditorHeight
-                />
-            ),
-        },
-        {
-            key: "annotations",
-            label: "Annotations",
-            children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
-        },
-    ]
+    const items: TabsProps["items"] = useMemo(
+        () => [
+            {
+                key: "overview",
+                label: "Overview",
+                children: <OverviewTabItem activeTrace={activeTrace} />,
+            },
+            {
+                key: "raw_data",
+                label: "Raw Data",
+                children: (
+                    <AccordionTreePanel
+                        label={"Raw Data"}
+                        value={{...filteredTrace}}
+                        enableFormatSwitcher
+                        fullEditorHeight
+                    />
+                ),
+            },
+            {
+                key: "annotations",
+                label: "Annotations",
+                children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
+            },
+        ],
+        [activeTrace],
+    )
 
     return (
         <div className={classes.container}>
             <div className="flex-1 flex flex-col overflow-auto">
                 <div>
-                    <div className="p-4 flex items-center justify-between">
-                        <Typography.Text className={classes.title}>
-                            {activeTrace?.node?.name}
-                        </Typography.Text>
+                    <div className="p-4 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <Typography.Text className={classes.title}>
+                                {activeTrace?.node?.name}
+                            </Typography.Text>
+                            <TooltipWithCopyAction
+                                copyText={activeTrace.span_id}
+                                title="Copy span id"
+                                tooltipProps={{placement: "bottom", arrow: true}}
+                            >
+                                <Tag className="font-normal truncate"># {activeTrace.span_id}</Tag>
+                            </TooltipWithCopyAction>
+                        </div>
 
                         <Space>
                             <Button
@@ -69,6 +83,15 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                                 <Database size={14} />
                                 Add to testset
                             </Button>
+
+                            <AnnotateDrawerButton
+                                label="Annotate"
+                                data={activeTrace?.annotations || []}
+                                traceSpanIds={{
+                                    traceId: activeTrace?.trace_id,
+                                    spanId: activeTrace?.span_id,
+                                }}
+                            />
                         </Space>
                     </div>
                     <Divider className="m-0" />

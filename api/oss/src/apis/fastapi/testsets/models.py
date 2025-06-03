@@ -6,7 +6,7 @@ from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
     Lifecycle,
-    Metadata,
+    Meta,
     Header,
     Data as Testcase,
 )
@@ -14,15 +14,15 @@ from oss.src.core.shared.dtos import (
 
 class Testset(Identifier, Slug, Lifecycle, Header):
     testcases: Optional[List[Testcase]] = None
-    metadata: Optional[Metadata] = None
+    meta: Optional[Meta] = None
 
 
 class TestsetRequest(BaseModel):
     testset: Testset
 
 
-class TagsRequest(BaseModel):
-    metadata: Metadata
+class MetaRequest(BaseModel):
+    meta: Meta
 
 
 class TestsetResponse(BaseModel):

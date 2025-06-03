@@ -5,11 +5,14 @@ import {Button} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
+import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
 import {
     buildNodeTree,
     getNodeById,
     observabilityTransformer,
 } from "@/oss/lib/helpers/observability_helpers"
+import useAnnotations from "@/oss/lib/hooks/useAnnotations"
+import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {_AgentaRootsResponse, AgentaNodeDTO} from "@/oss/services/observability/types"
 
 import {TraceDrawerButtonProps} from "./types"
@@ -31,14 +34,19 @@ const TraceDrawerButton = ({
     const [selected, setSelected] = useState("")
     const [isTraceDrawerOpen, setIsTraceDrawerOpen] = useState(false)
     const traceSpans = result?.response?.tree
+    const {data: annotations} = useAnnotations()
+
+    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
 
     const traces = useMemo(() => {
-        if (traceSpans && traceSpans) {
-            return traceSpans.nodes
+        if (traceSpans) {
+            const rawTraces = traceSpans.nodes
                 .flatMap((node) => buildNodeTree(node as AgentaNodeDTO))
                 .flatMap((item: any) => observabilityTransformer(item))
+            return attachAnnotationsToTraces(rawTraces, annotations || [])
         }
-    }, [traceSpans])
+        return []
+    }, [traceSpans, annotations])
 
     const activeTrace = useMemo(
         () =>
@@ -64,6 +72,7 @@ const TraceDrawerButton = ({
         () => (traces?.length ? getNodeById(traces, selected) : null),
         [selected, traces],
     )
+
     return (
         <>
             {isValidElement(children) ? (
@@ -98,10 +107,12 @@ const TraceDrawerButton = ({
                     headerExtra={
                         !!activeTrace && !!traces ? (
                             <TraceHeader
-                                activeTrace={activeTrace as _AgentaRootsResponse}
+                                activeTrace={activeTrace}
                                 traces={(traces as _AgentaRootsResponse[]) || []}
                                 setSelectedTraceId={() => setIsTraceDrawerOpen(false)}
                                 activeTraceIndex={0}
+                                setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
+                                isAnnotationsSectionOpen={isAnnotationsSectionOpen}
                             />
                         ) : null
                     }
@@ -121,6 +132,12 @@ const TraceDrawerButton = ({
                             />
                         ) : null
                     }
+                    extraContent={
+                        isAnnotationsSectionOpen &&
+                        selectedItem && <TraceSidePanel activeTrace={selectedItem} />
+                    }
+                    externalKey={`extraContent-${isAnnotationsSectionOpen}`}
+                    className="[&_.ant-drawer-body]:p-0"
                 />
             )}
         </>

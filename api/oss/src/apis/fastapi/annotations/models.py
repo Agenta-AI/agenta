@@ -4,7 +4,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from oss.src.core.shared.dtos import Reference, Lifecycle, Data, Metadata
+from oss.src.core.shared.dtos import Reference, Lifecycle, Data, Meta
 from oss.src.core.tracing.dtos import Link
 
 
@@ -19,7 +19,7 @@ class AnnotationLink(Link):
 AnnotationLinks = Dict[str, AnnotationLink]
 AnnotationLifecycle = Lifecycle
 AnnotationData = Data
-AnnotationMetadata = Metadata
+AnnotationMeta = Meta
 
 
 class AnnotationKind(str, Enum):
@@ -45,7 +45,7 @@ class Annotation(AnnotationLink, AnnotationLifecycle):
     kind: AnnotationKind = AnnotationKind.CUSTOM
     source: AnnotationSource = AnnotationSource.API
     data: AnnotationData
-    metadata: Optional[AnnotationMetadata] = None
+    meta: Optional[AnnotationMeta] = None
     references: AnnotationReferences
     links: AnnotationLinks
 
@@ -54,9 +54,14 @@ class AnnotationCreate(BaseModel):
     kind: AnnotationKind = AnnotationKind.CUSTOM
     source: AnnotationSource = AnnotationSource.API
     data: AnnotationData
-    metadata: Optional[AnnotationMetadata] = None
+    meta: Optional[AnnotationMeta] = None
     references: AnnotationReferences
     links: AnnotationLinks
+
+
+class AnnotationEdit(BaseModel):
+    data: AnnotationData
+    meta: Optional[AnnotationMeta] = None
 
 
 class AnnotationQuery(BaseModel):
@@ -64,13 +69,17 @@ class AnnotationQuery(BaseModel):
     span_id: Optional[str] = None
     kind: Optional[AnnotationKind] = AnnotationKind.CUSTOM
     source: Optional[AnnotationSource] = AnnotationSource.API
-    metadata: Optional[AnnotationMetadata] = None
+    meta: Optional[AnnotationMeta] = None
     references: Optional[AnnotationReferences] = None
     links: Optional[AnnotationLinks] = None
 
 
 class AnnotationCreateRequest(BaseModel):
     annotation: AnnotationCreate
+
+
+class AnnotationEditRequest(BaseModel):
+    annotation: AnnotationEdit
 
 
 class AnnotationQueryRequest(BaseModel):

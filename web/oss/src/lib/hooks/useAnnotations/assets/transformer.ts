@@ -1,20 +1,33 @@
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {WorkspaceMember} from "@/oss/lib/Types"
 
-import {AnnotationDto} from "../types"
+import {EvaluatorDto} from "../../useEvaluators/types"
+import {AnnotationResponseDto} from "../types"
 
 import {groupOutputValues} from "./helpers"
 
-export const annotationsTransformer = (annotations: AnnotationDto, members: WorkspaceMember[]) => {
+// This is being used in both useAnnotations and useEvaluators
+export const transformApiData = <T extends AnnotationResponseDto | EvaluatorDto>({
+    data,
+    members,
+}: {
+    data: T
+    members: WorkspaceMember[]
+}): T => {
     return {
-        ...annotations,
-        data: {
-            ...annotations.data,
-            outputs: groupOutputValues(annotations.data?.outputs || {}),
-        },
-        created_at: formatDay({date: annotations.created_at}),
-        created_by_id:
-            members.find((member) => member.user.id === annotations.created_by_id)?.user.username ||
-            annotations.created_by_id,
+        ...data,
+        ...(data.data && "outputs" in data.data
+            ? {
+                  data: {
+                      ...data.data,
+                      outputs: groupOutputValues(data.data?.outputs || {}),
+                  },
+              }
+            : {}),
+        createdAt: formatDay({date: data.created_at}),
+        createdBy:
+            members.find((member) => member.user.id === data.created_by_id)?.user.username ||
+            data.created_by_id,
+        createdById: data.created_by_id,
     }
 }

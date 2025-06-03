@@ -6,7 +6,7 @@ from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
     Lifecycle,
-    Metadata,
+    Meta,
     Header,
 )
 
@@ -16,9 +16,15 @@ from oss.src.core.workflows.dtos import (
 )
 
 
+class EvaluatorFlags(WorkflowFlags):
+    def __init__(self, **data):
+        data["is_evaluator"] = True
+        super().__init__(**data)
+
+
 class Evaluator(Identifier, Slug, Lifecycle, Header):
-    flags: Optional[WorkflowFlags] = None
-    metadata: Optional[Metadata] = None
+    flags: Optional[EvaluatorFlags] = None
+    meta: Optional[Meta] = None
     data: Optional[WorkflowData] = None
 
 
@@ -26,9 +32,13 @@ class EvaluatorRequest(BaseModel):
     evaluator: Evaluator
 
 
+class EvaluatorQuery(BaseModel):
+    flags: Optional[EvaluatorFlags] = None
+    meta: Optional[Meta] = None
+
+
 class EvaluatorQueryRequest(BaseModel):
-    flags: Optional[WorkflowFlags] = None
-    metadata: Metadata
+    evaluator: EvaluatorQuery
 
 
 class EvaluatorResponse(BaseModel):

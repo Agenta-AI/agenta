@@ -91,6 +91,9 @@ export type RenderFunctions = {
         placeholder?: string
         disabled?: boolean
         baseProperty?: EnhancedObjectConfig<any>
+        allowClear?: boolean
+        disableClear?: boolean
+        mode?: "multiple" | "tags"
     }) => React.ReactElement | null
 }
 

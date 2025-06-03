@@ -1,3 +1,5 @@
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+
 export interface _AgentaRootsResponse extends AgentaNodeDTO {
     children: _AgentaRootsResponse[]
     key: string
@@ -6,6 +8,8 @@ export interface _AgentaRootsResponse extends AgentaNodeDTO {
         trace_id: string
         span_id: string
     }
+    trace_id: string
+    span_id: string
 }
 
 export interface AgentaRootsResponse {
@@ -133,4 +137,9 @@ interface NodeTimeDTO {
 export interface NodeStatusDTO {
     code: NodeStatusCode
     message?: string | null
+}
+
+export type TracesWithAnnotations = _AgentaRootsResponse & {
+    annotations: AnnotationDto[] | undefined
+    aggregatedEvaluatorMetrics: Record<string, any>
 }

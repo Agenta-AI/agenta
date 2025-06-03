@@ -71,12 +71,13 @@ export const createParams = (
         }
     })
     if (isChatVariant) {
-        mainParams["inputs"] = [
+        mainParams["messages"] = [
             {
                 role: "user",
                 content: "Example message",
             },
         ]
+        mainParams["inputs"] = secondaryParams
     } else if (Object.keys(secondaryParams).length > 0) {
         mainParams["inputs"] = secondaryParams
     }

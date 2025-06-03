@@ -29,7 +29,7 @@ Json = Dict[str, FullJson]
 
 Data = Dict[str, FullJson]
 
-Metadata = Dict[str, FullJson]
+Meta = Dict[str, FullJson]
 
 Tags = Dict[str, StringJson]
 

@@ -3,7 +3,7 @@ from uuid import UUID
 
 
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Metadata
+from oss.src.core.shared.dtos import Reference, Meta
 from oss.src.core.workflows.dtos import (
     WorkflowData,
     WorkflowFlags,
@@ -32,7 +32,7 @@ class WorkflowsService:
         artifact_slug: str,
         #
         artifact_flags: Optional[WorkflowFlags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[WorkflowArtifact]:
@@ -43,7 +43,7 @@ class WorkflowsService:
             artifact_slug=artifact_slug,
             #
             artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_metadata=artifact_metadata,
+            artifact_meta=artifact_meta,
             artifact_name=artifact_name or artifact_slug,
             artifact_description=artifact_description,
         )
@@ -84,7 +84,7 @@ class WorkflowsService:
         artifact_id: UUID,
         #
         artifact_flags: Optional[WorkflowFlags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[WorkflowArtifact]:
@@ -95,7 +95,7 @@ class WorkflowsService:
             artifact_id=artifact_id,
             #
             artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_metadata=artifact_metadata,
+            artifact_meta=artifact_meta,
             artifact_name=artifact_name,
             artifact_description=artifact_description,
         )
@@ -157,15 +157,17 @@ class WorkflowsService:
         project_id: UUID,
         #
         artifact_flags: Optional[WorkflowFlags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[WorkflowArtifact]:
         artifacts = await self.workflows_dao.query_artifacts(
             project_id=project_id,
             #
-            artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_metadata=artifact_metadata,
+            artifact_flags=(
+                artifact_flags.model_dump(exclude_none=True) if artifact_flags else None
+            ),
+            artifact_meta=artifact_meta,
             #
             include_archived=include_archived,
         )
@@ -191,7 +193,7 @@ class WorkflowsService:
         variant_slug: str,
         #
         variant_flags: Optional[WorkflowFlags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[WorkflowVariant]:
@@ -204,7 +206,7 @@ class WorkflowsService:
             variant_slug=variant_slug,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name or variant_slug,
             variant_description=variant_description,
         )
@@ -247,7 +249,7 @@ class WorkflowsService:
         variant_id: UUID,
         #
         variant_flags: Optional[WorkflowFlags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[WorkflowVariant]:
@@ -258,7 +260,7 @@ class WorkflowsService:
             variant_id=variant_id,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name,
             variant_description=variant_description,
         )
@@ -320,7 +322,7 @@ class WorkflowsService:
         project_id: UUID,
         #
         variant_flags: Optional[WorkflowFlags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[WorkflowVariant]:
@@ -328,7 +330,7 @@ class WorkflowsService:
             project_id=project_id,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             #
             include_archived=include_archived,
         )
@@ -353,12 +355,12 @@ class WorkflowsService:
         depth: Optional[int] = None,
         #
         variant_flags: Optional[WorkflowFlags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
         #
         revision_flags: Optional[WorkflowFlags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -375,12 +377,12 @@ class WorkflowsService:
             depth=depth,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name or variant_slug,
             variant_description=variant_description,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name or revision_slug,
             revision_description=revision_description,
             revision_message=revision_message,
@@ -409,7 +411,7 @@ class WorkflowsService:
         revision_slug: str,
         #
         revision_flags: Optional[WorkflowFlags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[WorkflowRevision]:
@@ -423,7 +425,7 @@ class WorkflowsService:
             revision_slug=revision_slug,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name or revision_slug,
             revision_description=revision_description,
         )
@@ -466,7 +468,7 @@ class WorkflowsService:
         revision_id: UUID,
         #
         revision_flags: Optional[WorkflowFlags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[WorkflowRevision]:
@@ -477,7 +479,7 @@ class WorkflowsService:
             revision_id=revision_id,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name,
             revision_description=revision_description,
         )
@@ -539,7 +541,7 @@ class WorkflowsService:
         project_id: UUID,
         #
         revision_flags: Optional[WorkflowFlags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[WorkflowRevision]:
@@ -548,7 +550,7 @@ class WorkflowsService:
             #
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             #
             include_archived=include_archived,
         )
@@ -573,7 +575,7 @@ class WorkflowsService:
         revision_slug: str,
         #
         revision_flags: Optional[WorkflowFlags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -598,7 +600,7 @@ class WorkflowsService:
             revision_slug=revision_slug,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name or revision_slug,
             revision_description=revision_description,
             revision_message=revision_message,

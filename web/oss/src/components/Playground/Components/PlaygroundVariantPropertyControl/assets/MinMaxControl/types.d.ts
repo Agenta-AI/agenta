@@ -8,4 +8,8 @@ export interface MinMaxControlProps {
     withTooltip?: boolean
     description?: string
     disabled?: boolean
+    placeholder?: string
+    allowClear?: boolean
+    disableClear?: boolean
+    className?: string
 }

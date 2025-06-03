@@ -1,4 +1,4 @@
-import {Input, Tooltip, Typography} from "antd"
+import {Tooltip, Typography} from "antd"
 import dynamic from "next/dynamic"
 
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
@@ -8,12 +8,14 @@ import PlaygroundTool from "../../PlaygroundTool"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
 import BooleanControl from "./BooleanControl"
+import GroupTab from "./GroupTab"
 import MinMaxControl from "./MinMaxControl"
 import MultiSelectControl from "./MultiSelectControl"
 import PlaygroundOutputControl from "./PlaygroundOutputControl"
 import PlaygroundVariantPropertyControlWrapper from "./PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContent from "./PromptMessageContent"
 import SimpleDropdownSelect from "./SimpleDropdownSelect"
+import SimpleInput from "./SimpleInput"
 import TextControl from "./TextControl"
 
 const SelectLLMProvider = dynamic(() => import("@/oss/components/SelectLLMProvider"), {ssr: false})
@@ -33,7 +35,17 @@ const updateArrayItem = (
 }
 
 export const renderMap: RenderFunctions = {
-    number: ({disabled, withTooltip, metadata, value, handleChange}) => {
+    number: ({
+        disabled,
+        withTooltip,
+        metadata,
+        value,
+        handleChange,
+        placeholder,
+        allowClear,
+        disableClear,
+        className,
+    }) => {
         return (
             <MinMaxControl
                 label={metadata.title || ""}
@@ -45,17 +57,45 @@ export const renderMap: RenderFunctions = {
                 withTooltip={withTooltip}
                 description={metadata.description}
                 disabled={disabled}
+                placeholder={placeholder}
+                allowClear={allowClear}
+                disableClear={disableClear}
+                className={className}
             />
         )
     },
 
-    boolean: ({withTooltip, metadata, value, handleChange}) => {
+    boolean: ({
+        withTooltip,
+        metadata,
+        value,
+        handleChange,
+        disabled,
+        as,
+        allowClear,
+        disableClear,
+    }) => {
+        if (as === "GroupTab") {
+            return (
+                <GroupTab
+                    label={metadata.title || ""}
+                    value={value}
+                    onChange={handleChange}
+                    disabled={disabled}
+                    options={metadata.options}
+                    allowClear={allowClear}
+                    disableClear={disableClear}
+                />
+            )
+        }
+
         return (
             <BooleanControl
                 description={metadata.description}
                 label={metadata.title || ""}
                 value={value}
                 onChange={handleChange}
+                disabled={disabled}
             />
         )
     },
@@ -69,7 +109,10 @@ export const renderMap: RenderFunctions = {
         handleChange,
         as,
         className,
+        allowClear,
         view,
+        mode,
+        disableClear,
         ...rest
     }) => {
         if (metadata.options) {
@@ -84,6 +127,18 @@ export const renderMap: RenderFunctions = {
                         description={metadata.description}
                         withTooltip={withTooltip}
                         disabled={disabled}
+                    />
+                )
+            }
+
+            if (as === "GroupTab") {
+                return (
+                    <GroupTab
+                        label={metadata.title || ""}
+                        value={value}
+                        onChange={handleChange}
+                        disabled={disabled}
+                        options={metadata.options}
                     />
                 )
             }
@@ -112,6 +167,9 @@ export const renderMap: RenderFunctions = {
                     description={metadata.description}
                     withTooltip={withTooltip}
                     disabled={disabled}
+                    mode={mode}
+                    allowClear={allowClear}
+                    disableClear={disableClear}
                 />
             )
         }
@@ -129,28 +187,22 @@ export const renderMap: RenderFunctions = {
                     disabled={disabled}
                 />
             )
-        } else if (as === "SimpleInput") {
-            const change = (value: string) => {
-                handleChange(value)
-            }
+        } else if (as?.includes("SimpleInput")) {
             const {propertyId, variantId, baseProperty, editorProps, ...props} = rest
+
             return (
-                <Input
+                <SimpleInput
                     {...props}
                     value={value}
-                    onChange={change}
+                    onChange={handleChange}
                     className={className}
                     view={view}
                     description={metadata.description}
+                    label={metadata.title || ""}
                     placeholder={placeholder}
-                    tooltip={withTooltip ? metadata.description : undefined}
                     disabled={disabled}
-                    {...(editorProps || {})}
-                    {...(disabled
-                        ? {
-                              state: "disabled",
-                          }
-                        : {})}
+                    as={as}
+                    editorProps={editorProps}
                 />
             )
         }
@@ -277,7 +329,7 @@ export const renderMap: RenderFunctions = {
                 </div>
 
                 <div className="">
-                    {Object.entries(objectProperties).map(([key, value]) => {
+                    {Object.entries(objectProperties || {}).map(([key, value]) => {
                         const metadataType = value.type
                         const fnc = renderMap[metadataType as keyof typeof renderMap] as
                             | ((props: any) => React.ReactElement)
